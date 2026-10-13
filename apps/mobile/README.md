@@ -1,5 +1,12 @@
-# apps/mobile
+# @daynori/mobile
 
-Expo/React Native mobile application and native platform adapters; Android first.
+Expo and React Native mobile application for Daynori (Android-first).
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Provides:
+- Expo SDK 52 mobile application shell with strict TypeScript
+- Accessible React Native UI styled with semantic design tokens
+- Scripts: `pnpm start`, `pnpm android`, `pnpm typecheck`, `pnpm build`
+
+See [system overview](../../docs/architecture/system-overview.md) and [repository layout](../../docs/engineering/repository-layout.md).

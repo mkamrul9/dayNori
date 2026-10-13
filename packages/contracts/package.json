@@ -1,0 +1,18 @@
+{
+  "name": "@daynori/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versioned validation schemas and API DTO contracts for Daynori",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@daynori/config": "workspace:*"
+  }
+}

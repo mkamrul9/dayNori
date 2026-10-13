@@ -1,5 +1,12 @@
-# packages/api-client
+# @daynori/api-client
 
-Typed transport with injected session, retry and cancellation adapters.
+Typed HTTP client for Daynori, consuming schemas from `@daynori/contracts`.
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Provides:
+- `DaynoriApiClient`: Typed client wrapper accepting custom base URL and fetch implementation
+- Methods: `.getHealth()`, `.getSmoke()`
+- Response validation with structured contract error handling
+
+See [API conventions](../../docs/architecture/api-conventions.md).

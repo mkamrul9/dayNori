@@ -1,0 +1,22 @@
+{
+  "name": "@daynori/ui-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Accessible React Native primitives for Daynori mobile, consuming design tokens",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@daynori/design-tokens": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "@daynori/config": "workspace:*"
+  }
+}

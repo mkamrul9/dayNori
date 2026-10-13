@@ -1,5 +1,12 @@
-# apps/api
+# @daynori/api
 
-Fastify modular monolith with authenticated routes, application services and database access.
+Fastify HTTP API service for Daynori.
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Provides minimal runnable service:
+- `GET /health`: Liveness and version endpoint conforming to `@daynori/contracts`
+- `GET /api/v1/smoke`: Phase 01 smoke validation endpoint
+- Scripts: `pnpm build`, `pnpm typecheck`, `pnpm dev`, `pnpm start`
+
+See [system overview](../../docs/architecture/system-overview.md) and [API conventions](../../docs/architecture/api-conventions.md).

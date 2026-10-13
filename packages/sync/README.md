@@ -1,5 +1,13 @@
-# packages/sync
+# @daynori/sync
 
-Platform-independent synchronization state machine and local store ports.
+Offline synchronization protocol engine, mutation queues, change feeds, and storage/transport ports.
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Defines:
+- `ClientMutation`: Local mutation envelope with idempotency ID and base revision
+- `MutationReceipt`: Server response acknowledging applied revision or conflict
+- `SyncStoragePort`: Port interface for SQLite (mobile) and IndexedDB (web) adapters
+- `SyncTransportPort`: Port interface for batch mutation pushing and cursor polling
+
+See [synchronization and offline architecture](../../docs/architecture/sync-and-offline.md).

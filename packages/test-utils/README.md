@@ -1,5 +1,11 @@
-# packages/test-utils
+# @daynori/test-utils
 
-Synthetic fixtures, fake clocks and test helpers excluded from production bundles.
+Deterministic test clocks, synthetic data fixtures, and testing helpers for Daynori test suites.
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Provides:
+- `DeterministicClock`: Controllable clock without reliance on non-deterministic system time
+- Synthetic workspace and user fixtures for isolated multi-tenant tests
+
+See [quality and verification strategy](../../docs/engineering/quality.md).

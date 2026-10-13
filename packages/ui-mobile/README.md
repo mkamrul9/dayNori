@@ -1,5 +1,11 @@
-# packages/ui-mobile
+# @daynori/ui-mobile
 
-Accessible native UI primitives with real platform semantics.
+Accessible React Native UI primitives for Daynori, consuming design tokens from `@daynori/design-tokens`.
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Provides:
+- `lightMobileTheme` and `darkMobileTheme` semantic theme definitions
+- Native layout tokens (comfortable padding, base spacing, and radii)
+
+See [design system documentation](../../docs/design/design-system.md).

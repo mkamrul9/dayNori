@@ -1,0 +1,46 @@
+{
+  "name": "daynori-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Daynori: a customizable home for notes, routines, tasks, journals, and everyday life",
+  "packageManager": "pnpm@9.15.5",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run",
+    "test:contract": "vitest run tests/contract",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e:web": "echo \"e2e:web runner reserved for later phases\"",
+    "test:e2e:android": "echo \"e2e:android runner reserved for later phases\"",
+    "test:security": "vitest run tests/security",
+    "test:performance": "vitest run tests/performance",
+    "dev:web": "pnpm --filter @daynori/web dev",
+    "dev:api": "pnpm --filter @daynori/api dev",
+    "dev:mobile": "pnpm --filter @daynori/mobile dev",
+    "dev:worker": "pnpm --filter @daynori/worker dev",
+    "validate:planning": "node scripts/validate-planning.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^22.13.4",
+    "eslint": "^9.20.1",
+    "prettier": "^3.5.1",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.0",
+    "vitest": "^3.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "18.3.1",
+      "react-dom": "18.3.1",
+      "@types/react": "~18.3.12",
+      "@types/react-dom": "~18.3.5"
+    }
+  }
+}

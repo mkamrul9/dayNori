@@ -1,0 +1,18 @@
+{
+  "name": "@daynori/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed HTTP API client for Daynori web and mobile clients",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@daynori/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@daynori/config": "workspace:*"
+  }
+}

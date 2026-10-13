@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-13",
   "activePhase": null,
-  "nextPhase": "01",
-  "note": "Phase 00 planning baseline complete. No application implemented; Phase 01 is next.",
+  "nextPhase": "02",
+  "note": "Phase 01 complete: toolchain, workspace manifests, and runnable foundation established. Phase 02 is next.",
   "phases": [
     {
       "id": "00",
@@ -12,7 +12,8 @@
     },
     {
       "id": "01",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-01.md"
     },
     {
       "id": "02",

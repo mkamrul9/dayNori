@@ -1,5 +1,11 @@
-# packages/ui-web
+# @daynori/ui-web
 
-Accessible browser UI primitives, independent from feature workflows.
+Accessible web UI primitives consuming semantic design tokens from `@daynori/design-tokens`.
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Provides:
+- `Button`: Accessible interactive button with semantic light/dark token styling
+- `Card`: Surface container using design tokens and modest rounded radii
+
+See [design system documentation](../../docs/design/design-system.md) and [accessibility](../../docs/design/accessibility.md).

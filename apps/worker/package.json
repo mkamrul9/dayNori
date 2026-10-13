@@ -1,0 +1,22 @@
+{
+  "name": "@daynori/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Durable background job processor and reminder scheduler for Daynori",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "dev": "node --watch src/index.ts"
+  },
+  "dependencies": {
+    "@daynori/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@daynori/config": "workspace:*",
+    "@types/node": "^22.13.4"
+  }
+}

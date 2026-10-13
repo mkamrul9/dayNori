@@ -1,5 +1,11 @@
-# packages/config
+# @daynori/config
 
-Shared strict type, lint, formatting and test configuration.
+Shared TypeScript compiler configurations and linting standards for the Daynori monorepo.
 
-Status: reserved by Phase 00. No runnable implementation or tests exist in this directory yet. See [repository ownership](../../docs/engineering/repository-layout.md) and the selected phase before adding files. Phase 01 establishes executable workspace manifests where appropriate.
+## Status
+
+Established in Phase 01. Provides shared configurations:
+- `tsconfig.base.json`: Common strict TypeScript rules
+- `tsconfig.node.json`: Node.js services and worker targets
+- `tsconfig.react.json`: Web application and React components
+- `tsconfig.mobile.json`: Mobile Expo and React Native targets
