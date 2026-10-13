@@ -14,7 +14,7 @@ The initial target is a responsive web application and an Android application. i
 
 1. Read the [documentation index](docs/README.md) and [product requirements](docs/product/requirements.md).
 2. Review the [system architecture](docs/architecture/system-overview.md) and [design direction](docs/design/design-system.md).
-3. Use the [roadmap](docs/roadmap/README.md) and the individual phase instructions. The next phase is **02: Continuous checks and contributor automation**.
+3. Use the [roadmap](docs/roadmap/README.md) and the individual phase instructions. The next phase is **04: Design tokens and accessible primitives**.
 4. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). A handoff recipe is in [the contributor handoff](docs/engineering/handoff.md).
 
 Open [the interactive blueprint](docs/blueprint.html) in a browser to explore the architecture and phase groups. It is a self-contained planning aid, not an application prototype.
