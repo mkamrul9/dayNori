@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Daynori Documentation
+    url: https://github.com/
+    about: Please refer to docs/roadmap/README.md and docs/architecture for project specifications.

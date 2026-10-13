@@ -38,7 +38,7 @@ Stop after the selected phase. Summarize delivered behavior, verified evidence, 
 
 ## Verification and recovery
 
-Phase 01 established the executable commands: `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format:check`, and `node scripts/validate-planning.mjs`. Read the actual root/package scripts rather than guessing commands.
+Phase 01 and 02 established the executable commands: `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format:check`, `pnpm audit:secrets`, `pnpm audit:deps`, and `node scripts/validate-planning.mjs`. Read the actual root/package scripts rather than guessing commands.
 
 If a check fails or a dependency is absent, keep the phase `in_progress` or `blocked` according to the roadmap schema. Include a reproducible defect, impact, safe next step, and what evidence would unblock it. Never discard changes, erase pending data, reset history, or force-push as an automatic recovery action. If work is interrupted, leave a partial report listing completed files, failing commands, remaining acceptance conditions, and the exact next action.
 

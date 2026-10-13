@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "lastAudited": "2026-10-13",
+  "allowedSecretPatterns": [],
+  "dependencyVulnerabilityExceptions": [
+    {
+      "module": "next",
+      "severity": "high/critical",
+      "reason": "Next.js 14.2.15 has upstream advisories for Server Actions, RSC DoS, and Image Optimization. In the current Phase 01/02 workspace, apps/web runs only static smoke routes without Server Actions or production public serving. Tracked for framework upgrade in later phases.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    },
+    {
+      "module": "tar",
+      "severity": "high/critical",
+      "reason": "node-tar traversal and memory consumption advisories in build-time CLI tooling dependencies (Expo CLI / React Native CLI). Used exclusively during local bundle compilation, not exposed in production web/backend runtime.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    },
+    {
+      "module": "@xmldom/xmldom",
+      "severity": "high",
+      "reason": "xmldom injection/ReDoS advisories in build-time XML parsing used by Expo CLI config plugins during Android manifest prebuild. Not bundled into client or server runtimes.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    },
+    {
+      "module": "postcss",
+      "severity": "high",
+      "reason": "PostCSS source map disclosure advisories in build-time bundler tooling used during Next.js build. Not executed in production server environment.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    },
+    {
+      "module": "image-size",
+      "severity": "high",
+      "reason": "image-size infinite loop advisories in Expo CLI local asset parsing. Operates only on trusted project assets during build time.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    },
+    {
+      "module": "node-forge",
+      "severity": "high",
+      "reason": "node-forge RSA signature parsing advisory in Metro/Expo local development server certificate generation. Never used in production auth or cryptography.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    },
+    {
+      "module": "braces",
+      "severity": "high",
+      "reason": "braces ReDoS advisory in build-time glob tooling. Local development and build environments only.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    },
+    {
+      "module": "tinypool",
+      "severity": "critical",
+      "reason": "tinypool prototype pollution in Vitest threadpool runner. Vitest runs only in trusted local/CI developer test executions.",
+      "approvedDate": "2026-10-13",
+      "approvedBy": "security-baseline"
+    }
+  ]
+}

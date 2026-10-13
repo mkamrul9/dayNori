@@ -32,7 +32,7 @@ The exact subject for each phase is a suggested template; use the final implemen
 
 ## GitHub later
 
-Phase 00 can be committed locally. When the owner provides a URL, inspect existing remotes and the destination history, add or update the agreed remote, and push the existing commits without squashing phase history. Do not blindly force-push. CI/branch protection and PR checks are configured in Phase 02 after the destination is known. GitHub Actions workflows may be prepared before a remote exists, but hosted execution then remains unverified.
+Phase 00 and 01 were committed locally. Continuous integration workflows (`.github/workflows/ci.yml`, `.github/workflows/security.yml`), issue templates, PR templates, and branch protection specifications were established in Phase 02 (see [Contributor Automation](docs/engineering/contributor-automation.md)). When the owner provides a remote URL, inspect existing remotes and destination history, add or update the agreed remote, and push commits without squashing phase history. Do not blindly force-push. Hosted CI execution remains unverified until the GitHub remote is connected.
 
 ## Code and documentation
 
@@ -43,4 +43,4 @@ Phase 00 can be committed locally. When the owner provides a URL, inspect existi
 - Changes to persistence have migrations, rollout/rollback or forward-fix instructions, and upgrade fixtures.
 - Documentation uses relative local links, states what is proposed versus delivered, and cites primary sources for external policy claims.
 
-Root package scripts are real and executable: `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format:check`, and `node scripts/validate-planning.mjs`.
+Root package scripts are real and executable: `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format:check`, `pnpm audit:secrets`, `pnpm audit:deps`, and `node scripts/validate-planning.mjs`.

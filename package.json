@@ -26,7 +26,10 @@
     "dev:api": "pnpm --filter @daynori/api dev",
     "dev:mobile": "pnpm --filter @daynori/mobile dev",
     "dev:worker": "pnpm --filter @daynori/worker dev",
-    "validate:planning": "node scripts/validate-planning.mjs"
+    "validate:planning": "node scripts/validate-planning.mjs",
+    "audit": "pnpm audit:secrets && pnpm audit:deps",
+    "audit:deps": "node scripts/audit-dependencies.mjs",
+    "audit:secrets": "node scripts/scan-secrets.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",

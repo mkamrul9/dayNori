@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Contributor Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.5'
+
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies (clean lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate planning metadata
+        run: pnpm validate:planning
+
+      - name: Verify code formatting
+        run: pnpm format:check
+
+      - name: Run linter
+        run: pnpm lint
+
+      - name: Run strict typechecking
+        run: pnpm typecheck
+
+      - name: Run unit and domain tests
+        run: pnpm test:unit
+
+      - name: Run contract schema tests
+        run: pnpm test:contract
+
+      - name: Run integration tests
+        run: pnpm test:integration
+
+      - name: Run security boundary tests
+        run: pnpm test:security
+
+      - name: Run performance benchmarks
+        run: pnpm test:performance
+
+      - name: Build all packages and applications
+        run: pnpm build

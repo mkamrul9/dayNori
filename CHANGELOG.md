@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 02 — 2026-10-13
+
+- Added GitHub Actions continuous integration workflows (`.github/workflows/ci.yml`, `.github/workflows/security.yml`) with minimal token permissions (`contents: read`).
+- Created repository secret scanner (`scripts/scan-secrets.mjs`) and dependency vulnerability audit wrapper (`scripts/audit-dependencies.mjs`) with `.security-exceptions.json` registry.
+- Established pull request template (`.github/pull_request_template.md`) and issue templates (`bug_report.md`, `phase_proposal.md`, `config.yml`).
+- Documented branch protection rules and protected deployment environment policies in `docs/engineering/contributor-automation.md`.
+- Added root `audit`, `audit:deps`, and `audit:secrets` scripts.
+
 ## Phase 01 — 2026-10-13
 
 - Configured pnpm monorepo workspace manifests, pinned dependencies, Node LTS configuration, and strict TypeScript rules.
