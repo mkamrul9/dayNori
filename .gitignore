@@ -1,0 +1,47 @@
+# Dependencies and generated application output
+node_modules/
+.next/
+.expo/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+.turbo/
+
+# Local secrets and private material
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+*.pem
+credentials.json
+service-account*.json
+uploads/
+recordings/
+local-data/
+backups/
+*.sqlite
+*.sqlite-*
+*.db
+
+# Temporary and operating-system files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local service/runtime state; retain tracked migrations and configuration
+infra/supabase/.temp/
+infra/supabase/.branches/
+
+# Build artifacts and preview screenshots are stored outside source unless intentional
+artifacts/local/

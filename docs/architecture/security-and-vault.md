@@ -1,0 +1,82 @@
+# Security, privacy and vault
+
+Status: threat model and release requirements. Vault cryptographic details require a reviewed implementation ADR before the vault phase ships.
+
+## Data classes and trust boundaries
+
+Ordinary personal content is private through server authorization, transport protection and managed storage controls. It is readable by the authorized backend for search, export, scanning and user-consented AI. Do not market it as end-to-end encrypted.
+
+Vault content is a separate client-encrypted security scope. The backend stores opaque ciphertext and minimum routing/version metadata. Titles, folder labels, file names, bodies and attachment previews remain encrypted. Server-visible leakage includes account association, object sizes, revision counts and access timing; do not claim zero knowledge of all activity.
+
+This boundary protects stored content from a backend/database reader. It does not make a compromised client distribution harmless: malicious served web code or an app update could capture keys after the user unlocks. Protect deployment/signing, dependency integrity and web execution accordingly. Authenticated encryption detects changed ciphertext, but server withholding/rollback detection needs a trusted client checkpoint/version design; cover fresh-device recovery and rollback in the vault review rather than claim complete protection by encryption alone.
+
+Clients, API, job worker, database, object storage, Auth, push transports, optional Drive and optional AI providers are distinct trust boundaries. Authenticate and authorize at each boundary; a signed URL is a bearer capability, and a push token is an address rather than proof of identity.
+
+## Server isolation
+
+1. Verify the Supabase access token's signature, issuer, audience, expiry and intended use with a maintained library/JWKS configuration. Reject anonymous/service/administrative tokens as user sessions. Support signing-key cache invalidation during incidents.
+2. Derive actor identity from the verified token. Never trust `userId`, role or membership in request bodies. Check active account/device and membership for every operation.
+3. Domain tables live in a non-exposed application schema. Runtime API connections use a dedicated non-owner, non-`BYPASSRLS` role with only required grants. Migration and administrative credentials are separate.
+4. Set verified identity context transaction-locally, apply RLS to tenant tables and `FORCE ROW LEVEL SECURITY` where appropriate, and use tenant-scoped repository predicates plus composite tenant foreign keys. Reset context through transaction scoping; test connection-pool reuse across users. Identity context is set only by the trusted API, never forwarded from arbitrary client claims.
+5. RLS membership helpers must avoid recursive policies. If a minimal security-definer helper is necessary, pin its `search_path`, limit its returned information, check its subject/scope, revoke broad execution, and test it under runtime/anon roles. Do not expose owner-executed views/functions that bypass policies.
+6. Worker jobs use narrowly granted module roles where possible. Exceptional administrative actions run in isolated handlers and must name tenant scope and audit reason; the request path must not use an unrestricted service credential for convenience.
+
+Supabase documents that secret/service roles can bypass RLS and table owners may bypass policies; merely enabling RLS does not prove the API uses it. [RLS guide](https://supabase.com/docs/guides/database/postgres/row-level-security), [restricted custom roles](https://supabase.com/docs/guides/troubleshooting/custom-role-inherits-privileges-that-were-not-explicitly-granted-ddaa1c). Facts reviewed 2026-10-13; validate actual grants and policy behavior in the foundation phase.
+
+For urgent logout/deletion, the API checks disabled accounts and revoked device/session state; a locally verified JWT may otherwise remain valid until expiry. Document this interval and prove revocation on API, sync and new signing requests. Credentials, server database URLs, provider refresh tokens and secret keys never enter browser/mobile bundles or exports.
+
+## Web and mobile protection
+
+- Web uses Secure/HttpOnly session cookies through a same-origin session layer, explicit CSRF protection on writes, origin checks, a restrictive CSP, safe text rendering, and bounded redirects. Do not persist refresh tokens in localStorage. Cross-site OAuth callbacks use validated state and PKCE where the platform flow requires it.
+- Mobile stores session secrets in OS-backed secure storage, not AsyncStorage or logs. The ordinary mobile cache uses encrypted SQLite after physical-device/restart/upgrade validation. Encryption does not protect a compromised unlocked app process.
+- Browser offline cache is ordinary private data on that device and is not guaranteed confidential against same-origin injected script or an unlocked browser profile. Offer a trusted-device choice, bounded attachment cache and clear local data action. Vault plaintext is memory-only on web.
+- Lock vault on background/idle according to a documented user setting; initially default to immediate background lock and a short foreground idle period. Clear decrypted caches, clipboard where controllable, search buffers, recording buffers and rendered previews on lock. Prevent sensitive screen thumbnails/screenshots where the platform permits, without claiming protection against a second camera.
+- Explicit permission prompts appear when microphone, biometrics, notifications or a provider connection is used. Avoid requesting every permission at onboarding.
+
+Expo SecureStore stores small secrets using platform protection; it is not a bulk content store. Its documentation warns that uninstall behavior differs by platform and biometric enrollment changes can invalidate authenticated secrets. Recovery must not depend on those secrets surviving. [SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/). Expo also supports SQLCipher through native builds; prove the exact pinned configuration before accepting private offline data. [Expo SQLite](https://docs.expo.dev/versions/latest/sdk/sqlite/). Reviewed 2026-10-13.
+
+## Vault encryption and unlock contract
+
+The PIN/biometric screen is an access gate. It is not evidence of encryption. The release must have both encrypted storage and a tested key lifecycle.
+
+- Generate a random vault root key on the client. Use an audited authenticated-encryption implementation and random per-record/file data keys; envelope-wrap these under the root key. Candidate algorithm is AES-256-GCM, with unique nonces, versioned envelopes and authenticated workspace/item/schema/key-version metadata. Large files need a reviewed chunk/envelope format and interruption handling; do not invent streaming cryptography.
+- Portable vault recovery uses a separate strong vault passphrase and a high-entropy recovery key to wrap the root key. Choose an audited memory-hard KDF (candidate Argon2id) and benchmark mobile/browser parameters in the vault feasibility phase. Record parameters/salt/version so upgrades can rewrap without changing every record.
+- A short app PIN must never be the sole encryption key for a server-synced envelope. Mobile quick unlock may use a device-bound protected key envelope gated by an app PIN and optional strong biometrics. The precise keystore binding, PIN attempt limits and fallback path require a reviewed native design. Until it passes review, passphrase unlock is the only approved fallback; do not ship a cosmetic PIN as encrypted-vault protection.
+- Prefer key access that is actually OS-authentication-bound over calling a biometric prompt and then reading an unrestricted key. A standalone success boolean from LocalAuthentication cannot cryptographically protect a key. Changing/removing biometrics forces recovery/re-enrollment, never data loss without an explained recovery path.
+- Web begins with passphrase unlock, holds decrypted keys only in memory, and stores ciphertext offline. Browser biometric/WebAuthn PRF key wrapping is a separately reviewed feature; browser support must be proven, not assumed from mobile APIs.
+- Auth password reset restores account access only. It cannot recover the vault without the user's passphrase/recovery key. The service cannot decrypt or reset away this boundary. Users acknowledge and confirm a saved recovery method before completing vault setup.
+- Key rotation rewraps content keys and device envelopes with versioned state and resumable progress. Recovery-key rotation invalidates prior recovery envelopes; document limits of previously copied ciphertext/envelopes.
+
+Expo LocalAuthentication exposes platform biometric prompts, including Android strength choices. Test strong biometric unlock on real supported hardware and handle cancel/unavailable/lockout separately. [LocalAuthentication](https://docs.expo.dev/versions/latest/sdk/local-authentication/). Reviewed 2026-10-13.
+
+The initial vault provides create/read/edit/trash for supported encrypted records and encrypted folder create/rename/move/order, plus file attachment capture. An unlocked client validates and encrypts content/labels before persistence or sync; locked views display only generic routing state. Ordinary folder and attachment links cannot cross into vault scope. Creating an encrypted copy uses new vault identities and file keys rather than changing a normal file row's security flag.
+
+Move-to-vault is a deliberate resumable client workflow: show source/reference consequences, encrypt new vault records and attachment copies, verify decryption and acknowledged sync, then purge the ordinary payload, normal search/AI indexes, previews, local plaintext cache and ordinary object versions through their lifecycle jobs. Do not delete a binary still referenced by another ordinary item; resolve those references first or require explicit acknowledgment that an ordinary copy remains. Recovery/retry must preserve at least one verified copy until encrypted acceptance is proven, and cannot report a finished move while ordinary cleanup remains pending.
+
+Disclose that ordinary historical backups may retain the earlier form until expiry. Prior shared-room/user exports, external downloads and content already sent to AI providers cannot be retroactively made secret by this move; purge app-controlled derived copies where possible but never claim recall of those prior exposures. Move-out requires an unlocked user, destination confirmation and an audited decrypt/re-upload action.
+
+Vault data is excluded from server search, analytics content, notification text, AI retrieval/transcription, room sharing, Drive mirroring and server document rendering. A later explicit encrypted export is possible; unlocked plaintext export requires a clear separate confirmation and local generation.
+
+## Object access and file ingestion
+
+All user binary buckets remain private. The API authorizes a file row, then issues a provider-expiring capability for a server-generated immutable key; the actual upload expiry is returned explicitly. Object paths do not encode names or email addresses. Storage rules deny public enumeration and cross-workspace access; test direct storage endpoints as well as API routes. Read links use the short lifetime below; upload capabilities follow the separate [provider-specific workflow](api-conventions.md).
+
+Downloads use authenticated access or short signed URLs (initial maximum five minutes; reduce for sensitive contexts). Signed URLs can outlive session/key revocation until expiration, so do not promise immediate recall of a link. Log/redact URL query tokens, avoid referrer leakage, and keep them out of analytics/history where possible. [Private bucket controls](https://supabase.com/docs/guides/storage/buckets/fundamentals), [signed URL lifetime](https://supabase.com/docs/guides/storage/serving/downloads). Reviewed 2026-10-13.
+
+Ordinary uploads reserve quota before issuance, limit bytes/MIME at provider and application layers, use a quarantined state, verify actual signatures, and scan before normal viewing or sharing. Initial allowed classes: images, PDF, supported office documents and supported audio. Treat SVG/HTML/macros/embedded scripts as active content; reject or serve safely without execution. Preview in an isolated renderer with resource/time limits. Remote fetch by URL is excluded initially to avoid SSRF. Vault ciphertext cannot be server-scanned; UI and export flows must explain that constraint and avoid unsafe plaintext execution after unlock.
+
+## Threats and release evidence
+
+- Another tenant guessing IDs: two-user negative tests for API, SQL/RLS, search, cursor, upload/finalize/download, export and future room channels.
+- Lost/stolen device: local encryption/key-gated vault tests, lock transitions, biometric enrollment change, restart and logout. Rooted/jailbroken devices and a compromised unlocked process remain outside confidentiality guarantees.
+- XSS or malicious rich content: constrained schemas, sanitizer/renderer tests, CSP, isolated document previews and no runtime user code.
+- Compromised provider/backend: no vault plaintext/keys on server; provider tokens encrypted under separately controlled server secrets; restricted roles and key rotation drills. Ordinary data remains within backend trust.
+- Low-entropy PIN guessing: rate limit local and server-assisted unlock where applicable, do not create cloud PIN-verifiable key wraps, require portable recovery, test lockout without destroying irreplaceable keys.
+- Malicious files or abusive rooms: upload quota/scanning and later block/report/moderation workflows before public rooms launch.
+- Prompt injection: AI must not treat notes/files/chat as instructions authorizing data exposure or tool actions; no cross-user retrieval and no vault input.
+
+## Privacy lifecycle
+
+Collect minimal metadata; logs contain operation IDs, tenant-safe correlation, timings and bounded error codes, never bodies, access tokens, financial values, audio or decrypted vault data. Analytics are optional and content-free; define retention before release. Explicitly record consent for AI, transcript generation and Drive scopes, with a revoke action.
+
+Export includes ordinary content, hierarchy, relations, file manifest and original binaries in documented portable formats; vault exports remain encrypted unless the unlocked client intentionally produces plaintext. Account deletion cancels jobs, reminders, provider connections, AI artifacts and push registrations, then purges active content and objects. Backups age out on the published schedule; document this rather than promising instant erasure from all historical copies. Complete a delete/restore drill before public signup.

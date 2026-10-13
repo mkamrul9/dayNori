@@ -1,0 +1,11 @@
+---
+description: Apply the project phase and documentation workflow across the repository
+alwaysApply: true
+---
+
+# Daynori workflow
+
+Read and follow the repository-root AGENTS.md. It is the canonical instruction source for all agents.
+Select one phase from docs/roadmap/README.md, check its dependencies, and keep work within its scope.
+Record checks and remaining limitations in docs/phase-reports before marking it complete.
+Do not treat planning documentation or reserved folders as implemented functionality.

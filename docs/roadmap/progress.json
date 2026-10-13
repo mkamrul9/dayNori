@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-13",
+  "activePhase": null,
+  "nextPhase": "01",
+  "note": "Phase 00 planning baseline complete. No application implemented; Phase 01 is next.",
+  "phases": [
+    {
+      "id": "00",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-00.md"
+    },
+    {
+      "id": "01",
+      "status": "planned"
+    },
+    {
+      "id": "02",
+      "status": "planned"
+    },
+    {
+      "id": "03",
+      "status": "planned"
+    },
+    {
+      "id": "04",
+      "status": "planned"
+    },
+    {
+      "id": "05",
+      "status": "planned"
+    },
+    {
+      "id": "06",
+      "status": "planned"
+    },
+    {
+      "id": "07",
+      "status": "planned"
+    },
+    {
+      "id": "08",
+      "status": "planned"
+    },
+    {
+      "id": "09",
+      "status": "planned"
+    },
+    {
+      "id": "10",
+      "status": "planned"
+    },
+    {
+      "id": "11",
+      "status": "planned"
+    },
+    {
+      "id": "12",
+      "status": "planned"
+    },
+    {
+      "id": "13",
+      "status": "planned"
+    },
+    {
+      "id": "14",
+      "status": "planned"
+    },
+    {
+      "id": "15",
+      "status": "planned"
+    },
+    {
+      "id": "16",
+      "status": "planned"
+    },
+    {
+      "id": "17",
+      "status": "planned"
+    },
+    {
+      "id": "18",
+      "status": "planned"
+    },
+    {
+      "id": "19",
+      "status": "planned"
+    },
+    {
+      "id": "20",
+      "status": "planned"
+    },
+    {
+      "id": "21",
+      "status": "planned"
+    },
+    {
+      "id": "22",
+      "status": "planned"
+    },
+    {
+      "id": "23",
+      "status": "planned"
+    },
+    {
+      "id": "24",
+      "status": "planned"
+    },
+    {
+      "id": "25",
+      "status": "planned"
+    },
+    {
+      "id": "26",
+      "status": "planned"
+    },
+    {
+      "id": "27",
+      "status": "planned"
+    },
+    {
+      "id": "28",
+      "status": "planned"
+    },
+    {
+      "id": "29",
+      "status": "planned"
+    },
+    {
+      "id": "30",
+      "status": "planned"
+    },
+    {
+      "id": "31",
+      "status": "planned"
+    },
+    {
+      "id": "32",
+      "status": "planned"
+    },
+    {
+      "id": "33",
+      "status": "planned"
+    },
+    {
+      "id": "34",
+      "status": "planned"
+    },
+    {
+      "id": "35",
+      "status": "planned"
+    },
+    {
+      "id": "36",
+      "status": "planned"
+    },
+    {
+      "id": "37",
+      "status": "planned"
+    },
+    {
+      "id": "38",
+      "status": "planned"
+    },
+    {
+      "id": "39",
+      "status": "planned"
+    },
+    {
+      "id": "40",
+      "status": "planned"
+    },
+    {
+      "id": "41",
+      "status": "planned"
+    },
+    {
+      "id": "42",
+      "status": "planned"
+    },
+    {
+      "id": "43",
+      "status": "planned"
+    },
+    {
+      "id": "44",
+      "status": "planned"
+    },
+    {
+      "id": "45",
+      "status": "planned"
+    },
+    {
+      "id": "46",
+      "status": "planned"
+    },
+    {
+      "id": "47",
+      "status": "planned"
+    },
+    {
+      "id": "48",
+      "status": "planned"
+    },
+    {
+      "id": "49",
+      "status": "planned"
+    },
+    {
+      "id": "50",
+      "status": "planned"
+    },
+    {
+      "id": "51",
+      "status": "planned"
+    },
+    {
+      "id": "52",
+      "status": "planned"
+    },
+    {
+      "id": "53",
+      "status": "planned"
+    },
+    {
+      "id": "54",
+      "status": "planned"
+    },
+    {
+      "id": "55",
+      "status": "planned"
+    },
+    {
+      "id": "56",
+      "status": "planned"
+    },
+    {
+      "id": "57",
+      "status": "planned"
+    },
+    {
+      "id": "58",
+      "status": "planned"
+    },
+    {
+      "id": "59",
+      "status": "planned"
+    },
+    {
+      "id": "60",
+      "status": "planned"
+    },
+    {
+      "id": "61",
+      "status": "planned"
+    },
+    {
+      "id": "62",
+      "status": "planned"
+    },
+    {
+      "id": "63",
+      "status": "planned"
+    }
+  ]
+}
