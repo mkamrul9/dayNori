@@ -3,7 +3,8 @@
 ## Phase 02 — 2026-10-13
 
 - Added GitHub Actions continuous integration workflows (`.github/workflows/ci.yml`, `.github/workflows/security.yml`) with minimal token permissions (`contents: read`).
-- Created repository secret scanner (`scripts/scan-secrets.mjs`) and dependency vulnerability audit wrapper (`scripts/audit-dependencies.mjs`) with `.security-exceptions.json` registry.
+- Created repository secret scanner (`scripts/scan-secrets.mjs`) with output redaction and dependency vulnerability audit wrapper (`scripts/audit-dependencies.mjs`) with granular `.security-exceptions.json` registry enforcing specific advisory GHSAs, expiration, and accountability.
+- Added comprehensive synthetic test suite (`tests/security/scanner-synthetic.test.ts`) covering secret detection/redaction, unapproved advisory rejection, unrelated advisories in excepted packages, expired exceptions, and registry service errors.
 - Established pull request template (`.github/pull_request_template.md`) and issue templates (`bug_report.md`, `phase_proposal.md`, `config.yml`).
 - Documented branch protection rules and protected deployment environment policies in `docs/engineering/contributor-automation.md`.
 - Added root `audit`, `audit:deps`, and `audit:secrets` scripts.
