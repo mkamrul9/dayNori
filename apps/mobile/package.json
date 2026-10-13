@@ -21,6 +21,7 @@
     "@daynori/ui-mobile": "workspace:*",
     "@expo/metro-config": "~0.19.0",
     "expo": "~52.0.30",
+    "expo-dev-client": "~5.0.20",
     "expo-status-bar": "~2.0.1",
     "react": "18.3.1",
     "react-native": "0.76.7"
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@daynori/config": "workspace:*",
     "@types/react": "~18.3.12",
+    "expo-modules-autolinking": "~2.0.8",
     "typescript": "^5.7.3"
   }
 }

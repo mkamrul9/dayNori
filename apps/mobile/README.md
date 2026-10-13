@@ -15,7 +15,10 @@ Established in Phase 01. Provides:
 - `pnpm dev`: Start the Expo Metro development server (`expo start`)
 - `pnpm prebuild`: Generate native Android project files (`expo prebuild --no-install -p android`)
 - `pnpm build`: Generate the Android Hermes JavaScript bundle and static assets (`expo export -p android`)
-- `pnpm android`: Run native debug build on a connected device or emulator via `expo run:android` (requires Android SDK and Java JDK)
+- `pnpm android`: Run native development build on connected device/emulator via `expo run:android`
+- `.\gradlew.bat assembleDebug`: Compile debug APK (`app-debug.apk`) inside `android/` using the native Android toolchain
 - `pnpm typecheck`: Run strict TypeScript validation
+
+Development builds are configured with `expo-dev-client` (`~5.0.20`) and `expo-modules-autolinking` (`~2.0.8`) targeting Android SDK 34/35.
 
 See [system overview](../../docs/architecture/system-overview.md) and [repository layout](../../docs/engineering/repository-layout.md).
