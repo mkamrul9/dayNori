@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/.expo/**',
       'docs/**',
       'scripts/**',
+      'apps/mobile/metro.config.js',
     ],
   },
   {

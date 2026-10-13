@@ -1,6 +1,6 @@
 # Repository layout and ownership
 
-The project lives in this `dailyLIfe` directory. Phase 00 establishes the layout and documentation; placeholder directories are reservations, not delivered packages. Phase 01 creates workspace manifests, pins compatible versions, and makes scripts executable. Generated applications are not included in Phase 00.
+The project lives in this `dailyLIfe` directory. Phase 01 created workspace manifests, pinned compatible dependencies, and made build, test, typecheck, lint, and formatting scripts fully executable across `apps/` and `packages/`.
 
 ```text
 dailyLIfe/

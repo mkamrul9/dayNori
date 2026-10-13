@@ -5,6 +5,7 @@ Durable background job processor and asynchronous worker for Daynori.
 ## Status
 
 Established in Phase 01. Provides:
+
 - `DaynoriWorker`: Lifecycle manager and job dispatcher
 - Execution loop for asynchronous jobs, reminders, and cleanup tasks
 - Scripts: `pnpm build`, `pnpm typecheck`, `pnpm dev`, `pnpm start`

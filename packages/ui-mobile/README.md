@@ -5,6 +5,7 @@ Accessible React Native UI primitives for Daynori, consuming design tokens from 
 ## Status
 
 Established in Phase 01. Provides:
+
 - `lightMobileTheme` and `darkMobileTheme` semantic theme definitions
 - Native layout tokens (comfortable padding, base spacing, and radii)
 

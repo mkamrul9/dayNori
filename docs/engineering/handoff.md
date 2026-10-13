@@ -1,6 +1,6 @@
 # Contributor handoff
 
-This repository must be understandable without the original chat. It currently contains Phase 00 planning artifacts, not a running app. This recipe applies to Antigravity, another coding agent, and a human contributor.
+This repository must be understandable without the original chat. Phase 01 established the runnable monorepo toolchain, applications, and packages. This recipe applies to Antigravity, another coding agent, and a human contributor.
 
 ## Begin a session
 
@@ -38,7 +38,7 @@ Stop after the selected phase. Summarize delivered behavior, verified evidence, 
 
 ## Verification and recovery
 
-Phase 00 can run `node scripts/validate-planning.mjs`. Future package scripts listed in [quality](quality.md) are proposals until the corresponding setup phase creates them. Read the actual root/package scripts rather than guessing commands.
+Phase 01 established the executable commands: `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format:check`, and `node scripts/validate-planning.mjs`. Read the actual root/package scripts rather than guessing commands.
 
 If a check fails or a dependency is absent, keep the phase `in_progress` or `blocked` according to the roadmap schema. Include a reproducible defect, impact, safe next step, and what evidence would unblock it. Never discard changes, erase pending data, reset history, or force-push as an automatic recovery action. If work is interrupted, leave a partial report listing completed files, failing commands, remaining acceptance conditions, and the exact next action.
 

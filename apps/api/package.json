@@ -10,7 +10,7 @@
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
-    "dev": "node --watch src/index.ts"
+    "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
     "@daynori/contracts": "workspace:*",

@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.expo/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+pnpm-lock.yaml
+apps/mobile/android/
+apps/mobile/ios/
+docs/blueprint.html

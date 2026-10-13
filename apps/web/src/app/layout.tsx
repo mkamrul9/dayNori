@@ -8,11 +8,7 @@ export const metadata: Metadata = {
     'A customizable home for notes, routines, tasks, journals, files, and everyday life.',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body

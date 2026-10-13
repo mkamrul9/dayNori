@@ -5,6 +5,7 @@ Shared TypeScript compiler configurations and linting standards for the Daynori 
 ## Status
 
 Established in Phase 01. Provides shared configurations:
+
 - `tsconfig.base.json`: Common strict TypeScript rules
 - `tsconfig.node.json`: Node.js services and worker targets
 - `tsconfig.react.json`: Web application and React components

@@ -61,11 +61,7 @@
       "group": "planning",
       "title": "Product and architecture baseline",
       "dependsOn": [],
-      "scope": [
-        "docs",
-        "reserved repository directories",
-        "root contributor files"
-      ],
+      "scope": ["docs", "reserved repository directories", "root contributor files"],
       "steps": [
         "Capture every requested capability and distinguish initial, later, and gated scope.",
         "Document architecture, UX, data ownership, security, offline sync, and platform limits.",
@@ -91,16 +87,8 @@
       "id": "01",
       "group": "foundation",
       "title": "Toolchain and executable workspace",
-      "dependsOn": [
-        "00"
-      ],
-      "scope": [
-        "package.json",
-        "pnpm-workspace.yaml",
-        "apps",
-        "packages",
-        "scripts"
-      ],
+      "dependsOn": ["00"],
+      "scope": ["package.json", "pnpm-workspace.yaml", "apps", "packages", "scripts"],
       "steps": [
         "Pin a supported Node LTS and pnpm version; select an Expo SDK and compatible React/React Native versions, then validate Next.js package boundaries.",
         "Replace reserved application READMEs with minimal runnable mobile, web, API, and worker workspaces and real package manifests.",
@@ -126,15 +114,8 @@
       "id": "02",
       "group": "foundation",
       "title": "Continuous checks and contributor automation",
-      "dependsOn": [
-        "01"
-      ],
-      "scope": [
-        ".github/workflows",
-        ".github templates",
-        "scripts",
-        "packages/config"
-      ],
+      "dependsOn": ["01"],
+      "scope": [".github/workflows", ".github templates", "scripts", "packages/config"],
       "steps": [
         "Add pull-request checks for clean install, lint, types, planning validation, tests, and relevant builds.",
         "Add dependency/secret scanning with an explicit exception process and protected deployment environments.",
@@ -149,24 +130,15 @@
         "Run the workflow commands locally; inspect permissions and cache inputs.",
         "If a remote exists, record hosted CI run URLs; otherwise state hosted CI is pending."
       ],
-      "references": [
-        "CONTRIBUTING.md",
-        "docs/engineering/quality.md"
-      ],
+      "references": ["CONTRIBUTING.md", "docs/engineering/quality.md"],
       "commit": "chore(ci): enforce workspace quality and contribution checks"
     },
     {
       "id": "03",
       "group": "foundation",
       "title": "Platform and integration feasibility spikes",
-      "dependsOn": [
-        "01"
-      ],
-      "scope": [
-        "tests/spikes",
-        "docs/decisions",
-        "docs/phase-reports"
-      ],
+      "dependsOn": ["01"],
+      "scope": ["tests/spikes", "docs/decisions", "docs/phase-reports"],
       "steps": [
         "Use disposable prototypes to validate mobile SQLite, browser IndexedDB, auth session storage, and local-first navigation.",
         "Measure Expo development-build support for notifications, secure storage, biometric prompts, recording, and selected crypto libraries.",
@@ -192,16 +164,8 @@
       "id": "04",
       "group": "foundation",
       "title": "Design tokens and accessible primitives",
-      "dependsOn": [
-        "01",
-        "03"
-      ],
-      "scope": [
-        "packages/design-tokens",
-        "packages/ui-web",
-        "packages/ui-mobile",
-        "docs/design"
-      ],
+      "dependsOn": ["01", "03"],
+      "scope": ["packages/design-tokens", "packages/ui-web", "packages/ui-mobile", "docs/design"],
       "steps": [
         "Encode the approved light/dark palette, typography, spacing, radii, focus treatment, and motion preferences as semantic tokens.",
         "Implement a small set of buttons, fields, dialogs/sheets, feedback, and list row primitives separately for browser and native semantics.",
@@ -216,23 +180,15 @@
         "Run web accessibility checks, contrast calculations, and keyboard journeys.",
         "Review native primitives with TalkBack and increased system font size."
       ],
-      "references": [
-        "docs/design/design-system.md",
-        "docs/engineering/quality.md"
-      ],
+      "references": ["docs/design/design-system.md", "docs/engineering/quality.md"],
       "commit": "feat(design): add accessible light and dark interface primitives"
     },
     {
       "id": "05",
       "group": "foundation",
       "title": "Responsive web navigation shell",
-      "dependsOn": [
-        "04"
-      ],
-      "scope": [
-        "apps/web",
-        "packages/ui-web"
-      ],
+      "dependsOn": ["04"],
+      "scope": ["apps/web", "packages/ui-web"],
       "steps": [
         "Implement desktop sidebar, tablet transitions, and compact navigation using the documented information architecture.",
         "Provide Today, Plan, Library, and Journal parent routes; place Calendar under Plan and Settings/Search/Create in consistent reachable controls. Include explicit empty/loading/error behavior.",
@@ -247,23 +203,15 @@
         "Run responsive browser smoke tests and keyboard navigation checks.",
         "Inspect light/dark screenshots for hierarchy and readable density."
       ],
-      "references": [
-        "docs/design/information-architecture.md",
-        "docs/design/design-system.md"
-      ],
+      "references": ["docs/design/information-architecture.md", "docs/design/design-system.md"],
       "commit": "feat(web): add responsive organizer navigation"
     },
     {
       "id": "06",
       "group": "foundation",
       "title": "Android navigation shell",
-      "dependsOn": [
-        "04"
-      ],
-      "scope": [
-        "apps/mobile",
-        "packages/ui-mobile"
-      ],
+      "dependsOn": ["04"],
+      "scope": ["apps/mobile", "packages/ui-mobile"],
       "steps": [
         "Implement tab/stack navigation, headers, safe areas, and capture entry points using native patterns.",
         "Add route contracts for notifications, files, and authentication links.",
@@ -278,24 +226,15 @@
         "Run Android development-build smoke journeys and navigation tests.",
         "Inspect portrait/landscape and TalkBack behavior on supported screen sizes."
       ],
-      "references": [
-        "docs/design/information-architecture.md",
-        "docs/engineering/quality.md"
-      ],
+      "references": ["docs/design/information-architecture.md", "docs/engineering/quality.md"],
       "commit": "feat(mobile): add accessible Android organizer navigation"
     },
     {
       "id": "07",
       "group": "foundation",
       "title": "PostgreSQL and tenant isolation foundation",
-      "dependsOn": [
-        "03"
-      ],
-      "scope": [
-        "infra/supabase",
-        "apps/api database modules",
-        "tests/security"
-      ],
+      "dependsOn": ["03"],
+      "scope": ["infra/supabase", "apps/api database modules", "tests/security"],
       "steps": [
         "Define versioned migrations for profiles, workspaces, memberships, audit metadata, and shared item identities.",
         "Implement least-privilege application DB access using a restricted non-owner runtime role, tenant-scoped queries, RLS for application tables, and private storage policies; verify the actual pooled connection role and transaction-local identity reset.",
@@ -310,24 +249,15 @@
         "Run fresh/upgrade migration checks and cross-tenant RLS tests through the actual API/worker runtime role, including pooled connection identity reset.",
         "Inspect role grants, foreign-key tenant consistency, and indexes for primary queries."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/architecture/security-and-vault.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/architecture/security-and-vault.md"],
       "commit": "feat(database): establish workspace isolation and migration foundations"
     },
     {
       "id": "08",
       "group": "foundation",
       "title": "API contracts and service foundation",
-      "dependsOn": [
-        "07"
-      ],
-      "scope": [
-        "apps/api",
-        "packages/contracts",
-        "packages/api-client"
-      ],
+      "dependsOn": ["07"],
+      "scope": ["apps/api", "packages/contracts", "packages/api-client"],
       "steps": [
         "Add Fastify module registration, versioned REST routes, runtime request/response validation, and OpenAPI generation.",
         "Implement JWT verification, membership authorization, structured redacted logging, request IDs, errors, limits, and health/readiness checks.",
@@ -352,16 +282,8 @@
       "id": "09",
       "group": "foundation",
       "title": "Authentication across web and Android",
-      "dependsOn": [
-        "05",
-        "06",
-        "08"
-      ],
-      "scope": [
-        "apps/web auth",
-        "apps/mobile auth",
-        "packages/api-client"
-      ],
+      "dependsOn": ["05", "06", "08"],
+      "scope": ["apps/web auth", "apps/mobile auth", "packages/api-client"],
       "steps": [
         "Implement the selected initial sign-up/sign-in method with Supabase Auth, verified callbacks, and recovery journeys.",
         "Use secure native token storage and a reviewed web session strategy; implement refresh, expiry, logout, and device state clearing.",
@@ -376,25 +298,15 @@
         "Test callback replay/invalid links, expiry, logout, browser tab behavior, and Android process restart.",
         "Review session token locations and CSRF/XSS assumptions."
       ],
-      "references": [
-        "docs/architecture/security-and-vault.md",
-        "docs/design/journeys.md"
-      ],
+      "references": ["docs/architecture/security-and-vault.md", "docs/design/journeys.md"],
       "commit": "feat(auth): add secure web and Android account journeys"
     },
     {
       "id": "10",
       "group": "foundation",
       "title": "Personal workspace and preferences",
-      "dependsOn": [
-        "09"
-      ],
-      "scope": [
-        "apps/api workspace module",
-        "packages/domain",
-        "apps/web",
-        "apps/mobile"
-      ],
+      "dependsOn": ["09"],
+      "scope": ["apps/api workspace module", "packages/domain", "apps/web", "apps/mobile"],
       "steps": [
         "Create exactly one initial private workspace through an idempotent provision flow.",
         "Store user time zone, locale, week start, display preferences, and workspace membership context.",
@@ -409,19 +321,14 @@
         "Test concurrent provisioning, stale membership, preference validation, and cross-tenant IDs.",
         "Run sign-in to workspace selection journeys on web and Android."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/product/requirements.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/product/requirements.md"],
       "commit": "feat(workspaces): add personal workspace and user preferences"
     },
     {
       "id": "11",
       "group": "foundation",
       "title": "Local data repositories and migrations",
-      "dependsOn": [
-        "10"
-      ],
+      "dependsOn": ["10"],
       "scope": [
         "packages/domain repository ports",
         "packages/sync",
@@ -455,15 +362,8 @@
       "id": "12",
       "group": "foundation",
       "title": "Server mutation receipts and change feed",
-      "dependsOn": [
-        "08",
-        "10"
-      ],
-      "scope": [
-        "apps/api sync module",
-        "packages/contracts",
-        "infra/supabase migrations"
-      ],
+      "dependsOn": ["08", "10"],
+      "scope": ["apps/api sync module", "packages/contracts", "infra/supabase migrations"],
       "steps": [
         "Implement idempotent mutation IDs, optimistic revisions, transactional receipt/outbox persistence, and tenant-scoped changes.",
         "Design commit-safe feed cursor ordering that cannot skip later-committing transactions; document compaction and reset semantics.",
@@ -488,16 +388,8 @@
       "id": "13",
       "group": "foundation",
       "title": "Shared client synchronization engine",
-      "dependsOn": [
-        "11",
-        "12"
-      ],
-      "scope": [
-        "packages/sync",
-        "packages/api-client",
-        "apps/web data",
-        "apps/mobile data"
-      ],
+      "dependsOn": ["11", "12"],
+      "scope": ["packages/sync", "packages/api-client", "apps/web data", "apps/mobile data"],
       "steps": [
         "Implement local transactional enqueue, retry with backoff, mutation acknowledgments, paginated pulls, and cancellation.",
         "Handle auth loss, app resume, reconnect, multiple browser tabs, and cursor reset without erasing drafts.",
@@ -512,19 +404,14 @@
         "Run shared state-machine and adapter integration tests with network fault injection.",
         "Test airplane mode/restart/reconnect on Android and offline tabs in browser."
       ],
-      "references": [
-        "docs/architecture/sync-and-offline.md",
-        "docs/engineering/quality.md"
-      ],
+      "references": ["docs/architecture/sync-and-offline.md", "docs/engineering/quality.md"],
       "commit": "feat(sync): synchronize offline mutations across web and mobile"
     },
     {
       "id": "14",
       "group": "foundation",
       "title": "Collections folders and shared item metadata",
-      "dependsOn": [
-        "13"
-      ],
+      "dependsOn": ["13"],
       "scope": [
         "packages/domain organization",
         "apps/api organization module",
@@ -544,25 +431,15 @@
         "Test deep trees, concurrent moves, revision conflicts, unauthorized parents, and trash behavior.",
         "Measure indexed folder listing with large synthetic trees."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/design/information-architecture.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/design/information-architecture.md"],
       "commit": "feat(organization): add workspace folders and common item metadata"
     },
     {
       "id": "15",
       "group": "foundation",
       "title": "Folder browsing and organization interfaces",
-      "dependsOn": [
-        "14"
-      ],
-      "scope": [
-        "apps/web library",
-        "apps/mobile library",
-        "packages/ui-web",
-        "packages/ui-mobile"
-      ],
+      "dependsOn": ["14"],
+      "scope": ["apps/web library", "apps/mobile library", "packages/ui-web", "packages/ui-mobile"],
       "steps": [
         "Implement folder browsing, breadcrumbs, typed item lists, create/rename/move, and folder selection.",
         "Provide reorder gestures plus keyboard/menu alternatives and explicit undo for reversible actions.",
@@ -577,24 +454,15 @@
         "Run folder CRUD/move journeys across platforms and nested folder accessibility checks.",
         "Verify offline changes and concurrent folder movement messages."
       ],
-      "references": [
-        "docs/design/journeys.md",
-        "docs/design/design-system.md"
-      ],
+      "references": ["docs/design/journeys.md", "docs/design/design-system.md"],
       "commit": "feat(library): add accessible folder browsing and organization"
     },
     {
       "id": "16",
       "group": "core",
       "title": "Typed note domain and persistence",
-      "dependsOn": [
-        "15"
-      ],
-      "scope": [
-        "packages/domain notes",
-        "apps/api notes module",
-        "packages/contracts"
-      ],
+      "dependsOn": ["15"],
+      "scope": ["packages/domain notes", "apps/api notes module", "packages/contracts"],
       "steps": [
         "Implement titled typed notes with plain text and safe constrained formatting, stable IDs, drafts, and revisions.",
         "Support folder placement, tags, pin, archive, trash, and server/local validation.",
@@ -609,25 +477,15 @@
         "Test note invariants, Unicode/long content, malicious markup, permissions, and retry behavior.",
         "Round-trip portable note documents through local/server persistence."
       ],
-      "references": [
-        "docs/product/requirements.md",
-        "docs/architecture/data-model.md"
-      ],
+      "references": ["docs/product/requirements.md", "docs/architecture/data-model.md"],
       "commit": "feat(notes): add portable typed notes and draft persistence"
     },
     {
       "id": "17",
       "group": "core",
       "title": "Focused note editor on both platforms",
-      "dependsOn": [
-        "16"
-      ],
-      "scope": [
-        "apps/web notes",
-        "apps/mobile notes",
-        "packages/ui-web",
-        "packages/ui-mobile"
-      ],
+      "dependsOn": ["16"],
+      "scope": ["apps/web notes", "apps/mobile notes", "packages/ui-web", "packages/ui-mobile"],
       "steps": [
         "Add distraction-free title/body editing, autosave feedback, folder selection, and a restrained formatting toolbar.",
         "Keep keyboard focus stable and preserve selection while saving.",
@@ -642,24 +500,15 @@
         "Test restart during typing, offline edits, navigation while saving, and failed persistence.",
         "Review typing responsiveness and text scaling with real devices and browser assistive technology."
       ],
-      "references": [
-        "docs/design/journeys.md",
-        "docs/architecture/sync-and-offline.md"
-      ],
+      "references": ["docs/design/journeys.md", "docs/architecture/sync-and-offline.md"],
       "commit": "feat(notes): deliver focused web and mobile note editors"
     },
     {
       "id": "18",
       "group": "core",
       "title": "Upcoming task domain and deadlines",
-      "dependsOn": [
-        "15"
-      ],
-      "scope": [
-        "packages/domain tasks",
-        "apps/api tasks module",
-        "packages/contracts"
-      ],
+      "dependsOn": ["15"],
+      "scope": ["packages/domain tasks", "apps/api tasks module", "packages/contracts"],
       "steps": [
         "Implement task title, optional details, priority, status, deadline semantics, completion, and folder links.",
         "Separate date-only deadlines from timed due instants and define overdue boundaries in the user's zone.",
@@ -674,23 +523,15 @@
         "Test overdue transitions, leap days/DST, completion retries, priorities, and authorization.",
         "Test parent/subtask invariants and folder consistency."
       ],
-      "references": [
-        "docs/product/requirements.md",
-        "docs/architecture/data-model.md"
-      ],
+      "references": ["docs/product/requirements.md", "docs/architecture/data-model.md"],
       "commit": "feat(tasks): add prioritized tasks and explicit deadline semantics"
     },
     {
       "id": "19",
       "group": "core",
       "title": "Upcoming task lists and detail views",
-      "dependsOn": [
-        "18"
-      ],
-      "scope": [
-        "apps/web tasks",
-        "apps/mobile tasks"
-      ],
+      "dependsOn": ["18"],
+      "scope": ["apps/web tasks", "apps/mobile tasks"],
       "steps": [
         "Build upcoming, overdue, and completed views with priority indicators, sort/filter controls, and task details.",
         "Add quick task capture, subtasks, deadline editing, accessible completion, and undo.",
@@ -705,19 +546,14 @@
         "Run end-to-end task journeys on web and Android with offline operation.",
         "Review keyboard, TalkBack, large text, and date-picker behavior."
       ],
-      "references": [
-        "docs/design/information-architecture.md",
-        "docs/design/journeys.md"
-      ],
+      "references": ["docs/design/information-architecture.md", "docs/design/journeys.md"],
       "commit": "feat(tasks): add upcoming task workflows and priority views"
     },
     {
       "id": "20",
       "group": "core",
       "title": "Daily routine schedules and occurrences",
-      "dependsOn": [
-        "18"
-      ],
+      "dependsOn": ["18"],
       "scope": [
         "packages/domain routines",
         "apps/api routines module",
@@ -737,23 +573,15 @@
         "Test midnight, DST/travel, schedule edits, concurrent completion, and occurrence uniqueness.",
         "Validate behavior when a device stays offline for several days."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/product/requirements.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/product/requirements.md"],
       "commit": "feat(routines): add date-scoped daily routine occurrences"
     },
     {
       "id": "21",
       "group": "core",
       "title": "Daily routine experience and history",
-      "dependsOn": [
-        "20"
-      ],
-      "scope": [
-        "apps/web routines",
-        "apps/mobile routines"
-      ],
+      "dependsOn": ["20"],
+      "scope": ["apps/web routines", "apps/mobile routines"],
       "steps": [
         "Build today's routine checklist, routine creation/editing, pause, skip, and history.",
         "Offer gentle progress with no punitive streak dependency or forced notifications.",
@@ -768,24 +596,15 @@
         "Run multi-day/time-zone journeys with fake clocks and real local adapters.",
         "Review low-friction checklist use with screen readers and undo."
       ],
-      "references": [
-        "docs/design/journeys.md",
-        "docs/product/requirements.md"
-      ],
+      "references": ["docs/design/journeys.md", "docs/product/requirements.md"],
       "commit": "feat(routines): add daily checklists and completion history"
     },
     {
       "id": "22",
       "group": "core",
       "title": "Journal entries and privacy defaults",
-      "dependsOn": [
-        "15"
-      ],
-      "scope": [
-        "packages/domain journal",
-        "apps/api journal module",
-        "packages/contracts"
-      ],
+      "dependsOn": ["15"],
+      "scope": ["packages/domain journal", "apps/api journal module", "packages/contracts"],
       "steps": [
         "Implement dated entries with title/body, optional mood/tags/prompts, multiple entries per day, and collection placement.",
         "Keep journal private by default and separate its date semantics from server created timestamps.",
@@ -800,24 +619,15 @@
         "Test backdating, multiple entries per day, privacy, offline drafts, and Unicode.",
         "Verify journal body does not enter API logs or analytics."
       ],
-      "references": [
-        "docs/product/requirements.md",
-        "docs/architecture/security-and-vault.md"
-      ],
+      "references": ["docs/product/requirements.md", "docs/architecture/security-and-vault.md"],
       "commit": "feat(journal): add private dated entries and optional reflection metadata"
     },
     {
       "id": "23",
       "group": "core",
       "title": "Journal writing and reflection interfaces",
-      "dependsOn": [
-        "22",
-        "17"
-      ],
-      "scope": [
-        "apps/web journal",
-        "apps/mobile journal"
-      ],
+      "dependsOn": ["22", "17"],
+      "scope": ["apps/web journal", "apps/mobile journal"],
       "steps": [
         "Create a calm writing canvas, optional prompt tray, mood input, draft recovery, and dated timeline.",
         "Add day/month browse and search entry points with meaningful empty states.",
@@ -832,20 +642,14 @@
         "Run interrupted writing, backdated entry, timeline, and privacy preview journeys.",
         "Review comfort, text hierarchy, large text, keyboard behavior, and TalkBack."
       ],
-      "references": [
-        "docs/design/journeys.md",
-        "docs/design/design-system.md"
-      ],
+      "references": ["docs/design/journeys.md", "docs/design/design-system.md"],
       "commit": "feat(journal): add focused writing and reflection journeys"
     },
     {
       "id": "24",
       "group": "core",
       "title": "Private binary upload lifecycle",
-      "dependsOn": [
-        "15",
-        "08"
-      ],
+      "dependsOn": ["15", "08"],
       "scope": [
         "apps/api files module",
         "apps/worker",
@@ -878,15 +682,8 @@
       "id": "25",
       "group": "core",
       "title": "Files folders and safe previews",
-      "dependsOn": [
-        "24"
-      ],
-      "scope": [
-        "apps/web files",
-        "apps/mobile files",
-        "packages/ui-web",
-        "packages/ui-mobile"
-      ],
+      "dependsOn": ["24"],
+      "scope": ["apps/web files", "apps/mobile files", "packages/ui-web", "packages/ui-mobile"],
       "steps": [
         "Add device/browser upload, progress/retry/cancel, file detail, folder placement, and authorized download.",
         "Provide safe image/PDF previews; show metadata/download for unsupported office documents without claiming full editing.",
@@ -901,20 +698,14 @@
         "Test representative image/PDF/office files, large/empty files, cancel/retry, and expired read links.",
         "Review preview sandboxing, accessibility, and physical-device file picker behavior."
       ],
-      "references": [
-        "docs/product/requirements.md",
-        "docs/architecture/security-and-vault.md"
-      ],
+      "references": ["docs/product/requirements.md", "docs/architecture/security-and-vault.md"],
       "commit": "feat(files): add organized uploads and safe document previews"
     },
     {
       "id": "26",
       "group": "core",
       "title": "Calendar and deadline views",
-      "dependsOn": [
-        "19",
-        "21"
-      ],
+      "dependsOn": ["19", "21"],
       "scope": [
         "packages/domain calendar",
         "packages/contracts calendar",
@@ -939,26 +730,15 @@
         "Run web/Android agenda and month navigation journeys.",
         "Test event CRUD and offline/reconnect round trips, interval validation, cross-tenant access, journal indicator privacy, and calendar schema upgrade fixtures."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/design/information-architecture.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/design/information-architecture.md"],
       "commit": "feat(calendar): add linked deadlines routines and personal events"
     },
     {
       "id": "27",
       "group": "core",
       "title": "Reminder scheduling and durable delivery jobs",
-      "dependsOn": [
-        "20",
-        "26",
-        "12"
-      ],
-      "scope": [
-        "apps/api reminders module",
-        "apps/worker reminders",
-        "packages/domain reminders"
-      ],
+      "dependsOn": ["20", "26", "12"],
+      "scope": ["apps/api reminders module", "apps/worker reminders", "packages/domain reminders"],
       "steps": [
         "Implement reminder preferences, schedule versioning, recurrence instances, snooze, quiet hours, and cancellation.",
         "Use transactional outbox and durable leased jobs with retry/deduplication; separate device schedules from server delivery.",
@@ -983,11 +763,7 @@
       "id": "28",
       "group": "core",
       "title": "Android notifications and local reminders",
-      "dependsOn": [
-        "27",
-        "06",
-        "03"
-      ],
+      "dependsOn": ["27", "06", "03"],
       "scope": [
         "apps/mobile notifications",
         "apps/api device registration",
@@ -1007,26 +783,15 @@
         "Test granted/denied/revoked permission, token change, offline schedules, reboot, task completion, and duplicate local/push paths.",
         "Record exact-alarm eligibility outcome separately; no exact timing acceptance is implied."
       ],
-      "references": [
-        "docs/architecture/integrations-and-reminders.md",
-        "docs/research/sources.md"
-      ],
+      "references": ["docs/architecture/integrations-and-reminders.md", "docs/research/sources.md"],
       "commit": "feat(notifications): add Android reminder delivery and permission controls"
     },
     {
       "id": "29",
       "group": "core",
       "title": "Web reminder delivery and PWA support",
-      "dependsOn": [
-        "27",
-        "05",
-        "03"
-      ],
-      "scope": [
-        "apps/web service worker",
-        "apps/api push subscriptions",
-        "apps/worker web push"
-      ],
+      "dependsOn": ["27", "05", "03"],
+      "scope": ["apps/web service worker", "apps/api push subscriptions", "apps/worker web push"],
       "steps": [
         "Implement supported-browser Web Push subscription lifecycle and contextual permission controls.",
         "Add a reviewed PWA shell/offline cache strategy excluding private API responses and secrets from shared caches.",
@@ -1051,13 +816,7 @@
       "id": "30",
       "group": "core",
       "title": "Today home and personal customization",
-      "dependsOn": [
-        "23",
-        "25",
-        "26",
-        "28",
-        "29"
-      ],
+      "dependsOn": ["23", "25", "26", "28", "29"],
       "scope": [
         "apps/web today",
         "apps/mobile today",
@@ -1078,25 +837,15 @@
         "Test cross-device layout sync/conflicts, missing modules, restore defaults, and keyboard reordering.",
         "Review home usability at compact/wide widths with realistic synthetic data."
       ],
-      "references": [
-        "docs/design/information-architecture.md",
-        "docs/product/requirements.md"
-      ],
+      "references": ["docs/design/information-architecture.md", "docs/product/requirements.md"],
       "commit": "feat(home): add a customizable daily organizer dashboard"
     },
     {
       "id": "31",
       "group": "core",
       "title": "First-use tutorial and progressive discovery",
-      "dependsOn": [
-        "30",
-        "10"
-      ],
-      "scope": [
-        "apps/web onboarding",
-        "apps/mobile onboarding",
-        "apps/api onboarding preferences"
-      ],
+      "dependsOn": ["30", "10"],
+      "scope": ["apps/web onboarding", "apps/mobile onboarding", "apps/api onboarding preferences"],
       "steps": [
         "Add a short skippable first-sign-in tutorial with selected goals/modules and an initial folder/example action.",
         "Teach capture, organization, daily versus upcoming work, and personalization at the moment of use.",
@@ -1111,20 +860,14 @@
         "Run fresh account, interrupted onboarding, skip/replay, and multi-device journeys.",
         "Review screen-reader focus, copy comprehension, and completion friction with pilot users."
       ],
-      "references": [
-        "docs/design/journeys.md",
-        "docs/product/requirements.md"
-      ],
+      "references": ["docs/design/journeys.md", "docs/product/requirements.md"],
       "commit": "feat(onboarding): guide first use with progressive feature discovery"
     },
     {
       "id": "32",
       "group": "core",
       "title": "Knowledge guides and cheatsheet organization",
-      "dependsOn": [
-        "17",
-        "15"
-      ],
+      "dependsOn": ["17", "15"],
       "scope": [
         "packages/domain knowledge",
         "apps/api saved views",
@@ -1145,22 +888,14 @@
         "Test saved-view queries, backlinks, move/delete targets, and cross-tenant link rejection.",
         "Review quick-reference use and accessibility on small and wide displays."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/product/requirements.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/product/requirements.md"],
       "commit": "feat(knowledge): add organized guides cheatsheets and saved views"
     },
     {
       "id": "33",
       "group": "core",
       "title": "Global authorized search and filters",
-      "dependsOn": [
-        "32",
-        "23",
-        "25",
-        "19"
-      ],
+      "dependsOn": ["32", "23", "25", "19"],
       "scope": [
         "apps/api search module",
         "packages/domain search",
@@ -1191,16 +926,8 @@
       "id": "34",
       "group": "core",
       "title": "Conflict recovery and offline hardening",
-      "dependsOn": [
-        "33",
-        "13"
-      ],
-      "scope": [
-        "packages/sync",
-        "apps/web recovery",
-        "apps/mobile recovery",
-        "tests/integration"
-      ],
+      "dependsOn": ["33", "13"],
+      "scope": ["packages/sync", "apps/web recovery", "apps/mobile recovery", "tests/integration"],
       "steps": [
         "Add side-by-side conflict review with keep-both/choose-version behavior for text and explicit policies for structured fields.",
         "Harden deleted-parent references, account switching, cursor reset, storage eviction, and partial attachment transfer.",
@@ -1215,19 +942,14 @@
         "Run multi-device concurrent-edit/delete, crash/restart, cursor compaction, and quota/eviction fault tests.",
         "Inspect recovery usability with realistic lost-network scenarios."
       ],
-      "references": [
-        "docs/architecture/sync-and-offline.md",
-        "docs/engineering/quality.md"
-      ],
+      "references": ["docs/architecture/sync-and-offline.md", "docs/engineering/quality.md"],
       "commit": "fix(sync): preserve edits through conflicts and offline failures"
     },
     {
       "id": "35",
       "group": "core",
       "title": "Portable export and controlled import",
-      "dependsOn": [
-        "34"
-      ],
+      "dependsOn": ["34"],
       "scope": [
         "apps/api portability",
         "apps/worker export",
@@ -1249,20 +971,14 @@
         "Test archive safety, expiration, authorization, cancellation, and quota enforcement.",
         "Test recent-reauthentication expiry/cancellation, session binding, and unauthorized export link reuse."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/architecture/security-and-vault.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/architecture/security-and-vault.md"],
       "commit": "feat(portability): add documented workspace export and import"
     },
     {
       "id": "36",
       "group": "core",
       "title": "Account deletion backup and recovery lifecycle",
-      "dependsOn": [
-        "35",
-        "24"
-      ],
+      "dependsOn": ["35", "24"],
       "scope": [
         "apps/api account lifecycle",
         "apps/worker deletion",
@@ -1295,20 +1011,8 @@
       "id": "37",
       "group": "core",
       "title": "Core quality and usability release gate",
-      "dependsOn": [
-        "31",
-        "33",
-        "34",
-        "35",
-        "36"
-      ],
-      "scope": [
-        "tests/e2e",
-        "tests/security",
-        "tests/performance",
-        "apps/web",
-        "apps/mobile"
-      ],
+      "dependsOn": ["31", "33", "34", "35", "36"],
+      "scope": ["tests/e2e", "tests/security", "tests/performance", "apps/web", "apps/mobile"],
       "steps": [
         "Exercise complete personal organizer journeys across browser and physical Android devices using realistic synthetic data.",
         "Audit accessibility, localization readiness, permission boundaries, file safety, migration behavior, and recovery.",
@@ -1334,10 +1038,7 @@
       "id": "38",
       "group": "core",
       "title": "Controlled private beta",
-      "dependsOn": [
-        "37",
-        "02"
-      ],
+      "dependsOn": ["37", "02"],
       "scope": [
         "infra/deployment",
         "apps/mobile release config",
@@ -1368,14 +1069,8 @@
       "id": "39",
       "group": "extensions",
       "title": "Expense tracking domain",
-      "dependsOn": [
-        "38"
-      ],
-      "scope": [
-        "packages/domain expenses",
-        "apps/api expenses module",
-        "packages/contracts"
-      ],
+      "dependsOn": ["38"],
+      "scope": ["packages/domain expenses", "apps/api expenses module", "packages/contracts"],
       "steps": [
         "Implement manual expense/income/refund records, user categories, dates, notes, optional receipt references, and folder organization. A refund references an original expense, uses its currency, and reduces spending rather than increasing income; partial refunds cannot cumulatively exceed the original without a later reviewed policy.",
         "Store money as integer minor units with currency metadata and explicit precision; do not sum unrelated currencies.",
@@ -1392,24 +1087,15 @@
         "Test recurrence deduplication and offline conflict behavior.",
         "Test partial/full/concurrent refunds, currency mismatch, over-refund rejection, category totals, and deletion of a referenced original expense."
       ],
-      "references": [
-        "docs/product/requirements.md",
-        "docs/architecture/data-model.md"
-      ],
+      "references": ["docs/product/requirements.md", "docs/architecture/data-model.md"],
       "commit": "feat(expenses): add precise manual expense and income records"
     },
     {
       "id": "40",
       "group": "extensions",
       "title": "Expense capture reports and budgets",
-      "dependsOn": [
-        "39"
-      ],
-      "scope": [
-        "apps/web expenses",
-        "apps/mobile expenses",
-        "apps/api reports"
-      ],
+      "dependsOn": ["39"],
+      "scope": ["apps/web expenses", "apps/mobile expenses", "apps/api reports"],
       "steps": [
         "Build fast manual entry, category/date filters, receipt attachment, and month/category summaries.",
         "Add optional per-currency budgets, accessible chart/list alternatives, and CSV export.",
@@ -1424,21 +1110,14 @@
         "Run capture/edit/filter/report/export journeys and reconcile totals with domain fixtures.",
         "Review chart readability, large text, keyboard operation, and privacy defaults."
       ],
-      "references": [
-        "docs/design/design-system.md",
-        "docs/engineering/quality.md"
-      ],
+      "references": ["docs/design/design-system.md", "docs/engineering/quality.md"],
       "commit": "feat(expenses): add capture reports and optional budgets"
     },
     {
       "id": "41",
       "group": "extensions",
       "title": "Audio recording and attachment lifecycle",
-      "dependsOn": [
-        "25",
-        "38",
-        "03"
-      ],
+      "dependsOn": ["25", "38", "03"],
       "scope": [
         "apps/mobile recording",
         "apps/web recording",
@@ -1469,11 +1148,7 @@
       "id": "42",
       "group": "extensions",
       "title": "Safe custom section schema and renderer contracts",
-      "dependsOn": [
-        "38",
-        "32",
-        "40"
-      ],
+      "dependsOn": ["38", "32", "40"],
       "scope": [
         "packages/domain custom-sections",
         "packages/contracts",
@@ -1494,21 +1169,14 @@
         "Test schema validation/migration, field removal preservation, limits, malicious input, and permissions.",
         "Round-trip custom records through API and local storage."
       ],
-      "references": [
-        "docs/architecture/data-model.md",
-        "docs/architecture/security-and-vault.md"
-      ],
+      "references": ["docs/architecture/data-model.md", "docs/architecture/security-and-vault.md"],
       "commit": "feat(customization): add safe versioned custom section schemas"
     },
     {
       "id": "43",
       "group": "extensions",
       "title": "Custom section builder and personal templates",
-      "dependsOn": [
-        "42",
-        "41",
-        "30"
-      ],
+      "dependsOn": ["42", "41", "30"],
       "scope": [
         "apps/web custom-sections",
         "apps/mobile custom-sections",
@@ -1530,20 +1198,14 @@
         "Run create/edit/migrate/export journeys with existing records on each platform.",
         "Review discovery, error copy, and accessible field labels using pilot users."
       ],
-      "references": [
-        "docs/design/journeys.md",
-        "docs/product/requirements.md"
-      ],
+      "references": ["docs/design/journeys.md", "docs/product/requirements.md"],
       "commit": "feat(customization): add guided section and template creation"
     },
     {
       "id": "44",
       "group": "trust",
       "title": "Vault cryptography and recovery proof",
-      "dependsOn": [
-        "38",
-        "03"
-      ],
+      "dependsOn": ["38", "03"],
       "scope": [
         "tests/security vault prototypes",
         "docs/decisions",
@@ -1573,11 +1235,7 @@
       "id": "45",
       "group": "trust",
       "title": "Encrypted vault records and sync protocol",
-      "dependsOn": [
-        "44",
-        "34",
-        "24"
-      ],
+      "dependsOn": ["44", "34", "24"],
       "scope": [
         "packages/domain vault",
         "packages/sync vault",
@@ -1613,15 +1271,8 @@
       "id": "46",
       "group": "trust",
       "title": "Android vault unlock and secure lifecycle",
-      "dependsOn": [
-        "45",
-        "06"
-      ],
-      "scope": [
-        "apps/mobile vault",
-        "packages/ui-mobile",
-        "apps/mobile secure-storage"
-      ],
+      "dependsOn": ["45", "06"],
+      "scope": ["apps/mobile vault", "packages/ui-mobile", "apps/mobile secure-storage"],
       "steps": [
         "Implement the reviewed PIN/device-key wrapping and optional biometric gate, auto-lock, and explicit recovery/enrollment journeys.",
         "Handle background/resume, biometric enrollment changes, failed attempts, session expiry, and key revocation.",
@@ -1637,26 +1288,15 @@
         "Test physical-device biometric available/unavailable/changed, lock/resume, process death, and offline unlock.",
         "Review sensitive data in memory/storage/logs and complete recovery drills."
       ],
-      "references": [
-        "docs/architecture/security-and-vault.md",
-        "docs/design/journeys.md"
-      ],
+      "references": ["docs/architecture/security-and-vault.md", "docs/design/journeys.md"],
       "commit": "feat(vault): add Android PIN and biometric unlock journeys"
     },
     {
       "id": "47",
       "group": "trust",
       "title": "Web vault and security release gate",
-      "dependsOn": [
-        "45",
-        "46",
-        "05"
-      ],
-      "scope": [
-        "apps/web vault",
-        "tests/security",
-        "docs/phase-reports"
-      ],
+      "dependsOn": ["45", "46", "05"],
+      "scope": ["apps/web vault", "tests/security", "docs/phase-reports"],
       "steps": [
         "Implement browser key unlock/recovery and optional supported passkey/device interaction without claiming a universal fingerprint API.",
         "Enforce strong CSP, trusted script boundaries, no decrypted server rendering, auto-lock, and careful local storage policy.",
@@ -1682,10 +1322,7 @@
       "id": "48",
       "group": "trust",
       "title": "Drive scope and external folder feasibility",
-      "dependsOn": [
-        "38",
-        "03"
-      ],
+      "dependsOn": ["38", "03"],
       "scope": [
         "tests/spikes drive",
         "docs/decisions",
@@ -1715,10 +1352,7 @@
       "id": "49",
       "group": "trust",
       "title": "Drive selected-file connector",
-      "dependsOn": [
-        "48",
-        "25"
-      ],
+      "dependsOn": ["48", "25"],
       "scope": [
         "apps/api integrations drive",
         "apps/worker drive",
@@ -1749,10 +1383,7 @@
       "id": "50",
       "group": "trust",
       "title": "Optional external Drive folder mirroring",
-      "dependsOn": [
-        "48",
-        "49"
-      ],
+      "dependsOn": ["48", "49"],
       "scope": [
         "apps/worker drive indexing",
         "apps/api external folders",
@@ -1783,10 +1414,7 @@
       "id": "51",
       "group": "collaboration",
       "title": "Shared rooms invitations and roles",
-      "dependsOn": [
-        "38",
-        "10"
-      ],
+      "dependsOn": ["38", "10"],
       "scope": [
         "apps/api rooms module",
         "packages/domain collaboration",
@@ -1807,20 +1435,14 @@
         "Run role matrix, invite expiry/replay, unauthorized transfer, last-owner, and personal/shared boundary tests.",
         "Review multi-account sharing journeys and private journal/vault exclusion."
       ],
-      "references": [
-        "docs/architecture/security-and-vault.md",
-        "docs/architecture/data-model.md"
-      ],
+      "references": ["docs/architecture/security-and-vault.md", "docs/architecture/data-model.md"],
       "commit": "feat(rooms): add invitations roles and explicit sharing boundaries"
     },
     {
       "id": "52",
       "group": "collaboration",
       "title": "Shared content sync and revocation",
-      "dependsOn": [
-        "51",
-        "34"
-      ],
+      "dependsOn": ["51", "34"],
       "scope": [
         "packages/sync membership",
         "apps/api shared changes",
@@ -1851,9 +1473,7 @@
       "id": "53",
       "group": "collaboration",
       "title": "Room chat and realtime events",
-      "dependsOn": [
-        "52"
-      ],
+      "dependsOn": ["52"],
       "scope": [
         "apps/api chat module",
         "apps/worker realtime",
@@ -1884,9 +1504,7 @@
       "id": "54",
       "group": "collaboration",
       "title": "Collaboration safety and policy gate",
-      "dependsOn": [
-        "53"
-      ],
+      "dependsOn": ["53"],
       "scope": [
         "apps/api reports and blocks",
         "apps/web room settings",
@@ -1917,11 +1535,7 @@
       "id": "55",
       "group": "assistant",
       "title": "AI provider privacy and retrieval foundation",
-      "dependsOn": [
-        "38",
-        "33",
-        "35"
-      ],
+      "dependsOn": ["38", "33", "35"],
       "scope": [
         "apps/api ai module",
         "apps/worker indexing",
@@ -1952,17 +1566,8 @@
       "id": "56",
       "group": "assistant",
       "title": "AI assistant and confirmed organizer actions",
-      "dependsOn": [
-        "55",
-        "19",
-        "23",
-        "32"
-      ],
-      "scope": [
-        "apps/web assistant",
-        "apps/mobile assistant",
-        "apps/api ai tools"
-      ],
+      "dependsOn": ["55", "19", "23", "32"],
+      "scope": ["apps/web assistant", "apps/mobile assistant", "apps/api ai tools"],
       "steps": [
         "Add optional source-linked answers and planning/reflection assistance with visible context scope.",
         "Permit limited draft actions through typed server tools; require review before create/update/delete/share and bind confirmation to the specific proposed operation.",
@@ -1977,20 +1582,14 @@
         "Run adversarial evals, expired confirmation, cross-tenant tool arguments, consent changes, and hallucinated-source checks.",
         "Review assistant accessibility and simple language with realistic organizer prompts."
       ],
-      "references": [
-        "docs/product/requirements.md",
-        "docs/architecture/security-and-vault.md"
-      ],
+      "references": ["docs/product/requirements.md", "docs/architecture/security-and-vault.md"],
       "commit": "feat(assistant): add grounded answers and reviewable organizer actions"
     },
     {
       "id": "57",
       "group": "launch",
       "title": "Entitlements subscriptions and purchase lifecycle",
-      "dependsOn": [
-        "38",
-        "03"
-      ],
+      "dependsOn": ["38", "03"],
       "scope": [
         "apps/api billing",
         "apps/worker billing events",
@@ -2021,10 +1620,7 @@
       "id": "58",
       "group": "launch",
       "title": "Reliability scale and operating cost gate",
-      "dependsOn": [
-        "37",
-        "57"
-      ],
+      "dependsOn": ["37", "57"],
       "scope": [
         "infra/deployment",
         "apps/api",
@@ -2057,11 +1653,7 @@
       "id": "59",
       "group": "launch",
       "title": "Google Play and web launch preparation",
-      "dependsOn": [
-        "38",
-        "57",
-        "58"
-      ],
+      "dependsOn": ["38", "57", "58"],
       "scope": [
         "apps/mobile release metadata",
         "apps/web legal and support",
@@ -2092,15 +1684,8 @@
       "id": "60",
       "group": "launch",
       "title": "Public Android and web release",
-      "dependsOn": [
-        "59"
-      ],
-      "scope": [
-        "release tags",
-        "infra/deployment",
-        "docs/phase-reports",
-        "support operations"
-      ],
+      "dependsOn": ["59"],
+      "scope": ["release tags", "infra/deployment", "docs/phase-reports", "support operations"],
       "steps": [
         "Use the owner's authorized production/store targets; submit/release the tested signed artifact and matching web version with staged rollout.",
         "Verify deployed account lifecycle, purchases, uploads, sync, notifications, moderation/AI where enabled, and monitoring.",
@@ -2125,16 +1710,8 @@
       "id": "61",
       "group": "ios",
       "title": "iOS platform parity and native adaptation",
-      "dependsOn": [
-        "60",
-        "03"
-      ],
-      "scope": [
-        "apps/mobile ios",
-        "packages/ui-mobile",
-        "tests/e2e mobile",
-        "docs/engineering"
-      ],
+      "dependsOn": ["60", "03"],
+      "scope": ["apps/mobile ios", "packages/ui-mobile", "tests/e2e mobile", "docs/engineering"],
       "steps": [
         "Configure Apple development prerequisites and validate Expo native modules on supported physical iOS devices.",
         "Adapt navigation, file/recording permissions, biometric key behavior, notification scheduling, safe areas, and platform purchase flows.",
@@ -2149,25 +1726,15 @@
         "Run physical-device VoiceOver, interruption, push, secure-storage, recording, upgrade, and offline tests.",
         "Check current Apple privacy/purchase/notification requirements with primary references at implementation time."
       ],
-      "references": [
-        "docs/engineering/quality.md",
-        "docs/engineering/release-gates.md"
-      ],
+      "references": ["docs/engineering/quality.md", "docs/engineering/release-gates.md"],
       "commit": "feat(ios): adapt organizer workflows and verify platform parity"
     },
     {
       "id": "62",
       "group": "ios",
       "title": "iOS store release gate",
-      "dependsOn": [
-        "61",
-        "58"
-      ],
-      "scope": [
-        "apps/mobile ios metadata",
-        "release tags",
-        "docs/phase-reports"
-      ],
+      "dependsOn": ["61", "58"],
+      "scope": ["apps/mobile ios metadata", "release tags", "docs/phase-reports"],
       "steps": [
         "Prepare TestFlight coverage, privacy declarations, purchase products, signing, screenshots, deletion/support links, and current review checklist.",
         "Resolve iOS-specific security/usability findings before submitting the exact tested artifact.",
@@ -2182,24 +1749,15 @@
         "Run iOS release-build smoke/upgrade/accessibility/purchase checks.",
         "Verify current primary App Store policies and live artifact status before completion."
       ],
-      "references": [
-        "docs/engineering/release-gates.md",
-        "docs/engineering/quality.md"
-      ],
+      "references": ["docs/engineering/release-gates.md", "docs/engineering/quality.md"],
       "commit": "chore(ios-release): record verified store readiness and release"
     },
     {
       "id": "63",
       "group": "evolution",
       "title": "First post-launch review and next roadmap",
-      "dependsOn": [
-        "60"
-      ],
-      "scope": [
-        "docs/product",
-        "docs/engineering",
-        "docs/roadmap future phases"
-      ],
+      "dependsOn": ["60"],
+      "scope": ["docs/product", "docs/engineering", "docs/roadmap future phases"],
       "steps": [
         "Review an agreed initial operating period using privacy-safe usage, support themes, crashes, cost, and reliability evidence.",
         "Prioritize concrete defects and user needs without automatically expanding every feature request.",
@@ -2214,277 +1772,130 @@
         "Reconcile incident/support observations with operational data and consent policy.",
         "Review the revised roadmap and rerun planning validation."
       ],
-      "references": [
-        "docs/engineering/handoff.md",
-        "docs/architecture/operations-and-scaling.md"
-      ],
+      "references": ["docs/engineering/handoff.md", "docs/architecture/operations-and-scaling.md"],
       "commit": "docs(product): review launch evidence and prioritize the next phases"
     }
   ],
   "featureCoverage": [
     {
       "feature": "Responsive web and Android apps",
-      "phases": [
-        "01",
-        "05",
-        "06",
-        "38",
-        "60"
-      ],
-      "requirements": [
-        "R-QUALITY"
-      ]
+      "phases": ["01", "05", "06", "38", "60"],
+      "requirements": ["R-QUALITY"]
     },
     {
       "feature": "Typed notes",
-      "phases": [
-        "16",
-        "17"
-      ],
-      "requirements": [
-        "R-NOTE",
-        "R-CAPTURE"
-      ]
+      "phases": ["16", "17"],
+      "requirements": ["R-NOTE", "R-CAPTURE"]
     },
     {
       "feature": "Prioritized upcoming todos and deadlines",
-      "phases": [
-        "18",
-        "19",
-        "26"
-      ],
-      "requirements": [
-        "R-TASK"
-      ]
+      "phases": ["18", "19", "26"],
+      "requirements": ["R-TASK"]
     },
     {
       "feature": "Independent daily repeating tasks",
-      "phases": [
-        "20",
-        "21"
-      ],
-      "requirements": [
-        "R-ROUTINE"
-      ]
+      "phases": ["20", "21"],
+      "requirements": ["R-ROUTINE"]
     },
     {
       "feature": "Private journaling and reflection",
-      "phases": [
-        "22",
-        "23"
-      ],
-      "requirements": [
-        "R-JOURNAL"
-      ]
+      "phases": ["22", "23"],
+      "requirements": ["R-JOURNAL"]
     },
     {
       "feature": "User-created nested folders across item types",
-      "phases": [
-        "14",
-        "15"
-      ],
-      "requirements": [
-        "R-ORG"
-      ]
+      "phases": ["14", "15"],
+      "requirements": ["R-ORG"]
     },
     {
       "feature": "Images PDFs and document upload/storage",
-      "phases": [
-        "24",
-        "25"
-      ],
-      "requirements": [
-        "R-FILE"
-      ]
+      "phases": ["24", "25"],
+      "requirements": ["R-FILE"]
     },
     {
       "feature": "Guides cheatsheets and internal links",
-      "phases": [
-        "32"
-      ],
-      "requirements": [
-        "R-KNOWLEDGE"
-      ]
+      "phases": ["32"],
+      "requirements": ["R-KNOWLEDGE"]
     },
     {
       "feature": "Section reorder hide/show and personalization",
-      "phases": [
-        "30",
-        "31"
-      ],
-      "requirements": [
-        "R-PERSONALIZE"
-      ]
+      "phases": ["30", "31"],
+      "requirements": ["R-PERSONALIZE"]
     },
     {
       "feature": "User-created new structured sections",
-      "phases": [
-        "42",
-        "43"
-      ],
-      "requirements": [
-        "R-SECTION"
-      ]
+      "phases": ["42", "43"],
+      "requirements": ["R-SECTION"]
     },
     {
       "feature": "Calendar with upcoming tasks",
-      "phases": [
-        "26"
-      ],
-      "requirements": [
-        "R-CALENDAR"
-      ]
+      "phases": ["26"],
+      "requirements": ["R-CALENDAR"]
     },
     {
       "feature": "Reminders notifications and alarm feasibility",
-      "phases": [
-        "03",
-        "27",
-        "28",
-        "29"
-      ],
-      "requirements": [
-        "R-REMINDER"
-      ]
+      "phases": ["03", "27", "28", "29"],
+      "requirements": ["R-REMINDER"]
     },
     {
       "feature": "Expense tracker",
-      "phases": [
-        "39",
-        "40"
-      ],
-      "requirements": [
-        "R-EXPENSE"
-      ]
+      "phases": ["39", "40"],
+      "requirements": ["R-EXPENSE"]
     },
     {
       "feature": "Audio recording",
-      "phases": [
-        "03",
-        "41"
-      ],
-      "requirements": [
-        "R-AUDIO"
-      ]
+      "phases": ["03", "41"],
+      "requirements": ["R-AUDIO"]
     },
     {
       "feature": "PIN and biometric encrypted sensitive vault",
-      "phases": [
-        "44",
-        "45",
-        "46",
-        "47"
-      ],
-      "requirements": [
-        "R-VAULT"
-      ]
+      "phases": ["44", "45", "46", "47"],
+      "requirements": ["R-VAULT"]
     },
     {
       "feature": "Drive connection uploads and optional folder mirroring",
-      "phases": [
-        "48",
-        "49",
-        "50"
-      ],
-      "requirements": [
-        "R-DRIVE"
-      ]
+      "phases": ["48", "49", "50"],
+      "requirements": ["R-DRIVE"]
     },
     {
       "feature": "Shared rooms memberships and chat",
-      "phases": [
-        "51",
-        "52",
-        "53",
-        "54"
-      ],
-      "requirements": [
-        "R-ROOM"
-      ]
+      "phases": ["51", "52", "53", "54"],
+      "requirements": ["R-ROOM"]
     },
     {
       "feature": "Optional AI assistant",
-      "phases": [
-        "55",
-        "56"
-      ],
-      "requirements": [
-        "R-AI"
-      ]
+      "phases": ["55", "56"],
+      "requirements": ["R-AI"]
     },
     {
       "feature": "Onboarding tutorial and non-overwhelming UX",
-      "phases": [
-        "04",
-        "30",
-        "31",
-        "37"
-      ],
-      "requirements": [
-        "R-CAPTURE",
-        "R-PERSONALIZE",
-        "R-QUALITY"
-      ]
+      "phases": ["04", "30", "31", "37"],
+      "requirements": ["R-CAPTURE", "R-PERSONALIZE", "R-QUALITY"]
     },
     {
       "feature": "Paid product and Google Play release",
-      "phases": [
-        "57",
-        "58",
-        "59",
-        "60"
-      ],
-      "requirements": [
-        "R-COMMERCIAL"
-      ]
+      "phases": ["57", "58", "59", "60"],
+      "requirements": ["R-COMMERCIAL"]
     },
     {
       "feature": "Offline sync export recovery and account deletion",
-      "phases": [
-        "11",
-        "12",
-        "13",
-        "34",
-        "35",
-        "36"
-      ],
-      "requirements": [
-        "R-ACCOUNT",
-        "R-QUALITY"
-      ]
+      "phases": ["11", "12", "13", "34", "35", "36"],
+      "requirements": ["R-ACCOUNT", "R-QUALITY"]
     },
     {
       "feature": "Code quality phase reports tests and professional Git history",
-      "phases": [
-        "00",
-        "01",
-        "02",
-        "37",
-        "63"
-      ],
-      "requirements": [
-        "R-QUALITY"
-      ]
+      "phases": ["00", "01", "02", "37", "63"],
+      "requirements": ["R-QUALITY"]
     },
     {
       "feature": "Future iOS support",
-      "phases": [
-        "61",
-        "62"
-      ],
-      "requirements": [
-        "R-QUALITY"
-      ]
+      "phases": ["61", "62"],
+      "requirements": ["R-QUALITY"]
     },
     {
       "feature": "Global authorized search and offline coverage",
-      "phases": [
-        "33",
-        "34"
-      ],
-      "requirements": [
-        "R-SEARCH"
-      ]
+      "phases": ["33", "34"],
+      "requirements": ["R-SEARCH"]
     }
   ]
 }

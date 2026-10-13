@@ -5,6 +5,7 @@ Deterministic test clocks, synthetic data fixtures, and testing helpers for Dayn
 ## Status
 
 Established in Phase 01. Provides:
+
 - `DeterministicClock`: Controllable clock without reliance on non-deterministic system time
 - Synthetic workspace and user fixtures for isolated multi-tenant tests
 

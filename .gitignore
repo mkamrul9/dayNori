@@ -9,6 +9,8 @@ playwright-report/
 test-results/
 .turbo/
 *.tsbuildinfo
+apps/mobile/android/
+apps/mobile/ios/
 
 
 # Local secrets and private material

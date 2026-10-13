@@ -5,6 +5,7 @@ Offline synchronization protocol engine, mutation queues, change feeds, and stor
 ## Status
 
 Established in Phase 01. Defines:
+
 - `ClientMutation`: Local mutation envelope with idempotency ID and base revision
 - `MutationReceipt`: Server response acknowledging applied revision or conflict
 - `SyncStoragePort`: Port interface for SQLite (mobile) and IndexedDB (web) adapters

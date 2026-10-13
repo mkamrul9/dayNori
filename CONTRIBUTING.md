@@ -43,4 +43,4 @@ Phase 00 can be committed locally. When the owner provides a URL, inspect existi
 - Changes to persistence have migrations, rollout/rollback or forward-fix instructions, and upgrade fixtures.
 - Documentation uses relative local links, states what is proposed versus delivered, and cites primary sources for external policy claims.
 
-No root package scripts exist yet. Phase 01 makes the future check commands real. The planning checker is already executable: `node scripts/validate-planning.mjs`.
+Root package scripts are real and executable: `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format:check`, and `node scripts/validate-planning.mjs`.

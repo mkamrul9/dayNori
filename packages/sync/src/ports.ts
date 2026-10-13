@@ -11,7 +11,10 @@ export interface SyncStoragePort {
 
 export interface SyncTransportPort {
   pushMutations(mutations: ClientMutation[]): Promise<MutationReceipt[]>;
-  pullChanges(workspaceId: WorkspaceId, sinceRevision: number): Promise<{
+  pullChanges(
+    workspaceId: WorkspaceId,
+    sinceRevision: number
+  ): Promise<{
     changes: unknown[];
     newRevision: number;
   }>;
