@@ -38,7 +38,9 @@
     },
     {
       "id": "06",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Blocked on physical Android TalkBack hardware verification from prerequisite Phase 04 and physical device navigation verification; provisional Android navigation shell implementation delivered under explicit owner authorization.",
+      "report": "docs/phase-reports/phase-06.md"
     },
     {
       "id": "07",

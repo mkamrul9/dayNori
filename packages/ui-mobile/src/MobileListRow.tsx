@@ -6,23 +6,28 @@ export interface MobileListRowProps {
   title: string;
   subtitle?: string;
   meta?: string;
+  metadata?: string;
   selected?: boolean;
   disabled?: boolean;
   themeMode?: ThemeMode;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
 }
 
 export const MobileListRow: React.FC<MobileListRowProps> = ({
   title,
   subtitle,
   meta,
+  metadata,
   selected = false,
   disabled = false,
   themeMode = 'light',
   onPress,
   style,
+  accessibilityLabel,
 }) => {
+  const displaySubtitle = subtitle || metadata;
   const palette = colors[themeMode];
 
   let bg: string = palette.surface;
@@ -38,6 +43,7 @@ export const MobileListRow: React.FC<MobileListRowProps> = ({
     <Pressable
       accessible={true}
       accessibilityRole={isInteractive ? 'button' : 'none'}
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected, disabled }}
       disabled={disabled}
       onPress={isInteractive ? onPress : undefined}
@@ -58,8 +64,10 @@ export const MobileListRow: React.FC<MobileListRowProps> = ({
         >
           {title}
         </Text>
-        {subtitle && (
-          <Text style={[styles.subtitle, { color: palette.text.secondary }]}>{subtitle}</Text>
+        {displaySubtitle && (
+          <Text style={[styles.subtitle, { color: palette.text.secondary }]}>
+            {displaySubtitle}
+          </Text>
         )}
       </View>
       {meta && <Text style={[styles.meta, { color: palette.text.secondary }]}>{meta}</Text>}

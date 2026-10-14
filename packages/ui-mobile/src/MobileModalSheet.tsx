@@ -18,6 +18,7 @@ export interface MobileModalSheetProps {
   title: string;
   themeMode?: ThemeMode;
   children: React.ReactNode;
+  testID?: string;
 }
 
 export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
@@ -26,6 +27,7 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
   title,
   themeMode = 'light',
   children,
+  testID,
 }) => {
   const palette = colors[themeMode];
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -56,6 +58,7 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
 
   return (
     <Modal
+      testID={testID}
       visible={visible}
       transparent={true}
       animationType={reduceMotion ? 'none' : 'slide'}

@@ -9,6 +9,9 @@ import {
   MobileListRow,
   MobileModalSheet,
   MobileTextField,
+  MobileEmptyState,
+  MobileNavigationBar,
+  MobileHeader,
 } from './index.js';
 
 describe('UI Mobile Primitives', () => {
@@ -53,5 +56,31 @@ describe('UI Mobile Primitives', () => {
     expect(sheet.type).toBe(MobileModalSheet);
     expect(sheet.props.title).toBe('Modal Sheet');
     expect(sheet.props.visible).toBe(true);
+  });
+
+  it('exports and instantiates navigation components', () => {
+    const emptyState = React.createElement(MobileEmptyState, {
+      title: 'No upcoming tasks',
+      description: 'Your agenda for today is clear.',
+      actionLabel: 'Create task',
+      onAction: () => {},
+    });
+    expect(emptyState.props.title).toBe('No upcoming tasks');
+
+    const navBar = React.createElement(MobileNavigationBar, {
+      currentTab: 'plan',
+      onSelectTab: () => {},
+    });
+    expect(navBar.props.currentTab).toBe('plan');
+
+    const header = React.createElement(MobileHeader, {
+      title: 'Today',
+      subtitle: 'Wednesday, October 14',
+      onOpenSearch: () => {},
+      onOpenCreate: () => {},
+      onOpenSettings: () => {},
+    });
+    expect(header.props.title).toBe('Today');
+    expect(header.props.onOpenSearch).toBeDefined();
   });
 });

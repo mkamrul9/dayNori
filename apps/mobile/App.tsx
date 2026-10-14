@@ -1,284 +1,342 @@
-import { useState } from 'react';
-import { SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import { useEffect, useRef, useState } from 'react';
 import {
-  MobileButton,
-  MobileCard,
-  MobileFeedback,
-  MobileListRow,
-  MobileModalSheet,
-  MobileTextField,
-} from '@daynori/ui-mobile';
+  AppState,
+  BackHandler,
+  Linking,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  View,
+} from 'react-native';
+import { colors, type ThemeMode } from '@daynori/design-tokens';
+import { MobileHeader, MobileNavigationBar, type MobileTab } from '@daynori/ui-mobile';
+import { parseDeepLinkUrl, type DeepLinkPayload } from '@daynori/contracts';
+
+import { defaultAuthAdapter } from './src/auth/authAdapter';
+import type { ActiveModal, CreateDraft, LibraryFilter, PlanSubView } from './src/navigation/types';
+import { TodayView } from './src/views/TodayView';
+import { PlanView } from './src/views/PlanView';
+import { LibraryView } from './src/views/LibraryView';
+import { JournalView } from './src/views/JournalView';
+import { SettingsView } from './src/views/SettingsView';
+import { SearchSheet } from './src/views/SearchSheet';
+import { CreateSheet } from './src/views/CreateSheet';
+import { ComponentGalleryView } from './src/views/ComponentGalleryView';
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
-  const [isSheetVisible, setIsSheetVisible] = useState<boolean>(false);
-  const [selectedRow, setSelectedRow] = useState<string>('row-1');
-  const [inputText, setInputText] = useState<string>('');
-  const [showError, setShowError] = useState<boolean>(false);
+  const [textScale, setTextScale] = useState<number>(1.0);
+  const [currentTab, setCurrentTab] = useState<MobileTab>('today');
+  const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
+  const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
+  const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+
+  // Input draft preservation across shell navigation
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [createDraft, setCreateDraft] = useState<CreateDraft>({
+    type: 'task',
+    title: '',
+    details: '',
+  });
+
+  // Authentication adapter state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    defaultAuthAdapter.isAuthenticated()
+  );
+  const [pendingProtectedDest, setPendingProtectedDest] = useState<string | null>(null);
+
+  // Link deduplication timestamp
+  const lastLinkRef = useRef<{ url: string; time: number } | null>(null);
 
   const palette = colors[themeMode];
 
+  // 1. Subscribe to Auth Adapter changes
+  useEffect(() => {
+    const unsubscribe = defaultAuthAdapter.subscribe(() => {
+      const auth = defaultAuthAdapter.isAuthenticated();
+      setIsAuthenticated(auth);
+      // If user became authenticated and there was a pending destination, resolve it
+      if (auth && pendingProtectedDest) {
+        if (pendingProtectedDest === 'journal') {
+          setCurrentTab('journal');
+        } else if (pendingProtectedDest === 'library') {
+          setCurrentTab('library');
+        }
+        setPendingProtectedDest(null);
+      }
+    });
+    return unsubscribe;
+  }, [pendingProtectedDest]);
+
+  // 2. Android Hardware Back Handling
+  useEffect(() => {
+    const onHardwareBack = (): boolean => {
+      // 1. If any modal sheet is open, dismiss it
+      if (activeModal !== 'none') {
+        setActiveModal('none');
+        return true; // handled
+      }
+
+      // 2. If in Plan sub-view other than default 'tasks', return to 'tasks'
+      if (currentTab === 'plan' && planSubView !== 'tasks') {
+        setPlanSubView('tasks');
+        return true;
+      }
+
+      // 3. If in Library with a specific filter active, reset filter to 'all'
+      if (currentTab === 'library' && libraryFilter !== 'all') {
+        setLibraryFilter('all');
+        return true;
+      }
+
+      // 4. If on any tab other than Today, navigate back to Today tab
+      if (currentTab !== 'today') {
+        setCurrentTab('today');
+        return true;
+      }
+
+      // 5. On Today dashboard with no modals, allow default system exit
+      return false;
+    };
+
+    const backSubscription = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => {
+      if (backSubscription && typeof backSubscription.remove === 'function') {
+        backSubscription.remove();
+      } else {
+        BackHandler.removeEventListener('hardwareBackPress', onHardwareBack);
+      }
+    };
+  }, [activeModal, currentTab, planSubView, libraryFilter]);
+
+  // 3. App Resume / Background Lifecycle Handling
+  useEffect(() => {
+    const appStateSubscription = AppState.addEventListener('change', (_nextState) => {
+      // Retain active tab, modal state, and input drafts upon resume
+    });
+    return () => {
+      if (appStateSubscription && typeof appStateSubscription.remove === 'function') {
+        appStateSubscription.remove();
+      }
+    };
+  }, []);
+
+  // 4. Cold-Start and Warm-Start Deep-Linking
+  useEffect(() => {
+    const handleDeepLink = (url: string) => {
+      if (!url) return;
+
+      // Deduplication: prevent repeated navigation if same payload received within 5 seconds
+      const now = Date.now();
+      if (
+        lastLinkRef.current &&
+        lastLinkRef.current.url === url &&
+        now - lastLinkRef.current.time < 5000
+      ) {
+        return;
+      }
+      lastLinkRef.current = { url, time: now };
+
+      const parseResult = parseDeepLinkUrl(url);
+      if (!parseResult.success || !parseResult.payload) {
+        return;
+      }
+
+      const payload: DeepLinkPayload = parseResult.payload;
+
+      if (payload.type === 'notification') {
+        const dest = payload.destination;
+        if (dest === 'today') {
+          setCurrentTab('today');
+          setActiveModal('none');
+        } else if (dest === 'plan') {
+          setCurrentTab('plan');
+          setPlanSubView('tasks');
+          setActiveModal('none');
+        } else if (dest === 'plan/calendar') {
+          setCurrentTab('plan');
+          setPlanSubView('calendar');
+          setActiveModal('none');
+        } else if (dest === 'plan/routines') {
+          setCurrentTab('plan');
+          setPlanSubView('routines');
+          setActiveModal('none');
+        } else if (dest === 'library' || dest.startsWith('library/')) {
+          setCurrentTab('library');
+          setActiveModal('none');
+        } else if (dest === 'journal') {
+          // Protected route
+          if (!defaultAuthAdapter.isAuthenticated()) {
+            setPendingProtectedDest('journal');
+          }
+          setCurrentTab('journal');
+          setActiveModal('none');
+        } else if (dest === 'settings') {
+          setActiveModal('settings');
+        } else if (dest === 'review') {
+          setActiveModal('gallery');
+        }
+      } else if (payload.type === 'file') {
+        setCurrentTab('library');
+        setLibraryFilter('files');
+        setActiveModal('none');
+      } else if (payload.type === 'auth') {
+        if (payload.token) {
+          defaultAuthAdapter.loginSynthetic();
+        }
+      }
+    };
+
+    // Cold-start link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url);
+    });
+
+    // Warm-start link
+    const linkingSubscription = Linking.addEventListener('url', (event) => {
+      handleDeepLink(event.url);
+    });
+
+    return () => {
+      if (linkingSubscription && typeof linkingSubscription.remove === 'function') {
+        linkingSubscription.remove();
+      }
+    };
+  }, []);
+
+  // Contextual Header Subtitle
+  const getHeaderInfo = () => {
+    switch (currentTab) {
+      case 'today':
+        return { title: 'Today', subtitle: 'Wednesday, Oct 14 • Overview' };
+      case 'plan':
+        return { title: 'Plan', subtitle: 'Tasks, Routines, and Calendar' };
+      case 'library':
+        return { title: 'Library', subtitle: 'Workspace folders and files' };
+      case 'journal':
+        return { title: 'Journal', subtitle: 'Private thoughts and reflection' };
+    }
+  };
+
+  const headerInfo = getHeaderInfo();
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
-      <StatusBar barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'} />
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text
-              accessibilityRole="header"
-              style={[styles.title, { color: palette.text.primary }]}
-            >
-              Daynori Mobile
-            </Text>
-            <Text style={[styles.subtitle, { color: palette.text.secondary }]}>
-              Accessible Primitives & Component Gallery (Phase 04)
-            </Text>
-          </View>
+      <StatusBar
+        barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'}
+        backgroundColor={palette.surface}
+      />
 
-          <View style={styles.themeToggleContainer}>
-            <MobileButton
-              variant="secondary"
-              themeMode={themeMode}
-              onPress={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
-              accessibilityLabel={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
-            >
-              {themeMode === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
-            </MobileButton>
-          </View>
+      {/* Main Top Header */}
+      <MobileHeader
+        title={headerInfo.title}
+        subtitle={headerInfo.subtitle}
+        themeMode={themeMode}
+        onOpenSearch={() => setActiveModal('search')}
+        onOpenCreate={() => setActiveModal('create')}
+        onOpenSettings={() => setActiveModal('settings')}
+      />
+
+      {/* Main Content Area */}
+      <View style={styles.contentArea}>
+        {currentTab === 'today' && (
+          <TodayView
+            themeMode={themeMode}
+            onNavigateToPlan={() => setCurrentTab('plan')}
+            onNavigateToJournal={() => setCurrentTab('journal')}
+            onOpenCreate={() => setActiveModal('create')}
+          />
+        )}
+
+        {currentTab === 'plan' && (
+          <PlanView
+            themeMode={themeMode}
+            initialSubView={planSubView}
+            onSubViewChange={setPlanSubView}
+          />
+        )}
+
+        {currentTab === 'library' && (
+          <LibraryView
+            themeMode={themeMode}
+            initialFilter={libraryFilter}
+            onFilterChange={setLibraryFilter}
+            onOpenCreate={() => setActiveModal('create')}
+          />
+        )}
+
+        {currentTab === 'journal' && (
+          <JournalView
+            themeMode={themeMode}
+            isAuthenticated={isAuthenticated}
+            onLoginSynthetic={() => defaultAuthAdapter.loginSynthetic()}
+            onNavigateToToday={() => setCurrentTab('today')}
+          />
+        )}
+      </View>
+
+      {/* Bottom Organizer Navigation Bar */}
+      <MobileNavigationBar
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
+        themeMode={themeMode}
+      />
+
+      {/* Search Sheet */}
+      <SearchSheet
+        visible={activeModal === 'search'}
+        onClose={() => setActiveModal('none')}
+        themeMode={themeMode}
+        initialQuery={searchQuery}
+        onQueryChange={setSearchQuery}
+      />
+
+      {/* Create Sheet */}
+      <CreateSheet
+        visible={activeModal === 'create'}
+        onClose={() => setActiveModal('none')}
+        themeMode={themeMode}
+        initialDraft={createDraft}
+        onDraftChange={setCreateDraft}
+        onCreateItem={() => {}}
+      />
+
+      {/* Settings Modal */}
+      {activeModal === 'settings' && (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 100 }]}
+        >
+          <SettingsView
+            themeMode={themeMode}
+            onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
+            textScale={textScale}
+            onChangeTextScale={setTextScale}
+            isAuthenticated={isAuthenticated}
+            onToggleAuth={() => {
+              if (isAuthenticated) {
+                defaultAuthAdapter.logout();
+              } else {
+                defaultAuthAdapter.loginSynthetic();
+              }
+            }}
+            onOpenGallery={() => setActiveModal('gallery')}
+            onClose={() => setActiveModal('none')}
+          />
         </View>
+      )}
 
-        {/* Section 1: Buttons */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            1. Mobile Buttons (48dp Touch Target)
-          </Text>
-          <MobileCard themeMode={themeMode}>
-            <View style={styles.buttonStack}>
-              <MobileButton variant="primary" themeMode={themeMode} onPress={() => {}}>
-                Primary Button
-              </MobileButton>
-
-              <MobileButton variant="secondary" themeMode={themeMode} onPress={() => {}}>
-                Secondary Button
-              </MobileButton>
-
-              <MobileButton variant="subtle" themeMode={themeMode} onPress={() => {}}>
-                Subtle Button
-              </MobileButton>
-
-              <MobileButton variant="danger" themeMode={themeMode} onPress={() => {}}>
-                Danger Button
-              </MobileButton>
-
-              <MobileButton
-                variant="primary"
-                loading={true}
-                themeMode={themeMode}
-                onPress={() => {}}
-              >
-                Loading...
-              </MobileButton>
-
-              <MobileButton
-                variant="secondary"
-                disabled={true}
-                themeMode={themeMode}
-                onPress={() => {}}
-              >
-                Disabled Action
-              </MobileButton>
-            </View>
-          </MobileCard>
+      {/* Component Gallery Modal (Phase 04 Review Destination) */}
+      {activeModal === 'gallery' && (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 101 }]}
+        >
+          <ComponentGalleryView
+            themeMode={themeMode}
+            onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
+            onClose={() => setActiveModal('settings')}
+          />
         </View>
-
-        {/* Section 2: Text Fields */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            2. Native Form Inputs
-          </Text>
-          <MobileCard themeMode={themeMode}>
-            <View style={styles.fieldStack}>
-              <MobileTextField
-                label="Workspace Name"
-                placeholder="e.g., Personal Notebook"
-                helperText="Familiar title for your daily workspace."
-                themeMode={themeMode}
-                value={inputText}
-                onChangeText={setInputText}
-              />
-
-              <MobileTextField
-                label="Daily Goal"
-                placeholder="e.g., Review priorities"
-                errorMessage={showError ? 'A daily intention title is required.' : undefined}
-                helperText={!showError ? 'Set an intentional focus for today.' : undefined}
-                themeMode={themeMode}
-                defaultValue="Reflect on week"
-              />
-
-              <MobileButton
-                variant="subtle"
-                themeMode={themeMode}
-                onPress={() => setShowError((prev) => !prev)}
-              >
-                {showError ? 'Clear Error State' : 'Trigger Validation Error State'}
-              </MobileButton>
-
-              <MobileTextField
-                label="Account ID (Read-only)"
-                value="usr_daynori_01948a"
-                editable={false}
-                helperText="Fixed identifier assigned to your local profile."
-                themeMode={themeMode}
-              />
-            </View>
-          </MobileCard>
-        </View>
-
-        {/* Section 3: List Rows */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            3. Interactive List Rows (&gt;= {touchTargets.mobileMin}dp)
-          </Text>
-          <MobileCard themeMode={themeMode}>
-            <View style={styles.listStack}>
-              <MobileListRow
-                title="Review Phase 04 design tokens"
-                subtitle="WCAG 2.2 Level AA contrast verified"
-                meta="Today"
-                selected={selectedRow === 'row-1'}
-                onPress={() => setSelectedRow('row-1')}
-                themeMode={themeMode}
-              />
-
-              <MobileListRow
-                title="Bangla script readability check"
-                subtitle="Ensure diacritics and matras do not clip"
-                meta="In Progress"
-                selected={selectedRow === 'row-2'}
-                onPress={() => setSelectedRow('row-2')}
-                themeMode={themeMode}
-              />
-
-              <MobileListRow
-                title="Archived item"
-                subtitle="Disabled item shows muted state"
-                meta="Archived"
-                disabled={true}
-                themeMode={themeMode}
-              />
-            </View>
-          </MobileCard>
-        </View>
-
-        {/* Section 4: Feedback */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            4. Status & Feedback Notices
-          </Text>
-          <View style={styles.feedbackStack}>
-            <MobileFeedback
-              severity="info"
-              title="Sync Status"
-              message="Local workspace is up to date."
-              themeMode={themeMode}
-            />
-            <MobileFeedback
-              severity="success"
-              title="Journal Saved"
-              message="Entry #142 saved to local database."
-              themeMode={themeMode}
-            />
-            <MobileFeedback
-              severity="warning"
-              title="Storage Advisory"
-              message="SQLite storage quota approaching 80%."
-              themeMode={themeMode}
-            />
-            <MobileFeedback
-              severity="danger"
-              title="Connection Error"
-              message="Server offline. Offline drafts preserved."
-              themeMode={themeMode}
-            />
-          </View>
-        </View>
-
-        {/* Section 5: Modal Bottom Sheet */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            5. Accessible Bottom Modal Sheet
-          </Text>
-          <MobileCard themeMode={themeMode}>
-            <MobileButton
-              variant="primary"
-              themeMode={themeMode}
-              onPress={() => setIsSheetVisible(true)}
-            >
-              Open Modal Sheet
-            </MobileButton>
-
-            <MobileModalSheet
-              visible={isSheetVisible}
-              onClose={() => setIsSheetVisible(false)}
-              title="Workspace Action"
-              themeMode={themeMode}
-            >
-              <View style={styles.sheetBody}>
-                <Text style={[styles.sheetText, { color: palette.text.secondary }]}>
-                  This sheet traps focus and handles Android hardware back button via
-                  onRequestClose.
-                </Text>
-                <View style={styles.sheetActions}>
-                  <MobileButton
-                    variant="secondary"
-                    themeMode={themeMode}
-                    onPress={() => setIsSheetVisible(false)}
-                  >
-                    Cancel
-                  </MobileButton>
-                  <MobileButton
-                    variant="danger"
-                    themeMode={themeMode}
-                    onPress={() => setIsSheetVisible(false)}
-                  >
-                    Confirm Action
-                  </MobileButton>
-                </View>
-              </View>
-            </MobileModalSheet>
-          </MobileCard>
-        </View>
-
-        {/* Section 6: Bangla Typography */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            6. Bangla Script & Dynamic Type Readability
-          </Text>
-          <MobileCard themeMode={themeMode}>
-            <Text
-              style={[
-                styles.banglaHeader,
-                { color: palette.text.primary, lineHeight: 18 * typography.lineHeight.bangla },
-              ]}
-            >
-              আপনার দিন, একত্রিত। একটি শান্ত ও নির্ভরযোগ্য নোটবুক।
-            </Text>
-            <Text
-              style={[
-                styles.banglaBody,
-                { color: palette.text.secondary, lineHeight: 14 * typography.lineHeight.bangla },
-              ]}
-            >
-              নোট, রুটিন, কাজ এবং ব্যক্তিগত জার্নাল লেখার একটি সহজ মাধ্যম। জটিল যুক্তাক্ষর (যেমন:
-              ক্ষ, জ্ঞ, ঞ্চ, ম্প, ত্র) এবং উপর-নিচের কারচিহ্ন (হ্রস্ব-ইকার, দীর্ঘ-ঈকার, হ্রস্ব-উকার)
-              যেন কোনোভাবে কেটে না যায়, তা এই বিশেষ লাইনের উচ্চতা দ্বারা নিশ্চিত করা হয়েছে।
-            </Text>
-          </MobileCard>
-        </View>
-      </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -287,66 +345,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.xxl,
-  },
-  header: {
-    marginBottom: spacing.lg,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: spacing.md,
-  },
-  themeToggleContainer: {
-    marginTop: spacing.xs,
-  },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: spacing.sm,
-  },
-  buttonStack: {
-    gap: spacing.sm,
-  },
-  fieldStack: {
-    gap: spacing.sm,
-  },
-  listStack: {
-    gap: spacing.xs,
-  },
-  feedbackStack: {
-    gap: spacing.sm,
-  },
-  sheetBody: {
-    gap: spacing.base,
-  },
-  sheetText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  sheetActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  banglaHeader: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  banglaBody: {
-    fontSize: 14,
+  contentArea: {
+    flex: 1,
   },
 });

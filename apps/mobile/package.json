@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@daynori/config": "workspace:*",
+    "@daynori/test-utils": "workspace:*",
     "@types/react": "~18.3.12",
     "expo-modules-autolinking": "~2.0.8",
     "typescript": "^5.7.3"

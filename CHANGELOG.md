@@ -1,5 +1,22 @@
 # Changelog
 
+## Phase 06 — 2026-10-14 (Provisional Android navigation shell implementation)
+
+- Implemented native bottom navigation bar in `@daynori/ui-mobile/MobileNavigationBar` with four labeled parent destinations: Today, Plan, Library, and Journal, maintaining >= 48dp touch targets.
+- Built Plan segmented sub-views for Tasks, Routines, and Calendar (Calendar projection under Plan).
+- Built Library view with canonical folder breadcrumb (`Workspace > Software`), module filter chips (All Items, Notes, Knowledge, Files), and folder action buttons.
+- Integrated protected destination gating for Journal via `MobileAuthAdapter` (defaults strictly unauthenticated; unauthenticated access renders an authentication requirement screen and queues pending destination).
+- Added consistent top `MobileHeader` with contextual titles, Search action, Create action, and Settings/Help action.
+- Built accessible Search modal sheet and Create quick-capture sheet with input draft preservation across shell navigation.
+- Added Settings destination with Light/Dark theme toggle, 100%–200% font scaling, OS reduced motion status indicator, Bangla (বাংলা) script readability preview with 1.6 line-height, and link to preserved Phase 04 Component Gallery.
+- Implemented Android hardware Back button handling (`BackHandler`): dismisses open sheets, returns from child views to parent tab, returns to Today from other tabs, and exits cleanly from Today.
+- Implemented `AppState` lifecycle handling to preserve navigation state and uncommitted drafts across background and resume transitions.
+- Defined typed route contracts in `@daynori/contracts` (`NotificationPayloadSchema`, `FilePayloadSchema`, `AuthPayloadSchema`) with strict safe identifier validation rejecting path traversal and SQL injections.
+- Implemented cold-start and warm-start deep-link handling with 5-second idempotent deduplication.
+- Replaced `test:e2e:android` placeholder in `package.json` with real runner in `scripts/test-android-e2e.mjs`.
+- Compiled fresh Android development APK (`app-debug.apk`, 128.4 MB) via Gradle `assembleDebug`.
+- Retained Phase 06 status as `blocked` in `docs/roadmap/progress.json` pending physical Android TalkBack hardware verification.
+
 ## Phase 04 corrective revision — 2026-10-14 (Findings F03–F10 Remediation)
 
 - Added semantic action danger tokens (`danger`, `dangerHover`, `dangerLabel`) in `packages/design-tokens` for light theme (`#B3261E`/`#FFFFFF`, 6.54:1) and dark theme (`#F2B8B5`/`#381615`, 9.51:1); wired `Button` and `MobileButton` to consume them, resolving F03.

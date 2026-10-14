@@ -128,4 +128,4 @@ node scripts/validate-planning.mjs
 ## Handoff
 
 - **Current State:** The responsive web navigation shell is fully built, tested, and verified in an actual browser with 30 passing interactive checks.
-- **Next Required Action:** Execute the physical Android TalkBack accessibility gate for Phase 04 once hardware is available. Once Phase 04 achieves completion, mark Phase 05 complete and proceed to Phase 06 (Local IndexedDB persistence).
+- **Next Required Action:** Execute the physical Android TalkBack accessibility gate for Phase 04 once hardware is available. Once Phase 04 achieves completion, mark Phase 05 complete and proceed with full acceptance of Phase 06 (Android navigation shell). Persistent storage and product features belong to later roadmap phases.

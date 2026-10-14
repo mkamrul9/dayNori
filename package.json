@@ -19,7 +19,7 @@
     "test:contract": "vitest run tests/contract",
     "test:integration": "vitest run tests/integration",
     "test:e2e:web": "node scripts/test-web-e2e.mjs",
-    "test:e2e:android": "echo \"e2e:android runner reserved for later phases\"",
+    "test:e2e:android": "node scripts/test-android-e2e.mjs",
     "test:security": "vitest run tests/security",
     "test:performance": "vitest run tests/performance",
     "dev:web": "pnpm --filter @daynori/web dev",
