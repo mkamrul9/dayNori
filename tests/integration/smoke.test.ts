@@ -27,8 +27,8 @@ describe('Integration Smoke Tests', () => {
     });
 
     const health = await client.getHealth();
-    expect(health.status).toBe('ok');
-    expect(health.version).toBe('0.1.0');
+    expect(health.data.status).toBe('ok');
+    expect(health.data.version).toBe('0.1.0');
 
     const smoke = await client.getSmoke();
     expect(smoke.status).toBe('ready');

@@ -2,8 +2,9 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-14",
   "activePhase": null,
-  "nextPhase": "08",
-  "note": "Phase 07 (PostgreSQL and tenant isolation foundation) repaired and verified with 22 real local PostgreSQL 17 integration tests. Phase 04 and Phase 06 hardware gates remain blocked pending physical Android TalkBack verification.",
+  "nextPhase": null,
+  "schedulingDecision": "Phase 08 complete. Further progression to Phase 09 is blocked pending physical Android TalkBack hardware verification for prerequisite Phases 04, 05, and 06. Awaiting hardware session to unblock Phase 04 and downstream navigation shells.",
+  "note": "Phase 08 (API contracts and service foundation) complete and verified with Fastify REST routes, maintained-library JWT verification, keyset pagination, and typed client. Phase 04 and Phase 06 hardware gates remain blocked pending physical Android TalkBack verification.",
   "phases": [
     {
       "id": "00",
@@ -50,7 +51,8 @@
     },
     {
       "id": "08",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-08.md"
     },
     {
       "id": "09",

@@ -65,6 +65,8 @@ export async function listItems(
     kind?: string;
     folderId?: string | null;
     includeDeleted?: boolean;
+    limit?: number;
+    cursor?: { createdAt: Date; id: string } | null;
   }
 ): Promise<ItemRecord[]> {
   const conditions: string[] = ['workspace_id = $1'];
@@ -88,11 +90,23 @@ export async function listItems(
     }
   }
 
+  if (options?.cursor) {
+    values.push(options.cursor.createdAt, options.cursor.id);
+    conditions.push(`(created_at, id) < ($${values.length - 1}, $${values.length})`);
+  }
+
+  let limitClause = '';
+  if (options?.limit) {
+    values.push(options.limit);
+    limitClause = `LIMIT $${values.length}`;
+  }
+
   const query = `
     SELECT id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at, display_order
     FROM app.items
     WHERE ${conditions.join(' AND ')}
-    ORDER BY display_order ASC, created_at DESC;
+    ORDER BY created_at DESC, id DESC
+    ${limitClause};
   `;
 
   const res = await client.query<ItemRecord>(query, values);

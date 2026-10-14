@@ -73,6 +73,40 @@ export async function withTenantContext<T>(
 }
 
 /**
+ * Executes a unit of work scoped to a verified user context inside a database transaction.
+ * Used for listing workspaces or creating an initial workspace prior to workspace context selection.
+ */
+export async function withUserContext<T>(
+  pool: Pool,
+  userId: string,
+  callback: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  if (!userId) {
+    throw new Error('withUserContext requires a userId');
+  }
+
+  const client = await pool.connect();
+  let discardConnection = false;
+  try {
+    await client.query('BEGIN;');
+    await client.query("SELECT set_config('app.current_user_id', $1, true);", [userId]);
+
+    const result = await callback(client);
+    await client.query('COMMIT;');
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK;');
+    } catch {
+      discardConnection = true;
+    }
+    throw error;
+  } finally {
+    client.release(discardConnection);
+  }
+}
+
+/**
  * Executes a query through the runtime pool without setting any identity context.
  * Used for verifying anonymous rejection and default RLS denial.
  */

@@ -95,7 +95,10 @@ try {
       if (progress.phases.find((phase) => phase.id === dependency)?.status !== 'complete')
         fail('Next phase is not ready: ' + dependency);
     }
-  } else if (progress.phases.some((phase) => phase.status === 'planned'))
+  } else if (
+    !progress.schedulingDecision &&
+    progress.phases.some((phase) => phase.status === 'planned')
+  )
     fail('Planned work needs a next-phase pointer or a documented scheduling decision.');
 
   const markdown = walk(root).filter((file) => /\.(md|mdc)$/.test(file));

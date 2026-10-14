@@ -35,6 +35,9 @@ importers:
       eslint:
         specifier: ^9.20.1
         version: 9.39.5
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -65,10 +68,19 @@ importers:
       fastify:
         specifier: ^5.2.1
         version: 5.12.7
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
       pg:
         specifier: ^8.23.1
         version: 8.23.1
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
     devDependencies:
+      '@daynori/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@daynori/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -1206,7 +1218,7 @@ packages:
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {node: '>=0.10.0'}
+    engines: {'0': node >=0.10.0}
 
   '@expo/cli@0.22.28':
     resolution: {integrity: sha512-lvt72KNitGuixYD2l3SZmRKVu2G4zJpmg5V7WfUBNpmUU5oODBw/6qmiJ6kSLAlfDozscUk+BBGknBBzxUrwrA==}
@@ -3261,6 +3273,9 @@ packages:
 
   join-component@1.1.0:
     resolution: {integrity: sha512-bF7vcQxbODoGK1imE2P9GS9aw4zD0Sd+Hni68IMZLj7zRnquH7dXUmMw9hDI5S/Jzt7q+IyTXN0rSg2GI0IKhQ==}
+
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -8438,6 +8453,8 @@ snapshots:
   jimp-compact@0.16.1: {}
 
   join-component@1.1.0: {}
+
+  jose@6.2.12: {}
 
   js-tokens@4.0.0: {}
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## Phase 08 — API contracts and service foundation — 2026-10-14
+
+- Implemented versioned Fastify HTTP REST API service in `apps/api` following `/v1` conventions (`/v1/health`, `/v1/ready`, `/v1/openapi.json`, `/v1/workspaces`, `/v1/workspaces/:workspaceId/members`, `/v1/workspaces/:workspaceId/items`).
+- Defined canonical shared contracts in `packages/contracts/src/api/` (`common.ts`, `health.ts`, `workspace.ts`, `membership.ts`, `item.ts`) with strict mutation validation rejecting unknown fields and standardized error envelopes.
+- Built maintained-library JWT verification via `jose` in `apps/api/src/auth/jwt.ts`: RS256/EdDSA algorithm allowlists, claims validation (`iss`, `aud`, `exp`, `nbf`, `sub`), JWKS key rotation, and strict rejection of administrative/service/anonymous credentials as user sessions.
+- Enforced multi-tenant authorization: derived actor identity strictly from verified token claims; enforced workspace membership checks; bound requests to transaction-local PostgreSQL tenant contexts (`withTenantContext` and `withUserContext`).
+- Implemented consistent HTTP 404 responses for unauthorized workspaces and nonexistent objects, preventing private workspace ID enumeration.
+- Built keyset pagination with stable ordering `(created_at, id)` and opaque base64url cursor encoding.
+- Added process-local in-memory sliding-window rate limiter with `Retry-After` header and actor/IP budgeting.
+- Implemented safe structured logging with recursive credential and token redaction.
+- Built fully typed client in `packages/api-client` with Zod response parsing, `AbortSignal` cancellation support, typed error hierarchy, and keyset pagination async generator (`paginateItems`).
+- Documented decisions in [ADR-0014: Authenticated API service, contracts, and tenant-scoped authorization](docs/decisions/0014-authenticated-api-service-and-contracts.md).
+- Verified 26 tests in `apps/api/src/api.test.ts` and 8 tests in `packages/api-client/src/client.test.ts` (175 tests passing across monorepo).
+
 ## Phase 07 — PostgreSQL and tenant isolation foundation (Security Repairs & Foundation) — 2026-10-14
 
 - Established PostgreSQL schema migrations (`infra/supabase/migrations/` 00001 through 00006) defining tenant tables: `profiles`, `workspaces`, `workspace_memberships`, `items`, `audit_events`, and `storage_objects`.
