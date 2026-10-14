@@ -101,3 +101,18 @@ Re-verified by the Phase 04 prerequisite review. Earlier statements above are su
 - **Commands run under Node 24.21.0** (exit 0 each): `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test` (20 files, 63 tests), `pnpm build` (web production build and `expo export -p android`).
 - **APK evidence level**: `apps/mobile/android/` is gitignored, so the APK is not reproducible from a clean clone without `pnpm --filter @daynori/mobile run prebuild` and Gradle. The existing file (128,444,244 bytes, written 2026-10-13 23:43 local) is _compilation_ evidence only. No adb device or emulator is available here (`adb devices` empty, no emulator binary), so there is **no device-launch evidence** for Phase 01.
 - **Not re-run**: the Gradle build was not repeated in this revision, and a clean-clone frozen-lockfile install plus dev startup has not yet been re-verified on the committed state.
+
+## Corrective revision — 2026-10-14 (Finding F01 Remediation)
+
+Re-verified in response to the Phase 01–04 audit report (`docs/reviews/phase-01-04-audit-2026-10-14.md`).
+
+- **Expo CLI / Tar Compatibility (F01)**:
+  - Repaired incompatibility between `@expo/cli` (Babel CommonJS default-import helper) and patched `tar@7.5.22` (which previously exported ES module metadata without a default export, crashing with `Cannot read properties of undefined (reading 'extract')`).
+  - Added `patches/tar@7.5.22.patch` via `pnpm.patchedDependencies` in `package.json` to assign `exports.default = exports` on the CommonJS output. Preserved security patch without reverting to vulnerable tar releases.
+  - Hardened `apps/mobile/package.json` `"prebuild"` script to assert existence of `android/build.gradle` on completion (`expo prebuild --no-install -p android && node -e "if (!require('fs').existsSync('android/build.gradle')) { console.error('Native android generation failed'); process.exit(1); }"`), ensuring native project generation failures exit non-zero and fail contributor validation.
+  - Verified clean native generation: deleting `apps/mobile/android` and running `pnpm --filter @daynori/mobile run prebuild` successfully generates the native Android directory and all Gradle assets.
+  - Executed native Android compilation: `.\gradlew.bat assembleDebug` succeeded with exit code 0 (517 tasks: 236 executed, 281 up-to-date), producing `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` (128,444,244 bytes).
+- **Worker Documentation Reconciliation**:
+  - Reconciled `README.md` to accurately describe `apps/worker` as an executable lifecycle scaffold. Replaced claims of an established "durable worker" with explicit documentation that durable polling loops, leases, persistence, and retry mechanisms belong to later database and sync phases.
+- **Evidence & Gate Boundaries**:
+  - Native build compilation is verified. Device execution remains gated on physical hardware or emulator availability (`adb devices` empty).

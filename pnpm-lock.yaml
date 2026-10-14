@@ -14,6 +14,11 @@ overrides:
   image-size: ^2.0.4
   postcss: ^8.5.30
 
+patchedDependencies:
+  tar@7.5.22:
+    hash: hboorfjzhasutalo3nier3zs74
+    path: patches/tar@7.5.22.patch
+
 importers:
 
   .:
@@ -5904,7 +5909,7 @@ snapshots:
       source-map-support: 0.5.21
       stacktrace-parser: 0.1.11
       structured-headers: 0.4.1
-      tar: 7.5.22
+      tar: 7.5.22(patch_hash=hboorfjzhasutalo3nier3zs74)
       temp-dir: 2.0.0
       tempy: 0.7.1
       terminal-link: 2.1.1
@@ -7285,7 +7290,7 @@ snapshots:
       minipass-pipeline: 1.2.4
       p-map: 4.0.0
       ssri: 10.0.6
-      tar: 7.5.22
+      tar: 7.5.22(patch_hash=hboorfjzhasutalo3nier3zs74)
       unique-filename: 3.0.0
 
   call-bind-apply-helpers@1.0.2:
@@ -9561,7 +9566,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  tar@7.5.22:
+  tar@7.5.22(patch_hash=hboorfjzhasutalo3nier3zs74):
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0

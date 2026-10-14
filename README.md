@@ -6,7 +6,7 @@ Daynori is a **provisional working name**. Brand, domain, trademark, and store c
 
 ## Current state
 
-Phase 01 established the typed monorepo toolchain, Fastify API, durable worker, Next.js web application, Expo mobile shell, and shared packages. Development, test, lint, format, and build commands are fully executable.
+Phase 01 established the typed monorepo toolchain, Fastify API, background worker scaffold, Next.js web application, Expo mobile shell, and shared packages. Development, test, lint, format, and build commands are fully executable. Durable worker polling, queue leases, persistence, and retries are scheduled for later database and sync phases.
 
 The initial target is a responsive web application and an Android application. iOS follows a separate feasibility and release gate. A focused personal organizer ships before the encrypted vault, Drive integration, shared rooms, and AI.
 
@@ -22,9 +22,9 @@ Open [the interactive blueprint](docs/blueprint.html) in a browser to explore th
 ## Established stack
 
 - Mobile: Expo SDK 52 and React Native 0.76, targeting Android first (`apps/mobile`).
-- Web: Next.js 14 and React 18, with responsive browser interfaces (`apps/web`).
+- Web: Next.js 15 and React 18, with responsive browser interfaces (`apps/web`).
 - Shared: TypeScript domain rules, contracts, API client, sync protocol, and design tokens (`packages/*`).
-- Backend: Fastify modular monolith (`apps/api`) and durable background worker (`apps/worker`).
+- Backend: Fastify modular monolith (`apps/api`) and background worker lifecycle scaffold (`apps/worker`; durable queue processing and persistence scheduled for later phases).
 - Managed foundation: Supabase Auth, PostgreSQL, and private object storage planned for database phases.
 - Offline: SQLite on mobile, IndexedDB in the web client, and an application-owned synchronization protocol.
 

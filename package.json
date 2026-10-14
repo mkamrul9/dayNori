@@ -51,6 +51,9 @@
       "@xmldom/xmldom": "^0.8.15",
       "image-size": "^2.0.4",
       "postcss": "^8.5.30"
+    },
+    "patchedDependencies": {
+      "tar@7.5.22": "patches/tar@7.5.22.patch"
     }
   }
 }
