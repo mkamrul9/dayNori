@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Phase 03 real IndexedDB experiment</title>
+    <meta name="description" content="Disposable experiment: real browser IndexedDB behavior." />
+  </head>
+  <body>
+    <h1>Real IndexedDB experiment (Phase 03)</h1>
+    <p>
+      Use <code>?run=write</code> first, then reload with <code>?run=verify</code>, then
+      <code>?run=all</code>. Results appear below and in <code>window.__results</code>.
+    </p>
+    <pre id="results">pending</pre>
+    <script>
+      const DB = 'phase03-spike';
+      const results = [];
+      const note = (name, observed, detail) => results.push({ name, observed, detail });
+      window.__results = results;
+
+      const open = (version, onupgrade) =>
+        new Promise((resolve, reject) => {
+          const req = indexedDB.open(DB, version);
+          req.onupgradeneeded = (e) => onupgrade && onupgrade(req.result, req.transaction, e);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+          req.onblocked = () => reject(new Error('blocked'));
+        });
+      const done = (tx) =>
+        new Promise((resolve, reject) => {
+          tx.oncomplete = () => resolve('complete');
+          tx.onabort = () => reject(tx.error || new Error('aborted'));
+          tx.onerror = () => reject(tx.error);
+        });
+      const get = (db, store, key) =>
+        new Promise((resolve, reject) => {
+          const r = db.transaction(store).objectStore(store).get(key);
+          r.onsuccess = () => resolve(r.result);
+          r.onerror = () => reject(r.error);
+        });
+      const deleteDb = () =>
+        new Promise((resolve, reject) => {
+          const r = indexedDB.deleteDatabase(DB);
+          r.onsuccess = () => resolve();
+          r.onerror = () => reject(r.error);
+          r.onblocked = () => reject(new Error('delete blocked'));
+        });
+
+      async function runWrite() {
+        await deleteDb();
+        const db = await open(1, (d) => d.createObjectStore('notes', { keyPath: 'id' }));
+        const tx = db.transaction('notes', 'readwrite');
+        tx.objectStore('notes').put({ id: 'n1', body: 'persisted across reload' });
+        await done(tx);
+        db.close();
+        note('write', 'ok', 'wrote n1 at schema v1');
+      }
+
+      async function runVerify() {
+        const db = await open(1);
+        const rec = await get(db, 'notes', 'n1');
+        db.close();
+        note(
+          'persistence-after-reload',
+          rec ? 'persisted' : 'missing',
+          JSON.stringify(rec ?? null)
+        );
+      }
+
+      async function runAll() {
+        await deleteDb();
+        let db = await open(1, (d) => d.createObjectStore('notes', { keyPath: 'id' }));
+
+        // Rollback: an aborted multi-write transaction must leave no partial data.
+        const tx = db.transaction('notes', 'readwrite');
+        tx.objectStore('notes').put({ id: 'a', body: 'first' });
+        tx.objectStore('notes').put({ id: 'b', body: 'second' });
+        tx.abort();
+        await done(tx).catch(() => 'aborted');
+        const a = await get(db, 'notes', 'a');
+        note(
+          'rollback-on-abort',
+          a === undefined ? 'no partial write' : 'PARTIAL WRITE',
+          String(a)
+        );
+
+        // Failure: add() with duplicate key raises ConstraintError and aborts the transaction.
+        const seed = db.transaction('notes', 'readwrite');
+        seed.objectStore('notes').put({ id: 'dup', body: 'x' });
+        await done(seed);
+        const dupTx = db.transaction('notes', 'readwrite');
+        const addReq = dupTx.objectStore('notes').add({ id: 'dup', body: 'y' });
+        addReq.onerror = () => {};
+        let dupName = 'none';
+        await done(dupTx).catch((e) => (dupName = e && e.name));
+        note('duplicate-key-failure', dupName, 'add() with existing key');
+
+        // Upgrade v1 -> v2: data survives and a new index appears.
+        db.close();
+        db = await open(2, (d, t) => t.objectStore('notes').createIndex('byBody', 'body'));
+        const kept = await get(db, 'notes', 'dup');
+        const hasIndex = db.transaction('notes').objectStore('notes').indexNames.contains('byBody');
+        note(
+          'upgrade-v1-to-v2',
+          kept && hasIndex ? 'data kept, index added' : 'FAILED',
+          `kept=${!!kept}`
+        );
+
+        // Failed upgrade must roll back and keep the old version usable.
+        db.close();
+        let upErr = 'none';
+        try {
+          await open(3, () => {
+            throw new Error('migration bug');
+          });
+        } catch (e) {
+          upErr = e && e.name;
+        }
+        const after = await open(2);
+        const stillThere = await get(after, 'notes', 'dup');
+        note(
+          'failed-upgrade-rollback',
+          `error=${upErr}; version=${after.version}; data=${!!stillThere}`,
+          'upgrade throws'
+        );
+        after.close();
+
+        // Quota estimate (browser-reported, not a guaranteed budget).
+        if (navigator.storage && navigator.storage.estimate) {
+          const e = await navigator.storage.estimate();
+          note('storage-estimate', 'reported', JSON.stringify({ usage: e.usage, quota: e.quota }));
+        } else note('storage-estimate', 'unsupported', '');
+        const persisted =
+          navigator.storage && navigator.storage.persisted
+            ? await navigator.storage.persisted()
+            : 'n/a';
+        note('storage-persisted-flag', String(persisted), 'best-effort by default unless granted');
+        note('environment', navigator.userAgent, `secureContext=${isSecureContext}`);
+      }
+
+      const mode = new URLSearchParams(location.search).get('run') || 'all';
+      (async () => {
+        try {
+          if (mode === 'write') await runWrite();
+          else if (mode === 'verify') await runVerify();
+          else await runAll();
+        } catch (e) {
+          note('experiment-error', e && e.name, String(e && e.message));
+        }
+        document.getElementById('results').textContent = JSON.stringify(results, null, 2);
+        document.title = 'done-' + mode;
+      })();
+    </script>
+  </body>
+</html>

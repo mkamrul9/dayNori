@@ -1,7 +1,16 @@
+/**
+ * SYNTHETIC MODEL TEST (Phase 03 relabel, 2026-10-14).
+ * Models notifications, SecureStore, biometrics, recording and AES-GCM via simulated classes and node:crypto.
+ * Everything here runs in plain Node with in-memory classes. It checks the
+ * *contract and policy shape* we intend to build against. It does NOT show real
+ * browser storage, encrypted persistence, native hardware behavior, or
+ * mobile cryptography library compatibility. See tests/spikes/README.md for the
+ * observed / documented / untested split and the real experiments.
+ */
 import { describe, expect, it } from 'vitest';
 import crypto from 'node:crypto';
 
-describe('Expo Native Capabilities Feasibility Spike', () => {
+describe('[synthetic model] Native capability contracts', () => {
   describe('Notification Management & Fallbacks', () => {
     interface NotificationChannel {
       id: string;
@@ -104,7 +113,7 @@ describe('Expo Native Capabilities Feasibility Spike', () => {
   describe('SecureStore Key-Value Size & Encryption Lifecycle', () => {
     class MockSecureStore {
       private store: Map<string, string> = new Map();
-      private readonly MAX_VALUE_BYTES = 2048; // Expo SecureStore recommended ceiling per key
+      private readonly MAX_VALUE_BYTES = 2048; // Arbitrary model budget. Expo documents no enforced limit; some older iOS releases rejected values above roughly 2048 bytes.
 
       setItem(key: string, value: string): void {
         const byteLength = Buffer.byteLength(value, 'utf8');
@@ -133,7 +142,7 @@ describe('Expo Native Capabilities Feasibility Spike', () => {
       expect(ss.getItem('vault_dek_wrapper')).toBe(secretToken);
     });
 
-    it('rejects payloads exceeding the 2048-byte limit to prevent misuse as a content database', () => {
+    it('model rejects payloads above its own 2048-byte budget so secrets-only usage is the design intent', () => {
       const ss = new MockSecureStore();
       const largeContent = 'a'.repeat(2500); // 2.5 KB
 

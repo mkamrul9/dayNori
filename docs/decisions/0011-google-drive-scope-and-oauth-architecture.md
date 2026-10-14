@@ -4,7 +4,7 @@ Date: 2026-10-13. Status: accepted.
 
 ## Context
 
-Daynori supports optional linking to Google Drive for external attachments and backup exports. Google categorizes Drive scopes into non-sensitive (per-file) and restricted (broad drive access), with restricted scopes triggering mandatory Cloud App Security Assessment (CASA) Tier 2/3 third-party audits costing $15,000 to $75,000 annually.
+Daynori supports optional linking to Google Drive for external attachments and backup exports. Google categorizes Drive scopes into non-sensitive (per-file) and restricted (broad drive access), with restricted scopes triggering mandatory Cloud App Security Assessment (CASA) Tier 2/3 third-party independent audits by authorized assessment labs before production verification is granted.
 
 ## Decision
 
@@ -14,11 +14,11 @@ Daynori supports optional linking to Google Drive for external attachments and b
 
 ## Alternatives
 
-- **Requesting Full Drive Scope**: Enables arbitrary folder syncing but imposes excessive recurring third-party audit costs, lengthy Google verification cycles, and unnecessary privacy risks for personal organizer users.
+- **Requesting Full Drive Scope**: Enables arbitrary folder syncing but imposes mandatory external third-party security audits (CASA), lengthy Google verification cycles, and unnecessary privacy risks for personal organizer users.
 - **Client-Side Token Storage**: Storing refresh tokens directly in client storage exposes user Drive access to device-level extraction; rejected in favor of server-brokered token refresh.
 
 ## Consequences and validation
 
 - Users must be informed that external files added outside the Daynori folder in Google Drive require explicit re-selection via the file picker.
-- Validated via `tests/spikes/platform-constraints-spike.test.ts`.
+- Validated via synthetic policy model `tests/spikes/platform-policy-model.synthetic.test.ts`. OAuth verification remains an external prerequisite for Phase 48–50.
 - See [private storage and drive ADR-0006](0006-private-storage-and-optional-drive.md) and [official sources](../research/sources.md).

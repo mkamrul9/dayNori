@@ -20,5 +20,5 @@ Daynori requires a local-first offline architecture supporting responsive note e
 ## Consequences and validation
 
 - Shared domain repositories must interact through clean storage port interfaces (`StorageAdapter`) rather than binding directly to SQLite or IndexedDB APIs.
-- Validated via executable feasibility spike `tests/spikes/sqlite-indexeddb-spike.test.ts`.
+- Validated via synthetic contract model `tests/spikes/storage-model.synthetic.test.ts` and real browser execution in `tests/spikes/browser/indexeddb-real.html` (verified rollback, schema upgrade v1->v2, and persistence across reload in Microsoft Edge).
 - See [system overview](../architecture/system-overview.md) and [offline sync ADR-0004](0004-offline-command-sync.md).

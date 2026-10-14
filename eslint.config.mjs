@@ -14,7 +14,9 @@ export default tseslint.config(
       'apps/mobile/ios/**',
       'docs/**',
       'scripts/**',
+      'tests/spikes/browser/**',
       'apps/mobile/metro.config.js',
+      '**/next-env.d.ts',
     ],
   },
   {

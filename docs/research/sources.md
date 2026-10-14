@@ -1,6 +1,6 @@
 # Official source register
 
-Last checked: **2026-10-13**. These are primary vendor/standards references consulted for Phase 00. They support feasibility and release constraints; they do not prove this repository implements those capabilities. Record newer check dates in phase reports when using a changing requirement.
+Last checked: **2026-10-14**. These are primary vendor/standards references consulted for feasibility and release constraints; they do not prove this repository implements those capabilities. Record newer check dates in phase reports when using a changing requirement.
 
 Framework versions, service limits, pricing, scope classifications and store policies change. Phase 01 checks compatible supported versions and pins them; integration spikes test actual SDK behavior; release preparation checks the then-current store requirements and account eligibility. Do not treat `latest` URLs as a version pin or preserve a future deadline/API number as a permanent requirement.
 

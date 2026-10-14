@@ -1,3 +1,12 @@
+/**
+ * SYNTHETIC MODEL TEST (Phase 03 relabel, 2026-10-14).
+ * Models storage-adapter semantics with Map-backed fakes named after Expo SQLite and IndexedDB.
+ * Everything here runs in plain Node with in-memory classes. It checks the
+ * *contract and policy shape* we intend to build against. It does NOT show real
+ * browser storage, encrypted persistence, native hardware behavior, or
+ * mobile cryptography library compatibility. See tests/spikes/README.md for the
+ * observed / documented / untested split and the real experiments.
+ */
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -28,7 +37,7 @@ interface StorageAdapter {
  * relational constraints, schema migration steps, and atomicity.
  */
 class SimulatedSqliteAdapter implements StorageAdapter {
-  name = 'expo-sqlite';
+  name = 'synthetic-sqlite-model'; // Map-backed fake; not expo-sqlite
   type = 'sqlite' as const;
   private tables: Map<string, Map<string, StorageRecord>> = new Map();
   private schemaVersion = 1;
@@ -130,7 +139,7 @@ class SimulatedIndexedDBAdapter implements StorageAdapter {
   }
 }
 
-describe('Storage & Persistence Feasibility Spike', () => {
+describe('[synthetic model] Storage & persistence contract', () => {
   describe('SQLite vs IndexedDB Unified Contract', () => {
     it('executes CRUD operations across both storage platforms', async () => {
       const adapters: StorageAdapter[] = [

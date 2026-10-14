@@ -71,3 +71,30 @@ Executed comprehensive platform and integration feasibility spikes validating hi
 ## Handoff
 
 Phase 03 is complete. Next eligible phase: **Phase 04 — Design system foundation and platform component tokens**.
+
+## Corrective revision — 2026-10-14
+
+Supersedes synthetic test labeling, source claims, and evidence boundaries:
+
+1. **Synthetic Contract Model Tests**:
+   - The test suites in `tests/spikes/` were relabeled from empirical spikes to synthetic model suites:
+     - `storage-model.synthetic.test.ts`: models storage adapter contracts with in-memory Maps; does not test native SQLite or browser IndexedDB binaries directly.
+     - `native-capabilities-model.synthetic.test.ts`: models notification channels, 2KB quota, biometric prompts, audio caps, and AES-256-GCM / PBKDF2 parameters using Node's `node:crypto`. These model algorithm contracts; they do not prove mobile hardware keystore backing or constitute cryptographic vault approval (deferred to Phase 44–47).
+     - `platform-policy-model.synthetic.test.ts`: models policy evaluation rules for alarms, web push, Drive scopes, and store billing.
+2. **Observed Real Browser IndexedDB Experiment (`tests/spikes/browser/`)**:
+   - Executed against a real browser (`Microsoft Edge 155.0.4283.45`) in a secure context (`127.0.0.1:4173`) using automated CDP control:
+     - **Durability across reload**: Wrote record `n1` at schema v1 (`?run=write`), reloaded the browser to a new session (`?run=verify`), and verified the record remained intact.
+     - **Atomic rollback**: An aborted multi-write transaction cleanly rolled back without leaving partial writes (`undefined`).
+     - **Constraint error**: Calling `add()` on an existing key rejected with a constraint failure and aborted the transaction cleanly.
+     - **Schema migration v1 -> v2**: Upgrading schema version from 1 to 2 successfully added a new index (`byBody`) while preserving existing data (`kept=true`).
+     - **Failed upgrade recovery**: Throwing an error in `onupgradeneeded` aborted with `AbortError` and preserved the existing schema version (v2) and data.
+     - **Storage quota & eviction**: `navigator.storage.estimate()` reported 4,171 bytes used of 10.7 GB quota; `navigator.storage.persisted()` returned `false` (best-effort storage by default, subject to eviction under disk pressure).
+3. **Rechecked Policy and SDK Claims (Checked 2026-10-14)**:
+   - **Android Alarms**: Removed unsupported 15-minute delivery guarantee. Android documentation confirms inexact alarm windows under 10 minutes are clipped to 600,000ms on API 31+, and alarms are deferred by Doze mode and App Standby buckets with no fixed delivery SLA.
+   - **Expo SecureStore Quota**: Clarified that Expo does not enforce a platform-wide 2048-byte limit on Android or modern iOS in JavaScript; Daynori enforces a conservative 2KB quota in the adapter to restrict usage to credentials and keys.
+   - **Google Drive & CASA**: Removed fixed "$15,000 to $75,000 annually" CASA cost claim; verified that restricted broad scopes require third-party independent lab assessments with variable market pricing, reinforcing the architectural decision to use the least-privilege `drive.file` scope.
+4. **Hardware and External Prerequisites**:
+   - Physical Android device testing (biometrics, microphone recording, notification display) is an external prerequisite deferred to Phase 06, Phase 28, and Phase 41.
+   - Google OAuth verification, Web Push service worker push servers, and Google Play Console merchant registration remain external prerequisites.
+5. **Documentation & ADRs**:
+   - Updated ADR-0009 through ADR-0012, `tests/spikes/README.md`, `docs/research/sources.md`, and `CHANGELOG.md`.

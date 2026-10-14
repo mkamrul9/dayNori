@@ -1,6 +1,15 @@
+/**
+ * SYNTHETIC MODEL TEST (Phase 03 relabel, 2026-10-14).
+ * Models alarm, Web Push, Drive-scope and billing policy shapes as plain objects; claims are documentation-derived or assumed.
+ * Everything here runs in plain Node with in-memory classes. It checks the
+ * *contract and policy shape* we intend to build against. It does NOT show real
+ * browser storage, encrypted persistence, native hardware behavior, or
+ * mobile cryptography library compatibility. See tests/spikes/README.md for the
+ * observed / documented / untested split and the real experiments.
+ */
 import { describe, expect, it } from 'vitest';
 
-describe('Platform Constraints & Policy Feasibility Spike', () => {
+describe('[synthetic model] Platform and policy contracts', () => {
   describe('Android Exact Alarm & Doze Policy Constraints', () => {
     interface AlarmScheduleRequest {
       id: string;
@@ -31,7 +40,7 @@ describe('Platform Constraints & Policy Feasibility Spike', () => {
         }
 
         // Standard inexact window fallback (recommended by Android AlarmManager)
-        const windowSpreadMs = 15 * 60 * 1000; // 15-minute window
+        const windowSpreadMs = 15 * 60 * 1000; // Illustrative only. Android documents no fixed delivery guarantee; Android 12+ inexact windows may be delayed by at least 10 minutes.
         return {
           mode: 'inexact_window',
           windowStart: req.targetTime - windowSpreadMs / 2,
@@ -190,7 +199,7 @@ describe('Platform Constraints & Policy Feasibility Spike', () => {
       };
     }
 
-    it('confirms drive.file scope boundaries: supports app-created files without requiring CASA Tier 2/3 assessments', () => {
+    it('models the intent of a least-privilege Drive scope; Google verification and security-assessment requirements are NOT verified here', () => {
       const narrowScope = evaluateDriveScope('drive.file');
 
       expect(narrowScope.classification).toBe('non-sensitive');
