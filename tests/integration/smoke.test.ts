@@ -4,7 +4,7 @@ import { createApiClient } from '@daynori/api-client';
 
 describe('Integration Smoke Tests', () => {
   it('ApiClient interacts successfully with the Fastify API server', async () => {
-    const server = buildServer();
+    const server = buildServer({ allowUnauthenticatedStartup: true });
 
     // Use fastify inject as a fetch adapter for the client
     const customFetch: typeof fetch = async (input, init) => {

@@ -15,7 +15,7 @@ import {
   getWorkspace,
   createWorkspaceWithOwner,
 } from '../../db/index.js';
-import { NotFoundError } from '../../plugins/errorHandler.js';
+import { NotFoundError, validateResponse } from '../../plugins/errorHandler.js';
 
 export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // GET /v1/workspaces — List workspaces accessible to caller
@@ -41,7 +41,7 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
       },
     };
 
-    return reply.status(200).send(WorkspaceListResponseSchema.parse(payload));
+    return reply.status(200).send(validateResponse(WorkspaceListResponseSchema, payload));
   });
 
   // POST /v1/workspaces — Create a new workspace and bootstrap caller as owner
@@ -73,7 +73,7 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
       },
     };
 
-    return reply.status(201).send(WorkspaceResponseSchema.parse(payload));
+    return reply.status(201).send(validateResponse(WorkspaceResponseSchema, payload));
   });
 
   // GET /v1/workspaces/:workspaceId — Get workspace details
@@ -109,7 +109,7 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
         },
       };
 
-      return reply.status(200).send(WorkspaceResponseSchema.parse(payload));
+      return reply.status(200).send(validateResponse(WorkspaceResponseSchema, payload));
     } catch (err: unknown) {
       // If RLS rejects access (e.g. non-member), consistently return 404 to avoid leaking existence
       if (err instanceof NotFoundError) {

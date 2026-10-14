@@ -26,6 +26,16 @@ export interface ServerOptions {
   rateLimiter?: ProcessLocalRateLimiter;
   rateLimitOptions?: { windowMs?: number; maxRequests?: number };
   logger?: SafeLogger;
+  allowUnauthenticatedStartup?: boolean;
+}
+
+const REQUEST_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
+
+export function sanitizeRequestId(incoming: unknown): string {
+  if (typeof incoming === 'string' && REQUEST_ID_REGEX.test(incoming.trim())) {
+    return incoming.trim();
+  }
+  return crypto.randomUUID();
 }
 
 export function buildServer(options?: ServerOptions): FastifyInstance {
@@ -45,18 +55,24 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
             audience: process.env['SUPABASE_JWT_AUDIENCE'] ?? 'authenticated',
             jwksUrl: process.env['SUPABASE_JWKS_URL'],
           })
-        : undefined);
+        : process.env['SUPABASE_JWT_SECRET']
+          ? new JwtVerifier({
+              issuer: process.env['SUPABASE_JWT_ISSUER'] ?? 'https://supabase.local',
+              audience: process.env['SUPABASE_JWT_AUDIENCE'] ?? 'authenticated',
+              secret: process.env['SUPABASE_JWT_SECRET'],
+            })
+          : undefined);
+
+  if (!verifier && options?.allowUnauthenticatedStartup !== true) {
+    throw new Error(
+      'Server startup failed: authentication verifier is not configured. Protected routes cannot be served.'
+    );
+  }
 
   const app = Fastify({
     logger: false, // Disables unredacted raw logging; handled by SafeLogger
-    requestIdHeader: 'x-request-id',
-    genReqId: (req) => {
-      const incoming = req.headers['x-request-id'];
-      if (typeof incoming === 'string' && incoming.trim().length > 0) {
-        return incoming;
-      }
-      return crypto.randomUUID();
-    },
+    requestIdHeader: false,
+    genReqId: (req) => sanitizeRequestId(req.headers['x-request-id']),
     bodyLimit: 1048576, // 1 MiB JSON request limit conforming to api-conventions.md
   });
 
@@ -102,7 +118,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
   });
 
   // 1. Unauthenticated Foundation Routes
-  registerHealthRoutes(app, runtimePool);
+  registerHealthRoutes(app, runtimePool, Boolean(verifier));
   registerOpenApiRoutes(app);
 
   // 2. Authenticated Routes (/v1/workspaces and sub-resources)

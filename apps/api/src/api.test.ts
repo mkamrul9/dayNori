@@ -143,7 +143,9 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       });
 
       const expiredToken = await createToken({ sub: user1Id, expiresIn: '-10s' });
-      await expect(verifier.verify(expiredToken)).rejects.toThrow(/JWT verification failed/i);
+      await expect(verifier.verify(expiredToken)).rejects.toThrow(
+        /Invalid or expired authorization token/i
+      );
     });
 
     it('rejects future tokens (nbf in future) with 401 UNAUTHENTICATED', async () => {
@@ -155,7 +157,9 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
 
       const futureTime = Math.floor(Date.now() / 1000) + 3600;
       const futureToken = await createToken({ sub: user1Id, nbf: futureTime });
-      await expect(verifier.verify(futureToken)).rejects.toThrow(/JWT verification failed/i);
+      await expect(verifier.verify(futureToken)).rejects.toThrow(
+        /Invalid or expired authorization token/i
+      );
     });
 
     it('rejects tampered token signatures', async () => {
@@ -171,7 +175,9 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       const tamperedSignature = parts[2]!.slice(0, -4) + 'AAAA';
       const tamperedToken = `${parts[0]}.${parts[1]}.${tamperedSignature}`;
 
-      await expect(verifier.verify(tamperedToken)).rejects.toThrow(/signature/i);
+      await expect(verifier.verify(tamperedToken)).rejects.toThrow(
+        /Invalid or expired authorization token/i
+      );
     });
 
     it('rejects wrong issuer', async () => {
@@ -182,7 +188,9 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       });
 
       const badIssToken = await createToken({ sub: user1Id, iss: 'https://evil.issuer.com' });
-      await expect(verifier.verify(badIssToken)).rejects.toThrow(/unexpected "iss" claim/i);
+      await expect(verifier.verify(badIssToken)).rejects.toThrow(
+        /Invalid or expired authorization token/i
+      );
     });
 
     it('rejects wrong audience', async () => {
@@ -193,7 +201,9 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       });
 
       const badAudToken = await createToken({ sub: user1Id, aud: 'wrong-audience' });
-      await expect(verifier.verify(badAudToken)).rejects.toThrow(/unexpected "aud" claim/i);
+      await expect(verifier.verify(badAudToken)).rejects.toThrow(
+        /Invalid or expired authorization token/i
+      );
     });
 
     it('rejects forbidden algorithms such as "none" or symmetric "HS256"', async () => {
@@ -806,6 +816,345 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       expect(clientModule).not.toHaveProperty('createRuntimePool');
       expect(clientModule).not.toHaveProperty('withTenantContext');
       expect(clientModule).not.toHaveProperty('POSTGRES_PASSWORD');
+    });
+  });
+
+  describe('8. Phase 08 Security Hardening & Defect Repairs', () => {
+    let server: ReturnType<typeof buildServer>;
+    let workspace1Id: string;
+    let workspace2Id: string;
+
+    beforeAll(async () => {
+      const verifier = new JwtVerifier({
+        issuer,
+        audience,
+        localJwks: jwks,
+      });
+
+      server = buildServer({
+        runtimePool,
+        jwtVerifier: verifier,
+      });
+      await server.ready();
+
+      const tokenUser1 = await createToken({ sub: user1Id });
+      const wsRes1 = await server.inject({
+        method: 'POST',
+        url: '/v1/workspaces',
+        headers: {
+          authorization: `Bearer ${tokenUser1}`,
+          'content-type': 'application/json',
+        },
+        payload: JSON.stringify({ name: 'Phase 08 Workspace 1' }),
+      });
+      workspace1Id = JSON.parse(wsRes1.body).data.id;
+
+      const wsRes2 = await server.inject({
+        method: 'POST',
+        url: '/v1/workspaces',
+        headers: {
+          authorization: `Bearer ${tokenUser1}`,
+          'content-type': 'application/json',
+        },
+        payload: JSON.stringify({ name: 'Phase 08 Workspace 2' }),
+      });
+      workspace2Id = JSON.parse(wsRes2.body).data.id;
+    });
+
+    afterAll(async () => {
+      await server.close();
+    });
+
+    it('rejects ID tokens as API access tokens', async () => {
+      const verifier = new JwtVerifier({
+        issuer,
+        audience,
+        localJwks: jwks,
+      });
+
+      const idToken = await createToken({ sub: user1Id, tokenUse: 'id' });
+      await expect(verifier.verify(idToken)).rejects.toThrow(
+        /ID tokens and non-access tokens are not permitted/i
+      );
+    });
+
+    it('rejects tokens with missing or non-authenticated roles', async () => {
+      const verifier = new JwtVerifier({
+        issuer,
+        audience,
+        localJwks: jwks,
+      });
+
+      // Role missing
+      const noRoleToken = new SignJWT({ sub: user1Id, token_use: 'access' })
+        .setProtectedHeader({ alg: 'RS256', kid: kidA })
+        .setIssuer(issuer)
+        .setAudience(audience)
+        .setExpirationTime('1h')
+        .sign(keyPairA.privateKey);
+
+      await expect(verifier.verify(await noRoleToken)).rejects.toThrow(/Unauthorized token role/i);
+
+      // Role is random string
+      const invalidRoleToken = await createToken({ sub: user1Id, role: 'developer' });
+      await expect(verifier.verify(invalidRoleToken)).rejects.toThrow(/Unauthorized token role/i);
+    });
+
+    it('rejects anonymous user sessions', async () => {
+      const verifier = new JwtVerifier({
+        issuer,
+        audience,
+        localJwks: jwks,
+      });
+
+      const anonToken = new SignJWT({
+        sub: user1Id,
+        role: 'authenticated',
+        is_anonymous: true,
+        token_use: 'access',
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: kidA })
+        .setIssuer(issuer)
+        .setAudience(audience)
+        .setExpirationTime('1h')
+        .sign(keyPairA.privateKey);
+
+      await expect(verifier.verify(await anonToken)).rejects.toThrow(
+        /Anonymous sessions are not permitted/i
+      );
+    });
+
+    it('rejects tokens with non-UUID subjects', async () => {
+      const verifier = new JwtVerifier({
+        issuer,
+        audience,
+        localJwks: jwks,
+      });
+
+      const nonUuidToken = await createToken({ sub: 'user_not_a_valid_uuid_format' });
+      await expect(verifier.verify(nonUuidToken)).rejects.toThrow(
+        /Invalid user identity in token/i
+      );
+    });
+
+    it('supports symmetric HS256 secret verification with explicit allowlist matching', async () => {
+      const testHmacKey = 'daynori-super-secret-hmac-key-at-least-32-chars';
+      const hsVerifier = new JwtVerifier({
+        issuer: 'https://supabase.local',
+        audience: 'authenticated',
+        secret: testHmacKey,
+      });
+
+      const hsToken = await new SignJWT({
+        sub: user1Id,
+        role: 'authenticated',
+        token_use: 'access',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuer('https://supabase.local')
+        .setAudience('authenticated')
+        .setExpirationTime('1h')
+        .sign(new TextEncoder().encode(testHmacKey));
+
+      const actor = await hsVerifier.verify(hsToken);
+      expect(actor.userId).toBe(user1Id);
+      expect(actor.role).toBe('authenticated');
+
+      // Reject token signed with wrong secret
+      const wrongSecretToken = await new SignJWT({
+        sub: user1Id,
+        role: 'authenticated',
+        token_use: 'access',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuer('https://supabase.local')
+        .setAudience('authenticated')
+        .setExpirationTime('1h')
+        .sign(new TextEncoder().encode('wrong-symmetric-key-at-least-32-chars-long'));
+
+      await expect(hsVerifier.verify(wrongSecretToken)).rejects.toThrow(
+        /Invalid or expired authorization token/i
+      );
+    });
+
+    it('returns consistent 400 VALIDATION_FAILED for malformed JSON request bodies', async () => {
+      const token = await createToken({ sub: user1Id });
+      const res = await server.inject({
+        method: 'POST',
+        url: '/v1/workspaces',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        body: '{"name": "broken-json',
+      });
+
+      expect(res.statusCode).toBe(400);
+      const json = JSON.parse(res.body);
+      expect(json.error.code).toBe('VALIDATION_FAILED');
+      expect(json.error.message).toContain('Malformed JSON payload');
+    });
+
+    it('bounds and sanitizes incoming request IDs, replacing oversized or unsuitable values', async () => {
+      const token = await createToken({ sub: user1Id });
+
+      // 1. Oversized request ID (> 64 characters)
+      const oversizedId = 'A'.repeat(200);
+      const res1 = await server.inject({
+        method: 'GET',
+        url: '/v1/workspaces',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-request-id': oversizedId,
+        },
+      });
+
+      const returnedId1 = res1.headers['x-request-id'] as string;
+      expect(returnedId1).not.toBe(oversizedId);
+      expect(returnedId1.length).toBe(36); // standard UUID format
+
+      // 2. Malicious / illegal characters in request ID
+      const res2 = await server.inject({
+        method: 'GET',
+        url: '/v1/workspaces',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-request-id': '<script>alert(1)</script>',
+        },
+      });
+
+      const returnedId2 = res2.headers['x-request-id'] as string;
+      expect(returnedId2).not.toContain('<script>');
+      expect(returnedId2.length).toBe(36);
+
+      // 3. Valid bounded request ID is preserved
+      const validId = 'valid-test-request-id-12345';
+      const res3 = await server.inject({
+        method: 'GET',
+        url: '/v1/workspaces',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-request-id': validId,
+        },
+      });
+      expect(res3.headers['x-request-id']).toBe(validId);
+    });
+
+    it('rejects invalid, oversized, or cross-workspace pagination cursors with 400', async () => {
+      const token = await createToken({ sub: user1Id });
+
+      // 1. Invalid / unparseable cursor
+      const res1 = await server.inject({
+        method: 'GET',
+        url: `/v1/workspaces/${workspace1Id}/items?cursor=invalid-garbage-base64-not-valid`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res1.statusCode).toBe(400);
+      const json1 = JSON.parse(res1.body);
+      expect(json1.error.code).toBe('VALIDATION_FAILED');
+      expect(json1.error.message).toContain('Pagination cursor');
+
+      // 2. Oversized cursor (> 256 bytes)
+      const oversizedCursor = Buffer.from('X'.repeat(300)).toString('base64url');
+      const res2 = await server.inject({
+        method: 'GET',
+        url: `/v1/workspaces/${workspace1Id}/items?cursor=${oversizedCursor}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res2.statusCode).toBe(400);
+      const json2 = JSON.parse(res2.body);
+      expect(json2.error.code).toBe('VALIDATION_FAILED');
+      expect(json2.error.message).toContain('Pagination cursor');
+
+      // 3. Cross-workspace cursor: cursor encoded for Workspace 2 passed to Workspace 1
+      const crossWsCursor = Buffer.from(
+        `${workspace2Id}||${new Date().toISOString()}|${crypto.randomUUID()}`
+      ).toString('base64url');
+
+      const res3 = await server.inject({
+        method: 'GET',
+        url: `/v1/workspaces/${workspace1Id}/items?cursor=${crossWsCursor}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res3.statusCode).toBe(400);
+      const json3 = JSON.parse(res3.body);
+      expect(json3.error.code).toBe('VALIDATION_FAILED');
+      expect(json3.error.message).toContain('different workspace context');
+    });
+
+    it('redacts unhandled error messages and stack traces in SafeLogger', async () => {
+      const logs: StructuredLogEntry[] = [];
+      const testLogger = new SafeLogger((entry) => logs.push(entry));
+
+      const SYNTHETIC_ERR_MARKER = 'SUPER_SECRET_UNHANDLED_MARKER_998877';
+      const SYNTHETIC_CONN = `postgres://app_user:${SYNTHETIC_ERR_MARKER}@database.internal:5432/app_db`;
+
+      testLogger.error('req-unhandled', `Failed query with ${SYNTHETIC_CONN}`, {
+        stack: `Error: failed at execute (${SYNTHETIC_CONN}:12:34)\n  at password=${SYNTHETIC_ERR_MARKER}`,
+      });
+
+      const serialized = JSON.stringify(logs);
+      expect(serialized).not.toContain(SYNTHETIC_ERR_MARKER);
+      expect(serialized).toContain('[REDACTED_PASSWORD]');
+      expect(serialized).toContain('[REDACTED]');
+    });
+
+    it('GET /v1/ready fails with 503 unavailable when authentication is unconfigured', async () => {
+      // Build server with allowUnauthenticatedStartup: true to inspect readiness probe
+      const unauthServer = buildServer({
+        runtimePool,
+        allowUnauthenticatedStartup: true,
+      });
+
+      try {
+        const res = await unauthServer.inject({
+          method: 'GET',
+          url: '/v1/ready',
+        });
+
+        expect(res.statusCode).toBe(503);
+        const json = JSON.parse(res.body);
+        expect(json.data.status).toBe('unavailable');
+        expect(json.data.checks.auth).toBe('unconfigured');
+        expect(json.data.checks.database).toBe('connected');
+      } finally {
+        await unauthServer.close();
+      }
+    });
+
+    it('fails server startup when authentication verifier is not configured in standard mode', () => {
+      expect(() =>
+        buildServer({
+          runtimePool,
+          // No verifier and allowUnauthenticatedStartup is false
+        })
+      ).toThrow(/Server startup failed: authentication verifier is not configured/i);
+    });
+
+    it('drift check: canonical OpenAPI spec components match contracts', async () => {
+      const res = await server.inject({
+        method: 'GET',
+        url: '/v1/openapi.json',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const spec = JSON.parse(res.body);
+
+      // Verify all required schemas are present
+      const schemas = spec.components.schemas;
+      expect(schemas.WorkspaceResponse).toBeDefined();
+      expect(schemas.CreateWorkspaceRequest).toBeDefined();
+      expect(schemas.MemberResponse).toBeDefined();
+      expect(schemas.AddMemberRequest).toBeDefined();
+      expect(schemas.ItemResponse).toBeDefined();
+      expect(schemas.CreateItemRequest).toBeDefined();
+      expect(schemas.ApiErrorResponse).toBeDefined();
+      expect(schemas.HealthCheckResponse).toBeDefined();
+      expect(schemas.ReadinessCheckResponse).toBeDefined();
+
+      // Verify schema properties match canonical Zod definitions
+      expect(schemas.WorkspaceResponse.properties.data).toBeDefined();
+      expect(schemas.WorkspaceResponse.properties.meta).toBeDefined();
     });
   });
 });

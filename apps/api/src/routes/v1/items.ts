@@ -12,7 +12,7 @@ import {
 } from '@daynori/contracts';
 import { withTenantContext, listItems, getItem, createItem, deleteItem } from '../../db/index.js';
 import { decodeCursor, encodeCursor } from '../../utils/pagination.js';
-import { NotFoundError } from '../../plugins/errorHandler.js';
+import { NotFoundError, validateResponse } from '../../plugins/errorHandler.js';
 
 export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // GET /v1/workspaces/:workspaceId/items — List items with keyset pagination
@@ -23,7 +23,10 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
       const params = WorkspaceParamsSchema.parse(request.params);
       const query = ItemListQuerySchema.parse(request.query);
 
-      const decodedCursor = decodeCursor(query.cursor);
+      const decodedCursor = decodeCursor(query.cursor, {
+        workspaceId: params.workspaceId,
+        kind: query.kind,
+      });
 
       try {
         const records = await withTenantContext(
@@ -53,7 +56,14 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
         const lastItem = itemsToReturn[itemsToReturn.length - 1];
 
         const nextCursor =
-          hasMore && lastItem ? encodeCursor(lastItem.created_at, lastItem.id) : undefined;
+          hasMore && lastItem
+            ? encodeCursor({
+                workspaceId: params.workspaceId,
+                kind: query.kind,
+                createdAt: lastItem.created_at,
+                id: lastItem.id,
+              })
+            : undefined;
 
         const payload: ItemListResponse = {
           data: itemsToReturn.map((item) => ({
@@ -75,7 +85,7 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
           },
         };
 
-        return reply.status(200).send(ItemListResponseSchema.parse(payload));
+        return reply.status(200).send(validateResponse(ItemListResponseSchema, payload));
       } catch {
         // Consistently return 404 if workspace doesn't exist or caller has no access
         throw new NotFoundError('Workspace not found');
@@ -132,7 +142,7 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
         },
       };
 
-      return reply.status(201).send(ItemResponseSchema.parse(payload));
+      return reply.status(201).send(validateResponse(ItemResponseSchema, payload));
     } catch (err: unknown) {
       if (err instanceof NotFoundError) {
         throw err;
@@ -180,7 +190,7 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
           },
         };
 
-        return reply.status(200).send(ItemResponseSchema.parse(payload));
+        return reply.status(200).send(validateResponse(ItemResponseSchema, payload));
       } catch (err: unknown) {
         if (err instanceof NotFoundError) {
           throw err;

@@ -105,19 +105,31 @@ Key architectural and security achievements:
 | Process-local rate limiting & Retry-After           | Exceeding threshold with rapid requests     | `apps/api/src/api.test.ts` | PASS (429 RATE_LIMITED with `Retry-After` header)                                    |
 | Redacted structured logging verification            | Inspection of captured log sink             | `apps/api/src/api.test.ts` | PASS (Synthetic secret markers never appear; [REDACTED] applied)                     |
 | Client bundle credential isolation                  | Inspection of `@daynori/api-client` exports | `apps/api/src/api.test.ts` | PASS (Zero server connection pools, passwords, or database modules)                  |
+| ID token rejection as API access tokens             | Verifier with `token_use === 'id'`          | `apps/api/src/api.test.ts` | PASS (Throws 401: ID tokens and non-access tokens not permitted)                     |
+| Missing / non-authenticated role rejection          | Token without role or non-auth role         | `apps/api/src/api.test.ts` | PASS (Throws 401: Unauthorized token role without defaulting)                        |
+| Anonymous session rejection                         | Token with `is_anonymous: true`             | `apps/api/src/api.test.ts` | PASS (Throws 401: Anonymous user sessions not permitted)                             |
+| Non-UUID subject rejection                          | Token with invalid subject format           | `apps/api/src/api.test.ts` | PASS (Throws 401: Invalid user identity in token)                                    |
+| Symmetric HS256 secret allowlist verification       | HS256 token against configured secret       | `apps/api/src/api.test.ts` | PASS (Verifies actor ID; rejects wrong symmetric keys)                               |
+| Malformed JSON request body consistency             | Invalid JSON payload to POST /v1/workspaces | `apps/api/src/api.test.ts` | PASS (HTTP 400 VALIDATION_FAILED)                                                    |
+| Incoming request ID bounded and sanitized           | Oversized (>64) and XSS request IDs         | `apps/api/src/api.test.ts` | PASS (Replaced with fresh UUIDs; valid bounded IDs preserved)                         |
+| Keyset cursor workspace and filter context binding  | Cross-workspace & oversized cursors         | `apps/api/src/api.test.ts` | PASS (HTTP 400 VALIDATION_FAILED)                                                    |
+| Unhandled error message & stack trace redaction     | Unhandled error containing database conn str| `apps/api/src/api.test.ts` | PASS (Zero secrets/passwords leaked in serialized logs; [REDACTED] applied)          |
+| Readiness probe failure on unconfigured auth        | GET /v1/ready with unconfigured verifier    | `apps/api/src/api.test.ts` | PASS (HTTP 503 unavailable, checks.auth: 'unconfigured')                             |
+| Server startup failure on unconfigured auth         | Startup without verifier in standard mode   | `apps/api/src/api.test.ts` | PASS (Throws startup error)                                                          |
+| Canonical OpenAPI spec contracts drift check        | GET /v1/openapi.json schema inspection      | `apps/api/src/api.test.ts` | PASS (All Zod schemas mapped, zero drift detected)                                   |
 | Typed API client unit tests                         | `packages/api-client/src/client.test.ts`    | Root test runner           | PASS (8 tests passed covering auth, validation, errors, pagination, and abortSignal) |
 | Full monorepo typecheck                             | `pnpm typecheck`                            | Root workspace             | PASS (Exit code 0 across 13 packages)                                                |
 | Lint validation                                     | `pnpm lint`                                 | Root workspace             | PASS (Exit code 0, 0 lint errors)                                                    |
 | Prettier style validation                           | `pnpm format:check`                         | Root workspace             | PASS (All files adhere to Prettier code style)                                       |
 | Planning validation                                 | `pnpm validate:planning`                    | Root workspace             | PASS (64 phases, 22 mapped requirements, 148 Markdown files validated)               |
-| Secret scanning                                     | `pnpm audit:secrets`                        | Root workspace             | PASS (1158 files checked, 0 unapproved secrets)                                      |
+| Secret scanning                                     | `pnpm audit:secrets`                        | Root workspace             | PASS (1162 files checked, 0 unapproved secrets)                                      |
 
 ### Executed verification commands
 
 ```powershell
 # 1. Run API service unit and integration test suite
 pnpm vitest run apps/api/src/api.test.ts
-# Result: Exit code 0 (26 tests passed in 395ms)
+# Result: Exit code 0 (38 tests passed in 446ms)
 
 # 2. Run API client test suite
 pnpm vitest run packages/api-client/src/client.test.ts
@@ -125,7 +137,7 @@ pnpm vitest run packages/api-client/src/client.test.ts
 
 # 3. Run full test suite across monorepo
 pnpm test
-# Result: Exit code 0 (22 test files, 175 tests passed in 2.76s)
+# Result: Exit code 0 (22 test files, 193 tests passed in 2.79s)
 
 # 4. Typecheck all workspace packages
 pnpm typecheck
@@ -145,7 +157,7 @@ pnpm validate:planning
 
 # 8. Secret scanner audit
 pnpm audit:secrets
-# Result: Exit code 0 (checked 1158 files without detecting unapproved secrets)
+# Result: Exit code 0 (checked 1162 files without detecting unapproved secrets)
 ```
 
 ## Defects, limitations and recovery

@@ -1,5 +1,23 @@
 # Changelog
 
+## Phase 08 & 07 Defect Repairs & Security Hardening — 2026-10-14
+
+- **Phase 07 Storage Policies & Identity Context Repair:**
+  - Implemented executable, versioned private-storage RLS policies for `storage.objects` and `storage.buckets` in `infra/supabase/policies/storage.sql` and migration `00007_storage_policies_and_context.sql`.
+  - Updated identity resolution `app.current_user_id()` to resolve `COALESCE(app.current_user_id, request.jwt.claim.sub, auth.uid())` without requiring custom transaction variables.
+  - Added `app.storage_extract_workspace_id(name)` rejecting path traversal (`..` and leading `/`) and malformed object names.
+  - Verified 28 security tests in `tests/security/tenant-isolation.test.ts` (bucket privacy, cross-workspace path rejection, path traversal rejection, malformed name rejection).
+- **Phase 08 Service Foundation & JWT Hardening:**
+  - Tightened JWT verifier (`apps/api/src/auth/jwt.ts`): rejected ID tokens (`token_use !== 'access'`), rejected anonymous sessions (`is_anonymous: true`), enforced mandatory `role === 'authenticated'` without defaulting, rejected forbidden roles (`anon`, `service_role`, `supabase_admin`), enforced UUID `sub` format and `exp` claims.
+  - Added support for HS256 symmetric secret verification with explicit allowlist matching.
+  - Bounded and sanitized incoming `x-request-id` headers (max 64 characters, `^[a-zA-Z0-9_-]{1,64}$`), replacing unsuitable or oversized values with random UUIDs.
+  - Hardened logging and error handlers: redacted unhandled error messages, stack traces, and database connection strings in `SafeLogger`.
+  - Fixed boundary error contracts: malformed JSON returns consistent 400 `VALIDATION_FAILED`; response-schema failures treated as 500 server errors via `ResponseValidationError`.
+  - Bound keyset pagination cursors to workspace and filter context (`kind`), with max length 256 characters.
+  - Generated OpenAPI 3.0 specification dynamically from canonical shared Zod schemas (`packages/contracts/src/api/openapi.ts`) and added drift check tests.
+  - Enforced 2s connection timeout probe in readiness route (`/v1/ready`) and made server startup fail fast when authentication is unconfigured in standard mode.
+  - Expanded `apps/api/src/api.test.ts` to 38 passing tests (193 tests total across monorepo).
+
 ## Phase 08 — API contracts and service foundation — 2026-10-14
 
 - Implemented versioned Fastify HTTP REST API service in `apps/api` following `/v1` conventions (`/v1/health`, `/v1/ready`, `/v1/openapi.json`, `/v1/workspaces`, `/v1/workspaces/:workspaceId/members`, `/v1/workspaces/:workspaceId/items`).

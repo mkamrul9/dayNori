@@ -15,7 +15,7 @@ import {
   addMembership,
   removeMembership,
 } from '../../db/index.js';
-import { NotFoundError } from '../../plugins/errorHandler.js';
+import { NotFoundError, validateResponse } from '../../plugins/errorHandler.js';
 
 export function registerMemberRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // GET /v1/workspaces/:workspaceId/members
@@ -56,7 +56,7 @@ export function registerMemberRoutes(app: FastifyInstance, runtimePool: Pool): v
           },
         };
 
-        return reply.status(200).send(MemberListResponseSchema.parse(payload));
+        return reply.status(200).send(validateResponse(MemberListResponseSchema, payload));
       } catch {
         // Consistently return 404 if workspace doesn't exist or caller has no access
         throw new NotFoundError('Workspace not found');
@@ -100,7 +100,7 @@ export function registerMemberRoutes(app: FastifyInstance, runtimePool: Pool): v
           },
         };
 
-        return reply.status(201).send(MemberResponseSchema.parse(payload));
+        return reply.status(201).send(validateResponse(MemberResponseSchema, payload));
       } catch (err: unknown) {
         if (err instanceof NotFoundError) {
           throw err;

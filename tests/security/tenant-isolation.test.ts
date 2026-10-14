@@ -686,4 +686,199 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       expect(user2List).toEqual([]);
     });
   });
+
+  describe('9. Supabase Storage (storage.objects) Private Policies & Identity Context', () => {
+    const storageTestObject = `${workspace1Id}/documents/spec.pdf`;
+
+    it('verifies private_assets bucket privacy (public is false)', async () => {
+      const res = await runtimePool.query(
+        `SELECT id, name, public FROM storage.buckets WHERE id = 'private_assets';`
+      );
+      expect(res.rows.length).toBe(1);
+      expect(res.rows[0].public).toBe(false);
+    });
+
+    it('validates safe workspace_id extraction and rejects malformed/traversal paths', async () => {
+      // Valid path
+      const valid = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id($1) as ws_id;`,
+        [`${workspace1Id}/images/diagram.png`]
+      );
+      expect(valid.rows[0].ws_id).toBe(workspace1Id);
+
+      // Malformed: no slash
+      const noSlash = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id('malformed-file.png') as ws_id;`
+      );
+      expect(noSlash.rows[0].ws_id).toBeNull();
+
+      // Malformed: invalid UUID
+      const invalidUuid = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id('not-a-real-uuid/file.png') as ws_id;`
+      );
+      expect(invalidUuid.rows[0].ws_id).toBeNull();
+
+      // Malformed: directory traversal
+      const traversal = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id($1) as ws_id;`,
+        [`${workspace1Id}/../../etc/passwd`]
+      );
+      expect(traversal.rows[0].ws_id).toBeNull();
+
+      // Malformed: leading slash
+      const leadingSlash = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id($1) as ws_id;`,
+        [`/${workspace1Id}/file.png`]
+      );
+      expect(leadingSlash.rows[0].ws_id).toBeNull();
+    });
+
+    it('allows authorized workspace editor to insert and read storage objects using Supabase request.jwt.claim.sub context', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        // Simulate Supabase Storage daemon context setting request.jwt.claim.sub
+        await client.query("SELECT set_config('request.jwt.claim.sub', $1, true);", [user1Id]);
+
+        const insertRes = await client.query(
+          `INSERT INTO storage.objects (bucket_id, name, owner)
+           VALUES ('private_assets', $1, $2)
+           RETURNING id, name, bucket_id;`,
+          [storageTestObject, user1Id]
+        );
+        expect(insertRes.rows.length).toBe(1);
+        expect(insertRes.rows[0].name).toBe(storageTestObject);
+
+        const selectRes = await client.query(
+          `SELECT id, name FROM storage.objects WHERE bucket_id = 'private_assets' AND name = $1;`,
+          [storageTestObject]
+        );
+        expect(selectRes.rows.length).toBe(1);
+        await client.query('COMMIT;');
+      } catch (err) {
+        await client.query('ROLLBACK;');
+        throw err;
+      } finally {
+        client.release();
+      }
+    });
+
+    it('denies unauthorized user from reading, listing, updating, or deleting other workspace storage objects', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        // User 2 context in Supabase Storage
+        await client.query("SELECT set_config('request.jwt.claim.sub', $1, true);", [user2Id]);
+
+        // 1. Cannot read User 1's storage object
+        const readRes = await client.query(
+          `SELECT id, name FROM storage.objects WHERE bucket_id = 'private_assets' AND name = $1;`,
+          [storageTestObject]
+        );
+        expect(readRes.rows.length).toBe(0);
+
+        // 2. Cannot list User 1's storage objects
+        const listRes = await client.query(
+          `SELECT id, name FROM storage.objects WHERE bucket_id = 'private_assets';`
+        );
+        const user1Objects = listRes.rows.filter((r) => r.name.startsWith(workspace1Id));
+        expect(user1Objects.length).toBe(0);
+
+        // 3. Cannot update User 1's storage object
+        const updateRes = await client.query(
+          `UPDATE storage.objects SET metadata = '{"tampered": true}'::jsonb WHERE name = $1;`,
+          [storageTestObject]
+        );
+        expect(updateRes.rowCount).toBe(0);
+
+        // 4. Cannot delete User 1's storage object
+        const deleteRes = await client.query(`DELETE FROM storage.objects WHERE name = $1;`, [
+          storageTestObject,
+        ]);
+        expect(deleteRes.rowCount).toBe(0);
+
+        // 5. Cannot insert object into User 1's workspace
+        let insertFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', $1, $2);`,
+            [`${workspace1Id}/hacked.png`, user2Id]
+          );
+        } catch {
+          insertFailed = true;
+        }
+        expect(insertFailed).toBe(true);
+
+        await client.query('ROLLBACK;');
+      } finally {
+        client.release();
+      }
+    });
+
+    it('denies storage object insertion with malformed names or path traversal', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        await client.query("SELECT set_config('request.jwt.claim.sub', $1, true);", [user1Id]);
+
+        // Attempt malformed name without slash
+        let noSlashFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', 'badname.png', $1);`,
+            [user1Id]
+          );
+        } catch {
+          noSlashFailed = true;
+        }
+        expect(noSlashFailed).toBe(true);
+
+        // Attempt path traversal
+        let traversalFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', $1, $2);`,
+            [`${workspace1Id}/../../secret.png`, user1Id]
+          );
+        } catch {
+          traversalFailed = true;
+        }
+        expect(traversalFailed).toBe(true);
+
+        await client.query('ROLLBACK;');
+      } finally {
+        client.release();
+      }
+    });
+
+    it('denies unauthenticated or anonymous access to storage objects', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        // No user context set
+
+        const res = await client.query(`SELECT * FROM storage.objects;`);
+        expect(res.rows.length).toBe(0);
+
+        let insertFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', $1, $2);`,
+            [storageTestObject, crypto.randomUUID()]
+          );
+        } catch {
+          insertFailed = true;
+        }
+        expect(insertFailed).toBe(true);
+
+        await client.query('ROLLBACK;');
+      } finally {
+        client.release();
+      }
+    });
+  });
 });

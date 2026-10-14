@@ -20,6 +20,7 @@ export const ReadinessCheckDataSchema = z.object({
   status: ReadinessStatusSchema,
   checks: z.object({
     database: z.enum(['connected', 'disconnected']),
+    auth: z.enum(['ready', 'unconfigured', 'unavailable']).optional(),
   }),
 });
 

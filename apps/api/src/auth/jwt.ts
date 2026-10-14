@@ -25,6 +25,7 @@ export interface JwtVerifierConfig {
   allowedAlgorithms?: string[];
   jwksUrl?: string;
   localJwks?: JSONWebKeySet;
+  secret?: string;
   keyStore?: JWTVerifyGetKey;
 }
 
@@ -35,7 +36,9 @@ export interface VerifiedActor {
   claims: JWTPayload;
 }
 
-const DEFAULT_ALLOWED_ALGORITHMS = ['RS256', 'EdDSA'];
+const DEFAULT_ASYMMETRIC_ALGORITHMS = ['RS256', 'EdDSA'];
+const DEFAULT_SYMMETRIC_ALGORITHMS = ['HS256'];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class JwtVerifier {
   private readonly issuer: string;
@@ -46,12 +49,17 @@ export class JwtVerifier {
   constructor(config: JwtVerifierConfig) {
     this.issuer = config.issuer;
     this.audience = config.audience;
-    this.allowedAlgorithms = config.allowedAlgorithms ?? DEFAULT_ALLOWED_ALGORITHMS;
 
     if (config.keyStore) {
       this.getKey = config.keyStore;
+      this.allowedAlgorithms = config.allowedAlgorithms ?? DEFAULT_ASYMMETRIC_ALGORITHMS;
+    } else if (config.secret) {
+      const secretBytes = new TextEncoder().encode(config.secret);
+      this.getKey = async () => secretBytes;
+      this.allowedAlgorithms = config.allowedAlgorithms ?? DEFAULT_SYMMETRIC_ALGORITHMS;
     } else if (config.localJwks) {
       this.getKey = createLocalJWKSet(config.localJwks);
+      this.allowedAlgorithms = config.allowedAlgorithms ?? DEFAULT_ASYMMETRIC_ALGORITHMS;
     } else if (config.jwksUrl) {
       // Configure bounded caching and timeout; never fetch URLs from untrusted tokens
       this.getKey = createRemoteJWKSet(new URL(config.jwksUrl), {
@@ -59,8 +67,13 @@ export class JwtVerifier {
         cooldownDuration: 30 * 1000, // 30 seconds cooldown
         timeoutDuration: 5 * 1000, // 5 seconds timeout
       });
+      this.allowedAlgorithms = config.allowedAlgorithms ?? DEFAULT_ASYMMETRIC_ALGORITHMS;
     } else {
-      throw new Error('JwtVerifier requires either keyStore, localJwks, or jwksUrl');
+      throw new Error('JwtVerifier requires either keyStore, localJwks, secret, or jwksUrl');
+    }
+
+    if (config.allowedAlgorithms) {
+      this.allowedAlgorithms = config.allowedAlgorithms;
     }
   }
 
@@ -77,29 +90,41 @@ export class JwtVerifier {
         clockTolerance: 5, // 5 seconds clock skew tolerance
       });
 
-      // Reject tokens using disallowed algorithms
-      if (!this.allowedAlgorithms.includes(protectedHeader.alg)) {
-        throw new AuthError(`Token algorithm '${protectedHeader.alg}' is not permitted`);
+      // 1. Reject tokens using disallowed algorithms
+      if (!protectedHeader.alg || !this.allowedAlgorithms.includes(protectedHeader.alg)) {
+        throw new AuthError('Token algorithm is not permitted');
       }
 
-      // Subject must be present and non-empty
-      if (!payload.sub || typeof payload.sub !== 'string') {
-        throw new AuthError('Token subject (sub) claim is missing or invalid');
+      // 2. Token expiration must be present and valid
+      if (typeof payload.exp !== 'number') {
+        throw new AuthError('Token expiration claim is missing');
       }
 
-      // Check token intended use / role
-      // In Supabase / OAuth JWTs, user tokens have role 'authenticated' or token_use 'access'
-      const role = (payload['role'] as string) || 'authenticated';
-      const tokenUse = payload['token_use'] as string | undefined;
+      // 3. Subject must be present and must be a valid UUID matching database identity contract
+      if (!payload.sub || typeof payload.sub !== 'string' || !UUID_REGEX.test(payload.sub)) {
+        throw new AuthError('Invalid user identity in token');
+      }
 
-      // Reject administrative, service, or anonymous credentials as user sessions
+      // 4. Role must be present and must be 'authenticated'
+      // NEVER default missing or invalid roles to authenticated
+      const role = payload['role'];
       const forbiddenRoles = ['anon', 'service_role', 'supabase_admin'];
-      if (forbiddenRoles.includes(role)) {
+      if (typeof role === 'string' && forbiddenRoles.includes(role)) {
         throw new AuthError(`Role '${role}' is not permitted for user session authentication`);
       }
+      if (!role || typeof role !== 'string' || role !== 'authenticated') {
+        throw new AuthError('Unauthorized token role: expected authenticated user');
+      }
 
-      if (tokenUse && tokenUse !== 'access' && tokenUse !== 'id') {
-        throw new AuthError(`Invalid token_use: '${tokenUse}'`);
+      // 5. Reject anonymous user sessions
+      if (payload['is_anonymous'] === true) {
+        throw new AuthError('Anonymous sessions are not permitted');
+      }
+
+      // 7. Reject ID tokens — require access token
+      const tokenUse = payload['token_use'];
+      if (tokenUse === 'id' || (tokenUse && tokenUse !== 'access')) {
+        throw new AuthError('ID tokens and non-access tokens are not permitted');
       }
 
       return {
@@ -112,8 +137,8 @@ export class JwtVerifier {
       if (err instanceof AuthError) {
         throw err;
       }
-      const message = err instanceof Error ? err.message : 'Invalid token';
-      throw new AuthError(`JWT verification failed: ${message}`);
+      // Return safe authentication error without exposing internal verifier details or stack
+      throw new AuthError('Invalid or expired authorization token');
     }
   }
 }

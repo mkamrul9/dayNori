@@ -75,21 +75,25 @@ Key architectural and platform achievements:
 | Zero identity leakage across pooled connections             | Testing connection after COMMIT and ROLLBACK | `tests/security/tenant-isolation.test.ts` | PASS (`current_setting` evaluates to empty/null on reuse)                                  |
 | Actor-field integrity                                       | Insert with mismatched actor ID              | `tests/security/tenant-isolation.test.ts` | PASS (RLS rejects insert when actor does not match current user)                           |
 | Workspace isolation for audit and storage objects           | Cross-tenant audit and storage queries       | `tests/security/tenant-isolation.test.ts` | PASS (User 2 cannot read User 1 audit logs or storage objects)                             |
+| Storage bucket privacy enforcement                          | User 2 accessing User 1 private bucket       | `tests/security/tenant-isolation.test.ts` | PASS (RLS rejects cross-workspace bucket queries)                                          |
+| Cross-workspace storage path access denial                  | User 2 accessing User 1 storage objects      | `tests/security/tenant-isolation.test.ts` | PASS (RLS rejects read/write across workspace paths)                                       |
+| Storage path traversal defense                              | Path containing `..` or leading `/`          | `tests/security/tenant-isolation.test.ts` | PASS (Workspace extractor rejects path traversal and returns NULL)                        |
+| Storage malformed object name rejection                     | Non-UUID prefix in object name               | `tests/security/tenant-isolation.test.ts` | PASS (Extractor rejects invalid format, RLS blocks insert)                                  |
 | Full monorepo typecheck                                     | `pnpm typecheck`                             | Root workspace                            | PASS (Exit code 0 across 13 packages)                                                      |
 | Lint validation                                             | `pnpm lint`                                  | Root workspace                            | PASS (Exit code 0, 0 lint errors)                                                          |
 | Prettier style validation                                   | `pnpm format:check`                          | Root workspace                            | PASS (All files adhere to code style)                                                      |
-| Secret scanning                                             | `pnpm audit:secrets`                         | Root workspace                            | PASS (1132 files checked, 0 unapproved secrets)                                            |
+| Secret scanning                                             | `pnpm audit:secrets`                         | Root workspace                            | PASS (1162 files checked, 0 unapproved secrets)                                            |
 
 ### Executed verification commands
 
 ```powershell
 # 1. Run security tenant isolation integration test suite against local PostgreSQL 17
 pnpm vitest run tests/security/tenant-isolation.test.ts
-# Result: Exit code 0 (22 tests passed in 1.00s)
+# Result: Exit code 0 (28 tests passed in 934ms)
 
 # 2. Run full test suite across monorepo
 pnpm test
-# Result: Exit code 0 (22 test files, 145 tests passed)
+# Result: Exit code 0 (22 test files, 193 tests passed)
 
 # 3. Typecheck all workspace packages
 pnpm typecheck
@@ -109,7 +113,7 @@ pnpm validate:planning
 
 # 7. Secret scanner audit
 pnpm audit:secrets
-# Result: Exit code 0 (checked 1132 files without detecting unapproved secrets)
+# Result: Exit code 0 (checked 1162 files without detecting unapproved secrets)
 ```
 
 ## Defects, limitations and recovery
