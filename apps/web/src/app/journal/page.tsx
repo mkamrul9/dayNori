@@ -4,9 +4,11 @@ import React, { useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, Dialog, EmptyState, TextField } from '@daynori/ui-web';
 import { useShell } from '../../components/ShellContext';
+import { useAuth } from '../../components/AuthContext';
 
 export default function JournalPage() {
   const { themeMode } = useShell();
+  const { isAuthenticated, openAuthModal } = useAuth();
   const palette = colors[themeMode];
 
   const [isWriting, setIsWriting] = useState(false);
@@ -59,6 +61,30 @@ export default function JournalPage() {
     setEntryBody('');
     setIsWriting(false);
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div
+        style={{
+          maxWidth: '860px',
+          margin: '0 auto',
+          padding: `${spacing.lg}px ${spacing.base}px`,
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+      >
+        <EmptyState
+          id="journal-auth-required"
+          title="Sign in required to view your Journal"
+          description="Your reflection journal contains private records. Sign in or create an account to access your personal timeline."
+          actionLabel="Sign In or Create Account"
+          onAction={() => openAuthModal('/journal')}
+          themeMode={themeMode}
+          icon="🔒"
+        />
+      </div>
+    );
+  }
 
   return (
     <div

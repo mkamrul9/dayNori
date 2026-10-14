@@ -189,7 +189,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <MobileCard themeMode={themeMode}>
           <Text style={[styles.settingLabel, { color: palette.text.primary, marginBottom: 4 }]}>
             Current Session:{' '}
-            {isAuthenticated ? 'Synthetic Contributor' : 'Unauthenticated (Local Evaluation)'}
+            {isAuthenticated
+              ? 'Authenticated Account (OS Secure KeyStore)'
+              : 'Unauthenticated (Local Offline)'}
           </Text>
           <Text
             style={[
@@ -197,8 +199,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               { color: palette.text.secondary, marginBottom: spacing.sm },
             ]}
           >
-            Production authentication providers (OAuth/OIDC) and secure session lifecycle are
-            scheduled for Phase 09.
+            {isAuthenticated
+              ? 'Your account session is active and stored in platform-protected secure storage. Quarantined drafts are isolated.'
+              : 'Sign in or verify an email link to synchronize your personal items across devices.'}
           </Text>
 
           {showDevReview ? (

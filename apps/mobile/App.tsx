@@ -181,11 +181,29 @@ export default function App() {
         setLibraryFilter('files');
         setActiveModal('none');
       } else if (payload.type === 'auth') {
-        // SECURITY INVARIANT: External links must NEVER establish an authenticated session.
-        // Full authentication provider lifecycle is scheduled for Phase 09.
+        void defaultAuthAdapter.handleDeepLink(url).then((res) => {
+          if (res.success) {
+            setIsAuthenticated(true);
+            if (pendingProtectedDest) {
+              if (pendingProtectedDest === 'journal') {
+                setCurrentTab('journal');
+              } else if (pendingProtectedDest === 'library') {
+                setCurrentTab('library');
+              }
+              setPendingProtectedDest(null);
+            }
+          }
+        });
         setActiveModal('none');
       }
     };
+
+    // Restore persistent session from OS-backed secure storage
+    void defaultAuthAdapter.restoreSession().then((restored) => {
+      if (restored) {
+        setIsAuthenticated(true);
+      }
+    });
 
     // Cold-start link
     Linking.getInitialURL().then((url) => {
@@ -314,7 +332,12 @@ export default function App() {
             isAuthenticated={isAuthenticated}
             onToggleAuth={() => {
               if (isAuthenticated) {
-                defaultAuthAdapter.logout();
+                void defaultAuthAdapter.signOut({ createDraft, searchQuery });
+                setCreateDraft({ type: 'task', title: '', details: '' });
+                setSearchQuery('');
+                if (currentTab === 'journal') {
+                  setCurrentTab('today');
+                }
               } else {
                 defaultAuthAdapter.loginSynthetic();
               }

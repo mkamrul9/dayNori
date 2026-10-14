@@ -5,11 +5,14 @@ import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
 import { Button, Dialog, Feedback, ListRow, TextField } from '@daynori/ui-web';
 import { useShell } from './ShellContext';
+import { useAuth } from './AuthContext';
+import { AuthModal } from './AuthModal';
 
 export const AppModals: React.FC = () => {
   const router = useRouter();
   const { themeMode, activeModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
+  const { user, isAuthenticated, signOut, openAuthModal } = useAuth();
 
   const palette = colors[themeMode];
   const [searchQuery, setSearchQuery] = useState('');
@@ -295,16 +298,55 @@ export const AppModals: React.FC = () => {
               border: `1px solid ${palette.border.subtle}`,
             }}
           >
-            <div style={{ fontWeight: 700, fontSize: '16px' }}>Personal Workspace</div>
-            <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '4px' }}>
-              Scope ID: ws-personal-default
-            </div>
-            <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '2px' }}>
-              Role: Owner | Local offline storage
-            </div>
+            {isAuthenticated && user ? (
+              <>
+                <div style={{ fontWeight: 700, fontSize: '16px' }}>
+                  {user.displayName || user.email}
+                </div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '4px' }}>
+                  User ID: {user.id}
+                </div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '2px' }}>
+                  Email: {user.email} | Verified Session
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, fontSize: '16px' }}>Not Signed In</div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '4px' }}>
+                  Operating in local offline mode.
+                </div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '2px' }}>
+                  Sign in or create an account to synchronize across devices.
+                </div>
+              </>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: `${spacing.sm}px`, justifyContent: 'flex-end' }}>
+            {isAuthenticated ? (
+              <Button
+                variant="secondary"
+                themeMode={themeMode}
+                onClick={async () => {
+                  await signOut();
+                  closeModal();
+                }}
+              >
+                Sign Out
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                themeMode={themeMode}
+                onClick={() => {
+                  closeModal();
+                  openAuthModal();
+                }}
+              >
+                Sign In / Sign Up
+              </Button>
+            )}
             <Button
               variant="secondary"
               themeMode={themeMode}
@@ -384,6 +426,9 @@ export const AppModals: React.FC = () => {
           />
         </div>
       </Dialog>
+
+      {/* 6. Accessible Auth Modal */}
+      <AuthModal />
     </>
   );
 };

@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 09 — Authentication across web and Android — 2026-10-14
+
+- **Selected Authentication Provider & Journey:**
+  - Implemented email/password authentication lifecycle: sign-up, verification, sign-in, recovery, refresh, and sign-out, documented in [ADR-0015](docs/decisions/0015-authentication-across-web-and-android.md).
+- **Web Same-Origin Session Layer (`apps/web`):**
+  - Built same-origin Route Handlers under `/api/auth/*` (`session`, `sign-in`, `sign-up`, `sign-out`, `refresh`, `recover`, `callback`).
+  - Stored tokens exclusively in `HttpOnly`, `Secure`, `SameSite=Lax` cookies (`daynori_access_token`, `daynori_refresh_token`, `daynori_csrf_token`).
+  - Enforced double-submit CSRF token validation and `Origin` header whitelisting for all state-changing writes.
+  - Kept refresh tokens strictly out of `localStorage`, `sessionStorage`, and client DOM state.
+  - Applied `Cache-Control: private, no-store, no-cache, must-revalidate` to prevent CDN or shared proxy caching of sensitive user identity.
+  - Added multi-tab session synchronization via `BroadcastChannel` (`LOGIN`, `LOGOUT`, `SESSION_REPLACED`).
+  - Added in-flight request cancellation via `AbortController` on session replacement and logout.
+  - Implemented accessible tabbed `AuthModal` dialog component with ARIA attributes and keyboard navigation.
+  - Enforced protected destination gating on `/journal` preserving target navigation.
+- **Android OS-Backed Secure Storage & Provider Adapter (`apps/mobile`):**
+  - Implemented `SecureStorageAdapter` backed by `expo-secure-store` (Android KeyStore) for session secret persistence.
+  - Created `MobileProviderAuthAdapter` replacing synthetic dummy adapter in standard runtime.
+  - Implemented anti-replay and anti-injection deep link callback verification requiring valid nonces and allowlisted schemes (`daynori://`).
+  - Added cold start and process restart session restoration from OS secure storage.
+  - Implemented `DraftQuarantineManager`: uncommitted drafts are quarantined by account ID on logout, strictly preventing cross-tenant leakage.
+  - Preserved pending protected navigation upon authentication.
+- **Shared Contracts (`packages/contracts`):**
+  - Added Zod schemas for sign-in, sign-up, recovery, session, callbacks, quarantined drafts in `packages/contracts/src/auth.ts`.
+  - Added open redirect defense helper `validateAuthRedirectUrl` and CSRF helpers (`generateCsrfToken`, `verifyCsrfToken`).
+- **Phase Reports & Roadmaps:**
+  - Created [Phase 09 Report](docs/phase-reports/phase-09.md) documenting delivered journeys, acceptance evidence, and exact remaining gates (real Supabase Auth container daemon on host and physical Android TalkBack hardware verification).
+  - Updated `docs/roadmap/progress.json` reflecting provisional Phase 09 development under authorized waiver.
+
 ## Phase 08 & 07 Defect Repairs & Security Hardening — 2026-10-14
 
 - **Phase 07 Storage Policies & Identity Context Repair:**
