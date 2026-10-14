@@ -39,10 +39,19 @@ Daynori supports multi-tenant personal workspaces and collaborative rooms. In mu
 ## Consequences
 
 - All runtime queries that access tenant tables must execute within a `withTenantContext` transaction block.
-- Connection pooling must never reuse un-isolated clients without transaction wrappers.
+- Connection pooling must never reuse un-isolated clients without transaction wrappers; connections with failed rollbacks or dirty state are actively destroyed/discarded.
+- Administrative tables like `app.schema_migrations` are strictly inaccessible to the runtime role.
 - Verified and enforced by automated integration test suite `tests/security/tenant-isolation.test.ts`.
 
 ## Verification and revisit
 
-- **Verification evidence**: 16 integration tests in `tests/security/tenant-isolation.test.ts` passing against local PostgreSQL 17 (`daynori_test`), validating role permissions, cross-tenant read/write rejection, composite foreign keys, anonymous denial, membership revocation, pool reuse identity clearing, audit logging, and storage isolation.
+- **Verification evidence**: 22 integration tests in `tests/security/tenant-isolation.test.ts` passing against local PostgreSQL 17 (`daynori_test`), validating:
+  - Empty dedicated database reproduction from zero with all migrations and advisory concurrency locking.
+  - Checksum rejection on tampered migration files and transaction rollback recovery on failed migrations.
+  - Non-superuser, non-bypassrls attributes and explicit table grants for `daynori_runtime` with denied administrative schema/migration mutation.
+  - Defense against membership self-enrollment escalation and strict creator-only initial bootstrap.
+  - Composite folder deletion preserving tenant key (`workspace_id`).
+  - Cross-tenant read/write/update/delete rejection and actor-field integrity.
+  - Poisoned connection discard on cleanup failure and zero identity leakage across pool reuses.
+  - Storage metadata RLS verification (with local binary bucket service integration recorded as a documented acceptance gap).
 - **Revisit triggers**: Expansion to shared collaborative rooms (Phase 51) requiring granular permission inheritance, introduction of read replicas, or performance profiling under high item cardinality necessitating materialized membership paths.

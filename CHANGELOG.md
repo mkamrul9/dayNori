@@ -1,16 +1,17 @@
 # Changelog
 
-## Phase 07 — PostgreSQL and tenant isolation foundation — 2026-10-14
+## Phase 07 — PostgreSQL and tenant isolation foundation (Security Repairs & Foundation) — 2026-10-14
 
-- Established PostgreSQL schema migrations (`infra/supabase/migrations/00001_initial_schema.sql` and `00002_forward_fix_example.sql`) defining tenant tables: `profiles`, `workspaces`, `workspace_memberships`, `items`, `audit_events`, and `storage_objects`.
-- Applied `FORCE ROW LEVEL SECURITY` across all tenant tables and created dedicated non-owner runtime role (`daynori_runtime` with `NOBYPASSRLS`).
-- Implemented transaction-local tenant context isolation (`set_config('app.current_user_id', ..., true)` and `set_config('app.current_workspace_id', ..., true)`) inside `withTenantContext`, ensuring automatic context reset on commit/rollback and zero identity leakage across connection pool reuse.
-- Enforced composite primary key `(workspace_id, id)` and folder relation `FOREIGN KEY (workspace_id, folder_id) REFERENCES app.items (workspace_id, id)` on `app.items`, rendering cross-tenant hierarchy references impossible at the relational constraint layer.
-- Added non-recursive authorization helper `app.user_has_workspace_role()` with pinned `search_path = app, pg_temp`.
-- Implemented database client, connection pool management, and repository modules in `apps/api/src/db/` (`workspaceRepository`, `membershipRepository`, `itemRepository`, `auditRepository`, `storageRepository`).
-- Built migration runner in `infra/supabase/migrator.ts` with SHA-256 checksum verification and idempotent re-runs.
-- Created security integration test suite in `tests/security/tenant-isolation.test.ts` (16 passing tests against real local PostgreSQL 17 instance `daynori_test`).
-- Documented architecture and security decisions in `docs/decisions/0013-postgresql-tenant-isolation-and-rls.md`.
+- Established PostgreSQL schema migrations (`infra/supabase/migrations/` 00001 through 00006) defining tenant tables: `profiles`, `workspaces`, `workspace_memberships`, `items`, `audit_events`, and `storage_objects`.
+- Repaired membership privilege escalation in `memberships_insert` policy (migration 00003 & 00006): restricted initial owner bootstrap exclusively to legitimate workspace creators on unpopulated workspaces, strictly rejecting unauthorized self-enrollment into existing workspaces.
+- Replaced broad schema grants: revoked administrative table access (including `app.schema_migrations`) from `daynori_runtime` role; granted explicit least-privilege permissions only to tenant application tables.
+- Corrected composite folder deletion constraint: implemented `ON DELETE SET NULL (folder_id)` preserving non-null `workspace_id` tenant key.
+- Hardened connection pooling in `apps/api/src/db/client.ts`: transaction rollbacks and cleanup failures actively discard/destroy the pooled client (`client.release(true)`) to prevent poisoned connection reuse.
+- Added migration advisory locking (`pg_advisory_lock`) in `infra/supabase/migrator.ts` to serialize concurrent migration runs safely.
+- Removed hardcoded credentials from codebase; integrated `.env` environment loading with `.env.example`; rotated local development runtime role secret.
+- Documented declarative Supabase storage bucket policies in `infra/supabase/policies/storage.sql` and `infra/supabase/policies/README.md` (recording local binary storage service enforcement as an acceptance gap until Phase 10+).
+- Verified 22 integration tests in `tests/security/tenant-isolation.test.ts` against real local PostgreSQL 17 instance (`daynori_test`), verifying empty dedicated database reproduction from zero, rollback recovery, and tenant isolation.
+- Updated [ADR-0013: PostgreSQL tenant isolation, row-level security, and migration foundations](docs/decisions/0013-postgresql-tenant-isolation-and-rls.md).
 
 ## Phase 05 and Phase 06 navigation corrections — 2026-10-14
 

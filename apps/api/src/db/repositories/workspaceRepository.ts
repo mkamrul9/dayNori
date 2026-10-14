@@ -64,6 +64,24 @@ export async function createWorkspace(
   return res.rows[0]!;
 }
 
+export async function createWorkspaceWithOwner(
+  client: PoolClient,
+  workspace: {
+    id?: string;
+    name: string;
+    kind: 'personal' | 'room';
+    ownerId: string;
+  }
+): Promise<{ workspace: WorkspaceRecord }> {
+  const ws = await createWorkspace(client, workspace);
+  await client.query(
+    `INSERT INTO app.workspace_memberships (workspace_id, user_id, role)
+     VALUES ($1, $2, 'owner');`,
+    [ws.id, workspace.ownerId]
+  );
+  return { workspace: ws };
+}
+
 export async function getWorkspace(
   client: PoolClient,
   workspaceId: string

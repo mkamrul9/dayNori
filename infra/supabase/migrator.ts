@@ -7,6 +7,25 @@ import { type ClientBase, Pool } from 'pg';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Load local .env configuration if present
+try {
+  if (typeof process.loadEnvFile === 'function') {
+    const envPaths = [
+      path.resolve(process.cwd(), '.env'),
+      path.resolve(process.cwd(), '../../.env'),
+      path.resolve(__dirname, '../../.env'),
+    ];
+    for (const p of envPaths) {
+      if (fs.existsSync(p)) {
+        process.loadEnvFile(p);
+        break;
+      }
+    }
+  }
+} catch {
+  // Ignore if already loaded or not found
+}
+
 export interface MigrationFile {
   version: string;
   name: string;
@@ -45,7 +64,8 @@ export class Migrator {
       port: config?.port || Number(process.env['PGPORT']) || 5432,
       database: config?.database || process.env['PGDATABASE'] || 'daynori_test',
       user: config?.user || process.env['PGUSER'] || 'postgres',
-      password: config?.password || process.env['PGPASSWORD'] || '1234',
+      password: config?.password || process.env['PGPASSWORD'] || '',
+      max: 2,
     });
   }
 
@@ -100,6 +120,9 @@ export class Migrator {
   }> {
     const client = await this.pool.connect();
     try {
+      // Serialize concurrent migration runners via advisory lock
+      await client.query("SELECT pg_advisory_lock(hashtext('daynori_schema_migrations'));");
+
       await this.initMigrationTable(client);
       const appliedRecords = await this.getAppliedMigrations(client);
       const appliedMap = new Map(appliedRecords.map((r) => [r.version, r]));
@@ -138,6 +161,11 @@ export class Migrator {
 
       return { applied, skipped };
     } finally {
+      try {
+        await client.query("SELECT pg_advisory_unlock(hashtext('daynori_schema_migrations'));");
+      } catch {
+        // Ignore unlock error on disconnect
+      }
       client.release();
     }
   }

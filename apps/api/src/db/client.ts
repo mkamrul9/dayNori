@@ -49,6 +49,7 @@ export async function withTenantContext<T>(
   }
 
   const client = await pool.connect();
+  let discardConnection = false;
   try {
     await client.query('BEGIN;');
     await client.query("SELECT set_config('app.current_user_id', $1, true);", [context.userId]);
@@ -60,10 +61,14 @@ export async function withTenantContext<T>(
     await client.query('COMMIT;');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK;');
+    try {
+      await client.query('ROLLBACK;');
+    } catch {
+      discardConnection = true;
+    }
     throw error;
   } finally {
-    client.release();
+    client.release(discardConnection);
   }
 }
 
