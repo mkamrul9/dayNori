@@ -77,4 +77,42 @@ describe('Routing contracts and URL parser', () => {
     expect(parseDeepLinkUrl('').success).toBe(false);
     expect(parseDeepLinkUrl(':::not-a-url:::').success).toBe(false);
   });
+
+  it('rejects unapproved schemes (e.g. javascript, http, ftp)', () => {
+    expect(parseDeepLinkUrl('javascript:alert(1)').success).toBe(false);
+    expect(parseDeepLinkUrl('http://insecure.site/today').success).toBe(false);
+    expect(parseDeepLinkUrl('ftp://files.site/doc').success).toBe(false);
+  });
+
+  it('enforces approved HTTPS origins and rejects unknown domains', () => {
+    const valid = parseDeepLinkUrl('https://app.daynori.com/today');
+    expect(valid.success).toBe(true);
+    expect(valid.payload?.destination).toBe('today');
+
+    const invalidOrigin = parseDeepLinkUrl('https://malicious-phishing.com/today');
+    expect(invalidOrigin.success).toBe(false);
+    expect(invalidOrigin.error).toContain('Rejected unapproved HTTPS origin');
+  });
+
+  it('rejects malformed numeric timestamp values', () => {
+    const resAlpha = parseDeepLinkUrl('daynori://today?timestamp=invalid-nan');
+    expect(resAlpha.success).toBe(false);
+    expect(resAlpha.error).toContain('Malformed numeric timestamp parameter');
+
+    const resNegative = parseDeepLinkUrl('daynori://today?timestamp=-100');
+    expect(resNegative.success).toBe(false);
+  });
+
+  it('rejects nested schemes and ambiguous path traversal structures', () => {
+    const res = parseDeepLinkUrl('daynori://https://attacker.com/evil');
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('Malformed or ambiguous URL path structure');
+  });
+
+  it('never echoes raw query parameters or auth tokens in error messages', () => {
+    const testToken = 'token_sample_12345';
+    const res = parseDeepLinkUrl(`daynori://unknown_destination?token=${testToken}&leak=true`);
+    expect(res.success).toBe(false);
+    expect(res.error).not.toContain(testToken);
+  });
 });

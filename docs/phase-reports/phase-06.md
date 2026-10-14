@@ -63,7 +63,7 @@ Key architectural and platform decisions:
 | OS reduced motion dynamic compliance                             | Automated AccessibilityInfo subscriber                                          | `apps/mobile/src/mobile.test.ts`                                | PASS (`animationType='none'` when reduced motion enabled)                       |
 | Typed route contracts & path traversal rejection                 | Zod schema validation tests                                                     | `packages/contracts/src/routing.test.ts`                        | PASS (traversal `../../` and SQL injection payloads strictly rejected)          |
 | Protected destination unauthenticated gate                       | Auth adapter contract tests                                                     | `apps/mobile/src/mobile.test.ts`                                | PASS (defaults unauthenticated; queues pending destination; unlocks on auth)    |
-| Real Android E2E runner replacement                              | Replaced echo placeholder in `package.json` with `scripts/test-android-e2e.mjs` | `package.json`, `artifacts/android-e2e/`                        | PASS (runner executes adb detection, APK verification, and 24 contract tests)   |
+| Real Android E2E runner replacement                              | Separated preflight from device execution in `scripts/test-android-e2e.mjs`     | `scripts/test-android-e2e.mjs`, `artifacts/android-e2e/`        | PASS (runner executes adb detection, APK verification, and reports missing hardware as non-zero BLOCKED_MISSING_PREREQUISITE) |
 | Fresh Android development APK compilation                        | Gradle `assembleDebug` build                                                    | `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` | PASS (128.4 MB development APK compiled)                                        |
 | Physical Android device TalkBack verification                    | Physical hardware TalkBack session                                              | Reference Android hardware device                               | **BLOCKED** (no physical device attached via adb; retained as outstanding gate) |
 
@@ -76,11 +76,11 @@ pnpm typecheck
 
 # 2. Run all unit and contract test suites
 pnpm test
-# Result: Exit code 0 (21 test files, 117 tests passed)
+# Result: Exit code 0 (21 test files, 123 tests passed, including mounted mobile component tests)
 
-# 3. Run Android E2E and acceptance runner
+# 3. Run Android E2E acceptance runner
 pnpm test:e2e:android
-# Result: Exit code 0 (adb checked, development APK verified, 24 mobile navigation tests passed)
+# Result: Exit code 1 (BLOCKED_MISSING_PREREQUISITE - development APK verified at 128.4 MB; adb devices reports empty; runner exits non-zero as required without fabricating passing status)
 
 # 4. Code style and lint checks
 pnpm format:check

@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-14",
   "activePhase": "04",
   "nextPhase": "04",
-  "note": "Phase 01–04 audit findings (F01–F10) resolved across toolchain, dependencies, browser verification, contrast, semantics, native sheet, and typography. Phase 04 remains in_progress pending physical Android TalkBack hardware verification.",
+  "note": "Phase 05/06 navigation repairs complete (WCAG 2.1.4 character shortcuts, deep-link authentication and scheme hardening, real E2E runner gating, and mounted component interaction tests). Phase 04–06 hardware gates remain blocked pending physical Android verification.",
   "phases": [
     {
       "id": "00",

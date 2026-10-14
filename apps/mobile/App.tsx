@@ -181,9 +181,9 @@ export default function App() {
         setLibraryFilter('files');
         setActiveModal('none');
       } else if (payload.type === 'auth') {
-        if (payload.token) {
-          defaultAuthAdapter.loginSynthetic();
-        }
+        // SECURITY INVARIANT: External links must NEVER establish an authenticated session.
+        // Full authentication provider lifecycle is scheduled for Phase 09.
+        setActiveModal('none');
       }
     };
 

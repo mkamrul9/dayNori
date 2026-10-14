@@ -477,6 +477,32 @@ try {
   await evaluate(`document.querySelector('#scale-100').click()`);
   await setViewport(1280, 800, false);
 
+  // Test WCAG 2.1.4 Character Key Shortcuts toggle
+  await evaluate(`document.querySelector('#shortcuts-disable-btn').click()`);
+  await new Promise((r) => setTimeout(r, 200));
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 't', text: 't' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 't' });
+  await new Promise((r) => setTimeout(r, 300));
+  const pathStillSettings = await evaluate(`window.location.pathname`);
+  record(
+    'WCAG 2.1.4 Character shortcut disablable',
+    pathStillSettings === '/settings',
+    'Disabling shortcuts prevented single-key "t" from navigating'
+  );
+
+  // Re-enable shortcuts and verify "t" navigates to /today
+  await evaluate(`document.querySelector('#shortcuts-enable-btn').click()`);
+  await new Promise((r) => setTimeout(r, 200));
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 't', text: 't' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 't' });
+  await new Promise((r) => setTimeout(r, 400));
+  const pathAfterReenable = await evaluate(`window.location.pathname`);
+  record(
+    'WCAG 2.1.4 Character shortcut re-enabled',
+    pathAfterReenable === '/today',
+    'Re-enabling shortcuts allowed single-key "t" to navigate to /today'
+  );
+
   // C. Interactive States: Empty, Loading, Error, Retry
   await navigateTo('/today');
 

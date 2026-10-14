@@ -13,6 +13,7 @@ export interface SettingsViewProps {
   onOpenGallery: () => void;
   onClose: () => void;
   testID?: string;
+  devReviewMode?: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -25,9 +26,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenGallery,
   onClose,
   testID = 'settings-view',
+  devReviewMode = false,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
+  const [showDevReview, setShowDevReview] = useState(devReviewMode);
 
   useEffect(() => {
     let isMounted = true;
@@ -178,32 +181,85 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </MobileCard>
       </View>
 
-      {/* Section 5: Security & Synthetic Auth Toggle */}
+      {/* Section 5: Security & Authentication Lifecycle */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-          Authentication Adapter (Testing)
+          Authentication & Access
         </Text>
         <MobileCard themeMode={themeMode}>
-          <View style={styles.settingRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.settingLabel, { color: palette.text.primary }]}>
-                Auth State: {isAuthenticated ? 'Authenticated' : 'Unauthenticated'}
-              </Text>
-              <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
-                Toggle synthetic auth to test protected destination gating.
-              </Text>
-            </View>
-            <MobileButton
-              variant={isAuthenticated ? 'subtle' : 'primary'}
-              themeMode={themeMode}
-              onPress={onToggleAuth}
-              accessibilityLabel={
-                isAuthenticated ? 'Log out synthetic account' : 'Log in synthetic account'
-              }
+          <Text style={[styles.settingLabel, { color: palette.text.primary, marginBottom: 4 }]}>
+            Current Session:{' '}
+            {isAuthenticated ? 'Synthetic Contributor' : 'Unauthenticated (Local Evaluation)'}
+          </Text>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Production authentication providers (OAuth/OIDC) and secure session lifecycle are
+            scheduled for Phase 09.
+          </Text>
+
+          {showDevReview ? (
+            <View
+              style={{
+                marginTop: spacing.xs,
+                padding: spacing.sm,
+                borderRadius: radii.sm,
+                backgroundColor: palette.surfaceRaised,
+                borderWidth: 1,
+                borderColor: palette.border.subtle,
+              }}
             >
-              {isAuthenticated ? 'Sign Out' : 'Sign In'}
+              <Text
+                style={[
+                  styles.settingLabel,
+                  { color: palette.text.primary, fontSize: 13, marginBottom: 2 },
+                ]}
+              >
+                Development Review Mode Active
+              </Text>
+              <Text
+                style={[
+                  styles.settingDescription,
+                  { color: palette.text.secondary, fontSize: 12, marginBottom: spacing.sm },
+                ]}
+              >
+                Toggle synthetic authentication state to verify protected destination gating (e.g.
+                Journal).
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <MobileButton
+                  variant={isAuthenticated ? 'subtle' : 'primary'}
+                  themeMode={themeMode}
+                  onPress={onToggleAuth}
+                  accessibilityLabel={
+                    isAuthenticated ? 'Log out synthetic account' : 'Log in synthetic account'
+                  }
+                >
+                  {isAuthenticated ? 'Sign Out Synthetic' : 'Sign In Synthetic'}
+                </MobileButton>
+                <MobileButton
+                  variant="subtle"
+                  themeMode={themeMode}
+                  onPress={() => setShowDevReview(false)}
+                  accessibilityLabel="Hide development review tools"
+                >
+                  Hide Dev Tools
+                </MobileButton>
+              </View>
+            </View>
+          ) : (
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => setShowDevReview(true)}
+              accessibilityLabel="Show development review authentication tools"
+            >
+              🛠️ Show Dev Review Tools
             </MobileButton>
-          </View>
+          )}
         </MobileCard>
       </View>
 

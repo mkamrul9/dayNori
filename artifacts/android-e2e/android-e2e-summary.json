@@ -1,8 +1,11 @@
 {
-  "timestamp": "2026-10-14T10:54:56.058Z",
+  "timestamp": "2026-10-14T12:08:51.438Z",
+  "status": "BLOCKED_MISSING_PREREQUISITE",
   "connectedDevices": [],
   "apkExists": true,
-  "apkSize": 128444244,
-  "automatedTestsPassed": true,
-  "hardwareGateStatus": "BLOCKED_PENDING_DEVICE"
+  "apkSize": 128447320,
+  "missingPrerequisites": [
+    "Connected physical Android device or emulator"
+  ],
+  "exitCode": 2
 }

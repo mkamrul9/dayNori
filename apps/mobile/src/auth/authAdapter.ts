@@ -73,6 +73,10 @@ export class MobileAuthAdapter {
     };
   }
 
+  public clearListeners(): void {
+    this.listeners = [];
+  }
+
   private notify(): void {
     this.listeners.forEach((l) => l());
   }

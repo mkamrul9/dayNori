@@ -22,6 +22,8 @@ export interface ShellContextType {
   isMobileDrawerOpen: boolean;
   setMobileDrawerOpen: (open: boolean) => void;
   routeAnnouncement: string;
+  shortcutsEnabled: boolean;
+  setShortcutsEnabled: (enabled: boolean) => void;
 }
 
 const ShellContext = createContext<ShellContextType | undefined>(undefined);
@@ -45,6 +47,7 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [activeModal, setActiveModal] = useState<ShellModal>(null);
   const [isMobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [routeAnnouncement, setRouteAnnouncement] = useState('');
+  const [shortcutsEnabled, setShortcutsEnabled] = useState<boolean>(true);
 
   // Synchronize data-theme attribute on <html>
   useEffect(() => {
@@ -89,6 +92,18 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
+      // Always allow Escape for modal / drawer dismissal
+      if (e.key === 'Escape') {
+        setActiveModal(null);
+        setMobileDrawerOpen(false);
+        return;
+      }
+
+      // WCAG 2.1.4: Character Key Shortcuts must be disablable
+      if (!shortcutsEnabled) {
+        return;
+      }
+
       switch (e.key) {
         case '?':
         case 'h':
@@ -128,10 +143,6 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           e.preventDefault();
           router.push('/settings');
           break;
-        case 'Escape':
-          setActiveModal(null);
-          setMobileDrawerOpen(false);
-          break;
         default:
           break;
       }
@@ -139,7 +150,7 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [router]);
+  }, [router, shortcutsEnabled]);
 
   const toggleTheme = () => {
     setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'));
@@ -177,6 +188,8 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isMobileDrawerOpen,
         setMobileDrawerOpen,
         routeAnnouncement,
+        shortcutsEnabled,
+        setShortcutsEnabled,
       }}
     >
       <div

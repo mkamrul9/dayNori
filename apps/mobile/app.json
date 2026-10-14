@@ -3,6 +3,7 @@
     "name": "Daynori",
     "slug": "daynori",
     "version": "0.1.0",
+    "scheme": "daynori",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -10,7 +11,15 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.daynori.app"
+      "package": "com.daynori.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "daynori" }, { "scheme": "https", "host": "app.daynori.com" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     }
   }
 }

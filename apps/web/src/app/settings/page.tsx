@@ -15,6 +15,8 @@ export default function SettingsPage() {
     setDirection,
     language,
     setLanguage,
+    shortcutsEnabled,
+    setShortcutsEnabled,
   } = useShell();
 
   const palette = colors[themeMode];
@@ -251,7 +253,46 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* 5. Storage & Privacy Architecture */}
+        {/* 5. Character Key Shortcuts (WCAG 2.1.4 Compliance) */}
+        <Card themeMode={themeMode}>
+          <h2
+            style={{
+              margin: '0 0 4px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Character Key Shortcuts (WCAG 2.1.4)
+          </h2>
+          <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}>
+            Global single-character navigation keys (such as &apos;t&apos; for Today, &apos;p&apos;
+            for Plan, &apos;l&apos; for Library, &apos;j&apos; for Journal, and &apos;/&apos; for
+            Search) can be disabled to prevent accidental activation by speech-to-text or
+            single-switch assistive technology.
+          </p>
+          <div style={{ display: 'flex', gap: `${spacing.sm}px`, alignItems: 'center' }}>
+            <Button
+              variant={shortcutsEnabled ? 'primary' : 'secondary'}
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => setShortcutsEnabled(true)}
+              id="shortcuts-enable-btn"
+            >
+              Shortcuts Enabled
+            </Button>
+            <Button
+              variant={!shortcutsEnabled ? 'primary' : 'secondary'}
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => setShortcutsEnabled(false)}
+              id="shortcuts-disable-btn"
+            >
+              Shortcuts Disabled
+            </Button>
+          </div>
+        </Card>
+
+        {/* 6. Storage & Privacy Architecture */}
         <Card themeMode={themeMode}>
           <h2
             style={{
@@ -268,7 +309,7 @@ export default function SettingsPage() {
           </p>
           <Feedback
             severity="info"
-            message="No credentials or remote sync are required for Phase 05 navigation shell. Encrypted vault records will follow Phase 44."
+            message="No credentials or remote sync are required for Phase 05 navigation shell. Persistent product storage will be delivered in later dedicated phases (Phase 10+), and encrypted vault records in Phase 44."
             themeMode={themeMode}
           />
         </Card>

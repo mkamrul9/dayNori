@@ -94,25 +94,75 @@ export interface DeepLinkParseResult {
   error?: string;
 }
 
+export const APPROVED_SCHEMES = new Set(['daynori:']);
+export const APPROVED_HTTPS_HOSTS = new Set(['app.daynori.com', 'daynori.app']);
+
 /**
  * Parses and strictly validates a deep link URL or raw payload.
- * Supports daynori:// and https://app.daynori.com/ schemes.
- * Rejects malformed paths, path traversal attempts, and unapproved destinations.
+ * Strictly enforces approved schemes (daynori://) and approved HTTPS origins (https://app.daynori.com/).
+ * Rejects unexpected origins, malformed numeric values, ambiguous payloads, and path traversal attempts.
+ * Redacts tokens and private query parameters from all error messages.
  */
 export function parseDeepLinkUrl(rawUrl: string): DeepLinkParseResult {
   if (!rawUrl || typeof rawUrl !== 'string') {
     return { success: false, error: 'Empty or invalid URL input' };
   }
 
+  const trimmed = rawUrl.trim();
+
+  // Validate approved scheme prefix before parsing
+  const isDaynoriScheme = trimmed.startsWith('daynori://');
+  const isHttpsScheme = trimmed.startsWith('https://');
+
+  if (!isDaynoriScheme && !isHttpsScheme) {
+    return {
+      success: false,
+      error:
+        'Unauthorized or unsupported URL scheme: link must use daynori:// or approved https:// origin',
+    };
+  }
+
   try {
-    let normalized = rawUrl.trim();
-    if (normalized.startsWith('daynori://')) {
-      normalized = normalized.replace('daynori://', 'http://daynori.app/');
+    let parsed: URL;
+
+    if (isDaynoriScheme) {
+      // Normalize daynori://path?query to http://daynori.internal/path?query for standard URL parsing
+      const pathAndQuery = trimmed.slice('daynori://'.length);
+      // Reject nested schemes or embedded authority traversal e.g. daynori://https://evil.com
+      if (pathAndQuery.includes('://') || pathAndQuery.startsWith('//')) {
+        return { success: false, error: 'Malformed or ambiguous URL path structure' };
+      }
+      parsed = new URL(`http://daynori.internal/${pathAndQuery}`);
+    } else {
+      parsed = new URL(trimmed);
+      // Enforce approved HTTPS host whitelist
+      if (!APPROVED_HTTPS_HOSTS.has(parsed.hostname.toLowerCase())) {
+        return {
+          success: false,
+          error: `Rejected unapproved HTTPS origin: host "${parsed.hostname}" is not authorized for Daynori navigation`,
+        };
+      }
     }
 
-    const parsed = new URL(normalized);
     const pathname = parsed.pathname.replace(/^\/+|\/+$/g, '');
     const searchParams = parsed.searchParams;
+
+    // Helper for strict positive integer timestamp validation
+    const tsRaw = searchParams.get('timestamp');
+    let timestamp: number | undefined = undefined;
+    if (tsRaw !== null) {
+      if (!/^\d+$/.test(tsRaw)) {
+        return {
+          success: false,
+          error: 'Malformed numeric timestamp parameter: must be a positive integer',
+        };
+      }
+      const parsedTs = Number(tsRaw);
+      if (!Number.isSafeInteger(parsedTs) || parsedTs <= 0) {
+        return { success: false, error: 'Invalid timestamp value: out of valid integer range' };
+      }
+      timestamp = parsedTs;
+    }
 
     // The primary route identifier is either query param 'type' or first segment of pathname
     const firstSegment = pathname.split('/')[0];
@@ -124,8 +174,6 @@ export function parseDeepLinkUrl(rawUrl: string): DeepLinkParseResult {
       const itemId = searchParams.get('itemId') || undefined;
       const action = searchParams.get('action') || undefined;
       const nonce = searchParams.get('nonce') || undefined;
-      const tsRaw = searchParams.get('timestamp');
-      const timestamp = tsRaw ? parseInt(tsRaw, 10) : undefined;
 
       const result = NotificationPayloadSchema.safeParse({
         type: 'notification',
@@ -149,8 +197,6 @@ export function parseDeepLinkUrl(rawUrl: string): DeepLinkParseResult {
       const fileId = searchParams.get('fileId') || pathname.replace(/^file\/?/, '') || undefined;
       const mimeType = searchParams.get('mimeType') || undefined;
       const nonce = searchParams.get('nonce') || undefined;
-      const tsRaw = searchParams.get('timestamp');
-      const timestamp = tsRaw ? parseInt(tsRaw, 10) : undefined;
 
       const result = FilePayloadSchema.safeParse({
         type: 'file',
@@ -174,8 +220,6 @@ export function parseDeepLinkUrl(rawUrl: string): DeepLinkParseResult {
       const token = searchParams.get('token') || undefined;
       const error = searchParams.get('error') || undefined;
       const nonce = searchParams.get('nonce') || undefined;
-      const tsRaw = searchParams.get('timestamp');
-      const timestamp = tsRaw ? parseInt(tsRaw, 10) : undefined;
 
       const result = AuthPayloadSchema.safeParse({
         type: 'auth',
@@ -207,7 +251,12 @@ export function parseDeepLinkUrl(rawUrl: string): DeepLinkParseResult {
       };
     }
 
-    return { success: false, error: `Unrecognized link destination or type: ${rawUrl}` };
+    // Never echo sensitive parameters in failure messages
+    const safePathContext = pathname ? `path: /${pathname}` : 'root';
+    return {
+      success: false,
+      error: `Unrecognized destination or link structure at ${safePathContext}`,
+    };
   } catch (err) {
     return { success: false, error: `Malformed URL structure: ${(err as Error).message}` };
   }
