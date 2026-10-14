@@ -29,8 +29,10 @@
       const done = (tx) =>
         new Promise((resolve, reject) => {
           tx.oncomplete = () => resolve('complete');
-          tx.onabort = () => reject(tx.error || new Error('aborted'));
-          tx.onerror = () => reject(tx.error);
+          tx.onabort = (e) =>
+            reject(tx.error || (e.target && e.target.error) || new Error('aborted'));
+          tx.onerror = (e) =>
+            reject(tx.error || (e.target && e.target.error) || new Error('error'));
         });
       const get = (db, store, key) =>
         new Promise((resolve, reject) => {
@@ -89,10 +91,20 @@
         seed.objectStore('notes').put({ id: 'dup', body: 'x' });
         await done(seed);
         const dupTx = db.transaction('notes', 'readwrite');
-        const addReq = dupTx.objectStore('notes').add({ id: 'dup', body: 'y' });
-        addReq.onerror = () => {};
         let dupName = 'none';
-        await done(dupTx).catch((e) => (dupName = e && e.name));
+        const addReq = dupTx.objectStore('notes').add({ id: 'dup', body: 'y' });
+        addReq.onerror = (e) => {
+          dupName = addReq.error
+            ? addReq.error.name
+            : e.target && e.target.error
+              ? e.target.error.name
+              : 'error';
+        };
+        await done(dupTx).catch((e) => {
+          if (dupName === 'none') {
+            dupName = (e && e.name) || 'aborted';
+          }
+        });
         note('duplicate-key-failure', dupName, 'add() with existing key');
 
         // Upgrade v1 -> v2: data survives and a new index appears.

@@ -98,3 +98,18 @@ Supersedes synthetic test labeling, source claims, and evidence boundaries:
    - Google OAuth verification, Web Push service worker push servers, and Google Play Console merchant registration remain external prerequisites.
 5. **Documentation & ADRs**:
    - Updated ADR-0009 through ADR-0012, `tests/spikes/README.md`, `docs/research/sources.md`, and `CHANGELOG.md`.
+
+## Corrective revision — 2026-10-14 (Finding F10 Part 1 Remediation)
+
+Re-verified in response to the Phase 01–04 audit report (`docs/reviews/phase-01-04-audit-2026-10-14.md`).
+
+- **IndexedDB Error Reporting (F10)**:
+  - Repaired error handling in `tests/spikes/browser/indexeddb-real.html`: captured request error name directly from `addReq.error` and `addReq.onerror` rather than relying solely on `tx.error` at `onabort` (which can resolve to `null` before error propagation in Chromium). Verified that `duplicate-key-failure` now reliably captures and logs `ConstraintError`.
+- **Browser Experiment Runner Hardening (F10)**:
+  - Rewrote `tests/spikes/browser/run-edge.mjs` to embed an internal HTTP test server, support cross-path Chromium/Edge discovery, and strictly assert structured experiment results from `window.__results`.
+  - The runner now fails closed (exiting code 1) on missing results, timeouts waiting for `done-*` titles, any `experiment-error` record, or mismatch against expected outcomes (`rollback-on-abort === 'no partial write'`, `duplicate-key-failure === 'ConstraintError'`, `upgrade-v1-to-v2 === 'data kept, index added'`, and `failed-upgrade-rollback` version preservation).
+- **Observed Execution Evidence**:
+  - Command: `node tests/spikes/browser/run-edge.mjs`
+  - Exit code: 0
+  - Browser: Microsoft Edge 155.0.4283.45 on Windows 10
+  - Output verified: all three stages (`?run=write`, `?run=verify`, `?run=all`) executed, capturing expected `ConstraintError` and structured persistence/rollback guarantees.
