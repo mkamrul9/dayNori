@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import React from 'react';
-import { colors } from '@daynori/design-tokens';
+import './globals.css';
+import { ShellProvider } from '../components/ShellContext';
+import { AppShell } from '../components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Daynori — Your day, gathered',
@@ -11,18 +13,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.light.background,
-          color: colors.light.text.primary,
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-          WebkitFontSmoothing: 'antialiased',
-        }}
-      >
-        {children}
+      <body>
+        <ShellProvider>
+          <AppShell>{children}</AppShell>
+        </ShellProvider>
       </body>
     </html>
   );

@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import { Button, Card, Dialog, Feedback, ListRow, TextField } from './index.js';
+import {
+  Button,
+  Card,
+  Dialog,
+  Feedback,
+  ListRow,
+  TextField,
+  EmptyState,
+  SkipLink,
+  RouteAnnouncer,
+} from './index.js';
 
 describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
   it('exports all core accessible primitives', () => {
@@ -11,6 +21,9 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
     expect(Dialog).toBeDefined();
     expect(Feedback).toBeDefined();
     expect(ListRow).toBeDefined();
+    expect(EmptyState).toBeDefined();
+    expect(SkipLink).toBeDefined();
+    expect(RouteAnnouncer).toBeDefined();
   });
 
   describe('Button Accessibility', () => {
@@ -178,6 +191,52 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       );
       expect(html).not.toContain('role="button"');
       expect(html).not.toContain('tabindex="0"');
+    });
+  });
+
+  describe('EmptyState Accessibility', () => {
+    it('renders accessible empty state with section region and action button', () => {
+      const html = renderToString(
+        React.createElement(EmptyState, {
+          id: 'tasks-empty',
+          title: 'No upcoming tasks',
+          description: 'You have cleared all tasks for today.',
+          actionLabel: 'Create Task',
+          onAction: () => {},
+        })
+      );
+      expect(html).toContain('id="tasks-empty"');
+      expect(html).toContain('aria-label="No upcoming tasks"');
+      expect(html).toContain('No upcoming tasks');
+      expect(html).toContain('You have cleared all tasks for today.');
+      expect(html).toContain('Create Task');
+    });
+  });
+
+  describe('SkipLink Accessibility', () => {
+    it('renders skip link pointing to main-content with 44px min touch target semantics', () => {
+      const html = renderToString(
+        React.createElement(SkipLink, {
+          targetId: 'main-content',
+          label: 'Skip to main content',
+        })
+      );
+      expect(html).toContain('href="#main-content"');
+      expect(html).toContain('Skip to main content');
+    });
+  });
+
+  describe('RouteAnnouncer Accessibility', () => {
+    it('renders polite live region for route change announcements', () => {
+      const html = renderToString(
+        React.createElement(RouteAnnouncer, {
+          message: 'Navigated to Today view',
+        })
+      );
+      expect(html).toContain('role="status"');
+      expect(html).toContain('aria-live="polite"');
+      expect(html).toContain('aria-atomic="true"');
+      expect(html).toContain('Navigated to Today view');
     });
   });
 });
