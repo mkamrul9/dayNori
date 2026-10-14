@@ -57,8 +57,8 @@ export const Button: React.FC<ButtonProps> = ({
     fg = palette.action.subtleText;
     border = 'none';
   } else if (variant === 'danger') {
-    bg = palette.status.danger;
-    fg = '#FFFFFF';
+    bg = palette.action.danger;
+    fg = palette.action.dangerLabel;
     border = 'none';
   }
 
@@ -99,7 +99,10 @@ export const Button: React.FC<ButtonProps> = ({
         minHeight: `${minHeight}px`,
         minWidth: `${minHeight}px`,
         padding: `${paddingY}px ${paddingX}px`,
-        fontSize: size === 'compact' ? '13px' : '14px',
+        fontSize:
+          size === 'compact'
+            ? 'calc(0.8125rem * var(--daynori-text-scale, 1))'
+            : 'calc(0.875rem * var(--daynori-text-scale, 1))',
         fontWeight: 500,
         fontFamily: 'inherit',
         cursor: isDisabled ? 'not-allowed' : 'pointer',

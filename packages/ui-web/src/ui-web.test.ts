@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
+import { colors, getContrastRatio } from '@daynori/design-tokens';
 import {
   Button,
   Card,
@@ -54,6 +55,26 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('disabled=""');
       expect(html).toContain('aria-disabled="true"');
     });
+
+    it('renders danger button variant with WCAG AA compliant contrast in light and dark themes', () => {
+      const lightHtml = renderToString(
+        React.createElement(Button, { variant: 'danger', themeMode: 'light' }, 'Delete')
+      );
+      expect(lightHtml).toContain('background-color:#B3261E');
+      expect(lightHtml).toContain('color:#FFFFFF');
+      expect(
+        getContrastRatio(colors.light.action.dangerLabel, colors.light.action.danger)
+      ).toBeGreaterThanOrEqual(4.5);
+
+      const darkHtml = renderToString(
+        React.createElement(Button, { variant: 'danger', themeMode: 'dark' }, 'Delete')
+      );
+      expect(darkHtml).toContain('background-color:#F2B8B5');
+      expect(darkHtml).toContain('color:#381615');
+      expect(
+        getContrastRatio(colors.dark.action.dangerLabel, colors.dark.action.danger)
+      ).toBeGreaterThanOrEqual(4.5);
+    });
   });
 
   describe('TextField Accessibility', () => {
@@ -84,6 +105,58 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('aria-describedby="error-field-error"');
       expect(html).toContain('role="alert"');
       expect(html).toContain('Date format must be YYYY-MM-DD.');
+    });
+
+    it('constructs aria-describedby only from rendered elements when helperText and errorMessage are both supplied', () => {
+      const html = renderToString(
+        React.createElement(TextField, {
+          id: 'conflict-field',
+          label: 'Priority',
+          helperText: 'A helper note that should be hidden on error',
+          errorMessage: 'Priority cannot be empty',
+        })
+      );
+      expect(html).toContain('aria-describedby="conflict-field-error"');
+      expect(html).not.toContain('conflict-field-helper');
+      expect(html).toContain('role="alert"');
+      expect(html).toContain('Priority cannot be empty');
+      expect(html).not.toContain('A helper note that should be hidden on error');
+    });
+
+    it('preserves caller-supplied aria-describedby and combines with rendered description', () => {
+      const html = renderToString(
+        React.createElement(TextField, {
+          id: 'caller-desc-field',
+          label: 'Tags',
+          'aria-describedby': 'external-format-guide',
+          errorMessage: 'Invalid tag format',
+        })
+      );
+      expect(html).toContain('aria-describedby="external-format-guide caller-desc-field-error"');
+    });
+
+    it('recovers aria-describedby to helperText when errorMessage is cleared', () => {
+      const errorHtml = renderToString(
+        React.createElement(TextField, {
+          id: 'recover-field',
+          label: 'Recovery Test',
+          helperText: 'Standard helper instruction',
+          errorMessage: 'Temporary error',
+        })
+      );
+      expect(errorHtml).toContain('aria-describedby="recover-field-error"');
+      expect(errorHtml).not.toContain('recover-field-helper');
+
+      const recoveredHtml = renderToString(
+        React.createElement(TextField, {
+          id: 'recover-field',
+          label: 'Recovery Test',
+          helperText: 'Standard helper instruction',
+        })
+      );
+      expect(recoveredHtml).toContain('aria-describedby="recover-field-helper"');
+      expect(recoveredHtml).toContain('id="recover-field-helper"');
+      expect(recoveredHtml).toContain('Standard helper instruction');
     });
   });
 
@@ -167,8 +240,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
   });
 
   describe('ListRow Accessibility', () => {
-    it('renders interactive row with button role and tabIndex 0', () => {
-      const html = renderToString(
+    it('renders interactive row with button role and aria-pressed, without invalid aria-selected', () => {
+      const selectedHtml = renderToString(
         React.createElement(ListRow, {
           title: 'Morning review',
           subtitle: 'Daily routine',
@@ -176,14 +249,68 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
           selected: true,
         })
       );
-      expect(html).toContain('role="button"');
-      expect(html).toContain('tabindex="0"');
-      expect(html).toContain('aria-selected="true"');
-      expect(html).toContain('min-height:44px');
-      expect(html).toContain('Morning review');
+      expect(selectedHtml).toContain('role="button"');
+      expect(selectedHtml).toContain('tabindex="0"');
+      expect(selectedHtml).toContain('aria-pressed="true"');
+      expect(selectedHtml).not.toContain('aria-selected');
+      expect(selectedHtml).toContain('min-height:44px');
+      expect(selectedHtml).toContain('Morning review');
+
+      const unselectedHtml = renderToString(
+        React.createElement(ListRow, {
+          title: 'Morning review',
+          subtitle: 'Daily routine',
+          onClick: () => {},
+          selected: false,
+        })
+      );
+      expect(unselectedHtml).toContain('role="button"');
+      expect(unselectedHtml).toContain('aria-pressed="false"');
+      expect(unselectedHtml).not.toContain('aria-selected');
     });
 
-    it('renders non-interactive row without button role', () => {
+    it('renders metadata with secondary color ensuring contrast >= 4.5:1 on selected backgrounds', () => {
+      const lightSelectedHtml = renderToString(
+        React.createElement(ListRow, {
+          title: 'Task item',
+          meta: '12:00 PM',
+          selected: true,
+          themeMode: 'light',
+          onClick: () => {},
+        })
+      );
+      expect(lightSelectedHtml).toContain(`color:${colors.light.text.secondary}`);
+      expect(
+        getContrastRatio(colors.light.text.secondary, colors.light.action.subtle)
+      ).toBeGreaterThanOrEqual(4.5);
+
+      const darkSelectedHtml = renderToString(
+        React.createElement(ListRow, {
+          title: 'Task item',
+          meta: '12:00 PM',
+          selected: true,
+          themeMode: 'dark',
+          onClick: () => {},
+        })
+      );
+      expect(darkSelectedHtml).toContain(`color:${colors.dark.text.secondary}`);
+      expect(
+        getContrastRatio(colors.dark.text.secondary, colors.dark.action.subtle)
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('enables text wrapping rather than forcing white-space:nowrap truncation', () => {
+      const html = renderToString(
+        React.createElement(ListRow, {
+          title: 'Very long title that wraps on 320px narrow screens',
+          subtitle: 'Detailed subtitle explaining tasks',
+        })
+      );
+      expect(html).not.toContain('white-space:nowrap');
+      expect(html).toContain('overflow-wrap:anywhere');
+    });
+
+    it('renders non-interactive row without button role or aria-pressed', () => {
       const html = renderToString(
         React.createElement(ListRow, {
           title: 'Static item',
@@ -191,6 +318,7 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       );
       expect(html).not.toContain('role="button"');
       expect(html).not.toContain('tabindex="0"');
+      expect(html).not.toContain('aria-pressed');
     });
   });
 

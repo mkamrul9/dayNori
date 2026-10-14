@@ -25,6 +25,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   themeMode = 'light',
   disabled = false,
   required = false,
+  'aria-describedby': callerDescribedBy,
   style,
   onFocus,
   onBlur,
@@ -39,9 +40,10 @@ export const TextField: React.FC<TextFieldProps> = ({
   const palette = colors[themeMode];
   const isInvalid = Boolean(errorMessage);
 
+  // Construct description IDs only from elements actually rendered (F06 fix)
+  const renderedDescriptionId = errorMessage ? errorId : helperText ? helperId : null;
   const describedBy =
-    [helperText ? helperId : null, errorMessage ? errorId : null].filter(Boolean).join(' ') ||
-    undefined;
+    [callerDescribedBy, renderedDescriptionId].filter(Boolean).join(' ') || undefined;
 
   const borderColor = isInvalid
     ? palette.status.danger
@@ -64,7 +66,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       <label
         htmlFor={id}
         style={{
-          fontSize: '14px',
+          fontSize: 'calc(0.875rem * var(--daynori-text-scale, 1))',
           fontWeight: 600,
           color: disabled ? palette.text.muted : palette.text.primary,
         }}
@@ -94,7 +96,7 @@ export const TextField: React.FC<TextFieldProps> = ({
         style={{
           minHeight: `${touchTargets.webMin}px`,
           padding: `${spacing.sm}px ${spacing.md}px`,
-          fontSize: '16px', // 16px prevents automatic iOS browser zoom on focus
+          fontSize: 'calc(1rem * var(--daynori-text-scale, 1))', // 16px default prevents iOS zoom
           color: disabled ? palette.text.muted : palette.text.primary,
           backgroundColor: disabled ? palette.surfaceRaised : palette.surface,
           border: `1.5px solid ${borderColor}`,
@@ -116,7 +118,7 @@ export const TextField: React.FC<TextFieldProps> = ({
         <span
           id={helperId}
           style={{
-            fontSize: '12px',
+            fontSize: 'calc(0.75rem * var(--daynori-text-scale, 1))',
             color: palette.text.secondary,
             marginTop: '2px',
           }}
@@ -130,7 +132,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           id={errorId}
           role="alert"
           style={{
-            fontSize: '12px',
+            fontSize: 'calc(0.75rem * var(--daynori-text-scale, 1))',
             color: palette.status.danger,
             fontWeight: 500,
             marginTop: '2px',

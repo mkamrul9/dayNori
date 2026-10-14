@@ -54,18 +54,15 @@ export const MobileListRow: React.FC<MobileListRowProps> = ({
     >
       <View style={styles.textContainer}>
         <Text
-          numberOfLines={1}
           style={[styles.title, { color: disabled ? palette.text.muted : palette.text.primary }]}
         >
           {title}
         </Text>
         {subtitle && (
-          <Text numberOfLines={1} style={[styles.subtitle, { color: palette.text.secondary }]}>
-            {subtitle}
-          </Text>
+          <Text style={[styles.subtitle, { color: palette.text.secondary }]}>{subtitle}</Text>
         )}
       </View>
-      {meta && <Text style={[styles.meta, { color: palette.text.muted }]}>{meta}</Text>}
+      {meta && <Text style={[styles.meta, { color: palette.text.secondary }]}>{meta}</Text>}
     </Pressable>
   );
 };

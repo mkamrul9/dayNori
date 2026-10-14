@@ -62,6 +62,23 @@ describe('Design Tokens & Contrast Verification', () => {
       const whiteOnTeal = getContrastRatio(colors.light.action.label, colors.light.action.primary);
       expect(whiteOnTeal).toBeGreaterThanOrEqual(4.5);
 
+      // White label on deep red danger action (F03 fix)
+      const whiteOnDanger = getContrastRatio(
+        colors.light.action.dangerLabel,
+        colors.light.action.danger
+      );
+      expect(whiteOnDanger).toBeGreaterThanOrEqual(4.5);
+      expect(
+        getContrastRatio(colors.light.action.dangerLabel, colors.light.action.dangerHover)
+      ).toBeGreaterThanOrEqual(4.5);
+
+      // Selected row metadata (secondary slate on subtle container, F04 fix)
+      const lightSelectedMeta = getContrastRatio(
+        colors.light.text.secondary,
+        colors.light.action.subtle
+      );
+      expect(lightSelectedMeta).toBeGreaterThanOrEqual(4.5);
+
       // Ink label on amber accent
       const inkOnAmber = getContrastRatio(colors.light.accent.label, colors.light.accent.warm);
       expect(inkOnAmber).toBeGreaterThanOrEqual(4.5);
@@ -84,6 +101,23 @@ describe('Design Tokens & Contrast Verification', () => {
       // Dark label on soft teal action
       const darkOnSoftTeal = getContrastRatio(colors.dark.action.label, colors.dark.action.primary);
       expect(darkOnSoftTeal).toBeGreaterThanOrEqual(4.5);
+
+      // Dark ink label on soft red danger action (F03 fix)
+      const darkOnDanger = getContrastRatio(
+        colors.dark.action.dangerLabel,
+        colors.dark.action.danger
+      );
+      expect(darkOnDanger).toBeGreaterThanOrEqual(4.5);
+      expect(
+        getContrastRatio(colors.dark.action.dangerLabel, colors.dark.action.dangerHover)
+      ).toBeGreaterThanOrEqual(4.5);
+
+      // Dark selected row metadata (secondary pale slate on subtle container, F04 fix)
+      const darkSelectedMeta = getContrastRatio(
+        colors.dark.text.secondary,
+        colors.dark.action.subtle
+      );
+      expect(darkSelectedMeta).toBeGreaterThanOrEqual(4.5);
 
       // Dark label on soft amber accent
       const darkOnSoftAmber = getContrastRatio(colors.dark.accent.label, colors.dark.accent.warm);

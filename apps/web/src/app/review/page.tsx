@@ -47,11 +47,14 @@ export default function ComponentReviewPage() {
     >
       <div
         id="review-gallery-content"
-        style={{
-          maxWidth: '880px',
-          margin: '0 auto',
-          padding: `${spacing.xl}px ${spacing.base}px`,
-        }}
+        style={
+          {
+            maxWidth: '880px',
+            margin: '0 auto',
+            padding: `${spacing.xl}px ${spacing.base}px`,
+            '--daynori-text-scale': textScale / 100,
+          } as React.CSSProperties
+        }
       >
         <nav aria-label="Breadcrumbs" style={{ marginBottom: `${spacing.md}px` }}>
           <a
@@ -142,7 +145,9 @@ export default function ComponentReviewPage() {
               variant="secondary"
               size="compact"
               themeMode={themeMode}
-              onClick={() => setTextScale((s) => (s === 100 ? 125 : s === 125 ? 150 : 100))}
+              onClick={() =>
+                setTextScale((s) => (s === 100 ? 125 : s === 125 ? 150 : s === 150 ? 200 : 100))
+              }
               aria-label={`Current text scale ${textScale} percent. Click to change.`}
             >
               Scale: {textScale}%
@@ -565,84 +570,138 @@ export default function ComponentReviewPage() {
           </h2>
 
           <Card themeMode={themeMode}>
-            <table
+            <div
+              role="region"
+              aria-label="WCAG 2.2 Level AA Contrast Audit Summary"
+              tabIndex={0}
               style={{
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
                 width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: '14px',
-                textAlign: direction === 'rtl' ? 'right' : 'left',
               }}
             >
-              <thead>
-                <tr style={{ borderBottom: `2px solid ${palette.border.strong}` }}>
-                  <th style={{ padding: `${spacing.sm}px` }}>Element Pair</th>
-                  <th style={{ padding: `${spacing.sm}px` }}>Color Tokens</th>
-                  <th style={{ padding: `${spacing.sm}px` }}>Calculated Ratio</th>
-                  <th style={{ padding: `${spacing.sm}px` }}>Target</th>
-                  <th style={{ padding: `${spacing.sm}px` }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                  <td style={{ padding: `${spacing.sm}px` }}>Ink text on Warm Paper (Light)</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>#172C2C / #F7F5EF</td>
-                  <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>13.44:1</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                  <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                    PASS AA
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                  <td style={{ padding: `${spacing.sm}px` }}>Secondary Slate on Paper (Light)</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>#526363 / #F7F5EF</td>
-                  <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>5.80:1</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                  <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                    PASS AA
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                  <td style={{ padding: `${spacing.sm}px` }}>
-                    White label on Primary Teal (Light)
-                  </td>
-                  <td style={{ padding: `${spacing.sm}px` }}>#FFFFFF / #146B63</td>
-                  <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>6.34:1</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                  <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                    PASS AA
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                  <td style={{ padding: `${spacing.sm}px` }}>Dark primary text on Dark Surface</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>#E9F0ED / #132323</td>
-                  <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>14.05:1</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                  <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                    PASS AA
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                  <td style={{ padding: `${spacing.sm}px` }}>
-                    Dark secondary text on Dark Surface
-                  </td>
-                  <td style={{ padding: `${spacing.sm}px` }}>#AEC0BB / #132323</td>
-                  <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>8.56:1</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                  <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                    PASS AA
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ padding: `${spacing.sm}px` }}>Essential Field Border (Dark)</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>#5C7670 / #132323</td>
-                  <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>3.31:1</td>
-                  <td style={{ padding: `${spacing.sm}px` }}>&ge; 3.0:1</td>
-                  <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                    PASS AA
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+              <table
+                style={{
+                  width: '100%',
+                  minWidth: '540px',
+                  borderCollapse: 'collapse',
+                  fontSize: '14px',
+                  textAlign: direction === 'rtl' ? 'right' : 'left',
+                }}
+              >
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${palette.border.strong}` }}>
+                    <th style={{ padding: `${spacing.sm}px` }}>Element Pair</th>
+                    <th style={{ padding: `${spacing.sm}px` }}>Color Tokens</th>
+                    <th style={{ padding: `${spacing.sm}px` }}>Calculated Ratio</th>
+                    <th style={{ padding: `${spacing.sm}px` }}>Target</th>
+                    <th style={{ padding: `${spacing.sm}px` }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>Ink text on Warm Paper (Light)</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#172C2C / #F7F5EF</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>13.44:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>Secondary Slate on Paper (Light)</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#526363 / #F7F5EF</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>5.80:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>
+                      White label on Primary Teal (Light)
+                    </td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#FFFFFF / #146B63</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>6.34:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>
+                      White label on Danger Action (Light)
+                    </td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#FFFFFF / #B3261E</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>6.55:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>Selected Row Metadata (Light)</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#526363 / #E4EFEA</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>5.30:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>
+                      Dark primary text on Dark Surface
+                    </td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#E9F0ED / #132323</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>14.05:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>
+                      Dark secondary text on Dark Surface
+                    </td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#AEC0BB / #132323</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>8.56:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>
+                      Dark Ink label on Danger Action (Dark)
+                    </td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#381615 / #F2B8B5</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>9.58:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.sm}px` }}>Selected Row Metadata (Dark)</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#AEC0BB / #1C312E</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>7.26:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: `${spacing.sm}px` }}>Essential Field Border (Dark)</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>#5C7670 / #132323</td>
+                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>3.31:1</td>
+                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 3.0:1</td>
+                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
+                      PASS AA
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </Card>
         </section>
       </div>

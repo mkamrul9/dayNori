@@ -51,8 +51,8 @@ export const ListRow: React.FC<ListRowProps> = ({
     <div
       role={isInteractive ? 'button' : undefined}
       tabIndex={isInteractive ? 0 : undefined}
-      aria-selected={selected}
-      aria-disabled={disabled}
+      aria-pressed={isInteractive ? selected : undefined}
+      aria-disabled={disabled || undefined}
       onClick={isInteractive ? onClick : undefined}
       onFocus={isInteractive ? () => setIsFocused(true) : undefined}
       onBlur={isInteractive ? () => setIsFocused(false) : undefined}
@@ -107,12 +107,11 @@ export const ListRow: React.FC<ListRowProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
           <span
             style={{
-              fontSize: '16px',
+              fontSize: 'calc(1rem * var(--daynori-text-scale, 1))',
               fontWeight: 500,
               color: disabled ? palette.text.muted : palette.text.primary,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
             }}
           >
             {title}
@@ -120,11 +119,11 @@ export const ListRow: React.FC<ListRowProps> = ({
           {subtitle && (
             <span
               style={{
-                fontSize: '14px',
+                fontSize: 'calc(0.875rem * var(--daynori-text-scale, 1))',
                 color: palette.text.secondary,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                marginTop: '2px',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
               }}
             >
               {subtitle}
@@ -143,7 +142,16 @@ export const ListRow: React.FC<ListRowProps> = ({
             marginLeft: `${spacing.sm}px`,
           }}
         >
-          {meta && <span style={{ fontSize: '12px', color: palette.text.muted }}>{meta}</span>}
+          {meta && (
+            <span
+              style={{
+                fontSize: 'calc(0.75rem * var(--daynori-text-scale, 1))',
+                color: palette.text.secondary,
+              }}
+            >
+              {meta}
+            </span>
+          )}
           {trailing}
         </div>
       )}

@@ -25,6 +25,9 @@ export const colors = {
       subtleText: '#105650', // High-contrast teal text on subtle bg
       disabled: '#D3DAD7',
       disabledText: '#7B8985',
+      danger: '#B3261E', // Deep red action
+      dangerHover: '#8F1D18',
+      dangerLabel: '#FFFFFF', // Pure white label on deep red (6.55:1)
     },
     accent: {
       warm: '#D9A441', // Amber priority / highlight
@@ -69,6 +72,9 @@ export const colors = {
       subtleText: '#73C2B6',
       disabled: '#243533',
       disabledText: '#5A6E6A',
+      danger: '#F2B8B5', // Soft coral red action
+      dangerHover: '#F7C8C5',
+      dangerLabel: '#381615', // High-contrast dark red ink label (9.58:1)
     },
     accent: {
       warm: '#E6B85A', // Soft amber
@@ -222,6 +228,9 @@ export interface DaynoriColors {
     readonly subtleText: string;
     readonly disabled: string;
     readonly disabledText: string;
+    readonly danger: string;
+    readonly dangerHover: string;
+    readonly dangerLabel: string;
   };
   readonly accent: {
     readonly warm: string;

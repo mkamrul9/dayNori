@@ -46,8 +46,8 @@ export const MobileButton: React.FC<MobileButtonProps> = ({
     bg = palette.action.subtle;
     fg = palette.action.subtleText;
   } else if (variant === 'danger') {
-    bg = palette.status.danger;
-    fg = '#FFFFFF';
+    bg = palette.action.danger;
+    fg = palette.action.dangerLabel;
   }
 
   if (isDisabled) {

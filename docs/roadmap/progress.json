@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-14",
   "activePhase": "04",
   "nextPhase": "04",
-  "note": "Phase 05 responsive web shell provisionally implemented and verified in browser; final acceptance blocked pending prerequisite Phase 04 physical Android TalkBack hardware verification.",
+  "note": "Phase 01–04 audit findings (F01–F10) resolved across toolchain, dependencies, browser verification, contrast, semantics, native sheet, and typography. Phase 04 remains in_progress pending physical Android TalkBack hardware verification.",
   "phases": [
     {
       "id": "00",

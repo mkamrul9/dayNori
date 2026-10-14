@@ -1,6 +1,16 @@
-import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
+import React, { useEffect, useState } from 'react';
+import {
+  AccessibilityInfo,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 
 export interface MobileModalSheetProps {
   visible: boolean;
@@ -18,12 +28,37 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
   children,
 }) => {
   const palette = colors[themeMode];
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // Check initial OS reduced motion preference (F09 fix)
+    AccessibilityInfo.isReduceMotionEnabled()
+      ?.then?.((enabled) => {
+        if (isMounted) setReduceMotion(Boolean(enabled));
+      })
+      .catch?.(() => {});
+
+    // Subscribe to runtime changes to the reduced motion preference
+    const subscription = AccessibilityInfo.addEventListener?.(
+      'reduceMotionChanged',
+      (enabled: boolean) => {
+        if (isMounted) setReduceMotion(Boolean(enabled));
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      subscription?.remove?.();
+    };
+  }, []);
 
   return (
     <Modal
       visible={visible}
       transparent={true}
-      animationType="slide"
+      animationType={reduceMotion ? 'none' : 'slide'}
       onRequestClose={onClose}
       accessibilityViewIsModal={true}
     >
@@ -34,7 +69,8 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
           accessibilityRole="button"
           accessibilityLabel="Dismiss sheet"
         />
-        <View
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={[
             styles.sheet,
             {
@@ -55,8 +91,15 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
               <Text style={[styles.closeText, { color: palette.text.secondary }]}>✕</Text>
             </Pressable>
           </View>
-          <View style={styles.content}>{children}</View>
-        </View>
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+          >
+            {children}
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -73,7 +116,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radii.sheet,
     borderTopWidth: 1,
     padding: spacing.lg,
-    maxHeight: '80%',
+    maxHeight: '85%',
   },
   header: {
     flexDirection: 'row',
@@ -86,13 +129,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   closeButton: {
-    minHeight: 44,
-    minWidth: 44,
+    minHeight: touchTargets.mobileMin, // 48dp minimum touch target (F08 fix)
+    minWidth: touchTargets.mobileMin, // 48dp minimum touch target (F08 fix)
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeText: {
     fontSize: 18,
+  },
+  scrollArea: {
+    maxHeight: '100%',
   },
   content: {
     paddingBottom: spacing.base,
