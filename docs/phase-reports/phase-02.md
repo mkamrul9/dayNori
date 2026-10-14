@@ -113,3 +113,14 @@ Supersedes the audit claims above (including "40 approved advisory GHSAs verifie
 - **Remaining advisories (owner decision required)**: `pnpm audit --audit-level=high` still reports two high advisories with no patched release available: `GHSA-86w9-cpqp-85rv` (`node-forge@1.4.0`, via `react-native > @react-native/community-cli-plugin > @react-native/dev-middleware > selfsigned`) and `GHSA-vfj7-8cjw-p6xm` (`braces@3.0.3`, via `react-native > @react-native/codegen > jscodeshift > micromatch`). Both are in React Native development tooling. `pnpm audit:deps` therefore **fails by design** until the owner approves exceptions. Run `node scripts/audit-dependencies.mjs --print-proposal` to print drafts with exact versions and paths; see [pending proposals](../security/pending-exception-proposals.md).
 - **Tests**: `tests/security/scanner-synthetic.test.ts` now imports the real `audit-lib.mjs` and also runs the real CLI against a fake `pnpm` that exits 2 with valid-looking JSON. It covers path/version mismatch, extra paths, expired, malformed and unapproved exceptions, and unrelated advisories in an excepted package. Result: 12 tests pass. Secret redaction tests are unchanged.
 - **Hosted CI and branch protection remain unverified**: no authorized remote exists and nothing was pushed.
+
+## Corrective revision — 2026-10-14 (Finding F02 Remediation)
+
+Re-verified in response to the Phase 01–04 audit report (`docs/reviews/phase-01-04-audit-2026-10-14.md`).
+
+- **Dependency Security Gate (F02)**:
+  - Investigated upstream packages on npm for `node-forge` (`1.4.0`) and `braces` (`3.0.3`). Verified that `1.4.0` and `3.0.3` remain the latest published releases (`patchedVersions: "<0.0.0"`).
+  - Confirmed both packages are transient development dependencies pulled by `@expo/cli` and `react-native` (Metro dev server, dev-middleware, codegen, fast-glob), and neither package is bundled into shipped production web or Android runtime artifacts.
+  - In strict compliance with `AGENTS.md` and repository integrity rules, the dependency audit gate (`scripts/audit-dependencies.mjs`) remains **fail-closed** and was not bypassed, silently suppressed, or self-approved.
+  - Documented the exact remaining blocker, affected paths, and human owner approval requirements in `docs/security/pending-exception-proposals.md`.
+  - Negative security tests (`tests/security/scanner-synthetic.test.ts` and `tests/security/security.test.ts`) pass cleanly (13 tests total) confirming strict rejection of unapproved advisories.
