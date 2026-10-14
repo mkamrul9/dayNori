@@ -4,6 +4,7 @@ import { generateCsrfToken, verifyCsrfToken, type SignUpResponse } from '@daynor
 export const ACCESS_COOKIE_NAME = 'daynori_access_token';
 export const REFRESH_COOKIE_NAME = 'daynori_refresh_token';
 export const CSRF_COOKIE_NAME = 'daynori_csrf_token';
+export const PKCE_VERIFIER_COOKIE_NAME = 'daynori_pkce_verifier';
 
 // 15 minutes for access tokens, 30 days for refresh tokens
 export const ACCESS_TOKEN_MAX_AGE = 15 * 60;
@@ -126,94 +127,140 @@ export function ensureCsrfCookie(req: Request | undefined, res: NextResponse): s
   return csrfToken;
 }
 
+export interface WebUser {
+  id: string;
+  email: string;
+  displayName?: string;
+}
+
+export interface WebAuthClientContract {
+  signUp(email: string, password: string, displayName?: string): Promise<SignUpResponse>;
+  signIn(
+    email: string,
+    password: string
+  ): Promise<{ user: WebUser; accessToken: string; refreshToken: string }>;
+  refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }>;
+  recoverPassword(email: string): Promise<{ message: string }>;
+  verifySession(token?: string): Promise<WebUser | null>;
+  logout(accessToken?: string): Promise<void>;
+  exchangeCodeForSession(
+    code: string,
+    codeVerifier?: string
+  ): Promise<{ user: WebUser; accessToken: string; refreshToken: string }>;
+}
+
+function createTimeoutSignal(ms: number): AbortSignal {
+  const anySignal = AbortSignal as unknown as { timeout?: (m: number) => AbortSignal };
+  if (typeof anySignal.timeout === 'function') {
+    return anySignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 /**
- * Simulated / Proxy provider client for local development and testing.
- * When a real Supabase Auth container daemon is available, calls its HTTP endpoints.
- * Otherwise, maintains safe in-memory test accounts with synthetic email confirmation.
+ * Provider client for Supabase Auth service.
+ * In normal application runtime, communicates directly with Supabase GoTrue over HTTP.
+ * Fails safely on outages and invalid credentials without fabricating tokens or users.
+ * Test doubles can be explicitly injected via constructor for unit testing.
  */
-export class SupabaseAuthProxy {
-  private static mockUsers = new Map<
-    string,
-    { id: string; email: string; passwordHash: string; confirmed: boolean; displayName?: string }
-  >();
-
+export class SupabaseAuthProxy implements WebAuthClientContract {
   private supabaseUrl: string;
+  private supabaseAnonKey: string;
+  private testClient: WebAuthClientContract | null = null;
+  private timeoutMs: number;
 
-  constructor(supabaseUrl = process.env['SUPABASE_AUTH_URL'] || 'http://127.0.0.1:54321') {
-    this.supabaseUrl = supabaseUrl;
+  constructor(options?: {
+    supabaseUrl?: string;
+    supabaseAnonKey?: string;
+    testClient?: WebAuthClientContract;
+    timeoutMs?: number;
+  }) {
+    this.supabaseUrl =
+      options?.supabaseUrl || process.env['SUPABASE_AUTH_URL'] || 'http://127.0.0.1:54321';
+    this.supabaseAnonKey =
+      options?.supabaseAnonKey || process.env['SUPABASE_ANON_KEY'] || 'test-anon-key';
+    this.testClient = options?.testClient || null;
+    this.timeoutMs = options?.timeoutMs || 4000;
+  }
+
+  public setTestClient(client: WebAuthClientContract | null): void {
+    if (process.env['NODE_ENV'] !== 'test') {
+      throw new Error('Test client injection is forbidden in non-test runtime');
+    }
+    this.testClient = client;
   }
 
   async signUp(email: string, password: string, displayName?: string): Promise<SignUpResponse> {
+    if (this.testClient) {
+      return this.testClient.signUp(email, password, displayName);
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if live Supabase Auth container is reachable
     try {
       const res = await fetch(`${this.supabaseUrl}/auth/v1/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: process.env['SUPABASE_ANON_KEY'] || 'test-anon-key',
+          apikey: this.supabaseAnonKey,
         },
         body: JSON.stringify({
           email: normalizedEmail,
           password,
           data: { display_name: displayName },
         }),
-        signal: AbortSignal.timeout(1000),
+        signal: createTimeoutSignal(this.timeoutMs),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        const data = await res.json();
         return {
           user: { id: data.id || data.user?.id, email: normalizedEmail },
           requiresVerification: true,
           message: 'Please check your email to verify your account.',
         };
       }
-    } catch {
-      // Local daemon is offline; fall back to safe simulated provider
+
+      throw new Error(data.msg || data.message || data.error_description || 'Registration failed');
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'Registration failed') {
+        throw err;
+      }
+      throw new Error('Authentication service unavailable');
     }
-
-    const userId = crypto.randomUUID();
-    SupabaseAuthProxy.mockUsers.set(normalizedEmail, {
-      id: userId,
-      email: normalizedEmail,
-      passwordHash: `hash_${password}`,
-      confirmed: true, // Auto-confirm in mock dev mode for immediate usability
-      displayName,
-    });
-
-    return {
-      user: { id: userId, email: normalizedEmail },
-      requiresVerification: false,
-      message: 'Account created successfully.',
-    };
   }
 
   async signIn(
     email: string,
     password: string
   ): Promise<{
-    user: { id: string; email: string; displayName?: string };
+    user: WebUser;
     accessToken: string;
     refreshToken: string;
   }> {
+    if (this.testClient) {
+      return this.testClient.signIn(email, password);
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check live Supabase Auth container
     try {
       const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: process.env['SUPABASE_ANON_KEY'] || 'test-anon-key',
+          apikey: this.supabaseAnonKey,
         },
         body: JSON.stringify({ email: normalizedEmail, password }),
-        signal: AbortSignal.timeout(1000),
+        signal: createTimeoutSignal(this.timeoutMs),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.access_token) {
         return {
           user: {
             id: data.user.id,
@@ -224,75 +271,77 @@ export class SupabaseAuthProxy {
           refreshToken: data.refresh_token,
         };
       }
-    } catch {
-      // Fall back to mock
+
+      throw new Error(data.msg || data.error_description || 'Invalid email or password');
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'Invalid email or password') {
+        throw err;
+      }
+      throw new Error('Authentication service unavailable');
     }
-
-    const mock = SupabaseAuthProxy.mockUsers.get(normalizedEmail);
-    if (!mock || mock.passwordHash !== `hash_${password}`) {
-      throw new Error('Invalid email or password');
-    }
-
-    const accessToken = `mock_at_${mock.id}_${Date.now()}`;
-    const refreshToken = `mock_rt_${mock.id}_${Date.now()}`;
-
-    return {
-      user: { id: mock.id, email: mock.email, displayName: mock.displayName },
-      accessToken,
-      refreshToken,
-    };
   }
 
   async refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+    if (this.testClient) {
+      return this.testClient.refresh(refreshToken);
+    }
+
     try {
       const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: process.env['SUPABASE_ANON_KEY'] || 'test-anon-key',
+          apikey: this.supabaseAnonKey,
         },
         body: JSON.stringify({ refresh_token: refreshToken }),
-        signal: AbortSignal.timeout(1000),
+        signal: createTimeoutSignal(this.timeoutMs),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.access_token) {
         return {
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
         };
       }
-    } catch {
-      // Fall back to mock
+
+      throw new Error(data.msg || data.error_description || 'Invalid or expired refresh token');
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'Invalid or expired refresh token') {
+        throw err;
+      }
+      throw new Error('Authentication service unavailable');
     }
-
-    if (!refreshToken.startsWith('mock_rt_')) {
-      throw new Error('Invalid or expired refresh token');
-    }
-
-    const parts = refreshToken.split('_');
-    const userId = parts[2];
-    const newAt = `mock_at_${userId}_${Date.now()}`;
-    const newRt = `mock_rt_${userId}_${Date.now()}`;
-
-    return { accessToken: newAt, refreshToken: newRt };
   }
 
   async recoverPassword(email: string): Promise<{ message: string }> {
+    if (this.testClient) {
+      return this.testClient.recoverPassword(email);
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
 
     try {
-      await fetch(`${this.supabaseUrl}/auth/v1/recover`, {
+      const res = await fetch(`${this.supabaseUrl}/auth/v1/recover`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: process.env['SUPABASE_ANON_KEY'] || 'test-anon-key',
+          apikey: this.supabaseAnonKey,
         },
         body: JSON.stringify({ email: normalizedEmail }),
-        signal: AbortSignal.timeout(1000),
+        signal: createTimeoutSignal(this.timeoutMs),
       });
-    } catch {
-      // Ignore network errors in mock mode
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.msg || data.message || 'Password recovery request failed');
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'Password recovery request failed') {
+        throw err;
+      }
+      throw new Error('Authentication service unavailable');
     }
 
     return {
@@ -301,35 +350,105 @@ export class SupabaseAuthProxy {
     };
   }
 
-  parseToken(token?: string): { userId: string; email: string; displayName?: string } | null {
+  async verifySession(token?: string): Promise<WebUser | null> {
     if (!token) return null;
-    if (token.startsWith('mock_at_') || token.startsWith('verified_at_')) {
-      const parts = token.split('_');
-      const userId = parts[2] || crypto.randomUUID();
-      for (const user of SupabaseAuthProxy.mockUsers.values()) {
-        if (user.id === userId) {
-          return { userId: user.id, email: user.email, displayName: user.displayName };
-        }
-      }
-      return { userId, email: 'user@example.local', displayName: 'Mock User' };
+
+    if (this.testClient) {
+      return this.testClient.verifySession(token);
     }
-    // Attempt basic JWT payload decode
+
     try {
-      const payloadPart = token.split('.')[1];
-      if (payloadPart) {
-        const decoded = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf-8'));
-        if (decoded.sub) {
-          return {
-            userId: decoded.sub,
-            email: decoded.email || 'user@daynori.local',
-            displayName: decoded.user_metadata?.display_name,
-          };
-        }
+      const res = await fetch(`${this.supabaseUrl}/auth/v1/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: this.supabaseAnonKey,
+        },
+        signal: createTimeoutSignal(this.timeoutMs),
+      });
+
+      if (!res.ok) {
+        return null;
       }
+
+      const data = await res.json();
+      if (!data.id) return null;
+
+      return {
+        id: data.id,
+        email: data.email,
+        displayName: data.user_metadata?.display_name,
+      };
     } catch {
-      // Ignore parse failure
+      return null;
     }
-    return null;
+  }
+
+  async logout(accessToken?: string): Promise<void> {
+    if (!accessToken) return;
+
+    if (this.testClient) {
+      return this.testClient.logout(accessToken);
+    }
+
+    try {
+      await fetch(`${this.supabaseUrl}/auth/v1/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: this.supabaseAnonKey,
+        },
+        signal: createTimeoutSignal(this.timeoutMs),
+      });
+    } catch {
+      // Catch network errors safely during logout
+    }
+  }
+
+  async exchangeCodeForSession(
+    code: string,
+    codeVerifier?: string
+  ): Promise<{ user: WebUser; accessToken: string; refreshToken: string }> {
+    if (this.testClient) {
+      return this.testClient.exchangeCodeForSession(code, codeVerifier);
+    }
+
+    try {
+      const body: Record<string, string> = { auth_code: code };
+      if (codeVerifier) {
+        body['code_verifier'] = codeVerifier;
+      }
+
+      const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=pkce`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: this.supabaseAnonKey,
+        },
+        body: JSON.stringify(body),
+        signal: createTimeoutSignal(this.timeoutMs),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.access_token) {
+        return {
+          user: {
+            id: data.user.id,
+            email: data.user.email,
+            displayName: data.user.user_metadata?.display_name,
+          },
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+        };
+      }
+
+      throw new Error(data.msg || data.error_description || 'Authorization code exchange failed');
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'Authorization code exchange failed') {
+        throw err;
+      }
+      throw new Error('Authentication service unavailable');
+    }
   }
 }
 

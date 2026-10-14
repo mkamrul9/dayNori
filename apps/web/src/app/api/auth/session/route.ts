@@ -30,34 +30,60 @@ export async function GET(req?: Request): Promise<NextResponse> {
   session.csrfToken = csrfToken;
 
   if (accessToken) {
-    const parsed = authProxy.parseToken(accessToken);
-    if (parsed) {
+    const verified = await authProxy.verifySession(accessToken);
+    if (verified) {
       session = {
         authenticated: true,
         user: {
-          id: parsed.userId,
-          email: parsed.email,
-          displayName: parsed.displayName,
+          id: verified.id,
+          email: verified.email,
+          displayName: verified.displayName,
         },
         csrfToken,
       };
+    } else if (refreshToken) {
+      // Access token was invalid/expired, attempt refresh token rotation
+      try {
+        const refreshed = await authProxy.refresh(refreshToken);
+        const reVerified = await authProxy.verifySession(refreshed.accessToken);
+        if (reVerified) {
+          setSessionCookies(response, refreshed.accessToken, refreshed.refreshToken, csrfToken);
+          session = {
+            authenticated: true,
+            user: {
+              id: reVerified.id,
+              email: reVerified.email,
+              displayName: reVerified.displayName,
+            },
+            csrfToken,
+          };
+        } else {
+          clearSessionCookies(response);
+        }
+      } catch {
+        clearSessionCookies(response);
+      }
+    } else {
+      clearSessionCookies(response);
     }
   } else if (refreshToken) {
     // Attempt automatic background refresh
     try {
       const refreshed = await authProxy.refresh(refreshToken);
-      setSessionCookies(response, refreshed.accessToken, refreshed.refreshToken, csrfToken);
-      const parsed = authProxy.parseToken(refreshed.accessToken);
-      if (parsed) {
+      const reVerified = await authProxy.verifySession(refreshed.accessToken);
+      if (reVerified) {
+        setSessionCookies(response, refreshed.accessToken, refreshed.refreshToken, csrfToken);
         session = {
           authenticated: true,
           user: {
-            id: parsed.userId,
-            email: parsed.email,
-            displayName: parsed.displayName,
+            id: reVerified.id,
+            email: reVerified.email,
+            displayName: reVerified.displayName,
           },
           csrfToken,
         };
+      } else {
+        clearSessionCookies(response);
       }
     } catch {
       clearSessionCookies(response);

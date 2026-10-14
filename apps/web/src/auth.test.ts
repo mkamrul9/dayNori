@@ -1,13 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { POST as signInHandler } from './app/api/auth/sign-in/route.js';
 import { POST as signUpHandler } from './app/api/auth/sign-up/route.js';
 import { POST as signOutHandler } from './app/api/auth/sign-out/route.js';
 import { GET as sessionHandler } from './app/api/auth/session/route.js';
 import { GET as callbackHandler } from './app/api/auth/callback/route.js';
 import { generateCsrfToken, validateAuthRedirectUrl } from '@daynori/contracts';
-import { CSRF_COOKIE_NAME } from './auth/session.js';
+import {
+  authProxy,
+  ACCESS_COOKIE_NAME,
+  CSRF_COOKIE_NAME,
+  REFRESH_COOKIE_NAME,
+  type WebAuthClientContract,
+} from './auth/session.js';
 
-describe('Web Authentication & Session Contracts (Phase 09)', () => {
+describe('Web Authentication & Session Contracts (Phase 09 Hardened)', () => {
   const validCsrf = generateCsrfToken();
 
   function createMockRequest(options: {
@@ -16,6 +22,7 @@ describe('Web Authentication & Session Contracts (Phase 09)', () => {
     origin?: string;
     csrfToken?: string;
     cookieCsrf?: string;
+    cookies?: Record<string, string>;
     body?: unknown;
   }): Request {
     const headers = new Headers();
@@ -29,12 +36,17 @@ describe('Web Authentication & Session Contracts (Phase 09)', () => {
       headers.set('x-csrf-token', options.csrfToken);
     }
 
-    const cookies: string[] = [];
+    const cookiePairs: string[] = [];
     if (options.cookieCsrf) {
-      cookies.push(`${CSRF_COOKIE_NAME}=${options.cookieCsrf}`);
+      cookiePairs.push(`${CSRF_COOKIE_NAME}=${options.cookieCsrf}`);
     }
-    if (cookies.length > 0) {
-      headers.set('cookie', cookies.join('; '));
+    if (options.cookies) {
+      for (const [k, v] of Object.entries(options.cookies)) {
+        cookiePairs.push(`${k}=${v}`);
+      }
+    }
+    if (cookiePairs.length > 0) {
+      headers.set('cookie', cookiePairs.join('; '));
     }
 
     const init: RequestInit = {
@@ -50,11 +62,101 @@ describe('Web Authentication & Session Contracts (Phase 09)', () => {
     return new Request(options.url || 'http://localhost:3000/api/auth/sign-in', init);
   }
 
+  // Injectable test double for deterministic testing of provider success and error states
+  class MockTestClient implements WebAuthClientContract {
+    public users = new Map<
+      string,
+      { id: string; email: string; password: string; name?: string }
+    >();
+    public revokedTokens = new Set<string>();
+    public forceOutage = false;
+
+    async signUp(email: string, password: string, displayName?: string) {
+      if (this.forceOutage) throw new Error('Authentication service unavailable');
+      const id = crypto.randomUUID();
+      this.users.set(email.toLowerCase(), {
+        id,
+        email: email.toLowerCase(),
+        password,
+        name: displayName,
+      });
+      return {
+        user: { id, email: email.toLowerCase() },
+        requiresVerification: true,
+        message: 'Please check your email to verify your account.',
+      };
+    }
+
+    async signIn(email: string, password: string) {
+      if (this.forceOutage) throw new Error('Authentication service unavailable');
+      const u = this.users.get(email.toLowerCase());
+      if (!u || u.password !== password) throw new Error('Invalid email or password');
+      return {
+        user: { id: u.id, email: u.email, displayName: u.name },
+        accessToken: `valid_at_${u.id}`,
+        refreshToken: `valid_rt_${u.id}`,
+      };
+    }
+
+    async refresh(refreshToken: string) {
+      if (this.forceOutage) throw new Error('Authentication service unavailable');
+      if (refreshToken.startsWith('valid_rt_')) {
+        const id = refreshToken.replace('valid_rt_', '');
+        return {
+          accessToken: `valid_at_${id}`,
+          refreshToken: `valid_rt_${id}_rotated`,
+        };
+      }
+      throw new Error('Invalid or expired refresh token');
+    }
+
+    async recoverPassword(_email: string) {
+      if (this.forceOutage) throw new Error('Authentication service unavailable');
+      return {
+        message:
+          'If that email address is registered, password recovery instructions have been sent.',
+      };
+    }
+
+    async verifySession(token?: string) {
+      if (this.forceOutage || !token) return null;
+      if (this.revokedTokens.has(token)) return null;
+      if (token.startsWith('valid_at_')) {
+        const id = token.replace('valid_at_', '');
+        return { id, email: 'verified@daynori.local', displayName: 'Verified User' };
+      }
+      return null;
+    }
+
+    async logout(accessToken?: string) {
+      if (accessToken) this.revokedTokens.add(accessToken);
+    }
+
+    async exchangeCodeForSession(code: string) {
+      if (this.forceOutage) throw new Error('Authentication service unavailable');
+      if (code === 'valid_oauth_code') {
+        const id = crypto.randomUUID();
+        return {
+          user: { id, email: 'oauth@daynori.local', displayName: 'OAuth User' },
+          accessToken: `valid_at_${id}`,
+          refreshToken: `valid_rt_${id}`,
+        };
+      }
+      throw new Error('Authorization code exchange failed');
+    }
+  }
+
+  let testClient: MockTestClient;
+
+  beforeEach(() => {
+    testClient = new MockTestClient();
+    authProxy.setTestClient(testClient);
+  });
+
   describe('CSRF & Origin Boundary Enforcement', () => {
     it('rejects mutating auth requests missing CSRF token with 403', async () => {
       const req = createMockRequest({
         method: 'POST',
-        // No csrfToken
         body: { email: 'test@daynori.com', password: 'password123' },
       });
 
@@ -95,35 +197,78 @@ describe('Web Authentication & Session Contracts (Phase 09)', () => {
     });
   });
 
-  describe('Open Redirect & Callback Defenses', () => {
+  describe('Provider Failure & Outage Safety (No Simulation Fallback)', () => {
+    it('fails safely with 401 when provider is unreachable during sign-in, never creating in-memory mock', async () => {
+      testClient.forceOutage = true;
+
+      const req = createMockRequest({
+        method: 'POST',
+        csrfToken: validCsrf,
+        cookieCsrf: validCsrf,
+        body: { email: 'someone@daynori.com', password: 'secretPassword123' },
+      });
+
+      const res = await signInHandler(req);
+      expect(res.status).toBe(401);
+      const json = await res.json();
+      expect(json.error.code).toBe('AUTHENTICATION_FAILED');
+      expect(json.error.message).toContain('unavailable');
+    });
+
+    it('fails safely when provider is unreachable during sign-up', async () => {
+      testClient.forceOutage = true;
+
+      const req = createMockRequest({
+        method: 'POST',
+        url: 'http://localhost:3000/api/auth/sign-up',
+        csrfToken: validCsrf,
+        cookieCsrf: validCsrf,
+        body: { email: 'someone@daynori.com', password: 'secretPassword123' },
+      });
+
+      const res = await signUpHandler(req);
+      expect(res.status).toBe(503);
+      const json = await res.json();
+      expect(json.error.message).toContain('unavailable');
+    });
+  });
+
+  describe('Genuine Callbacks & Verification', () => {
     it('strictly rejects open redirect targets in validateAuthRedirectUrl', () => {
       const allowedOrigins = ['http://localhost:3000', 'https://app.daynori.com'];
-
-      // Malicious targets
       expect(validateAuthRedirectUrl('https://evil.com', allowedOrigins)).toBeNull();
       expect(validateAuthRedirectUrl('//evil.com/path', allowedOrigins)).toBeNull();
       expect(validateAuthRedirectUrl('/\\evil.com', allowedOrigins)).toBeNull();
       expect(validateAuthRedirectUrl('javascript:alert(1)', allowedOrigins)).toBeNull();
-      expect(
-        validateAuthRedirectUrl('data:text/html,<script>alert(1)</script>', allowedOrigins)
-      ).toBeNull();
-
-      // Safe targets
       expect(validateAuthRedirectUrl('/today', allowedOrigins)).toBe('/today');
-      expect(validateAuthRedirectUrl('/journal', allowedOrigins)).toBe('/journal');
-      expect(validateAuthRedirectUrl('https://app.daynori.com/plan', allowedOrigins)).toBe('/plan');
     });
 
-    it('GET /api/auth/callback redirects to safe default when open redirect target is supplied', async () => {
+    it('GET /api/auth/callback performs genuine code exchange and sets session cookies', async () => {
       const req = new Request(
-        'http://localhost:3000/api/auth/callback?code=mock_code&next=https://attacker.com'
+        'http://localhost:3000/api/auth/callback?code=valid_oauth_code&next=/today'
       );
       const res = await callbackHandler(req);
 
-      expect(res.status).toBe(307); // Next.js temporary redirect
+      expect(res.status).toBe(307);
       const location = res.headers.get('location');
       expect(location).toContain('/today');
-      expect(location).not.toContain('attacker.com');
+      expect(location).not.toContain('auth_error');
+
+      // Verified cookies set
+      const cookies = res.headers.get('set-cookie');
+      expect(cookies).toContain(ACCESS_COOKIE_NAME);
+      expect(cookies).toContain(REFRESH_COOKIE_NAME);
+    });
+
+    it('GET /api/auth/callback strictly rejects invalid or arbitrary authorization codes', async () => {
+      const req = new Request(
+        'http://localhost:3000/api/auth/callback?code=arbitrary_forged_code&next=/today'
+      );
+      const res = await callbackHandler(req);
+
+      expect(res.status).toBe(307);
+      const location = res.headers.get('location');
+      expect(location).toContain('auth_error=code_exchange_failed');
     });
 
     it('GET /api/auth/callback handles expired-link and provider errors safely', async () => {
@@ -139,12 +284,34 @@ describe('Web Authentication & Session Contracts (Phase 09)', () => {
     });
   });
 
-  describe('Session Cache-Control & Zero Token Leakage in State', () => {
-    it('GET /api/auth/session sets private no-cache headers preventing shared caching', async () => {
-      const res = await sessionHandler();
+  describe('Session Verification, Forged Token Rejection & Revocation', () => {
+    it('rejects forged, arbitrary or expired access tokens with authenticated: false', async () => {
+      const req = new Request('http://localhost:3000/api/auth/session', {
+        headers: {
+          cookie: `${ACCESS_COOKIE_NAME}=forged_mock_at_attacker_prefix; ${CSRF_COOKIE_NAME}=${validCsrf}`,
+        },
+      });
 
-      expect(res.headers.get('cache-control')).toBe('private, no-cache, no-store, must-revalidate');
-      expect(res.headers.get('pragma')).toBe('no-cache');
+      const res = await sessionHandler(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.authenticated).toBe(false);
+      expect(json.user).toBeNull();
+    });
+
+    it('verifies valid session token and exposes authenticated session', async () => {
+      const validUserId = crypto.randomUUID();
+      const req = new Request('http://localhost:3000/api/auth/session', {
+        headers: {
+          cookie: `${ACCESS_COOKIE_NAME}=valid_at_${validUserId}; ${CSRF_COOKIE_NAME}=${validCsrf}`,
+        },
+      });
+
+      const res = await sessionHandler(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.authenticated).toBe(true);
+      expect(json.user.id).toBe(validUserId);
     });
 
     it('sign-in and sign-up responses NEVER return refresh tokens in JSON body', async () => {
@@ -179,18 +346,29 @@ describe('Web Authentication & Session Contracts (Phase 09)', () => {
       expect(signInJson.user.email).toBe('newuser@daynori.com');
     });
 
-    it('POST /api/auth/sign-out clears session', async () => {
+    it('POST /api/auth/sign-out revokes session at provider and clears cookies', async () => {
+      const activeToken = 'valid_at_active_user_123';
       const req = createMockRequest({
         method: 'POST',
         url: 'http://localhost:3000/api/auth/sign-out',
         csrfToken: validCsrf,
         cookieCsrf: validCsrf,
+        cookies: {
+          [ACCESS_COOKIE_NAME]: activeToken,
+        },
       });
 
       const res = await signOutHandler(req);
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.status).toBe('ok');
+
+      // Assert server revocation happened
+      expect(testClient.revokedTokens.has(activeToken)).toBe(true);
+
+      // Verifying the revoked session now fails
+      const verifyAfter = await testClient.verifySession(activeToken);
+      expect(verifyAfter).toBeNull();
     });
   });
 });

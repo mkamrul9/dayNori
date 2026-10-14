@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 09 Authentication Defect Repairs & Security Hardening — 2026-10-15
+
+- **Removed Automatic Simulated Authentication from Runtime:**
+  - Removed in-memory `mockUsers`, `localAccounts`, and `hash_<password>` from normal application runtime in `apps/web/src/auth/session.ts` and `apps/mobile/src/auth/providerAdapter.ts`.
+  - Outages and rejected credentials fail safely with descriptive errors, without fabricating accounts or tokens.
+  - Test doubles are strictly injected via constructors/options and are unavailable to standard runtime.
+- **Genuine Callbacks & Flow Binding:**
+  - Web callback route (`apps/web/src/app/api/auth/callback/route.ts`) performs genuine authorization code exchange (`exchangeCodeForSession`) and provider token verification, eliminating synthetic cookie manufacturing.
+  - Mobile deep link handler (`apps/mobile/src/auth/providerAdapter.ts`) strictly requires matching initiated flow state/nonce (`initiateAuthFlow`), anti-replay validation, and genuine provider code/token verification.
+- **Session Verification Before Trusting Identity:**
+  - Replaced unverified base64 decoding with real provider verification (`GET /auth/v1/user`) and API `JwtVerifier`.
+  - Restored mobile sessions verify access token with provider on cold start, attempting refresh if expired, before exposing private state.
+- **Completed Native Secure Storage:**
+  - Declared `expo-secure-store` in `apps/mobile/package.json` and linked native Android modules.
+  - Rebuilt Android development APK (`apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk`) with `expo-secure-store` compiled in.
+  - Hardened `SecureStorageAdapter` to propagate actionable `SecureStorageError` on storage/module failures and restricted in-memory storage strictly to test environments (`NODE_ENV === 'test'`).
+  - Handled failed credential deletion on sign-out explicitly: flags session as revoked so cold start cannot silently restore a signed-out account.
+- **Real Refresh, Recovery, and Logout:**
+  - Both web and mobile sign-out routes call `POST /auth/v1/logout` to revoke sessions at the provider before clearing local state.
+  - Verified refresh token rotation and password recovery email capture in Mailpit (`http://127.0.0.1:54324`).
+- **Live Supabase Stack Verification:**
+  - Verified real user registration, ES256 asymmetric signature verification via JWKS, and logout revocation through live GoTrue v2.197.0 container daemon.
+  - Replaced fabricated workspace IDs with explicit `workspaceId: null` ("workspace not provisioned") state pending Phase 10 provisioning.
+  - Sanitized evidence and logs by redacting all usable tokens and credentials.
+
 ## Phase 09 — Authentication across web and Android — 2026-10-14
 
 - **Selected Authentication Provider & Journey:**

@@ -5,14 +5,19 @@
  * - Interfaces with Supabase Auth service (GoTrue) over HTTP transport.
  * - Manages session lifecycle: sign-up, sign-in, recovery, refresh, and sign-out.
  * - Stores credentials exclusively in OS-backed secure storage (expo-secure-store).
- * - Validates external deep link callbacks, enforcing scheme whitelists, PKCE, and anti-replay nonces.
- * - Preserves pending protected navigation only after successful authentication.
- * - Automatically restores session state on cold start and process restart.
+ * - Restricts memory storage to tests; never falls back to unencrypted storage.
+ * - Enforces flow-initiated deep link callbacks with PKCE code exchange or token verification.
+ * - Verifies restored sessions against the provider before exposing private content.
+ * - Explicitly handles credential deletion failures on sign-out to prevent silent session restoration.
  * - Quarantines uncommitted drafts on logout to prevent cross-account data leakage.
  */
 
 import { parseDeepLinkUrl } from '@daynori/contracts';
-import { defaultSecureStorage, type SecureStoreContract } from './secureStorage.js';
+import {
+  defaultSecureStorage,
+  SecureStorageError,
+  type SecureStoreContract,
+} from './secureStorage.js';
 import {
   DraftQuarantineManager,
   defaultDraftQuarantine,
@@ -23,7 +28,7 @@ export interface MobileUser {
   id: string;
   email: string;
   name: string;
-  workspaceId: string;
+  workspaceId: string | null;
 }
 
 export interface AuthResult {
@@ -31,6 +36,35 @@ export interface AuthResult {
   requiresVerification?: boolean;
   message?: string;
   error?: string;
+}
+
+export interface InitiatedAuthFlow {
+  state: string;
+  nonce: string;
+  codeVerifier: string;
+  initiatedAt: number;
+  type: 'signup' | 'signin' | 'recovery';
+}
+
+export interface ProviderClientContract {
+  signUp(params: { email: string; password: string; displayName?: string }): Promise<AuthResult>;
+  signInWithPassword(params: { email: string; password: string }): Promise<{
+    user: MobileUser;
+    accessToken: string;
+    refreshToken: string;
+  }>;
+  verifyToken(accessToken: string): Promise<MobileUser | null>;
+  refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }>;
+  recoverPassword(email: string): Promise<AuthResult>;
+  logout(accessToken: string): Promise<void>;
+  exchangeCode(
+    code: string,
+    codeVerifier: string
+  ): Promise<{
+    user: MobileUser;
+    accessToken: string;
+    refreshToken: string;
+  }>;
 }
 
 function createTimeoutSignal(ms: number): AbortSignal {
@@ -43,12 +77,13 @@ function createTimeoutSignal(ms: number): AbortSignal {
   return controller.signal;
 }
 
-const SEC_KEY_ACCESS_TOKEN = 'daynori_sec_access_token';
-const SEC_KEY_REFRESH_TOKEN = 'daynori_sec_refresh_token';
-const SEC_KEY_USER_ID = 'daynori_sec_user_id';
-const SEC_KEY_USER_EMAIL = 'daynori_sec_user_email';
-const SEC_KEY_USER_NAME = 'daynori_sec_user_name';
-const SEC_KEY_WORKSPACE_ID = 'daynori_sec_workspace_id';
+export const SEC_KEY_ACCESS_TOKEN = 'daynori_sec_access_token';
+export const SEC_KEY_REFRESH_TOKEN = 'daynori_sec_refresh_token';
+export const SEC_KEY_USER_ID = 'daynori_sec_user_id';
+export const SEC_KEY_USER_EMAIL = 'daynori_sec_user_email';
+export const SEC_KEY_USER_NAME = 'daynori_sec_user_name';
+export const SEC_KEY_WORKSPACE_ID = 'daynori_sec_workspace_id';
+export const SEC_KEY_SESSION_REVOKED = 'daynori_sec_session_revoked';
 
 export class MobileProviderAuthAdapter {
   private authenticated: boolean = false;
@@ -59,16 +94,15 @@ export class MobileProviderAuthAdapter {
   private secureStore: SecureStoreContract;
   private quarantineManager: DraftQuarantineManager;
   private supabaseUrl: string;
+  private supabaseAnonKey: string;
   private requestTimeoutMs: number;
+  private customProvider: ProviderClientContract | null = null;
 
-  // In-memory cache of processed nonces / tokens to prevent replay attacks (5 minute window)
+  // Active initiated authentication flow awaiting callback
+  private pendingFlow: InitiatedAuthFlow | null = null;
+
+  // Cache of processed nonces / tokens to prevent replay attacks (10 minute window)
   private processedNonces = new Map<string, number>();
-
-  // In-memory test accounts for local development when Supabase container is offline
-  private static localAccounts = new Map<
-    string,
-    { id: string; email: string; passwordHash: string; name: string }
-  >();
 
   constructor(
     options?:
@@ -76,8 +110,10 @@ export class MobileProviderAuthAdapter {
           secureStore?: SecureStoreContract;
           quarantineManager?: DraftQuarantineManager;
           supabaseUrl?: string;
+          supabaseAnonKey?: string;
           requestTimeoutMs?: number;
           initialAuthenticated?: boolean;
+          providerClient?: ProviderClientContract;
         }
       | boolean
   ) {
@@ -85,9 +121,12 @@ export class MobileProviderAuthAdapter {
     this.secureStore = opts?.secureStore ?? defaultSecureStorage;
     this.quarantineManager = opts?.quarantineManager ?? defaultDraftQuarantine;
     this.supabaseUrl =
-      opts?.supabaseUrl ?? process.env['SUPABASE_AUTH_URL'] ?? 'http://10.0.2.2:54321';
+      opts?.supabaseUrl ?? process.env['SUPABASE_AUTH_URL'] ?? 'http://127.0.0.1:54321';
+    this.supabaseAnonKey =
+      opts?.supabaseAnonKey ?? process.env['SUPABASE_ANON_KEY'] ?? 'test-anon-key';
     this.requestTimeoutMs =
-      opts?.requestTimeoutMs ?? (process.env['NODE_ENV'] === 'test' ? 50 : 2000);
+      opts?.requestTimeoutMs ?? (process.env['NODE_ENV'] === 'test' ? 1000 : 5000);
+    this.customProvider = opts?.providerClient ?? null;
 
     if (opts?.initialAuthenticated) {
       this.authenticated = true;
@@ -95,7 +134,7 @@ export class MobileProviderAuthAdapter {
         id: 'usr_synthetic_initial',
         email: 'user@daynori.local',
         name: 'Alex Morgan',
-        workspaceId: 'ws_personal_default',
+        workspaceId: null,
       };
     }
   }
@@ -118,29 +157,74 @@ export class MobileProviderAuthAdapter {
 
   /**
    * Cold start / Process restart session restoration.
-   * Reads session secrets from OS-backed secure storage.
+   * Reads session secrets from OS-backed secure storage and verifies with provider before exposing private content.
    */
   public async restoreSession(): Promise<boolean> {
     try {
-      const accessToken = await this.secureStore.getItemAsync(SEC_KEY_ACCESS_TOKEN);
-      const userId = await this.secureStore.getItemAsync(SEC_KEY_USER_ID);
-      const email = await this.secureStore.getItemAsync(SEC_KEY_USER_EMAIL);
-      const name = await this.secureStore.getItemAsync(SEC_KEY_USER_NAME);
-      const workspaceId = await this.secureStore.getItemAsync(SEC_KEY_WORKSPACE_ID);
+      const isRevoked = await this.secureStore.getItemAsync(SEC_KEY_SESSION_REVOKED);
+      if (isRevoked === 'true') {
+        await this.clearStoredCredentials();
+        this.authenticated = false;
+        this.currentUser = null;
+        return false;
+      }
 
-      if (accessToken && userId && email) {
+      const accessToken = await this.secureStore.getItemAsync(SEC_KEY_ACCESS_TOKEN);
+      const refreshToken = await this.secureStore.getItemAsync(SEC_KEY_REFRESH_TOKEN);
+
+      if (!accessToken) {
+        this.authenticated = false;
+        this.currentUser = null;
+        return false;
+      }
+
+      // Verify token with provider
+      let verifiedUser: MobileUser | null = null;
+      if (this.customProvider) {
+        verifiedUser = await this.customProvider.verifyToken(accessToken);
+      } else {
+        verifiedUser = await this.fetchProviderUser(accessToken);
+      }
+
+      if (verifiedUser) {
+        const storedWorkspaceId = await this.secureStore.getItemAsync(SEC_KEY_WORKSPACE_ID);
         this.currentUser = {
-          id: userId,
-          email,
-          name: name || email.split('@')[0] || 'User',
-          workspaceId: workspaceId || `ws_${userId.slice(0, 8)}`,
+          ...verifiedUser,
+          workspaceId: storedWorkspaceId || null,
         };
         this.authenticated = true;
         this.notify();
         return true;
       }
+
+      // Access token verification failed (expired/revoked), attempt refresh
+      if (refreshToken) {
+        try {
+          let refreshed: { accessToken: string; refreshToken: string };
+          if (this.customProvider) {
+            refreshed = await this.customProvider.refreshToken(refreshToken);
+          } else {
+            refreshed = await this.fetchProviderRefresh(refreshToken);
+          }
+
+          // Re-verify refreshed token
+          const reVerified = this.customProvider
+            ? await this.customProvider.verifyToken(refreshed.accessToken)
+            : await this.fetchProviderUser(refreshed.accessToken);
+
+          if (reVerified) {
+            await this.persistSession(reVerified, refreshed.accessToken, refreshed.refreshToken);
+            return true;
+          }
+        } catch {
+          // Refresh failed
+        }
+      }
+
+      // Session could not be validated; wipe stale credentials
+      await this.clearStoredCredentials();
     } catch {
-      // Failed to read secure store; leave unauthenticated
+      // Storage or network error: fail safely without exposing private session
     }
 
     this.authenticated = false;
@@ -149,13 +233,17 @@ export class MobileProviderAuthAdapter {
   }
 
   /**
-   * Register a new user with Supabase Auth.
+   * Register a new user with Supabase Auth. Fails safely on provider outages.
    */
   public async signUp(params: {
     email: string;
     password: string;
     displayName?: string;
   }): Promise<AuthResult> {
+    if (this.customProvider) {
+      return this.customProvider.signUp(params);
+    }
+
     const normalizedEmail = params.email.toLowerCase().trim();
 
     try {
@@ -164,7 +252,7 @@ export class MobileProviderAuthAdapter {
         signal: createTimeoutSignal(this.requestTimeoutMs),
         headers: {
           'Content-Type': 'application/json',
-          apikey: process.env['SUPABASE_ANON_KEY'] || 'test-anon-key',
+          apikey: this.supabaseAnonKey,
         },
         body: JSON.stringify({
           email: normalizedEmail,
@@ -173,6 +261,7 @@ export class MobileProviderAuthAdapter {
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         return {
           success: true,
@@ -180,32 +269,39 @@ export class MobileProviderAuthAdapter {
           message: 'Verification email sent. Please check your inbox.',
         };
       }
+
+      return {
+        success: false,
+        error: data.msg || data.message || data.error_description || 'Sign up failed',
+      };
     } catch {
-      // Local daemon is offline; register in memory
+      return {
+        success: false,
+        error: 'Authentication service unavailable',
+      };
     }
-
-    const userId = crypto.randomUUID();
-    MobileProviderAuthAdapter.localAccounts.set(normalizedEmail, {
-      id: userId,
-      email: normalizedEmail,
-      passwordHash: `hash_${params.password}`,
-      name: params.displayName || normalizedEmail.split('@')[0] || 'User',
-    });
-
-    return {
-      success: true,
-      requiresVerification: false,
-      message: 'Account created successfully.',
-    };
   }
 
   /**
-   * Sign in with password. Stores session in OS-backed secure storage.
+   * Sign in with password. Stores session in OS-backed secure storage upon verification.
    */
   public async signInWithPassword(params: {
     email: string;
     password: string;
   }): Promise<AuthResult> {
+    if (this.customProvider) {
+      try {
+        const result = await this.customProvider.signInWithPassword(params);
+        await this.persistSession(result.user, result.accessToken, result.refreshToken);
+        return { success: true };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'Invalid email or password',
+        };
+      }
+    }
+
     const normalizedEmail = params.email.toLowerCase().trim();
 
     try {
@@ -214,7 +310,7 @@ export class MobileProviderAuthAdapter {
         signal: createTimeoutSignal(this.requestTimeoutMs),
         headers: {
           'Content-Type': 'application/json',
-          apikey: process.env['SUPABASE_ANON_KEY'] || 'test-anon-key',
+          apikey: this.supabaseAnonKey,
         },
         body: JSON.stringify({
           email: normalizedEmail,
@@ -222,58 +318,63 @@ export class MobileProviderAuthAdapter {
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         const user: MobileUser = {
           id: data.user.id,
           email: data.user.email,
           name: data.user.user_metadata?.display_name || data.user.email.split('@')[0],
-          workspaceId: `ws_${data.user.id.slice(0, 8)}`,
+          workspaceId: null, // explicit "workspace not provisioned" until Phase 10
         };
 
         await this.persistSession(user, data.access_token, data.refresh_token);
         return { success: true };
       }
+
+      return {
+        success: false,
+        error: data.msg || data.error_description || 'Invalid email or password',
+      };
     } catch {
-      // Fall back to local accounts
+      return {
+        success: false,
+        error: 'Authentication service unavailable',
+      };
     }
-
-    const local = MobileProviderAuthAdapter.localAccounts.get(normalizedEmail);
-    if (!local || local.passwordHash !== `hash_${params.password}`) {
-      return { success: false, error: 'Invalid email or password' };
-    }
-
-    const user: MobileUser = {
-      id: local.id,
-      email: local.email,
-      name: local.name,
-      workspaceId: `ws_${local.id.slice(0, 8)}`,
-    };
-
-    const accessToken = `mock_at_${local.id}_${Date.now()}`;
-    const refreshToken = `mock_rt_${local.id}_${Date.now()}`;
-
-    await this.persistSession(user, accessToken, refreshToken);
-    return { success: true };
   }
 
   /**
    * Password recovery request.
    */
   public async recoverPassword(email: string): Promise<AuthResult> {
+    if (this.customProvider) {
+      return this.customProvider.recoverPassword(email);
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
     try {
-      await fetch(`${this.supabaseUrl}/auth/v1/recover`, {
+      const res = await fetch(`${this.supabaseUrl}/auth/v1/recover`, {
         method: 'POST',
         signal: createTimeoutSignal(this.requestTimeoutMs),
         headers: {
           'Content-Type': 'application/json',
-          apikey: process.env['SUPABASE_ANON_KEY'] || 'test-anon-key',
+          apikey: this.supabaseAnonKey,
         },
         body: JSON.stringify({ email: normalizedEmail }),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: data.msg || data.message || 'Password recovery request failed',
+        };
+      }
     } catch {
-      // Ignore network errors in local dev mode
+      return {
+        success: false,
+        error: 'Authentication service unavailable',
+      };
     }
 
     return {
@@ -283,8 +384,25 @@ export class MobileProviderAuthAdapter {
   }
 
   /**
+   * Initiates an authentication flow (OAuth, magic link, email confirmation).
+   * Generates and stores anti-replay state, nonce, and PKCE verifier.
+   */
+  public initiateAuthFlow(type: 'signup' | 'signin' | 'recovery' = 'signin'): {
+    state: string;
+    nonce: string;
+    codeVerifier: string;
+  } {
+    const state = crypto.randomUUID();
+    const nonce = crypto.randomUUID();
+    const codeVerifier =
+      crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+    this.pendingFlow = { state, nonce, codeVerifier, initiatedAt: Date.now(), type };
+    return { state, nonce, codeVerifier };
+  }
+
+  /**
    * Deep link authentication callback processor.
-   * Validates allowlisted schemes, prevents nonce/link replay, exchanges tokens.
+   * Requires matching initiated flow, enforces replay protection, and performs provider-verified code/token exchange.
    */
   public async handleDeepLink(url: string): Promise<AuthResult> {
     // 1. Parse and validate URL structure
@@ -295,12 +413,10 @@ export class MobileProviderAuthAdapter {
 
     const payload = parseResult.payload;
 
-    // Only process auth callback payloads
     if (payload.type !== 'auth') {
       return { success: false, error: 'Not an authentication deep link' };
     }
 
-    // 2. Handle provider error parameters (e.g. expired link)
     if (payload.error) {
       return {
         success: false,
@@ -308,63 +424,108 @@ export class MobileProviderAuthAdapter {
       };
     }
 
-    // 3. Anti-replay and CSRF/injection defense: require valid nonce
-    if (!payload.nonce) {
+    // 2. Validate against initiated flow
+    const now = Date.now();
+    if (!this.pendingFlow || now - this.pendingFlow.initiatedAt > 10 * 60 * 1000) {
+      this.pendingFlow = null;
       return {
         success: false,
-        error:
-          'Missing security nonce in authentication callback; external link injection rejected',
+        error: 'No initiated authentication flow found (unsolicited or expired callback rejected)',
       };
     }
 
-    const now = Date.now();
-    if (this.processedNonces.has(payload.nonce)) {
+    // 3. Binding check: state or nonce must match initiated flow
+    const matchingId = payload.nonce || payload.state;
+    if (
+      !matchingId ||
+      (matchingId !== this.pendingFlow.nonce && matchingId !== this.pendingFlow.state)
+    ) {
+      return {
+        success: false,
+        error: 'State or nonce does not match initiated authentication flow',
+      };
+    }
+
+    // 4. Anti-replay protection
+    if (this.processedNonces.has(matchingId)) {
       return {
         success: false,
         error: 'Authentication link has already been used (replay rejected)',
       };
     }
-    this.processedNonces.set(payload.nonce, now);
+    this.processedNonces.set(matchingId, now);
 
-    // Clean up nonces older than 10 minutes
+    // Clean up expired nonces
     for (const [nonce, timestamp] of this.processedNonces.entries()) {
       if (now - timestamp > 10 * 60 * 1000) {
         this.processedNonces.delete(nonce);
       }
     }
 
-    // 4. Token validation
-    if (!payload.token) {
-      return { success: false, error: 'Missing token in authentication callback' };
+    // 5. Genuine provider verification / code exchange
+    try {
+      let verifiedUser: MobileUser;
+      let accessToken: string;
+      let refreshToken: string;
+
+      if (payload.code) {
+        if (this.customProvider) {
+          const res = await this.customProvider.exchangeCode(
+            payload.code,
+            this.pendingFlow.codeVerifier
+          );
+          verifiedUser = res.user;
+          accessToken = res.accessToken;
+          refreshToken = res.refreshToken;
+        } else {
+          const ex = await this.fetchProviderCodeExchange(
+            payload.code,
+            this.pendingFlow.codeVerifier
+          );
+          verifiedUser = ex.user;
+          accessToken = ex.accessToken;
+          refreshToken = ex.refreshToken;
+        }
+      } else if (payload.token) {
+        if (this.customProvider) {
+          const user = await this.customProvider.verifyToken(payload.token);
+          if (!user) throw new Error('Provider rejected authentication token');
+          verifiedUser = user;
+          accessToken = payload.token;
+          refreshToken = '';
+        } else {
+          const user = await this.fetchProviderUser(payload.token);
+          if (!user) throw new Error('Provider rejected authentication token');
+          verifiedUser = user;
+          accessToken = payload.token;
+          refreshToken = '';
+        }
+      } else {
+        return { success: false, error: 'Callback missing authorization code or token' };
+      }
+
+      this.pendingFlow = null;
+      await this.persistSession(verifiedUser, accessToken, refreshToken);
+      return { success: true };
+    } catch (err) {
+      this.pendingFlow = null;
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Provider authentication verification failed',
+      };
     }
-
-    // Replay check on token itself
-    if (this.processedNonces.has(payload.token)) {
-      return { success: false, error: 'Authentication token has already been used' };
-    }
-    this.processedNonces.set(payload.token, Date.now());
-
-    // Establish verified session
-    const userId = crypto.randomUUID();
-    const user: MobileUser = {
-      id: userId,
-      email: 'verified_user@daynori.local',
-      name: 'Verified User',
-      workspaceId: `ws_${userId.slice(0, 8)}`,
-    };
-
-    await this.persistSession(user, payload.token, `rt_${Date.now()}`);
-    return { success: true };
   }
 
   /**
    * Sign out user.
-   * Clears OS-backed secure storage and quarantines uncommitted drafts.
+   * Revokes server session, clears OS-backed secure storage, and quarantines uncommitted drafts.
+   * Explicitly propagates credential deletion failures to prevent silent restoration.
    */
   public async signOut(uncommittedDraft?: Record<string, unknown>): Promise<void> {
-    if (this.currentUser && uncommittedDraft && Object.keys(uncommittedDraft).length > 0) {
+    const userToSignOut = this.currentUser;
+    if (userToSignOut && uncommittedDraft && Object.keys(uncommittedDraft).length > 0) {
       this.quarantineManager.quarantineDraft(
-        this.currentUser.id,
+        userToSignOut.id,
         'mobile_uncommitted_draft',
         uncommittedDraft
       );
@@ -376,20 +537,55 @@ export class MobileProviderAuthAdapter {
     this.pendingDestination = null;
     this.notify();
 
-    // Clear secrets from OS secure storage
+    let tokenToRevoke: string | null = null;
     try {
-      await this.secureStore.deleteItemAsync(SEC_KEY_ACCESS_TOKEN);
-      await this.secureStore.deleteItemAsync(SEC_KEY_REFRESH_TOKEN);
-      await this.secureStore.deleteItemAsync(SEC_KEY_USER_ID);
-      await this.secureStore.deleteItemAsync(SEC_KEY_USER_EMAIL);
-      await this.secureStore.deleteItemAsync(SEC_KEY_USER_NAME);
-      await this.secureStore.deleteItemAsync(SEC_KEY_WORKSPACE_ID);
+      tokenToRevoke = await this.secureStore.getItemAsync(SEC_KEY_ACCESS_TOKEN);
     } catch {
-      // Ignore deletion errors
+      // Ignore read failure during sign-out
+    }
+
+    // Revoke server-side session at provider
+    if (tokenToRevoke) {
+      try {
+        if (this.customProvider) {
+          await this.customProvider.logout(tokenToRevoke);
+        } else {
+          await fetch(`${this.supabaseUrl}/auth/v1/logout`, {
+            method: 'POST',
+            signal: createTimeoutSignal(this.requestTimeoutMs),
+            headers: {
+              Authorization: `Bearer ${tokenToRevoke}`,
+              apikey: this.supabaseAnonKey,
+            },
+          });
+        }
+      } catch {
+        // Network failure during server revocation is caught safely
+      }
+    }
+
+    // Explicitly clear secrets from OS secure storage
+    try {
+      await this.clearStoredCredentials();
+    } catch (err) {
+      // Mark session as explicitly revoked so restart cannot silently restore it
+      try {
+        await this.secureStore.setItemAsync(SEC_KEY_SESSION_REVOKED, 'true');
+      } catch {
+        // secondary store failure
+      }
+      throw new SecureStorageError(
+        'Failed to delete credentials from secure storage during sign-out. Marked as revoked.',
+        err
+      );
     }
   }
 
   public logout(): void {
+    this.authenticated = false;
+    this.currentUser = null;
+    this.pendingDestination = null;
+    this.notify();
     void this.signOut();
   }
 
@@ -426,7 +622,7 @@ export class MobileProviderAuthAdapter {
       id: user?.id || 'usr_synthetic_demo',
       email: user?.email || 'demo@daynori.local',
       name: user?.name || 'Alex Morgan',
-      workspaceId: user?.workspaceId || 'ws_personal_demo',
+      workspaceId: user?.workspaceId ?? null,
     };
     this.notify();
   }
@@ -451,20 +647,109 @@ export class MobileProviderAuthAdapter {
     this.currentUser = user;
     this.authenticated = true;
 
-    try {
-      await this.secureStore.setItemAsync(SEC_KEY_ACCESS_TOKEN, accessToken);
-      if (refreshToken) {
-        await this.secureStore.setItemAsync(SEC_KEY_REFRESH_TOKEN, refreshToken);
-      }
-      await this.secureStore.setItemAsync(SEC_KEY_USER_ID, user.id);
-      await this.secureStore.setItemAsync(SEC_KEY_USER_EMAIL, user.email);
-      await this.secureStore.setItemAsync(SEC_KEY_USER_NAME, user.name);
-      await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, user.workspaceId);
-    } catch {
-      // Secure store failure logged without leaking token
+    await this.secureStore.setItemAsync(SEC_KEY_ACCESS_TOKEN, accessToken);
+    if (refreshToken) {
+      await this.secureStore.setItemAsync(SEC_KEY_REFRESH_TOKEN, refreshToken);
     }
+    await this.secureStore.setItemAsync(SEC_KEY_USER_ID, user.id);
+    await this.secureStore.setItemAsync(SEC_KEY_USER_EMAIL, user.email);
+    await this.secureStore.setItemAsync(SEC_KEY_USER_NAME, user.name);
+    if (user.workspaceId) {
+      await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, user.workspaceId);
+    } else {
+      await this.secureStore.deleteItemAsync(SEC_KEY_WORKSPACE_ID).catch(() => {});
+    }
+    await this.secureStore.deleteItemAsync(SEC_KEY_SESSION_REVOKED).catch(() => {});
 
     this.notify();
+  }
+
+  private async clearStoredCredentials(): Promise<void> {
+    await this.secureStore.deleteItemAsync(SEC_KEY_ACCESS_TOKEN);
+    await this.secureStore.deleteItemAsync(SEC_KEY_REFRESH_TOKEN);
+    await this.secureStore.deleteItemAsync(SEC_KEY_USER_ID);
+    await this.secureStore.deleteItemAsync(SEC_KEY_USER_EMAIL);
+    await this.secureStore.deleteItemAsync(SEC_KEY_USER_NAME);
+    await this.secureStore.deleteItemAsync(SEC_KEY_WORKSPACE_ID);
+  }
+
+  private async fetchProviderUser(accessToken: string): Promise<MobileUser | null> {
+    try {
+      const res = await fetch(`${this.supabaseUrl}/auth/v1/user`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: this.supabaseAnonKey,
+        },
+        signal: createTimeoutSignal(this.requestTimeoutMs),
+      });
+
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        id: data.id,
+        email: data.email,
+        name: data.user_metadata?.display_name || data.email.split('@')[0],
+        workspaceId: null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchProviderRefresh(
+    refreshToken: string
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: this.supabaseAnonKey,
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      signal: createTimeoutSignal(this.requestTimeoutMs),
+    });
+
+    if (!res.ok) {
+      throw new Error('Refresh token rejected');
+    }
+    const data = await res.json();
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+    };
+  }
+
+  private async fetchProviderCodeExchange(
+    code: string,
+    codeVerifier: string
+  ): Promise<{ user: MobileUser; accessToken: string; refreshToken: string }> {
+    const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=pkce`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: this.supabaseAnonKey,
+      },
+      body: JSON.stringify({
+        auth_code: code,
+        code_verifier: codeVerifier,
+      }),
+      signal: createTimeoutSignal(this.requestTimeoutMs),
+    });
+
+    if (!res.ok) {
+      throw new Error('Authorization code exchange failed');
+    }
+    const data = await res.json();
+    return {
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.display_name || data.user.email.split('@')[0],
+        workspaceId: null,
+      },
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+    };
   }
 
   private notify(): void {

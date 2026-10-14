@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { validateAuthRedirectUrl } from '@daynori/contracts';
-import { setSessionCookies } from '../../../../auth/session.js';
+import {
+  authProxy,
+  parseCookies,
+  setSessionCookies,
+  PKCE_VERIFIER_COOKIE_NAME,
+  getCookieOptions,
+} from '../../../../auth/session.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +31,58 @@ export async function GET(req: Request): Promise<NextResponse> {
     return NextResponse.redirect(errorRedirect);
   }
 
-  // 3. Process verification code / token
+  // 3. Process verification code / token through provider verification
   const redirectTarget = new URL(safeNext, url.origin);
   const response = NextResponse.redirect(redirectTarget);
+  response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
 
-  if (code || token) {
-    const syntheticAccessToken = `verified_at_${crypto.randomUUID()}_${Date.now()}`;
-    const syntheticRefreshToken = `verified_rt_${crypto.randomUUID()}_${Date.now()}`;
-    setSessionCookies(response, syntheticAccessToken, syntheticRefreshToken);
+  if (code) {
+    try {
+      const cookieMap = parseCookies(req.headers.get('cookie'));
+      const pkceVerifier = cookieMap[PKCE_VERIFIER_COOKIE_NAME];
+
+      const sessionData = await authProxy.exchangeCodeForSession(code, pkceVerifier);
+      setSessionCookies(response, sessionData.accessToken, sessionData.refreshToken);
+
+      // Clear PKCE verifier cookie once consumed
+      response.cookies.set(PKCE_VERIFIER_COOKIE_NAME, '', getCookieOptions(0, true));
+      return response;
+    } catch (err) {
+      const errorRedirect = new URL('/today', url.origin);
+      errorRedirect.searchParams.set('auth_error', 'code_exchange_failed');
+      errorRedirect.searchParams.set(
+        'auth_error_description',
+        err instanceof Error ? err.message : 'Authorization code exchange failed'
+      );
+      return NextResponse.redirect(errorRedirect);
+    }
   }
 
-  response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-  return response;
+  if (token) {
+    try {
+      const verified = await authProxy.verifySession(token);
+      if (!verified) {
+        throw new Error('Token verification rejected by provider');
+      }
+      setSessionCookies(response, token);
+      return response;
+    } catch (err) {
+      const errorRedirect = new URL('/today', url.origin);
+      errorRedirect.searchParams.set('auth_error', 'token_verification_failed');
+      errorRedirect.searchParams.set(
+        'auth_error_description',
+        err instanceof Error ? err.message : 'Session verification failed'
+      );
+      return NextResponse.redirect(errorRedirect);
+    }
+  }
+
+  // Missing authentication payload
+  const errorRedirect = new URL('/today', url.origin);
+  errorRedirect.searchParams.set('auth_error', 'invalid_request');
+  errorRedirect.searchParams.set(
+    'auth_error_description',
+    'Callback missing authorization code or token'
+  );
+  return NextResponse.redirect(errorRedirect);
 }

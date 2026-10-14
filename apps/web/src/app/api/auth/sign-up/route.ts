@@ -56,6 +56,10 @@ export async function POST(req: Request): Promise<NextResponse> {
     return res;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Registration failed';
-    return NextResponse.json({ error: { code: 'SIGNUP_FAILED', message } }, { status: 400 });
+    const isOutage = message.toLowerCase().includes('unavailable');
+    return NextResponse.json(
+      { error: { code: isOutage ? 'SERVICE_UNAVAILABLE' : 'SIGNUP_FAILED', message } },
+      { status: isOutage ? 503 : 400 }
+    );
   }
 }

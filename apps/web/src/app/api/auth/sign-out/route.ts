@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { clearSessionCookies, validateCsrfAndOrigin } from '../../../../auth/session.js';
+import {
+  ACCESS_COOKIE_NAME,
+  authProxy,
+  clearSessionCookies,
+  parseCookies,
+  validateCsrfAndOrigin,
+} from '../../../../auth/session.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +24,18 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
 
-  // 2. Clear all session cookies on the response
+  // 2. Revoke session server-side at provider if access token is present
+  const cookies = parseCookies(req.headers.get('cookie'));
+  const accessToken = cookies[ACCESS_COOKIE_NAME];
+  if (accessToken) {
+    try {
+      await authProxy.logout(accessToken);
+    } catch {
+      // Safely ignore provider network errors on logout
+    }
+  }
+
+  // 3. Clear all session cookies on the response
   const res = NextResponse.json({ status: 'ok', message: 'Signed out successfully' });
   clearSessionCookies(res);
   res.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');

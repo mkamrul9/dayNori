@@ -36,7 +36,7 @@ export interface VerifiedActor {
   claims: JWTPayload;
 }
 
-const DEFAULT_ASYMMETRIC_ALGORITHMS = ['RS256', 'EdDSA'];
+const DEFAULT_ASYMMETRIC_ALGORITHMS = ['RS256', 'ES256', 'EdDSA'];
 const DEFAULT_SYMMETRIC_ALGORITHMS = ['HS256'];
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
