@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-14",
-  "activePhase": null,
-  "nextPhase": "05",
-  "note": "Phase 04 complete: semantic design tokens, accessible primitives for web and mobile, and component review surfaces.",
+  "activePhase": "04",
+  "nextPhase": "04",
+  "note": "Phase 04 implementation and browser/contract verification complete; physical Android TalkBack device testing remains as the mandatory hardware gate.",
   "phases": [
     {
       "id": "00",
@@ -27,7 +27,7 @@
     },
     {
       "id": "04",
-      "status": "complete",
+      "status": "in_progress",
       "report": "docs/phase-reports/phase-04.md"
     },
     {

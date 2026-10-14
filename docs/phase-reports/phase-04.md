@@ -1,11 +1,11 @@
 # Phase 04: Design tokens and accessible primitives
 
-Status: complete. Report date: 2026-10-14 (Asia/Dhaka). Contributor: Antigravity.
+Status: in_progress. Report date: 2026-10-14 (Asia/Dhaka). Contributor: Antigravity.
 
 ## Identity and scope
 
 - Specification: [Phase 04 — Design tokens and accessible primitives](../roadmap/phases/04-design-tokens-and-accessible-primitives.md).
-- Status: `complete`.
+- Status: `in_progress`.
 - Base Git revision: `60f8f26` on `main`.
 - Prerequisites: [Phase 01 report](phase-01.md), [Phase 02 report](phase-02.md), and [Phase 03 report](phase-03.md) verified and repaired.
 - Included scope:
@@ -103,5 +103,7 @@ Delivered the shared semantic design tokens and accessible component primitives 
 
 ## Handoff
 
-Phase 04 is complete. Next eligible phase: **Phase 05 — Responsive web navigation shell**.
-Prerequisites for Phase 05: Phase 01 (`4d4e47f`), Phase 03 (`60f8f26`), and Phase 04 verified.
+Phase 04 implementation, semantic tokens, browser/native primitives, contrast calculations, and review surfaces are fully built and verified.
+Status remains `in_progress` awaiting the mandatory hardware gate: physical Android device review with TalkBack and OS dynamic font scaling.
+Once physical hardware is connected, launch the Expo Android build, enable TalkBack, verify swipe navigation through all gallery controls, and confirm no text clipping at 150%–200% font scale to mark Phase 04 complete.
+Next eligible phase upon hardware verification: **Phase 05 — Responsive web navigation shell**.
