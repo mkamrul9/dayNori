@@ -101,3 +101,15 @@ Automated secret scanning and dependency vulnerability audits ensure credentials
 ## Handoff
 
 Phase 02 is complete and repaired. Next eligible phase: **Phase 03 — Platform and integration feasibility spikes** (evaluating mobile SQLite, browser IndexedDB, auth session storage, local-first navigation, and Expo native capabilities).
+
+## Corrective revision — 2026-10-14
+
+Supersedes the audit claims above (including "40 approved advisory GHSAs verified").
+
+- **Audit gate**: policy now lives in `scripts/audit-lib.mjs`; `scripts/audit-dependencies.mjs` checks the process `error`, `signal` and exit status (only 0 or 1 accepted), rejects empty/invalid JSON, arrays or null where `advisories` must be an object, and malformed advisory/finding entries.
+- **Exception boundaries**: an exception matches only if GHSA id, module, every installed version and every dependency path of the advisory are listed, and a valid approval record exists.
+- **Approval provenance**: the previous 40 entries named `security-lead` (a role, not a person), targeted versions no longer installed, and had no evidence. They were removed. An exception now needs `approval.approvedBy` (a named person, not a role placeholder) and `approval.evidence` pointing to an existing repository file naming that person and the advisory. No approval was invented.
+- **Dependency fixes**: Next 15.5.27, Vitest 4.1.11, and overrides `tar ^7.5.22`, `@xmldom/xmldom ^0.8.15`, `image-size ^2.0.4`, `postcss ^8.5.30`. Under Node 24.21.0 typecheck, lint, tests, web build and the Expo Android export still pass.
+- **Remaining advisories (owner decision required)**: `pnpm audit --audit-level=high` still reports two high advisories with no patched release available: `GHSA-86w9-cpqp-85rv` (`node-forge@1.4.0`, via `react-native > @react-native/community-cli-plugin > @react-native/dev-middleware > selfsigned`) and `GHSA-vfj7-8cjw-p6xm` (`braces@3.0.3`, via `react-native > @react-native/codegen > jscodeshift > micromatch`). Both are in React Native development tooling. `pnpm audit:deps` therefore **fails by design** until the owner approves exceptions. Run `node scripts/audit-dependencies.mjs --print-proposal` to print drafts with exact versions and paths; see [pending proposals](../security/pending-exception-proposals.md).
+- **Tests**: `tests/security/scanner-synthetic.test.ts` now imports the real `audit-lib.mjs` and also runs the real CLI against a fake `pnpm` that exits 2 with valid-looking JSON. It covers path/version mismatch, extra paths, expired, malformed and unapproved exceptions, and unrelated advisories in an excepted package. Result: 12 tests pass. Secret redaction tests are unchanged.
+- **Hosted CI and branch protection remain unverified**: no authorized remote exists and nothing was pushed.

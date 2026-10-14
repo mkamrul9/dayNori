@@ -11,7 +11,7 @@ All contributions to the `main` branch are verified via GitHub Actions workflows
 Runs on every `push` and `pull_request` targeting `main`.
 
 - **Minimal Token Permissions**: Granted only `contents: read`. No write or administration privileges.
-- **Node.js Environment**: Pinned via `.nvmrc` to Node.js 20.18.0 LTS with `pnpm@9.15.5`.
+- **Node.js Environment**: Pinned via `.nvmrc` to Node.js 24.21.0 (Active LTS "Krypton") with `pnpm@9.15.5`.
 - **Clean Installation Gate**: Executes `pnpm install --frozen-lockfile` to ensure lockfile determinism.
 - **Verification Sequence**:
   1. `pnpm validate:planning`: Validates roadmap consistency, phase sequencing, and documentation links.

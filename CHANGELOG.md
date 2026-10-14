@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 01-02 corrective revision, 2026-10-14
+
+- Moved the runtime baseline to Node 24.21.0 (Active LTS) and upgraded Next.js to 15.5.x and Vitest to 4.1.x; added overrides for `tar`, `@xmldom/xmldom`, `image-size` and `postcss`.
+- Rewrote the dependency audit gate: it now rejects process failures, signals and malformed reports, and matches exceptions by advisory, installed version and dependency path. Removed 40 unapproved exceptions. Two advisories without a patched release remain, so `pnpm audit:deps` fails until the owner approves exceptions (`docs/security/pending-exception-proposals.md`).
+- Tests now run the real audit implementation and CLI.
+
 ## Phase 03 — 2026-10-13
 
 - Executed platform and integration feasibility spikes under `tests/spikes/`:

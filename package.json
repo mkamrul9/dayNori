@@ -5,7 +5,7 @@
   "description": "Daynori: a customizable home for notes, routines, tasks, journals, and everyday life",
   "packageManager": "pnpm@9.15.5",
   "engines": {
-    "node": "^20.18.3 || ^22.12.0 || ^24.0.0",
+    "node": "^24.21.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
@@ -39,14 +39,18 @@
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.24.0",
-    "vitest": "^3.0.5"
+    "vitest": "^4.1.11"
   },
   "pnpm": {
     "overrides": {
       "react": "18.3.1",
       "react-dom": "18.3.1",
       "@types/react": "~18.3.12",
-      "@types/react-dom": "~18.3.5"
+      "@types/react-dom": "~18.3.5",
+      "tar": "^7.5.22",
+      "@xmldom/xmldom": "^0.8.15",
+      "image-size": "^2.0.4",
+      "postcss": "^8.5.30"
     }
   }
 }

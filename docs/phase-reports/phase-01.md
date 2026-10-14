@@ -91,3 +91,13 @@ Fastify API exposes typed health and smoke endpoints validated against `@daynori
 
 Next eligible phase: [Phase 02 — Continuous checks and contributor automation](../roadmap/phases/02-continuous-checks-and-contributor-automation.md).
 Prerequisites satisfied: Phase 01 complete with verified runnable workspaces, package manifests, passing test/typecheck/build/dev commands, and compiled Expo Android development build APK.
+
+## Corrective revision — 2026-10-14
+
+Re-verified by the Phase 04 prerequisite review. Earlier statements above are superseded where they conflict.
+
+- **Runtime**: the `20.18.3` baseline is replaced by Node `24.21.0` (Active LTS "Krypton"; latest LTS entry in the nodejs.org release index checked 2026-10-14). `.nvmrc`, `.node-version`, root `package.json` `engines` (`^24.21.0`) and `contributor-automation.md` agree; CI reads `.nvmrc`. This machine's installed Node is `24.11.1`, so pnpm prints an unsupported-engine warning. All checks below were run with a `24.21.0` binary (`npx node@24.21.0`) placed first on `PATH`.
+- **Framework**: `apps/web` now uses Next.js `^15.5.27` (Next 14 has no patched release for current critical advisories); React stays `18.3.1` for Expo SDK 52. Production `next build` succeeded.
+- **Commands run under Node 24.21.0** (exit 0 each): `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test` (20 files, 63 tests), `pnpm build` (web production build and `expo export -p android`).
+- **APK evidence level**: `apps/mobile/android/` is gitignored, so the APK is not reproducible from a clean clone without `pnpm --filter @daynori/mobile run prebuild` and Gradle. The existing file (128,444,244 bytes, written 2026-10-13 23:43 local) is _compilation_ evidence only. No adb device or emulator is available here (`adb devices` empty, no emulator binary), so there is **no device-launch evidence** for Phase 01.
+- **Not re-run**: the Gradle build was not repeated in this revision, and a clean-clone frozen-lockfile install plus dev startup has not yet been re-verified on the committed state.

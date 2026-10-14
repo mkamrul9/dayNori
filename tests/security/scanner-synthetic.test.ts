@@ -1,33 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PATTERNS, scanFiles } from '../../scripts/scan-secrets.mjs';
-
-interface AuditAdvisory {
-  module_name: string;
-  severity: string;
-  github_advisory_id: string;
-}
-
-interface AuditReport {
-  error?: { code: string; summary: string };
-  advisories?: Record<string, AuditAdvisory>;
-}
-
-interface SecurityException {
-  ghsaId?: string;
-  module?: string;
-  severity?: string;
-  approvedBy?: string;
-  remediation?: string;
-  expiresAt?: string;
-}
-
-interface UnhandledAdvisory {
-  id: string;
-  ghsaId: string;
-  module: string;
-}
+import {
+  checkProcessResult,
+  evaluateAdvisories,
+  parseReport,
+  validateExceptions,
+} from '../../scripts/audit-lib.mjs';
 
 describe('Security Scanners Synthetic Test Suite', () => {
   describe('Secret Scanner Detection and Redaction', () => {
@@ -87,147 +68,165 @@ describe('Security Scanners Synthetic Test Suite', () => {
     });
   });
 
-  describe('Dependency Vulnerability Auditor Logic', () => {
-    function evaluateAuditReport(
-      report: AuditReport,
-      exceptions: SecurityException[]
-    ): UnhandledAdvisory[] {
-      const unhandled: UnhandledAdvisory[] = [];
-      const now = new Date();
+  describe('Dependency audit implementation (scripts/audit-lib.mjs and CLI)', () => {
+    const root = path.resolve(__dirname, '../..');
+    const tmp = path.join(root, 'node_modules', '.temp-audit-test');
+    const NOW = new Date('2026-10-14T00:00:00Z');
 
-      // Validate exceptions contract
-      for (const ex of exceptions) {
-        if (!ex.ghsaId?.startsWith('GHSA-')) {
-          throw new Error(`Invalid ghsaId: ${ex.ghsaId}`);
-        }
-        if (!ex.module) {
-          throw new Error(`Missing module in exception: ${ex.ghsaId}`);
-        }
-        if (!ex.approvedBy || !ex.remediation) {
-          throw new Error(`Missing approval or remediation in exception: ${ex.ghsaId}`);
-        }
-        if (!ex.expiresAt || isNaN(Date.parse(ex.expiresAt))) {
-          throw new Error(`Invalid expiresAt in exception: ${ex.ghsaId}`);
-        }
-        if (new Date(ex.expiresAt) < now) {
-          throw new Error(`Expired exception: ${ex.ghsaId}`);
-        }
-      }
-
-      if (report.error) {
-        throw new Error(`Registry error: ${JSON.stringify(report.error)}`);
-      }
-
-      if (!report.advisories || typeof report.advisories !== 'object') {
-        throw new Error('Malformed report');
-      }
-
-      for (const [id, adv] of Object.entries(report.advisories)) {
-        if (adv.severity === 'high' || adv.severity === 'critical') {
-          const match = exceptions.find(
-            (ex) => ex.ghsaId === adv.github_advisory_id && ex.module === adv.module_name
-          );
-          if (!match) {
-            unhandled.push({ id, ghsaId: adv.github_advisory_id, module: adv.module_name });
-          }
-        }
-      }
-
-      return unhandled;
-    }
-
-    it('rejects unapproved high/critical advisories', () => {
-      const mockReport: AuditReport = {
-        advisories: {
-          '100': {
-            module_name: 'some-lib',
-            severity: 'high',
-            github_advisory_id: 'GHSA-unapproved-1234',
-          },
-        },
-      };
-      const exceptions: SecurityException[] = [];
-
-      const unhandled = evaluateAuditReport(mockReport, exceptions);
-      expect(unhandled).toHaveLength(1);
-      expect(unhandled[0].ghsaId).toBe('GHSA-unapproved-1234');
+    const advisory = (over: Record<string, unknown> = {}) => ({
+      module_name: 'node-forge',
+      severity: 'high',
+      github_advisory_id: 'GHSA-aaaa-bbbb-cccc',
+      title: 'synthetic',
+      findings: [{ version: '1.4.0', paths: ['apps/mobile > node-forge@1.4.0'] }],
+      ...over,
     });
+    const report = (advisories: unknown) => JSON.stringify({ advisories });
 
-    it('rejects an unrelated advisory even within an excepted package', () => {
-      const mockReport: AuditReport = {
-        advisories: {
-          '101': {
-            module_name: 'next',
-            severity: 'critical',
-            github_advisory_id: 'GHSA-new-unapproved-vuln',
-          },
-        },
-      };
-      // Exception exists for Next.js, but for a different GHSA
-      const exceptions: SecurityException[] = [
-        {
-          ghsaId: 'GHSA-m99w-x7hq-7vfj',
-          module: 'next',
-          severity: 'high',
-          approvedBy: 'security-lead',
-          remediation: 'Upgrade to Next 15',
-          expiresAt: '2026-12-31',
-        },
-      ];
-
-      const unhandled = evaluateAuditReport(mockReport, exceptions);
-      // It must NOT bypass just because module is 'next'
-      expect(unhandled).toHaveLength(1);
-      expect(unhandled[0].ghsaId).toBe('GHSA-new-unapproved-vuln');
+    beforeAll(() => {
+      fs.mkdirSync(path.join(tmp, 'ev'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmp, 'ev', 'approval.md'),
+        'Approved by Jane Example for GHSA-aaaa-bbbb-cccc.'
+      );
     });
+    afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
-    it('rejects expired exceptions', () => {
-      const mockReport: AuditReport = {
-        advisories: {
-          '102': {
-            module_name: 'next',
-            severity: 'high',
-            github_advisory_id: 'GHSA-m99w-x7hq-7vfj',
-          },
-        },
-      };
-      const expiredExceptions: SecurityException[] = [
-        {
-          ghsaId: 'GHSA-m99w-x7hq-7vfj',
-          module: 'next',
-          severity: 'high',
-          approvedBy: 'security-lead',
-          remediation: 'Upgrade to Next 15',
-          expiresAt: '2026-01-01', // Expired
-        },
-      ];
-
-      expect(() => evaluateAuditReport(mockReport, expiredExceptions)).toThrow(/Expired exception/);
+    const exception = (over: Record<string, unknown> = {}) => ({
+      ghsaId: 'GHSA-aaaa-bbbb-cccc',
+      module: 'node-forge',
+      installedVersions: ['1.4.0'],
+      paths: ['apps/mobile > node-forge@1.4.0'],
+      applicability: 'Dev-only tooling path; not reachable at runtime.',
+      remediation: 'Upgrade when a patched release ships.',
+      expiresAt: '2026-12-31',
+      approval: {
+        approvedBy: 'Jane Example',
+        evidence: 'node_modules/.temp-audit-test/ev/approval.md',
+      },
+      ...over,
     });
+    const valid = (ex: Record<string, unknown>) =>
+      validateExceptions({ dependencyVulnerabilityExceptions: [ex] }, { now: NOW, root });
 
-    it('rejects invalid configuration and missing approval metadata', () => {
-      const mockReport: AuditReport = { advisories: {} };
-      const invalidExceptions: SecurityException[] = [
-        {
-          ghsaId: 'GHSA-m99w-x7hq-7vfj',
-          module: 'next',
-          severity: 'high',
-          // Missing approvedBy and remediation
-          expiresAt: '2026-12-31',
-        },
-      ];
-
-      expect(() => evaluateAuditReport(mockReport, invalidExceptions)).toThrow(
-        /Missing approval or remediation/
+    it('rejects arrays posing as advisory objects and malformed entries', () => {
+      expect(parseReport(report([])).error).toMatch(/advisories/);
+      expect(parseReport(report(null)).error).toMatch(/advisories/);
+      expect(parseReport(report({ '1': 'nope' })).error).toMatch(/invalid advisory/);
+      expect(parseReport(report({ '1': advisory({ severity: 'severe' }) })).error).toMatch(
+        /severity/
+      );
+      expect(
+        parseReport(report({ '1': advisory({ github_advisory_id: undefined }) })).error
+      ).toMatch(/GHSA/);
+      expect(parseReport(report({ '1': advisory({ findings: [] }) })).error).toMatch(/findings/);
+      expect(parseReport('').error).toMatch(/empty/);
+      expect(parseReport('{not json').error).toMatch(/JSON/);
+      expect(parseReport(JSON.stringify({ error: { code: 'E500' } })).error).toMatch(
+        /service error/
       );
     });
 
-    it('rejects audit service and registry errors', () => {
-      const errorReport: AuditReport = {
-        error: { code: 'E500', summary: 'Registry Internal Server Error' },
-      };
+    it('rejects process failure, termination and spawn errors', () => {
+      expect(checkProcessResult({ status: 0, signal: null })).toBeNull();
+      expect(checkProcessResult({ status: 1, signal: null })).toBeNull();
+      expect(checkProcessResult({ status: 2, signal: null })).toMatch(/unexpectedly/);
+      expect(checkProcessResult({ status: null, signal: 'SIGKILL' })).toMatch(/signal/);
+      expect(checkProcessResult({ error: new Error('ENOENT') })).toMatch(/ENOENT/);
+    });
 
-      expect(() => evaluateAuditReport(errorReport, [])).toThrow(/Registry error/);
+    it('fails the CLI when pnpm exits unexpectedly even with valid-looking JSON', () => {
+      const bin = path.join(tmp, 'bin');
+      fs.mkdirSync(bin, { recursive: true });
+      const json = JSON.stringify({ advisories: {} });
+      const win = process.platform === 'win32';
+      const shim = path.join(bin, win ? 'pnpm.cmd' : 'pnpm');
+      fs.writeFileSync(
+        shim,
+        win ? `@echo off\r\necho ${json}\r\nexit /b 2\r\n` : `#!/bin/sh\necho '${json}'\nexit 2\n`,
+        { mode: 0o755 }
+      );
+      const res = spawnSync(process.execPath, ['scripts/audit-dependencies.mjs'], {
+        cwd: root,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+      });
+      expect(res.status).toBe(1);
+      expect(res.stderr).toMatch(/exited unexpectedly with status 2/);
+    });
+
+    it('honors a fully specified, human-approved exception', () => {
+      const { errors, exceptions } = valid(exception());
+      expect(errors).toEqual([]);
+      const r = evaluateAdvisories(parseReport(report({ '1': advisory() })).report, exceptions);
+      expect(r.unhandled).toHaveLength(0);
+      expect(r.excepted).toHaveLength(1);
+    });
+
+    it('does not cover a different installed version or dependency path', () => {
+      const { exceptions } = valid(exception());
+      const otherVersion = advisory({
+        findings: [{ version: '1.5.0', paths: ['apps/mobile > node-forge@1.4.0'] }],
+      });
+      const otherPath = advisory({
+        findings: [{ version: '1.4.0', paths: ['apps/web > other > node-forge@1.4.0'] }],
+      });
+      const extraPath = advisory({
+        findings: [
+          {
+            version: '1.4.0',
+            paths: ['apps/mobile > node-forge@1.4.0', 'apps/web > node-forge@1.4.0'],
+          },
+        ],
+      });
+      for (const adv of [otherVersion, otherPath, extraPath]) {
+        const r = evaluateAdvisories(parseReport(report({ '1': adv })).report, exceptions);
+        expect(r.unhandled).toHaveLength(1);
+      }
+    });
+
+    it('rejects an unrelated advisory within an excepted package', () => {
+      const { exceptions } = valid(exception());
+      const adv = advisory({ github_advisory_id: 'GHSA-zzzz-zzzz-zzzz' });
+      const r = evaluateAdvisories(parseReport(report({ '1': adv })).report, exceptions);
+      expect(r.unhandled).toHaveLength(1);
+    });
+
+    it('rejects expired, malformed and unapproved exceptions', () => {
+      expect(valid(exception({ expiresAt: '2026-01-01' })).errors[0]).toMatch(/expired/);
+      expect(valid(exception({ expiresAt: 'soon' })).errors[0]).toMatch(/expiresAt/);
+      expect(valid(exception({ installedVersions: [] })).errors[0]).toMatch(/installedVersions/);
+      expect(valid(exception({ approval: undefined })).errors[0]).toMatch(/approval record/);
+      expect(
+        valid(exception({ approval: { approvedBy: 'security-lead', evidence: 'README.md' } }))
+          .errors[0]
+      ).toMatch(/accountable person/);
+      expect(
+        valid(exception({ approval: { approvedBy: 'Jane Example', evidence: 'missing.md' } }))
+          .errors[0]
+      ).toMatch(/not found/);
+      expect(
+        valid(
+          exception({
+            approval: {
+              approvedBy: 'Someone Else',
+              evidence: 'node_modules/.temp-audit-test/ev/approval.md',
+            },
+          })
+        ).errors[0]
+      ).toMatch(/name the approver/);
+      expect(
+        valid(exception({ approval: { approvedBy: 'Jane Example', evidence: '../outside.md' } }))
+          .errors[0]
+      ).toMatch(/not found/);
+    });
+
+    it('does not treat non-blocking severities as failures', () => {
+      const r = evaluateAdvisories(
+        parseReport(report({ '1': advisory({ severity: 'moderate' }) })).report,
+        []
+      );
+      expect(r.unhandled).toHaveLength(0);
     });
   });
 });

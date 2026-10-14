@@ -27,7 +27,7 @@ assignees: ''
 ## Observed Environment
 
 - OS: [e.g., Windows 11, macOS, Linux]
-- Node.js version: [e.g., 20.18.0]
+- Node.js version: [e.g., 24.21.0]
 - pnpm version: [e.g., 9.15.5]
 - Device / Browser (if applicable):
 

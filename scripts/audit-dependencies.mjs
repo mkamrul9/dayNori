@@ -2,156 +2,83 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  checkProcessResult,
+  evaluateAdvisories,
+  normalizePath,
+  parseReport,
+  validateExceptions,
+} from './audit-lib.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const fail = (msg) => {
+  console.error(`Audit failed: ${msg}`);
+  process.exit(1);
+};
 
-// 1. Load and validate security exceptions configuration
 const exceptionsPath = path.join(root, '.security-exceptions.json');
-let exceptions = [];
+if (!fs.existsSync(exceptionsPath)) fail('required .security-exceptions.json is missing.');
 
-if (!fs.existsSync(exceptionsPath)) {
-  console.error(
-    'Error: Required security configuration file .security-exceptions.json is missing.'
-  );
-  process.exit(1);
-}
-
+let rawExceptions;
 try {
-  const content = fs.readFileSync(exceptionsPath, 'utf8');
-  const raw = JSON.parse(content);
-  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.dependencyVulnerabilityExceptions)) {
-    console.error(
-      'Error: .security-exceptions.json must contain a "dependencyVulnerabilityExceptions" array.'
-    );
-    process.exit(1);
-  }
-  exceptions = raw.dependencyVulnerabilityExceptions;
+  rawExceptions = JSON.parse(fs.readFileSync(exceptionsPath, 'utf8'));
 } catch (err) {
-  console.error('Error: Failed to parse .security-exceptions.json as valid JSON:', err.message);
-  process.exit(1);
+  fail(`.security-exceptions.json is not valid JSON: ${err.message}`);
 }
 
-// 2. Validate exception entry contracts and expiration
-const now = new Date();
-for (const ex of exceptions) {
-  if (!ex.ghsaId || typeof ex.ghsaId !== 'string' || !ex.ghsaId.startsWith('GHSA-')) {
-    console.error(
-      `Error: Exception for module "${ex.module}" is missing a valid "ghsaId" (must start with GHSA-).`
-    );
-    process.exit(1);
-  }
-  if (!ex.module || typeof ex.module !== 'string') {
-    console.error(`Error: Exception "${ex.ghsaId}" is missing a valid "module" name.`);
-    process.exit(1);
-  }
-  if (!ex.approvedBy || typeof ex.approvedBy !== 'string') {
-    console.error(`Error: Exception "${ex.ghsaId}" is missing an accountable "approvedBy" signer.`);
-    process.exit(1);
-  }
-  if (!ex.remediation || typeof ex.remediation !== 'string') {
-    console.error(`Error: Exception "${ex.ghsaId}" is missing an actionable "remediation" plan.`);
-    process.exit(1);
-  }
-  if (!ex.expiresAt || isNaN(Date.parse(ex.expiresAt))) {
-    console.error(`Error: Exception "${ex.ghsaId}" is missing a valid ISO "expiresAt" date.`);
-    process.exit(1);
-  }
-  if (new Date(ex.expiresAt) < now) {
-    console.error(
-      `Error: Security exception "${ex.ghsaId}" for module "${ex.module}" expired on ${ex.expiresAt}.`
-    );
-    process.exit(1);
-  }
+const { errors, exceptions } = validateExceptions(rawExceptions, { root });
+if (errors.length) {
+  // Invalid entries are reported but never honored; the audit still runs so the
+  // output shows exactly which advisories are left uncovered.
+  console.error('Rejected security exceptions:');
+  for (const e of errors) console.error(`  - ${e}`);
 }
 
-// 3. Execute pnpm audit
 console.log('Running dependency vulnerability audit via pnpm audit...');
-const isWindows = process.platform === 'win32';
-const pnpmCmd = isWindows ? 'pnpm.cmd' : 'pnpm';
-
-const auditResult = spawnSync(pnpmCmd, ['audit', '--audit-level=high', '--json'], {
+const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+// shell is required for .cmd shims on Windows; arguments are static.
+const result = spawnSync(pnpmCmd, ['audit', '--audit-level=high', '--json'], {
   cwd: root,
   encoding: 'utf8',
-  shell: true,
+  shell: process.platform === 'win32',
   maxBuffer: 50 * 1024 * 1024,
 });
 
-if (auditResult.error) {
-  console.error('Failed to execute pnpm audit process:', auditResult.error.message);
-  process.exit(1);
+const processProblem = checkProcessResult(result);
+if (processProblem) fail(processProblem);
+
+const parsed = parseReport(result.stdout);
+if (parsed.error) fail(parsed.error);
+
+const { unhandled, excepted } = evaluateAdvisories(parsed.report, exceptions);
+if (process.argv.includes('--print-proposal')) {
+  const drafts = unhandled.map((u) => {
+    const adv = parsed.report.advisories[u.id];
+    return {
+      ghsaId: u.ghsaId,
+      module: u.module,
+      installedVersions: [...new Set(adv.findings.map((f) => f.version))],
+      paths: [...new Set(adv.findings.flatMap((f) => f.paths.map(normalizePath)))],
+      patchedVersions: adv.patched_versions,
+      applicability: 'OWNER TO COMPLETE',
+      remediation: 'OWNER TO COMPLETE',
+      expiresAt: 'OWNER TO COMPLETE',
+      approval: null,
+    };
+  });
+  console.log(JSON.stringify(drafts, null, 2));
 }
-
-// 4. Validate output format and check for process/registry errors
-let output = (auditResult.stdout || '').trim();
-if (!output && auditResult.stderr) {
-  output = auditResult.stderr.trim();
-}
-
-if (!output) {
-  console.error('Error: pnpm audit produced empty output.');
-  process.exit(1);
-}
-
-let report;
-try {
-  report = JSON.parse(output);
-} catch (e) {
-  console.error('Error: Failed to parse pnpm audit output as JSON:', e.message);
-  console.error('Raw audit output snippet:', output.slice(0, 500));
-  process.exit(1);
-}
-
-if (report.error) {
-  console.error('Registry/Audit service error reported by pnpm:', JSON.stringify(report.error));
-  process.exit(1);
-}
-
-if (!report.advisories || typeof report.advisories !== 'object') {
-  console.error('Error: Unexpected audit report format: missing "advisories" object.');
-  process.exit(1);
-}
-
-// 5. Evaluate advisories against granular exceptions
-const advisories = report.advisories;
-const unhandled = [];
-let exceptedCount = 0;
-
-for (const [id, adv] of Object.entries(advisories)) {
-  const severity = adv.severity;
-  if (severity === 'high' || severity === 'critical') {
-    const ghsaId = adv.github_advisory_id;
-    const matchingException = exceptions.find(
-      (ex) => ex.ghsaId === ghsaId && ex.module === adv.module_name
-    );
-
-    if (!matchingException) {
-      unhandled.push({
-        id,
-        ghsaId: ghsaId || id,
-        module: adv.module_name,
-        title: adv.title,
-        severity: adv.severity,
-        url: adv.url || `https://github.com/advisories/${ghsaId}`,
-      });
-    } else {
-      exceptedCount++;
-    }
-  }
-}
-
 if (unhandled.length > 0) {
-  console.error(
-    `\nAudit failed: ${unhandled.length} unapproved high/critical vulnerability(ies) found:`
-  );
+  console.error(`\nAudit failed: ${unhandled.length} unapproved high/critical advisory(ies):`);
   for (const u of unhandled) {
     console.error(
-      `  - [${u.severity.toUpperCase()}] ${u.module} (${u.title}): ${u.ghsaId} -> ${u.url}`
+      `  - [${u.severity.toUpperCase()}] ${u.module} (${u.title}): ${u.ghsaId} -> https://github.com/advisories/${u.ghsaId}`
     );
   }
   process.exit(1);
 }
+if (errors.length) fail('security exception file contains invalid entries.');
 
 console.log(
-  `Dependency audit passed: 0 unapproved vulnerabilities (${exceptedCount} approved high/critical advisory exception(s) documented).`
+  `Dependency audit passed: 0 unapproved high/critical advisories (${excepted.length} covered by approved exceptions).`
 );
-process.exit(0);
