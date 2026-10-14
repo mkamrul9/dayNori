@@ -1,7 +1,14 @@
 'use client';
 
-import React, { useId } from 'react';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import React, { useId, useState } from 'react';
+import {
+  colors,
+  focusRing,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode,
+} from '@daynori/design-tokens';
 
 export interface TextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -19,12 +26,15 @@ export const TextField: React.FC<TextFieldProps> = ({
   disabled = false,
   required = false,
   style,
+  onFocus,
+  onBlur,
   ...props
 }) => {
   const generatedId = useId();
   const id = explicitId || generatedId;
   const helperId = `${id}-helper`;
   const errorId = `${id}-error`;
+  const [isFocused, setIsFocused] = useState(false);
 
   const palette = colors[themeMode];
   const isInvalid = Boolean(errorMessage);
@@ -35,9 +45,11 @@ export const TextField: React.FC<TextFieldProps> = ({
 
   const borderColor = isInvalid
     ? palette.status.danger
-    : disabled
-      ? palette.border.subtle
-      : palette.border.strong;
+    : isFocused
+      ? palette.border.focus
+      : disabled
+        ? palette.border.subtle
+        : palette.border.strong;
 
   return (
     <div
@@ -71,6 +83,14 @@ export const TextField: React.FC<TextFieldProps> = ({
         required={required}
         aria-invalid={isInvalid}
         aria-describedby={describedBy}
+        onFocus={(e) => {
+          setIsFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          onBlur?.(e);
+        }}
         style={{
           minHeight: `${touchTargets.webMin}px`,
           padding: `${spacing.sm}px ${spacing.md}px`,
@@ -79,10 +99,14 @@ export const TextField: React.FC<TextFieldProps> = ({
           backgroundColor: disabled ? palette.surfaceRaised : palette.surface,
           border: `1.5px solid ${borderColor}`,
           borderRadius: `${radii.sm}px`,
-          outline: 'none',
+          outline:
+            isFocused && !disabled ? `${focusRing.width}px solid ${palette.border.focus}` : 'none',
+          outlineOffset: `${focusRing.offset}px`,
+          boxShadow:
+            isFocused && !disabled ? `0 0 0 ${focusRing.offset}px ${palette.background}` : 'none',
           boxSizing: 'border-box',
           width: '100%',
-          transition: 'border-color 150ms ease, box-shadow 150ms ease',
+          transition: 'border-color 150ms ease, box-shadow 150ms ease, outline 150ms ease',
           ...style,
         }}
         {...props}

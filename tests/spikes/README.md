@@ -63,3 +63,9 @@ node tests/spikes/browser/serve.mjs
 # In another terminal:
 node tests/spikes/browser/run-edge.mjs
 ```
+
+Run the real browser primitives interaction test:
+
+```powershell
+node tests/spikes/browser/run-primitives.mjs
+```

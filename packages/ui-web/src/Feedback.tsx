@@ -1,5 +1,14 @@
+'use client';
+
 import React from 'react';
-import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
+import {
+  colors,
+  focusRing,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode,
+} from '@daynori/design-tokens';
 
 export type FeedbackSeverity = 'info' | 'success' | 'warning' | 'danger';
 
@@ -54,7 +63,7 @@ export const Feedback: React.FC<FeedbackProps> = ({
       aria-live={severity === 'danger' ? 'assertive' : 'polite'}
       style={{
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'space-between',
         gap: `${spacing.sm}px`,
         backgroundColor: bg,
@@ -66,11 +75,11 @@ export const Feedback: React.FC<FeedbackProps> = ({
         lineHeight: 1.5,
       }}
     >
-      <div style={{ display: 'flex', gap: `${spacing.sm}px`, alignItems: 'flex-start' }}>
-        <span aria-hidden="true" style={{ fontWeight: 'bold' }}>
+      <div style={{ display: 'flex', gap: `${spacing.sm}px`, alignItems: 'flex-start', flex: 1 }}>
+        <span aria-hidden="true" style={{ fontWeight: 'bold', flexShrink: 0, marginTop: '2px' }}>
           {icon}
         </span>
-        <div>
+        <div style={{ flex: 1 }}>
           <span
             className="sr-only"
             style={{
@@ -101,9 +110,24 @@ export const Feedback: React.FC<FeedbackProps> = ({
             border: 'none',
             color: fg,
             cursor: 'pointer',
-            padding: `${spacing.xs}px`,
-            fontSize: '14px',
+            minHeight: `${touchTargets.webMin}px`,
+            minWidth: `${touchTargets.webMin}px`,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            fontSize: '16px',
             lineHeight: 1,
+            borderRadius: `${radii.sm}px`,
+            outline: 'none',
+            flexShrink: 0,
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.outline = `${focusRing.width}px solid ${palette.border.focus}`;
+            e.currentTarget.style.outlineOffset = `${focusRing.offset}px`;
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.outline = 'none';
           }}
         >
           ✕

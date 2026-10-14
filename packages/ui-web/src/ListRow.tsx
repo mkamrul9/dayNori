@@ -1,5 +1,14 @@
-import React from 'react';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+'use client';
+
+import React, { useState } from 'react';
+import {
+  colors,
+  focusRing,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode,
+} from '@daynori/design-tokens';
 
 export interface ListRowProps {
   title: string;
@@ -27,6 +36,7 @@ export const ListRow: React.FC<ListRowProps> = ({
   style,
 }) => {
   const palette = colors[themeMode];
+  const [isFocused, setIsFocused] = useState(false);
 
   let bg: string = palette.surface;
   if (selected) {
@@ -44,6 +54,8 @@ export const ListRow: React.FC<ListRowProps> = ({
       aria-selected={selected}
       aria-disabled={disabled}
       onClick={isInteractive ? onClick : undefined}
+      onFocus={isInteractive ? () => setIsFocused(true) : undefined}
+      onBlur={isInteractive ? () => setIsFocused(false) : undefined}
       onKeyDown={
         isInteractive
           ? (e) => {
@@ -67,8 +79,14 @@ export const ListRow: React.FC<ListRowProps> = ({
           : `1px solid ${palette.border.subtle}`,
         cursor: isInteractive ? 'pointer' : 'default',
         opacity: disabled ? 0.6 : 1,
-        transition: 'background-color 150ms ease, border-color 150ms ease',
-        outline: 'none',
+        transition: 'background-color 150ms ease, border-color 150ms ease, outline 150ms ease',
+        outline:
+          isFocused && isInteractive
+            ? `${focusRing.width}px solid ${palette.border.focus}`
+            : 'none',
+        outlineOffset: `${focusRing.offset}px`,
+        boxShadow:
+          isFocused && isInteractive ? `0 0 0 ${focusRing.offset}px ${palette.background}` : 'none',
         boxSizing: 'border-box',
         ...style,
       }}

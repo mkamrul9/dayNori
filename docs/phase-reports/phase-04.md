@@ -97,7 +97,7 @@ Delivered the shared semantic design tokens and accessible component primitives 
 
 - Created `docs/phase-reports/phase-04.md`.
 - Updated `CHANGELOG.md` with Phase 04 deliverables.
-- Updated `docs/roadmap/progress.json` setting Phase 04 to complete and Phase 05 as next eligible phase.
+- Updated `docs/roadmap/progress.json` setting Phase 04 to in_progress pending physical Android TalkBack hardware verification.
 - Reviewed `git status` and `git diff --check`.
 - Intended conventional commit subject: `feat(design): add accessible light and dark interface primitives`.
 

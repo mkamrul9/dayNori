@@ -17,6 +17,7 @@ export default tseslint.config(
       'tests/spikes/browser/**',
       'apps/mobile/metro.config.js',
       '**/next-env.d.ts',
+      'artifacts/**',
     ],
   },
   {
