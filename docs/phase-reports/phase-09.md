@@ -105,12 +105,16 @@ Key architectural and security achievements:
 | Android cold start empty storage safety            | restoreSession with empty storage               | `apps/mobile/src/auth.test.ts` | PASS (Remains unauthenticated; zero errors thrown)                                 |
 | Android cross-account draft quarantine on logout   | DraftQuarantineManager on logout and login      | `apps/mobile/src/auth.test.ts` | PASS (Quarantines User 1 drafts; User 2 cannot access; restored on User 1 login)   |
 | Android protected destination gating & resume      | Navigation to /journal when unauthenticated     | `apps/mobile/src/auth.test.ts` | PASS (Queues pending destination; restores /journal upon authentication)           |
-| Full monorepo automated test suite                 | `pnpm test`                                     | Root workspace                 | PASS (24 test files, 216 tests passed in 3.10s)                                    |
+| Live Supabase Auth daemon health                   | GET http://127.0.0.1:54321/auth/v1/health       | Local GoTrue container         | PASS (200 OK, GoTrue v2.197.0 operational)                                         |
+| Live local Mailpit email catcher                   | GET http://127.0.0.1:54324/api/v1/messages      | Local Mailpit container        | PASS (200 OK, local inbox active on port 54324)                                    |
+| Live Supabase user registration                    | POST http://127.0.0.1:54321/auth/v1/signup      | Local Supabase Auth stack      | PASS (200 OK, created user ca5117e0-..., ES256 JWT issued)                         |
+| Live Supabase password sign-in                     | POST /auth/v1/token?grant_type=password         | Local Supabase Auth stack      | PASS (200 OK, authenticated user, rotated refresh token)                           |
+| Full monorepo automated test suite                 | `pnpm test`                                     | Root workspace                 | PASS (24 test files, 216 tests passed in 4.70s)                                    |
 | Full monorepo typecheck                            | `pnpm typecheck`                                | Root workspace                 | PASS (Exit code 0 across 13 packages)                                              |
 | ESLint verification                                | `pnpm lint`                                     | Root workspace                 | PASS (Exit code 0, 0 lint errors)                                                  |
 | Prettier style validation                          | `pnpm format:check`                             | Root workspace                 | PASS (All files adhere to Prettier code style)                                     |
-| Planning validation                                | `pnpm validate:planning`                        | Root workspace                 | PASS (64 phases, 22 mapped requirements, 151 Markdown files validated)             |
-| Secret scanning audit                              | `pnpm audit:secrets`                            | Root workspace                 | PASS (1179 files checked, 0 unapproved secrets)                                    |
+| Planning validation                                | `pnpm validate:planning`                        | Root workspace                 | PASS (64 phases, 22 mapped requirements, 152 Markdown files validated)             |
+| Secret scanning audit                              | `pnpm audit:secrets`                            | Root workspace                 | PASS (1184 files checked, 0 unapproved secrets)                                    |
 
 ### Executed verification commands
 
@@ -127,35 +131,47 @@ pnpm vitest run apps/mobile/src/auth.test.ts
 pnpm vitest run apps/mobile/src/mobile.test.ts
 # Result: Exit code 0 (16 tests passed in 33ms)
 
-# 4. Run full test suite across monorepo
-pnpm test
-# Result: Exit code 0 (24 test files, 216 tests passed in 3.10s)
+# 4. Verify live local Supabase Auth daemon and Mailpit email catcher
+Invoke-RestMethod -Uri "http://127.0.0.1:54321/auth/v1/health" -Method Get
+# Result: 200 OK (GoTrue v2.197.0 operational)
+Invoke-RestMethod -Uri "http://127.0.0.1:54324/api/v1/messages" -Method Get
+# Result: 200 OK (Mailpit email catcher operational)
 
-# 5. Typecheck all workspace packages
+# 5. Execute live Supabase user registration and password sign-in
+Invoke-RestMethod -Uri "http://127.0.0.1:54321/auth/v1/signup" -Method Post ...
+# Result: 200 OK (User ca5117e0-5034-4a42-85a0-ffdf7e6b565d created; ES256 access token issued)
+Invoke-RestMethod -Uri "http://127.0.0.1:54321/auth/v1/token?grant_type=password" -Method Post ...
+# Result: 200 OK (User authenticated; refresh token lshqdqlvazg2 issued)
+
+# 6. Run full test suite across monorepo
+pnpm test
+# Result: Exit code 0 (24 test files, 216 tests passed in 4.70s)
+
+# 7. Typecheck all workspace packages
 pnpm typecheck
 # Result: Exit code 0 across 13 workspace projects
 
-# 6. ESLint verification
+# 8. ESLint verification
 pnpm lint
 # Result: Exit code 0, 0 warnings, 0 errors
 
-# 7. Format check
+# 9. Format check
 pnpm format:check
 # Result: Exit code 0 (All matched files use Prettier code style)
 
-# 8. Planning validation
+# 10. Planning validation
 pnpm validate:planning
-# Result: Exit code 0 (64 phases, 22 mapped requirements, 151 Markdown files validated)
+# Result: Exit code 0 (64 phases, 22 mapped requirements, 152 Markdown files validated)
 
-# 9. Secret scanner audit
+# 11. Secret scanner audit
 pnpm audit:secrets
-# Result: Exit code 0 (checked 1179 files without detecting unapproved secrets)
+# Result: Exit code 0 (checked 1184 files without detecting unapproved secrets)
 ```
 
 ## Defects, limitations and recovery
 
 - **Physical Android TalkBack Hardware Gate (Phases 04 & 06)**: Remains blocked on physical Android hardware availability; explicitly preserved in `docs/roadmap/progress.json`.
-- **Live Supabase Auth Container Daemon Gate**: Docker daemon is unavailable on the local host machine; local PostgreSQL 17 is running on port 5432. All authentication flows are verified against real provider contracts, schemas, and in-memory mock adapters; live Docker Supabase container execution remains a documented acceptance gate.
+- **Live Supabase Auth Container Daemon Gate (RESOLVED)**: Docker Desktop was started and Supabase local stack was initialized with non-conflicting ports (database on 54322, Auth on 54321, Mailpit on 54324). Verified real user registration and password sign-in against the live GoTrue v2.197.0 container.
 - **Dependency Advisory Warnings**: Fail-closed advisory audit (`node-forge` and `braces`) remains visible without manufactured approval bypasses.
 
 ## Documentation and Git review
@@ -164,11 +180,11 @@ pnpm audit:secrets
 - Roadmap Progress: Updated `docs/roadmap/progress.json` marking Phase 09 as blocked (provisional), setting `nextPhase: null`, and documenting the scheduling decision pending prerequisite physical hardware gates.
 - Changelog: Updated `CHANGELOG.md` with Phase 09 accomplishments.
 - `git diff --check`: Verified clean.
-- Staged paths: Scoped strictly to `packages/contracts`, `apps/web`, `apps/mobile`, ADRs, phase reports, and roadmap documentation.
+- Staged paths: Scoped strictly to `packages/contracts`, `apps/web`, `apps/mobile`, `supabase/config.toml`, ADRs, phase reports, and roadmap documentation.
 - Commit target: `feat(auth): add secure web and Android account journeys`.
 
 ## Handoff
 
-- **Phase 09 Status:** Provisional implementation delivered and verified.
-- **Roadmap Progression State:** Phase 09 delivers the complete authentication and session layer for web and Android. Further roadmap progression to [Phase 10 — Personal workspace and preferences](../roadmap/phases/10-personal-workspace-and-preferences.md) requires resolution of the physical Android TalkBack hardware gates for Phases 04–06 and live container daemon verification for Phase 09.
-- **Next Required Action:** Connect a physical Android device to perform TalkBack and gesture verification to unblock Phase 04 and downstream navigation shells, and run a live Supabase Auth container daemon to complete final provider gates before starting Phase 10.
+- **Phase 09 Status:** Provisional implementation delivered and verified against live Supabase Auth container daemon.
+- **Roadmap Progression State:** Phase 09 delivers the complete authentication and session layer for web and Android. Further roadmap progression to [Phase 10 — Personal workspace and preferences](../roadmap/phases/10-personal-workspace-and-preferences.md) requires resolution of the physical Android TalkBack hardware gates for Phases 04–06.
+- **Next Required Action:** Connect a physical Android device to perform TalkBack and gesture verification to unblock Phase 04 and downstream navigation shells before starting Phase 10.

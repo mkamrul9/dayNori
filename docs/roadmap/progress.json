@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-14",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 09 provisional account journeys implemented across web same-origin cookies and Android KeyStore storage adapter with draft quarantine. Completion claims for Phases 04–06 and Phase 09 remain blocked pending physical Android TalkBack hardware verification and live Supabase Auth container daemon execution on host.",
-  "note": "Phase 09 (Authentication across web and Android) provisional implementation delivered and verified with same-origin cookies, CSRF protection, Android OS KeyStore secure storage, and cross-account draft quarantine. Phase 04 and Phase 06 hardware gates remain blocked pending physical Android TalkBack verification.",
+  "schedulingDecision": "Phase 09 provisional account journeys implemented across web same-origin cookies and Android KeyStore storage adapter with draft quarantine, verified against live Supabase Auth container daemon. Completion claims for Phases 04–06 and Phase 09 remain blocked pending physical Android TalkBack hardware verification.",
+  "note": "Phase 09 (Authentication across web and Android) provisional implementation delivered and verified with same-origin cookies, CSRF protection, Android OS KeyStore secure storage, and cross-account draft quarantine against live Supabase Auth container daemon. Phase 04 and Phase 06 hardware gates remain blocked pending physical Android TalkBack verification.",
   "phases": [
     {
       "id": "00",
@@ -57,7 +57,7 @@
     {
       "id": "09",
       "status": "blocked",
-      "reason": "Provisional web and Android authentication implementation delivered under authorized provisional development. Completion blocked pending prerequisite Phase 04–06 physical Android TalkBack hardware verification and live Supabase Auth container daemon execution on host.",
+      "reason": "Provisional web and Android authentication implementation delivered and verified against live local Supabase Auth container daemon. Completion blocked pending prerequisite Phase 04–06 physical Android TalkBack hardware verification.",
       "report": "docs/phase-reports/phase-09.md"
     },
     {
