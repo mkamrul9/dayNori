@@ -4,8 +4,6 @@
   "connectedDevices": [],
   "apkExists": true,
   "apkSize": 128447320,
-  "missingPrerequisites": [
-    "Connected physical Android device or emulator"
-  ],
+  "missingPrerequisites": ["Connected physical Android device or emulator"],
   "exitCode": 2
 }

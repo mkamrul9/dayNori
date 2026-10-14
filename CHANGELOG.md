@@ -1,5 +1,17 @@
 # Changelog
 
+## Phase 07 — PostgreSQL and tenant isolation foundation — 2026-10-14
+
+- Established PostgreSQL schema migrations (`infra/supabase/migrations/00001_initial_schema.sql` and `00002_forward_fix_example.sql`) defining tenant tables: `profiles`, `workspaces`, `workspace_memberships`, `items`, `audit_events`, and `storage_objects`.
+- Applied `FORCE ROW LEVEL SECURITY` across all tenant tables and created dedicated non-owner runtime role (`daynori_runtime` with `NOBYPASSRLS`).
+- Implemented transaction-local tenant context isolation (`set_config('app.current_user_id', ..., true)` and `set_config('app.current_workspace_id', ..., true)`) inside `withTenantContext`, ensuring automatic context reset on commit/rollback and zero identity leakage across connection pool reuse.
+- Enforced composite primary key `(workspace_id, id)` and folder relation `FOREIGN KEY (workspace_id, folder_id) REFERENCES app.items (workspace_id, id)` on `app.items`, rendering cross-tenant hierarchy references impossible at the relational constraint layer.
+- Added non-recursive authorization helper `app.user_has_workspace_role()` with pinned `search_path = app, pg_temp`.
+- Implemented database client, connection pool management, and repository modules in `apps/api/src/db/` (`workspaceRepository`, `membershipRepository`, `itemRepository`, `auditRepository`, `storageRepository`).
+- Built migration runner in `infra/supabase/migrator.ts` with SHA-256 checksum verification and idempotent re-runs.
+- Created security integration test suite in `tests/security/tenant-isolation.test.ts` (16 passing tests against real local PostgreSQL 17 instance `daynori_test`).
+- Documented architecture and security decisions in `docs/decisions/0013-postgresql-tenant-isolation-and-rls.md`.
+
 ## Phase 05 and Phase 06 navigation corrections — 2026-10-14
 
 - **Phase 05 (Web Navigation Repairs):**
@@ -14,7 +26,6 @@
   - Configured actual Expo scheme `daynori` and Android intent filters for custom scheme and app links in `apps/mobile/app.json` and `AndroidManifest.xml`.
   - Restricted synthetic login controls in `SettingsView.tsx` to an explicit development review mode (`devReviewMode`), defaulting runtime strictly to unauthenticated.
   - Resolved Windows MAX_PATH (>260 chars) Ninja build failure in `apps/mobile/android/build.gradle` for `expo-modules-core` and verified fresh debug APK compilation (128.4 MB).
-
 
 - Implemented native bottom navigation bar in `@daynori/ui-mobile/MobileNavigationBar` with four labeled parent destinations: Today, Plan, Library, and Journal, maintaining >= 48dp touch targets.
 - Built Plan segmented sub-views for Tasks, Routines, and Calendar (Calendar projection under Plan).

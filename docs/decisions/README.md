@@ -14,5 +14,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0010: Notification strategy and Android alarm constraints](0010-notification-strategy-and-alarm-constraints.md)
 - [ADR-0011: Google Drive scope and OAuth architecture](0011-google-drive-scope-and-oauth-architecture.md)
 - [ADR-0012: Native hardware capabilities and billing boundaries](0012-native-hardware-capabilities-and-billing-boundaries.md)
+- [ADR-0013: PostgreSQL tenant isolation, row-level security, and migration foundations](0013-postgresql-tenant-isolation-and-rls.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

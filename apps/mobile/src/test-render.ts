@@ -1,8 +1,14 @@
 import React from 'react';
 
+export interface TestNodeProps {
+  onPress: (...args: unknown[]) => unknown;
+  onChangeText: (text: string) => unknown;
+  [key: string]: unknown;
+}
+
 export interface MountedNode {
   type: unknown;
-  props: Record<string, unknown>;
+  props: TestNodeProps;
   children: Array<MountedNode | string | number | null | undefined>;
   findByProps: (match: Record<string, unknown>) => MountedNode;
   findAllByProps: (match: Record<string, unknown>) => MountedNode[];
@@ -84,7 +90,7 @@ export class MiniTestRenderer implements ReactTestRenderer {
   createEmptyNode(): MountedNode {
     const node: MountedNode = {
       type: 'Empty',
-      props: {},
+      props: {} as unknown as TestNodeProps,
       children: [],
       findByProps: (match) => {
         throw new Error(`No mounted node matching ${JSON.stringify(match)}`);
@@ -226,7 +232,7 @@ export class MiniTestRenderer implements ReactTestRenderer {
 
     const node: MountedNode = {
       type: element.type,
-      props,
+      props: props as unknown as TestNodeProps,
       children,
       findByProps: (match: Record<string, unknown>) => {
         const found = findInNode(node, match);

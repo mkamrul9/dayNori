@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-14",
-  "activePhase": "04",
-  "nextPhase": "04",
-  "note": "Phase 05/06 navigation repairs complete (WCAG 2.1.4 character shortcuts, deep-link authentication and scheme hardening, real E2E runner gating, and mounted component interaction tests). Phase 04–06 hardware gates remain blocked pending physical Android verification.",
+  "activePhase": null,
+  "nextPhase": "08",
+  "note": "Phase 07 (PostgreSQL and tenant isolation foundation) complete and verified with real local PostgreSQL 17 integration tests. Phase 04 and Phase 06 hardware gates remain blocked pending physical Android TalkBack verification.",
   "phases": [
     {
       "id": "00",
@@ -27,7 +27,8 @@
     },
     {
       "id": "04",
-      "status": "in_progress",
+      "status": "blocked",
+      "reason": "Blocked on physical Android TalkBack hardware verification; provisional accessible primitives and design tokens verified via automated tests.",
       "report": "docs/phase-reports/phase-04.md"
     },
     {
@@ -44,7 +45,8 @@
     },
     {
       "id": "07",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-07.md"
     },
     {
       "id": "08",

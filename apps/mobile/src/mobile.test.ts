@@ -306,7 +306,7 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
             },
             onOpenGallery: () => {},
             onClose: () => {},
-            devReviewMode: true,
+            devReviewMode: false,
           })
         );
       });
