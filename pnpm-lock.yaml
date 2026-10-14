@@ -214,16 +214,19 @@ importers:
       '@daynori/design-tokens':
         specifier: workspace:*
         version: link:../design-tokens
-      react:
-        specifier: 18.3.1
-        version: 18.3.1
-      react-native:
-        specifier: '*'
-        version: 0.76.7(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.3.31)(react@18.3.1)
     devDependencies:
       '@daynori/config':
         specifier: workspace:*
         version: link:../config
+      '@types/react':
+        specifier: ~18.3.12
+        version: 18.3.31
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-native:
+        specifier: 0.76.7
+        version: 0.76.7(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.3.31)(react@18.3.1)
 
   packages/ui-web:
     dependencies:

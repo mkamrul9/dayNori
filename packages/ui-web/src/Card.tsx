@@ -1,19 +1,23 @@
 import React from 'react';
-import { colors, radii, spacing } from '@daynori/design-tokens';
+import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  themeMode?: ThemeMode;
   children: React.ReactNode;
 }
 
-export const Card: React.FC<CardProps> = ({ children, style, ...props }) => {
+export const Card: React.FC<CardProps> = ({ themeMode = 'light', children, style, ...props }) => {
+  const palette = colors[themeMode];
+
   return (
     <div
       style={{
-        backgroundColor: colors.light.surface,
-        border: `1px solid ${colors.light.border.subtle}`,
+        backgroundColor: palette.surface,
+        color: palette.text.primary,
         borderRadius: `${radii.card}px`,
+        border: `1px solid ${palette.border.subtle}`,
         padding: `${spacing.base}px`,
-        color: colors.light.text.primary,
+        boxSizing: 'border-box',
         ...style,
       }}
       {...props}

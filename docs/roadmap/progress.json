@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-13",
+  "updatedAt": "2026-10-14",
   "activePhase": null,
-  "nextPhase": "04",
-  "note": "Phase 03 complete: platform and integration feasibility spikes, ADRs 0009-0012, and constraint validation.",
+  "nextPhase": "05",
+  "note": "Phase 04 complete: semantic design tokens, accessible primitives for web and mobile, and component review surfaces.",
   "phases": [
     {
       "id": "00",
@@ -27,7 +27,8 @@
     },
     {
       "id": "04",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-04.md"
     },
     {
       "id": "05",
