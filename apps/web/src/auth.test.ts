@@ -4,6 +4,11 @@ import { POST as signUpHandler } from './app/api/auth/sign-up/route.js';
 import { POST as signOutHandler } from './app/api/auth/sign-out/route.js';
 import { GET as sessionHandler } from './app/api/auth/session/route.js';
 import { GET as callbackHandler } from './app/api/auth/callback/route.js';
+import { POST as provisionHandler } from './app/api/workspaces/provision/route.js';
+import {
+  GET as getPreferencesHandler,
+  PATCH as patchPreferencesHandler,
+} from './app/api/users/preferences/route.js';
 import { generateCsrfToken, validateAuthRedirectUrl } from '@daynori/contracts';
 import {
   authProxy,
@@ -369,6 +374,62 @@ describe('Web Authentication & Session Contracts (Phase 09 Hardened)', () => {
       // Verifying the revoked session now fails
       const verifyAfter = await testClient.verifySession(activeToken);
       expect(verifyAfter).toBeNull();
+    });
+  });
+
+  describe('Web Workspace Provisioning & Preferences Route Handlers (Phase 10)', () => {
+    it('POST /api/workspaces/provision rejects requests without valid CSRF token with 403', async () => {
+      const req = createMockRequest({
+        method: 'POST',
+        url: 'http://localhost:3000/api/workspaces/provision',
+        // No CSRF token provided
+      });
+      const res = await provisionHandler(req);
+      expect(res.status).toBe(403);
+    });
+
+    it('POST /api/workspaces/provision rejects unauthenticated requests with 401', async () => {
+      const req = createMockRequest({
+        method: 'POST',
+        url: 'http://localhost:3000/api/workspaces/provision',
+        csrfToken: validCsrf,
+        cookieCsrf: validCsrf,
+        // No access token cookie
+      });
+      const res = await provisionHandler(req);
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /api/users/preferences rejects unauthenticated requests with 401', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: 'http://localhost:3000/api/users/preferences',
+        // No access token cookie
+      });
+      const res = await getPreferencesHandler(req);
+      expect(res.status).toBe(401);
+    });
+
+    it('PATCH /api/users/preferences rejects requests without valid CSRF token with 403', async () => {
+      const req = createMockRequest({
+        method: 'PATCH',
+        url: 'http://localhost:3000/api/users/preferences',
+        body: { timeZone: 'America/New_York' },
+      });
+      const res = await patchPreferencesHandler(req);
+      expect(res.status).toBe(403);
+    });
+
+    it('PATCH /api/users/preferences rejects unauthenticated requests with 401', async () => {
+      const req = createMockRequest({
+        method: 'PATCH',
+        url: 'http://localhost:3000/api/users/preferences',
+        csrfToken: validCsrf,
+        cookieCsrf: validCsrf,
+        body: { timeZone: 'America/New_York' },
+      });
+      const res = await patchPreferencesHandler(req);
+      expect(res.status).toBe(401);
     });
   });
 });

@@ -7,6 +7,16 @@ export interface AuthUser {
   id: string;
   email: string;
   displayName?: string;
+  workspaceId?: string | null;
+}
+
+export interface UserPreferencesState {
+  timeZone: string;
+  preferredLocale: string;
+  weekStart: 'monday' | 'sunday' | 'saturday';
+  theme: 'system' | 'light' | 'dark';
+  compactMode: boolean;
+  revision: number;
 }
 
 export interface QuarantinedWebDraft {
@@ -22,6 +32,8 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   csrfToken: string | null;
+  workspaceId: string | null;
+  preferences: UserPreferencesState | null;
   isAuthModalOpen: boolean;
   pendingDestination: string | null;
   quarantinedDrafts: QuarantinedWebDraft[];
@@ -40,6 +52,17 @@ export interface AuthContextType {
   recoverPassword: (
     email: string
   ) => Promise<{ success: boolean; message?: string; error?: string }>;
+  provisionPersonalWorkspace: () => Promise<string | null>;
+  loadPreferences: () => Promise<UserPreferencesState | null>;
+  savePreferences: (
+    updates: Partial<Omit<UserPreferencesState, 'revision'>>,
+    expectedRevision?: number
+  ) => Promise<{
+    success: boolean;
+    conflict?: boolean;
+    error?: string;
+    updated?: UserPreferencesState;
+  }>;
   openAuthModal: (pendingDestination?: string) => void;
   closeAuthModal: () => void;
   quarantineDraft: (draftType: string, payload: Record<string, unknown>) => void;
@@ -57,6 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferencesState | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [pendingDestination, setPendingDestination] = useState<string | null>(null);
 
@@ -79,6 +104,132 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       activeAbortControllerRef.current = new AbortController();
     }
   }, []);
+
+  const provisionPersonalWorkspace = useCallback(async (): Promise<string | null> => {
+    try {
+      const res = await fetch('/api/workspaces/provision', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+        },
+      });
+      if (res.ok) {
+        const payload = await res.json();
+        const wsId = payload.data?.workspace?.id || null;
+        if (wsId) {
+          setWorkspaceId(wsId);
+          setUser((prev) => (prev ? { ...prev, workspaceId: wsId } : null));
+        }
+        if (payload.data?.profile) {
+          const prof = payload.data.profile;
+          setPreferences({
+            timeZone: prof.timeZone,
+            preferredLocale: prof.preferredLocale,
+            weekStart: prof.weekStart,
+            theme: prof.preferences?.theme || 'system',
+            compactMode: Boolean(prof.preferences?.compactMode),
+            revision: prof.revision,
+          });
+        }
+        return wsId;
+      }
+    } catch {
+      // Ignored: can be retried
+    }
+    return null;
+  }, [csrfToken]);
+
+  const loadPreferences = useCallback(async (): Promise<UserPreferencesState | null> => {
+    try {
+      const res = await fetch('/api/users/preferences', {
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok) {
+        const payload = await res.json();
+        const prof = payload.data;
+        const loaded: UserPreferencesState = {
+          timeZone: prof.timeZone,
+          preferredLocale: prof.preferredLocale,
+          weekStart: prof.weekStart,
+          theme: prof.preferences?.theme || 'system',
+          compactMode: Boolean(prof.preferences?.compactMode),
+          revision: prof.revision,
+        };
+        setPreferences(loaded);
+        return loaded;
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  }, []);
+
+  const savePreferences = useCallback(
+    async (
+      updates: Partial<Omit<UserPreferencesState, 'revision'>>,
+      expectedRevision?: number
+    ): Promise<{
+      success: boolean;
+      conflict?: boolean;
+      error?: string;
+      updated?: UserPreferencesState;
+    }> => {
+      try {
+        const payload: Record<string, unknown> = {
+          ...(updates.timeZone ? { timeZone: updates.timeZone } : {}),
+          ...(updates.preferredLocale ? { preferredLocale: updates.preferredLocale } : {}),
+          ...(updates.weekStart ? { weekStart: updates.weekStart } : {}),
+          ...(updates.theme !== undefined || updates.compactMode !== undefined
+            ? {
+                preferences: {
+                  theme: updates.theme ?? preferences?.theme ?? 'system',
+                  compactMode: updates.compactMode ?? preferences?.compactMode ?? false,
+                },
+              }
+            : {}),
+          expectedRevision: expectedRevision ?? preferences?.revision,
+        };
+
+        const res = await fetch('/api/users/preferences', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (res.status === 409) {
+          return {
+            success: false,
+            conflict: true,
+            error: data.error?.message || 'Revision conflict',
+          };
+        }
+        if (!res.ok) {
+          return { success: false, error: data.error?.message || 'Failed to save preferences' };
+        }
+
+        const prof = data.data;
+        const updated: UserPreferencesState = {
+          timeZone: prof.timeZone,
+          preferredLocale: prof.preferredLocale,
+          weekStart: prof.weekStart,
+          theme: prof.preferences?.theme || 'system',
+          compactMode: Boolean(prof.preferences?.compactMode),
+          revision: prof.revision,
+        };
+        setPreferences(updated);
+        return { success: true, updated };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'Network error' };
+      }
+    },
+    [csrfToken, preferences]
+  );
 
   // Broadcast auth event to other browser tabs (contains ZERO credentials or private data)
   const broadcastAuthEvent = useCallback((type: 'LOGIN' | 'LOGOUT' | 'REFRESH') => {
@@ -119,9 +270,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session.authenticated && session.user) {
           setUser(session.user);
           setIsAuthenticated(true);
+          provisionPersonalWorkspace();
         } else {
           setUser(null);
           setIsAuthenticated(false);
+          setWorkspaceId(null);
+          setPreferences(null);
         }
         if (session.csrfToken) {
           setCsrfToken(session.csrfToken);
@@ -129,16 +283,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
         setIsAuthenticated(false);
+        setWorkspaceId(null);
+        setPreferences(null);
       }
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {
         setUser(null);
         setIsAuthenticated(false);
+        setWorkspaceId(null);
+        setPreferences(null);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [getOrCreateAbortSignal]);
+  }, [getOrCreateAbortSignal, provisionPersonalWorkspace]);
 
   // Initial session check on mount and multi-tab synchronization listener
   useEffect(() => {
@@ -153,6 +311,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             cancelInFlightRequests();
             setUser(null);
             setIsAuthenticated(false);
+            setWorkspaceId(null);
+            setPreferences(null);
           } else if (event.data?.type === 'LOGIN' || event.data?.type === 'REFRESH') {
             checkSession();
           }
@@ -170,6 +330,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             cancelInFlightRequests();
             setUser(null);
             setIsAuthenticated(false);
+            setWorkspaceId(null);
+            setPreferences(null);
           } else if (parsed.type === 'LOGIN' || parsed.type === 'REFRESH') {
             checkSession();
           }
@@ -212,6 +374,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setIsAuthModalOpen(false);
       broadcastAuthEvent('LOGIN');
+      provisionPersonalWorkspace();
 
       // Resolve pending protected destination if present
       if (pendingDestination && typeof window !== 'undefined') {
@@ -264,6 +427,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Reset client state immediately
     setUser(null);
     setIsAuthenticated(false);
+    setWorkspaceId(null);
+    setPreferences(null);
     broadcastAuthEvent('LOGOUT');
 
     try {
@@ -342,6 +507,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated,
         isLoading,
         csrfToken,
+        workspaceId,
+        preferences,
         isAuthModalOpen,
         pendingDestination,
         quarantinedDrafts: user ? quarantinedDrafts.filter((d) => d.userId === user.id) : [],
@@ -349,6 +516,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         recoverPassword,
+        provisionPersonalWorkspace,
+        loadPreferences,
+        savePreferences,
         openAuthModal,
         closeAuthModal,
         quarantineDraft,

@@ -45,6 +45,13 @@ export class ApiValidationError extends ApiClientError {
   }
 }
 
+export class ApiConflictError extends ApiClientError {
+  constructor(message: string, options: { requestId?: string; details?: ApiErrorDetail[] }) {
+    super(message, { code: 'REVISION_CONFLICT', statusCode: 409, ...options });
+    this.name = 'ApiConflictError';
+  }
+}
+
 export class ApiRateLimitError extends ApiClientError {
   public readonly retryAfterSeconds?: number;
 

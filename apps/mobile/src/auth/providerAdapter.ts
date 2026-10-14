@@ -12,7 +12,8 @@
  * - Quarantines uncommitted drafts on logout to prevent cross-account data leakage.
  */
 
-import { parseDeepLinkUrl } from '@daynori/contracts';
+import { parseDeepLinkUrl, type Profile, type UpdatePreferencesRequest } from '@daynori/contracts';
+import { createApiClient } from '@daynori/api-client';
 import {
   defaultSecureStorage,
   SecureStorageError,
@@ -65,6 +66,9 @@ export interface ProviderClientContract {
     accessToken: string;
     refreshToken: string;
   }>;
+  provisionWorkspace?(token: string): Promise<{ workspaceId: string }>;
+  getPreferences?(token: string): Promise<Profile | null>;
+  updatePreferences?(token: string, params: UpdatePreferencesRequest): Promise<Profile | null>;
 }
 
 function createTimeoutSignal(ms: number): AbortSignal {
@@ -95,6 +99,7 @@ export class MobileProviderAuthAdapter {
   private quarantineManager: DraftQuarantineManager;
   private supabaseUrl: string;
   private supabaseAnonKey: string;
+  private apiBaseUrl: string;
   private requestTimeoutMs: number;
   private customProvider: ProviderClientContract | null = null;
 
@@ -111,6 +116,7 @@ export class MobileProviderAuthAdapter {
           quarantineManager?: DraftQuarantineManager;
           supabaseUrl?: string;
           supabaseAnonKey?: string;
+          apiBaseUrl?: string;
           requestTimeoutMs?: number;
           initialAuthenticated?: boolean;
           providerClient?: ProviderClientContract;
@@ -124,6 +130,7 @@ export class MobileProviderAuthAdapter {
       opts?.supabaseUrl ?? process.env['SUPABASE_AUTH_URL'] ?? 'http://127.0.0.1:54321';
     this.supabaseAnonKey =
       opts?.supabaseAnonKey ?? process.env['SUPABASE_ANON_KEY'] ?? 'test-anon-key';
+    this.apiBaseUrl = opts?.apiBaseUrl ?? process.env['DAYNORI_API_URL'] ?? 'http://127.0.0.1:3001';
     this.requestTimeoutMs =
       opts?.requestTimeoutMs ?? (process.env['NODE_ENV'] === 'test' ? 1000 : 5000);
     this.customProvider = opts?.providerClient ?? null;
@@ -153,6 +160,92 @@ export class MobileProviderAuthAdapter {
 
   public setPendingDestination(dest: string | null): void {
     this.pendingDestination = dest;
+  }
+
+  public async getAccessToken(): Promise<string | null> {
+    try {
+      return await this.secureStore.getItemAsync(SEC_KEY_ACCESS_TOKEN);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Idempotently provision or resolve the personal workspace for the authenticated mobile user.
+   */
+  public async provisionPersonalWorkspace(): Promise<string | null> {
+    if (!this.currentUser) return null;
+
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    if (this.customProvider?.provisionWorkspace) {
+      try {
+        const res = await this.customProvider.provisionWorkspace(token);
+        this.currentUser.workspaceId = res.workspaceId;
+        await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, res.workspaceId);
+        this.notify();
+        return res.workspaceId;
+      } catch {
+        return null;
+      }
+    }
+
+    try {
+      const apiClient = createApiClient({ baseUrl: this.apiBaseUrl, token });
+      const res = await apiClient.provisionPersonalWorkspace({
+        displayName: this.currentUser.name,
+      });
+      const wsId = res.data.workspace.id;
+      this.currentUser.workspaceId = wsId;
+      await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, wsId);
+      this.notify();
+      return wsId;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch actor profile and synced preferences.
+   */
+  public async getPreferences(): Promise<Profile | null> {
+    if (!this.currentUser) return null;
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    if (this.customProvider?.getPreferences) {
+      return this.customProvider.getPreferences(token);
+    }
+
+    try {
+      const apiClient = createApiClient({ baseUrl: this.apiBaseUrl, token });
+      const res = await apiClient.getUserPreferences();
+      return res.data;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Update actor preferences with revision concurrency control.
+   */
+  public async updatePreferences(params: UpdatePreferencesRequest): Promise<Profile | null> {
+    if (!this.currentUser) return null;
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    if (this.customProvider?.updatePreferences) {
+      return this.customProvider.updatePreferences(token, params);
+    }
+
+    try {
+      const apiClient = createApiClient({ baseUrl: this.apiBaseUrl, token });
+      const res = await apiClient.updateUserPreferences(params);
+      return res.data;
+    } catch {
+      return null;
+    }
   }
 
   /**

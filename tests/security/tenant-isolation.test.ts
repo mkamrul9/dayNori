@@ -202,7 +202,7 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
           await createWorkspace(client, {
             id: newWsId,
             name: 'User 1 Secondary Workspace',
-            kind: 'personal',
+            kind: 'room',
             ownerId: user1Id,
           });
 

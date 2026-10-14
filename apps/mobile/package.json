@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.26.0",
+    "@daynori/api-client": "workspace:*",
     "@daynori/contracts": "workspace:*",
     "@daynori/design-tokens": "workspace:*",
     "@daynori/ui-mobile": "workspace:*",

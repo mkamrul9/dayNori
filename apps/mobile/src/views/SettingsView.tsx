@@ -14,6 +14,11 @@ export interface SettingsViewProps {
   onClose: () => void;
   testID?: string;
   devReviewMode?: boolean;
+  workspaceId?: string | null;
+  onProvisionWorkspace?: () => Promise<void>;
+  weekStart?: 'monday' | 'sunday' | 'saturday';
+  onChangeWeekStart?: (weekStart: 'monday' | 'sunday' | 'saturday') => void;
+  timeZone?: string;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -27,6 +32,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onClose,
   testID = 'settings-view',
   devReviewMode = false,
+  workspaceId = null,
+  onProvisionWorkspace,
+  weekStart = 'monday',
+  onChangeWeekStart,
+  timeZone = 'UTC',
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -263,6 +273,104 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               🛠️ Show Dev Review Tools
             </MobileButton>
           )}
+        </MobileCard>
+      </View>
+
+      {/* Section 5b: Personal Workspace & Preferences (Phase 10) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Personal Workspace & Preferences
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Personal Workspace Status:
+            </Text>
+            <Text
+              testID="mobile-workspace-id"
+              style={[
+                styles.settingDescription,
+                {
+                  color: workspaceId ? palette.status.success : palette.text.secondary,
+                  fontFamily: 'monospace',
+                  marginTop: 2,
+                },
+              ]}
+            >
+              {workspaceId ? `✓ Active (ID: ${workspaceId})` : 'Workspace not provisioned'}
+            </Text>
+          </View>
+
+          {isAuthenticated && !workspaceId && onProvisionWorkspace && (
+            <View style={{ marginBottom: spacing.sm }}>
+              <MobileButton
+                variant="primary"
+                themeMode={themeMode}
+                onPress={() => void onProvisionWorkspace()}
+                accessibilityLabel="Provision personal workspace"
+              >
+                Provision Personal Workspace
+              </MobileButton>
+            </View>
+          )}
+
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text
+              style={[
+                styles.settingLabel,
+                { color: palette.text.primary, fontSize: 13, marginBottom: 4 },
+              ]}
+            >
+              IANA Time Zone: {timeZone}
+            </Text>
+          </View>
+
+          <View style={{ marginBottom: spacing.xs }}>
+            <Text
+              style={[
+                styles.settingLabel,
+                { color: palette.text.primary, fontSize: 13, marginBottom: spacing.xs },
+              ]}
+            >
+              Week Starts On:
+            </Text>
+            <View style={styles.scaleButtonGroup}>
+              {(['monday', 'sunday', 'saturday'] as const).map((day) => {
+                const isSelected = weekStart === day;
+                return (
+                  <Pressable
+                    key={day}
+                    testID={`mobile-weekstart-${day}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={`Week start ${day}`}
+                    onPress={() => onChangeWeekStart?.(day)}
+                    style={[
+                      styles.scaleButton,
+                      {
+                        backgroundColor: isSelected
+                          ? palette.action.primary
+                          : palette.surfaceRaised,
+                        borderColor: palette.border.subtle,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.scaleButtonText,
+                        {
+                          color: isSelected ? palette.action.label : palette.text.primary,
+                          textTransform: 'capitalize',
+                        },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </MobileCard>
       </View>
 

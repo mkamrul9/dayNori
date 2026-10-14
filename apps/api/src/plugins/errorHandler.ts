@@ -20,6 +20,20 @@ export class ForbiddenError extends Error {
   }
 }
 
+export class ValidationError extends Error {
+  constructor(message = 'Validation failed') {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+export class ConflictError extends Error {
+  constructor(message = 'Revision conflict') {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
 export class ResponseValidationError extends Error {
   public override readonly cause?: unknown;
 
@@ -106,6 +120,30 @@ export function createErrorHandler(logger: SafeLogger) {
         },
       };
       return reply.status(400).send(body);
+    }
+
+    // 4b. Custom invariant validation errors
+    if (error instanceof ValidationError) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.VALIDATION_FAILED,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(400).send(body);
+    }
+
+    // 4c. Optimistic concurrency revision conflicts
+    if (error instanceof ConflictError) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.REVISION_CONFLICT,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(409).send(body);
     }
 
     // 5. Authentication errors

@@ -1,5 +1,29 @@
 # Changelog
 
+## Phase 10 — Personal workspace and preferences — 2026-10-15
+
+- **Database-Enforced Personal Workspace Uniqueness & Idempotent Provisioning:**
+  - Applied migration `00008_personal_workspace_and_preferences.sql` adding partial unique index `idx_workspaces_personal_owner` on `app.workspaces(owner_id) WHERE kind = 'personal'`.
+  - Reconciled existing duplicate workspaces to `kind = 'room'` with suffix ` (Legacy Room)`.
+  - Added atomic idempotent provisioning `POST /v1/workspaces/provision` returning 201 on initial creation and 200 on repeated calls, without overwriting custom display names or preferences (`ON CONFLICT (id) DO UPDATE SET updated_at = app.profiles.updated_at`).
+  - Enforced single personal workspace constraint: attempting to create a second personal workspace via `POST /v1/workspaces` returns 409 `ConflictError`.
+- **User Preferences & Optimistic Concurrency Control:**
+  - Added domain invariants for IANA time zones (`Intl.DateTimeFormat`), BCP 47 locales (`Intl.Locale`), and week start days (`monday`, `sunday`, `saturday`).
+  - Separated preferences schema version (`preferences_schema_version = 1`) from optimistic concurrency sequence (`revision`).
+  - Added `GET /v1/users/me/preferences` and `PATCH /v1/users/me/preferences` endpoints with revision conflict detection returning 409 Conflict when concurrent updates occur.
+  - Hardened Fastify error handling to return 400 for `ValidationError` and 409 for `ConflictError`.
+- **Web Client Integration (`apps/web`):**
+  - Added route handlers `POST /api/workspaces/provision` and `GET/PATCH /api/users/preferences` protected with double-submit CSRF validation and SameSite cookies.
+  - Extended `AuthContext` with workspace provisioning, preferences loading/saving, and cache synchronization.
+  - Updated `apps/web/src/app/settings/page.tsx` with Personal Workspace status card, IANA time zone selector, locale selector, week start radio group, compact mode toggle, loading spinners, and concurrency conflict warning banner.
+- **Mobile Client Integration (`apps/mobile`):**
+  - Extended `MobileProviderAuthAdapter` with `provisionPersonalWorkspace`, `getPreferences`, `updatePreferences`, and `getAccessToken`.
+  - Persisted `workspaceId` in OS-backed KeyStore (`expo-secure-store` / `SEC_KEY_WORKSPACE_ID`) and restored on cold restart. Purged on sign-out.
+  - Updated `apps/mobile/src/views/SettingsView.tsx` with Section 5b: Personal Workspace status card, week start radio buttons (48dp touch targets), and time zone display.
+- **Client SDK & Contracts:**
+  - Added workspace and preferences methods to `@daynori/api-client` (`provisionPersonalWorkspace`, `getPersonalWorkspace`, `getUserPreferences`, `updateUserPreferences`, `ApiConflictError`).
+  - Added `ProfileSchema`, `ProvisionWorkspaceRequestSchema`, `ProvisionWorkspaceResponseSchema`, `UpdatePreferencesRequestSchema`, `ProfileResponseSchema`, `WeekStartSchema`, and `DisplayPreferencesSchema` to `@daynori/contracts`.
+
 ## Phase 09 Authentication Defect Repairs & Security Hardening — 2026-10-15
 
 - **Removed Automatic Simulated Authentication from Runtime:**

@@ -9,6 +9,8 @@ import {
   MemberResponseSchema,
   ItemListResponseSchema,
   ItemResponseSchema,
+  ProvisionWorkspaceResponseSchema,
+  ProfileResponseSchema,
   type HealthResponse,
   type SmokeResponse,
   type HealthCheckResponse,
@@ -24,12 +26,17 @@ import {
   type CreateItemRequestInput,
   type ItemListQueryInput,
   type Item,
+  type ProvisionWorkspaceRequest,
+  type ProvisionWorkspaceResponse,
+  type ProfileResponse,
+  type UpdatePreferencesRequest,
 } from '@daynori/contracts';
 import {
   ApiClientError,
   ApiAuthError,
   ApiNotFoundError,
   ApiValidationError,
+  ApiConflictError,
   ApiRateLimitError,
   ApiPayloadTooLargeError,
 } from './errors.js';
@@ -180,6 +187,8 @@ export class DaynoriApiClient {
         throw new ApiAuthError(message, { requestId });
       case 404:
         throw new ApiNotFoundError(message, { requestId });
+      case 409:
+        throw new ApiConflictError(message, { requestId });
       case 413:
         throw new ApiPayloadTooLargeError(message, { requestId });
       case 429:
@@ -235,6 +244,42 @@ export class DaynoriApiClient {
       options
     );
     return WorkspaceResponseSchema.parse(raw);
+  }
+
+  async provisionPersonalWorkspace(
+    data?: ProvisionWorkspaceRequest,
+    options?: RequestOptions
+  ): Promise<ProvisionWorkspaceResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/workspaces/provision',
+      { method: 'POST', body: data ? JSON.stringify(data) : undefined },
+      options
+    );
+    return ProvisionWorkspaceResponseSchema.parse(raw);
+  }
+
+  async getPersonalWorkspace(options?: RequestOptions): Promise<WorkspaceResponse> {
+    const raw = await this.request<unknown>('/v1/workspaces/personal', { method: 'GET' }, options);
+    return WorkspaceResponseSchema.parse(raw);
+  }
+
+  // --- Users & Preferences ---
+
+  async getUserPreferences(options?: RequestOptions): Promise<ProfileResponse> {
+    const raw = await this.request<unknown>('/v1/users/me/preferences', { method: 'GET' }, options);
+    return ProfileResponseSchema.parse(raw);
+  }
+
+  async updateUserPreferences(
+    data: UpdatePreferencesRequest,
+    options?: RequestOptions
+  ): Promise<ProfileResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/users/me/preferences',
+      { method: 'PATCH', body: JSON.stringify(data) },
+      options
+    );
+    return ProfileResponseSchema.parse(raw);
   }
 
   // --- Memberships ---

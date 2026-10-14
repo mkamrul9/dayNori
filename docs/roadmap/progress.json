@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-14",
+  "updatedAt": "2026-10-15",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 09 provisional account journeys implemented across web same-origin cookies and Android KeyStore storage adapter with draft quarantine, verified against live Supabase Auth container daemon. Completion claims for Phases 04–06 and Phase 09 remain blocked pending physical Android TalkBack hardware verification.",
-  "note": "Phase 09 (Authentication across web and Android) provisional implementation delivered and verified with same-origin cookies, CSRF protection, Android OS KeyStore secure storage, and cross-account draft quarantine against live Supabase Auth container daemon. Phase 04 and Phase 06 hardware gates remain blocked pending physical Android TalkBack verification.",
+  "schedulingDecision": "Phase 10 provisional personal workspace provisioning and user preferences delivered across database, Fastify API, web, and mobile. Completion claims for Phases 04–06, Phase 09, and Phase 10 remain blocked pending physical Android TalkBack hardware verification.",
+  "note": "Phase 10 (Personal workspace and preferences) provisional implementation delivered and verified with database-enforced uniqueness, idempotent provisioning, IANA time zone/locale validation, optimistic concurrency control, and cross-platform UI integration. Physical Android TalkBack verification gates from prerequisite Phases 04, 06, and 09 remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -62,7 +62,9 @@
     },
     {
       "id": "10",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional personal workspace and user preferences implementation delivered and verified across PostgreSQL, Fastify API, web, and mobile. Completion blocked pending prerequisite Phase 04–06 and Phase 09 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-10.md"
     },
     {
       "id": "11",

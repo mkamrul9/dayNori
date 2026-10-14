@@ -16,6 +16,7 @@ import { createErrorHandler } from './plugins/errorHandler.js';
 import { registerHealthRoutes } from './routes/v1/health.js';
 import { registerOpenApiRoutes } from './routes/v1/openapi.js';
 import { registerWorkspaceRoutes } from './routes/v1/workspaces.js';
+import { registerUserRoutes } from './routes/v1/users.js';
 import { registerMemberRoutes } from './routes/v1/members.js';
 import { registerItemRoutes } from './routes/v1/items.js';
 
@@ -128,6 +129,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
     app.register(async (authScope) => {
       authScope.addHook('preHandler', authenticate);
       registerWorkspaceRoutes(authScope, runtimePool);
+      registerUserRoutes(authScope, runtimePool);
       registerMemberRoutes(authScope, runtimePool);
       registerItemRoutes(authScope, runtimePool);
     });

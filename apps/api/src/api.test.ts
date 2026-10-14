@@ -600,7 +600,7 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
         },
         payload: JSON.stringify({
           name: `Pagination Test Workspace ${suffix}`,
-          kind: 'personal',
+          kind: 'room',
         }),
       });
       paginatedWsId = JSON.parse(wsRes.body).data.id;
@@ -845,7 +845,7 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
           authorization: `Bearer ${tokenUser1}`,
           'content-type': 'application/json',
         },
-        payload: JSON.stringify({ name: 'Phase 08 Workspace 1' }),
+        payload: JSON.stringify({ name: 'Phase 08 Workspace 1', kind: 'room' }),
       });
       workspace1Id = JSON.parse(wsRes1.body).data.id;
 
@@ -856,7 +856,7 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
           authorization: `Bearer ${tokenUser1}`,
           'content-type': 'application/json',
         },
-        payload: JSON.stringify({ name: 'Phase 08 Workspace 2' }),
+        payload: JSON.stringify({ name: 'Phase 08 Workspace 2', kind: 'room' }),
       });
       workspace2Id = JSON.parse(wsRes2.body).data.id;
     });

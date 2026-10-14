@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@daynori/api-client": "workspace:*",
     "@daynori/contracts": "workspace:*",
     "@daynori/design-tokens": "workspace:*",
     "@daynori/ui-web": "workspace:*",

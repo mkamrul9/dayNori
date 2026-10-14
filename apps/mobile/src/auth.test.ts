@@ -1,9 +1,11 @@
 import { describe, expect, it, beforeEach } from 'vitest';
+import type { UpdatePreferencesRequest } from '@daynori/contracts';
 import {
   MobileProviderAuthAdapter,
   SEC_KEY_ACCESS_TOKEN,
   SEC_KEY_USER_ID,
   SEC_KEY_USER_EMAIL,
+  SEC_KEY_WORKSPACE_ID,
   SEC_KEY_SESSION_REVOKED,
   type MobileUser,
   type ProviderClientContract,
@@ -126,6 +128,43 @@ describe('Android Mobile Authentication & Session Lifecycle (Phase 09 Hardened)'
         };
       }
       throw new Error('Authorization code exchange failed');
+    }
+
+    async provisionWorkspace(token: string) {
+      const id = token.replace('valid_mobile_at_', '');
+      return { workspaceId: `ws_personal_${id}` };
+    }
+
+    async getPreferences(token: string) {
+      const id = token.replace('valid_mobile_at_', '');
+      return {
+        id,
+        displayName: 'Mobile Member',
+        preferredLocale: 'en',
+        timeZone: 'UTC',
+        weekStart: 'monday' as const,
+        preferences: { theme: 'system' as const, compactMode: false },
+        preferencesSchemaVersion: 1,
+        revision: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    async updatePreferences(token: string, params: UpdatePreferencesRequest) {
+      const id = token.replace('valid_mobile_at_', '');
+      return {
+        id,
+        displayName: params.displayName || 'Mobile Member',
+        preferredLocale: params.preferredLocale || 'en',
+        timeZone: params.timeZone || 'UTC',
+        weekStart: params.weekStart || ('monday' as const),
+        preferences: params.preferences || { theme: 'system' as const, compactMode: false },
+        preferencesSchemaVersion: 1,
+        revision: (params.expectedRevision || 1) + 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
     }
   }
 
@@ -443,6 +482,95 @@ describe('Android Mobile Authentication & Session Lifecycle (Phase 09 Hardened)'
       const user1Quarantine = authAdapter.getQuarantinedDrafts();
       expect(user1Quarantine.length).toBe(1);
       expect(user1Quarantine[0]?.userId).toBe(user1.id);
+    });
+  });
+
+  describe('Mobile Personal Workspace & User Preferences Integration (Phase 10)', () => {
+    it('provisions personal workspace, updates currentUser, and persists in KeyStore', async () => {
+      await authAdapter.signUp({
+        email: 'p10user@daynori.local',
+        password: 'passwordP10',
+        displayName: 'P10 User',
+      });
+      await authAdapter.signInWithPassword({
+        email: 'p10user@daynori.local',
+        password: 'passwordP10',
+      });
+
+      expect(authAdapter.getCurrentUser()?.workspaceId).toBeNull();
+
+      const wsId = await authAdapter.provisionPersonalWorkspace();
+      expect(wsId).toBeDefined();
+      expect(wsId).toContain('ws_personal_');
+      expect(authAdapter.getCurrentUser()?.workspaceId).toBe(wsId);
+
+      const storedWsId = await secureStore.getItemAsync(SEC_KEY_WORKSPACE_ID);
+      expect(storedWsId).toBe(wsId);
+    });
+
+    it('restoreSession restores persisted workspaceId into active session', async () => {
+      await secureStore.setItemAsync(SEC_KEY_ACCESS_TOKEN, 'valid_mobile_at_persisted_ws_user');
+      await secureStore.setItemAsync(SEC_KEY_USER_ID, 'persisted_ws_user');
+      await secureStore.setItemAsync(SEC_KEY_USER_EMAIL, 'ws_persisted@daynori.local');
+      await secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, 'ws_personal_persisted_ws_user');
+
+      const freshAdapter = new MobileProviderAuthAdapter({
+        secureStore,
+        quarantineManager: defaultDraftQuarantine,
+        providerClient: mockProvider,
+      });
+
+      const restored = await freshAdapter.restoreSession();
+      expect(restored).toBe(true);
+      expect(freshAdapter.getCurrentUser()?.workspaceId).toBe('ws_personal_persisted_ws_user');
+    });
+
+    it('getPreferences and updatePreferences communicate through adapter', async () => {
+      await authAdapter.signUp({
+        email: 'prefuser@daynori.local',
+        password: 'passwordP10',
+        displayName: 'Pref User',
+      });
+      await authAdapter.signInWithPassword({
+        email: 'prefuser@daynori.local',
+        password: 'passwordP10',
+      });
+
+      const prefs = await authAdapter.getPreferences();
+      expect(prefs).toBeDefined();
+      expect(prefs?.timeZone).toBe('UTC');
+      expect(prefs?.weekStart).toBe('monday');
+
+      const updated = await authAdapter.updatePreferences({
+        timeZone: 'Asia/Tokyo',
+        weekStart: 'sunday',
+        expectedRevision: 1,
+      });
+
+      expect(updated?.timeZone).toBe('Asia/Tokyo');
+      expect(updated?.weekStart).toBe('sunday');
+      expect(updated?.revision).toBe(2);
+    });
+
+    it('signOut purges persisted workspaceId and previous account state', async () => {
+      await authAdapter.signUp({
+        email: 'signoutuser@daynori.local',
+        password: 'passwordP10',
+        displayName: 'Signout User',
+      });
+      await authAdapter.signInWithPassword({
+        email: 'signoutuser@daynori.local',
+        password: 'passwordP10',
+      });
+      await authAdapter.provisionPersonalWorkspace();
+      expect(await secureStore.getItemAsync(SEC_KEY_WORKSPACE_ID)).toBeTruthy();
+
+      await authAdapter.signOut();
+      expect(authAdapter.isAuthenticated()).toBe(false);
+      expect(authAdapter.getCurrentUser()).toBeNull();
+
+      const storedWs = await secureStore.getItemAsync(SEC_KEY_WORKSPACE_ID);
+      expect(storedWs).toBeNull();
     });
   });
 });

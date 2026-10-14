@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
-import { Button, Card, Feedback } from '@daynori/ui-web';
+import { Button, Card, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import { useShell } from '../../components/ShellContext';
+import { useAuth } from '../../components/AuthContext';
 
 export default function SettingsPage() {
   const {
@@ -18,6 +19,93 @@ export default function SettingsPage() {
     shortcutsEnabled,
     setShortcutsEnabled,
   } = useShell();
+
+  const {
+    isAuthenticated,
+    workspaceId,
+    preferences,
+    loadPreferences,
+    savePreferences,
+    provisionPersonalWorkspace,
+    openAuthModal,
+  } = useAuth();
+
+  const [formTimeZone, setFormTimeZone] = useState<string>('UTC');
+  const [formLocale, setFormLocale] = useState<string>('en');
+  const [formWeekStart, setFormWeekStart] = useState<'monday' | 'sunday' | 'saturday'>('monday');
+  const [formCompactMode, setFormCompactMode] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isProvisioning, setIsProvisioning] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<{
+    severity: FeedbackSeverity;
+    message: string;
+  } | null>(null);
+
+  // Sync form with loaded preferences
+  useEffect(() => {
+    if (preferences) {
+      setFormTimeZone(preferences.timeZone);
+      setFormLocale(preferences.preferredLocale);
+      setFormWeekStart(preferences.weekStart);
+      setFormCompactMode(preferences.compactMode);
+    }
+  }, [preferences]);
+
+  // Initial load of preferences if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPreferences();
+    }
+  }, [isAuthenticated, loadPreferences]);
+
+  const handleSavePreferences = useCallback(async () => {
+    setIsSaving(true);
+    setFeedback(null);
+
+    const res = await savePreferences({
+      timeZone: formTimeZone,
+      preferredLocale: formLocale,
+      weekStart: formWeekStart,
+      compactMode: formCompactMode,
+    });
+
+    setIsSaving(false);
+    if (res.conflict) {
+      setFeedback({
+        severity: 'warning',
+        message:
+          'Revision conflict: Preferences were modified in another session. Your unsaved edits are preserved above. Click Save again to overwrite, or reload to fetch latest.',
+      });
+    } else if (!res.success) {
+      setFeedback({
+        severity: 'danger',
+        message: res.error || 'Failed to save preferences. Please check values.',
+      });
+    } else {
+      setFeedback({
+        severity: 'success',
+        message: `Preferences saved successfully (Revision ${res.updated?.revision ?? 1}).`,
+      });
+    }
+  }, [formTimeZone, formLocale, formWeekStart, formCompactMode, savePreferences]);
+
+  const handleProvisionWorkspace = useCallback(async () => {
+    setIsProvisioning(true);
+    setFeedback(null);
+    const wsId = await provisionPersonalWorkspace();
+    setIsProvisioning(false);
+    if (wsId) {
+      setFeedback({
+        severity: 'success',
+        message: `Personal workspace provisioned successfully (ID: ${wsId}).`,
+      });
+    } else {
+      setFeedback({
+        severity: 'danger',
+        message: 'Workspace provisioning failed. Please try again.',
+      });
+    }
+  }, [provisionPersonalWorkspace]);
 
   const palette = colors[themeMode];
 
@@ -290,6 +378,288 @@ export default function SettingsPage() {
               Shortcuts Disabled
             </Button>
           </div>
+        </Card>
+
+        {/* Personal Workspace & Account Preferences (Phase 10) */}
+        <Card themeMode={themeMode}>
+          <h2
+            style={{
+              margin: '0 0 4px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Personal Workspace & Preferences
+          </h2>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
+            Manage your personal private workspace and synced profile preferences (time zone,
+            locale, week start, and compact display).
+          </p>
+
+          {feedback && (
+            <div style={{ marginBottom: `${spacing.base}px` }}>
+              <Feedback
+                severity={feedback.severity}
+                message={feedback.message}
+                themeMode={themeMode}
+              />
+            </div>
+          )}
+
+          {!isAuthenticated ? (
+            <div>
+              <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: palette.text.secondary }}>
+                Sign in to activate your dedicated personal workspace and sync preferences across
+                your devices.
+              </p>
+              <Button
+                variant="primary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => openAuthModal()}
+                id="settings-sign-in-btn"
+              >
+                Sign In to Access Workspace
+              </Button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
+              {/* Workspace Status */}
+              <div
+                style={{
+                  padding: `${spacing.sm}px ${spacing.base}px`,
+                  borderRadius: `${radii.sm}px`,
+                  backgroundColor: palette.surfaceRaised,
+                  border: `1px solid ${palette.border.subtle}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: `${spacing.xs}px`,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: palette.text.secondary }}>
+                    Active Personal Workspace
+                  </div>
+                  <div
+                    id="active-workspace-id"
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: workspaceId ? palette.status.success : palette.text.secondary,
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    {workspaceId ? workspaceId : 'Workspace not provisioned'}
+                  </div>
+                </div>
+                {!workspaceId && (
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    themeMode={themeMode}
+                    onClick={handleProvisionWorkspace}
+                    disabled={isProvisioning}
+                    id="provision-workspace-btn"
+                  >
+                    {isProvisioning ? 'Provisioning...' : 'Provision Workspace'}
+                  </Button>
+                )}
+              </div>
+
+              {/* Form Controls */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: `${spacing.base}px`,
+                }}
+              >
+                {/* Time Zone */}
+                <div>
+                  <label
+                    htmlFor="time-zone-select"
+                    style={{
+                      display: 'block',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: palette.text.primary,
+                      marginBottom: '6px',
+                    }}
+                  >
+                    IANA Time Zone
+                  </label>
+                  <select
+                    id="time-zone-select"
+                    value={formTimeZone}
+                    onChange={(e) => setFormTimeZone(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: `${radii.sm}px`,
+                      border: `1px solid ${palette.border.subtle}`,
+                      backgroundColor: palette.surface,
+                      color: palette.text.primary,
+                      fontSize: '14px',
+                      minHeight: `${touchTargets.webMin}px`,
+                    }}
+                  >
+                    <option value="UTC">UTC (Coordinated Universal Time)</option>
+                    <option value="America/New_York">America/New_York (Eastern)</option>
+                    <option value="America/Chicago">America/Chicago (Central)</option>
+                    <option value="America/Denver">America/Denver (Mountain)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+                    <option value="Europe/London">Europe/London (GMT/BST)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET)</option>
+                    <option value="Asia/Dhaka">Asia/Dhaka (BST)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                  </select>
+                </div>
+
+                {/* Preferred Locale */}
+                <div>
+                  <label
+                    htmlFor="locale-select"
+                    style={{
+                      display: 'block',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: palette.text.primary,
+                      marginBottom: '6px',
+                    }}
+                  >
+                    Preferred Locale
+                  </label>
+                  <select
+                    id="locale-select"
+                    value={formLocale}
+                    onChange={(e) => setFormLocale(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: `${radii.sm}px`,
+                      border: `1px solid ${palette.border.subtle}`,
+                      backgroundColor: palette.surface,
+                      color: palette.text.primary,
+                      fontSize: '14px',
+                      minHeight: `${touchTargets.webMin}px`,
+                    }}
+                  >
+                    <option value="en">English (Default)</option>
+                    <option value="en-US">English (United States)</option>
+                    <option value="en-GB">English (United Kingdom)</option>
+                    <option value="bn">বাংলা (Bangla)</option>
+                    <option value="es">Español (Spanish)</option>
+                    <option value="fr">Français (French)</option>
+                    <option value="de">Deutsch (German)</option>
+                    <option value="ja">日本語 (Japanese)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Week Start */}
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: palette.text.primary,
+                    marginBottom: '6px',
+                  }}
+                >
+                  Week Starts On
+                </label>
+                <div
+                  role="radiogroup"
+                  aria-label="Week start day"
+                  style={{ display: 'flex', gap: `${spacing.xs}px`, flexWrap: 'wrap' }}
+                >
+                  {(['monday', 'sunday', 'saturday'] as const).map((day) => {
+                    const isSelected = formWeekStart === day;
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        id={`weekstart-${day}-btn`}
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => setFormWeekStart(day)}
+                        style={{
+                          padding: '6px 16px',
+                          borderRadius: `${radii.sm}px`,
+                          border: `1.5px solid ${isSelected ? palette.action.primary : palette.border.subtle}`,
+                          backgroundColor: isSelected ? palette.surfaceRaised : palette.surface,
+                          color: isSelected ? palette.action.primary : palette.text.primary,
+                          fontWeight: isSelected ? 700 : 500,
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          minHeight: `${touchTargets.webMin}px`,
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Display: Compact Mode */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+                <input
+                  type="checkbox"
+                  id="compact-mode-toggle"
+                  checked={formCompactMode}
+                  onChange={(e) => setFormCompactMode(e.target.checked)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    cursor: 'pointer',
+                  }}
+                />
+                <label
+                  htmlFor="compact-mode-toggle"
+                  style={{
+                    fontSize: '14px',
+                    color: palette.text.primary,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Enable Compact Mode (denser list items and reduced padding)
+                </label>
+              </div>
+
+              {/* Actions */}
+              <div
+                style={{ display: 'flex', gap: `${spacing.sm}px`, marginTop: `${spacing.xs}px` }}
+              >
+                <Button
+                  variant="primary"
+                  size="compact"
+                  themeMode={themeMode}
+                  onClick={handleSavePreferences}
+                  disabled={isSaving}
+                  id="save-preferences-btn"
+                >
+                  {isSaving ? 'Saving Preferences...' : 'Save Preferences'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  themeMode={themeMode}
+                  onClick={loadPreferences}
+                  disabled={isSaving}
+                  id="reload-preferences-btn"
+                >
+                  Reload from Server
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* 6. Storage & Privacy Architecture */}
