@@ -25,6 +25,11 @@ export const ItemSchema = z.object({
   updatedAt: z.string().datetime(),
   deletedAt: z.string().datetime().nullable(),
   displayOrder: z.number().int(),
+  revision: z.number().int().nonnegative().default(1),
+  rank: z.string().default('0'),
+  isArchived: z.boolean().default(false),
+  isPinned: z.boolean().default(false),
+  securityScope: z.enum(['standard', 'vault']).default('standard'),
 });
 
 export type Item = z.infer<typeof ItemSchema>;

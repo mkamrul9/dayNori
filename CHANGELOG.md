@@ -1,5 +1,22 @@
 # Changelog
 
+## Hardening & Defect Repairs (Phases 11 & 12) — 2026-10-15
+
+- **Phase 11 Storage & Verification Hardening (`apps/mobile` & `scripts`):**
+  - Updated `SqliteLocalRepository` to enforce `requireSqlCipher: true` by default and perform genuine file-existence checks before creating keys, protecting existing encrypted data.
+  - Added transaction concurrency mutex (`runWithLock`) to `SqliteLocalRepository` preventing interleaving of concurrent queries into active transactions.
+  - Rewrote Chromium browser CDP verification script (`scripts/test-indexeddb-browser.mjs`) to load and verify the actual production `IndexedDbLocalRepository` across consent, atomicity, persistence, tenant isolation, rollback, and multi-tab coordination.
+- **Phase 12 Protocol & Receipt Defect Repairs (`apps/api`, `packages/contracts`, `infra/supabase`):**
+  - Implemented deterministic topological dependency ordering in `pushBatch` with 3-color DFS cycle detection and terminal failure persistence (`DEPENDENCY_CYCLE`, `DEPENDENCY_MISSING`, `DEPENDENCY_FAILED`).
+  - Added receipt rechecking after acquiring workspace sync lock, ensuring identical concurrent creates return the same committed receipt.
+  - Narrowed duplicate-key recovery strictly to the mutation receipts uniqueness constraint (`uq_mutation_receipts_actor_device_op`).
+  - Enforced recursive key-sorted canonical hashing over command versions, dependencies, and payloads.
+  - Updated `bootstrap` to return full projection representation (`revision`, `rank`, `isArchived`, `isPinned`, `securityScope`) under `REPEATABLE READ` snapshot isolation.
+  - Fixed nullable updates: explicitly clearing `folderId` via `null` works.
+  - Preserved tombstone semantics: updating a deleted item returns terminal rejection `ENTITY_TOMBSTONED`.
+  - Integrated REST API item mutations (`POST` / `DELETE`) into the change feed sequence and outbox intents.
+  - Applied migration `00011_repair_receipt_rls.sql` repairing receipt RLS to require active workspace viewer membership, and rotated access epochs on workspace membership mutations.
+
 ## Phase 12 — Server mutation receipts and change feed — 2026-10-15
 
 - **PostgreSQL Commit-Safe Sequence & Ordered Change Feed (`infra/supabase` & `apps/api`):**

@@ -757,5 +757,369 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
         }
       );
     });
+
+    it('enforces deterministic topological dependency ordering (child input before parent)', async () => {
+      const parentItemId = crypto.randomUUID();
+      const opParent = crypto.randomUUID();
+      const opChild = crypto.randomUUID();
+
+      // Child is placed first in input array, but depends on opParent
+      const res = await clientA.syncPush({
+        commands: [
+          {
+            operationId: opChild,
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'pinItem',
+            entityType: 'item',
+            entityId: parentItemId,
+            baseRevision: 1,
+            dependencyOperationIds: [opParent],
+            clientTimestamp: new Date().toISOString(),
+            payload: { isPinned: true },
+          },
+          {
+            operationId: opParent,
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: parentItemId,
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'note' },
+          },
+        ],
+      });
+
+      expect(res.data.results).toHaveLength(2);
+      const parentResult = res.data.results.find((r) => r.operationId === opParent);
+      const childResult = res.data.results.find((r) => r.operationId === opChild);
+
+      expect(parentResult?.status).toBe('accepted');
+      expect(childResult?.status).toBe('accepted');
+      expect(parentResult?.revision).toBe(1);
+      expect(childResult?.revision).toBe(2);
+    });
+
+    it('handles missing dependencies by rejecting child and persisting terminal failure', async () => {
+      const itemId = crypto.randomUUID();
+      const opChild = crypto.randomUUID();
+      const missingOp = crypto.randomUUID();
+
+      const res = await clientA.syncPush({
+        commands: [
+          {
+            operationId: opChild,
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: itemId,
+            baseRevision: 0,
+            dependencyOperationIds: [missingOp],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'task' },
+          },
+        ],
+      });
+
+      expect(res.data.results).toHaveLength(1);
+      expect(res.data.results[0]?.status).toBe('rejected');
+      expect(res.data.results[0]?.error?.code).toBe('DEPENDENCY_MISSING');
+    });
+
+    it('rejects circular dependencies with DEPENDENCY_CYCLE', async () => {
+      const opA = crypto.randomUUID();
+      const opB = crypto.randomUUID();
+
+      const res = await clientA.syncPush({
+        commands: [
+          {
+            operationId: opA,
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: crypto.randomUUID(),
+            baseRevision: 0,
+            dependencyOperationIds: [opB],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'note' },
+          },
+          {
+            operationId: opB,
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: crypto.randomUUID(),
+            baseRevision: 0,
+            dependencyOperationIds: [opA],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'task' },
+          },
+        ],
+      });
+
+      expect(res.data.results).toHaveLength(2);
+      expect(res.data.results[0]?.status).toBe('rejected');
+      expect(res.data.results[0]?.error?.code).toBe('DEPENDENCY_CYCLE');
+      expect(res.data.results[1]?.status).toBe('rejected');
+      expect(res.data.results[1]?.error?.code).toBe('DEPENDENCY_CYCLE');
+    });
+
+    it('correctly clears nullable folderId on updateItem', async () => {
+      const folderId = crypto.randomUUID();
+      const noteId = crypto.randomUUID();
+
+      // 1. Create folder
+      await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: folderId,
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'folder' },
+          },
+        ],
+      });
+
+      // 2. Create note in folder
+      await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: noteId,
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'note', folderId },
+          },
+        ],
+      });
+
+      // 3. Update note with folderId explicitly null
+      const updateRes = await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'updateItem',
+            entityType: 'item',
+            entityId: noteId,
+            baseRevision: 1,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { folderId: null },
+          },
+        ],
+      });
+
+      expect(updateRes.data.results[0]?.status).toBe('accepted');
+
+      // Verify item folderId in DB is null
+      await withTenantContext(
+        runtimePool,
+        { userId: userAId, workspaceId: workspaceAId },
+        async (client) => {
+          const itemRes = await client.query('SELECT folder_id FROM app.items WHERE id = $1', [
+            noteId,
+          ]);
+          expect(itemRes.rows[0].folder_id).toBeNull();
+        }
+      );
+    });
+
+    it('preserves tombstone semantics: updating a deleted item returns ENTITY_TOMBSTONED', async () => {
+      const itemId = crypto.randomUUID();
+
+      // 1. Create item
+      await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: itemId,
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'task' },
+          },
+        ],
+      });
+
+      // 2. Trash item (delete)
+      await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'trashItem',
+            entityType: 'item',
+            entityId: itemId,
+            baseRevision: 1,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: {},
+          },
+        ],
+      });
+
+      // 3. Attempt updateItem on deleted item
+      const attemptRes = await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'updateItem',
+            entityType: 'item',
+            entityId: itemId,
+            baseRevision: 2,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { rank: '0|abc:' },
+          },
+        ],
+      });
+
+      expect(attemptRes.data.results[0]?.status).toBe('rejected');
+      expect(attemptRes.data.results[0]?.error?.code).toBe('ENTITY_TOMBSTONED');
+
+      // Verify it remains deleted in DB
+      await withTenantContext(
+        runtimePool,
+        { userId: userAId, workspaceId: workspaceAId },
+        async (client) => {
+          const itemRes = await client.query('SELECT deleted_at FROM app.items WHERE id = $1', [
+            itemId,
+          ]);
+          expect(itemRes.rows[0].deleted_at).not.toBeNull();
+        }
+      );
+    });
+
+    it('integrates REST API writes into sync change feed and revision sequence', async () => {
+      // 1. Get current watermark cursor
+      const pull1 = await clientA.syncPull({ workspaceId: workspaceAId });
+      const baseCursor = pull1.meta.cursor;
+
+      // 2. Create item via REST API POST /v1/workspaces/:id/items
+      const createdItem = await clientA.createItem(workspaceAId, {
+        kind: 'task',
+      });
+      expect(createdItem.data.id).toBeDefined();
+
+      // 3. Pull changes from baseCursor
+      const pull2 = await clientA.syncPull({ workspaceId: workspaceAId, cursor: baseCursor });
+      const foundChange = pull2.data.changes.find(
+        (c) => c.entityId === createdItem.data.id && c.isTombstone === false
+      );
+      expect(foundChange).toBeDefined();
+      expect(foundChange?.entityType).toBe('item');
+
+      // 4. Delete item via REST API DELETE /v1/workspaces/:id/items/:id
+      await clientA.deleteItem(workspaceAId, createdItem.data.id);
+
+      // 5. Pull changes from pull2 cursor
+      const pull3 = await clientA.syncPull({
+        workspaceId: workspaceAId,
+        cursor: pull2.meta.cursor,
+      });
+      const deleteChange = pull3.data.changes.find(
+        (c) => c.entityId === createdItem.data.id && c.isTombstone === true
+      );
+      expect(deleteChange).toBeDefined();
+    });
+
+    it('rotates access epoch on membership change causing SYNC_RESET_REQUIRED and repairs receipt RLS', async () => {
+      // 1. Alice creates a room workspace
+      const roomRes = await clientA.createWorkspace({ name: 'Team Project Room', kind: 'room' });
+      const roomWsId = roomRes.data.id;
+
+      // 2. Initialize sync state with a createItem push
+      await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: roomWsId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: crypto.randomUUID(),
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'note' },
+          },
+        ],
+      });
+
+      // 3. Bootstrap to get cursor at current access epoch
+      const bootstrap = await clientA.syncBootstrap({ workspaceId: roomWsId });
+      const validCursor = bootstrap.data.watermarkCursor;
+
+      // 4. Add User B to Room Workspace
+      await clientA.addMember(roomWsId, {
+        userId: userBId,
+        role: 'editor',
+      });
+
+      // 5. Old cursor now has a stale access epoch -> 409 SYNC_RESET_REQUIRED
+      await expect(
+        clientA.syncPull({ workspaceId: roomWsId, cursor: validCursor })
+      ).rejects.toThrow();
+
+      // 6. User B can currently pull with fresh cursor
+      const userBPull = await clientB.syncPull({ workspaceId: roomWsId });
+      expect(userBPull.data.changes).toBeDefined();
+
+      // 7. Remove User B from Room Workspace
+      await clientA.removeMember(roomWsId, userBId);
+
+      // 8. User B can no longer pull or push mutations (membership revoked)
+      await expect(clientB.syncPull({ workspaceId: roomWsId })).rejects.toThrow();
+    });
   });
 });

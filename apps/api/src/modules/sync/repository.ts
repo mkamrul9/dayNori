@@ -351,6 +351,7 @@ export async function updateItemForSync(
     id: string;
     workspaceId: string;
     folderId?: string | null;
+    clearFolderId?: boolean;
     rank?: string;
     updatedBy: string;
     revision: number;
@@ -358,15 +359,16 @@ export async function updateItemForSync(
 ): Promise<void> {
   await client.query(
     `UPDATE app.items
-     SET folder_id = COALESCE($3, folder_id),
-         rank = COALESCE($4, rank),
-         updated_by = $5,
-         revision = $6,
+     SET folder_id = CASE WHEN $3::boolean THEN NULL ELSE COALESCE($4, folder_id) END,
+         rank = COALESCE($5, rank),
+         updated_by = $6,
+         revision = $7,
          updated_at = now()
      WHERE workspace_id = $1 AND id = $2;`,
     [
       item.workspaceId,
       item.id,
+      Boolean(item.clearFolderId || item.folderId === null),
       item.folderId ?? null,
       item.rank ?? null,
       item.updatedBy,

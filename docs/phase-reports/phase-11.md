@@ -68,16 +68,26 @@ Evidence is classified into distinct categories: Node.js contract simulations, g
   - Fails with actionable `StorageKeyError` and preserves file on disk when database cannot be read.
 - Entire monorepo test suite: `pnpm test` (27 test files, 282 tests, 100% passed in 3.30s).
 
-### 2. Genuine Chromium Browser Execution Evidence (Real IndexedDB via CDP)
+### 2. Genuine Chromium Browser Execution Evidence (Production IndexedDbLocalRepository via CDP)
 
 - Executed: `node scripts/test-indexeddb-browser.mjs`
   - Connected to Microsoft Edge / Chromium (`Edg/155.0.4283.45`) over Chrome DevTools Protocol (CDP) at port 9235.
-  - Verified genuine browser IndexedDB availability (`window.indexedDB`).
-  - Verified deliberate consent checking in real browser `localStorage`: default refusal followed by granted state.
-  - Created real object stores and committed `ItemHeader` record to disk-backed browser IndexedDB.
-  - Verified connection reopen and read-back across separate database transactions.
-  - Verified opt-out and complete database deletion (`indexedDB.deleteDatabase`) in the browser.
-  - Exit code: 0 (`✓ REAL CHROMIUM INDEXEDDB EXECUTION PASSED COMPLETELY`).
+  - Bundled and executed the actual production `IndexedDbLocalRepository` inside the Chromium page context.
+  - Verified 6 critical production scenarios:
+    1. Consent refusal: rejects storage initialization without explicit trusted-device consent.
+    2. Transactional enqueue & atomic save: writes header, draft, and mutation in a single atomic transaction.
+    3. Persistence across page reload: re-reads persisted headers, drafts, and pending mutations after navigation.
+    4. Account and workspace boundary isolation: enforces strict tenant boundaries (`CROSS_WORKSPACE_VIOLATION`, `CROSS_ACCOUNT_VIOLATION`).
+    5. Transaction failure & rollback: ensures failed transaction rolls back all stores without leaving orphan drafts.
+    6. Multi-tab coordination: uses `BroadcastChannel` to coordinate active instances and revoke closed repositories.
+  - Exit code: 0 (`✓ PRODUCTION INDEXEDDB REPOSITORY PASSED ALL 6 BROWSER CDP INTEGRATION CHECKS`).
+
+### 2b. Native SQLite Storage Production Wiring Repairs
+
+- `SqliteLocalRepository`:
+  - Defaulted `requireSqlCipher` to `true` (enforced at initialization).
+  - Added genuine file-existence checking before attempting key creation, ensuring existing encrypted databases with missing/invalid keys fail with recoverable `StorageKeyError` rather than being overwritten.
+  - Added transaction concurrency mutex (`runWithLock`) wrapping all write and transaction operations to prevent concurrent queries from entering active transactions on the same connection.
 
 ### 3. Android Native Capability & Compilation Evidence (SQLCipher Native Build)
 

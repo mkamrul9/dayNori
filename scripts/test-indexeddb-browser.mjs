@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifactsDir = path.join(root, 'artifacts', 'indexeddb-browser');
@@ -25,17 +26,71 @@ const cdpPort = 9235;
 const userDataDir = path.join(root, 'artifacts', 'local', 'browser-idb-profile');
 fs.mkdirSync(userDataDir, { recursive: true });
 
-// Start local HTTP server to provide a real origin for IndexedDB and localStorage
+// Compile production IndexedDB repository and dependencies into browser bundle
+console.log('Compiling production IndexedDbLocalRepository bundle for browser execution...');
+const errorsSrc = fs.readFileSync(path.join(root, 'packages/sync/src/errors.ts'), 'utf8');
+const modelsSrc = fs.readFileSync(path.join(root, 'packages/sync/src/models.ts'), 'utf8');
+let repoSrc = fs.readFileSync(path.join(root, 'apps/web/src/data/indexedDbRepository.ts'), 'utf8');
+
+// Strip TypeScript imports and exports so it forms a clean browser closure
+let cleanErrors = errorsSrc.replace(/^export\s+(default\s+)?/gm, '');
+let cleanModels = modelsSrc.replace(/^export\s+(default\s+)?/gm, '');
+let cleanRepo = repoSrc
+  .replace(/import\s+type\s+[^;]+;\s*/g, '')
+  .replace(/import\s*\{[^}]*\}\s*from\s*['"]@daynori\/sync['"];\s*/g, '')
+  .replace(/^export\s+(default\s+)?/gm, '');
+
+const combinedSource = `
+(function(window) {
+${cleanErrors}
+${cleanModels}
+${cleanRepo}
+
+window.Daynori = {
+  IndexedDbLocalRepository,
+  setTrustedDeviceConsent,
+  clearTrustedDeviceConsent,
+  getTrustedDeviceConsent,
+  clearAllLocalData,
+  StorageQuotaError,
+  StorageUnavailableError,
+  StorageMigrationError,
+  TrustedDeviceConsentRequiredError
+};
+})(window);
+`;
+
+const transpiledBundle = ts.transpileModule(combinedSource, {
+  compilerOptions: {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.None,
+    removeComments: true,
+  },
+}).outputText;
+
+// Start local HTTP server to host test page and bundle under origin http://127.0.0.1:3199
 const httpServer = http.createServer((req, res) => {
+  if (req.url === '/daynori-indexeddb.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript' });
+    res.end(transpiledBundle);
+    return;
+  }
   res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end(
-    '<!DOCTYPE html><html><head><title>Daynori IndexedDB Test</title></head><body><h1>Daynori Test Page</h1></body></html>'
-  );
+  res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Daynori IndexedDB Test</title>
+  <script src="/daynori-indexeddb.js"></script>
+</head>
+<body>
+  <h1>Daynori Production IndexedDbLocalRepository Test</h1>
+</body>
+</html>`);
 });
 
 await new Promise((resolve) => httpServer.listen(httpPort, '127.0.0.1', resolve));
 
-console.log('=== VERIFYING REAL INDEXEDDB ADAPTER IN CHROMIUM BROWSER ===');
+console.log('=== VERIFYING REAL PRODUCTION INDEXEDDB ADAPTER IN CHROMIUM BROWSER ===');
 console.log(`HTTP Server: http://127.0.0.1:${httpPort}`);
 console.log(`Browser: ${browserExe}`);
 console.log(`CDP Port: ${cdpPort}`);
@@ -77,6 +132,7 @@ const tab = tabs.find((t) => t.url.includes(`127.0.0.1:${httpPort}`)) || tabs[0]
 const ws = new WebSocket(tab.webSocketDebuggerUrl);
 
 let msgId = 1;
+const eventHandlers = new Map();
 const send = (method, params = {}) =>
   new Promise((resolve, reject) => {
     const id = msgId++;
@@ -92,9 +148,19 @@ const send = (method, params = {}) =>
     ws.send(JSON.stringify({ id, method, params }));
   });
 
+ws.addEventListener('message', (event) => {
+  const data = JSON.parse(event.data);
+  if (data.method && eventHandlers.has(data.method)) {
+    eventHandlers.get(data.method)(data.params);
+  }
+});
+
 await new Promise((r) => ws.addEventListener('open', r));
 await send('Runtime.enable');
 await send('Page.enable');
+
+// Wait for initial load
+await new Promise((r) => setTimeout(r, 500));
 
 const evaluate = async (expression) => {
   const res = await send('Runtime.evaluate', {
@@ -109,116 +175,255 @@ const evaluate = async (expression) => {
 };
 
 try {
-  // Test 1: Real browser IndexedDB availability
-  const hasIdb = await evaluate(`typeof window.indexedDB !== 'undefined'`);
-  console.log(`[1/5] Real Chromium IndexedDB available: ${hasIdb}`);
-  if (!hasIdb) throw new Error('IndexedDB not supported in browser');
-
-  // Test 2: Exercise consent refusal and granting in real browser context
-  const consentTest = await evaluate(`
+  // Scenario 1: Consent refusal
+  console.log('\n--- Scenario 1: Consent refusal & enforcement ---');
+  const consentRefusalResult = await evaluate(`
     (async () => {
       localStorage.clear();
-      const hasConsentInitial = localStorage.getItem('daynori_trusted_device_consent') === 'granted';
-      
-      localStorage.setItem('daynori_trusted_device_consent', 'granted');
-      const hasConsentGranted = localStorage.getItem('daynori_trusted_device_consent') === 'granted';
-
-      return { hasConsentInitial, hasConsentGranted };
+      const repo = new window.Daynori.IndexedDbLocalRepository();
+      try {
+        await repo.initialize({ userId: 'usr_alice', workspaceId: 'ws_test_01' });
+        return { error: null };
+      } catch (err) {
+        return { error: err.message, code: err.code || err.name };
+      }
     })()
   `);
-  console.log(
-    `[2/5] Consent checking: Initial=${consentTest.hasConsentInitial}, AfterGrant=${consentTest.hasConsentGranted}`
-  );
-  if (consentTest.hasConsentInitial !== false || consentTest.hasConsentGranted !== true) {
-    throw new Error('Consent check failed');
+  console.log(`[1/6] Consent refusal threw: ${consentRefusalResult.error}`);
+  if (!consentRefusalResult.error?.includes('consent')) {
+    throw new Error('Consent check failed: initialize() should have required consent');
   }
 
-  // Test 3: Create object stores and write real data in Chromium IndexedDB
-  const writeResult = await evaluate(`
+  // Scenario 2: Transactional enqueue & atomic multi-store write
+  console.log('\n--- Scenario 2: Transactional enqueue & atomic save ---');
+  const enqueueResult = await evaluate(`
     (async () => {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open('daynori_web_storage', 1);
-        req.onupgradeneeded = () => {
-          const db = req.result;
-          if (!db.objectStoreNames.contains('item_headers')) {
-            db.createObjectStore('item_headers', { keyPath: ['workspaceId', 'id'] });
-          }
-          if (!db.objectStoreNames.contains('drafts')) {
-            db.createObjectStore('drafts', { keyPath: ['workspaceId', 'userId', 'id'] });
-          }
-        };
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction('item_headers', 'readwrite');
-          const store = tx.objectStore('item_headers');
-          store.put({
-            id: 'item-browser-01',
-            workspaceId: 'ws-browser-test',
-            kind: 'note',
-            folderId: null,
-            rank: '0',
-            isArchived: false,
-            isPinned: false,
-            securityScope: 'standard',
-            serverRevision: 1,
-            createdAt: '2026-10-15T12:00:00.000Z',
-            updatedAt: '2026-10-15T12:00:00.000Z',
-            deletedAt: null
-          });
-          tx.oncomplete = () => {
-            db.close();
-            resolve({ written: true });
-          };
-          tx.onerror = () => reject(tx.error);
-        };
-        req.onerror = () => reject(req.error);
-      });
-    })()
-  `);
-  console.log(`[3/5] Written real ItemHeader to Chromium IndexedDB: ${writeResult.written}`);
+      window.Daynori.setTrustedDeviceConsent(true);
+      const repo = new window.Daynori.IndexedDbLocalRepository();
+      await repo.initialize({ userId: 'usr_alice', workspaceId: 'ws_test_01' });
 
-  // Test 4: Reload / Reopen verification (read back from disk via fresh connection)
-  const readBackResult = await evaluate(`
-    (async () => {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open('daynori_web_storage', 1);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction('item_headers', 'readonly');
-          const store = tx.objectStore('item_headers');
-          const getReq = store.get(['ws-browser-test', 'item-browser-01']);
-          getReq.onsuccess = () => {
-            db.close();
-            resolve(getReq.result);
-          };
-          getReq.onerror = () => reject(getReq.error);
-        };
-        req.onerror = () => reject(req.error);
+      // Save Item Header
+      await repo.upsertItemHeader({
+        id: 'item-browser-prod-01',
+        workspaceId: 'ws_test_01',
+        kind: 'note',
+        folderId: null,
+        rank: '0|hzzzzz:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        createdAt: '2026-10-15T12:00:00.000Z',
+        updatedAt: '2026-10-15T12:00:00.000Z',
+        deletedAt: null
       });
+
+      // Save Draft and Mutation atomically
+      await repo.saveDraftAndMutation(
+        {
+          id: 'draft-browser-prod-01',
+          workspaceId: 'ws_test_01',
+          userId: 'usr_alice',
+          entityType: 'note',
+          entityId: 'item-browser-prod-01',
+          title: 'Offline Note Title',
+          payload: { text: 'Real Chromium IndexedDB text' },
+          savedAt: '2026-10-15T12:05:00.000Z',
+          isQuarantined: false,
+          quarantinedAt: null
+        },
+        {
+          operationId: 'op-browser-prod-01',
+          deviceId: 'dev-chromium-01',
+          workspaceId: 'ws_test_01',
+          userId: 'usr_alice',
+          entityType: 'note',
+          entityId: 'item-browser-prod-01',
+          action: 'create',
+          payload: { text: 'Real Chromium IndexedDB text' },
+          baseRevision: 0,
+          dependencyOperationIds: [],
+          clientTimestamp: '2026-10-15T12:05:00.000Z',
+          retryCount: 0,
+          status: 'pending',
+          lastError: null
+        }
+      );
+
+      const header = await repo.getItemHeader('ws_test_01', 'item-browser-prod-01');
+      const draft = await repo.getDraft('ws_test_01', 'usr_alice', 'draft-browser-prod-01');
+      const mutations = await repo.getPendingMutations('ws_test_01', 'usr_alice');
+
+      await repo.close();
+
+      return {
+        hasHeader: Boolean(header),
+        hasDraft: Boolean(draft),
+        mutationCount: mutations.length,
+        mutationOpId: mutations[0]?.operationId
+      };
     })()
   `);
-  console.log(
-    `[4/5] Read back from real IndexedDB across connection: id=${readBackResult?.id}, workspaceId=${readBackResult?.workspaceId}`
-  );
-  if (readBackResult?.id !== 'item-browser-01') {
-    throw new Error('Item could not be read back from IndexedDB');
+  console.log(`[2/6] Transactional write results:`, enqueueResult);
+  if (!enqueueResult.hasHeader || !enqueueResult.hasDraft || enqueueResult.mutationCount !== 1) {
+    throw new Error('Transactional write failed to write draft and mutation');
   }
 
-  // Test 5: Clean deletion & opt-out
-  const deleteResult = await evaluate(`
+  // Scenario 3: Persistence after reload
+  console.log('\n--- Scenario 3: Persistence across page reload ---');
+  await send('Page.reload');
+  await new Promise((r) => setTimeout(r, 600));
+
+  const reloadResult = await evaluate(`
     (async () => {
-      localStorage.removeItem('daynori_trusted_device_consent');
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.deleteDatabase('daynori_web_storage');
-        req.onsuccess = () => resolve({ deleted: true });
-        req.onerror = () => reject(req.error);
-        req.onblocked = () => resolve({ blocked: true });
-      });
+      const repo = new window.Daynori.IndexedDbLocalRepository();
+      await repo.initialize({ userId: 'usr_alice', workspaceId: 'ws_test_01' });
+
+      const header = await repo.getItemHeader('ws_test_01', 'item-browser-prod-01');
+      const draft = await repo.getDraft('ws_test_01', 'usr_alice', 'draft-browser-prod-01');
+      const mutations = await repo.getPendingMutations('ws_test_01', 'usr_alice');
+
+      await repo.close();
+
+      return {
+        reloadedHeaderId: header?.id,
+        reloadedDraftTitle: draft?.title,
+        reloadedOpId: mutations[0]?.operationId
+      };
     })()
   `);
-  console.log(`[5/5] Opt-out and database deletion in Chromium: deleted=${deleteResult.deleted}`);
+  console.log(`[3/6] Reloaded records from disk:`, reloadResult);
+  if (
+    reloadResult.reloadedHeaderId !== 'item-browser-prod-01' ||
+    reloadResult.reloadedDraftTitle !== 'Offline Note Title' ||
+    reloadResult.reloadedOpId !== 'op-browser-prod-01'
+  ) {
+    throw new Error('Persistence verification failed after page reload');
+  }
 
-  console.log('\n✓ REAL CHROMIUM INDEXEDDB EXECUTION PASSED COMPLETELY.');
+  // Scenario 4: Account/workspace isolation
+  console.log('\n--- Scenario 4: Account and workspace boundary isolation ---');
+  const isolationResult = await evaluate(`
+    (async () => {
+      const repo = new window.Daynori.IndexedDbLocalRepository();
+      await repo.initialize({ userId: 'usr_alice', workspaceId: 'ws_test_01' });
+
+      let crossWsError = null;
+      let crossUserError = null;
+
+      try {
+        await repo.getItemHeader('ws_test_OTHER', 'item-browser-prod-01');
+      } catch (err) {
+        crossWsError = err.message;
+      }
+
+      try {
+        await repo.getDraft('ws_test_01', 'usr_bob', 'draft-browser-prod-01');
+      } catch (err) {
+        crossUserError = err.message;
+      }
+
+      await repo.close();
+
+      return { crossWsError, crossUserError };
+    })()
+  `);
+  console.log(`[4/6] Isolation errors:`, isolationResult);
+  if (
+    !isolationResult.crossWsError?.includes('CROSS_WORKSPACE_VIOLATION') ||
+    !isolationResult.crossUserError?.includes('CROSS_ACCOUNT_VIOLATION')
+  ) {
+    throw new Error('Boundary isolation failed');
+  }
+
+  // Scenario 5: Transaction failure & rollback
+  console.log('\n--- Scenario 5: Transaction failure & rollback integrity ---');
+  const rollbackResult = await evaluate(`
+    (async () => {
+      const repo = new window.Daynori.IndexedDbLocalRepository();
+      await repo.initialize({ userId: 'usr_alice', workspaceId: 'ws_test_01' });
+
+      let thrown = false;
+      try {
+        await repo.saveDraftAndMutation(
+          {
+            id: 'draft-rollback-test',
+            workspaceId: 'ws_test_01',
+            userId: 'usr_alice',
+            entityType: 'note',
+            entityId: null,
+            title: 'Should not persist',
+            payload: {},
+            savedAt: '2026-10-15T12:10:00.000Z',
+            isQuarantined: false,
+            quarantinedAt: null
+          },
+          {
+            operationId: 'op-rollback-test',
+            deviceId: 'dev-chromium-01',
+            workspaceId: 'ws_test_WRONG', // Cross-workspace violation!
+            userId: 'usr_alice',
+            entityType: 'note',
+            entityId: 'note-01',
+            action: 'create',
+            payload: {},
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: '2026-10-15T12:10:00.000Z',
+            retryCount: 0,
+            status: 'pending',
+            lastError: null
+          }
+        );
+      } catch {
+        thrown = true;
+      }
+
+      const draft = await repo.getDraft('ws_test_01', 'usr_alice', 'draft-rollback-test');
+      await repo.close();
+
+      return { thrown, draftPersisted: Boolean(draft) };
+    })()
+  `);
+  console.log(`[5/6] Rollback result:`, rollbackResult);
+  if (!rollbackResult.thrown || rollbackResult.draftPersisted) {
+    throw new Error('Atomic transaction rollback integrity failed');
+  }
+
+  // Scenario 6: Coordination between browser tabs & revocation
+  console.log('\n--- Scenario 6: Multi-tab coordination via BroadcastChannel ---');
+  const coordinationResult = await evaluate(`
+    (async () => {
+      const repo = new window.Daynori.IndexedDbLocalRepository();
+      await repo.initialize({ userId: 'usr_alice', workspaceId: 'ws_test_01' });
+
+      // Simulate a secondary browser tab sending REVOKE_CONSENT
+      const otherTabChannel = new BroadcastChannel('daynori_storage_coordination');
+      otherTabChannel.postMessage({ type: 'REVOKE_CONSENT' });
+      otherTabChannel.close();
+
+      // Give listener event loop tick
+      await new Promise((r) => setTimeout(r, 100));
+
+      let opError = null;
+      try {
+        await repo.getItemHeader('ws_test_01', 'item-browser-prod-01');
+      } catch (err) {
+        opError = err.message;
+      }
+
+      // Cleanup local database cleanly
+      await window.Daynori.clearAllLocalData();
+
+      return { opError };
+    })()
+  `);
+  console.log(`[6/6] Coordination revocation result:`, coordinationResult);
+  if (!coordinationResult.opError) {
+    throw new Error('Coordination across tabs failed to close or revoke handle');
+  }
+
+  console.log('\n✓ PRODUCTION INDEXEDDB REPOSITORY PASSED ALL 6 BROWSER CDP INTEGRATION CHECKS.');
 } finally {
   ws.close();
   browser.kill();

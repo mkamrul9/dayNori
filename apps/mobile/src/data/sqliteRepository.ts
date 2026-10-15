@@ -49,12 +49,13 @@ export interface SqliteLocalRepositoryOptions {
 export class SqliteLocalRepository implements LocalRepositoryPort {
   private keyManager: MobileKeyManager;
   private openDbFn: OpenDatabaseFn;
-  private dbExistsFn?: (dbName: string) => Promise<boolean>;
-  private dbDeleteFn?: (dbName: string) => Promise<void>;
+  private dbExistsFn: (dbName: string) => Promise<boolean>;
+  private dbDeleteFn: (dbName: string) => Promise<void>;
   private requireSqlCipher: boolean;
   private db: SqliteDatabaseContract | null = null;
   private currentNamespace: AccountNamespace | null = null;
   private isClosed = false;
+  private mutex: Promise<void> = Promise.resolve();
 
   constructor(options: SqliteLocalRepositoryOptions) {
     this.keyManager = options.keyManager;
@@ -65,9 +66,84 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         const SQLite = await import('expo-sqlite');
         return SQLite.openDatabaseAsync(dbName) as unknown as SqliteDatabaseContract;
       });
-    this.dbExistsFn = options.databaseExistsAsync;
-    this.dbDeleteFn = options.deleteDatabaseAsync;
-    this.requireSqlCipher = options.requireSqlCipher ?? false;
+    this.dbExistsFn =
+      options.databaseExistsAsync ||
+      (async (dbName: string) => {
+        try {
+          const expoFsMod = 'expo-file-system';
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const FileSystem: any = await import(expoFsMod);
+          if (FileSystem?.documentDirectory) {
+            const dbPath = `${FileSystem.documentDirectory}SQLite/${dbName}`;
+            const info = await FileSystem.getInfoAsync(dbPath);
+            return Boolean(info?.exists);
+          }
+        } catch {
+          // Fallback to node:fs
+        }
+        try {
+          const fs = await import('node:fs');
+          const path = await import('node:path');
+          return fs.existsSync(dbName) || fs.existsSync(path.join(process.cwd(), dbName));
+        } catch {
+          return false;
+        }
+      });
+    this.dbDeleteFn =
+      options.deleteDatabaseAsync ||
+      (async (dbName: string) => {
+        try {
+          const SQLite = await import('expo-sqlite');
+          if (typeof SQLite.deleteDatabaseAsync === 'function') {
+            await SQLite.deleteDatabaseAsync(dbName);
+            return;
+          }
+        } catch {
+          // Fall through
+        }
+        try {
+          const expoFsMod = 'expo-file-system';
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const FileSystem: any = await import(expoFsMod);
+          if (FileSystem?.documentDirectory) {
+            const dbPath = `${FileSystem.documentDirectory}SQLite/${dbName}`;
+            await FileSystem.deleteAsync(dbPath, { idempotent: true });
+            return;
+          }
+        } catch {
+          // Fallback to node:fs
+        }
+        try {
+          const fs = await import('node:fs');
+          const path = await import('node:path');
+          const target = fs.existsSync(dbName) ? dbName : path.join(process.cwd(), dbName);
+          if (fs.existsSync(target)) {
+            fs.unlinkSync(target);
+          }
+        } catch {
+          /* ignore */
+        }
+      });
+    // Production storage enforces SQLCipher capability by default
+    this.requireSqlCipher = options.requireSqlCipher ?? true;
+  }
+
+  /**
+   * Serializes access to SQLite write operations and transactions to prevent
+   * concurrent work from entering or contaminating active transactions.
+   */
+  private async runWithLock<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.mutex;
+    let release: () => void = () => {};
+    this.mutex = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
   }
 
   getDatabaseFileName(userId: string, workspaceId: string): string {
@@ -115,7 +191,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const dbName = this.getDatabaseFileName(validatedNs.userId, validatedNs.workspaceId);
 
     // 1. Distinguish new storage from existing database file
-    const exists = this.dbExistsFn ? await this.dbExistsFn(dbName) : false;
+    const exists = await this.dbExistsFn(dbName);
     const hasExistingKey = await this.keyManager.hasKey(
       validatedNs.userId,
       validatedNs.workspaceId
@@ -405,52 +481,56 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const valid = validateItemHeaderRecord(header);
     this.ensureNamespace(valid.workspaceId);
     const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `INSERT INTO item_headers (
-          id, workspace_id, kind, folder_id, rank, is_archived, is_pinned,
-          security_scope, server_revision, created_at, updated_at, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (workspace_id, id) DO UPDATE SET
-          kind = excluded.kind,
-          folder_id = excluded.folder_id,
-          rank = excluded.rank,
-          is_archived = excluded.is_archived,
-          is_pinned = excluded.is_pinned,
-          security_scope = excluded.security_scope,
-          server_revision = excluded.server_revision,
-          updated_at = excluded.updated_at,
-          deleted_at = excluded.deleted_at;`,
-        valid.id,
-        valid.workspaceId,
-        valid.kind,
-        valid.folderId ?? null,
-        valid.rank,
-        valid.isArchived ? 1 : 0,
-        valid.isPinned ? 1 : 0,
-        valid.securityScope,
-        valid.serverRevision,
-        valid.createdAt,
-        valid.updatedAt,
-        valid.deletedAt ?? null
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `INSERT INTO item_headers (
+            id, workspace_id, kind, folder_id, rank, is_archived, is_pinned,
+            security_scope, server_revision, created_at, updated_at, deleted_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT (workspace_id, id) DO UPDATE SET
+            kind = excluded.kind,
+            folder_id = excluded.folder_id,
+            rank = excluded.rank,
+            is_archived = excluded.is_archived,
+            is_pinned = excluded.is_pinned,
+            security_scope = excluded.security_scope,
+            server_revision = excluded.server_revision,
+            updated_at = excluded.updated_at,
+            deleted_at = excluded.deleted_at;`,
+          valid.id,
+          valid.workspaceId,
+          valid.kind,
+          valid.folderId ?? null,
+          valid.rank,
+          valid.isArchived ? 1 : 0,
+          valid.isPinned ? 1 : 0,
+          valid.securityScope,
+          valid.serverRevision,
+          valid.createdAt,
+          valid.updatedAt,
+          valid.deletedAt ?? null
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   async deleteItemHeader(workspaceId: string, id: string): Promise<void> {
     this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `DELETE FROM item_headers WHERE workspace_id = ? AND id = ?;`,
-        workspaceId,
-        id
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `DELETE FROM item_headers WHERE workspace_id = ? AND id = ?;`,
+          workspaceId,
+          id
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   // --- 2. Drafts & Quarantine ---
@@ -533,68 +613,78 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     }
   }
 
+  private async saveDraftDirect(valid: DraftRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO drafts (
+        id, workspace_id, user_id, entity_type, entity_id, title, payload_json,
+        saved_at, is_quarantined, quarantined_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, user_id, id) DO UPDATE SET
+        entity_type = excluded.entity_type,
+        entity_id = excluded.entity_id,
+        title = excluded.title,
+        payload_json = excluded.payload_json,
+        saved_at = excluded.saved_at,
+        is_quarantined = excluded.is_quarantined,
+        quarantined_at = excluded.quarantined_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.userId,
+      valid.entityType,
+      valid.entityId ?? null,
+      valid.title,
+      JSON.stringify(valid.payload),
+      valid.savedAt,
+      valid.isQuarantined ? 1 : 0,
+      valid.quarantinedAt ?? null
+    );
+  }
+
   async saveDraft(draft: DraftRecord): Promise<void> {
     const valid = validateDraftRecord(draft);
     this.ensureNamespace(valid.workspaceId, valid.userId);
-    const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `INSERT INTO drafts (
-          id, workspace_id, user_id, entity_type, entity_id, title, payload_json,
-          saved_at, is_quarantined, quarantined_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (workspace_id, user_id, id) DO UPDATE SET
-          entity_type = excluded.entity_type,
-          entity_id = excluded.entity_id,
-          title = excluded.title,
-          payload_json = excluded.payload_json,
-          saved_at = excluded.saved_at,
-          is_quarantined = excluded.is_quarantined,
-          quarantined_at = excluded.quarantined_at;`,
-        valid.id,
-        valid.workspaceId,
-        valid.userId,
-        valid.entityType,
-        valid.entityId ?? null,
-        valid.title,
-        JSON.stringify(valid.payload),
-        valid.savedAt,
-        valid.isQuarantined ? 1 : 0,
-        valid.quarantinedAt ?? null
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await this.saveDraftDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   async deleteDraft(workspaceId: string, userId: string, id: string): Promise<void> {
     this.ensureNamespace(workspaceId, userId);
     const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `DELETE FROM drafts WHERE workspace_id = ? AND user_id = ? AND id = ?;`,
-        workspaceId,
-        userId,
-        id
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `DELETE FROM drafts WHERE workspace_id = ? AND user_id = ? AND id = ?;`,
+          workspaceId,
+          userId,
+          id
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   async quarantineUserDrafts(userId: string): Promise<void> {
     this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
     const now = new Date().toISOString();
-    try {
-      await db.runAsync(
-        `UPDATE drafts SET is_quarantined = 1, quarantined_at = ? WHERE user_id = ? AND is_quarantined = 0;`,
-        now,
-        userId
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `UPDATE drafts SET is_quarantined = 1, quarantined_at = ? WHERE user_id = ? AND is_quarantined = 0;`,
+          now,
+          userId
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   async listQuarantinedDrafts(userId: string): Promise<DraftRecord[]> {
@@ -637,61 +727,71 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   async restoreQuarantinedDraft(userId: string, id: string): Promise<void> {
     this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `UPDATE drafts SET is_quarantined = 0, quarantined_at = NULL WHERE user_id = ? AND id = ?;`,
-        userId,
-        id
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `UPDATE drafts SET is_quarantined = 0, quarantined_at = NULL WHERE user_id = ? AND id = ?;`,
+          userId,
+          id
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   async purgeQuarantinedDrafts(userId: string): Promise<void> {
     this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
-    try {
-      await db.runAsync(`DELETE FROM drafts WHERE user_id = ? AND is_quarantined = 1;`, userId);
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(`DELETE FROM drafts WHERE user_id = ? AND is_quarantined = 1;`, userId);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   // --- 3. Pending Operations / Mutations ---
 
+  private async enqueueMutationDirect(valid: PendingMutationRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO pending_mutations (
+        operation_id, device_id, workspace_id, user_id, entity_type, entity_id, action,
+        payload_json, base_revision, dependency_operation_ids_json, client_timestamp, retry_count, status, last_error
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (operation_id) DO UPDATE SET
+        retry_count = excluded.retry_count,
+        status = excluded.status,
+        last_error = excluded.last_error;`,
+      valid.operationId,
+      valid.deviceId,
+      valid.workspaceId,
+      valid.userId,
+      valid.entityType,
+      valid.entityId,
+      valid.action,
+      JSON.stringify(valid.payload),
+      valid.baseRevision,
+      JSON.stringify(valid.dependencyOperationIds),
+      valid.clientTimestamp,
+      valid.retryCount,
+      valid.status,
+      valid.lastError ?? null
+    );
+  }
+
   async enqueueMutation(mutation: PendingMutationRecord): Promise<void> {
     const valid = validatePendingMutationRecord(mutation);
     this.ensureNamespace(valid.workspaceId, valid.userId);
-    const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `INSERT INTO pending_mutations (
-          operation_id, device_id, workspace_id, user_id, entity_type, entity_id, action,
-          payload_json, base_revision, dependency_operation_ids_json, client_timestamp, retry_count, status, last_error
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (operation_id) DO UPDATE SET
-          retry_count = excluded.retry_count,
-          status = excluded.status,
-          last_error = excluded.last_error;`,
-        valid.operationId,
-        valid.deviceId,
-        valid.workspaceId,
-        valid.userId,
-        valid.entityType,
-        valid.entityId,
-        valid.action,
-        JSON.stringify(valid.payload),
-        valid.baseRevision,
-        JSON.stringify(valid.dependencyOperationIds),
-        valid.clientTimestamp,
-        valid.retryCount,
-        valid.status,
-        valid.lastError ?? null
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await this.enqueueMutationDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   async getPendingMutations(workspaceId: string, userId: string): Promise<PendingMutationRecord[]> {
@@ -743,22 +843,24 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   async removePendingMutation(operationId: string): Promise<void> {
     const ns = this.ensureNamespace();
     const db = this.ensureOpen();
-    try {
-      // Ensure the mutation belongs to current active namespace before deleting
-      const existing = await db.getFirstAsync<{ workspace_id: string; user_id: string }>(
-        `SELECT workspace_id, user_id FROM pending_mutations WHERE operation_id = ?;`,
-        operationId
-      );
-      if (!existing) {
-        return;
+    return this.runWithLock(async () => {
+      try {
+        // Ensure the mutation belongs to current active namespace before deleting
+        const existing = await db.getFirstAsync<{ workspace_id: string; user_id: string }>(
+          `SELECT workspace_id, user_id FROM pending_mutations WHERE operation_id = ?;`,
+          operationId
+        );
+        if (!existing) {
+          return;
+        }
+        if (existing.workspace_id !== ns.workspaceId || existing.user_id !== ns.userId) {
+          throw new StorageUnavailableError('Cross-workspace mutation removal rejected.');
+        }
+        await db.runAsync(`DELETE FROM pending_mutations WHERE operation_id = ?;`, operationId);
+      } catch (err) {
+        throw this.mapError(err);
       }
-      if (existing.workspace_id !== ns.workspaceId || existing.user_id !== ns.userId) {
-        throw new StorageUnavailableError('Cross-workspace mutation removal rejected.');
-      }
-      await db.runAsync(`DELETE FROM pending_mutations WHERE operation_id = ?;`, operationId);
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    });
   }
 
   // --- 4. Atomic Multi-Store Writes ---
@@ -770,14 +872,16 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
 
     const db = this.ensureOpen();
-    try {
-      await db.withTransactionAsync(async () => {
-        await this.saveDraft(validDraft);
-        await this.enqueueMutation(validMut);
-      });
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          await this.saveDraftDirect(validDraft);
+          await this.enqueueMutationDirect(validMut);
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   // --- 5. Sync Cursors ---
@@ -813,25 +917,27 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const valid = validateSyncCursorRecord(cursor);
     this.ensureNamespace(valid.workspaceId, valid.userId);
     const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `INSERT INTO sync_cursors (workspace_id, user_id, last_server_revision, cursor, last_synced_at, epoch)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT (workspace_id, user_id) DO UPDATE SET
-          last_server_revision = excluded.last_server_revision,
-          cursor = excluded.cursor,
-          last_synced_at = excluded.last_synced_at,
-          epoch = excluded.epoch;`,
-        valid.workspaceId,
-        valid.userId,
-        valid.lastServerRevision,
-        valid.cursor,
-        valid.lastSyncedAt,
-        valid.epoch
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `INSERT INTO sync_cursors (workspace_id, user_id, last_server_revision, cursor, last_synced_at, epoch)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT (workspace_id, user_id) DO UPDATE SET
+            last_server_revision = excluded.last_server_revision,
+            cursor = excluded.cursor,
+            last_synced_at = excluded.last_synced_at,
+            epoch = excluded.epoch;`,
+          valid.workspaceId,
+          valid.userId,
+          valid.lastServerRevision,
+          valid.cursor,
+          valid.lastSyncedAt,
+          valid.epoch
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   // --- 6. Preference Snapshots ---
@@ -865,24 +971,26 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const valid = validatePreferenceSnapshotRecord(snapshot);
     this.ensureNamespace(undefined, valid.userId);
     const db = this.ensureOpen();
-    try {
-      await db.runAsync(
-        `INSERT INTO preference_snapshots (user_id, preferences_json, schema_version, revision, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT (user_id) DO UPDATE SET
-          preferences_json = excluded.preferences_json,
-          schema_version = excluded.schema_version,
-          revision = excluded.revision,
-          updated_at = excluded.updated_at;`,
-        valid.userId,
-        JSON.stringify(valid.preferences),
-        valid.schemaVersion,
-        valid.revision,
-        valid.updatedAt
-      );
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `INSERT INTO preference_snapshots (user_id, preferences_json, schema_version, revision, updated_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT (user_id) DO UPDATE SET
+            preferences_json = excluded.preferences_json,
+            schema_version = excluded.schema_version,
+            revision = excluded.revision,
+            updated_at = excluded.updated_at;`,
+          valid.userId,
+          JSON.stringify(valid.preferences),
+          valid.schemaVersion,
+          valid.revision,
+          valid.updatedAt
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   // --- 7. Boundary Lifecycle & Data Erasure ---
@@ -890,45 +998,49 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   async clearWorkspaceData(workspaceId: string): Promise<void> {
     this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
-    try {
-      await db.withTransactionAsync(async () => {
-        await db.runAsync(`DELETE FROM item_headers WHERE workspace_id = ?;`, workspaceId);
-        await db.runAsync(`DELETE FROM drafts WHERE workspace_id = ?;`, workspaceId);
-        await db.runAsync(`DELETE FROM pending_mutations WHERE workspace_id = ?;`, workspaceId);
-        await db.runAsync(`DELETE FROM sync_cursors WHERE workspace_id = ?;`, workspaceId);
-      });
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          await db.runAsync(`DELETE FROM item_headers WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM drafts WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM pending_mutations WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM sync_cursors WHERE workspace_id = ?;`, workspaceId);
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
   }
 
   async clearAccountData(userId: string): Promise<void> {
     this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
     const wsId = this.currentNamespace?.workspaceId;
-    try {
-      await db.withTransactionAsync(async () => {
-        // Erase all account-owned data including item headers
-        await db.runAsync(`DELETE FROM item_headers;`);
-        await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
-        await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
-        await db.runAsync(`DELETE FROM sync_cursors WHERE user_id = ?;`, userId);
-        await db.runAsync(`DELETE FROM preference_snapshots WHERE user_id = ?;`, userId);
-      });
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          // Erase all account-owned data including item headers
+          await db.runAsync(`DELETE FROM item_headers;`);
+          await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
+          await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
+          await db.runAsync(`DELETE FROM sync_cursors WHERE user_id = ?;`, userId);
+          await db.runAsync(`DELETE FROM preference_snapshots WHERE user_id = ?;`, userId);
+        });
 
-      // Clear all keys from KeyStore
-      await this.keyManager.clearAccountKeys(userId);
+        // Clear all keys from KeyStore
+        await this.keyManager.clearAccountKeys(userId);
 
-      // Close handle and reset state
-      await this.close();
+        // Close handle and reset state
+        await this.close();
 
-      // Delete database file if deletion adapter is provided
-      if (wsId && this.dbDeleteFn) {
-        const dbName = this.getDatabaseFileName(userId, wsId);
-        await this.dbDeleteFn(dbName);
+        // Delete database file if deletion adapter is provided
+        if (wsId && this.dbDeleteFn) {
+          const dbName = this.getDatabaseFileName(userId, wsId);
+          await this.dbDeleteFn(dbName);
+        }
+      } catch (err) {
+        throw this.mapError(err);
       }
-    } catch (err) {
-      throw this.mapError(err);
-    }
+    });
   }
 }

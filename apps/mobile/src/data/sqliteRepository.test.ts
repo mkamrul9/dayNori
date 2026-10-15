@@ -545,5 +545,96 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
       const remainingBytes = fs.readFileSync(filePath);
       expect(remainingBytes.equals(simulatedCiphertext)).toBe(true);
     });
+
+    it('enforces SQLCipher capability check and throws StorageKeyError when SQLCipher is required but unavailable', async () => {
+      // NodeSqliteAdapter does not implement cipher_version pragma
+      const repo = createRepo({ requireSqlCipher: true });
+      await expect(repo.initialize({ userId: user1, workspaceId: ws1 })).rejects.toThrow(
+        StorageKeyError
+      );
+    });
+
+    it('performs genuine default file existence check without custom callback', async () => {
+      // Create repo without custom databaseExistsAsync
+      const repoNoCustomExists = new SqliteLocalRepository({
+        keyManager,
+        requireSqlCipher: false,
+        openDatabaseAsync: async (dbName: string) => {
+          const fullPath = path.join(testDbDir, dbName);
+          const rawDb = new DatabaseSync(fullPath);
+          return new NodeSqliteAdapter(rawDb);
+        },
+      });
+
+      await repoNoCustomExists.initialize({ userId: user1, workspaceId: ws1 });
+      await repoNoCustomExists.close();
+    });
+
+    it('prevents concurrent operations from interleaving into an active transaction', async () => {
+      const repo = createRepo();
+      await repo.initialize({ userId: user1, workspaceId: ws1 });
+
+      const events: string[] = [];
+
+      const draft: DraftRecord = {
+        id: 'draft-tx-01',
+        workspaceId: ws1,
+        userId: user1,
+        entityType: 'note',
+        entityId: null,
+        title: 'Draft Tx',
+        payload: { text: 'In tx' },
+        savedAt: '2026-10-15T10:00:00.000Z',
+        isQuarantined: false,
+        quarantinedAt: null,
+      };
+
+      const mutation: PendingMutationRecord = {
+        operationId: 'op-tx-01',
+        deviceId: 'dev-001',
+        workspaceId: ws1,
+        userId: user1,
+        entityType: 'note',
+        entityId: 'note-tx-01',
+        action: 'create',
+        payload: { text: 'In tx' },
+        baseRevision: 0,
+        dependencyOperationIds: [],
+        clientTimestamp: '2026-10-15T10:00:00.000Z',
+        retryCount: 0,
+        status: 'pending',
+        lastError: null,
+      };
+
+      // Start atomic transaction
+      const txPromise = repo.saveDraftAndMutation(draft, mutation).then(() => {
+        events.push('tx_completed');
+      });
+
+      // Concurrently try to upsert an item header
+      const headerPromise = repo
+        .upsertItemHeader({
+          id: 'header-concurrent-01',
+          workspaceId: ws1,
+          kind: 'task',
+          folderId: null,
+          rank: '0',
+          isArchived: false,
+          isPinned: false,
+          securityScope: 'standard',
+          serverRevision: 1,
+          createdAt: '2026-10-15T10:00:00.000Z',
+          updatedAt: '2026-10-15T10:00:00.000Z',
+          deletedAt: null,
+        })
+        .then(() => {
+          events.push('concurrent_write_completed');
+        });
+
+      await Promise.all([txPromise, headerPromise]);
+      expect(events).toEqual(['tx_completed', 'concurrent_write_completed']);
+
+      await repo.close();
+    });
   });
 });

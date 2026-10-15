@@ -47,6 +47,16 @@ Group: Foundation and sync. Status is tracked in [progress.json](../roadmap/prog
     - Synchronized OpenAPI 3.0.3 specification without drift (`tests/contract/contract.test.ts`).
   - **Architecture Decision Record**:
     - Recorded design in [ADR-0018: Commit-Safe Change Ordering and Durable Mutation Receipts](../decisions/0018-commit-safe-change-ordering-and-mutation-receipts.md).
+- **Prerequisite repairs applied in subsequent hardening**:
+  - Deterministic topological dependency ordering in `pushBatch` with 3-color DFS cycle rejection (`DEPENDENCY_CYCLE`).
+  - Terminal failure persistence for missing and failed dependencies (`DEPENDENCY_MISSING`, `DEPENDENCY_FAILED`).
+  - Rechecking mutation receipts inside `workspace_sync_state` lock to guarantee idempotent concurrent retries.
+  - Constraint-specific duplicate recovery strictly targeting `uq_mutation_receipts_actor_device_op`.
+  - Recursive key-sorted canonical hashing over command version, dependencies, and nested payloads.
+  - Complete projection in `bootstrap` (revision, rank, isArchived, isPinned, securityScope) under `REPEATABLE READ` snapshot isolation.
+  - Integrated REST API writes (`POST` / `DELETE` items) into the change feed and monotonic sequence.
+  - Explicit nullable `folderId` update support and tombstone preservation (`ENTITY_TOMBSTONED`).
+  - Access epoch rotation on workspace membership changes and receipt RLS repair enforcing active workspace viewer role.
 - **Excluded/deferred scope:**
   - Client synchronization engine, offline queue draining, background workers, and conflict UI — deferred to Phase 13.
   - Outbox delivery workers — deferred to background worker phases.
@@ -65,6 +75,8 @@ Verified under real PostgreSQL:
 4. **Failure Isolation**: Multi-command batches commit valid commands independently of conflicting commands.
 5. **Cursor Lifecycle**: Cursors older than 90 days or with altered access epochs return `SYNC_RESET_REQUIRED`.
 6. **Cross-Tenant Boundaries**: Unauthorized users are rejected with `FORBIDDEN` on push, pull, and bootstrap.
+7. **Dependency Graph Integrity**: Validated topological ordering, cycle rejection, and missing/failed dependency isolation.
+8. **REST API Sync Integration**: Resource writes through standard endpoints allocate monotonic change sequences and feed events.
 
 ## Acceptance evidence
 
@@ -78,6 +90,7 @@ Verified under real PostgreSQL:
 | **Bootstrap Watermark Pairing**       | Bootstrap query returning active items and watermark cursor                                               | `tests/integration/phase12-sync-receipts-change-feed.test.ts` | **PASS**: Returns active items; pull with watermark cursor yields 0 new changes.               |
 | **Cross-Tenant RLS Enforcement**      | User B attempts to push, pull, or bootstrap User A workspace                                              | `tests/integration/phase12-sync-receipts-change-feed.test.ts` | **PASS**: Rejected with `FORBIDDEN` (403/404).                                                 |
 | **Batch Partial Success**             | Batch containing valid command and conflicting command                                                    | `tests/integration/phase12-sync-receipts-change-feed.test.ts` | **PASS**: Valid command committed; conflicting command isolated.                               |
+| **Topological Dependency Order**      | Out-of-order parent-child batch with cycle detection                                                      | `tests/integration/phase12-sync-receipts-change-feed.test.ts` | **PASS**: Parent executed before child; cycles rejected with `DEPENDENCY_CYCLE`.                |
 | **OpenAPI Drift Verification**        | Automated drift check against canonical OpenAPI 3.0.3 spec                                                | `tests/contract/contract.test.ts`                             | **PASS**: Routes `/v1/sync/push`, `/pull`, `/bootstrap` verified.                              |
 | **Monorepo Type Safety & Lint**       | Strict TypeScript and ESLint across all 13 workspaces                                                     | `pnpm typecheck` & `pnpm lint`                                | **PASS**: 0 errors across 13 projects.                                                         |
-| **Secret Audit**                      | Gitleaks scan of all files, commits, and diffs                                                            | `pnpm audit:secrets`                                          | **PASS**: 0 secrets detected.                                                                  |
+| **Secret Audit**                      | Custom repository secret scanner (`scripts/scan-secrets.mjs`) of all files, commits, and diffs           | `node scripts/scan-secrets.mjs`                               | **PASS**: 0 secrets detected across 1496 files.                                                |

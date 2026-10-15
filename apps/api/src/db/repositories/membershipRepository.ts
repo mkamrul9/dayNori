@@ -8,6 +8,24 @@ export interface MembershipRecord {
   updated_at: Date;
 }
 
+/**
+ * Rotates the workspace access epoch on relevant membership modifications,
+ * forcing clients to safely re-authorize on their next pull request.
+ */
+export async function rotateWorkspaceAccessEpoch(
+  client: PoolClient,
+  workspaceId: string
+): Promise<string> {
+  const res = await client.query<{ access_epoch: string }>(
+    `UPDATE app.workspace_sync_state
+     SET access_epoch = gen_random_uuid()::text, updated_at = now()
+     WHERE workspace_id = $1
+     RETURNING access_epoch;`,
+    [workspaceId]
+  );
+  return res.rows[0]?.access_epoch || '';
+}
+
 export async function addMembership(
   client: PoolClient,
   membership: {
@@ -22,6 +40,10 @@ export async function addMembership(
      RETURNING workspace_id, user_id, role, created_at, updated_at;`,
     [membership.workspaceId, membership.userId, membership.role]
   );
+
+  // Rotate access epoch on membership grant
+  await rotateWorkspaceAccessEpoch(client, membership.workspaceId);
+
   return res.rows[0]!;
 }
 
@@ -66,6 +88,11 @@ export async function updateMembershipRole(
      RETURNING workspace_id, user_id, role, created_at, updated_at;`,
     [newRole, workspaceId, userId]
   );
+
+  if (res.rows[0]) {
+    await rotateWorkspaceAccessEpoch(client, workspaceId);
+  }
+
   return res.rows[0] || null;
 }
 
@@ -79,5 +106,11 @@ export async function removeMembership(
      WHERE workspace_id = $1 AND user_id = $2;`,
     [workspaceId, userId]
   );
-  return (res.rowCount ?? 0) > 0;
+
+  const deleted = (res.rowCount ?? 0) > 0;
+  if (deleted) {
+    await rotateWorkspaceAccessEpoch(client, workspaceId);
+  }
+
+  return deleted;
 }

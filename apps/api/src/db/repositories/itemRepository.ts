@@ -11,6 +11,49 @@ export interface ItemRecord {
   updated_at: Date;
   deleted_at: Date | null;
   display_order: number;
+  revision: number;
+  rank: string;
+  is_archived: boolean;
+  is_pinned: boolean;
+  security_scope: 'standard' | 'vault';
+}
+
+interface RawItemRow {
+  id: string;
+  workspace_id: string;
+  folder_id: string | null;
+  kind: string;
+  created_by: string;
+  updated_by: string;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  display_order: number;
+  revision: string | number;
+  rank: string;
+  is_archived: boolean;
+  is_pinned: boolean;
+  security_scope: 'standard' | 'vault';
+}
+
+function mapRowToItem(r: RawItemRow): ItemRecord {
+  return {
+    id: r.id,
+    workspace_id: r.workspace_id,
+    folder_id: r.folder_id,
+    kind: r.kind,
+    created_by: r.created_by,
+    updated_by: r.updated_by,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    deleted_at: r.deleted_at,
+    display_order: r.display_order,
+    revision: Number(r.revision),
+    rank: r.rank || '0',
+    is_archived: Boolean(r.is_archived),
+    is_pinned: Boolean(r.is_pinned),
+    security_scope: r.security_scope || 'standard',
+  };
 }
 
 export async function createItem(
@@ -22,16 +65,22 @@ export async function createItem(
     kind: string;
     createdBy: string;
     displayOrder?: number;
+    rank?: string;
+    revision?: number;
+    securityScope?: 'standard' | 'vault';
   }
 ): Promise<ItemRecord> {
-  const res = await client.query<ItemRecord>(
+  const res = await client.query<RawItemRow>(
     `INSERT INTO app.items (
-       id, workspace_id, folder_id, kind, created_by, updated_by, display_order
+       id, workspace_id, folder_id, kind, created_by, updated_by, display_order,
+       rank, revision, security_scope
      )
      VALUES (
-       COALESCE($1, gen_random_uuid()), $2, $3, $4, $5, $5, COALESCE($6, 0)
+       COALESCE($1, gen_random_uuid()), $2, $3, $4, $5, $5, COALESCE($6, 0),
+       COALESCE($7, '0'), COALESCE($8, 1), COALESCE($9, 'standard')
      )
-     RETURNING id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at, display_order;`,
+     RETURNING id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at,
+               display_order, revision, rank, is_archived, is_pinned, security_scope;`,
     [
       item.id || null,
       item.workspaceId,
@@ -39,9 +88,12 @@ export async function createItem(
       item.kind,
       item.createdBy,
       item.displayOrder || 0,
+      item.rank || '0',
+      item.revision || 1,
+      item.securityScope || 'standard',
     ]
   );
-  return res.rows[0]!;
+  return mapRowToItem(res.rows[0]!);
 }
 
 export async function getItem(
@@ -49,13 +101,14 @@ export async function getItem(
   workspaceId: string,
   itemId: string
 ): Promise<ItemRecord | null> {
-  const res = await client.query<ItemRecord>(
-    `SELECT id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at, display_order
+  const res = await client.query<RawItemRow>(
+    `SELECT id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at,
+            display_order, revision, rank, is_archived, is_pinned, security_scope
      FROM app.items
      WHERE workspace_id = $1 AND id = $2;`,
     [workspaceId, itemId]
   );
-  return res.rows[0] || null;
+  return res.rows[0] ? mapRowToItem(res.rows[0]) : null;
 }
 
 export async function listItems(
@@ -102,15 +155,16 @@ export async function listItems(
   }
 
   const query = `
-    SELECT id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at, display_order
+    SELECT id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at,
+           display_order, revision, rank, is_archived, is_pinned, security_scope
     FROM app.items
     WHERE ${conditions.join(' AND ')}
     ORDER BY created_at DESC, id DESC
     ${limitClause};
   `;
 
-  const res = await client.query<ItemRecord>(query, values);
-  return res.rows;
+  const res = await client.query<RawItemRow>(query, values);
+  return res.rows.map(mapRowToItem);
 }
 
 export async function updateItem(
@@ -122,6 +176,10 @@ export async function updateItem(
     deletedAt?: Date | null;
     displayOrder?: number;
     updatedBy?: string;
+    revision?: number;
+    rank?: string;
+    isArchived?: boolean;
+    isPinned?: boolean;
   }
 ): Promise<ItemRecord | null> {
   const setClauses: string[] = ['updated_at = now()'];
@@ -147,15 +205,36 @@ export async function updateItem(
     setClauses.push(`updated_by = $${values.length}`);
   }
 
+  if (updates.revision !== undefined) {
+    values.push(updates.revision);
+    setClauses.push(`revision = $${values.length}`);
+  }
+
+  if (updates.rank !== undefined) {
+    values.push(updates.rank);
+    setClauses.push(`rank = $${values.length}`);
+  }
+
+  if (updates.isArchived !== undefined) {
+    values.push(updates.isArchived);
+    setClauses.push(`is_archived = $${values.length}`);
+  }
+
+  if (updates.isPinned !== undefined) {
+    values.push(updates.isPinned);
+    setClauses.push(`is_pinned = $${values.length}`);
+  }
+
   const query = `
     UPDATE app.items
     SET ${setClauses.join(', ')}
     WHERE workspace_id = $1 AND id = $2
-    RETURNING id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at, display_order;
+    RETURNING id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at,
+              display_order, revision, rank, is_archived, is_pinned, security_scope;
   `;
 
-  const res = await client.query<ItemRecord>(query, values);
-  return res.rows[0] || null;
+  const res = await client.query<RawItemRow>(query, values);
+  return res.rows[0] ? mapRowToItem(res.rows[0]) : null;
 }
 
 export async function deleteItem(

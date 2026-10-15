@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
+import crypto from 'node:crypto';
 import {
   CreateItemRequestSchema,
   ItemListQuerySchema,
@@ -10,7 +11,19 @@ import {
   type ItemListResponse,
   type ItemResponse,
 } from '@daynori/contracts';
-import { withTenantContext, listItems, getItem, createItem, deleteItem } from '../../db/index.js';
+import {
+  withTenantContext,
+  listItems,
+  getItem,
+  createItem,
+  updateItem,
+} from '../../db/index.js';
+import {
+  lockWorkspaceSyncState,
+  insertChange,
+  insertOutboxIntent,
+  updateWorkspaceSyncSeq,
+} from '../../modules/sync/repository.js';
 import { decodeCursor, encodeCursor } from '../../utils/pagination.js';
 import { NotFoundError, validateResponse } from '../../plugins/errorHandler.js';
 
@@ -77,6 +90,11 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
             updatedAt: item.updated_at.toISOString(),
             deletedAt: item.deleted_at ? item.deleted_at.toISOString() : null,
             displayOrder: item.display_order,
+            revision: item.revision,
+            rank: item.rank,
+            isArchived: item.is_archived,
+            isPinned: item.is_pinned,
+            securityScope: item.security_scope,
           })),
           meta: {
             requestId: request.id,
@@ -93,7 +111,7 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
     }
   );
 
-  // POST /v1/workspaces/:workspaceId/items — Create item with strict actor-field derivation
+  // POST /v1/workspaces/:workspaceId/items — Create item with strict actor-field derivation and sync integration
   app.post('/v1/workspaces/:workspaceId/items', async (request, reply): Promise<ItemResponse> => {
     const actor = request.actor!;
     const params = WorkspaceParamsSchema.parse(request.params);
@@ -113,13 +131,44 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
             throw new NotFoundError('Workspace not found or unauthorized');
           }
 
-          return createItem(client, {
+          // Participate in linear sequence and change feed
+          const syncState = await lockWorkspaceSyncState(client, params.workspaceId);
+
+          const created = await createItem(client, {
             workspaceId: params.workspaceId,
             kind: body.kind,
             folderId: body.folderId,
             displayOrder: body.displayOrder,
             createdBy: actor.userId, // Actor identity derived exclusively from verified JWT
+            revision: 1,
+            rank: '0',
+            securityScope: 'standard',
           });
+
+          await insertChange(client, {
+            workspaceId: params.workspaceId,
+            seq: syncState.nextChangeSeq,
+            entityType: 'item',
+            entityId: created.id,
+            revision: 1,
+            isTombstone: false,
+            operationId: crypto.randomUUID(),
+            changeData: {
+              kind: created.kind,
+              folderId: created.folder_id,
+              rank: created.rank,
+            },
+          });
+
+          await insertOutboxIntent(client, {
+            workspaceId: params.workspaceId,
+            eventType: 'item.created',
+            payload: { itemId: created.id, revision: 1, seq: syncState.nextChangeSeq },
+          });
+
+          await updateWorkspaceSyncSeq(client, params.workspaceId, syncState.nextChangeSeq + 1);
+
+          return created;
         }
       );
 
@@ -135,6 +184,11 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
           updatedAt: item.updated_at.toISOString(),
           deletedAt: item.deleted_at ? item.deleted_at.toISOString() : null,
           displayOrder: item.display_order,
+          revision: item.revision,
+          rank: item.rank,
+          isArchived: item.is_archived,
+          isPinned: item.is_pinned,
+          securityScope: item.security_scope,
         },
         meta: {
           requestId: request.id,
@@ -183,6 +237,11 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
             updatedAt: item.updated_at.toISOString(),
             deletedAt: item.deleted_at ? item.deleted_at.toISOString() : null,
             displayOrder: item.display_order,
+            revision: item.revision,
+            rank: item.rank,
+            isArchived: item.is_archived,
+            isPinned: item.is_pinned,
+            securityScope: item.security_scope,
           },
           meta: {
             requestId: request.id,
@@ -200,7 +259,7 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
     }
   );
 
-  // DELETE /v1/workspaces/:workspaceId/items/:itemId — Delete item
+  // DELETE /v1/workspaces/:workspaceId/items/:itemId — Delete item with sync tombstone integration
   app.delete(
     '/v1/workspaces/:workspaceId/items/:itemId',
     async (request, reply): Promise<{ meta: { requestId: string; serverTime: string } }> => {
@@ -212,7 +271,50 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
           runtimePool,
           { userId: actor.userId, workspaceId: params.workspaceId },
           async (client) => {
-            return deleteItem(client, params.workspaceId, params.itemId);
+            const accessRes = await client.query<{ exists: boolean }>(
+              `SELECT app.user_has_workspace_role($1, 'editor') as exists;`,
+              [params.workspaceId]
+            );
+            if (!accessRes.rows[0]?.exists) {
+              throw new NotFoundError('Workspace not found or unauthorized');
+            }
+
+            const syncState = await lockWorkspaceSyncState(client, params.workspaceId);
+            const existing = await getItem(client, params.workspaceId, params.itemId);
+            if (!existing || existing.deleted_at !== null) {
+              return false;
+            }
+
+            const newRevision = existing.revision + 1;
+            await updateItem(client, params.workspaceId, params.itemId, {
+              deletedAt: new Date(),
+              updatedBy: actor.userId,
+              revision: newRevision,
+            });
+
+            await insertChange(client, {
+              workspaceId: params.workspaceId,
+              seq: syncState.nextChangeSeq,
+              entityType: 'item',
+              entityId: params.itemId,
+              revision: newRevision,
+              isTombstone: true,
+              operationId: crypto.randomUUID(),
+              changeData: { deleted: true },
+            });
+
+            await insertOutboxIntent(client, {
+              workspaceId: params.workspaceId,
+              eventType: 'item.deleted',
+              payload: {
+                itemId: params.itemId,
+                revision: newRevision,
+                seq: syncState.nextChangeSeq,
+              },
+            });
+
+            await updateWorkspaceSyncSeq(client, params.workspaceId, syncState.nextChangeSeq + 1);
+            return true;
           }
         );
 
