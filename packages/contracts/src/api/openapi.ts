@@ -15,6 +15,10 @@ import {
   ItemSchema,
   ItemResponseSchema,
   ItemListResponseSchema,
+  SyncPushRequestSchema,
+  SyncPushResponseSchema,
+  SyncPullResponseSchema,
+  SyncBootstrapResponseSchema,
 } from './index.js';
 
 export function zodToOpenApi(schema: z.ZodTypeAny): Record<string, unknown> {
@@ -155,6 +159,10 @@ export function generateCanonicalOpenApiSpec(): Record<string, unknown> {
         Item: zodToOpenApi(ItemSchema),
         ItemResponse: zodToOpenApi(ItemResponseSchema),
         ItemListResponse: zodToOpenApi(ItemListResponseSchema),
+        SyncPushRequest: zodToOpenApi(SyncPushRequestSchema),
+        SyncPushResponse: zodToOpenApi(SyncPushResponseSchema),
+        SyncPullResponse: zodToOpenApi(SyncPullResponseSchema),
+        SyncBootstrapResponse: zodToOpenApi(SyncBootstrapResponseSchema),
       },
     },
     paths: {
@@ -368,6 +376,100 @@ export function generateCanonicalOpenApiSpec(): Record<string, unknown> {
             },
             '400': { $ref: '#/components/schemas/ApiErrorResponse' },
             '401': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '404': { $ref: '#/components/schemas/ApiErrorResponse' },
+          },
+        },
+      },
+      '/v1/sync/push': {
+        post: {
+          summary: 'Push batch mutations with durable idempotency',
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/SyncPushRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SyncPushResponse' },
+                },
+              },
+            },
+            '400': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '401': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '403': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '409': { $ref: '#/components/schemas/ApiErrorResponse' },
+          },
+        },
+      },
+      '/v1/sync/pull': {
+        get: {
+          summary: 'Pull ordered workspace changes using opaque checkpoint cursor',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'workspaceId',
+              in: 'query',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+            {
+              name: 'cursor',
+              in: 'query',
+              required: false,
+              schema: { type: 'string' },
+            },
+            {
+              name: 'limit',
+              in: 'query',
+              required: false,
+              schema: { type: 'integer', minimum: 1, maximum: 500, default: 50 },
+            },
+          ],
+          responses: {
+            '200': {
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SyncPullResponse' },
+                },
+              },
+            },
+            '400': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '401': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '403': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '404': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '409': { $ref: '#/components/schemas/ApiErrorResponse' },
+          },
+        },
+      },
+      '/v1/sync/bootstrap': {
+        get: {
+          summary: 'Bootstrap workspace items and high-watermark sync cursor',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'workspaceId',
+              in: 'query',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            '200': {
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SyncBootstrapResponse' },
+                },
+              },
+            },
+            '400': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '401': { $ref: '#/components/schemas/ApiErrorResponse' },
+            '403': { $ref: '#/components/schemas/ApiErrorResponse' },
             '404': { $ref: '#/components/schemas/ApiErrorResponse' },
           },
         },

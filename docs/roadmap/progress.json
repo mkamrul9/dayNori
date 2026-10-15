@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-15",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 11 provisional local data repositories and migrations delivered across packages/sync, apps/web, and apps/mobile. Completion claims for Phases 04–06, Phase 09, Phase 10, and Phase 11 remain blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 11 (Local data repositories and migrations) provisional implementation delivered and verified with strict TypeScript contracts, genuine IndexedDB with deliberate trusted-device consent, SQLCipher native compilation for Android, KeyStore key wrapping, draft quarantine, and atomic transaction rollback. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 12 server mutation receipts and change feed provisional implementation delivered and verified under real PostgreSQL (row-lock protocol, durable idempotency, canonical payload hashing, and ordered change feed). Completion for Phases 04–06, 09, 10, 11, and 12 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 12 (Server mutation receipts and change feed) provisional implementation delivered and verified under real PostgreSQL integration suite. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -74,7 +74,9 @@
     },
     {
       "id": "12",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional server synchronization infrastructure delivered and verified against real PostgreSQL (row-lock protocol, durable idempotency, canonical payload hashing, and ordered change feed). Completion blocked pending prerequisite Phase 10 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-12.md"
     },
     {
       "id": "13",

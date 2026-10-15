@@ -30,6 +30,15 @@ import {
   type ProvisionWorkspaceResponse,
   type ProfileResponse,
   type UpdatePreferencesRequest,
+  SyncPushResponseSchema,
+  SyncPullResponseSchema,
+  SyncBootstrapResponseSchema,
+  type SyncPushRequest,
+  type SyncPushResponse,
+  type SyncPullQuery,
+  type SyncPullResponse,
+  type SyncBootstrapQuery,
+  type SyncBootstrapResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -386,6 +395,49 @@ export class DaynoriApiClient {
 
       cursor = page.meta.cursor;
     } while (cursor);
+  }
+
+  // --- Sync Module (Phase 12) ---
+
+  async syncPush(request: SyncPushRequest, options?: RequestOptions): Promise<SyncPushResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/sync/push',
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
+      options
+    );
+    return SyncPushResponseSchema.parse(raw);
+  }
+
+  async syncPull(query: SyncPullQuery, options?: RequestOptions): Promise<SyncPullResponse> {
+    const params = new URLSearchParams();
+    params.set('workspaceId', query.workspaceId);
+    if (query.cursor) params.set('cursor', query.cursor);
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+
+    const raw = await this.request<unknown>(
+      `/v1/sync/pull?${params.toString()}`,
+      { method: 'GET' },
+      options
+    );
+    return SyncPullResponseSchema.parse(raw);
+  }
+
+  async syncBootstrap(
+    query: SyncBootstrapQuery,
+    options?: RequestOptions
+  ): Promise<SyncBootstrapResponse> {
+    const params = new URLSearchParams();
+    params.set('workspaceId', query.workspaceId);
+
+    const raw = await this.request<unknown>(
+      `/v1/sync/bootstrap?${params.toString()}`,
+      { method: 'GET' },
+      options
+    );
+    return SyncBootstrapResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

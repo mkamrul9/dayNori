@@ -4,4 +4,5 @@ export * from './workspace.js';
 export * from './membership.js';
 export * from './item.js';
 export * from './user.js';
+export * from './sync.js';
 export * from './openapi.js';

@@ -1,7 +1,17 @@
 import { z } from 'zod';
 import { ResponseMetaSchema } from './common.js';
 
-export const ItemKindSchema = z.enum(['folder', 'note', 'task', 'file']);
+export const ItemKindSchema = z.enum([
+  'folder',
+  'note',
+  'task',
+  'todo',
+  'routine',
+  'journal_entry',
+  'file',
+  'file_item',
+  'calendar_event',
+]);
 export type ItemKind = z.infer<typeof ItemKindSchema>;
 
 export const ItemSchema = z.object({

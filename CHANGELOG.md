@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 12 — Server mutation receipts and change feed — 2026-10-15
+
+- **PostgreSQL Commit-Safe Sequence & Ordered Change Feed (`infra/supabase` & `apps/api`):**
+  - Applied migration `00010_server_mutation_receipts_and_change_feed.sql` introducing `app.workspace_sync_state`, `app.mutation_receipts`, `app.changes`, and `app.outbox_intents`.
+  - Implemented row-lock protocol on `app.workspace_sync_state` held inside the PostgreSQL transaction until commit (`SELECT ... FOR UPDATE`), serializing mutations strictly within the target workspace and ensuring monotonic gapless sequences matching commit order.
+  - Implemented ordered change feed `app.changes` indexed by `(workspace_id, seq ASC)` with tombstones (`is_tombstone = true`) retained across the 90-day offline horizon.
+- **Durable Mutation Receipts & Canonical Idempotency (`apps/api`):**
+  - Created `app.mutation_receipts` with uniqueness constraint on `(actor_user_id, device_id, operation_id)`.
+  - Implemented deterministic key sorting and SHA-256 payload digest (`computeCanonicalPayloadHash`).
+  - Safe replay handling: sequential or concurrent retries with identical payload return the existing durable receipt without allocating a new sequence or creating duplicate change records.
+  - Reused operation IDs with altered payloads or target workspaces are rejected with `IDEMPOTENCY_KEY_REUSED`.
+- **Sync Endpoints & Protocol (`packages/contracts`, `apps/api`, `packages/api-client`):**
+  - Added batch push endpoint `POST /v1/sync/push` supporting up to 50 commands with independent per-command transaction isolation and partial batch failure reporting.
+  - Added incremental pull endpoint `GET /v1/sync/pull` supporting bounded pagination and opaque checkpoint cursors.
+  - Added snapshot bootstrap endpoint `GET /v1/sync/bootstrap` pairing active items with the high-watermark cursor `next_change_seq - 1`.
+  - Implemented 90-day horizon and access epoch cursor expiration (`SYNC_RESET_REQUIRED`), directing clients to perform a safe snapshot reset while preserving local unsent drafts.
+  - Implemented foundation sync commands: `createItem`, `updateItem`, `archiveItem`, `unarchiveItem`, `pinItem`, `unpinItem`, `trashItem`, and `restoreItem`.
+  - Added client methods (`syncPush`, `syncPull`, `syncBootstrap`) in `DaynoriApiClient`.
+- **Architecture Documentation & Verification:**
+  - Published [ADR-0018: Commit-Safe Change Ordering and Durable Mutation Receipts](docs/decisions/0018-commit-safe-change-ordering-and-mutation-receipts.md).
+  - Verified against real PostgreSQL with 18 integration tests in `tests/integration/phase12-sync-receipts-change-feed.test.ts`.
+  - Synchronized OpenAPI 3.0.3 canonical specification without drift (`tests/contract/contract.test.ts`).
+
 ## Phase 11 — Local Data Repositories and Migrations — 2026-10-15
 
 - **Shared Persistence Ports & Contracts (`packages/sync` & `packages/domain`):**
