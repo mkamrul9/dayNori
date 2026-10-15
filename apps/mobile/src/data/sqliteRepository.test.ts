@@ -249,12 +249,12 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
       const version = await repo.getCurrentSchemaVersion();
-      expect(version).toBe(1);
+      expect(version).toBe(2);
 
       // Re-running initialization should not fail or duplicate migrations
       await repo.initialize({ userId: user1, workspaceId: ws1 });
       const versionAfter = await repo.getCurrentSchemaVersion();
-      expect(versionAfter).toBe(1);
+      expect(versionAfter).toBe(2);
 
       await repo.close();
     });

@@ -12,9 +12,9 @@ import type {
  * Implemented by @daynori/api-client or custom network adapters.
  */
 export interface SyncTransportPort {
-  push(request: SyncPushRequest): Promise<SyncPushResponse>;
-  pull(query: SyncPullQuery): Promise<SyncPullResponse>;
-  bootstrap(query: SyncBootstrapQuery): Promise<SyncBootstrapResponse>;
+  push(request: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse>;
+  pull(query: SyncPullQuery, options?: { signal?: AbortSignal }): Promise<SyncPullResponse>;
+  bootstrap(query: SyncBootstrapQuery, options?: { signal?: AbortSignal }): Promise<SyncBootstrapResponse>;
 }
 
 export interface ClassifiedSyncError {
@@ -56,6 +56,7 @@ export function classifySyncError(error: unknown): ClassifiedSyncError {
     code === 'ETIMEDOUT' ||
     message.includes('fetch failed') ||
     message.includes('Network error') ||
+    message.includes('aborted') ||
     statusCode === 0;
 
   const isAuthError =
@@ -66,8 +67,8 @@ export function classifySyncError(error: unknown): ClassifiedSyncError {
     code === 'AUTH_EXPIRED' ||
     code === 'TOKEN_REVOKED';
 
+  // Specific protocol error code check: do NOT treat every HTTP 409 as a reset!
   const isResetRequired =
-    statusCode === 409 ||
     code === 'SYNC_RESET_REQUIRED' ||
     message.includes('SYNC_RESET_REQUIRED');
 
@@ -96,22 +97,22 @@ export function classifySyncError(error: unknown): ClassifiedSyncError {
 export class ApiClientSyncTransport implements SyncTransportPort {
   constructor(
     private client: {
-      syncPush(req: SyncPushRequest): Promise<SyncPushResponse>;
-      syncPull(query: SyncPullQuery): Promise<SyncPullResponse>;
-      syncBootstrap(query: SyncBootstrapQuery): Promise<SyncBootstrapResponse>;
+      syncPush(req: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse>;
+      syncPull(query: SyncPullQuery, options?: { signal?: AbortSignal }): Promise<SyncPullResponse>;
+      syncBootstrap(query: SyncBootstrapQuery, options?: { signal?: AbortSignal }): Promise<SyncBootstrapResponse>;
     }
   ) {}
 
-  push(request: SyncPushRequest): Promise<SyncPushResponse> {
-    return this.client.syncPush(request);
+  push(request: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse> {
+    return this.client.syncPush(request, options);
   }
 
-  pull(query: SyncPullQuery): Promise<SyncPullResponse> {
-    return this.client.syncPull(query);
+  pull(query: SyncPullQuery, options?: { signal?: AbortSignal }): Promise<SyncPullResponse> {
+    return this.client.syncPull(query, options);
   }
 
-  bootstrap(query: SyncBootstrapQuery): Promise<SyncBootstrapResponse> {
-    return this.client.syncBootstrap(query);
+  bootstrap(query: SyncBootstrapQuery, options?: { signal?: AbortSignal }): Promise<SyncBootstrapResponse> {
+    return this.client.syncBootstrap(query, options);
   }
 }
 

@@ -86,15 +86,24 @@ export class SyncService {
     }
 
     // 2. Build dependency graph for commands in batch
-    const batchOpSet = new Set(commands.map((c) => c.operationId));
-    // inBatchDeps maps operationId -> array of operationIds in this batch it depends on
+    const batchCmdMap = new Map<string, SyncCommand>();
+    for (let i = 0; i < total; i++) {
+      if (!duplicateIndices.has(i)) {
+        batchCmdMap.set(commands[i]!.operationId, commands[i]!);
+      }
+    }
+
     const inBatchDeps = new Map<string, string[]>();
 
     for (let i = 0; i < total; i++) {
       if (duplicateIndices.has(i)) continue;
       const cmd = commands[i]!;
-      const deps = (cmd.dependencyOperationIds || []).filter((d) => batchOpSet.has(d));
-      inBatchDeps.set(cmd.operationId, deps);
+      // An operation can only depend in-batch on an operation within the same actor, device, and workspace
+      const validInBatchDeps = (cmd.dependencyOperationIds || []).filter((depId) => {
+        const parentCmd = batchCmdMap.get(depId);
+        return parentCmd && parentCmd.workspaceId === cmd.workspaceId && parentCmd.deviceId === cmd.deviceId;
+      });
+      inBatchDeps.set(cmd.operationId, validInBatchDeps);
     }
 
     // 3. Cycle Detection via 3-color DFS
@@ -207,12 +216,69 @@ export class SyncService {
       const idx = seenOpIds.get(opId)!;
       const cmd = commands[idx]!;
 
-      // Verify dependencies before executing command
+      // 5.1 Check if this command was already processed and has a durable receipt
+      const existingReceipt = await withTenantContext(
+        this.pool,
+        { userId: actorUserId, workspaceId: cmd.workspaceId },
+        async (client) => {
+          return getMutationReceipt(client, actorUserId, cmd.deviceId, cmd.operationId);
+        }
+      );
+
+      if (existingReceipt) {
+        // Verify canonical payload hash
+        const currentHash = computeCanonicalPayloadHash({
+          workspaceId: cmd.workspaceId,
+          command: cmd.command,
+          commandVersion: cmd.commandVersion,
+          schemaVersion: cmd.schemaVersion,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          baseRevision: cmd.baseRevision,
+          dependencyOperationIds: cmd.dependencyOperationIds,
+          payload: cmd.payload,
+        });
+
+        if (
+          existingReceipt.workspaceId !== cmd.workspaceId ||
+          existingReceipt.canonicalPayloadHash !== currentHash
+        ) {
+          const reusedResult: MutationResult = {
+            operationId: cmd.operationId,
+            status: 'rejected',
+            entityId: cmd.entityId,
+            revision: 0,
+            seq: null,
+            error: {
+              code: 'IDEMPOTENCY_KEY_REUSED',
+              message: `OperationId ${cmd.operationId} was previously used with different command or payload parameters.`,
+            },
+          };
+          finalResults[idx] = reusedResult;
+          resultMap.set(opId, reusedResult);
+          continue;
+        }
+
+        const durableResult: MutationResult = {
+          operationId: existingReceipt.operationId,
+          status: existingReceipt.status as 'accepted' | 'conflict' | 'rejected',
+          entityId: existingReceipt.entityId,
+          revision: existingReceipt.acceptedRevision ?? 0,
+          seq: existingReceipt.appliedChangeSeq,
+          error: existingReceipt.resultPayload?.error as MutationResult['error'],
+        };
+        finalResults[idx] = durableResult;
+        resultMap.set(opId, durableResult);
+        continue;
+      }
+
+      // 5.2 Verify dependencies before executing command
       let dependencyFailure: { code: string; message: string } | null = null;
       const deps = cmd.dependencyOperationIds || [];
 
       for (const depId of deps) {
-        if (batchOpSet.has(depId)) {
+        const inBatchParent = batchCmdMap.get(depId);
+        if (inBatchParent && inBatchParent.workspaceId === cmd.workspaceId && inBatchParent.deviceId === cmd.deviceId) {
           const priorRes = resultMap.get(depId);
           if (!priorRes || priorRes.status !== 'accepted') {
             dependencyFailure = {
@@ -261,7 +327,7 @@ export class SyncService {
           payload: cmd.payload,
         });
 
-        // Persist authorized terminal rejection receipt
+        // Persist authorized terminal rejection receipt (or handle duplicate race safely)
         await withTenantContext(
           this.pool,
           { userId: actorUserId, workspaceId: cmd.workspaceId },
@@ -271,22 +337,35 @@ export class SyncService {
               [cmd.workspaceId]
             );
             if (authCheck.rows[0]?.has_access) {
-              await insertMutationReceipt(client, {
-                workspaceId: cmd.workspaceId,
-                actorUserId,
-                deviceId: cmd.deviceId,
-                operationId: cmd.operationId,
-                command: cmd.command,
-                entityType: cmd.entityType,
-                entityId: cmd.entityId,
-                schemaVersion: cmd.schemaVersion,
-                baseRevision: cmd.baseRevision,
-                canonicalPayloadHash: payloadHash,
-                status: 'rejected',
-                acceptedRevision: null,
-                appliedChangeSeq: null,
-                resultPayload: { error: dependencyFailure },
-              });
+              try {
+                await insertMutationReceipt(client, {
+                  workspaceId: cmd.workspaceId,
+                  actorUserId,
+                  deviceId: cmd.deviceId,
+                  operationId: cmd.operationId,
+                  command: cmd.command,
+                  entityType: cmd.entityType,
+                  entityId: cmd.entityId,
+                  schemaVersion: cmd.schemaVersion,
+                  baseRevision: cmd.baseRevision,
+                  canonicalPayloadHash: payloadHash,
+                  status: 'rejected',
+                  acceptedRevision: null,
+                  appliedChangeSeq: null,
+                  resultPayload: { error: dependencyFailure },
+                });
+              } catch (insertErr) {
+                if (
+                  insertErr &&
+                  typeof insertErr === 'object' &&
+                  (insertErr as { code?: string }).code === '23505' &&
+                  (insertErr as { constraint?: string }).constraint === 'uq_mutation_receipts_actor_device_op'
+                ) {
+                  // Concurrent insertion: durable receipt already exists
+                } else {
+                  throw insertErr;
+                }
+              }
             }
           }
         );

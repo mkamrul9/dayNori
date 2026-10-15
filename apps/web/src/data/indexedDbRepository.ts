@@ -6,6 +6,7 @@ import type {
   PreferenceSnapshotRecord,
   AccountNamespace,
   LocalRepositoryPort,
+  ConflictRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -18,11 +19,12 @@ import {
   validatePendingMutationRecord,
   validateSyncCursorRecord,
   validatePreferenceSnapshotRecord,
+  validateConflictRecord,
 } from '@daynori/sync';
 
 export const TRUSTED_DEVICE_CONSENT_KEY = 'daynori_trusted_device_consent';
 export const DB_NAME = 'daynori_web_storage';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const COORDINATION_CHANNEL_NAME = 'daynori_storage_coordination';
 
 function getStorage(): Storage | null {
@@ -215,6 +217,18 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
 
           if (!db.objectStoreNames.contains('preference_snapshots')) {
             db.createObjectStore('preference_snapshots', { keyPath: 'userId' });
+          }
+
+          if (!db.objectStoreNames.contains('conflicts')) {
+            const conflictStore = db.createObjectStore('conflicts', {
+              keyPath: ['workspaceId', 'id'],
+            });
+            conflictStore.createIndex('by_workspace_user', ['workspaceId', 'userId'], {
+              unique: false,
+            });
+            conflictStore.createIndex('by_entity', ['workspaceId', 'entityId'], {
+              unique: false,
+            });
           }
         } catch (err: unknown) {
           reject(
@@ -598,7 +612,276 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 5. Sync Cursors ---
+  async saveItemTransaction(
+    item: ItemHeaderRecord,
+    mutation: PendingMutationRecord,
+    draft?: DraftRecord
+  ): Promise<void> {
+    const validItem = validateItemHeaderRecord(item);
+    const validMut = validatePendingMutationRecord(mutation);
+    const validDraft = draft ? validateDraftRecord(draft) : undefined;
+
+    this.ensureNamespace(validItem.workspaceId);
+    this.ensureNamespace(validMut.workspaceId, validMut.userId);
+    if (validDraft) {
+      this.ensureNamespace(validDraft.workspaceId, validDraft.userId);
+    }
+
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const stores = validDraft
+        ? ['item_headers', 'pending_mutations', 'drafts']
+        : ['item_headers', 'pending_mutations'];
+      const tx = db.transaction(stores, 'readwrite');
+      tx.objectStore('item_headers').put(validItem);
+      tx.objectStore('pending_mutations').put(validMut);
+      if (validDraft) {
+        tx.objectStore('drafts').put(validDraft);
+      }
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async applyAcknowledgment(header: ItemHeaderRecord, operationId: string): Promise<void> {
+    const valid = validateItemHeaderRecord(header);
+    this.ensureNamespace(valid.workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(['item_headers', 'pending_mutations'], 'readwrite');
+      tx.objectStore('item_headers').put(valid);
+      tx.objectStore('pending_mutations').delete(operationId);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async applyPullPage(changes: ItemHeaderRecord[], newCursor: SyncCursorRecord): Promise<void> {
+    const validCursor = validateSyncCursorRecord(newCursor);
+    this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
+    const validatedChanges = changes.map((c) => validateItemHeaderRecord(c));
+    for (const c of validatedChanges) {
+      this.ensureNamespace(c.workspaceId);
+    }
+
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(['item_headers', 'sync_cursors'], 'readwrite');
+      const itemStore = tx.objectStore('item_headers');
+      const cursorStore = tx.objectStore('sync_cursors');
+
+      // 1. Process each item change under protection against stale concurrent overwrites
+      for (const change of validatedChanges) {
+        const getReq = itemStore.get([change.workspaceId, change.id]);
+        getReq.onsuccess = () => {
+          const existing = getReq.result ? validateItemHeaderRecord(getReq.result) : null;
+          if (existing) {
+            // Never overwrite with a stale/older revision
+            if (existing.serverRevision > change.serverRevision) {
+              return;
+            }
+            // Explicit newer restore check: if existing is deleted, but change is not deleted and newer, restore!
+            if (
+              existing.deletedAt !== null &&
+              change.deletedAt === null &&
+              change.serverRevision <= existing.serverRevision
+            ) {
+              return;
+            }
+          }
+          // Put the updated or new item (including tombstones)
+          itemStore.put(change);
+        };
+      }
+
+      // 2. Cursor advancement: protect against moving cursor backward
+      const cursorGetReq = cursorStore.get([validCursor.workspaceId, validCursor.userId]);
+      cursorGetReq.onsuccess = () => {
+        const existingCursor = cursorGetReq.result
+          ? validateSyncCursorRecord(cursorGetReq.result)
+          : null;
+        if (existingCursor && existingCursor.lastServerRevision > validCursor.lastServerRevision) {
+          // Do not move cursor backward
+          return;
+        }
+        cursorStore.put(validCursor);
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async installBootstrapGeneration(
+    items: ItemHeaderRecord[],
+    watermarkCursor: SyncCursorRecord,
+    preserveLocalItemIds: Set<string>
+  ): Promise<void> {
+    const validCursor = validateSyncCursorRecord(watermarkCursor);
+    this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
+    const validItems = items.map((i) => validateItemHeaderRecord(i));
+    for (const item of validItems) {
+      this.ensureNamespace(item.workspaceId);
+    }
+
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(['item_headers', 'sync_cursors'], 'readwrite');
+      const itemStore = tx.objectStore('item_headers');
+      const cursorStore = tx.objectStore('sync_cursors');
+
+      const snapshotIds = new Set(validItems.map((i) => i.id));
+
+      // 1. Scan existing items to replace obsolete server projections
+      const getAllReq = itemStore.getAll();
+      getAllReq.onsuccess = () => {
+        const existing = (getAllReq.result as unknown[]) || [];
+        for (const raw of existing) {
+          const header = validateItemHeaderRecord(raw);
+          if (header.workspaceId === validCursor.workspaceId) {
+            // If not in new snapshot:
+            if (!snapshotIds.has(header.id)) {
+              // Preserve if has local uncommitted changes or drafts or is in preserveLocalItemIds
+              if (preserveLocalItemIds.has(header.id) || header.serverRevision === 0) {
+                continue;
+              }
+              // Obsolete server projection: delete
+              itemStore.delete([header.workspaceId, header.id]);
+            }
+          }
+        }
+
+        // 2. Upsert snapshot items
+        for (const item of validItems) {
+          itemStore.put(item);
+        }
+
+        // 3. Update watermark cursor
+        cursorStore.put(validCursor);
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  // --- 5. Conflicts ---
+
+  async getConflict(workspaceId: string, conflictId: string): Promise<ConflictRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('conflicts', 'readonly');
+      const store = tx.objectStore('conflicts');
+      const req = store.get([workspaceId, conflictId]);
+
+      req.onsuccess = () => resolve(req.result ? validateConflictRecord(req.result) : null);
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async listConflicts(workspaceId: string): Promise<ConflictRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('conflicts', 'readonly');
+      const store = tx.objectStore('conflicts');
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const raw = (req.result as unknown[]) || [];
+        const results = raw
+          .map((c) => validateConflictRecord(c))
+          .filter((c) => c.workspaceId === workspaceId && !c.resolved);
+        resolve(results);
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async saveConflict(
+    conflict: ConflictRecord,
+    updatedMutation?: PendingMutationRecord
+  ): Promise<void> {
+    const validConflict = validateConflictRecord(conflict);
+    this.ensureNamespace(validConflict.workspaceId, validConflict.userId);
+    const validMut = updatedMutation ? validatePendingMutationRecord(updatedMutation) : undefined;
+    if (validMut) {
+      this.ensureNamespace(validMut.workspaceId, validMut.userId);
+    }
+
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const stores = validMut ? ['conflicts', 'pending_mutations'] : ['conflicts'];
+      const tx = db.transaction(stores, 'readwrite');
+      tx.objectStore('conflicts').put(validConflict);
+      if (validMut) {
+        tx.objectStore('pending_mutations').put(validMut);
+      }
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async resolveConflictTransaction(
+    conflictId: string,
+    _resolution: 'keep_server' | 'keep_local' | 'custom',
+    updatedHeader?: ItemHeaderRecord,
+    newMutation?: PendingMutationRecord,
+    removeOperationId?: string
+  ): Promise<void> {
+    const ns = this.ensureNamespace();
+    const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
+    const validNewMut = newMutation ? validatePendingMutationRecord(newMutation) : undefined;
+
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const stores = ['conflicts', 'item_headers', 'pending_mutations'];
+      const tx = db.transaction(stores, 'readwrite');
+      const conflictStore = tx.objectStore('conflicts');
+      const itemStore = tx.objectStore('item_headers');
+      const mutStore = tx.objectStore('pending_mutations');
+
+      // 1. Mark conflict resolved
+      const getReq = conflictStore.get([ns.workspaceId, conflictId]);
+      getReq.onsuccess = () => {
+        if (getReq.result) {
+          const rec = validateConflictRecord(getReq.result);
+          rec.resolved = true;
+          conflictStore.put(rec);
+        }
+      };
+
+      // 2. Remove old operation if specified
+      if (removeOperationId) {
+        mutStore.delete(removeOperationId);
+      }
+
+      // 3. Enqueue replacement mutation if specified (keep_local or custom)
+      if (validNewMut) {
+        mutStore.put(validNewMut);
+      }
+
+      // 4. Update header if specified (e.g. keep_server or custom)
+      if (validHeader) {
+        itemStore.put(validHeader);
+      }
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  // --- 6. Sync Cursors ---
 
   async getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null> {
     this.ensureNamespace(workspaceId, userId);
@@ -666,7 +949,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(
-        ['item_headers', 'drafts', 'pending_mutations', 'sync_cursors'],
+        ['item_headers', 'drafts', 'pending_mutations', 'sync_cursors', 'conflicts'],
         'readwrite'
       );
 
@@ -714,6 +997,17 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       };
 
+      // 5. Clear conflicts
+      const conflictStore = tx.objectStore('conflicts');
+      const conflictReq = conflictStore.getAll();
+      conflictReq.onsuccess = () => {
+        for (const c of conflictReq.result as ConflictRecord[]) {
+          if (c.workspaceId === workspaceId) {
+            conflictStore.delete([c.workspaceId, c.id]);
+          }
+        }
+      };
+
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
       tx.onabort = () => reject(this.mapError(tx.error));
@@ -725,7 +1019,14 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(
-        ['item_headers', 'drafts', 'pending_mutations', 'sync_cursors', 'preference_snapshots'],
+        [
+          'item_headers',
+          'drafts',
+          'pending_mutations',
+          'sync_cursors',
+          'preference_snapshots',
+          'conflicts',
+        ],
         'readwrite'
       );
 
@@ -769,6 +1070,17 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       // 5. Clear preference snapshot for user
       const prefStore = tx.objectStore('preference_snapshots');
       prefStore.delete(userId);
+
+      // 6. Clear conflicts for user
+      const conflictStore = tx.objectStore('conflicts');
+      const conflictReq = conflictStore.getAll();
+      conflictReq.onsuccess = () => {
+        for (const c of conflictReq.result as ConflictRecord[]) {
+          if (c.userId === userId) {
+            conflictStore.delete([c.workspaceId, c.id]);
+          }
+        }
+      };
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));

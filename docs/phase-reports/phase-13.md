@@ -104,4 +104,4 @@ Verified against the real PostgreSQL-backed API and production browser adapter:
   - Physical Android execution and TalkBack accessibility navigation on real devices remain blocked by physical hardware availability.
   - Software development proceeds under owner authorization with hardware gates explicitly documented as blocked.
 - **Next Ready Phase**:
-  - Phase 14: Core personal productivity features (notes, todos, routines, journals).
+  - Phase 14: Collections, folders, and shared item metadata (workspace folder hierarchy, item routing, rank, tags, and item links).

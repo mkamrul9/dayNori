@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import type {
   SyncCommand,
   SyncPushRequest,
@@ -36,6 +35,7 @@ export interface SyncEngineOptions {
   namespace: AccountNamespace;
   deviceId: string;
   coordination?: TabCoordinationPort;
+  idGenerator?: () => string;
   initialNetworkStatus?: 'online' | 'offline';
   backoffOptions?: {
     initialDelayMs?: number;
@@ -55,12 +55,24 @@ export type SyncEngineEvent =
   | { type: 'conflict_resolved'; conflictId: string }
   | { type: 'error'; message: string; code?: string; isAuthError?: boolean };
 
+function defaultIdGenerator(): string {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export class SyncEngine {
   private repository: LocalRepositoryPort;
   private transport: SyncTransportPort;
   private namespace: AccountNamespace;
   private deviceId: string;
   private coordination: TabCoordinationPort;
+  private generateId: () => string;
 
   private isRunning = false;
   private isSyncing = false;
@@ -82,6 +94,7 @@ export class SyncEngine {
   private lastSyncedAt: string | null = null;
   private lastSyncSequence = 0;
   private accessEpoch: string | null = null;
+  private syncGeneration = 0;
 
   private itemStates = new Map<string, ItemSyncState>();
   private activeConflicts = new Map<string, ConflictRecord>();
@@ -98,6 +111,7 @@ export class SyncEngine {
     this.namespace = options.namespace;
     this.deviceId = options.deviceId;
     this.coordination = options.coordination ?? new SingleProcessCoordinator();
+    this.generateId = options.idGenerator ?? defaultIdGenerator;
 
     this.pollIntervalMs = options.pollIntervalMs ?? 30000;
     this.initialDelayMs = options.backoffOptions?.initialDelayMs ?? 500;
@@ -115,11 +129,57 @@ export class SyncEngine {
     if (this.isRunning) return;
     this.isRunning = true;
     this.abortController = new AbortController();
+    this.syncGeneration++;
 
+    // 1. Reload durable state (conflicts and pending mutations)
+    try {
+      const persistedConflicts = await this.repository.listConflicts(this.namespace.workspaceId);
+      this.activeConflicts.clear();
+      for (const conflict of persistedConflicts) {
+        this.activeConflicts.set(conflict.entityId, conflict);
+        this.activeConflicts.set(conflict.id, conflict);
+        this.itemStates.set(conflict.entityId, {
+          savedOnDevice: true,
+          cloudSyncStatus: 'conflict',
+          lastError: conflict.conflictReason,
+        });
+      }
+
+      const pending = await this.repository.getPendingMutations(
+        this.namespace.workspaceId,
+        this.namespace.userId
+      );
+      for (const m of pending) {
+        if (!this.activeConflicts.has(m.entityId)) {
+          this.itemStates.set(m.entityId, {
+            savedOnDevice: true,
+            cloudSyncStatus: m.status === 'failed' ? 'error' : 'saved_locally',
+            pendingOperationId: m.operationId,
+            lastError: m.lastError ?? undefined,
+          });
+        }
+      }
+
+      if (pending.some((m) => m.status === 'failed')) {
+        this.setOverallStatus('error');
+      } else if (this.activeConflicts.size > 0) {
+        this.setOverallStatus('conflict');
+      } else if (pending.length > 0) {
+        this.setOverallStatus('saved_locally');
+      } else {
+        this.setOverallStatus('synced');
+      }
+    } catch (loadErr) {
+      this.log('warn', `Failed to load durable sync state on start: ${String(loadErr)}`);
+    }
+
+    // 2. Start tab coordination
     this.coordination.start();
     this.coordination.onSyncRequested(() => {
       if (this.networkStatus === 'online') {
-        this.syncNow().catch(() => {});
+        if (this.coordination.isLeader) {
+          this.syncNow().catch(() => {});
+        }
       }
     });
     this.coordination.onLeaderChanged((isLeader) => {
@@ -142,6 +202,7 @@ export class SyncEngine {
 
   async stop(): Promise<void> {
     this.isRunning = false;
+    this.syncGeneration++;
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
@@ -164,7 +225,11 @@ export class SyncEngine {
       this.log('info', `Network status changed to ${status}`);
       if (status === 'online') {
         this.consecutiveFailures = 0;
-        this.syncNow().catch(() => {});
+        if (this.coordination.isLeader) {
+          this.syncNow().catch(() => {});
+        } else {
+          this.coordination.requestSync();
+        }
       } else {
         this.setOverallStatus('saved_locally');
       }
@@ -185,6 +250,17 @@ export class SyncEngine {
   }
 
   getDiagnostics(): SyncDiagnostics {
+    let pendingCount = 0;
+    let failedCount = 0;
+    for (const state of this.itemStates.values()) {
+      if (state.cloudSyncStatus === 'saved_locally' || state.cloudSyncStatus === 'syncing') {
+        pendingCount++;
+      }
+      if (state.cloudSyncStatus === 'error') {
+        failedCount++;
+      }
+    }
+
     return {
       workspaceId: this.namespace.workspaceId,
       userId: this.namespace.userId,
@@ -192,19 +268,25 @@ export class SyncEngine {
       isLeader: this.coordination.isLeader,
       networkStatus: this.networkStatus,
       cloudSyncStatus: this.overallCloudStatus,
-      queueLength: this.countPendingMutations(),
-      inFlightCount: this.countInFlightMutations(),
-      failedCount: this.countFailedMutations(),
+      queueLength: pendingCount,
+      inFlightCount: this.isSyncing ? 1 : 0,
+      failedCount,
       lastSyncedAt: this.lastSyncedAt,
       lastSyncSequence: this.lastSyncSequence,
       accessEpoch: this.accessEpoch,
       consecutiveFailures: this.consecutiveFailures,
-      activeConflictsCount: this.activeConflicts.size,
+      activeConflictsCount: this.getConflicts().length,
     };
   }
 
   getConflicts(): ConflictRecord[] {
-    return Array.from(this.activeConflicts.values()).filter((c) => !c.resolved);
+    const unique = new Map<string, ConflictRecord>();
+    for (const c of this.activeConflicts.values()) {
+      if (!c.resolved) {
+        unique.set(c.id, c);
+      }
+    }
+    return Array.from(unique.values());
   }
 
   onEvent(callback: (event: SyncEngineEvent) => void): () => void {
@@ -225,7 +307,7 @@ export class SyncEngine {
     command?: SyncCommandType,
     options?: SaveItemOptions
   ): Promise<PendingMutationRecord> {
-    const operationId = crypto.randomUUID();
+    const operationId = this.generateId();
     const clientTimestamp = new Date().toISOString();
 
     // 1. Resolve dependency operations:
@@ -237,7 +319,8 @@ export class SyncEngine {
       new Set([...(options?.dependencyOperationIds || []), ...inferredDeps])
     );
 
-    const determinedCommand = command || 'updateItem';
+    const determinedCommand =
+      command || (item.serverRevision === 0 ? 'createItem' : 'updateItem');
     const action: 'create' | 'update' | 'delete' =
       determinedCommand === 'trashItem'
         ? 'delete'
@@ -245,9 +328,25 @@ export class SyncEngine {
         ? 'create'
         : 'update';
 
-    const mutationPayload = draft
-      ? { kind: item.kind, ...draft.payload }
-      : { kind: item.kind, rank: item.rank };
+    // Typed metadata only - do NOT leak unpersisted feature bodies into server metadata sync payload
+    const mutationPayload: Record<string, unknown> = {
+      kind: item.kind,
+      rank: item.rank,
+      folderId: item.folderId,
+      securityScope: item.securityScope,
+      isArchived: item.isArchived,
+      isPinned: item.isPinned,
+    };
+
+    // Calculate baseRevision for unsent intents:
+    // If there are pending operations for this entity, chain expected base revision
+    let baseRevision = item.serverRevision;
+    if (pendingForEntity.length > 0) {
+      const lastPending = pendingForEntity[pendingForEntity.length - 1];
+      if (lastPending) {
+        baseRevision = lastPending.baseRevision + 1;
+      }
+    }
 
     const mutationRecord: PendingMutationRecord = {
       operationId,
@@ -261,7 +360,7 @@ export class SyncEngine {
       commandVersion: 1,
       schemaVersion: 1,
       payload: mutationPayload,
-      baseRevision: item.serverRevision,
+      baseRevision,
       dependencyOperationIds: resolvedDeps,
       clientTimestamp,
       retryCount: 0,
@@ -269,14 +368,9 @@ export class SyncEngine {
       lastError: null,
     };
 
-    // 2. Perform atomic local storage write
+    // 2. Perform atomic local storage write via transaction
     try {
-      if (draft) {
-        await this.repository.saveDraftAndMutation(draft, mutationRecord);
-      } else {
-        await this.repository.enqueueMutation(mutationRecord);
-      }
-      await this.repository.upsertItemHeader(item);
+      await this.repository.saveItemTransaction(item, mutationRecord, draft);
     } catch (err) {
       // Local transaction failed: cannot show as saved on device
       this.itemStates.set(item.id, {
@@ -312,6 +406,14 @@ export class SyncEngine {
 
   async syncNow(): Promise<void> {
     if (!this.isRunning) return;
+
+    // Follower tabs must delegate synchronization to the elected leader
+    if (!this.coordination.isLeader) {
+      this.log('info', 'Follower tab delegating syncNow call to leader');
+      this.coordination.requestSync();
+      return;
+    }
+
     if (this.networkStatus === 'offline') {
       this.log('info', 'Sync deferred: network is offline');
       return;
@@ -348,15 +450,29 @@ export class SyncEngine {
   }
 
   private async executeSyncCycle(): Promise<void> {
+    const currentGen = ++this.syncGeneration;
+    const currentNsKey = `${this.namespace.userId}:${this.namespace.workspaceId}`;
+
+    const isStale = () => {
+      return (
+        !this.isRunning ||
+        this.syncGeneration !== currentGen ||
+        !this.coordination.isLeader ||
+        `${this.namespace.userId}:${this.namespace.workspaceId}` !== currentNsKey
+      );
+    };
+
     this.isSyncing = true;
     this.setOverallStatus('syncing');
 
     try {
       // 1. Pull latest server changes first to update projection and detect conflicts
-      const pullResult = await this.pullChanges();
+      const pullResult = await this.pullChanges(isStale);
+      if (isStale()) return;
 
       // 2. Push local pending mutations
-      const pushResult = await this.pushPending();
+      const pushResult = await this.pushPending(isStale);
+      if (isStale()) return;
 
       this.consecutiveFailures = 0;
       this.clearRetryTimer();
@@ -382,7 +498,9 @@ export class SyncEngine {
         pushedCount: pushResult.pushedCount,
       });
     } catch (error) {
-      this.handleSyncFailure(error);
+      if (!isStale()) {
+        this.handleSyncFailure(error);
+      }
     } finally {
       this.isSyncing = false;
     }
@@ -392,8 +510,8 @@ export class SyncEngine {
    * Drains the local pending mutation queue in dependency order, sending batches
    * of up to 50 operations.
    */
-  async pushPending(): Promise<{ pushedCount: number }> {
-    if (this.networkStatus === 'offline') {
+  async pushPending(isStale?: () => boolean): Promise<{ pushedCount: number }> {
+    if (this.networkStatus === 'offline' || !this.coordination.isLeader) {
       return { pushedCount: 0 };
     }
 
@@ -402,16 +520,19 @@ export class SyncEngine {
       this.namespace.userId
     );
 
-    if (pending.length === 0) {
+    // Exclude terminal failures from automatic retry loops!
+    const retryable = pending.filter((m) => m.status !== 'failed');
+    if (retryable.length === 0) {
       return { pushedCount: 0 };
     }
 
     // 1. Topologically sort queue respecting dependencyOperationIds
-    const sortedQueue = this.topologicallySortPending(pending);
+    const sortedQueue = this.topologicallySortPending(retryable);
     const batch = sortedQueue.slice(0, 50);
 
     const commands: SyncCommand[] = batch.map((m) => {
-      const cmdType: SyncCommandType = (m.command as SyncCommandType) ||
+      const cmdType: SyncCommandType =
+        (m.command as SyncCommandType) ||
         (m.action === 'delete' ? 'trashItem' : m.action === 'create' ? 'createItem' : 'updateItem');
 
       return {
@@ -431,7 +552,13 @@ export class SyncEngine {
     });
 
     const pushRequest: SyncPushRequest = { commands };
-    const pushResponse = await this.transport.push(pushRequest);
+    const pushResponse = await this.transport.push(pushRequest, {
+      signal: this.abortController?.signal,
+    });
+
+    if (isStale && isStale()) {
+      return { pushedCount: 0 };
+    }
 
     let pushedCount = 0;
 
@@ -448,29 +575,62 @@ export class SyncEngine {
           this.namespace.workspaceId,
           result.entityId
         );
-        if (header) {
-          header.serverRevision = result.revision;
-          if (origMutation.command === 'trashItem') {
-            header.deletedAt = new Date().toISOString();
-          } else if (origMutation.command === 'restoreItem') {
-            header.deletedAt = null;
-          }
-          await this.repository.upsertItemHeader(header);
-        }
+        const updatedHeader: ItemHeaderRecord = header
+          ? {
+              ...header,
+              serverRevision: result.revision,
+              deletedAt:
+                origMutation.command === 'trashItem'
+                  ? new Date().toISOString()
+                  : origMutation.command === 'restoreItem'
+                  ? null
+                  : header.deletedAt,
+            }
+          : {
+              id: result.entityId,
+              workspaceId: this.namespace.workspaceId,
+              kind: (origMutation.payload['kind'] as string) || 'note',
+              folderId: (origMutation.payload['folderId'] as string | null) ?? null,
+              rank: (origMutation.payload['rank'] as string) || '0',
+              isArchived: Boolean(origMutation.payload['isArchived'] ?? false),
+              isPinned: Boolean(origMutation.payload['isPinned'] ?? false),
+              securityScope:
+                (origMutation.payload['securityScope'] as 'standard' | 'vault') || 'standard',
+              serverRevision: result.revision,
+              createdAt: origMutation.clientTimestamp,
+              updatedAt: new Date().toISOString(),
+              deletedAt: origMutation.command === 'trashItem' ? new Date().toISOString() : null,
+            };
 
         // B. Retain pending work until the durable result is applied locally
-        await this.repository.removePendingMutation(result.operationId);
+        // and apply acknowledgment atomically in a single transaction
+        await this.repository.applyAcknowledgment(updatedHeader, result.operationId);
 
-        // C. Update item sync state to synced
-        this.itemStates.set(result.entityId, {
-          savedOnDevice: true,
-          cloudSyncStatus: 'synced',
-          lastSyncedRevision: result.revision,
-        });
+        // C. Update item sync state: do NOT report item synced if other operations for it remain unresolved
+        const remainingForEntity = (
+          await this.repository.getPendingMutations(
+            this.namespace.workspaceId,
+            this.namespace.userId
+          )
+        ).filter((m) => m.entityId === result.entityId && m.operationId !== result.operationId);
+
+        if (remainingForEntity.length === 0 && !this.activeConflicts.has(result.entityId)) {
+          this.itemStates.set(result.entityId, {
+            savedOnDevice: true,
+            cloudSyncStatus: 'synced',
+            lastSyncedRevision: result.revision,
+          });
+        } else {
+          this.itemStates.set(result.entityId, {
+            savedOnDevice: true,
+            cloudSyncStatus: 'saved_locally',
+            pendingOperationId: remainingForEntity[0]?.operationId,
+          });
+        }
       } else if (result.status === 'conflict') {
         // Explicit conflict handling: preserve local intent and server state
         const conflictRecord: ConflictRecord = {
-          id: crypto.randomUUID(),
+          id: this.generateId(),
           entityId: result.entityId,
           entityType: 'item',
           operationId: result.operationId,
@@ -486,11 +646,14 @@ export class SyncEngine {
         };
 
         this.activeConflicts.set(conflictRecord.entityId, conflictRecord);
+        this.activeConflicts.set(conflictRecord.id, conflictRecord);
 
-        // Update mutation state to failed, retaining the operation in local queue
+        // Update mutation state to failed, retaining the operation in local queue durably
         origMutation.status = 'failed';
         origMutation.lastError = conflictRecord.conflictReason;
-        await this.repository.enqueueMutation(origMutation);
+
+        // Durably save conflict and updated mutation
+        await this.repository.saveConflict(conflictRecord, origMutation);
 
         this.itemStates.set(result.entityId, {
           savedOnDevice: true,
@@ -519,8 +682,8 @@ export class SyncEngine {
   /**
    * Pulls incremental server changes with pagination and atomic cursor advancement.
    */
-  async pullChanges(): Promise<{ changesCount: number }> {
-    if (this.networkStatus === 'offline') {
+  async pullChanges(isStale?: () => boolean): Promise<{ changesCount: number }> {
+    if (this.networkStatus === 'offline' || !this.coordination.isLeader) {
       return { changesCount: 0 };
     }
 
@@ -528,75 +691,69 @@ export class SyncEngine {
     let hasMore = true;
 
     while (hasMore) {
+      if (isStale && isStale()) {
+        return { changesCount: totalChanges };
+      }
+
       const cursorRecord = await this.repository.getCursor(
         this.namespace.workspaceId,
         this.namespace.userId
       );
 
       try {
-        const pullRes = await this.transport.pull({
-          workspaceId: this.namespace.workspaceId,
-          cursor: cursorRecord?.cursor,
-          limit: 100,
-        });
+        const pullRes = await this.transport.pull(
+          {
+            workspaceId: this.namespace.workspaceId,
+            cursor: cursorRecord?.cursor,
+            limit: 100,
+          },
+          { signal: this.abortController?.signal }
+        );
 
-        // 1. Apply each change to local repository
-        for (const change of pullRes.data.changes) {
-          totalChanges++;
-          const existing = await this.repository.getItemHeader(
-            this.namespace.workspaceId,
-            change.entityId
-          );
-
-          // Out-of-order and duplicate revision handling:
-          if (existing && existing.serverRevision >= change.revision) {
-            continue; // No-op for stale revision
-          }
-
-          // Tombstone protection: do not resurrect deleted entity unless explicit restore
-          if (existing && existing.deletedAt !== null && !change.isTombstone) {
-            // Preserve tombstone if change is not a newer restoration
-            continue;
-          }
-
-          if (change.isTombstone) {
-            if (existing) {
-              existing.deletedAt = new Date().toISOString();
-              existing.serverRevision = change.revision;
-              await this.repository.upsertItemHeader(existing);
-            }
-          } else {
-            const data = (change.data || {}) as Record<string, unknown>;
-            const updatedHeader: ItemHeaderRecord = {
-              id: change.entityId,
-              workspaceId: this.namespace.workspaceId,
-              kind: typeof data.kind === 'string' ? data.kind : existing?.kind || 'note',
-              folderId: (data.folderId as string | null) ?? existing?.folderId ?? null,
-              rank: typeof data.rank === 'string' ? data.rank : existing?.rank || '0',
-              isArchived: Boolean(data.isArchived ?? existing?.isArchived ?? false),
-              isPinned: Boolean(data.isPinned ?? existing?.isPinned ?? false),
-              securityScope: (data.securityScope as 'standard' | 'vault') || existing?.securityScope || 'standard',
-              serverRevision: change.revision,
-              createdAt: typeof data.createdAt === 'string' ? data.createdAt : existing?.createdAt || new Date().toISOString(),
-              updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
-              deletedAt: null,
-            };
-            await this.repository.upsertItemHeader(updatedHeader);
-          }
+        if (isStale && isStale()) {
+          return { changesCount: totalChanges };
         }
 
-        // 2. Advance cursor in the same local transaction / step
+        const changesToApply: ItemHeaderRecord[] = [];
+
+        for (const change of pullRes.data.changes) {
+          totalChanges++;
+          const data = (change.data || {}) as Record<string, unknown>;
+
+          const header: ItemHeaderRecord = {
+            id: change.entityId,
+            workspaceId: this.namespace.workspaceId,
+            kind: typeof data.kind === 'string' ? data.kind : 'note',
+            folderId: data.folderId !== undefined ? (data.folderId as string | null) : null,
+            rank: typeof data.rank === 'string' ? data.rank : '0',
+            isArchived: Boolean(data.isArchived ?? false),
+            isPinned: Boolean(data.isPinned ?? false),
+            securityScope: (data.securityScope as 'standard' | 'vault') || 'standard',
+            serverRevision: change.revision,
+            createdAt:
+              typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+            updatedAt:
+              typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+            deletedAt: change.isTombstone ? new Date().toISOString() : null,
+          };
+
+          changesToApply.push(header);
+        }
+
         const newCursorRecord: SyncCursorRecord = {
           workspaceId: this.namespace.workspaceId,
           userId: this.namespace.userId,
-          lastServerRevision: pullRes.data.changes.length > 0
-            ? Math.max(...pullRes.data.changes.map((c) => c.revision))
-            : cursorRecord?.lastServerRevision || 0,
+          lastServerRevision:
+            pullRes.data.changes.length > 0
+              ? Math.max(...pullRes.data.changes.map((c) => c.revision))
+              : cursorRecord?.lastServerRevision || 0,
           cursor: pullRes.meta.cursor || cursorRecord?.cursor || '',
           lastSyncedAt: new Date().toISOString(),
           epoch: pullRes.data.accessEpoch,
         };
-        await this.repository.saveCursor(newCursorRecord);
+
+        // Atomically apply changes and advance cursor in single transaction
+        await this.repository.applyPullPage(changesToApply, newCursorRecord);
 
         this.lastSyncedAt = newCursorRecord.lastSyncedAt;
         this.accessEpoch = pullRes.data.accessEpoch;
@@ -621,30 +778,28 @@ export class SyncEngine {
    * preserving unsent local drafts, pending mutations, and conflict state.
    */
   async resetAndBootstrap(): Promise<void> {
-    const bootstrapRes = await this.transport.bootstrap({
-      workspaceId: this.namespace.workspaceId,
-    });
+    const bootstrapRes = await this.transport.bootstrap(
+      {
+        workspaceId: this.namespace.workspaceId,
+      },
+      { signal: this.abortController?.signal }
+    );
 
-    // 1. Upsert all active items from snapshot
-    for (const item of bootstrapRes.data.items) {
-      const header: ItemHeaderRecord = {
-        id: item.id,
-        workspaceId: item.workspaceId,
-        kind: item.kind,
-        folderId: item.folderId,
-        rank: item.rank,
-        isArchived: item.isArchived,
-        isPinned: item.isPinned,
-        securityScope: item.securityScope,
-        serverRevision: item.revision,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        deletedAt: item.deletedAt,
-      };
-      await this.repository.upsertItemHeader(header);
-    }
+    const snapshotItems: ItemHeaderRecord[] = bootstrapRes.data.items.map((item) => ({
+      id: item.id,
+      workspaceId: item.workspaceId,
+      kind: item.kind,
+      folderId: item.folderId,
+      rank: item.rank,
+      isArchived: item.isArchived,
+      isPinned: item.isPinned,
+      securityScope: item.securityScope,
+      serverRevision: item.revision,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      deletedAt: item.deletedAt,
+    }));
 
-    // 2. Save new watermark cursor
     const newCursor: SyncCursorRecord = {
       workspaceId: this.namespace.workspaceId,
       userId: this.namespace.userId,
@@ -653,7 +808,30 @@ export class SyncEngine {
       lastSyncedAt: new Date().toISOString(),
       epoch: bootstrapRes.data.accessEpoch,
     };
-    await this.repository.saveCursor(newCursor);
+
+    // Collect all local entities that have unsent drafts, pending mutations, or conflicts
+    const pending = await this.repository.getPendingMutations(
+      this.namespace.workspaceId,
+      this.namespace.userId
+    );
+    const drafts = await this.repository.listDrafts(
+      this.namespace.workspaceId,
+      this.namespace.userId
+    );
+    const conflicts = await this.repository.listConflicts(this.namespace.workspaceId);
+
+    const preserveLocalItemIds = new Set<string>([
+      ...pending.map((p) => p.entityId),
+      ...drafts.map((d) => d.entityId).filter(Boolean) as string[],
+      ...conflicts.map((c) => c.entityId),
+    ]);
+
+    // Atomically install snapshot, replacing obsolete projections while preserving local work
+    await this.repository.installBootstrapGeneration(
+      snapshotItems,
+      newCursor,
+      preserveLocalItemIds
+    );
 
     this.lastSyncedAt = newCursor.lastSyncedAt;
     this.accessEpoch = bootstrapRes.data.accessEpoch;
@@ -677,15 +855,13 @@ export class SyncEngine {
       throw new Error(`Conflict ${conflictId} not found`);
     }
 
-    // Always remove the original rejected operation from queue
-    await this.repository.removePendingMutation(conflict.operationId);
-
     if (resolution === 'keep_local' || resolution === 'custom') {
-      const payload = resolution === 'custom' && customPayload ? customPayload : conflict.localPayload;
+      const payload =
+        resolution === 'custom' && customPayload ? customPayload : conflict.localPayload;
 
       // Invariant: Never reuse the rejected operation ID or baseRevision!
       // Mint a fresh operation ID with baseRevision equal to the current serverRevision.
-      const newOpId = crypto.randomUUID();
+      const newOpId = this.generateId();
       const newMutation: PendingMutationRecord = {
         operationId: newOpId,
         deviceId: this.deviceId,
@@ -706,7 +882,14 @@ export class SyncEngine {
         lastError: null,
       };
 
-      await this.repository.enqueueMutation(newMutation);
+      // Atomic conflict resolution transaction: marks resolved, removes old op, enqueues replacement
+      await this.repository.resolveConflictTransaction(
+        conflict.id,
+        resolution,
+        undefined,
+        newMutation,
+        conflict.operationId
+      );
 
       this.itemStates.set(conflict.entityId, {
         savedOnDevice: true,
@@ -714,7 +897,34 @@ export class SyncEngine {
         pendingOperationId: newOpId,
       });
     } else {
-      // keep_server: accept server version, local item state becomes synced
+      // keep_server: accept server representation
+      let updatedHeader: ItemHeaderRecord | undefined = undefined;
+      if (conflict.serverState) {
+        const s = conflict.serverState;
+        updatedHeader = {
+          id: conflict.entityId,
+          workspaceId: conflict.workspaceId,
+          kind: (s['kind'] as string) || 'note',
+          folderId: (s['folderId'] as string | null) ?? null,
+          rank: (s['rank'] as string) || '0',
+          isArchived: Boolean(s['isArchived'] ?? false),
+          isPinned: Boolean(s['isPinned'] ?? false),
+          securityScope: (s['securityScope'] as 'standard' | 'vault') || 'standard',
+          serverRevision: conflict.serverRevision,
+          createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+          updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+          deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+        };
+      }
+
+      await this.repository.resolveConflictTransaction(
+        conflict.id,
+        'keep_server',
+        updatedHeader,
+        undefined,
+        conflict.operationId
+      );
+
       this.itemStates.set(conflict.entityId, {
         savedOnDevice: true,
         cloudSyncStatus: 'synced',
@@ -728,7 +938,11 @@ export class SyncEngine {
     this.emit({ type: 'conflict_resolved', conflictId: conflict.id });
 
     if (resolution !== 'keep_server') {
-      this.syncNow().catch(() => {});
+      if (this.coordination.isLeader) {
+        this.syncNow().catch(() => {});
+      } else {
+        this.coordination.requestSync();
+      }
     }
   }
 
@@ -747,7 +961,11 @@ export class SyncEngine {
   handleAuthRestored(): void {
     this.authLost = false;
     this.consecutiveFailures = 0;
-    this.syncNow().catch(() => {});
+    if (this.coordination.isLeader) {
+      this.syncNow().catch(() => {});
+    } else {
+      this.coordination.requestSync();
+    }
   }
 
   async handleAccountSwitch(newNamespace: AccountNamespace): Promise<void> {
@@ -809,7 +1027,11 @@ export class SyncEngine {
     this.clearRetryTimer();
     this.retryTimer = setTimeout(() => {
       if (this.isRunning && this.networkStatus === 'online') {
-        this.syncNow().catch(() => {});
+        if (this.coordination.isLeader) {
+          this.syncNow().catch(() => {});
+        } else {
+          this.coordination.requestSync();
+        }
       }
     }, delayMs);
   }
@@ -895,19 +1117,5 @@ export class SyncEngine {
     }
 
     return result;
-  }
-
-  private countPendingMutations(): number {
-    return Array.from(this.itemStates.values()).filter(
-      (s) => s.cloudSyncStatus === 'saved_locally' || s.cloudSyncStatus === 'syncing'
-    ).length;
-  }
-
-  private countInFlightMutations(): number {
-    return this.isSyncing ? 1 : 0;
-  }
-
-  private countFailedMutations(): number {
-    return Array.from(this.itemStates.values()).filter((s) => s.cloudSyncStatus === 'error').length;
   }
 }

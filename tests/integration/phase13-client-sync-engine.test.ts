@@ -699,4 +699,339 @@ describe('Phase 13: Shared Client Synchronization Engine Integration Tests', () 
       await repo.close();
     });
   });
+
+  describe('8. Atomic Transactions, Recovery, Chained Offline Revisions & Persistent Conflicts', () => {
+    it('chains expected base revisions across multiple offline edits on the same entity and drains cleanly', async () => {
+      await clearAllLocalData();
+      setTrustedDeviceConsent(true);
+
+      const repo = new IndexedDbLocalRepository();
+      await repo.initialize({ userId: userAId, workspaceId: workspaceAId });
+
+      const transport = new ApiClientSyncTransport(clientA);
+      const engine = new SyncEngine({
+        repository: repo,
+        transport,
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: deviceIdA,
+        initialNetworkStatus: 'offline',
+      });
+
+      await engine.start();
+
+      const itemId = crypto.randomUUID();
+      const initialHeader: ItemHeaderRecord = {
+        id: itemId,
+        workspaceId: workspaceAId,
+        kind: 'note',
+        folderId: null,
+        rank: '0|offline_first:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      };
+
+      // 1. First edit offline: createItem (baseRevision 0)
+      const mut1 = await engine.saveItem(initialHeader, undefined, 'createItem', { autoSync: false });
+      expect(mut1.baseRevision).toBe(0);
+
+      // 2. Second edit offline: updateItem (baseRevision must be 1, chained from mut1)
+      const updatedHeader: ItemHeaderRecord = {
+        ...initialHeader,
+        rank: '0|offline_second:',
+      };
+      const mut2 = await engine.saveItem(updatedHeader, undefined, 'updateItem', { autoSync: false });
+      expect(mut2.baseRevision).toBe(1);
+      expect(mut2.dependencyOperationIds).toContain(mut1.operationId);
+
+      // 3. Bring online and push both in sequence
+      engine.setNetworkStatus('online');
+      await engine.syncNow();
+
+      // Both mutations must be accepted and item must be fully synced!
+      expect(engine.getItemSyncState(itemId).cloudSyncStatus).toBe('synced');
+      const syncedHeader = await repo.getItemHeader(workspaceAId, itemId);
+      expect(syncedHeader?.serverRevision).toBe(2);
+
+      await engine.stop();
+      await repo.close();
+    });
+
+    it('persists conflicts across engine restart and resolves them transactionally without losing replacement mutation', async () => {
+      await clearAllLocalData();
+      setTrustedDeviceConsent(true);
+
+      const repo = new IndexedDbLocalRepository();
+      await repo.initialize({ userId: userAId, workspaceId: workspaceAId });
+
+      const transport = new ApiClientSyncTransport(clientA);
+
+      // 1. Create item on server with client A
+      const itemId = crypto.randomUUID();
+      const createRes = await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: deviceIdA,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'createItem',
+            entityType: 'item',
+            entityId: itemId,
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'note', rank: '0|conflict_test:' },
+          },
+        ],
+      });
+      expect(createRes.data.results[0].status).toBe('accepted');
+
+      // 2. Another client updates item on server to revision 2
+      const clientBUpdate = await clientA.syncPush({
+        commands: [
+          {
+            operationId: crypto.randomUUID(),
+            deviceId: 'other_device',
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'updateItem',
+            entityType: 'item',
+            entityId: itemId,
+            baseRevision: 1,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: { kind: 'note', rank: '0|concurrent_server:' },
+          },
+        ],
+      });
+      expect(clientBUpdate.data.results[0].status).toBe('accepted');
+      expect(clientBUpdate.data.results[0].revision).toBe(2);
+
+      // 3. Client A sync engine attempts update with stale baseRevision: 1
+      const engine1 = new SyncEngine({
+        repository: repo,
+        transport,
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: deviceIdA,
+      });
+      await engine1.start();
+
+      const staleHeader: ItemHeaderRecord = {
+        id: itemId,
+        workspaceId: workspaceAId,
+        kind: 'note',
+        folderId: null,
+        rank: '0|clientA_local_intent:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      };
+
+      await engine1.saveItem(staleHeader, undefined, 'updateItem', { autoSync: false });
+      await engine1.syncNow();
+
+      expect(engine1.getItemSyncState(itemId).cloudSyncStatus).toBe('conflict');
+      const conflicts = engine1.getConflicts();
+      expect(conflicts).toHaveLength(1);
+      const conflictId = conflicts[0].id;
+
+      // 4. Simulate process restart: stop engine1 and close repo
+      await engine1.stop();
+      await repo.close();
+
+      // 5. Reopen storage and start a new engine instance
+      const repo2 = new IndexedDbLocalRepository();
+      await repo2.initialize({ userId: userAId, workspaceId: workspaceAId });
+      const engine2 = new SyncEngine({
+        repository: repo2,
+        transport,
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: deviceIdA,
+      });
+      await engine2.start();
+
+      // Verify conflict was reloaded from durable repository
+      const reloadedConflicts = engine2.getConflicts();
+      expect(reloadedConflicts).toHaveLength(1);
+      expect(reloadedConflicts[0].id).toBe(conflictId);
+      expect(engine2.getItemSyncState(itemId).cloudSyncStatus).toBe('conflict');
+
+      // 6. Resolve conflict with keep_local: mints new operation ID and syncs successfully
+      await engine2.resolveConflict(conflictId, 'keep_local');
+      await engine2.syncNow();
+
+      expect(engine2.getItemSyncState(itemId).cloudSyncStatus).toBe('synced');
+      expect(engine2.getConflicts()).toHaveLength(0);
+
+      await engine2.stop();
+      await repo2.close();
+    });
+
+    it('installBootstrapGeneration safely removes obsolete projections while preserving local uncommitted items', async () => {
+      await clearAllLocalData();
+      setTrustedDeviceConsent(true);
+
+      const repo = new IndexedDbLocalRepository();
+      await repo.initialize({ userId: userAId, workspaceId: workspaceAId });
+
+      // Add obsolete item (serverRevision > 0, deleted on server before feed horizon)
+      const obsoleteId = crypto.randomUUID();
+      await repo.upsertItemHeader({
+        id: obsoleteId,
+        workspaceId: workspaceAId,
+        kind: 'note',
+        folderId: null,
+        rank: '0|obsolete:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 10,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      });
+
+      // Add local uncommitted item (serverRevision === 0)
+      const localId = crypto.randomUUID();
+      await repo.upsertItemHeader({
+        id: localId,
+        workspaceId: workspaceAId,
+        kind: 'task',
+        folderId: null,
+        rank: '0|local:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      });
+
+      // Active snapshot item
+      const activeId = crypto.randomUUID();
+      const activeItem: ItemHeaderRecord = {
+        id: activeId,
+        workspaceId: workspaceAId,
+        kind: 'note',
+        folderId: null,
+        rank: '0|active:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 15,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      };
+
+      const watermarkCursor: SyncCursorRecord = {
+        workspaceId: workspaceAId,
+        userId: userAId,
+        lastServerRevision: 15,
+        cursor: 'wm_15',
+        lastSyncedAt: new Date().toISOString(),
+        epoch: 'epoch_1',
+      };
+
+      // Install bootstrap generation
+      await repo.installBootstrapGeneration([activeItem], watermarkCursor, new Set([localId]));
+
+      // Obsolete item must be safely removed
+      expect(await repo.getItemHeader(workspaceAId, obsoleteId)).toBeNull();
+
+      // Local uncommitted item must be preserved
+      expect(await repo.getItemHeader(workspaceAId, localId)).not.toBeNull();
+
+      // Active snapshot item must be present
+      expect(await repo.getItemHeader(workspaceAId, activeId)).not.toBeNull();
+
+      await repo.close();
+    });
+
+    it('protects against stale concurrent pull page moving cursor backward or overwriting newer projection', async () => {
+      await clearAllLocalData();
+      setTrustedDeviceConsent(true);
+
+      const repo = new IndexedDbLocalRepository();
+      await repo.initialize({ userId: userAId, workspaceId: workspaceAId });
+
+      const itemId = crypto.randomUUID();
+
+      // 1. Initial newer state: revision 5
+      await repo.upsertItemHeader({
+        id: itemId,
+        workspaceId: workspaceAId,
+        kind: 'note',
+        folderId: null,
+        rank: '0|rev5:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 5,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      });
+
+      await repo.saveCursor({
+        workspaceId: workspaceAId,
+        userId: userAId,
+        lastServerRevision: 5,
+        cursor: 'cur_5',
+        lastSyncedAt: new Date().toISOString(),
+        epoch: 'epoch_1',
+      });
+
+      // 2. Stale pull arrives with revision 3 and cursor 3
+      const staleChange: ItemHeaderRecord = {
+        id: itemId,
+        workspaceId: workspaceAId,
+        kind: 'note',
+        folderId: null,
+        rank: '0|stale_rev3:',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 3,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      };
+
+      const staleCursor: SyncCursorRecord = {
+        workspaceId: workspaceAId,
+        userId: userAId,
+        lastServerRevision: 3,
+        cursor: 'cur_3',
+        lastSyncedAt: new Date().toISOString(),
+        epoch: 'epoch_1',
+      };
+
+      await repo.applyPullPage([staleChange], staleCursor);
+
+      // Verify projection remained at revision 5 and was not overwritten by stale revision 3
+      const currentHeader = await repo.getItemHeader(workspaceAId, itemId);
+      expect(currentHeader?.serverRevision).toBe(5);
+      expect(currentHeader?.rank).toBe('0|rev5:');
+
+      // Verify cursor was not moved backward
+      const currentCursor = await repo.getCursor(workspaceAId, userAId);
+      expect(currentCursor?.lastServerRevision).toBe(5);
+      expect(currentCursor?.cursor).toBe('cur_5');
+
+      await repo.close();
+    });
+  });
 });

@@ -6,6 +6,7 @@ import type {
   PreferenceSnapshotRecord,
   AccountNamespace,
   LocalRepositoryPort,
+  ConflictRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -18,6 +19,7 @@ import {
   validatePendingMutationRecord,
   validateSyncCursorRecord,
   validatePreferenceSnapshotRecord,
+  validateConflictRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -69,6 +71,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     this.dbExistsFn =
       options.databaseExistsAsync ||
       (async (dbName: string) => {
+        let expoFsError: unknown = null;
         try {
           const expoFsMod = 'expo-file-system';
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,15 +81,17 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             const info = await FileSystem.getInfoAsync(dbPath);
             return Boolean(info?.exists);
           }
-        } catch {
-          // Fallback to node:fs
+        } catch (err) {
+          expoFsError = err;
         }
         try {
           const fs = await import('node:fs');
           const path = await import('node:path');
           return fs.existsSync(dbName) || fs.existsSync(path.join(process.cwd(), dbName));
-        } catch {
-          return false;
+        } catch (nodeFsError) {
+          throw new StorageUnavailableError(
+            `Unable to determine database file existence for "${dbName}": native filesystem check failed: ${expoFsError instanceof Error ? expoFsError.message : String(expoFsError)}; node fallback failed: ${nodeFsError instanceof Error ? nodeFsError.message : String(nodeFsError)}`
+          );
         }
       });
     this.dbDeleteFn =
@@ -352,6 +357,29 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             INSERT INTO schema_migrations (version, applied_at) VALUES (1, datetime('now'));
           `);
         }
+
+        if (currentVersion < 2) {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS conflicts (
+              workspace_id TEXT NOT NULL,
+              id TEXT NOT NULL,
+              user_id TEXT NOT NULL,
+              entity_id TEXT NOT NULL,
+              entity_type TEXT NOT NULL,
+              operation_id TEXT NOT NULL,
+              local_payload_json TEXT NOT NULL,
+              base_revision INTEGER NOT NULL,
+              server_revision INTEGER NOT NULL,
+              server_state_json TEXT,
+              conflict_reason TEXT NOT NULL,
+              detected_at TEXT NOT NULL,
+              resolved INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY (workspace_id, id)
+            );
+
+            INSERT INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'));
+          `);
+        }
       });
     } catch (err: unknown) {
       throw new StorageMigrationError(
@@ -477,40 +505,44 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     }
   }
 
+  private async upsertItemHeaderDirect(valid: ItemHeaderRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO item_headers (
+        id, workspace_id, kind, folder_id, rank, is_archived, is_pinned,
+        security_scope, server_revision, created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        kind = excluded.kind,
+        folder_id = excluded.folder_id,
+        rank = excluded.rank,
+        is_archived = excluded.is_archived,
+        is_pinned = excluded.is_pinned,
+        security_scope = excluded.security_scope,
+        server_revision = excluded.server_revision,
+        updated_at = excluded.updated_at,
+        deleted_at = excluded.deleted_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.kind,
+      valid.folderId ?? null,
+      valid.rank,
+      valid.isArchived ? 1 : 0,
+      valid.isPinned ? 1 : 0,
+      valid.securityScope,
+      valid.serverRevision,
+      valid.createdAt,
+      valid.updatedAt,
+      valid.deletedAt ?? null
+    );
+  }
+
   async upsertItemHeader(header: ItemHeaderRecord): Promise<void> {
     const valid = validateItemHeaderRecord(header);
     this.ensureNamespace(valid.workspaceId);
-    const db = this.ensureOpen();
     return this.runWithLock(async () => {
       try {
-        await db.runAsync(
-          `INSERT INTO item_headers (
-            id, workspace_id, kind, folder_id, rank, is_archived, is_pinned,
-            security_scope, server_revision, created_at, updated_at, deleted_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT (workspace_id, id) DO UPDATE SET
-            kind = excluded.kind,
-            folder_id = excluded.folder_id,
-            rank = excluded.rank,
-            is_archived = excluded.is_archived,
-            is_pinned = excluded.is_pinned,
-            security_scope = excluded.security_scope,
-            server_revision = excluded.server_revision,
-            updated_at = excluded.updated_at,
-            deleted_at = excluded.deleted_at;`,
-          valid.id,
-          valid.workspaceId,
-          valid.kind,
-          valid.folderId ?? null,
-          valid.rank,
-          valid.isArchived ? 1 : 0,
-          valid.isPinned ? 1 : 0,
-          valid.securityScope,
-          valid.serverRevision,
-          valid.createdAt,
-          valid.updatedAt,
-          valid.deletedAt ?? null
-        );
+        await this.upsertItemHeaderDirect(valid);
       } catch (err) {
         throw this.mapError(err);
       }
@@ -884,7 +916,363 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 5. Sync Cursors ---
+  async saveItemTransaction(
+    item: ItemHeaderRecord,
+    mutation: PendingMutationRecord,
+    draft?: DraftRecord
+  ): Promise<void> {
+    const validItem = validateItemHeaderRecord(item);
+    const validMut = validatePendingMutationRecord(mutation);
+    const validDraft = draft ? validateDraftRecord(draft) : undefined;
+
+    this.ensureNamespace(validItem.workspaceId);
+    this.ensureNamespace(validMut.workspaceId, validMut.userId);
+    if (validDraft) {
+      this.ensureNamespace(validDraft.workspaceId, validDraft.userId);
+    }
+
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          await this.upsertItemHeaderDirect(validItem);
+          await this.enqueueMutationDirect(validMut);
+          if (validDraft) {
+            await this.saveDraftDirect(validDraft);
+          }
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async applyAcknowledgment(header: ItemHeaderRecord, operationId: string): Promise<void> {
+    const valid = validateItemHeaderRecord(header);
+    this.ensureNamespace(valid.workspaceId);
+
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          await this.upsertItemHeaderDirect(valid);
+          await db.runAsync(`DELETE FROM pending_mutations WHERE operation_id = ?;`, operationId);
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async applyPullPage(changes: ItemHeaderRecord[], newCursor: SyncCursorRecord): Promise<void> {
+    const validCursor = validateSyncCursorRecord(newCursor);
+    this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
+    const validatedChanges = changes.map((c) => validateItemHeaderRecord(c));
+    for (const c of validatedChanges) {
+      this.ensureNamespace(c.workspaceId);
+    }
+
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          for (const change of validatedChanges) {
+            const existing = await db.getFirstAsync<{
+              server_revision: number;
+              deleted_at: string | null;
+            }>(
+              `SELECT server_revision, deleted_at FROM item_headers WHERE workspace_id = ? AND id = ?;`,
+              change.workspaceId,
+              change.id
+            );
+
+            if (existing) {
+              // Never overwrite with a stale/older revision
+              if (existing.server_revision > change.serverRevision) {
+                continue;
+              }
+              // Explicit newer restore check
+              if (
+                existing.deleted_at !== null &&
+                change.deletedAt === null &&
+                change.serverRevision <= existing.server_revision
+              ) {
+                continue;
+              }
+            }
+
+            await this.upsertItemHeaderDirect(change);
+          }
+
+          // Cursor advancement check: protect against moving cursor backward
+          const existingCursor = await db.getFirstAsync<{ last_server_revision: number }>(
+            `SELECT last_server_revision FROM sync_cursors WHERE workspace_id = ? AND user_id = ?;`,
+            validCursor.workspaceId,
+            validCursor.userId
+          );
+
+          if (
+            !existingCursor ||
+            existingCursor.last_server_revision <= validCursor.lastServerRevision
+          ) {
+            await this.saveCursorDirect(validCursor);
+          }
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async installBootstrapGeneration(
+    items: ItemHeaderRecord[],
+    watermarkCursor: SyncCursorRecord,
+    preserveLocalItemIds: Set<string>
+  ): Promise<void> {
+    const validCursor = validateSyncCursorRecord(watermarkCursor);
+    this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
+    const validItems = items.map((i) => validateItemHeaderRecord(i));
+    for (const item of validItems) {
+      this.ensureNamespace(item.workspaceId);
+    }
+
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          const snapshotIds = new Set(validItems.map((i) => i.id));
+
+          // 1. Scan existing items to replace obsolete server projections
+          const existingRows = await db.getAllAsync<{ id: string; server_revision: number }>(
+            `SELECT id, server_revision FROM item_headers WHERE workspace_id = ?;`,
+            validCursor.workspaceId
+          );
+
+          for (const row of existingRows) {
+            if (!snapshotIds.has(row.id)) {
+              if (preserveLocalItemIds.has(row.id) || row.server_revision === 0) {
+                continue;
+              }
+              await db.runAsync(
+                `DELETE FROM item_headers WHERE workspace_id = ? AND id = ?;`,
+                validCursor.workspaceId,
+                row.id
+              );
+            }
+          }
+
+          // 2. Upsert snapshot items
+          for (const item of validItems) {
+            await this.upsertItemHeaderDirect(item);
+          }
+
+          // 3. Update watermark cursor
+          await this.saveCursorDirect(validCursor);
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  // --- 5. Conflicts ---
+
+  async getConflict(workspaceId: string, conflictId: string): Promise<ConflictRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        workspace_id: string;
+        id: string;
+        user_id: string;
+        entity_id: string;
+        entity_type: string;
+        operation_id: string;
+        local_payload_json: string;
+        base_revision: number;
+        server_revision: number;
+        server_state_json: string | null;
+        conflict_reason: string;
+        detected_at: string;
+        resolved: number;
+      }>(`SELECT * FROM conflicts WHERE workspace_id = ? AND id = ?;`, workspaceId, conflictId);
+
+      if (!row) return null;
+      return {
+        id: row.id,
+        workspaceId: row.workspace_id,
+        userId: row.user_id,
+        entityId: row.entity_id,
+        entityType: row.entity_type,
+        operationId: row.operation_id,
+        localPayload: JSON.parse(row.local_payload_json),
+        baseRevision: row.base_revision,
+        serverRevision: row.server_revision,
+        serverState: row.server_state_json ? JSON.parse(row.server_state_json) : undefined,
+        conflictReason: row.conflict_reason,
+        detectedAt: row.detected_at,
+        resolved: Boolean(row.resolved),
+      };
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listConflicts(workspaceId: string): Promise<ConflictRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const rows = await db.getAllAsync<{
+        workspace_id: string;
+        id: string;
+        user_id: string;
+        entity_id: string;
+        entity_type: string;
+        operation_id: string;
+        local_payload_json: string;
+        base_revision: number;
+        server_revision: number;
+        server_state_json: string | null;
+        conflict_reason: string;
+        detected_at: string;
+        resolved: number;
+      }>(`SELECT * FROM conflicts WHERE workspace_id = ? AND resolved = 0;`, workspaceId);
+
+      return rows.map((row) => ({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        userId: row.user_id,
+        entityId: row.entity_id,
+        entityType: row.entity_type,
+        operationId: row.operation_id,
+        localPayload: JSON.parse(row.local_payload_json),
+        baseRevision: row.base_revision,
+        serverRevision: row.server_revision,
+        serverState: row.server_state_json ? JSON.parse(row.server_state_json) : undefined,
+        conflictReason: row.conflict_reason,
+        detectedAt: row.detected_at,
+        resolved: false,
+      }));
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async saveConflict(
+    conflict: ConflictRecord,
+    updatedMutation?: PendingMutationRecord
+  ): Promise<void> {
+    const valid = validateConflictRecord(conflict);
+    this.ensureNamespace(valid.workspaceId, valid.userId);
+    const validMut = updatedMutation ? validatePendingMutationRecord(updatedMutation) : undefined;
+    if (validMut) {
+      this.ensureNamespace(validMut.workspaceId, validMut.userId);
+    }
+
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          await db.runAsync(
+            `INSERT INTO conflicts (
+              workspace_id, id, user_id, entity_id, entity_type, operation_id,
+              local_payload_json, base_revision, server_revision, server_state_json,
+              conflict_reason, detected_at, resolved
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (workspace_id, id) DO UPDATE SET
+              local_payload_json = excluded.local_payload_json,
+              base_revision = excluded.base_revision,
+              server_revision = excluded.server_revision,
+              server_state_json = excluded.server_state_json,
+              conflict_reason = excluded.conflict_reason,
+              resolved = excluded.resolved;`,
+            valid.workspaceId,
+            valid.id,
+            valid.userId,
+            valid.entityId,
+            valid.entityType,
+            valid.operationId,
+            JSON.stringify(valid.localPayload),
+            valid.baseRevision,
+            valid.serverRevision,
+            valid.serverState ? JSON.stringify(valid.serverState) : null,
+            valid.conflictReason,
+            valid.detectedAt,
+            valid.resolved ? 1 : 0
+          );
+
+          if (validMut) {
+            await this.enqueueMutationDirect(validMut);
+          }
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async resolveConflictTransaction(
+    conflictId: string,
+    _resolution: 'keep_server' | 'keep_local' | 'custom',
+    updatedHeader?: ItemHeaderRecord,
+    newMutation?: PendingMutationRecord,
+    removeOperationId?: string
+  ): Promise<void> {
+    const ns = this.ensureNamespace();
+    const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
+    const validNewMut = newMutation ? validatePendingMutationRecord(newMutation) : undefined;
+
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.withTransactionAsync(async () => {
+          await db.runAsync(
+            `UPDATE conflicts SET resolved = 1 WHERE workspace_id = ? AND id = ?;`,
+            ns.workspaceId,
+            conflictId
+          );
+
+          if (removeOperationId) {
+            await db.runAsync(
+              `DELETE FROM pending_mutations WHERE operation_id = ?;`,
+              removeOperationId
+            );
+          }
+
+          if (validNewMut) {
+            await this.enqueueMutationDirect(validNewMut);
+          }
+
+          if (validHeader) {
+            await this.upsertItemHeaderDirect(validHeader);
+          }
+        });
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  // --- 6. Sync Cursors ---
+
+  private async saveCursorDirect(valid: SyncCursorRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO sync_cursors (workspace_id, user_id, last_server_revision, cursor, last_synced_at, epoch)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, user_id) DO UPDATE SET
+        last_server_revision = excluded.last_server_revision,
+        cursor = excluded.cursor,
+        last_synced_at = excluded.last_synced_at,
+        epoch = excluded.epoch;`,
+      valid.workspaceId,
+      valid.userId,
+      valid.lastServerRevision,
+      valid.cursor,
+      valid.lastSyncedAt,
+      valid.epoch
+    );
+  }
 
   async getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null> {
     this.ensureNamespace(workspaceId, userId);
@@ -916,24 +1304,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   async saveCursor(cursor: SyncCursorRecord): Promise<void> {
     const valid = validateSyncCursorRecord(cursor);
     this.ensureNamespace(valid.workspaceId, valid.userId);
-    const db = this.ensureOpen();
     return this.runWithLock(async () => {
       try {
-        await db.runAsync(
-          `INSERT INTO sync_cursors (workspace_id, user_id, last_server_revision, cursor, last_synced_at, epoch)
-          VALUES (?, ?, ?, ?, ?, ?)
-          ON CONFLICT (workspace_id, user_id) DO UPDATE SET
-            last_server_revision = excluded.last_server_revision,
-            cursor = excluded.cursor,
-            last_synced_at = excluded.last_synced_at,
-            epoch = excluded.epoch;`,
-          valid.workspaceId,
-          valid.userId,
-          valid.lastServerRevision,
-          valid.cursor,
-          valid.lastSyncedAt,
-          valid.epoch
-        );
+        await this.saveCursorDirect(valid);
       } catch (err) {
         throw this.mapError(err);
       }
@@ -1005,6 +1378,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM drafts WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM pending_mutations WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM sync_cursors WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM conflicts WHERE workspace_id = ?;`, workspaceId);
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1025,6 +1399,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM sync_cursors WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM preference_snapshots WHERE user_id = ?;`, userId);
+          await db.runAsync(`DELETE FROM conflicts WHERE user_id = ?;`, userId);
         });
 
         // Clear all keys from KeyStore

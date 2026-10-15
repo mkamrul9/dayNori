@@ -89,6 +89,7 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
     server = buildServer({
       runtimePool,
       jwtVerifier: verifier,
+      rateLimitOptions: { maxRequests: 10000 },
     });
 
     await server.listen({ port: 0, host: '127.0.0.1' });
@@ -1120,6 +1121,135 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
 
       // 8. User B can no longer pull or push mutations (membership revoked)
       await expect(clientB.syncPull({ workspaceId: roomWsId })).rejects.toThrow();
+    });
+  });
+
+  describe('10. Dependency Failures, Repeated Retries & Mixed Independent Successes', () => {
+    it('recovers durable receipts for repeated failed-dependency batches without duplicate errors and preserves independent successes', async () => {
+      const independentOpId = crypto.randomUUID();
+      const failedDepOpId = crypto.randomUUID();
+      const nonExistentDepOpId = crypto.randomUUID();
+
+      const independentItemId = crypto.randomUUID();
+      const dependentItemId = crypto.randomUUID();
+
+      const batch = [
+        {
+          operationId: independentOpId,
+          deviceId: deviceIdA,
+          workspaceId: workspaceAId,
+          commandVersion: 1,
+          schemaVersion: 1,
+          command: 'createItem' as const,
+          entityType: 'item',
+          entityId: independentItemId,
+          baseRevision: 0,
+          dependencyOperationIds: [],
+          clientTimestamp: new Date().toISOString(),
+          payload: { kind: 'note', rank: '0|indep:' },
+        },
+        {
+          operationId: failedDepOpId,
+          deviceId: deviceIdA,
+          workspaceId: workspaceAId,
+          commandVersion: 1,
+          schemaVersion: 1,
+          command: 'updateItem' as const,
+          entityType: 'item',
+          entityId: dependentItemId,
+          baseRevision: 0,
+          dependencyOperationIds: [nonExistentDepOpId], // Missing dependency!
+          clientTimestamp: new Date().toISOString(),
+          payload: { kind: 'note', rank: '0|dep_fail:' },
+        },
+      ];
+
+      // First submission: command 0 succeeds, command 1 fails with DEPENDENCY_MISSING
+      const res1 = await clientA.syncPush({ commands: batch });
+      expect(res1.data.results).toHaveLength(2);
+      expect(res1.data.results[0]?.status).toBe('accepted');
+      expect(res1.data.results[0]?.revision).toBe(1);
+      expect(res1.data.results[1]?.status).toBe('rejected');
+      expect(res1.data.results[1]?.error?.code).toBe('DEPENDENCY_MISSING');
+
+      // Second submission of identical batch (retry):
+      // Must NOT throw 23505 unique constraint violation or abort independent command 0!
+      const res2 = await clientA.syncPush({ commands: batch });
+      expect(res2.data.results).toHaveLength(2);
+      expect(res2.data.results[0]?.status).toBe('accepted');
+      expect(res2.data.results[0]?.revision).toBe(1);
+      expect(res2.data.results[0]?.operationId).toBe(independentOpId);
+      expect(res2.data.results[1]?.status).toBe('rejected');
+      expect(res2.data.results[1]?.error?.code).toBe('DEPENDENCY_MISSING');
+      expect(res2.data.results[1]?.operationId).toBe(failedDepOpId);
+
+      // Concurrent retry race on dependency failure
+      const concurrentRetryBatch = [
+        {
+          operationId: failedDepOpId,
+          deviceId: deviceIdA,
+          workspaceId: workspaceAId,
+          commandVersion: 1,
+          schemaVersion: 1,
+          command: 'updateItem' as const,
+          entityType: 'item',
+          entityId: dependentItemId,
+          baseRevision: 0,
+          dependencyOperationIds: [nonExistentDepOpId],
+          clientTimestamp: new Date().toISOString(),
+          payload: { kind: 'note', rank: '0|dep_fail:' },
+        },
+      ];
+
+      const [race1, race2] = await Promise.all([
+        clientA.syncPush({ commands: concurrentRetryBatch }),
+        clientA.syncPush({ commands: concurrentRetryBatch }),
+      ]);
+
+      expect(race1.data.results[0]?.status).toBe('rejected');
+      expect(race1.data.results[0]?.error?.code).toBe('DEPENDENCY_MISSING');
+      expect(race2.data.results[0]?.status).toBe('rejected');
+      expect(race2.data.results[0]?.error?.code).toBe('DEPENDENCY_MISSING');
+    });
+
+    it('rejects in-batch dependency if parent operation belongs to a different device or workspace', async () => {
+      const parentOpOtherDevice = crypto.randomUUID();
+      const childOp = crypto.randomUUID();
+
+      const batch = [
+        {
+          operationId: parentOpOtherDevice,
+          deviceId: 'different-device-999', // Different device!
+          workspaceId: workspaceAId,
+          commandVersion: 1,
+          schemaVersion: 1,
+          command: 'createItem' as const,
+          entityType: 'item',
+          entityId: crypto.randomUUID(),
+          baseRevision: 0,
+          dependencyOperationIds: [],
+          clientTimestamp: new Date().toISOString(),
+          payload: { kind: 'note' },
+        },
+        {
+          operationId: childOp,
+          deviceId: deviceIdA,
+          workspaceId: workspaceAId,
+          commandVersion: 1,
+          schemaVersion: 1,
+          command: 'updateItem' as const,
+          entityType: 'item',
+          entityId: crypto.randomUUID(),
+          baseRevision: 0,
+          dependencyOperationIds: [parentOpOtherDevice], // Depends on different device!
+          clientTimestamp: new Date().toISOString(),
+          payload: { kind: 'note' },
+        },
+      ];
+
+      const res = await clientA.syncPush({ commands: batch });
+      expect(res.data.results[1]?.status).toBe('rejected');
+      expect(res.data.results[1]?.error?.code).toBe('DEPENDENCY_MISSING');
     });
   });
 });

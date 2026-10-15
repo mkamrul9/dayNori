@@ -34,7 +34,7 @@ export function createWebSyncEngine(options: WebSyncAdapterOptions): SyncEngine 
 
   const transport = new ApiClientSyncTransport(options.apiClient);
   const coordination = new BroadcastChannelTabCoordinator({
-    channelName: `daynori_sync_${options.namespace.workspaceId}`,
+    channelName: `daynori_sync_${options.namespace.userId}_${options.namespace.workspaceId}`,
   });
 
   const engineOptions: SyncEngineOptions = {

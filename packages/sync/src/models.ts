@@ -296,3 +296,29 @@ export function validatePreferenceSnapshotRecord(input: unknown): PreferenceSnap
     updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
   };
 }
+
+export function validateConflictRecord(input: unknown): ConflictRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: ConflictRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    entityId: assertNonEmptyString(r.entityId, 'entityId'),
+    entityType: assertNonEmptyString(r.entityType, 'entityType', 64),
+    operationId: assertNonEmptyString(r.operationId, 'operationId'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    userId: assertNonEmptyString(r.userId, 'userId'),
+    localPayload: assertPayloadBounded(r.localPayload, 'localPayload'),
+    baseRevision: typeof r.baseRevision === 'number' ? r.baseRevision : 0,
+    serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 0,
+    serverState:
+      r.serverState && typeof r.serverState === 'object'
+        ? (r.serverState as Record<string, unknown>)
+        : undefined,
+    conflictReason: assertNonEmptyString(r.conflictReason, 'conflictReason', 500),
+    detectedAt: assertNonEmptyString(r.detectedAt, 'detectedAt', 64),
+    resolved: Boolean(r.resolved),
+  };
+}

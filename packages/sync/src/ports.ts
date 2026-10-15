@@ -5,6 +5,7 @@ import type {
   SyncCursorRecord,
   PreferenceSnapshotRecord,
   AccountNamespace,
+  ConflictRecord,
 } from './models.js';
 import type { ClientMutation } from './types.js';
 import type { WorkspaceId } from '@daynori/domain';
@@ -48,18 +49,42 @@ export interface LocalRepositoryPort {
   getPendingMutations(workspaceId: string, userId: string): Promise<PendingMutationRecord[]>;
   removePendingMutation(operationId: string): Promise<void>;
 
-  // --- 4. Atomic Multi-Store Writes ---
+  // --- 4. Atomic Multi-Store Writes & Transactions ---
   saveDraftAndMutation(draft: DraftRecord, mutation: PendingMutationRecord): Promise<void>;
+  saveItemTransaction(
+    item: ItemHeaderRecord,
+    mutation: PendingMutationRecord,
+    draft?: DraftRecord
+  ): Promise<void>;
+  applyAcknowledgment(header: ItemHeaderRecord, operationId: string): Promise<void>;
+  applyPullPage(changes: ItemHeaderRecord[], newCursor: SyncCursorRecord): Promise<void>;
+  installBootstrapGeneration(
+    items: ItemHeaderRecord[],
+    watermarkCursor: SyncCursorRecord,
+    preserveLocalItemIds: Set<string>
+  ): Promise<void>;
 
-  // --- 5. Sync Cursors ---
+  // --- 5. Conflicts ---
+  getConflict(workspaceId: string, conflictId: string): Promise<ConflictRecord | null>;
+  listConflicts(workspaceId: string): Promise<ConflictRecord[]>;
+  saveConflict(conflict: ConflictRecord, updatedMutation?: PendingMutationRecord): Promise<void>;
+  resolveConflictTransaction(
+    conflictId: string,
+    resolution: 'keep_server' | 'keep_local' | 'custom',
+    updatedHeader?: ItemHeaderRecord,
+    newMutation?: PendingMutationRecord,
+    removeOperationId?: string
+  ): Promise<void>;
+
+  // --- 6. Sync Cursors ---
   getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null>;
   saveCursor(cursor: SyncCursorRecord): Promise<void>;
 
-  // --- 6. Preference Snapshots ---
+  // --- 7. Preference Snapshots ---
   getPreferenceSnapshot(userId: string): Promise<PreferenceSnapshotRecord | null>;
   savePreferenceSnapshot(snapshot: PreferenceSnapshotRecord): Promise<void>;
 
-  // --- 7. Boundary Lifecycle & Data Erasure ---
+  // --- 8. Boundary Lifecycle & Data Erasure ---
   clearWorkspaceData(workspaceId: string): Promise<void>;
   clearAccountData(userId: string): Promise<void>;
 }
