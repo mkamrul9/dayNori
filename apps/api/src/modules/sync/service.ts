@@ -5,6 +5,10 @@ import type {
   SyncPullQuery,
   ChangeRecord,
   Item,
+  Folder,
+  Tag,
+  ItemTag,
+  ItemLink,
 } from '@daynori/contracts';
 import {
   lockWorkspaceSyncState,
@@ -30,6 +34,16 @@ import {
   computeCanonicalPayloadHash,
   safeBigIntToNumber,
 } from './types.js';
+import {
+  createFolder,
+  updateFolder,
+  moveFolder,
+  reorderFolder,
+  archiveFolder,
+  pinFolder,
+  trashFolder,
+  restoreFolder,
+} from '../organization/service.js';
 import { withTenantContext } from '../../db/index.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
 
@@ -697,8 +711,289 @@ export class SyncService {
   ): Promise<MutationResult> {
     const existingItem = await getItemForSync(client, cmd.workspaceId, cmd.entityId);
 
-    // --- Command: createItem or createFolder ---
-    if (cmd.command === 'createItem' || cmd.command === 'createFolder') {
+    // --- Unified Folder Commands ---
+    if (
+      cmd.command === 'createFolder' ||
+      cmd.command === 'updateFolder' ||
+      cmd.command === 'moveFolder' ||
+      cmd.command === 'reorderFolder' ||
+      cmd.command === 'archiveFolder' ||
+      cmd.command === 'unarchiveFolder' ||
+      cmd.command === 'pinFolder' ||
+      cmd.command === 'unpinFolder' ||
+      cmd.command === 'trashFolder' ||
+      cmd.command === 'restoreFolder'
+    ) {
+      try {
+        let resultRevision = 1;
+        let appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'createFolder': {
+            if (existingItem) {
+              throw new ValidationError(
+                `Entity with ID ${cmd.entityId} already exists in this workspace.`
+              );
+            }
+            const folder = await createFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              {
+                id: cmd.entityId,
+                parentId:
+                  typeof cmd.payload['parentId'] === 'string'
+                    ? cmd.payload['parentId']
+                    : typeof cmd.payload['folderId'] === 'string'
+                      ? cmd.payload['folderId']
+                      : null,
+                name:
+                  typeof cmd.payload['name'] === 'string' ? cmd.payload['name'] : 'Untitled Folder',
+                color: typeof cmd.payload['color'] === 'string' ? cmd.payload['color'] : undefined,
+                icon: typeof cmd.payload['icon'] === 'string' ? cmd.payload['icon'] : undefined,
+                rank: typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : '00001000',
+                securityScope: cmd.payload['securityScope'] === 'vault' ? 'vault' : 'standard',
+              },
+              cmd.operationId
+            );
+            resultRevision = folder.revision;
+            resultPayload = { folder };
+            break;
+          }
+          case 'updateFolder': {
+            const folder = await updateFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              cmd.entityId,
+              {
+                baseRevision: cmd.baseRevision,
+                name: typeof cmd.payload['name'] === 'string' ? cmd.payload['name'] : undefined,
+                color:
+                  typeof cmd.payload['color'] === 'string'
+                    ? cmd.payload['color']
+                    : cmd.payload['color'] === null
+                      ? null
+                      : undefined,
+                icon:
+                  typeof cmd.payload['icon'] === 'string'
+                    ? cmd.payload['icon']
+                    : cmd.payload['icon'] === null
+                      ? null
+                      : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = folder.revision;
+            resultPayload = { folder };
+            break;
+          }
+          case 'moveFolder': {
+            const folder = await moveFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              cmd.entityId,
+              {
+                baseRevision: cmd.baseRevision,
+                targetParentId:
+                  typeof cmd.payload['targetParentId'] === 'string'
+                    ? cmd.payload['targetParentId']
+                    : null,
+                rank: typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : undefined,
+                expectedCollectionRevision:
+                  typeof cmd.payload['expectedCollectionRevision'] === 'number'
+                    ? cmd.payload['expectedCollectionRevision']
+                    : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = folder.revision;
+            resultPayload = { folder };
+            break;
+          }
+          case 'reorderFolder': {
+            const folder = await reorderFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              cmd.entityId,
+              {
+                baseRevision: cmd.baseRevision,
+                rank: typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : '00001000',
+                expectedCollectionRevision:
+                  typeof cmd.payload['expectedCollectionRevision'] === 'number'
+                    ? cmd.payload['expectedCollectionRevision']
+                    : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = folder.revision;
+            resultPayload = { folder };
+            break;
+          }
+          case 'archiveFolder':
+          case 'unarchiveFolder': {
+            const isArchived = cmd.command === 'archiveFolder';
+            const folder = await archiveFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              cmd.entityId,
+              {
+                baseRevision: cmd.baseRevision,
+                isArchived,
+              },
+              cmd.operationId
+            );
+            resultRevision = folder.revision;
+            resultPayload = { folder };
+            break;
+          }
+          case 'pinFolder':
+          case 'unpinFolder': {
+            const isPinned = cmd.command === 'pinFolder';
+            const folder = await pinFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              cmd.entityId,
+              {
+                baseRevision: cmd.baseRevision,
+                isPinned,
+              },
+              cmd.operationId
+            );
+            resultRevision = folder.revision;
+            resultPayload = { folder };
+            break;
+          }
+          case 'trashFolder': {
+            const policy =
+              cmd.payload['policy'] === 'preserve_to_parent'
+                ? 'preserve_to_parent'
+                : 'trash_subtree';
+            const res = await trashFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              cmd.entityId,
+              policy,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            appliedSeq = res.seq;
+            resultPayload = { ...res };
+            break;
+          }
+          case 'restoreFolder': {
+            const folder = await restoreFolder(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              cmd.entityId,
+              cmd.baseRevision,
+              { restoreSubtree: true },
+              cmd.operationId
+            );
+            resultRevision = folder.revision;
+            resultPayload = { folder };
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          const conflictError = {
+            code: 'REVISION_CONFLICT',
+            message: err.message,
+          };
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictError },
+          });
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: cmd.baseRevision,
+            seq: null,
+            error: conflictError,
+          };
+        }
+
+        const message = err instanceof Error ? err.message : String(err);
+        const code = err instanceof NotFoundError ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+        const errorPayload = { code, message };
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
+    // --- Command: createItem ---
+    if (cmd.command === 'createItem') {
       if (existingItem) {
         const error = {
           code: 'VALIDATION_FAILED',
@@ -733,12 +1028,7 @@ export class SyncService {
 
       const newRevision = 1;
       const seq = syncState.nextChangeSeq;
-      const kind =
-        cmd.command === 'createFolder'
-          ? 'folder'
-          : typeof cmd.payload['kind'] === 'string'
-            ? cmd.payload['kind']
-            : 'note';
+      const kind = typeof cmd.payload['kind'] === 'string' ? cmd.payload['kind'] : 'note';
       const folderId =
         typeof cmd.payload['parentId'] === 'string'
           ? cmd.payload['parentId']
@@ -825,12 +1115,16 @@ export class SyncService {
       // If kind === 'folder', validate depth bounds and cycle prevention
       if (kind === 'folder') {
         try {
-          await client.query(`SELECT app.validate_folder_parent($1, $2, $3);`, [
+          await client.query(`SAVEPOINT folder_parent_val;`);
+          await client.query(`SELECT app.validate_folder_parent($1, $2, $3, $4);`, [
             cmd.workspaceId,
             cmd.entityId,
             folderId,
+            secScope,
           ]);
+          await client.query(`RELEASE SAVEPOINT folder_parent_val;`);
         } catch (err: unknown) {
+          await client.query(`ROLLBACK TO SAVEPOINT folder_parent_val;`);
           const error = {
             code: 'VALIDATION_FAILED',
             message: (err as Error).message,
@@ -1249,116 +1543,9 @@ export class SyncService {
         };
         break;
       }
-      case 'updateFolder': {
-        const name = typeof cmd.payload['name'] === 'string' ? cmd.payload['name'] : undefined;
-        const color =
-          typeof cmd.payload['color'] === 'string'
-            ? cmd.payload['color']
-            : cmd.payload['color'] === null
-              ? null
-              : undefined;
-        const icon =
-          typeof cmd.payload['icon'] === 'string'
-            ? cmd.payload['icon']
-            : cmd.payload['icon'] === null
-              ? null
-              : undefined;
-
-        await client.query(
-          `UPDATE app.folders SET
-            name = COALESCE($1, name),
-            color = CASE WHEN $2::boolean THEN $3 ELSE color END,
-            icon = CASE WHEN $4::boolean THEN $5 ELSE icon END,
-            updated_at = now()
-           WHERE workspace_id = $6 AND id = $7;`,
-          [
-            name ?? null,
-            color !== undefined,
-            color ?? null,
-            icon !== undefined,
-            icon ?? null,
-            cmd.workspaceId,
-            cmd.entityId,
-          ]
-        );
-        await client.query(
-          `UPDATE app.items SET revision = $1, updated_by = $2, updated_at = now()
-           WHERE workspace_id = $3 AND id = $4;`,
-          [newRevision, actorUserId, cmd.workspaceId, cmd.entityId]
-        );
-        changeData = {
-          ...(name !== undefined ? { name } : {}),
-          ...(color !== undefined ? { color } : {}),
-          ...(icon !== undefined ? { icon } : {}),
-        };
-        break;
-      }
-      case 'moveFolder': {
-        const targetParentId =
-          typeof cmd.payload['targetParentId'] === 'string' ? cmd.payload['targetParentId'] : null;
-        const rank = typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : undefined;
-
-        try {
-          await client.query(`SELECT app.validate_folder_parent($1, $2, $3);`, [
-            cmd.workspaceId,
-            cmd.entityId,
-            targetParentId,
-          ]);
-        } catch (err: unknown) {
-          const error = { code: 'VALIDATION_FAILED', message: (err as Error).message };
-          await insertMutationReceipt(client, {
-            workspaceId: cmd.workspaceId,
-            actorUserId,
-            deviceId: cmd.deviceId,
-            operationId: cmd.operationId,
-            command: cmd.command,
-            entityType: cmd.entityType,
-            entityId: cmd.entityId,
-            schemaVersion: cmd.schemaVersion,
-            baseRevision: cmd.baseRevision,
-            canonicalPayloadHash: payloadHash,
-            status: 'rejected',
-            acceptedRevision: null,
-            appliedChangeSeq: null,
-            resultPayload: { error },
-          });
-          return {
-            operationId: cmd.operationId,
-            status: 'rejected',
-            entityId: cmd.entityId,
-            revision: existingItem.revision,
-            seq: null,
-            error,
-          };
-        }
-
-        await client.query(
-          `UPDATE app.folders SET parent_id = $1, updated_at = now() WHERE workspace_id = $2 AND id = $3;`,
-          [targetParentId, cmd.workspaceId, cmd.entityId]
-        );
-        await client.query(
-          `UPDATE app.items SET folder_id = $1, rank = COALESCE($2, rank), revision = $3, updated_by = $4, updated_at = now()
-           WHERE workspace_id = $5 AND id = $6;`,
-          [targetParentId, rank ?? null, newRevision, actorUserId, cmd.workspaceId, cmd.entityId]
-        );
-        changeData = { parentId: targetParentId, ...(rank !== undefined ? { rank } : {}) };
-        break;
-      }
-      case 'reorderFolder': {
-        const rank = typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : '0';
-        await client.query(
-          `UPDATE app.items SET rank = $1, revision = $2, updated_by = $3, updated_at = now()
-           WHERE workspace_id = $4 AND id = $5;`,
-          [rank, newRevision, actorUserId, cmd.workspaceId, cmd.entityId]
-        );
-        changeData = { rank };
-        break;
-      }
-      case 'archiveFolder':
       case 'archiveItem':
-      case 'unarchiveFolder':
       case 'unarchiveItem': {
-        const isArchived = cmd.command === 'archiveItem' || cmd.command === 'archiveFolder';
+        const isArchived = cmd.command === 'archiveItem';
         await setItemFlagsForSync(client, {
           workspaceId: cmd.workspaceId,
           id: cmd.entityId,
@@ -1369,11 +1556,9 @@ export class SyncService {
         changeData = { isArchived };
         break;
       }
-      case 'pinFolder':
       case 'pinItem':
-      case 'unpinFolder':
       case 'unpinItem': {
-        const isPinned = cmd.command === 'pinItem' || cmd.command === 'pinFolder';
+        const isPinned = cmd.command === 'pinItem';
         await setItemFlagsForSync(client, {
           workspaceId: cmd.workspaceId,
           id: cmd.entityId,
@@ -1384,87 +1569,13 @@ export class SyncService {
         changeData = { isPinned };
         break;
       }
-      case 'trashFolder': {
-        const policy =
-          cmd.payload['policy'] === 'preserve_to_parent' ? 'preserve_to_parent' : 'trash_subtree';
-        if (policy === 'preserve_to_parent') {
-          const parentRes = await client.query<{ parent_id: string | null }>(
-            `SELECT parent_id FROM app.folders WHERE workspace_id = $1 AND id = $2;`,
-            [cmd.workspaceId, cmd.entityId]
-          );
-          const targetParentId = parentRes.rows[0]?.parent_id || null;
-
-          await client.query(
-            `UPDATE app.folders SET parent_id = $1, updated_at = now() WHERE workspace_id = $2 AND parent_id = $3;`,
-            [targetParentId, cmd.workspaceId, cmd.entityId]
-          );
-          await client.query(
-            `UPDATE app.items SET folder_id = $1, revision = revision + 1, updated_by = $2, updated_at = now()
-             WHERE workspace_id = $3 AND folder_id = $4;`,
-            [targetParentId, actorUserId, cmd.workspaceId, cmd.entityId]
-          );
-        } else {
-          // Trash subtree
-          const subRes = await client.query<{ id: string }>(
-            `WITH RECURSIVE sub AS (
-              SELECT id FROM app.folders WHERE workspace_id = $1 AND id = $2
-              UNION ALL
-              SELECT f.id FROM app.folders f JOIN sub ON f.parent_id = sub.id WHERE f.workspace_id = $1
-            ) SELECT id FROM sub WHERE id <> $2;`,
-            [cmd.workspaceId, cmd.entityId]
-          );
-          const subIds = subRes.rows.map((r) => r.id);
-          const allIds = [cmd.entityId, ...subIds];
-
-          await client.query(
-            `UPDATE app.items SET deleted_at = now(), revision = revision + 1, updated_by = $1, updated_at = now()
-             WHERE workspace_id = $2 AND folder_id = ANY($3::uuid[]);`,
-            [actorUserId, cmd.workspaceId, allIds]
-          );
-          await client.query(
-            `UPDATE app.items SET deleted_at = now(), revision = revision + 1, updated_by = $1, updated_at = now()
-             WHERE workspace_id = $2 AND id = ANY($3::uuid[]);`,
-            [actorUserId, cmd.workspaceId, subIds]
-          );
-        }
-
-        isTombstone = true;
-        await tombstoneItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
-        changeData = { deleted: true, policy };
-        break;
-      }
       case 'trashItem': {
         isTombstone = true;
         await tombstoneItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
         changeData = { deleted: true };
         break;
       }
-      case 'restoreFolder':
       case 'restoreItem': {
-        if (existingItem.kind === 'folder') {
-          const fRes = await client.query<{ parent_id: string | null }>(
-            `SELECT parent_id FROM app.folders WHERE workspace_id = $1 AND id = $2;`,
-            [cmd.workspaceId, cmd.entityId]
-          );
-          let parentId = fRes.rows[0]?.parent_id || null;
-          if (parentId) {
-            const pCheck = await client.query<{ deleted_at: Date | null }>(
-              `SELECT deleted_at FROM app.items WHERE workspace_id = $1 AND id = $2;`,
-              [cmd.workspaceId, parentId]
-            );
-            if (!pCheck.rows[0] || pCheck.rows[0].deleted_at !== null) {
-              parentId = null;
-              await client.query(
-                `UPDATE app.folders SET parent_id = NULL WHERE workspace_id = $1 AND id = $2;`,
-                [cmd.workspaceId, cmd.entityId]
-              );
-            }
-          }
-          await client.query(
-            `UPDATE app.items SET folder_id = $1 WHERE workspace_id = $2 AND id = $3;`,
-            [parentId, cmd.workspaceId, cmd.entityId]
-          );
-        }
         await restoreItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
         changeData = { restored: true };
         break;
@@ -1631,7 +1742,15 @@ export class SyncService {
   async bootstrap(
     actorUserId: string,
     workspaceId: string
-  ): Promise<{ items: Item[]; watermarkCursor: string; accessEpoch: string }> {
+  ): Promise<{
+    items: Item[];
+    folders: Folder[];
+    tags: Tag[];
+    itemTags: ItemTag[];
+    itemLinks: ItemLink[];
+    watermarkCursor: string;
+    accessEpoch: string;
+  }> {
     return withTenantContext(
       this.pool,
       { userId: actorUserId, workspaceId },
@@ -1651,6 +1770,148 @@ export class SyncService {
         }
 
         const activeItems = await listActiveItemsForBootstrap(client, workspaceId);
+
+        // Fetch folders
+        const foldersRes = await client.query<{
+          id: string;
+          workspace_id: string;
+          parent_id: string | null;
+          name: string;
+          color: string | null;
+          icon: string | null;
+          rank: string;
+          is_archived: boolean;
+          is_pinned: boolean;
+          security_scope: 'standard' | 'vault';
+          revision: string;
+          created_at: Date;
+          updated_at: Date;
+          deleted_at: Date | null;
+        }>(
+          `SELECT
+            f.id, f.workspace_id, f.parent_id, f.name, f.color, f.icon,
+            i.rank, i.is_archived, i.is_pinned, i.security_scope, i.revision,
+            i.created_at, i.updated_at, i.deleted_at
+          FROM app.folders f
+          JOIN app.items i ON i.workspace_id = f.workspace_id AND i.id = f.id
+          WHERE f.workspace_id = $1 AND i.deleted_at IS NULL
+          ORDER BY i.rank ASC, f.id ASC;`,
+          [workspaceId]
+        );
+
+        const parentMap = new Map<string, string | null>();
+        for (const r of foldersRes.rows) {
+          parentMap.set(r.id, r.parent_id);
+        }
+        const getDepth = (id: string): number => {
+          let d = 1;
+          let curr = parentMap.get(id);
+          const seen = new Set<string>();
+          while (curr && !seen.has(curr)) {
+            seen.add(curr);
+            d++;
+            curr = parentMap.get(curr);
+          }
+          return d;
+        };
+
+        const formattedFolders: Folder[] = foldersRes.rows.map((r) => ({
+          id: r.id,
+          workspaceId: r.workspace_id,
+          parentId: r.parent_id,
+          name: r.name,
+          color: r.color,
+          icon: r.icon,
+          rank: r.rank,
+          isArchived: r.is_archived,
+          isPinned: r.is_pinned,
+          securityScope: r.security_scope,
+          revision: Number(r.revision),
+          depth: getDepth(r.id),
+          createdAt: r.created_at.toISOString(),
+          updatedAt: r.updated_at.toISOString(),
+          deletedAt: r.deleted_at ? r.deleted_at.toISOString() : null,
+        }));
+
+        // Fetch tags
+        const tagsRes = await client.query<{
+          id: string;
+          workspace_id: string;
+          name: string;
+          color: string | null;
+          revision: string;
+          created_at: Date;
+          updated_at: Date;
+          deleted_at: Date | null;
+        }>(
+          `SELECT id, workspace_id, name, color, revision, created_at, updated_at, deleted_at
+           FROM app.tags
+           WHERE workspace_id = $1 AND deleted_at IS NULL
+           ORDER BY lower(name) ASC;`,
+          [workspaceId]
+        );
+
+        const formattedTags: Tag[] = tagsRes.rows.map((r) => ({
+          id: r.id,
+          workspaceId: r.workspace_id,
+          name: r.name,
+          color: r.color,
+          revision: Number(r.revision),
+          createdAt: r.created_at.toISOString(),
+          updatedAt: r.updated_at.toISOString(),
+          deletedAt: r.deleted_at ? r.deleted_at.toISOString() : null,
+        }));
+
+        // Fetch item tags
+        const itemTagsRes = await client.query<{
+          workspace_id: string;
+          item_id: string;
+          tag_id: string;
+          created_at: Date;
+          tag_name?: string;
+          tag_color?: string | null;
+        }>(
+          `SELECT it.workspace_id, it.item_id, it.tag_id, it.created_at, t.name as tag_name, t.color as tag_color
+           FROM app.item_tags it
+           JOIN app.tags t ON t.workspace_id = it.workspace_id AND t.id = it.tag_id
+           JOIN app.items i ON i.workspace_id = it.workspace_id AND i.id = it.item_id
+           WHERE it.workspace_id = $1 AND i.deleted_at IS NULL AND t.deleted_at IS NULL;`,
+          [workspaceId]
+        );
+
+        const formattedItemTags: ItemTag[] = itemTagsRes.rows.map((r) => ({
+          workspaceId: r.workspace_id,
+          itemId: r.item_id,
+          tagId: r.tag_id,
+          tagName: r.tag_name,
+          tagColor: r.tag_color,
+          createdAt: r.created_at.toISOString(),
+        }));
+
+        // Fetch item links
+        const itemLinksRes = await client.query<{
+          id: string;
+          workspace_id: string;
+          source_item_id: string;
+          target_item_id: string;
+          link_type: string;
+          created_at: Date;
+        }>(
+          `SELECT id, workspace_id, source_item_id, target_item_id, link_type, created_at
+           FROM app.item_links
+           WHERE workspace_id = $1;`,
+          [workspaceId]
+        );
+
+        const formattedItemLinks: ItemLink[] = itemLinksRes.rows.map((r) => ({
+          id: r.id,
+          workspaceId: r.workspace_id,
+          sourceItemId: r.source_item_id,
+          targetItemId: r.target_item_id,
+          linkType: r.link_type,
+          createdAt: r.created_at.toISOString(),
+        }));
+
         const watermarkSeq = Math.max(0, syncState.nextChangeSeq - 1);
 
         const watermarkCursor = encodeSyncCursor({
@@ -1661,7 +1922,7 @@ export class SyncService {
           ts: new Date().toISOString(),
         });
 
-        // 3. Return full validated projection representation sufficient to reconstruct local repository
+        // Return full validated projection representation sufficient to reconstruct local repository
         const formattedItems: Item[] = activeItems.map((item: SyncItemRecord) => ({
           id: item.id,
           workspaceId: item.workspaceId,
@@ -1678,10 +1939,18 @@ export class SyncService {
           isArchived: item.isArchived,
           isPinned: item.isPinned,
           securityScope: item.securityScope,
+          name: item.name,
+          color: item.color,
+          icon: item.icon,
+          parentId: item.folderId,
         }));
 
         return {
           items: formattedItems,
+          folders: formattedFolders,
+          tags: formattedTags,
+          itemTags: formattedItemTags,
+          itemLinks: formattedItemLinks,
           watermarkCursor,
           accessEpoch: syncState.accessEpoch,
         };

@@ -91,9 +91,9 @@ describe('Domain Rules and Invariants', () => {
       const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
       const rebalanced = rebalanceRanks(items, 10000);
       expect(rebalanced).toEqual([
-        { id: 'a', rank: '10000' },
-        { id: 'b', rank: '20000' },
-        { id: 'c', rank: '30000' },
+        { id: 'a', rank: '00010000' },
+        { id: 'b', rank: '00020000' },
+        { id: 'c', rank: '00030000' },
       ]);
     });
   });

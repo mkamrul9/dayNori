@@ -712,22 +712,76 @@ export class SyncEngine {
         for (const change of pullRes.data.changes) {
           totalChanges++;
           const data = (change.data || {}) as Record<string, unknown>;
+          const existing = await this.repository.getItemHeader(
+            this.namespace.workspaceId,
+            change.entityId
+          );
+
+          const defaultKind = change.entityType === 'folder' ? 'folder' : 'note';
+          const kind = typeof data.kind === 'string' ? data.kind : existing?.kind || defaultKind;
+
+          // Distinguish an omitted field from an explicit null
+          let folderId = existing?.folderId ?? null;
+          if ('folderId' in data) {
+            folderId =
+              data.folderId !== null && data.folderId !== undefined ? String(data.folderId) : null;
+          } else if ('parentId' in data) {
+            folderId =
+              data.parentId !== null && data.parentId !== undefined ? String(data.parentId) : null;
+          }
+
+          const rank = typeof data.rank === 'string' ? data.rank : existing?.rank || '0';
+          const isArchived =
+            'isArchived' in data ? Boolean(data.isArchived) : (existing?.isArchived ?? false);
+          const isPinned =
+            'isPinned' in data ? Boolean(data.isPinned) : (existing?.isPinned ?? false);
+          const securityScope =
+            'securityScope' in data &&
+            (data.securityScope === 'standard' || data.securityScope === 'vault')
+              ? data.securityScope
+              : existing?.securityScope || 'standard';
+
+          const name = 'name' in data && typeof data.name === 'string' ? data.name : existing?.name;
+          const color =
+            'color' in data
+              ? typeof data.color === 'string'
+                ? data.color
+                : null
+              : existing?.color;
+          const icon =
+            'icon' in data ? (typeof data.icon === 'string' ? data.icon : null) : existing?.icon;
+
+          const createdAt =
+            typeof data.createdAt === 'string'
+              ? data.createdAt
+              : existing?.createdAt || new Date().toISOString();
+          const updatedAt =
+            typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString();
+
+          let deletedAt = existing?.deletedAt ?? null;
+          if (change.isTombstone) {
+            deletedAt = new Date().toISOString();
+          } else if ('restored' in data && data.restored) {
+            deletedAt = null;
+          }
 
           const header: ItemHeaderRecord = {
             id: change.entityId,
             workspaceId: this.namespace.workspaceId,
-            kind: typeof data.kind === 'string' ? data.kind : 'note',
-            folderId: data.folderId !== undefined ? (data.folderId as string | null) : null,
-            rank: typeof data.rank === 'string' ? data.rank : '0',
-            isArchived: Boolean(data.isArchived ?? false),
-            isPinned: Boolean(data.isPinned ?? false),
-            securityScope: (data.securityScope as 'standard' | 'vault') || 'standard',
+            kind,
+            folderId,
+            rank,
+            isArchived,
+            isPinned,
+            securityScope,
             serverRevision: change.revision,
-            createdAt:
-              typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
-            updatedAt:
-              typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
-            deletedAt: change.isTombstone ? new Date().toISOString() : null,
+            name,
+            color,
+            icon,
+            parentId: folderId,
+            createdAt,
+            updatedAt,
+            deletedAt,
           };
 
           changesToApply.push(header);
@@ -788,6 +842,10 @@ export class SyncEngine {
       isPinned: item.isPinned,
       securityScope: item.securityScope,
       serverRevision: item.revision,
+      name: item.name,
+      color: item.color,
+      icon: item.icon,
+      parentId: item.parentId || item.folderId,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       deletedAt: item.deletedAt,

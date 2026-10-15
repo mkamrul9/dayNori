@@ -24,67 +24,59 @@ export function validateFolderDepth(depth: number): void {
 
 /**
  * Stable rank comparator with deterministic ID tie-breaker.
- * Compares ranks numerically when possible, lexicographically otherwise,
+ * Compares ranks strictly lexicographically to match PostgreSQL text collation,
  * and falls back to comparing UUIDs for stable tie-breaking.
  */
 export function compareRanks(rankA: string, idA: string, rankB: string, idB: string): number {
-  const numA = Number(rankA);
-  const numB = Number(rankB);
-
-  let rankComparison = 0;
-  if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
-    rankComparison = numA - numB;
-  } else {
-    rankComparison = rankA.localeCompare(rankB);
-  }
-
+  const rankComparison = rankA.localeCompare(rankB);
   if (rankComparison !== 0) {
     return rankComparison;
   }
-
   return idA.localeCompare(idB);
 }
 
 /**
- * Generates an initial rank for an item at index in a sequence.
+ * Generates an initial rank for an item at index in a sequence using bounded zero-padded strings.
  */
 export function generateInitialRank(index: number, step = 1000): string {
-  return String((index + 1) * step);
+  return String((index + 1) * step).padStart(8, '0');
 }
 
 /**
- * Generates a sparse fractional rank between two existing sibling ranks.
+ * Generates a sparse fractional rank lexicographically between two existing sibling ranks.
  */
 export function generateBetweenRanks(prevRank: string | null, nextRank: string | null): string {
   if (prevRank === null && nextRank === null) {
-    return '1000';
+    return '00001000';
   }
   if (prevRank === null && nextRank !== null) {
     const nextNum = Number(nextRank);
-    if (!Number.isNaN(nextNum)) {
-      return String(Math.floor(nextNum / 2) || nextNum - 1);
+    if (!Number.isNaN(nextNum) && nextNum > 1) {
+      const half = Math.floor(nextNum / 2);
+      return String(half).padStart(8, '0');
     }
-    return '500';
+    return `${nextRank.slice(0, -1)}0`;
   }
   if (prevRank !== null && nextRank === null) {
     const prevNum = Number(prevRank);
     if (!Number.isNaN(prevNum)) {
-      return String(prevNum + 1000);
+      return String(prevNum + 1000).padStart(8, '0');
     }
     return `${prevRank}z`;
   }
 
+  // Both present
   const prevNum = Number(prevRank);
   const nextNum = Number(nextRank);
   if (!Number.isNaN(prevNum) && !Number.isNaN(nextNum)) {
-    const mid = (prevNum + nextNum) / 2;
-    if (mid !== prevNum && mid !== nextNum) {
-      return String(mid);
+    const mid = Math.floor((prevNum + nextNum) / 2);
+    if (mid > prevNum && mid < nextNum) {
+      return String(mid).padStart(8, '0');
     }
   }
 
-  // Fractional / fallback string midpoint
-  return `${prevRank}.5`;
+  // Fractional / fallback string midpoint that lexicographically sorts between prev and next
+  return `${prevRank}5`;
 }
 
 /**
@@ -97,7 +89,7 @@ export function rebalanceRanks<T extends { id: string }>(
 ): Array<{ id: string; rank: string }> {
   return items.map((item, index) => ({
     id: item.id,
-    rank: String((index + 1) * step),
+    rank: String((index + 1) * step).padStart(8, '0'),
   }));
 }
 

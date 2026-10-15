@@ -380,6 +380,22 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             INSERT INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'));
           `);
         }
+
+        if (currentVersion < 3) {
+          try {
+            await db.execAsync(`
+              ALTER TABLE item_headers ADD COLUMN name TEXT;
+              ALTER TABLE item_headers ADD COLUMN color TEXT;
+              ALTER TABLE item_headers ADD COLUMN icon TEXT;
+              ALTER TABLE item_headers ADD COLUMN parent_id TEXT;
+            `);
+          } catch {
+            /* ignore if columns already exist */
+          }
+          await db.execAsync(`
+            INSERT INTO schema_migrations (version, applied_at) VALUES (3, datetime('now'));
+          `);
+        }
       });
     } catch (err: unknown) {
       throw new StorageMigrationError(
@@ -439,13 +455,17 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         is_pinned: number;
         security_scope: 'standard' | 'vault';
         server_revision: number;
+        name?: string | null;
+        color?: string | null;
+        icon?: string | null;
+        parent_id?: string | null;
         created_at: string;
         updated_at: string;
         deleted_at: string | null;
       }>(`SELECT * FROM item_headers WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
 
       if (!row) return null;
-      return {
+      const header: ItemHeaderRecord = {
         id: row.id,
         workspaceId: row.workspace_id,
         kind: row.kind,
@@ -459,6 +479,11 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         updatedAt: row.updated_at,
         deletedAt: row.deleted_at,
       };
+      if (row.name != null) header.name = row.name;
+      if (row.color != null) header.color = row.color;
+      if (row.icon != null) header.icon = row.icon;
+      if (row.parent_id != null) header.parentId = row.parent_id;
+      return header;
     } catch (err) {
       throw this.mapError(err);
     }
@@ -478,6 +503,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         is_pinned: number;
         security_scope: 'standard' | 'vault';
         server_revision: number;
+        name?: string | null;
+        color?: string | null;
+        icon?: string | null;
+        parent_id?: string | null;
         created_at: string;
         updated_at: string;
         deleted_at: string | null;
@@ -486,20 +515,27 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         workspaceId
       );
 
-      return rows.map((r) => ({
-        id: r.id,
-        workspaceId: r.workspace_id,
-        kind: r.kind,
-        folderId: r.folder_id,
-        rank: r.rank,
-        isArchived: Boolean(r.is_archived),
-        isPinned: Boolean(r.is_pinned),
-        securityScope: r.security_scope,
-        serverRevision: r.server_revision,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-        deletedAt: r.deleted_at,
-      }));
+      return rows.map((r) => {
+        const item: ItemHeaderRecord = {
+          id: r.id,
+          workspaceId: r.workspace_id,
+          kind: r.kind,
+          folderId: r.folder_id,
+          rank: r.rank,
+          isArchived: Boolean(r.is_archived),
+          isPinned: Boolean(r.is_pinned),
+          securityScope: r.security_scope,
+          serverRevision: r.server_revision,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          deletedAt: r.deleted_at,
+        };
+        if (r.name != null) item.name = r.name;
+        if (r.color != null) item.color = r.color;
+        if (r.icon != null) item.icon = r.icon;
+        if (r.parent_id != null) item.parentId = r.parent_id;
+        return item;
+      });
     } catch (err) {
       throw this.mapError(err);
     }
@@ -510,8 +546,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     await db.runAsync(
       `INSERT INTO item_headers (
         id, workspace_id, kind, folder_id, rank, is_archived, is_pinned,
-        security_scope, server_revision, created_at, updated_at, deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        security_scope, server_revision, name, color, icon, parent_id,
+        created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (workspace_id, id) DO UPDATE SET
         kind = excluded.kind,
         folder_id = excluded.folder_id,
@@ -520,6 +557,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         is_pinned = excluded.is_pinned,
         security_scope = excluded.security_scope,
         server_revision = excluded.server_revision,
+        name = excluded.name,
+        color = excluded.color,
+        icon = excluded.icon,
+        parent_id = excluded.parent_id,
         updated_at = excluded.updated_at,
         deleted_at = excluded.deleted_at;`,
       valid.id,
@@ -531,6 +572,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
       valid.isPinned ? 1 : 0,
       valid.securityScope,
       valid.serverRevision,
+      valid.name ?? null,
+      valid.color ?? null,
+      valid.icon ?? null,
+      valid.parentId ?? valid.folderId ?? null,
       valid.createdAt,
       valid.updatedAt,
       valid.deletedAt ?? null

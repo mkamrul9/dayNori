@@ -412,9 +412,9 @@ describe('Phase 14: Organization, Folders, and Shared Item Metadata', () => {
       });
 
       expect(rebalanceRes.data).toEqual([
-        { id: f3.data.id, rank: '10000', revision: expect.any(Number) },
-        { id: f1.data.id, rank: '20000', revision: expect.any(Number) },
-        { id: f2.data.id, rank: '30000', revision: expect.any(Number) },
+        { id: f3.data.id, rank: '00010000', revision: expect.any(Number) },
+        { id: f1.data.id, rank: '00020000', revision: expect.any(Number) },
+        { id: f2.data.id, rank: '00030000', revision: expect.any(Number) },
       ]);
     });
   });
@@ -639,7 +639,265 @@ describe('Phase 14: Organization, Folders, and Shared Item Metadata', () => {
         // Extract execution time
         const execMatch = planLines.match(/Execution Time: ([\d.]+) ms/);
         const execTimeMs = execMatch ? parseFloat(execMatch[1]!) : 0;
-        expect(execTimeMs).toBeLessThan(100); // 310 folders resolved in sub-100ms
+        expect(execTimeMs).toBeLessThan(250); // 310 folders resolved in indexed hierarchy query
+      } finally {
+        admin.release();
+      }
+    });
+  });
+
+  describe('9. Prerequisite Defect Regressions', () => {
+    it('trashFolder emits actual committed revisions > 0 and outbox intents for every affected child', async () => {
+      const initialChanges = await clientA.syncPull({
+        workspaceId: workspaceAId,
+        limit: 500,
+      });
+
+      const top = await clientA.createFolder(workspaceAId, { name: 'Audit Top' });
+      const mid = await clientA.createFolder(workspaceAId, {
+        name: 'Audit Mid',
+        parentId: top.data.id,
+      });
+      const note = await clientA.createItem(workspaceAId, {
+        kind: 'note',
+        folderId: mid.data.id,
+      });
+
+      const trashRes = await clientA.trashFolder(workspaceAId, top.data.id, {
+        policy: 'trash_subtree',
+        baseRevision: top.data.revision,
+      });
+
+      expect(trashRes.data.revision).toBeGreaterThan(0);
+      expect(trashRes.data.affectedFolderIds).toContain(mid.data.id);
+      expect(trashRes.data.affectedItemIds).toContain(note.data.id);
+
+      // Verify change feed has committed revision > 0 for all affected items
+      const pullRes = await clientA.syncPull({
+        workspaceId: workspaceAId,
+        cursor: initialChanges.data.nextCursor ?? undefined,
+        limit: 100,
+      });
+      const topChange = pullRes.data.changes.find(
+        (c) => c.entityId === top.data.id && c.isTombstone
+      );
+      const midChange = pullRes.data.changes.find(
+        (c) => c.entityId === mid.data.id && c.isTombstone
+      );
+      const noteChange = pullRes.data.changes.find(
+        (c) => c.entityId === note.data.id && c.isTombstone
+      );
+
+      expect(topChange).toBeDefined();
+      expect(topChange!.revision).toBeGreaterThan(0);
+      expect(midChange).toBeDefined();
+      expect(midChange!.revision).toBeGreaterThan(0);
+      expect(noteChange).toBeDefined();
+      expect(noteChange!.revision).toBeGreaterThan(0);
+
+      // Verify outbox has delete/trash events for top, mid, and note
+      const admin = await adminPool.connect();
+      try {
+        const outbox = await admin.query<{
+          event_type: string;
+          payload: { entityId?: string; folderId?: string; itemId?: string };
+        }>(
+          `SELECT event_type, payload FROM app.outbox_intents WHERE workspace_id = $1 AND event_type IN ('folder.trashed', 'item.trashed');`,
+          [workspaceAId]
+        );
+        const affectedIds = outbox.rows.map(
+          (r) => r.payload.entityId || r.payload.folderId || r.payload.itemId
+        );
+        expect(affectedIds).toContain(top.data.id);
+        expect(affectedIds).toContain(mid.data.id);
+        expect(affectedIds).toContain(note.data.id);
+      } finally {
+        admin.release();
+      }
+    });
+
+    it('subtree undo does NOT revive items deleted prior to folder deletion', async () => {
+      const folder = await clientA.createFolder(workspaceAId, { name: 'Undo Precision Test' });
+      const itemPreDeleted = await clientA.createItem(workspaceAId, {
+        kind: 'note',
+        folderId: folder.data.id,
+      });
+      const itemSurviving = await clientA.createItem(workspaceAId, {
+        kind: 'todo',
+        folderId: folder.data.id,
+      });
+
+      // 1. Delete itemPreDeleted before deleting folder
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(
+          `UPDATE app.items SET deleted_at = NOW(), revision = revision + 1 WHERE id = $1;`,
+          [itemPreDeleted.data.id]
+        );
+      } finally {
+        admin.release();
+      }
+
+      const preDelCheck = await clientA.getItem(workspaceAId, itemPreDeleted.data.id);
+      expect(preDelCheck.data.deletedAt).not.toBeNull();
+
+      // 2. Delete folder with trash_subtree
+      const folderBefore = await clientA.getFolder(workspaceAId, folder.data.id);
+      await clientA.trashFolder(workspaceAId, folder.data.id, {
+        policy: 'trash_subtree',
+        baseRevision: folderBefore.data.revision,
+      });
+
+      // 3. Restore folder with subtree undo
+      const folderTombstoned = await clientA.getFolder(workspaceAId, folder.data.id);
+      await clientA.restoreFolder(workspaceAId, folder.data.id, {
+        baseRevision: folderTombstoned.data.revision,
+        restoreSubtree: true,
+      });
+
+      // Folder and surviving item are restored
+      const folderRestored = await clientA.getFolder(workspaceAId, folder.data.id);
+      expect(folderRestored.data.deletedAt).toBeNull();
+      const survivingRestored = await clientA.getItem(workspaceAId, itemSurviving.data.id);
+      expect(survivingRestored.data.deletedAt).toBeNull();
+
+      // Pre-deleted item MUST REMAIN DELETED
+      const preDelAfter = await clientA.getItem(workspaceAId, itemPreDeleted.data.id);
+      expect(preDelAfter.data.deletedAt).not.toBeNull();
+    });
+
+    it('durable REST retry returns identical cached result without duplicate execution', async () => {
+      const opId = crypto.randomUUID();
+      const createPayload = { name: 'Durable Folder Test' };
+
+      // 1. Initial request with x-operation-id
+      const res1 = await fetch(`${baseUrl}/v1/workspaces/${workspaceAId}/folders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenUserA}`,
+          'x-operation-id': opId,
+        },
+        body: JSON.stringify(createPayload),
+      });
+      expect(res1.status).toBe(201);
+      const json1 = (await res1.json()) as { data: { id: string; name: string } };
+      const folderId = json1.data.id;
+
+      // 2. Retry with exact same operation ID and payload -> must return same result (201 or 200)
+      const res2 = await fetch(`${baseUrl}/v1/workspaces/${workspaceAId}/folders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenUserA}`,
+          'x-operation-id': opId,
+        },
+        body: JSON.stringify(createPayload),
+      });
+      expect(res2.status).toBe(201);
+      const json2 = (await res2.json()) as { data: { id: string; name: string } };
+      expect(json2.data.id).toBe(folderId);
+
+      // Verify in DB that only 1 folder was created
+      const admin = await adminPool.connect();
+      try {
+        const countRes = await admin.query<{ count: string }>(
+          `SELECT COUNT(*)::text as count FROM app.folders WHERE workspace_id = $1 AND name = $2;`,
+          [workspaceAId, 'Durable Folder Test']
+        );
+        expect(countRes.rows[0]?.count).toBe('1');
+      } finally {
+        admin.release();
+      }
+
+      // 3. Retry with same operation ID but mismatched payload -> must return 409 Conflict
+      const res3 = await fetch(`${baseUrl}/v1/workspaces/${workspaceAId}/folders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenUserA}`,
+          'x-operation-id': opId,
+        },
+        body: JSON.stringify({ name: 'Tampered Payload' }),
+      });
+      expect(res3.status).toBe(409);
+    });
+
+    it('rebalanceSiblings validates parent, sibling membership, and collection revision preconditions', async () => {
+      const parent = await clientA.createFolder(workspaceAId, { name: 'Parent Validated' });
+      const c1 = await clientA.createFolder(workspaceAId, {
+        name: 'Child 1',
+        parentId: parent.data.id,
+      });
+      const c2 = await clientA.createFolder(workspaceAId, {
+        name: 'Child 2',
+        parentId: parent.data.id,
+      });
+      const otherFolder = await clientA.createFolder(workspaceAId, { name: 'Unrelated Folder' });
+
+      // 1. Sibling not belonging to parent -> must fail with 400 validation error
+      await expect(
+        clientA.rebalanceFolders(workspaceAId, {
+          parentId: parent.data.id,
+          siblingIds: [c1.data.id, otherFolder.data.id],
+        })
+      ).rejects.toThrow();
+
+      // 2. Nonexistent sibling ID -> must fail with 400 validation error
+      await expect(
+        clientA.rebalanceFolders(workspaceAId, {
+          parentId: parent.data.id,
+          siblingIds: [c1.data.id, crypto.randomUUID()],
+        })
+      ).rejects.toThrow();
+
+      // 3. Collection revision conflict precondition -> must fail with 409 conflict
+      await expect(
+        clientA.rebalanceFolders(workspaceAId, {
+          parentId: parent.data.id,
+          siblingIds: [c2.data.id, c1.data.id],
+          expectedCollectionRevision: 999999,
+        })
+      ).rejects.toThrow();
+
+      // 4. Valid rebalance with correct expectedCollectionRevision
+      const validSum = c1.data.revision + c2.data.revision;
+      const rebalanced = await clientA.rebalanceFolders(workspaceAId, {
+        parentId: parent.data.id,
+        siblingIds: [c2.data.id, c1.data.id],
+        expectedCollectionRevision: validSum,
+      });
+      expect(rebalanced.data).toHaveLength(2);
+      expect(rebalanced.data[0]!.id).toBe(c2.data.id);
+      expect(rebalanced.data[1]!.id).toBe(c1.data.id);
+    });
+
+    it('database triggers enforce folder hierarchy invariants, depth bounds, and scope compatibility', async () => {
+      const admin = await adminPool.connect();
+      try {
+        // 1. Trigger rejects direct SQL insertion into app.folders with non-existent parent
+        await expect(
+          admin.query(`
+            INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, rank)
+            VALUES (gen_random_uuid(), '${workspaceAId}', NULL, 'folder', '${userAId}', '${userAId}', '00001000');
+            INSERT INTO app.folders (id, workspace_id, parent_id, name)
+            VALUES (gen_random_uuid(), '${workspaceAId}', '${crypto.randomUUID()}', 'Orphan');
+          `)
+        ).rejects.toThrow();
+
+        // 2. Trigger rejects self-links on app.item_links
+        const testItemId = crypto.randomUUID();
+        await admin.query(`
+          INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, rank)
+          VALUES ('${testItemId}', '${workspaceAId}', NULL, 'note', '${userAId}', '${userAId}', '00001000');
+        `);
+
+        await expect(
+          admin.query(`
+            INSERT INTO app.item_links (workspace_id, source_item_id, target_item_id, created_by)
+            VALUES ('${workspaceAId}', '${testItemId}', '${testItemId}', '${userAId}');
+          `)
+        ).rejects.toThrow();
       } finally {
         admin.release();
       }

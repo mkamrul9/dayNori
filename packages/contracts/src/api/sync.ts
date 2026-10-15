@@ -126,6 +126,8 @@ export const SyncPullResponseSchema = z.object({
 
 export type SyncPullResponse = z.infer<typeof SyncPullResponseSchema>;
 
+import { FolderSchema, TagSchema, ItemTagSchema, ItemLinkSchema } from './organization.js';
+
 export const SyncBootstrapQuerySchema = z.object({
   workspaceId: z.string().uuid(),
 });
@@ -135,6 +137,10 @@ export type SyncBootstrapQuery = z.infer<typeof SyncBootstrapQuerySchema>;
 export const SyncBootstrapResponseSchema = z.object({
   data: z.object({
     items: z.array(ItemSchema),
+    folders: z.array(FolderSchema).optional().default([]),
+    tags: z.array(TagSchema).optional().default([]),
+    itemTags: z.array(ItemTagSchema).optional().default([]),
+    itemLinks: z.array(ItemLinkSchema).optional().default([]),
     watermarkCursor: z.string(),
     accessEpoch: z.string(),
   }),

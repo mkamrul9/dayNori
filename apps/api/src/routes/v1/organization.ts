@@ -1,5 +1,6 @@
-import type { FastifyInstance } from 'fastify';
-import type { Pool } from 'pg';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { Pool, PoolClient } from 'pg';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import {
   CreateFolderRequestSchema,
@@ -49,7 +50,14 @@ import {
   deleteItemLink,
   listItemLinks,
 } from '../../modules/organization/service.js';
-import { validateResponse, NotFoundError } from '../../plugins/errorHandler.js';
+import { getMutationReceipt, insertMutationReceipt } from '../../modules/sync/repository.js';
+import { computeCanonicalPayloadHash } from '../../modules/sync/types.js';
+import {
+  validateResponse,
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+} from '../../plugins/errorHandler.js';
 
 const FolderParamsSchema = z.object({
   workspaceId: z.string().uuid(),
@@ -72,6 +80,136 @@ const ItemLinkParamsSchema = z.object({
   itemId: z.string().uuid(),
 });
 
+async function executeDurableRestMutation<T>(
+  client: PoolClient,
+  request: FastifyRequest,
+  workspaceId: string,
+  actorUserId: string,
+  command: string,
+  entityId: string,
+  baseRevision: number,
+  payload: Record<string, unknown>,
+  executor: (operationId: string) => Promise<T>
+): Promise<T> {
+  const headers = request.headers as Record<string, unknown>;
+  const rawOpId = headers['x-operation-id'] || headers['idempotency-key'];
+  const hasClientOpId = typeof rawOpId === 'string' && rawOpId.length > 0;
+  const operationId = hasClientOpId ? (rawOpId as string) : crypto.randomUUID();
+  const rawDevId = headers['x-device-id'];
+  const deviceId =
+    typeof rawDevId === 'string' && rawDevId.length > 0 ? (rawDevId as string) : 'rest-client';
+
+  const canonicalPayloadHash = computeCanonicalPayloadHash({
+    workspaceId,
+    command,
+    commandVersion: 1,
+    schemaVersion: 1,
+    entityType: 'folder',
+    entityId,
+    baseRevision,
+    dependencyOperationIds: [],
+    payload,
+  });
+
+  // Check existing durable receipt
+  const existingReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+  if (existingReceipt) {
+    if (
+      existingReceipt.workspaceId !== workspaceId ||
+      existingReceipt.canonicalPayloadHash !== canonicalPayloadHash
+    ) {
+      throw new ConflictError(
+        'Operation ID was already used with a different workspace, command, or payload.'
+      );
+    }
+    if (existingReceipt.status === 'accepted') {
+      const payload = existingReceipt.resultPayload as unknown as T | { items: T };
+      if (
+        payload &&
+        typeof payload === 'object' &&
+        'items' in payload &&
+        Array.isArray((payload as { items: unknown }).items)
+      ) {
+        return (payload as { items: T }).items;
+      }
+      return payload as T;
+    }
+    if (existingReceipt.status === 'conflict') {
+      const err = existingReceipt.resultPayload?.error as { message?: string } | undefined;
+      throw new ConflictError(err?.message || 'Revision conflict');
+    }
+    const err = existingReceipt.resultPayload?.error as { message?: string } | undefined;
+    throw new ValidationError(err?.message || 'Operation rejected');
+  }
+
+  try {
+    const result = await executor(operationId);
+    const finalEntityId =
+      entityId ||
+      (Array.isArray(result) ? (result[0]?.id ?? '') : ((result as { id?: string }).id ?? ''));
+    const finalRevision = Array.isArray(result)
+      ? (result[0]?.revision ?? 1)
+      : ((result as { revision?: number }).revision ?? 1);
+
+    await insertMutationReceipt(client, {
+      workspaceId,
+      actorUserId,
+      deviceId,
+      operationId,
+      command,
+      entityType: 'folder',
+      entityId: finalEntityId,
+      schemaVersion: 1,
+      baseRevision,
+      canonicalPayloadHash,
+      status: 'accepted',
+      acceptedRevision: finalRevision,
+      appliedChangeSeq: null,
+      resultPayload: Array.isArray(result)
+        ? { items: result }
+        : (result as unknown as Record<string, unknown>),
+    });
+    return result;
+  } catch (err: unknown) {
+    if (err instanceof ConflictError) {
+      await insertMutationReceipt(client, {
+        workspaceId,
+        actorUserId,
+        deviceId,
+        operationId,
+        command,
+        entityType: 'folder',
+        entityId,
+        schemaVersion: 1,
+        baseRevision,
+        canonicalPayloadHash,
+        status: 'conflict',
+        acceptedRevision: null,
+        appliedChangeSeq: null,
+        resultPayload: { error: { code: 'REVISION_CONFLICT', message: err.message } },
+      });
+    } else if (err instanceof ValidationError) {
+      await insertMutationReceipt(client, {
+        workspaceId,
+        actorUserId,
+        deviceId,
+        operationId,
+        command,
+        entityType: 'folder',
+        entityId,
+        schemaVersion: 1,
+        baseRevision,
+        canonicalPayloadHash,
+        status: 'rejected',
+        acceptedRevision: null,
+        appliedChangeSeq: null,
+        resultPayload: { error: { code: 'VALIDATION_FAILED', message: err.message } },
+      });
+    }
+    throw err;
+  }
+}
+
 export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // 1. Folders: Create
   app.post('/v1/workspaces/:workspaceId/folders', async (request, reply) => {
@@ -90,7 +228,17 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return createFolder(client, params.workspaceId, actor.userId, body);
+        return executeDurableRestMutation(
+          client,
+          request,
+          params.workspaceId,
+          actor.userId,
+          'createFolder',
+          body.id || '',
+          0,
+          body as unknown as Record<string, unknown>,
+          (opId) => createFolder(client, params.workspaceId, actor.userId, body, opId)
+        );
       }
     );
 
@@ -172,7 +320,18 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return updateFolder(client, params.workspaceId, actor.userId, params.folderId, body);
+        return executeDurableRestMutation(
+          client,
+          request,
+          params.workspaceId,
+          actor.userId,
+          'updateFolder',
+          params.folderId,
+          body.baseRevision,
+          body as unknown as Record<string, unknown>,
+          (opId) =>
+            updateFolder(client, params.workspaceId, actor.userId, params.folderId, body, opId)
+        );
       }
     );
 
@@ -200,7 +359,18 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return moveFolder(client, params.workspaceId, actor.userId, params.folderId, body);
+        return executeDurableRestMutation(
+          client,
+          request,
+          params.workspaceId,
+          actor.userId,
+          'moveFolder',
+          params.folderId,
+          body.baseRevision,
+          body as unknown as Record<string, unknown>,
+          (opId) =>
+            moveFolder(client, params.workspaceId, actor.userId, params.folderId, body, opId)
+        );
       }
     );
 
@@ -228,7 +398,18 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return reorderFolder(client, params.workspaceId, actor.userId, params.folderId, body);
+        return executeDurableRestMutation(
+          client,
+          request,
+          params.workspaceId,
+          actor.userId,
+          'reorderFolder',
+          params.folderId,
+          body.baseRevision,
+          body as unknown as Record<string, unknown>,
+          (opId) =>
+            reorderFolder(client, params.workspaceId, actor.userId, params.folderId, body, opId)
+        );
       }
     );
 
@@ -256,7 +437,18 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return archiveFolder(client, params.workspaceId, actor.userId, params.folderId, body);
+        return executeDurableRestMutation(
+          client,
+          request,
+          params.workspaceId,
+          actor.userId,
+          'archiveFolder',
+          params.folderId,
+          body.baseRevision,
+          body as unknown as Record<string, unknown>,
+          (opId) =>
+            archiveFolder(client, params.workspaceId, actor.userId, params.folderId, body, opId)
+        );
       }
     );
 
@@ -284,7 +476,17 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return pinFolder(client, params.workspaceId, actor.userId, params.folderId, body);
+        return executeDurableRestMutation(
+          client,
+          request,
+          params.workspaceId,
+          actor.userId,
+          'pinFolder',
+          params.folderId,
+          body.baseRevision,
+          body as unknown as Record<string, unknown>,
+          (opId) => pinFolder(client, params.workspaceId, actor.userId, params.folderId, body, opId)
+        );
       }
     );
 
@@ -312,13 +514,25 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return trashFolder(
+        return executeDurableRestMutation(
           client,
+          request,
           params.workspaceId,
           actor.userId,
+          'trashFolder',
           params.folderId,
-          body.policy,
-          body.baseRevision
+          body.baseRevision,
+          body as unknown as Record<string, unknown>,
+          (opId) =>
+            trashFolder(
+              client,
+              params.workspaceId,
+              actor.userId,
+              params.folderId,
+              body.policy,
+              body.baseRevision,
+              opId
+            )
         );
       }
     );
@@ -347,12 +561,25 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return restoreFolder(
+        return executeDurableRestMutation(
           client,
+          request,
           params.workspaceId,
           actor.userId,
+          'restoreFolder',
           params.folderId,
-          body.baseRevision
+          body.baseRevision,
+          body as unknown as Record<string, unknown>,
+          (opId) =>
+            restoreFolder(
+              client,
+              params.workspaceId,
+              actor.userId,
+              params.folderId,
+              body.baseRevision,
+              body,
+              opId
+            )
         );
       }
     );
@@ -381,12 +608,25 @@ export function registerOrganizationRoutes(app: FastifyInstance, runtimePool: Po
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return rebalanceSiblings(
+        return executeDurableRestMutation(
           client,
+          request,
           params.workspaceId,
           actor.userId,
-          body.parentId || null,
-          body.siblingIds
+          'rebalanceSiblings',
+          body.parentId || params.workspaceId,
+          body.expectedCollectionRevision ?? 0,
+          body as unknown as Record<string, unknown>,
+          (opId) =>
+            rebalanceSiblings(
+              client,
+              params.workspaceId,
+              actor.userId,
+              body.parentId || null,
+              body.siblingIds,
+              body.expectedCollectionRevision,
+              opId
+            )
         );
       }
     );

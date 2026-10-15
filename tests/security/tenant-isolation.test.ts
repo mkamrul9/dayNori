@@ -373,7 +373,7 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
             });
           }
         )
-      ).rejects.toThrow(/foreign key|violates foreign key constraint/i);
+      ).rejects.toThrow(/foreign key|violates foreign key constraint|INVALID_FOLDER/i);
     });
 
     it('sets folder_id to NULL on parent folder deletion while preserving workspace_id', async () => {

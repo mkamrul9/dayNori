@@ -87,6 +87,7 @@ The organization subsystem is implemented in `infra/supabase/migrations/00012_or
 ## Consequences
 
 ### Positive
+
 - A single unified folder hierarchy eliminates duplicate organization models across features.
 - Strict depth enforcement (depth <= 5) and cycle prevention at both domain and database trigger levels guarantee tree integrity.
 - Inbox semantics provide a clear fallback destination for newly captured items and orphaned items during folder deletion.
@@ -95,5 +96,6 @@ The organization subsystem is implemented in `infra/supabase/migrations/00012_or
 - Integration with sync change feeds and outbox intents ensures multi-device consistency.
 
 ### Neutral
+
 - Sibling rebalancing requires a batch update of all siblings when rank key collisions or precision limits occur.
 - Recursive queries (`WITH RECURSIVE`) are used for subtree deletion and hierarchy retrieval; indexed performance benchmarks confirm sub-millisecond retrieval on hierarchies exceeding 300 nodes.

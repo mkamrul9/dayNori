@@ -30,6 +30,10 @@ export const ItemSchema = z.object({
   isArchived: z.boolean().default(false),
   isPinned: z.boolean().default(false),
   securityScope: z.enum(['standard', 'vault']).default('standard'),
+  name: z.string().optional(),
+  color: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+  parentId: z.string().uuid().nullable().optional(),
 });
 
 export type Item = z.infer<typeof ItemSchema>;

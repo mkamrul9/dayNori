@@ -47,22 +47,23 @@ export async function createFolder(
   client: PoolClient,
   workspaceId: string,
   actorUserId: string,
-  input: CreateFolderRequest
+  input: CreateFolderRequest,
+  operationId?: string
 ): Promise<FolderRecord> {
   const folderId = input.id || crypto.randomUUID();
   const parentId = input.parentId || null;
   const securityScope = input.securityScope || 'standard';
-  const rank = input.rank || '1000';
+  const rank = input.rank || '00001000';
 
   // 1. Acquire workspace sync state row-lock
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  // 2. Validate target parent, cycle prevention, and depth bounds using PostgreSQL helper function
+  // 2. Validate target parent, cycle prevention, depth bounds, and scope compatibility using PostgreSQL helper function
   let depth = 1;
   try {
     const valRes = await client.query<{ depth: number }>(
-      `SELECT app.validate_folder_parent($1, $2, $3) as depth;`,
-      [workspaceId, folderId, parentId]
+      `SELECT app.validate_folder_parent($1, $2, $3, $4) as depth;`,
+      [workspaceId, folderId, parentId, securityScope]
     );
     depth = valRes.rows[0]?.depth || 1;
   } catch (err: unknown) {
@@ -108,7 +109,7 @@ export async function createFolder(
     entityId: folderId,
     revision: 1,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
+    operationId: operationId || crypto.randomUUID(),
     changeData: {
       name: row.name,
       parentId: row.parent_id,
@@ -300,7 +301,8 @@ export async function updateFolder(
   workspaceId: string,
   actorUserId: string,
   folderId: string,
-  input: UpdateFolderRequest
+  input: UpdateFolderRequest,
+  operationId?: string
 ): Promise<FolderRecord> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
@@ -363,12 +365,18 @@ export async function updateFolder(
     entityId: folderId,
     revision: newRevision,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
+    operationId: operationId || crypto.randomUUID(),
     changeData: {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.color !== undefined ? { color: input.color } : {}),
       ...(input.icon !== undefined ? { icon: input.icon } : {}),
     },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: 'folder.updated',
+    payload: { folderId, revision: newRevision, seq },
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
@@ -381,12 +389,17 @@ export async function moveFolder(
   workspaceId: string,
   actorUserId: string,
   folderId: string,
-  input: MoveFolderRequest
+  input: MoveFolderRequest,
+  operationId?: string
 ): Promise<FolderRecord> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  const lockRes = await client.query<{ revision: string; deleted_at: Date | null }>(
-    `SELECT revision, deleted_at FROM app.items
+  const lockRes = await client.query<{
+    revision: string;
+    deleted_at: Date | null;
+    security_scope: 'standard' | 'vault';
+  }>(
+    `SELECT revision, deleted_at, security_scope FROM app.items
      WHERE workspace_id = $1 AND id = $2 AND kind = 'folder'
      FOR UPDATE;`,
     [workspaceId, folderId]
@@ -405,12 +418,28 @@ export async function moveFolder(
     );
   }
 
+  // Validate sibling collection revision precondition if specified
+  if (input.expectedCollectionRevision !== undefined) {
+    const sibsRes = await client.query<{ revision: string; id: string; rank: string }>(
+      `SELECT id, rank, revision FROM app.items
+       WHERE workspace_id = $1 AND deleted_at IS NULL AND (folder_id = $2 OR ($2 IS NULL AND folder_id IS NULL))
+       ORDER BY rank ASC, id ASC;`,
+      [workspaceId, input.targetParentId]
+    );
+    const currentColRev = sibsRes.rows.reduce((sum, s) => sum + Number(s.revision), 0);
+    if (input.expectedCollectionRevision !== currentColRev) {
+      throw new ConflictError(
+        `Sibling collection revision conflict: target parent collection has changed (expected ${input.expectedCollectionRevision}, current ${currentColRev}).`
+      );
+    }
+  }
+
   // Validate move: cycles, target parent existence, depth limits, and scope
   let newDepth = 1;
   try {
     const valRes = await client.query<{ depth: number }>(
-      `SELECT app.validate_folder_parent($1, $2, $3) as depth;`,
-      [workspaceId, folderId, input.targetParentId]
+      `SELECT app.validate_folder_parent($1, $2, $3, $4) as depth;`,
+      [workspaceId, folderId, input.targetParentId, currentItem.security_scope]
     );
     newDepth = valRes.rows[0]?.depth || 1;
   } catch (err: unknown) {
@@ -447,12 +476,18 @@ export async function moveFolder(
     entityId: folderId,
     revision: newRevision,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
+    operationId: operationId || crypto.randomUUID(),
     changeData: {
       parentId: input.targetParentId,
       ...(input.rank !== undefined ? { rank: input.rank } : {}),
       depth: newDepth,
     },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: 'folder.moved',
+    payload: { folderId, parentId: input.targetParentId, revision: newRevision, seq },
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
@@ -465,12 +500,17 @@ export async function reorderFolder(
   workspaceId: string,
   actorUserId: string,
   folderId: string,
-  input: ReorderFolderRequest
+  input: ReorderFolderRequest,
+  operationId?: string
 ): Promise<FolderRecord> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  const lockRes = await client.query<{ revision: string; deleted_at: Date | null }>(
-    `SELECT revision, deleted_at FROM app.items
+  const lockRes = await client.query<{
+    revision: string;
+    deleted_at: Date | null;
+    folder_id: string | null;
+  }>(
+    `SELECT revision, deleted_at, folder_id FROM app.items
      WHERE workspace_id = $1 AND id = $2 AND kind = 'folder'
      FOR UPDATE;`,
     [workspaceId, folderId]
@@ -489,6 +529,21 @@ export async function reorderFolder(
     );
   }
 
+  if (input.expectedCollectionRevision !== undefined) {
+    const sibsRes = await client.query<{ revision: string; id: string; rank: string }>(
+      `SELECT id, rank, revision FROM app.items
+       WHERE workspace_id = $1 AND deleted_at IS NULL AND (folder_id = $2 OR ($2 IS NULL AND folder_id IS NULL))
+       ORDER BY rank ASC, id ASC;`,
+      [workspaceId, currentItem.folder_id]
+    );
+    const currentColRev = sibsRes.rows.reduce((sum, s) => sum + Number(s.revision), 0);
+    if (input.expectedCollectionRevision !== currentColRev) {
+      throw new ConflictError(
+        `Sibling collection revision conflict: sibling collection has changed (expected ${input.expectedCollectionRevision}, current ${currentColRev}).`
+      );
+    }
+  }
+
   const newRevision = Number(currentItem.revision) + 1;
   const seq = syncState.nextChangeSeq;
 
@@ -505,8 +560,14 @@ export async function reorderFolder(
     entityId: folderId,
     revision: newRevision,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
+    operationId: operationId || crypto.randomUUID(),
     changeData: { rank: input.rank },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: 'folder.reordered',
+    payload: { folderId, rank: input.rank, revision: newRevision, seq },
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
@@ -519,7 +580,8 @@ export async function archiveFolder(
   workspaceId: string,
   actorUserId: string,
   folderId: string,
-  input: ArchiveFolderRequest
+  input: ArchiveFolderRequest,
+  operationId?: string
 ): Promise<FolderRecord> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
@@ -559,8 +621,14 @@ export async function archiveFolder(
     entityId: folderId,
     revision: newRevision,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
+    operationId: operationId || crypto.randomUUID(),
     changeData: { isArchived: input.isArchived },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: input.isArchived ? 'folder.archived' : 'folder.unarchived',
+    payload: { folderId, isArchived: input.isArchived, revision: newRevision, seq },
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
@@ -573,7 +641,8 @@ export async function pinFolder(
   workspaceId: string,
   actorUserId: string,
   folderId: string,
-  input: PinFolderRequest
+  input: PinFolderRequest,
+  operationId?: string
 ): Promise<FolderRecord> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
@@ -613,8 +682,14 @@ export async function pinFolder(
     entityId: folderId,
     revision: newRevision,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
+    operationId: operationId || crypto.randomUUID(),
     changeData: { isPinned: input.isPinned },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: input.isPinned ? 'folder.pinned' : 'folder.unpinned',
+    payload: { folderId, isPinned: input.isPinned, revision: newRevision, seq },
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
@@ -628,12 +703,17 @@ export async function trashFolder(
   actorUserId: string,
   folderId: string,
   policy: FolderDeletePolicy,
-  baseRevision: number
+  baseRevision: number,
+  operationId?: string
 ): Promise<{
   folderId: string;
   policy: FolderDeletePolicy;
+  revision: number;
+  seq: number;
   affectedItemsCount: number;
   affectedFoldersCount: number;
+  affectedItemIds: string[];
+  affectedFolderIds: string[];
   targetParentId?: string | null;
 }> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
@@ -667,12 +747,16 @@ export async function trashFolder(
 
   let affectedItemsCount = 0;
   let affectedFoldersCount = 0;
+  const affectedItemIds: string[] = [];
+  const affectedFolderIds: string[] = [];
   let currentSeq = syncState.nextChangeSeq;
 
   if (policy === 'preserve_to_parent') {
-    // 1. Move direct child folders to targetParentId
+    // 1. Move direct active child folders to targetParentId
     const childFoldersRes = await client.query<{ id: string }>(
-      `SELECT id FROM app.folders WHERE workspace_id = $1 AND parent_id = $2;`,
+      `SELECT f.id FROM app.folders f
+       JOIN app.items i ON i.workspace_id = f.workspace_id AND i.id = f.id
+       WHERE f.workspace_id = $1 AND f.parent_id = $2 AND i.deleted_at IS NULL;`,
       [workspaceId, folderId]
     );
 
@@ -682,26 +766,40 @@ export async function trashFolder(
          WHERE workspace_id = $2 AND id = $3;`,
         [targetParentId, workspaceId, cf.id]
       );
-      await client.query(
+      const upItemRes = await client.query<{ revision: string }>(
         `UPDATE app.items SET folder_id = $1, revision = revision + 1, updated_by = $2, updated_at = now()
-         WHERE workspace_id = $3 AND id = $4;`,
+         WHERE workspace_id = $3 AND id = $4
+         RETURNING revision;`,
         [targetParentId, actorUserId, workspaceId, cf.id]
       );
 
+      const committedRev = Number(upItemRes.rows[0]!.revision);
+      const childSeq = currentSeq++;
       await insertChange(client, {
         workspaceId,
-        seq: currentSeq++,
+        seq: childSeq,
         entityType: 'folder',
         entityId: cf.id,
-        revision: 0,
+        revision: committedRev,
         isTombstone: false,
         operationId: crypto.randomUUID(),
         changeData: { parentId: targetParentId },
       });
+      await insertOutboxIntent(client, {
+        workspaceId,
+        eventType: 'folder.moved',
+        payload: {
+          folderId: cf.id,
+          parentId: targetParentId,
+          revision: committedRev,
+          seq: childSeq,
+        },
+      });
+      affectedFolderIds.push(cf.id);
       affectedFoldersCount++;
     }
 
-    // 2. Move direct items (notes, tasks, files, etc.) to targetParentId (null = Inbox)
+    // 2. Move direct active items (notes, tasks, files, etc.) to targetParentId
     const childItemsRes = await client.query<{ id: string }>(
       `SELECT id FROM app.items
        WHERE workspace_id = $1 AND folder_id = $2 AND kind <> 'folder' AND deleted_at IS NULL;`,
@@ -709,22 +807,36 @@ export async function trashFolder(
     );
 
     for (const item of childItemsRes.rows) {
-      await client.query(
+      const upItemRes = await client.query<{ revision: string }>(
         `UPDATE app.items SET folder_id = $1, revision = revision + 1, updated_by = $2, updated_at = now()
-         WHERE workspace_id = $3 AND id = $4;`,
+         WHERE workspace_id = $3 AND id = $4
+         RETURNING revision;`,
         [targetParentId, actorUserId, workspaceId, item.id]
       );
 
+      const committedRev = Number(upItemRes.rows[0]!.revision);
+      const childSeq = currentSeq++;
       await insertChange(client, {
         workspaceId,
-        seq: currentSeq++,
+        seq: childSeq,
         entityType: 'item',
         entityId: item.id,
-        revision: 0,
+        revision: committedRev,
         isTombstone: false,
         operationId: crypto.randomUUID(),
         changeData: { folderId: targetParentId },
       });
+      await insertOutboxIntent(client, {
+        workspaceId,
+        eventType: 'item.updated',
+        payload: {
+          itemId: item.id,
+          folderId: targetParentId,
+          revision: committedRev,
+          seq: childSeq,
+        },
+      });
+      affectedItemIds.push(item.id);
       affectedItemsCount++;
     }
 
@@ -736,25 +848,49 @@ export async function trashFolder(
       [newRevision, actorUserId, workspaceId, folderId]
     );
 
+    const folderSeq = currentSeq++;
     await insertChange(client, {
       workspaceId,
-      seq: currentSeq++,
+      seq: folderSeq,
       entityType: 'folder',
       entityId: folderId,
       revision: newRevision,
       isTombstone: true,
-      operationId: crypto.randomUUID(),
-      changeData: { deleted: true },
+      operationId: operationId || crypto.randomUUID(),
+      changeData: { deleted: true, policy: 'preserve_to_parent', targetParentId },
     });
-  } else if (policy === 'trash_subtree') {
-    // Recursively find all descendant folders
+    await insertOutboxIntent(client, {
+      workspaceId,
+      eventType: 'folder.trashed',
+      payload: { folderId, revision: newRevision, seq: folderSeq },
+    });
+
+    await updateWorkspaceSyncSeq(client, workspaceId, currentSeq);
+
+    return {
+      folderId,
+      policy,
+      revision: newRevision,
+      seq: folderSeq,
+      affectedItemsCount,
+      affectedFoldersCount,
+      affectedItemIds,
+      affectedFolderIds,
+      targetParentId,
+    };
+  } else {
+    // policy === 'trash_subtree'
+    // Recursively find all active descendant folders
     const subFoldersRes = await client.query<{ id: string }>(
       `WITH RECURSIVE sub AS (
-        SELECT id FROM app.folders WHERE workspace_id = $1 AND id = $2
+        SELECT f.id FROM app.folders f
+        JOIN app.items i ON i.workspace_id = f.workspace_id AND i.id = f.id
+        WHERE f.workspace_id = $1 AND f.id = $2 AND i.deleted_at IS NULL
         UNION ALL
         SELECT f.id FROM app.folders f
+        JOIN app.items i ON i.workspace_id = f.workspace_id AND i.id = f.id
         JOIN sub ON f.parent_id = sub.id
-        WHERE f.workspace_id = $1
+        WHERE f.workspace_id = $1 AND i.deleted_at IS NULL
       )
       SELECT id FROM sub WHERE id <> $2;`,
       [workspaceId, folderId]
@@ -763,7 +899,7 @@ export async function trashFolder(
     const allSubFolderIds = subFoldersRes.rows.map((r) => r.id);
     const allFolderIds = [folderId, ...allSubFolderIds];
 
-    // Find all items inside any of these folders
+    // Find all active items inside any of these folders
     const itemsRes = await client.query<{ id: string }>(
       `SELECT id FROM app.items
        WHERE workspace_id = $1 AND folder_id = ANY($2::uuid[]) AND kind <> 'folder' AND deleted_at IS NULL;`,
@@ -772,45 +908,63 @@ export async function trashFolder(
 
     // Tombstone descendant items
     for (const item of itemsRes.rows) {
-      await client.query(
+      const upRes = await client.query<{ revision: string }>(
         `UPDATE app.items SET deleted_at = now(), revision = revision + 1, updated_by = $1, updated_at = now()
-         WHERE workspace_id = $2 AND id = $3;`,
+         WHERE workspace_id = $2 AND id = $3
+         RETURNING revision;`,
         [actorUserId, workspaceId, item.id]
       );
+      const committedRev = Number(upRes.rows[0]!.revision);
+      const itemSeq = currentSeq++;
       await insertChange(client, {
         workspaceId,
-        seq: currentSeq++,
+        seq: itemSeq,
         entityType: 'item',
         entityId: item.id,
-        revision: 0,
+        revision: committedRev,
         isTombstone: true,
         operationId: crypto.randomUUID(),
         changeData: { deleted: true },
       });
+      await insertOutboxIntent(client, {
+        workspaceId,
+        eventType: 'item.trashed',
+        payload: { itemId: item.id, revision: committedRev, seq: itemSeq },
+      });
+      affectedItemIds.push(item.id);
       affectedItemsCount++;
     }
 
     // Tombstone descendant folders
     for (const subId of allSubFolderIds) {
-      await client.query(
+      const upRes = await client.query<{ revision: string }>(
         `UPDATE app.items SET deleted_at = now(), revision = revision + 1, updated_by = $1, updated_at = now()
-         WHERE workspace_id = $2 AND id = $3;`,
+         WHERE workspace_id = $2 AND id = $3
+         RETURNING revision;`,
         [actorUserId, workspaceId, subId]
       );
+      const committedRev = Number(upRes.rows[0]!.revision);
+      const folderSubSeq = currentSeq++;
       await insertChange(client, {
         workspaceId,
-        seq: currentSeq++,
+        seq: folderSubSeq,
         entityType: 'folder',
         entityId: subId,
-        revision: 0,
+        revision: committedRev,
         isTombstone: true,
         operationId: crypto.randomUUID(),
         changeData: { deleted: true },
       });
+      await insertOutboxIntent(client, {
+        workspaceId,
+        eventType: 'folder.trashed',
+        payload: { folderId: subId, revision: committedRev, seq: folderSubSeq },
+      });
+      affectedFolderIds.push(subId);
       affectedFoldersCount++;
     }
 
-    // Tombstone the target folder itself
+    // Tombstone target folder itself
     const newRevision = Number(currentItem.revision) + 1;
     await client.query(
       `UPDATE app.items SET deleted_at = now(), revision = $1, updated_by = $2, updated_at = now()
@@ -818,27 +972,41 @@ export async function trashFolder(
       [newRevision, actorUserId, workspaceId, folderId]
     );
 
+    const folderSeq = currentSeq++;
     await insertChange(client, {
       workspaceId,
-      seq: currentSeq++,
+      seq: folderSeq,
       entityType: 'folder',
       entityId: folderId,
       revision: newRevision,
       isTombstone: true,
-      operationId: crypto.randomUUID(),
-      changeData: { deleted: true },
+      operationId: operationId || crypto.randomUUID(),
+      changeData: {
+        deleted: true,
+        policy: 'trash_subtree',
+        affectedItemIds,
+        affectedFolderIds,
+      },
     });
+    await insertOutboxIntent(client, {
+      workspaceId,
+      eventType: 'folder.trashed',
+      payload: { folderId, revision: newRevision, seq: folderSeq },
+    });
+
+    await updateWorkspaceSyncSeq(client, workspaceId, currentSeq);
+
+    return {
+      folderId,
+      policy,
+      revision: newRevision,
+      seq: folderSeq,
+      affectedItemsCount,
+      affectedFoldersCount,
+      affectedItemIds,
+      affectedFolderIds,
+    };
   }
-
-  await updateWorkspaceSyncSeq(client, workspaceId, currentSeq);
-
-  return {
-    folderId,
-    policy,
-    affectedItemsCount,
-    affectedFoldersCount,
-    targetParentId: policy === 'preserve_to_parent' ? targetParentId : undefined,
-  };
 }
 
 export async function restoreFolder(
@@ -846,7 +1014,13 @@ export async function restoreFolder(
   workspaceId: string,
   actorUserId: string,
   folderId: string,
-  baseRevision: number
+  baseRevision: number,
+  options?: {
+    restoreSubtree?: boolean;
+    affectedItemIds?: string[];
+    affectedFolderIds?: string[];
+  },
+  operationId?: string
 ): Promise<FolderRecord> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
@@ -891,27 +1065,120 @@ export async function restoreFolder(
     }
   }
 
-  const newRevision = Number(currentItem.revision) + 1;
-  const seq = syncState.nextChangeSeq;
+  let currentSeq = syncState.nextChangeSeq;
 
+  // Check if we should restore subtree children
+  let itemsToRestore = options?.affectedItemIds;
+  let foldersToRestore = options?.affectedFolderIds;
+
+  if (options?.restoreSubtree !== false && (!itemsToRestore || !foldersToRestore)) {
+    // Look up last tombstone change for this folder to find exact affected IDs
+    const tombstoneChange = await client.query<{ change_data: Record<string, unknown> }>(
+      `SELECT change_data FROM app.changes
+       WHERE workspace_id = $1 AND entity_id = $2 AND is_tombstone = true
+       ORDER BY seq DESC LIMIT 1;`,
+      [workspaceId, folderId]
+    );
+    const data = tombstoneChange.rows[0]?.change_data;
+    if (data && data.policy === 'trash_subtree') {
+      if (!itemsToRestore && Array.isArray(data.affectedItemIds)) {
+        itemsToRestore = data.affectedItemIds as string[];
+      }
+      if (!foldersToRestore && Array.isArray(data.affectedFolderIds)) {
+        foldersToRestore = data.affectedFolderIds as string[];
+      }
+    }
+  }
+
+  // Restore child folders that were part of this deletion operation ONLY
+  if (foldersToRestore && foldersToRestore.length > 0) {
+    for (const subId of foldersToRestore) {
+      const upRes = await client.query<{ revision: string }>(
+        `UPDATE app.items SET deleted_at = NULL, revision = revision + 1, updated_by = $1, updated_at = now()
+         WHERE workspace_id = $2 AND id = $3 AND deleted_at IS NOT NULL
+         RETURNING revision;`,
+        [actorUserId, workspaceId, subId]
+      );
+      if (upRes.rows[0]) {
+        const rev = Number(upRes.rows[0].revision);
+        const cSeq = currentSeq++;
+        await insertChange(client, {
+          workspaceId,
+          seq: cSeq,
+          entityType: 'folder',
+          entityId: subId,
+          revision: rev,
+          isTombstone: false,
+          operationId: crypto.randomUUID(),
+          changeData: { restored: true },
+        });
+        await insertOutboxIntent(client, {
+          workspaceId,
+          eventType: 'folder.restored',
+          payload: { folderId: subId, revision: rev, seq: cSeq },
+        });
+      }
+    }
+  }
+
+  // Restore items that were part of this deletion operation ONLY
+  if (itemsToRestore && itemsToRestore.length > 0) {
+    for (const itemId of itemsToRestore) {
+      const upRes = await client.query<{ revision: string }>(
+        `UPDATE app.items SET deleted_at = NULL, revision = revision + 1, updated_by = $1, updated_at = now()
+         WHERE workspace_id = $2 AND id = $3 AND deleted_at IS NOT NULL
+         RETURNING revision;`,
+        [actorUserId, workspaceId, itemId]
+      );
+      if (upRes.rows[0]) {
+        const rev = Number(upRes.rows[0].revision);
+        const cSeq = currentSeq++;
+        await insertChange(client, {
+          workspaceId,
+          seq: cSeq,
+          entityType: 'item',
+          entityId: itemId,
+          revision: rev,
+          isTombstone: false,
+          operationId: crypto.randomUUID(),
+          changeData: { restored: true },
+        });
+        await insertOutboxIntent(client, {
+          workspaceId,
+          eventType: 'item.restored',
+          payload: { itemId, revision: rev, seq: cSeq },
+        });
+      }
+    }
+  }
+
+  // Restore target folder itself
+  const newRevision = Number(currentItem.revision) + 1;
   await client.query(
     `UPDATE app.items SET deleted_at = NULL, folder_id = $1, revision = $2, updated_by = $3, updated_at = now()
      WHERE workspace_id = $4 AND id = $5;`,
     [parentId, newRevision, actorUserId, workspaceId, folderId]
   );
 
+  const folderSeq = currentSeq++;
   await insertChange(client, {
     workspaceId,
-    seq,
+    seq: folderSeq,
     entityType: 'folder',
     entityId: folderId,
     revision: newRevision,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
+    operationId: operationId || crypto.randomUUID(),
     changeData: { restored: true, parentId },
   });
 
-  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: 'folder.restored',
+    payload: { folderId, revision: newRevision, seq: folderSeq },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, currentSeq);
 
   return getFolder(client, workspaceId, folderId);
 }
@@ -920,12 +1187,78 @@ export async function rebalanceSiblings(
   client: PoolClient,
   workspaceId: string,
   actorUserId: string,
-  _parentId: string | null,
-  siblingIds: string[]
+  parentId: string | null,
+  siblingIds: string[],
+  expectedCollectionRevision?: number,
+  operationId?: string
 ): Promise<Array<{ id: string; rank: string; revision: number }>> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  // Compute rebalanced ranks using domain sparse interval spacing
+  // 1. Validate parent if non-null
+  if (parentId !== null) {
+    const parentCheck = await client.query<{ kind: string; deleted_at: Date | null }>(
+      `SELECT kind, deleted_at FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+      [workspaceId, parentId]
+    );
+    const p = parentCheck.rows[0];
+    if (!p || p.deleted_at !== null || p.kind !== 'folder') {
+      throw new NotFoundError(`Parent folder ${parentId} not found or deleted.`);
+    }
+  }
+
+  // 2. Validate siblingIds uniqueness
+  const idSet = new Set(siblingIds);
+  if (idSet.size !== siblingIds.length) {
+    throw new ValidationError('Duplicate sibling IDs in rebalance request.');
+  }
+
+  // 3. Query all active siblings in database under this parent
+  const dbSiblingsRes = await client.query<{
+    id: string;
+    revision: string;
+    rank: string;
+    kind: string;
+    security_scope: 'standard' | 'vault';
+  }>(
+    `SELECT id, revision, rank, kind, security_scope
+     FROM app.items
+     WHERE workspace_id = $1 AND deleted_at IS NULL
+       AND (folder_id = $2 OR ($2 IS NULL AND folder_id IS NULL))
+     ORDER BY rank ASC, id ASC;`,
+    [workspaceId, parentId]
+  );
+
+  const dbSiblings = dbSiblingsRes.rows;
+  const dbSiblingMap = new Map(dbSiblings.map((s) => [s.id, s]));
+
+  // Check that every provided sibling ID exists, is an active folder, and belongs to this parent
+  for (const id of siblingIds) {
+    const s = dbSiblingMap.get(id);
+    if (!s) {
+      throw new ValidationError(
+        `Sibling ID ${id} does not belong to the requested parent or is deleted.`
+      );
+    }
+    if (s.kind !== 'folder') {
+      throw new ValidationError(`Sibling ID ${id} is not an active folder.`);
+    }
+  }
+
+  // 4. Validate collection revision precondition
+  const currentCollectionRevision = siblingIds
+    .map((id) => dbSiblingMap.get(id)!)
+    .reduce((sum, s) => sum + Number(s.revision), 0);
+
+  if (
+    expectedCollectionRevision !== undefined &&
+    expectedCollectionRevision !== currentCollectionRevision
+  ) {
+    throw new ConflictError(
+      `Sibling collection revision conflict: collection has changed (expected ${expectedCollectionRevision}, current ${currentCollectionRevision}).`
+    );
+  }
+
+  // 5. Compute rebalanced ranks using domain sparse interval spacing (padded 8-digit ranks)
   const rebalanced = rebalanceRanks(
     siblingIds.map((id) => ({ id })),
     10000
@@ -935,29 +1268,37 @@ export async function rebalanceSiblings(
   const results: Array<{ id: string; rank: string; revision: number }> = [];
 
   for (const item of rebalanced) {
-    const updateRes = await client.query<{ revision: string }>(
+    const updateRes = await client.query<{ revision: string; kind: string }>(
       `UPDATE app.items SET
         rank = $1,
         revision = revision + 1,
         updated_by = $2,
         updated_at = now()
        WHERE workspace_id = $3 AND id = $4
-       RETURNING revision;`,
+       RETURNING revision, kind;`,
       [item.rank, actorUserId, workspaceId, item.id]
     );
 
     const rev = updateRes.rows[0] ? Number(updateRes.rows[0].revision) : 1;
+    const kind = updateRes.rows[0]?.kind || 'item';
     results.push({ id: item.id, rank: item.rank, revision: rev });
 
+    const itemSeq = currentSeq++;
     await insertChange(client, {
       workspaceId,
-      seq: currentSeq++,
-      entityType: 'folder',
+      seq: itemSeq,
+      entityType: kind === 'folder' ? 'folder' : 'item',
       entityId: item.id,
       revision: rev,
       isTombstone: false,
-      operationId: crypto.randomUUID(),
+      operationId: operationId || crypto.randomUUID(),
       changeData: { rank: item.rank },
+    });
+
+    await insertOutboxIntent(client, {
+      workspaceId,
+      eventType: kind === 'folder' ? 'folder.reordered' : 'item.reordered',
+      payload: { itemId: item.id, rank: item.rank, revision: rev, seq: itemSeq },
     });
   }
 

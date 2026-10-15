@@ -54,6 +54,7 @@ export const MoveFolderRequestSchema = z
     targetParentId: z.string().uuid().nullable(),
     rank: z.string().optional(),
     baseRevision: z.number().int().nonnegative(),
+    expectedCollectionRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type MoveFolderRequest = z.infer<typeof MoveFolderRequestSchema>;
@@ -62,6 +63,7 @@ export const ReorderFolderRequestSchema = z
   .object({
     rank: z.string(),
     baseRevision: z.number().int().nonnegative(),
+    expectedCollectionRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type ReorderFolderRequest = z.infer<typeof ReorderFolderRequestSchema>;
@@ -93,6 +95,9 @@ export type DeleteFolderRequest = z.infer<typeof DeleteFolderRequestSchema>;
 export const RestoreFolderRequestSchema = z
   .object({
     baseRevision: z.number().int().nonnegative(),
+    restoreSubtree: z.boolean().optional(),
+    affectedItemIds: z.array(z.string().uuid()).optional(),
+    affectedFolderIds: z.array(z.string().uuid()).optional(),
   })
   .strict();
 export type RestoreFolderRequest = z.infer<typeof RestoreFolderRequestSchema>;
@@ -101,6 +106,7 @@ export const RebalanceSiblingsRequestSchema = z
   .object({
     parentId: z.string().uuid().nullable().optional(),
     siblingIds: z.array(z.string().uuid()).min(1),
+    expectedCollectionRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type RebalanceSiblingsRequest = z.infer<typeof RebalanceSiblingsRequestSchema>;
@@ -124,6 +130,9 @@ export const FolderDeleteResultSchema = z.object({
     affectedItemsCount: z.number().int().nonnegative(),
     affectedFoldersCount: z.number().int().nonnegative(),
     targetParentId: z.string().uuid().nullable().optional(),
+    revision: z.number().int().nonnegative().optional(),
+    affectedFolderIds: z.array(z.string().uuid()).optional(),
+    affectedItemIds: z.array(z.string().uuid()).optional(),
   }),
   meta: ResponseMetaSchema,
 });

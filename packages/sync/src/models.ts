@@ -19,6 +19,10 @@ export interface ItemHeaderRecord {
   isPinned: boolean;
   securityScope: 'standard' | 'vault';
   serverRevision: number;
+  name?: string;
+  color?: string | null;
+  icon?: string | null;
+  parentId?: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -171,7 +175,7 @@ export function validateItemHeaderRecord(input: unknown): ItemHeaderRecord {
     throw new TypeError('Validation failed: securityScope must be "standard" or "vault".');
   }
 
-  return {
+  const res: ItemHeaderRecord = {
     id: assertNonEmptyString(r.id, 'id'),
     workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
     kind: assertNonEmptyString(r.kind, 'kind', 64),
@@ -191,6 +195,23 @@ export function validateItemHeaderRecord(input: unknown): ItemHeaderRecord {
         ? null
         : assertNonEmptyString(r.deletedAt, 'deletedAt', 64),
   };
+
+  if (typeof r.name === 'string') {
+    res.name = r.name;
+  }
+  if (typeof r.color === 'string' || r.color === null) {
+    res.color = r.color;
+  }
+  if (typeof r.icon === 'string' || r.icon === null) {
+    res.icon = r.icon;
+  }
+  if (typeof r.parentId === 'string') {
+    res.parentId = r.parentId;
+  } else if (r.parentId === null && (r.name !== undefined || r.kind === 'folder')) {
+    res.parentId = null;
+  }
+
+  return res;
 }
 
 export function validateDraftRecord(input: unknown): DraftRecord {
