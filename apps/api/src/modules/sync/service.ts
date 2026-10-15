@@ -101,7 +101,11 @@ export class SyncService {
       // An operation can only depend in-batch on an operation within the same actor, device, and workspace
       const validInBatchDeps = (cmd.dependencyOperationIds || []).filter((depId) => {
         const parentCmd = batchCmdMap.get(depId);
-        return parentCmd && parentCmd.workspaceId === cmd.workspaceId && parentCmd.deviceId === cmd.deviceId;
+        return (
+          parentCmd &&
+          parentCmd.workspaceId === cmd.workspaceId &&
+          parentCmd.deviceId === cmd.deviceId
+        );
       });
       inBatchDeps.set(cmd.operationId, validInBatchDeps);
     }
@@ -278,7 +282,11 @@ export class SyncService {
 
       for (const depId of deps) {
         const inBatchParent = batchCmdMap.get(depId);
-        if (inBatchParent && inBatchParent.workspaceId === cmd.workspaceId && inBatchParent.deviceId === cmd.deviceId) {
+        if (
+          inBatchParent &&
+          inBatchParent.workspaceId === cmd.workspaceId &&
+          inBatchParent.deviceId === cmd.deviceId
+        ) {
           const priorRes = resultMap.get(depId);
           if (!priorRes || priorRes.status !== 'accepted') {
             dependencyFailure = {
@@ -359,7 +367,8 @@ export class SyncService {
                   insertErr &&
                   typeof insertErr === 'object' &&
                   (insertErr as { code?: string }).code === '23505' &&
-                  (insertErr as { constraint?: string }).constraint === 'uq_mutation_receipts_actor_device_op'
+                  (insertErr as { constraint?: string }).constraint ===
+                    'uq_mutation_receipts_actor_device_op'
                 ) {
                   // Concurrent insertion: durable receipt already exists
                 } else {
@@ -688,8 +697,8 @@ export class SyncService {
   ): Promise<MutationResult> {
     const existingItem = await getItemForSync(client, cmd.workspaceId, cmd.entityId);
 
-    // --- Command: createItem ---
-    if (cmd.command === 'createItem') {
+    // --- Command: createItem or createFolder ---
+    if (cmd.command === 'createItem' || cmd.command === 'createFolder') {
       if (existingItem) {
         const error = {
           code: 'VALIDATION_FAILED',
@@ -724,10 +733,134 @@ export class SyncService {
 
       const newRevision = 1;
       const seq = syncState.nextChangeSeq;
-      const kind = typeof cmd.payload['kind'] === 'string' ? cmd.payload['kind'] : 'note';
-      const folderId = typeof cmd.payload['folderId'] === 'string' ? cmd.payload['folderId'] : null;
+      const kind =
+        cmd.command === 'createFolder'
+          ? 'folder'
+          : typeof cmd.payload['kind'] === 'string'
+            ? cmd.payload['kind']
+            : 'note';
+      const folderId =
+        typeof cmd.payload['parentId'] === 'string'
+          ? cmd.payload['parentId']
+          : typeof cmd.payload['folderId'] === 'string'
+            ? cmd.payload['folderId']
+            : null;
       const rank = typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : '0';
       const secScope = cmd.payload['securityScope'] === 'vault' ? 'vault' : 'standard';
+
+      // Validate folder reference invariants
+      if (folderId !== null) {
+        const parentCheck = await client.query<{
+          security_scope: string;
+          deleted_at: Date | null;
+          kind: string;
+        }>(
+          `SELECT security_scope, deleted_at, kind FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+          [cmd.workspaceId, folderId]
+        );
+        const parentRow = parentCheck.rows[0];
+        if (!parentRow || parentRow.deleted_at !== null || parentRow.kind !== 'folder') {
+          const error = {
+            code: 'INVALID_PARENT',
+            message: `Parent folder ${folderId} does not exist or is deleted in workspace.`,
+          };
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'rejected',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error },
+          });
+          return {
+            operationId: cmd.operationId,
+            status: 'rejected',
+            entityId: cmd.entityId,
+            revision: 0,
+            seq: null,
+            error,
+          };
+        }
+
+        if (parentRow.security_scope !== secScope) {
+          const error = {
+            code: 'INCOMPATIBLE_SECURITY_SCOPE',
+            message: `Item scope (${secScope}) does not match parent folder scope (${parentRow.security_scope}).`,
+          };
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'rejected',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error },
+          });
+          return {
+            operationId: cmd.operationId,
+            status: 'rejected',
+            entityId: cmd.entityId,
+            revision: 0,
+            seq: null,
+            error,
+          };
+        }
+      }
+
+      // If kind === 'folder', validate depth bounds and cycle prevention
+      if (kind === 'folder') {
+        try {
+          await client.query(`SELECT app.validate_folder_parent($1, $2, $3);`, [
+            cmd.workspaceId,
+            cmd.entityId,
+            folderId,
+          ]);
+        } catch (err: unknown) {
+          const error = {
+            code: 'VALIDATION_FAILED',
+            message: (err as Error).message,
+          };
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'rejected',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error },
+          });
+          return {
+            operationId: cmd.operationId,
+            status: 'rejected',
+            entityId: cmd.entityId,
+            revision: 0,
+            seq: null,
+            error,
+          };
+        }
+      }
 
       await insertItemForSync(client, {
         id: cmd.entityId,
@@ -740,6 +873,24 @@ export class SyncService {
         securityScope: secScope,
       });
 
+      if (kind === 'folder') {
+        const folderName =
+          typeof cmd.payload['name'] === 'string' ? cmd.payload['name'] : 'Untitled Folder';
+        const color = typeof cmd.payload['color'] === 'string' ? cmd.payload['color'] : null;
+        const icon = typeof cmd.payload['icon'] === 'string' ? cmd.payload['icon'] : null;
+        await client.query(
+          `INSERT INTO app.folders (id, workspace_id, parent_id, name, color, icon)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (workspace_id, id) DO UPDATE SET
+             parent_id = EXCLUDED.parent_id,
+             name = EXCLUDED.name,
+             color = EXCLUDED.color,
+             icon = EXCLUDED.icon,
+             updated_at = now();`,
+          [cmd.entityId, cmd.workspaceId, folderId, folderName, color, icon]
+        );
+      }
+
       const changeData = {
         kind,
         folderId,
@@ -747,6 +898,13 @@ export class SyncService {
         securityScope: secScope,
         isArchived: false,
         isPinned: false,
+        ...(kind === 'folder'
+          ? {
+              name: cmd.payload['name'] || 'Untitled Folder',
+              color: cmd.payload['color'] || null,
+              icon: cmd.payload['icon'] || null,
+            }
+          : {}),
       };
 
       await insertChange(client, {
@@ -952,6 +1110,130 @@ export class SyncService {
         const clearFolderId = hasFolderId && folderIdVal === null;
         const rank = typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : undefined;
 
+        if (hasFolderId && folderId !== null) {
+          const parentCheck = await client.query<{
+            security_scope: string;
+            deleted_at: Date | null;
+            kind: string;
+          }>(
+            `SELECT security_scope, deleted_at, kind FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+            [cmd.workspaceId, folderId]
+          );
+          const parentRow = parentCheck.rows[0];
+          if (!parentRow || parentRow.deleted_at !== null || parentRow.kind !== 'folder') {
+            const error = {
+              code: 'INVALID_PARENT',
+              message: `Target parent folder ${folderId} does not exist or is deleted.`,
+            };
+            await insertMutationReceipt(client, {
+              workspaceId: cmd.workspaceId,
+              actorUserId,
+              deviceId: cmd.deviceId,
+              operationId: cmd.operationId,
+              command: cmd.command,
+              entityType: cmd.entityType,
+              entityId: cmd.entityId,
+              schemaVersion: cmd.schemaVersion,
+              baseRevision: cmd.baseRevision,
+              canonicalPayloadHash: payloadHash,
+              status: 'rejected',
+              acceptedRevision: null,
+              appliedChangeSeq: null,
+              resultPayload: { error },
+            });
+            return {
+              operationId: cmd.operationId,
+              status: 'rejected',
+              entityId: cmd.entityId,
+              revision: existingItem.revision,
+              seq: null,
+              error,
+            };
+          }
+
+          if (parentRow.security_scope !== existingItem.securityScope) {
+            const error = {
+              code: 'INCOMPATIBLE_SECURITY_SCOPE',
+              message: `Item scope (${existingItem.securityScope}) does not match parent folder scope (${parentRow.security_scope}).`,
+            };
+            await insertMutationReceipt(client, {
+              workspaceId: cmd.workspaceId,
+              actorUserId,
+              deviceId: cmd.deviceId,
+              operationId: cmd.operationId,
+              command: cmd.command,
+              entityType: cmd.entityType,
+              entityId: cmd.entityId,
+              schemaVersion: cmd.schemaVersion,
+              baseRevision: cmd.baseRevision,
+              canonicalPayloadHash: payloadHash,
+              status: 'rejected',
+              acceptedRevision: null,
+              appliedChangeSeq: null,
+              resultPayload: { error },
+            });
+            return {
+              operationId: cmd.operationId,
+              status: 'rejected',
+              entityId: cmd.entityId,
+              revision: existingItem.revision,
+              seq: null,
+              error,
+            };
+          }
+        }
+
+        if (existingItem.kind === 'folder' && (hasFolderId || 'name' in cmd.payload)) {
+          if (hasFolderId) {
+            try {
+              await client.query(`SELECT app.validate_folder_parent($1, $2, $3);`, [
+                cmd.workspaceId,
+                cmd.entityId,
+                folderId,
+              ]);
+            } catch (err: unknown) {
+              const error = {
+                code: 'VALIDATION_FAILED',
+                message: (err as Error).message,
+              };
+              await insertMutationReceipt(client, {
+                workspaceId: cmd.workspaceId,
+                actorUserId,
+                deviceId: cmd.deviceId,
+                operationId: cmd.operationId,
+                command: cmd.command,
+                entityType: cmd.entityType,
+                entityId: cmd.entityId,
+                schemaVersion: cmd.schemaVersion,
+                baseRevision: cmd.baseRevision,
+                canonicalPayloadHash: payloadHash,
+                status: 'rejected',
+                acceptedRevision: null,
+                appliedChangeSeq: null,
+                resultPayload: { error },
+              });
+              return {
+                operationId: cmd.operationId,
+                status: 'rejected',
+                entityId: cmd.entityId,
+                revision: existingItem.revision,
+                seq: null,
+                error,
+              };
+            }
+            await client.query(
+              `UPDATE app.folders SET parent_id = $1, updated_at = now() WHERE workspace_id = $2 AND id = $3;`,
+              [folderId, cmd.workspaceId, cmd.entityId]
+            );
+          }
+          if ('name' in cmd.payload && typeof cmd.payload['name'] === 'string') {
+            await client.query(
+              `UPDATE app.folders SET name = $1, updated_at = now() WHERE workspace_id = $2 AND id = $3;`,
+              [cmd.payload['name'], cmd.workspaceId, cmd.entityId]
+            );
+          }
+        }
+
         await updateItemForSync(client, {
           id: cmd.entityId,
           workspaceId: cmd.workspaceId,
@@ -967,9 +1249,116 @@ export class SyncService {
         };
         break;
       }
+      case 'updateFolder': {
+        const name = typeof cmd.payload['name'] === 'string' ? cmd.payload['name'] : undefined;
+        const color =
+          typeof cmd.payload['color'] === 'string'
+            ? cmd.payload['color']
+            : cmd.payload['color'] === null
+              ? null
+              : undefined;
+        const icon =
+          typeof cmd.payload['icon'] === 'string'
+            ? cmd.payload['icon']
+            : cmd.payload['icon'] === null
+              ? null
+              : undefined;
+
+        await client.query(
+          `UPDATE app.folders SET
+            name = COALESCE($1, name),
+            color = CASE WHEN $2::boolean THEN $3 ELSE color END,
+            icon = CASE WHEN $4::boolean THEN $5 ELSE icon END,
+            updated_at = now()
+           WHERE workspace_id = $6 AND id = $7;`,
+          [
+            name ?? null,
+            color !== undefined,
+            color ?? null,
+            icon !== undefined,
+            icon ?? null,
+            cmd.workspaceId,
+            cmd.entityId,
+          ]
+        );
+        await client.query(
+          `UPDATE app.items SET revision = $1, updated_by = $2, updated_at = now()
+           WHERE workspace_id = $3 AND id = $4;`,
+          [newRevision, actorUserId, cmd.workspaceId, cmd.entityId]
+        );
+        changeData = {
+          ...(name !== undefined ? { name } : {}),
+          ...(color !== undefined ? { color } : {}),
+          ...(icon !== undefined ? { icon } : {}),
+        };
+        break;
+      }
+      case 'moveFolder': {
+        const targetParentId =
+          typeof cmd.payload['targetParentId'] === 'string' ? cmd.payload['targetParentId'] : null;
+        const rank = typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : undefined;
+
+        try {
+          await client.query(`SELECT app.validate_folder_parent($1, $2, $3);`, [
+            cmd.workspaceId,
+            cmd.entityId,
+            targetParentId,
+          ]);
+        } catch (err: unknown) {
+          const error = { code: 'VALIDATION_FAILED', message: (err as Error).message };
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'rejected',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error },
+          });
+          return {
+            operationId: cmd.operationId,
+            status: 'rejected',
+            entityId: cmd.entityId,
+            revision: existingItem.revision,
+            seq: null,
+            error,
+          };
+        }
+
+        await client.query(
+          `UPDATE app.folders SET parent_id = $1, updated_at = now() WHERE workspace_id = $2 AND id = $3;`,
+          [targetParentId, cmd.workspaceId, cmd.entityId]
+        );
+        await client.query(
+          `UPDATE app.items SET folder_id = $1, rank = COALESCE($2, rank), revision = $3, updated_by = $4, updated_at = now()
+           WHERE workspace_id = $5 AND id = $6;`,
+          [targetParentId, rank ?? null, newRevision, actorUserId, cmd.workspaceId, cmd.entityId]
+        );
+        changeData = { parentId: targetParentId, ...(rank !== undefined ? { rank } : {}) };
+        break;
+      }
+      case 'reorderFolder': {
+        const rank = typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : '0';
+        await client.query(
+          `UPDATE app.items SET rank = $1, revision = $2, updated_by = $3, updated_at = now()
+           WHERE workspace_id = $4 AND id = $5;`,
+          [rank, newRevision, actorUserId, cmd.workspaceId, cmd.entityId]
+        );
+        changeData = { rank };
+        break;
+      }
+      case 'archiveFolder':
       case 'archiveItem':
+      case 'unarchiveFolder':
       case 'unarchiveItem': {
-        const isArchived = cmd.command === 'archiveItem';
+        const isArchived = cmd.command === 'archiveItem' || cmd.command === 'archiveFolder';
         await setItemFlagsForSync(client, {
           workspaceId: cmd.workspaceId,
           id: cmd.entityId,
@@ -980,9 +1369,11 @@ export class SyncService {
         changeData = { isArchived };
         break;
       }
+      case 'pinFolder':
       case 'pinItem':
+      case 'unpinFolder':
       case 'unpinItem': {
-        const isPinned = cmd.command === 'pinItem';
+        const isPinned = cmd.command === 'pinItem' || cmd.command === 'pinFolder';
         await setItemFlagsForSync(client, {
           workspaceId: cmd.workspaceId,
           id: cmd.entityId,
@@ -993,13 +1384,87 @@ export class SyncService {
         changeData = { isPinned };
         break;
       }
+      case 'trashFolder': {
+        const policy =
+          cmd.payload['policy'] === 'preserve_to_parent' ? 'preserve_to_parent' : 'trash_subtree';
+        if (policy === 'preserve_to_parent') {
+          const parentRes = await client.query<{ parent_id: string | null }>(
+            `SELECT parent_id FROM app.folders WHERE workspace_id = $1 AND id = $2;`,
+            [cmd.workspaceId, cmd.entityId]
+          );
+          const targetParentId = parentRes.rows[0]?.parent_id || null;
+
+          await client.query(
+            `UPDATE app.folders SET parent_id = $1, updated_at = now() WHERE workspace_id = $2 AND parent_id = $3;`,
+            [targetParentId, cmd.workspaceId, cmd.entityId]
+          );
+          await client.query(
+            `UPDATE app.items SET folder_id = $1, revision = revision + 1, updated_by = $2, updated_at = now()
+             WHERE workspace_id = $3 AND folder_id = $4;`,
+            [targetParentId, actorUserId, cmd.workspaceId, cmd.entityId]
+          );
+        } else {
+          // Trash subtree
+          const subRes = await client.query<{ id: string }>(
+            `WITH RECURSIVE sub AS (
+              SELECT id FROM app.folders WHERE workspace_id = $1 AND id = $2
+              UNION ALL
+              SELECT f.id FROM app.folders f JOIN sub ON f.parent_id = sub.id WHERE f.workspace_id = $1
+            ) SELECT id FROM sub WHERE id <> $2;`,
+            [cmd.workspaceId, cmd.entityId]
+          );
+          const subIds = subRes.rows.map((r) => r.id);
+          const allIds = [cmd.entityId, ...subIds];
+
+          await client.query(
+            `UPDATE app.items SET deleted_at = now(), revision = revision + 1, updated_by = $1, updated_at = now()
+             WHERE workspace_id = $2 AND folder_id = ANY($3::uuid[]);`,
+            [actorUserId, cmd.workspaceId, allIds]
+          );
+          await client.query(
+            `UPDATE app.items SET deleted_at = now(), revision = revision + 1, updated_by = $1, updated_at = now()
+             WHERE workspace_id = $2 AND id = ANY($3::uuid[]);`,
+            [actorUserId, cmd.workspaceId, subIds]
+          );
+        }
+
+        isTombstone = true;
+        await tombstoneItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
+        changeData = { deleted: true, policy };
+        break;
+      }
       case 'trashItem': {
         isTombstone = true;
         await tombstoneItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
         changeData = { deleted: true };
         break;
       }
+      case 'restoreFolder':
       case 'restoreItem': {
+        if (existingItem.kind === 'folder') {
+          const fRes = await client.query<{ parent_id: string | null }>(
+            `SELECT parent_id FROM app.folders WHERE workspace_id = $1 AND id = $2;`,
+            [cmd.workspaceId, cmd.entityId]
+          );
+          let parentId = fRes.rows[0]?.parent_id || null;
+          if (parentId) {
+            const pCheck = await client.query<{ deleted_at: Date | null }>(
+              `SELECT deleted_at FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+              [cmd.workspaceId, parentId]
+            );
+            if (!pCheck.rows[0] || pCheck.rows[0].deleted_at !== null) {
+              parentId = null;
+              await client.query(
+                `UPDATE app.folders SET parent_id = NULL WHERE workspace_id = $1 AND id = $2;`,
+                [cmd.workspaceId, cmd.entityId]
+              );
+            }
+          }
+          await client.query(
+            `UPDATE app.items SET folder_id = $1 WHERE workspace_id = $2 AND id = $3;`,
+            [parentId, cmd.workspaceId, cmd.entityId]
+          );
+        }
         await restoreItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
         changeData = { restored: true };
         break;

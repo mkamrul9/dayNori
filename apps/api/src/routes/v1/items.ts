@@ -11,13 +11,7 @@ import {
   type ItemListResponse,
   type ItemResponse,
 } from '@daynori/contracts';
-import {
-  withTenantContext,
-  listItems,
-  getItem,
-  createItem,
-  updateItem,
-} from '../../db/index.js';
+import { withTenantContext, listItems, getItem, createItem, updateItem } from '../../db/index.js';
 import {
   lockWorkspaceSyncState,
   insertChange,
@@ -25,7 +19,7 @@ import {
   updateWorkspaceSyncSeq,
 } from '../../modules/sync/repository.js';
 import { decodeCursor, encodeCursor } from '../../utils/pagination.js';
-import { NotFoundError, validateResponse } from '../../plugins/errorHandler.js';
+import { NotFoundError, ValidationError, validateResponse } from '../../plugins/errorHandler.js';
 
 export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // GET /v1/workspaces/:workspaceId/items — List items with keyset pagination
@@ -131,6 +125,37 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
             throw new NotFoundError('Workspace not found or unauthorized');
           }
 
+          // Enforce folder invariants: validate folderId reference
+          if (body.folderId) {
+            const folderCheck = await client.query<{
+              security_scope: string;
+              deleted_at: Date | null;
+              kind: string;
+            }>(
+              `SELECT security_scope, deleted_at, kind FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+              [params.workspaceId, body.folderId]
+            );
+            const parentRow = folderCheck.rows[0];
+            if (!parentRow || parentRow.deleted_at !== null || parentRow.kind !== 'folder') {
+              throw new ValidationError(
+                'Referenced folderId does not exist, is deleted, or is not a folder'
+              );
+            }
+          }
+
+          // If creating a folder via generic item endpoint, enforce depth bounds
+          if (body.kind === 'folder') {
+            try {
+              await client.query(`SELECT app.validate_folder_parent($1, $2, $3);`, [
+                params.workspaceId,
+                null,
+                body.folderId || null,
+              ]);
+            } catch (err: unknown) {
+              throw new ValidationError((err as Error).message);
+            }
+          }
+
           // Participate in linear sequence and change feed
           const syncState = await lockWorkspaceSyncState(client, params.workspaceId);
 
@@ -144,6 +169,15 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
             rank: '0',
             securityScope: 'standard',
           });
+
+          if (body.kind === 'folder') {
+            await client.query(
+              `INSERT INTO app.folders (id, workspace_id, parent_id, name)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (workspace_id, id) DO NOTHING;`,
+              [created.id, params.workspaceId, body.folderId || null, 'Untitled']
+            );
+          }
 
           await insertChange(client, {
             workspaceId: params.workspaceId,
@@ -198,7 +232,7 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
 
       return reply.status(201).send(validateResponse(ItemResponseSchema, payload));
     } catch (err: unknown) {
-      if (err instanceof NotFoundError) {
+      if (err instanceof NotFoundError || err instanceof ValidationError) {
         throw err;
       }
       throw new NotFoundError('Workspace not found or unauthorized');

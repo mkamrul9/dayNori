@@ -58,12 +58,7 @@ export interface PendingMutationRecord {
 }
 
 export type CloudSyncStatus =
-  | 'saved_locally'
-  | 'syncing'
-  | 'synced'
-  | 'conflict'
-  | 'error'
-  | 'needs_attention';
+  'saved_locally' | 'syncing' | 'synced' | 'conflict' | 'error' | 'needs_attention';
 
 export interface ItemSyncState {
   savedOnDevice: boolean;

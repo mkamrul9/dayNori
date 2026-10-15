@@ -88,6 +88,7 @@ When a conflict occurs:
 ### 6. Privacy & Safety Guarantees
 
 Diagnostics returned by `engine.getDiagnostics()` strictly contain operational metadata:
+
 - `workspaceId`, `userId`, `deviceId`, `networkStatus`, `cloudSyncStatus`, `isLeader`, `queueLength`, `inFlightCount`, `failedCount`, `consecutiveFailures`, `activeConflictsCount`, `lastSyncedAt`, `lastSyncSequence`, `accessEpoch`.
 - Passwords, access tokens, encryption keys, draft contents, and personal notes are excluded.
 

@@ -60,11 +60,7 @@ export function decodeSyncCursor(encoded: string, expectedWorkspaceId: string): 
   }
 
   // Sequence range check (must be a non-negative safe integer)
-  if (
-    typeof c['seq'] !== 'number' ||
-    !Number.isSafeInteger(c['seq']) ||
-    c['seq'] < 0
-  ) {
+  if (typeof c['seq'] !== 'number' || !Number.isSafeInteger(c['seq']) || c['seq'] < 0) {
     throw new Error('MALFORMED_CURSOR');
   }
 

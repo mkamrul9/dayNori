@@ -14,7 +14,10 @@ import type {
 export interface SyncTransportPort {
   push(request: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse>;
   pull(query: SyncPullQuery, options?: { signal?: AbortSignal }): Promise<SyncPullResponse>;
-  bootstrap(query: SyncBootstrapQuery, options?: { signal?: AbortSignal }): Promise<SyncBootstrapResponse>;
+  bootstrap(
+    query: SyncBootstrapQuery,
+    options?: { signal?: AbortSignal }
+  ): Promise<SyncBootstrapResponse>;
 }
 
 export interface ClassifiedSyncError {
@@ -68,14 +71,13 @@ export function classifySyncError(error: unknown): ClassifiedSyncError {
     code === 'TOKEN_REVOKED';
 
   // Specific protocol error code check: do NOT treat every HTTP 409 as a reset!
-  const isResetRequired =
-    code === 'SYNC_RESET_REQUIRED' ||
-    message.includes('SYNC_RESET_REQUIRED');
+  const isResetRequired = code === 'SYNC_RESET_REQUIRED' || message.includes('SYNC_RESET_REQUIRED');
 
   const isRateLimited = statusCode === 429;
   const retryAfter = typeof err.retryAfter === 'number' ? err.retryAfter * 1000 : undefined;
 
-  const isClientError = statusCode !== undefined && statusCode >= 400 && statusCode < 500 && !isRateLimited;
+  const isClientError =
+    statusCode !== undefined && statusCode >= 400 && statusCode < 500 && !isRateLimited;
 
   return {
     isNetworkError,
@@ -99,7 +101,10 @@ export class ApiClientSyncTransport implements SyncTransportPort {
     private client: {
       syncPush(req: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse>;
       syncPull(query: SyncPullQuery, options?: { signal?: AbortSignal }): Promise<SyncPullResponse>;
-      syncBootstrap(query: SyncBootstrapQuery, options?: { signal?: AbortSignal }): Promise<SyncBootstrapResponse>;
+      syncBootstrap(
+        query: SyncBootstrapQuery,
+        options?: { signal?: AbortSignal }
+      ): Promise<SyncBootstrapResponse>;
     }
   ) {}
 
@@ -111,8 +116,10 @@ export class ApiClientSyncTransport implements SyncTransportPort {
     return this.client.syncPull(query, options);
   }
 
-  bootstrap(query: SyncBootstrapQuery, options?: { signal?: AbortSignal }): Promise<SyncBootstrapResponse> {
+  bootstrap(
+    query: SyncBootstrapQuery,
+    options?: { signal?: AbortSignal }
+  ): Promise<SyncBootstrapResponse> {
     return this.client.syncBootstrap(query, options);
   }
 }
-

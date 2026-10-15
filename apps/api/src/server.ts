@@ -19,6 +19,7 @@ import { registerWorkspaceRoutes } from './routes/v1/workspaces.js';
 import { registerUserRoutes } from './routes/v1/users.js';
 import { registerMemberRoutes } from './routes/v1/members.js';
 import { registerItemRoutes } from './routes/v1/items.js';
+import { registerOrganizationRoutes } from './routes/v1/organization.js';
 import { registerSyncRoutes } from './modules/sync/index.js';
 
 export interface ServerOptions {
@@ -133,6 +134,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerUserRoutes(authScope, runtimePool);
       registerMemberRoutes(authScope, runtimePool);
       registerItemRoutes(authScope, runtimePool);
+      registerOrganizationRoutes(authScope, runtimePool);
       registerSyncRoutes(authScope, runtimePool);
     });
   }

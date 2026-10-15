@@ -1,8 +1,4 @@
-import type {
-  SyncCommand,
-  SyncPushRequest,
-  SyncCommandType,
-} from '@daynori/contracts';
+import type { SyncCommand, SyncPushRequest, SyncCommandType } from '@daynori/contracts';
 import type { LocalRepositoryPort } from './ports.js';
 import type {
   AccountNamespace,
@@ -15,14 +11,8 @@ import type {
   ConflictRecord,
   SyncDiagnostics,
 } from './models.js';
-import {
-  type SyncTransportPort,
-  classifySyncError,
-} from './transport.js';
-import {
-  type TabCoordinationPort,
-  SingleProcessCoordinator,
-} from './coordination.js';
+import { type SyncTransportPort, classifySyncError } from './transport.js';
+import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
 
 export interface SaveItemOptions {
   dependencyOperationIds?: string[];
@@ -100,7 +90,11 @@ export class SyncEngine {
   private activeConflicts = new Map<string, ConflictRecord>();
   private listeners = new Set<(event: SyncEngineEvent) => void>();
 
-  private logger?: (level: 'info' | 'warn' | 'error', msg: string, meta?: Record<string, unknown>) => void;
+  private logger?: (
+    level: 'info' | 'warn' | 'error',
+    msg: string,
+    meta?: Record<string, unknown>
+  ) => void;
   private abortController: AbortController | null = null;
   private activeSyncPromise: Promise<void> | null = null;
   private queuedSyncPromise: Promise<void> | null = null;
@@ -319,14 +313,13 @@ export class SyncEngine {
       new Set([...(options?.dependencyOperationIds || []), ...inferredDeps])
     );
 
-    const determinedCommand =
-      command || (item.serverRevision === 0 ? 'createItem' : 'updateItem');
+    const determinedCommand = command || (item.serverRevision === 0 ? 'createItem' : 'updateItem');
     const action: 'create' | 'update' | 'delete' =
       determinedCommand === 'trashItem'
         ? 'delete'
         : determinedCommand === 'createItem'
-        ? 'create'
-        : 'update';
+          ? 'create'
+          : 'update';
 
     // Typed metadata only - do NOT leak unpersisted feature bodies into server metadata sync payload
     const mutationPayload: Record<string, unknown> = {
@@ -583,8 +576,8 @@ export class SyncEngine {
                 origMutation.command === 'trashItem'
                   ? new Date().toISOString()
                   : origMutation.command === 'restoreItem'
-                  ? null
-                  : header.deletedAt,
+                    ? null
+                    : header.deletedAt,
             }
           : {
               id: result.entityId,
@@ -822,7 +815,7 @@ export class SyncEngine {
 
     const preserveLocalItemIds = new Set<string>([
       ...pending.map((p) => p.entityId),
-      ...drafts.map((d) => d.entityId).filter(Boolean) as string[],
+      ...(drafts.map((d) => d.entityId).filter(Boolean) as string[]),
       ...conflicts.map((c) => c.entityId),
     ]);
 

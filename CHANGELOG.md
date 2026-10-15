@@ -1,5 +1,34 @@
 # Changelog
 
+## Phase 14 — Collections, folders, and shared item metadata — 2026-10-15
+
+- **Unified Workspace Folder Hierarchy (`infra/supabase`, `packages/contracts`, `apps/api`):**
+  - Applied migration `00012_organization_folders_and_metadata.sql` introducing `app.folders`, `app.tags`, `app.item_tags`, `app.item_links`, and PL/pgSQL invariant validation function `app.validate_folder_parent`.
+  - Folders share unified `app.items` core table with `kind = 'folder'`, security scope (`standard` / `vault`), archive and pin states, rank, and revision tracking.
+  - Implemented strict depth bound (`MAX_FOLDER_DEPTH = 5`) and cycle prevention walking ancestor links, enforced transactionally at both domain and database trigger levels.
+  - Subtree moves verify that `target_parent_depth + subtree_depth <= 5` preventing descendants from exceeding max depth.
+  - Defined explicit folder deletion policies:
+    - `preserve_to_parent`: Moves direct child folders and items to parent (or Inbox if deleted folder was root).
+    - `trash_subtree`: Recursively tombstones the folder and all its descendant items and folders (`deleted_at = now()`).
+  - Implemented safe restoration (`restoreFolder`), reparenting to root if former parent is deleted.
+- **Inbox Semantics & Common Item Metadata:**
+  - Defined `folder_id = NULL` as workspace Inbox; newly captured items default to Inbox and items can be moved freely between Inbox and folders.
+  - Extended generic item creation routes and sync push dispatches to validate folder invariants (parent folder existence, deleted status, kind, security scope).
+- **Sparse Ranking & Rebalancing (`packages/domain`, `apps/api`):**
+  - Sibling items and folders ordered by sparse lexicographical rank strings with UUID tie-breakers.
+  - Added sibling rebalancing endpoint (`/v1/workspaces/:workspaceId/folders/rebalance`) to redistribute sibling ranks with step 1000.
+- **Workspace-Scoped Tags & Item Links:**
+  - Case-insensitive unique tags per workspace (`app.tags` with unique index on `(workspace_id, lower(name))`).
+  - Many-to-many join in `app.item_tags` attaching and detaching tags to items without copying or duplicating item feature bodies.
+  - Directed item links in `app.item_links` with self-link prevention and same-workspace validation.
+- **Sync & Outbox Integration:**
+  - Folder operations emit ordered events in `app.changes` and outbox intents in `app.outbox_intents`.
+  - Active folders included in `syncBootstrap` snapshot items.
+- **Performance Benchmark:**
+  - Validated recursive hierarchy query performance with `EXPLAIN (ANALYZE, BUFFERS)` on a 310-folder synthetic hierarchy, confirming execution time of ~1.5ms (budget < 100ms).
+- **Decision Record:**
+  - Published [ADR-0020: Workspace Folders, Collections, and Shared Item Metadata](docs/decisions/0020-workspace-folders-and-organization.md).
+
 ## Phase 13 — Shared Client Synchronization Engine — 2026-10-15
 
 - **Shared Synchronization State Machine (`packages/sync`):**

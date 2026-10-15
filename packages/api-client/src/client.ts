@@ -39,6 +39,35 @@ import {
   type SyncPullResponse,
   type SyncBootstrapQuery,
   type SyncBootstrapResponse,
+  FolderResponseSchema,
+  FolderListResponseSchema,
+  FolderDeleteResultSchema,
+  TagResponseSchema,
+  TagListResponseSchema,
+  ItemTagListResponseSchema,
+  ItemLinkResponseSchema,
+  ItemLinkListResponseSchema,
+  type CreateFolderRequest,
+  type UpdateFolderRequest,
+  type MoveFolderRequest,
+  type ReorderFolderRequest,
+  type ArchiveFolderRequest,
+  type PinFolderRequest,
+  type DeleteFolderRequest,
+  type RestoreFolderRequest,
+  type RebalanceSiblingsRequest,
+  type CreateTagRequest,
+  type UpdateTagRequest,
+  type AddItemTagRequest,
+  type CreateItemLinkRequest,
+  type FolderResponse,
+  type FolderListResponse,
+  type FolderDeleteResult,
+  type TagResponse,
+  type TagListResponse,
+  type ItemTagListResponse,
+  type ItemLinkResponse,
+  type ItemLinkListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -438,6 +467,284 @@ export class DaynoriApiClient {
       options
     );
     return SyncBootstrapResponseSchema.parse(raw);
+  }
+
+  // --- Phase 14: Organization (Folders, Tags, Links) ---
+
+  async createFolder(
+    workspaceId: string,
+    request: CreateFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async listFolders(workspaceId: string, options?: RequestOptions): Promise<FolderListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders`,
+      { method: 'GET' },
+      options
+    );
+    return FolderListResponseSchema.parse(raw);
+  }
+
+  async getFolder(
+    workspaceId: string,
+    folderId: string,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}`,
+      { method: 'GET' },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async updateFolder(
+    workspaceId: string,
+    folderId: string,
+    request: UpdateFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async moveFolder(
+    workspaceId: string,
+    folderId: string,
+    request: MoveFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}/move`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async reorderFolder(
+    workspaceId: string,
+    folderId: string,
+    request: ReorderFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}/reorder`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async archiveFolder(
+    workspaceId: string,
+    folderId: string,
+    request: ArchiveFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}/archive`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async pinFolder(
+    workspaceId: string,
+    folderId: string,
+    request: PinFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}/pin`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async trashFolder(
+    workspaceId: string,
+    folderId: string,
+    request: DeleteFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderDeleteResult> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}/trash`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return FolderDeleteResultSchema.parse(raw);
+  }
+
+  async restoreFolder(
+    workspaceId: string,
+    folderId: string,
+    request: RestoreFolderRequest,
+    options?: RequestOptions
+  ): Promise<FolderResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/folders/${folderId}/restore`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return FolderResponseSchema.parse(raw);
+  }
+
+  async rebalanceFolders(
+    workspaceId: string,
+    request: RebalanceSiblingsRequest,
+    options?: RequestOptions
+  ): Promise<{ data: Array<{ id: string; rank: string; revision: number }> }> {
+    const raw = await this.request<{ data: Array<{ id: string; rank: string; revision: number }> }>(
+      `/v1/workspaces/${workspaceId}/folders/rebalance`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return raw;
+  }
+
+  // Tags
+  async createTag(
+    workspaceId: string,
+    request: CreateTagRequest,
+    options?: RequestOptions
+  ): Promise<TagResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tags`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return TagResponseSchema.parse(raw);
+  }
+
+  async listTags(workspaceId: string, options?: RequestOptions): Promise<TagListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tags`,
+      { method: 'GET' },
+      options
+    );
+    return TagListResponseSchema.parse(raw);
+  }
+
+  async updateTag(
+    workspaceId: string,
+    tagId: string,
+    request: UpdateTagRequest,
+    options?: RequestOptions
+  ): Promise<TagResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tags/${tagId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return TagResponseSchema.parse(raw);
+  }
+
+  async deleteTag(workspaceId: string, tagId: string, options?: RequestOptions): Promise<void> {
+    await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tags/${tagId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  // Item Tags
+  async addItemTag(
+    workspaceId: string,
+    itemId: string,
+    request: AddItemTagRequest,
+    options?: RequestOptions
+  ): Promise<void> {
+    await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/tags`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+  }
+
+  async removeItemTag(
+    workspaceId: string,
+    itemId: string,
+    tagId: string,
+    options?: RequestOptions
+  ): Promise<void> {
+    await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/tags/${tagId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async listItemTags(
+    workspaceId: string,
+    itemId: string,
+    options?: RequestOptions
+  ): Promise<ItemTagListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/tags`,
+      { method: 'GET' },
+      options
+    );
+    return ItemTagListResponseSchema.parse(raw);
+  }
+
+  // Item Links
+  async createItemLink(
+    workspaceId: string,
+    itemId: string,
+    request: CreateItemLinkRequest,
+    options?: RequestOptions
+  ): Promise<ItemLinkResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/links`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return ItemLinkResponseSchema.parse(raw);
+  }
+
+  async deleteItemLink(
+    workspaceId: string,
+    itemId: string,
+    targetItemId: string,
+    linkType?: string,
+    options?: RequestOptions
+  ): Promise<void> {
+    const params = new URLSearchParams();
+    params.set('targetItemId', targetItemId);
+    if (linkType) params.set('linkType', linkType);
+    await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/links?${params.toString()}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async listItemLinks(
+    workspaceId: string,
+    itemId: string,
+    options?: RequestOptions
+  ): Promise<ItemLinkListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/links`,
+      { method: 'GET' },
+      options
+    );
+    return ItemLinkListResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

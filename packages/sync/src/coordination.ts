@@ -89,12 +89,15 @@ export class BroadcastChannelTabCoordinator implements TabCoordinationPort {
     }
 
     // Try claiming leadership after a short discovery period
-    setTimeout(() => {
-      const now = Date.now();
-      if (!this.leaderId || now - this.leaderLastSeen > this.leaseDurationMs) {
-        this.claimLeadership();
-      }
-    }, 200 + Math.random() * 300);
+    setTimeout(
+      () => {
+        const now = Date.now();
+        if (!this.leaderId || now - this.leaderLastSeen > this.leaseDurationMs) {
+          this.claimLeadership();
+        }
+      },
+      200 + Math.random() * 300
+    );
 
     // Health check timer for leader crash detection
     this.checkTimer = setInterval(() => {
@@ -250,10 +253,7 @@ export class BroadcastChannelTabCoordinator implements TabCoordinationPort {
 
       if (isLeader) {
         if (!this.heartbeatTimer) {
-          this.heartbeatTimer = setInterval(
-            () => this.sendHeartbeat(),
-            this.heartbeatIntervalMs
-          );
+          this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), this.heartbeatIntervalMs);
         }
       } else {
         if (this.heartbeatTimer) {

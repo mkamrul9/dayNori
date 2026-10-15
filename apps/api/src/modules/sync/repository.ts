@@ -53,6 +53,9 @@ export interface SyncItemRecord {
   isArchived: boolean;
   isPinned: boolean;
   securityScope: 'standard' | 'vault';
+  name?: string;
+  color?: string | null;
+  icon?: string | null;
 }
 
 /**
@@ -499,12 +502,17 @@ export async function listActiveItemsForBootstrap(
     is_archived: boolean;
     is_pinned: boolean;
     security_scope: 'standard' | 'vault';
+    folder_name: string | null;
+    folder_color: string | null;
+    folder_icon: string | null;
   }>(
-    `SELECT id, workspace_id, folder_id, kind, created_by, updated_by, created_at, updated_at, deleted_at,
-            display_order, revision, rank, is_archived, is_pinned, security_scope
-     FROM app.items
-     WHERE workspace_id = $1 AND deleted_at IS NULL
-     ORDER BY created_at ASC;`,
+    `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by, i.created_at, i.updated_at, i.deleted_at,
+            i.display_order, i.revision, i.rank, i.is_archived, i.is_pinned, i.security_scope,
+            f.name as folder_name, f.color as folder_color, f.icon as folder_icon
+     FROM app.items i
+     LEFT JOIN app.folders f ON f.workspace_id = i.workspace_id AND f.id = i.id
+     WHERE i.workspace_id = $1 AND i.deleted_at IS NULL
+     ORDER BY i.created_at ASC;`,
     [workspaceId]
   );
 
@@ -524,5 +532,8 @@ export async function listActiveItemsForBootstrap(
     isArchived: r.is_archived,
     isPinned: r.is_pinned,
     securityScope: r.security_scope,
+    name: r.folder_name ?? undefined,
+    color: r.folder_color,
+    icon: r.folder_icon,
   }));
 }

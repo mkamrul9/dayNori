@@ -10,10 +10,7 @@ import {
   withTenantContext,
 } from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
-import {
-  createApiClient,
-  type DaynoriApiClient,
-} from '@daynori/api-client';
+import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
 import {
   SyncEngine,
   ApiClientSyncTransport,
@@ -736,7 +733,9 @@ describe('Phase 13: Shared Client Synchronization Engine Integration Tests', () 
       };
 
       // 1. First edit offline: createItem (baseRevision 0)
-      const mut1 = await engine.saveItem(initialHeader, undefined, 'createItem', { autoSync: false });
+      const mut1 = await engine.saveItem(initialHeader, undefined, 'createItem', {
+        autoSync: false,
+      });
       expect(mut1.baseRevision).toBe(0);
 
       // 2. Second edit offline: updateItem (baseRevision must be 1, chained from mut1)
@@ -744,7 +743,9 @@ describe('Phase 13: Shared Client Synchronization Engine Integration Tests', () 
         ...initialHeader,
         rank: '0|offline_second:',
       };
-      const mut2 = await engine.saveItem(updatedHeader, undefined, 'updateItem', { autoSync: false });
+      const mut2 = await engine.saveItem(updatedHeader, undefined, 'updateItem', {
+        autoSync: false,
+      });
       expect(mut2.baseRevision).toBe(1);
       expect(mut2.dependencyOperationIds).toContain(mut1.operationId);
 

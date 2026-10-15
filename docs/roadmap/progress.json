@@ -86,7 +86,9 @@
     },
     {
       "id": "14",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional collections, folders, and shared item metadata delivered and verified across real PostgreSQL, sync change feed, outbox intents, and synthetic hierarchy benchmark. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-14.md"
     },
     {
       "id": "15",
