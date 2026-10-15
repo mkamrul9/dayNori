@@ -36,6 +36,7 @@
     "@types/node": "^22.13.4",
     "@types/pg": "^8.23.1",
     "eslint": "^9.20.1",
+    "fake-indexeddb": "^6.2.5",
     "jose": "^6.2.12",
     "pg": "^8.23.1",
     "prettier": "^3.5.1",

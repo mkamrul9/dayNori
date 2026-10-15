@@ -1,21 +1,76 @@
-import type { ClientMutation, MutationReceipt, SyncCursor } from './types.js';
+import type {
+  ItemHeaderRecord,
+  DraftRecord,
+  PendingMutationRecord,
+  SyncCursorRecord,
+  PreferenceSnapshotRecord,
+  AccountNamespace,
+} from './models.js';
+import type { ClientMutation } from './types.js';
 import type { WorkspaceId } from '@daynori/domain';
 
+/**
+ * Common port for local data persistence across platforms (IndexedDB on Web,
+ * SQLCipher encrypted SQLite on Android).
+ *
+ * Implements atomic writes, account/workspace namespaces, draft quarantine,
+ * and explicit error propagation.
+ */
+export interface LocalRepositoryPort {
+  /**
+   * Initializes or unlocks the database namespace for the given user and workspace.
+   */
+  initialize(namespace: AccountNamespace): Promise<void>;
+
+  /**
+   * Closes the active database connection.
+   */
+  close(): Promise<void>;
+
+  // --- 1. Item Headers ---
+  getItemHeader(workspaceId: string, id: string): Promise<ItemHeaderRecord | null>;
+  listItemHeaders(workspaceId: string): Promise<ItemHeaderRecord[]>;
+  upsertItemHeader(header: ItemHeaderRecord): Promise<void>;
+  deleteItemHeader(workspaceId: string, id: string): Promise<void>;
+
+  // --- 2. Drafts & Quarantine ---
+  getDraft(workspaceId: string, userId: string, id: string): Promise<DraftRecord | null>;
+  listDrafts(workspaceId: string, userId: string): Promise<DraftRecord[]>;
+  saveDraft(draft: DraftRecord): Promise<void>;
+  deleteDraft(workspaceId: string, userId: string, id: string): Promise<void>;
+  quarantineUserDrafts(userId: string): Promise<void>;
+  listQuarantinedDrafts(userId: string): Promise<DraftRecord[]>;
+  restoreQuarantinedDraft(userId: string, id: string): Promise<void>;
+  purgeQuarantinedDrafts(userId: string): Promise<void>;
+
+  // --- 3. Pending Operations / Mutations ---
+  enqueueMutation(mutation: PendingMutationRecord): Promise<void>;
+  getPendingMutations(workspaceId: string, userId: string): Promise<PendingMutationRecord[]>;
+  removePendingMutation(operationId: string): Promise<void>;
+
+  // --- 4. Atomic Multi-Store Writes ---
+  saveDraftAndMutation(draft: DraftRecord, mutation: PendingMutationRecord): Promise<void>;
+
+  // --- 5. Sync Cursors ---
+  getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null>;
+  saveCursor(cursor: SyncCursorRecord): Promise<void>;
+
+  // --- 6. Preference Snapshots ---
+  getPreferenceSnapshot(userId: string): Promise<PreferenceSnapshotRecord | null>;
+  savePreferenceSnapshot(snapshot: PreferenceSnapshotRecord): Promise<void>;
+
+  // --- 7. Boundary Lifecycle & Data Erasure ---
+  clearWorkspaceData(workspaceId: string): Promise<void>;
+  clearAccountData(userId: string): Promise<void>;
+}
+
+/**
+ * Legacy port interface from Phase 01 retained for contract compatibility.
+ */
 export interface SyncStoragePort {
   getPendingMutations(workspaceId: WorkspaceId): Promise<ClientMutation[]>;
   enqueueMutation(mutation: ClientMutation): Promise<void>;
-  markAcknowledged(mutationId: string, receipt: MutationReceipt): Promise<void>;
-  getCursor(workspaceId: WorkspaceId): Promise<SyncCursor | null>;
-  saveCursor(cursor: SyncCursor): Promise<void>;
-}
-
-export interface SyncTransportPort {
-  pushMutations(mutations: ClientMutation[]): Promise<MutationReceipt[]>;
-  pullChanges(
-    workspaceId: WorkspaceId,
-    sinceRevision: number
-  ): Promise<{
-    changes: unknown[];
-    newRevision: number;
-  }>;
+  markAcknowledged(mutationId: string): Promise<void>;
+  getCursor(workspaceId: WorkspaceId): Promise<string | null>;
+  saveCursor(workspaceId: WorkspaceId, cursor: string): Promise<void>;
 }

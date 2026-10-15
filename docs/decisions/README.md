@@ -18,5 +18,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0014: Authenticated API service, contracts, and tenant-scoped authorization](0014-authenticated-api-service-and-contracts.md)
 - [ADR-0015: Authentication across web and Android](0015-authentication-across-web-and-android.md)
 - [ADR-0016: Personal Workspace Ownership, Concurrency Control, and Legacy Reconciliation](0016-personal-workspace-ownership-concurrency-and-legacy-reconciliation.md)
+- [ADR-0017: Local Storage and Encryption Key Lifecycle](0017-local-storage-and-encryption-key-lifecycle.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

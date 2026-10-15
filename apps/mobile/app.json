@@ -10,6 +10,17 @@
     "ios": {
       "supportsTablet": true
     },
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true,
+          "android": {
+            "useSQLCipher": true
+          }
+        }
+      ]
+    ],
     "android": {
       "package": "com.daynori.app",
       "intentFilters": [

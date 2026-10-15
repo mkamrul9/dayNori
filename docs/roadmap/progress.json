@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-15",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 10 provisional personal workspace provisioning and user preferences delivered across database, Fastify API, web, and mobile. Completion claims for Phases 04–06, Phase 09, and Phase 10 remain blocked pending physical Android TalkBack hardware verification.",
-  "note": "Phase 10 (Personal workspace and preferences) provisional implementation delivered and verified with database-enforced uniqueness, idempotent provisioning, IANA time zone/locale validation, optimistic concurrency control, and cross-platform UI integration. Physical Android TalkBack verification gates from prerequisite Phases 04, 06, and 09 remain blocked.",
+  "schedulingDecision": "Phase 11 provisional local data repositories and migrations delivered across packages/sync, apps/web, and apps/mobile. Completion claims for Phases 04–06, Phase 09, Phase 10, and Phase 11 remain blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 11 (Local data repositories and migrations) provisional implementation delivered and verified with strict TypeScript contracts, genuine IndexedDB with deliberate trusted-device consent, SQLCipher native compilation for Android, KeyStore key wrapping, draft quarantine, and atomic transaction rollback. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -68,7 +68,9 @@
     },
     {
       "id": "11",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional account-scoped local data repositories delivered across Web (IndexedDB with trusted-device consent) and Android (encrypted SQLite with SQLCipher native compilation and KeyStore key wrapping). Completion blocked pending prerequisite Phase 04–06 physical Android TalkBack and hardware KeyStore release gates.",
+      "report": "docs/phase-reports/phase-11.md"
     },
     {
       "id": "12",

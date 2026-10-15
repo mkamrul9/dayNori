@@ -13,8 +13,8 @@ import type { AuthSession } from '@daynori/contracts';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req?: Request): Promise<NextResponse> {
-  const cookieHeader = req ? req.headers.get('cookie') : null;
+export async function GET(req: Request): Promise<NextResponse> {
+  const cookieHeader = req.headers.get('cookie');
   const cookieMap = parseCookies(cookieHeader);
   const accessToken = cookieMap[ACCESS_COOKIE_NAME];
   const refreshToken = cookieMap[REFRESH_COOKIE_NAME];

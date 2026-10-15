@@ -1,6 +1,25 @@
 # Changelog
 
-## Phase 09 & 10 Defect Repairs & Security Hardening — 2026-10-15
+## Phase 11 — Local Data Repositories and Migrations — 2026-10-15
+
+- **Shared Persistence Ports & Contracts (`packages/sync` & `packages/domain`):**
+  - Defined `LocalRepositoryPort` interface for unified local data persistence across platforms.
+  - Specified foundation data models: `ItemHeaderRecord`, `DraftRecord`, `PendingMutationRecord`, `SyncCursorRecord`, `PreferenceSnapshotRecord`, and `AccountNamespace`.
+  - Established typed error hierarchy: `StorageQuotaError`, `StorageMigrationError`, `StorageUnavailableError`, `StorageKeyError`, and `TrustedDeviceConsentRequiredError`.
+- **Android Encrypted SQLite Repository (`apps/mobile`):**
+  - Pinned `expo-sqlite: ~15.1.4` with SQLCipher configuration plugin (`useSQLCipher: true`).
+  - Compiled and verified native OpenSSL and SQLCipher C++ shared libraries (`libcrypto.so` and `libexpo-sqlite.so`) across all target ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) into `app-debug.apk`.
+  - Implemented `MobileKeyManager` wrapping Android KeyStore (`expo-secure-store`) generating and protecting 256-bit AES encryption keys per account and workspace (`daynori_sqlite_key_${userId}_${workspaceId}`).
+  - Implemented `SqliteLocalRepository` with parameterized queries, schema migrations (`schema_migrations`), atomic multi-store writes via `withTransactionAsync`, and draft quarantine.
+  - Enforced key safety invariant: corrupted or missing keys throw actionable `StorageKeyError` without deleting or overwriting database ciphertext.
+- **Web IndexedDB Repository (`apps/web`):**
+  - Implemented `IndexedDbLocalRepository` against genuine IndexedDB (`daynori_web_storage`, v1).
+  - Enforced deliberate trusted-device consent (`daynori_trusted_device_consent`), defaulting to refusal (`TrustedDeviceConsentRequiredError`) if ungranted.
+  - Provided full opt-out and complete data erasure (`clearAllLocalData`).
+  - Handled multi-tab coordination (`versionchange` event listeners) and mapped browser quota errors to `StorageQuotaError`.
+- **Architecture & Quality:**
+  - Published [ADR-0017: Local Storage and Encryption Key Lifecycle](docs/decisions/0017-local-storage-and-encryption-key-lifecycle.md).
+  - Authored contract test suites with 27 passed tests across real IndexedDB and native SQLite.
 
 - **Provider-Bound Flow Initiation & Anti-Replay Callbacks (Phase 09 Repair):**
   - Added `POST /api/auth/initiate` route in web application, creating encrypted/SameSite `daynori_pkce_verifier` cookie binding state, code challenge, and timestamp.
