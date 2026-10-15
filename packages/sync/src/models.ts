@@ -45,6 +45,9 @@ export interface PendingMutationRecord {
   entityType: string;
   entityId: string;
   action: 'create' | 'update' | 'delete';
+  command?: string;
+  commandVersion?: number;
+  schemaVersion?: number;
   payload: Record<string, unknown>;
   baseRevision: number;
   dependencyOperationIds: string[];
@@ -52,6 +55,55 @@ export interface PendingMutationRecord {
   retryCount: number;
   status: 'pending' | 'in_flight' | 'failed';
   lastError: string | null;
+}
+
+export type CloudSyncStatus =
+  | 'saved_locally'
+  | 'syncing'
+  | 'synced'
+  | 'conflict'
+  | 'error'
+  | 'needs_attention';
+
+export interface ItemSyncState {
+  savedOnDevice: boolean;
+  cloudSyncStatus: CloudSyncStatus;
+  pendingOperationId?: string;
+  lastSyncedRevision?: number;
+  lastError?: string;
+}
+
+export interface ConflictRecord {
+  id: string;
+  entityId: string;
+  entityType: string;
+  operationId: string;
+  workspaceId: string;
+  userId: string;
+  localPayload: Record<string, unknown>;
+  baseRevision: number;
+  serverRevision: number;
+  serverState?: Record<string, unknown>;
+  conflictReason: string;
+  detectedAt: string;
+  resolved: boolean;
+}
+
+export interface SyncDiagnostics {
+  workspaceId: string;
+  userId: string;
+  deviceId: string;
+  isLeader: boolean;
+  networkStatus: 'online' | 'offline';
+  cloudSyncStatus: CloudSyncStatus;
+  queueLength: number;
+  inFlightCount: number;
+  failedCount: number;
+  lastSyncedAt: string | null;
+  lastSyncSequence: number;
+  accessEpoch: string | null;
+  consecutiveFailures: number;
+  activeConflictsCount: number;
 }
 
 export interface SyncCursorRecord {
@@ -200,6 +252,9 @@ export function validatePendingMutationRecord(input: unknown): PendingMutationRe
     entityType: assertNonEmptyString(r.entityType, 'entityType', 64),
     entityId: assertNonEmptyString(r.entityId, 'entityId'),
     action,
+    command: typeof r.command === 'string' ? r.command : undefined,
+    commandVersion: typeof r.commandVersion === 'number' ? r.commandVersion : 1,
+    schemaVersion: typeof r.schemaVersion === 'number' ? r.schemaVersion : 1,
     payload: assertPayloadBounded(r.payload, 'payload'),
     baseRevision: typeof r.baseRevision === 'number' ? r.baseRevision : 0,
     dependencyOperationIds: depIds,

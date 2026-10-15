@@ -1,5 +1,27 @@
 # Changelog
 
+## Phase 13 — Shared Client Synchronization Engine — 2026-10-15
+
+- **Shared Synchronization State Machine (`packages/sync`):**
+  - Implemented `SyncEngine` with atomic local projection/draft saving (`saveItem`) and immutable mutation enqueuing.
+  - Decoupled state indicators: separated local device persistence (`savedOnDevice`) from cloud synchronization status (`cloudSyncStatus`: `'synced'`, `'syncing'`, `'saved_locally'`, `'offline'`, `'conflict'`, `'error'`, `'needs_attention'`).
+  - Added dependency-aware queue draining: automatically resolves and sorts pending mutations topologically by `dependencyOperationIds` before dispatching in batches of up to 50 operations.
+  - Implemented transactional acknowledgment: retains pending mutations in local storage until durable receipts are committed locally.
+  - Bounded exponential backoff with jitter and cancellation on network errors.
+  - Paginated incremental pulls (up to 100 changes per batch) with out-of-order revision protection and tombstone preservation.
+  - Implemented safe snapshot reset (`resetAndBootstrap`) when encountering HTTP 409 `SYNC_RESET_REQUIRED`, reconstructing local projection from a fresh snapshot while strictly preserving unsent local drafts, pending mutations, and conflicts.
+  - Explicit conflict lifecycle: detected conflicts are exposed via `ConflictRecord`; user resolution (`keep_local`, `keep_server`, `custom`) mints fresh operation IDs with updated base revisions rather than silently overwriting or reusing rejected IDs.
+  - Operational diagnostics: `getDiagnostics()` exposes metrics (queue length, in-flight count, failures, sync sequence, epoch) while strictly excluding user text, secrets, tokens, or encryption keys.
+- **Multi-Tab Browser Coordination (`packages/sync`):**
+  - Implemented `BroadcastChannelTabCoordinator` with heartbeat-based leader election (1000ms heartbeat, 3000ms lease) and resignation broadcast.
+  - Follower tabs forward manual and automatic sync requests to the active leader; leader crashes trigger promotion of follower within 1000ms.
+  - Provided `SingleProcessCoordinator` for single-instance native mobile applications.
+- **Platform Adapters & Verification (`apps/web`, `apps/mobile`, `tests/integration`):**
+  - Created web platform adapter in `apps/web/src/data/syncAdapter.ts` (`createWebSyncEngine`).
+  - Created mobile platform adapter in `apps/mobile/src/data/syncAdapter.ts` (`createMobileSyncEngine`).
+  - Added comprehensive integration test suite `tests/integration/phase13-client-sync-engine.test.ts` covering 7 core fault journeys against real PostgreSQL and Fastify API server.
+  - Published [ADR-0019: Shared Client Synchronization Engine](docs/decisions/0019-shared-client-sync-engine.md).
+
 ## Hardening & Defect Repairs (Phases 11 & 12) — 2026-10-15
 
 - **Phase 11 Storage & Verification Hardening (`apps/mobile` & `scripts`):**

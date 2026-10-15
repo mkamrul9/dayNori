@@ -2,3 +2,6 @@ export * from './types.js';
 export * from './ports.js';
 export * from './models.js';
 export * from './errors.js';
+export * from './transport.js';
+export * from './coordination.js';
+export * from './engine.js';

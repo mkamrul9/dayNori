@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@daynori/contracts": "workspace:*",
     "@daynori/domain": "workspace:*"
   },
   "devDependencies": {

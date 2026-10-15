@@ -244,6 +244,9 @@ importers:
 
   packages/sync:
     dependencies:
+      '@daynori/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@daynori/domain':
         specifier: workspace:*
         version: link:../domain
