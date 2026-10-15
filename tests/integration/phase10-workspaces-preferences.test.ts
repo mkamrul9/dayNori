@@ -3,7 +3,11 @@ import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
-import { createAdminPool, createRuntimePool } from '../../apps/api/src/db/index.js';
+import {
+  createAdminPool,
+  createRuntimePool,
+  withTenantContext,
+} from '../../apps/api/src/db/index.js';
 import {
   createApiClient,
   ApiConflictError,
@@ -323,6 +327,110 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
       expect(updated.data.timeZone).toBe('Asia/Tokyo');
       expect(updated.data.weekStart).toBe('monday');
       expect(updated.data.revision).toBe(3);
+    });
+
+    it('concurrent updates with the same expectedRevision serialize: exactly one succeeds and the other returns 409', async () => {
+      const clientA = createApiClient({ baseUrl, token: tokenUserA });
+      // Current revision is 3
+      const current = await clientA.getUserPreferences();
+      const baseRev = current.data.revision;
+
+      // Fire two concurrent updates with expectedRevision = baseRev
+      const req1 = clientA.updateUserPreferences({
+        timeZone: 'Europe/Paris',
+        expectedRevision: baseRev,
+      });
+      const req2 = clientA.updateUserPreferences({
+        timeZone: 'America/Chicago',
+        expectedRevision: baseRev,
+      });
+
+      const settled = await Promise.allSettled([req1, req2]);
+      const fulfilled = settled.filter((r) => r.status === 'fulfilled');
+      const rejected = settled.filter((r) => r.status === 'rejected');
+
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+
+      // Verify rejected is 409 Conflict
+      const err = (rejected[0] as PromiseRejectedResult).reason;
+      expect(err).toBeInstanceOf(ApiConflictError);
+
+      // Verify final profile revision incremented exactly by 1
+      const finalPref = await clientA.getUserPreferences();
+      expect(finalPref.data.revision).toBe(baseRev + 1);
+    });
+  });
+
+  describe('4. Personal Workspace Ownership Enforcement & Inaccessible Room Creation', () => {
+    it('rejects adding another user to personal workspace via API with 400 Validation Error', async () => {
+      const clientA = createApiClient({ baseUrl, token: tokenUserA });
+      const personalWs = await clientA.getPersonalWorkspace();
+
+      await expect(
+        clientA.addMember(personalWs.data.id, {
+          userId: userBId,
+          role: 'editor',
+        })
+      ).rejects.toThrow(ApiValidationError);
+    });
+
+    it('rejects direct database runtime-role write adding another user to a personal workspace via trigger', async () => {
+      const clientA = createApiClient({ baseUrl, token: tokenUserA });
+      const personalWs = await clientA.getPersonalWorkspace();
+
+      await expect(
+        withTenantContext(
+          runtimePool,
+          { userId: userAId, workspaceId: personalWs.data.id },
+          async (client) => {
+            return client.query(
+              `INSERT INTO app.workspace_memberships (workspace_id, user_id, role) VALUES ($1, $2, 'editor')`,
+              [personalWs.data.id, userBId]
+            );
+          }
+        )
+      ).rejects.toThrow(/Personal workspaces are owner-only in this release/i);
+    });
+
+    it('complete genuine journey: login -> provision -> preference update -> re-login verifies persistence', async () => {
+      const journeyUserId = crypto.randomUUID();
+      const journeyToken1 = await createToken(journeyUserId);
+
+      // 1. Initial Login & Provisioning
+      const client1 = createApiClient({ baseUrl, token: journeyToken1 });
+      const provisioned = await client1.provisionPersonalWorkspace({
+        displayName: 'Journey User',
+        timeZone: 'Asia/Dhaka',
+        preferredLocale: 'bn-BD',
+        weekStart: 'saturday',
+      });
+      expect(provisioned.data.isNew).toBe(true);
+      expect(provisioned.data.workspace.kind).toBe('personal');
+      expect(provisioned.data.profile.timeZone).toBe('Asia/Dhaka');
+
+      // 2. Preference update
+      const updated = await client1.updateUserPreferences({
+        timeZone: 'Europe/Helsinki',
+        preferences: { theme: 'dark', compactMode: true },
+        expectedRevision: provisioned.data.profile.revision,
+      });
+      expect(updated.data.timeZone).toBe('Europe/Helsinki');
+      expect(updated.data.preferences.theme).toBe('dark');
+
+      // 3. Simulate logout & re-login (new token issued for same sub)
+      const journeyToken2 = await createToken(journeyUserId);
+      const client2 = createApiClient({ baseUrl, token: journeyToken2 });
+
+      // Verify personal workspace resolution returns same workspace
+      const resolvedWs = await client2.getPersonalWorkspace();
+      expect(resolvedWs.data.id).toBe(provisioned.data.workspace.id);
+
+      // Verify preferences survived across sessions
+      const prefs = await client2.getUserPreferences();
+      expect(prefs.data.timeZone).toBe('Europe/Helsinki');
+      expect(prefs.data.preferences.theme).toBe('dark');
+      expect(prefs.data.weekStart).toBe('saturday');
     });
   });
 });

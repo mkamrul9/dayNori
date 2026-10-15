@@ -7,6 +7,7 @@ import {
   SEC_KEY_USER_EMAIL,
   SEC_KEY_WORKSPACE_ID,
   SEC_KEY_SESSION_REVOKED,
+  SEC_KEY_PENDING_FLOW,
   type MobileUser,
   type ProviderClientContract,
   type AuthResult,
@@ -346,6 +347,40 @@ describe('Android Mobile Authentication & Session Lifecycle (Phase 09 Hardened)'
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('access_denied');
+      expect(authAdapter.isAuthenticated()).toBe(false);
+    });
+
+    it('COLD START: preserves pending flow state in OS secure storage across process termination', async () => {
+      // 1. Adapter initiates flow (e.g. user initiated sign-up or recovery)
+      const flow = await authAdapter.initiateAuthFlowAsync('signup');
+
+      // 2. Process termination simulated: fresh adapter instance with same secureStore and NO in-memory state
+      const coldStartAdapter = new MobileProviderAuthAdapter({
+        secureStore,
+        quarantineManager: quarantine,
+        providerClient: mockProvider,
+      });
+
+      // 3. User taps email link, opening deep link in fresh app process
+      const validUrl = `daynori://auth-callback?type=auth&code=valid_flow_code&nonce=${flow.nonce}`;
+      const result = await coldStartAdapter.handleDeepLink(validUrl);
+
+      expect(result.success).toBe(true);
+      expect(coldStartAdapter.isAuthenticated()).toBe(true);
+      expect(coldStartAdapter.getCurrentUser()?.email).toBe('flow_user@daynori.local');
+
+      // 4. Pending flow state is wiped from secure store on consumption
+      const storedAfter = await secureStore.getItemAsync(SEC_KEY_PENDING_FLOW);
+      expect(storedAfter).toBeNull();
+    });
+
+    it('REJECTS unsolicited raw token callbacks without authorization code exchange', async () => {
+      const flow = await authAdapter.initiateAuthFlowAsync('signin');
+      const rawTokenUrl = `daynori://auth-callback?type=auth&token=attacker_raw_token&nonce=${flow.nonce}`;
+      const result = await authAdapter.handleDeepLink(rawTokenUrl);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('unsolicited token logins are forbidden');
       expect(authAdapter.isAuthenticated()).toBe(false);
     });
   });

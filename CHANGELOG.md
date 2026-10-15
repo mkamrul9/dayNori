@@ -1,5 +1,25 @@
 # Changelog
 
+## Phase 09 & 10 Defect Repairs & Security Hardening — 2026-10-15
+
+- **Provider-Bound Flow Initiation & Anti-Replay Callbacks (Phase 09 Repair):**
+  - Added `POST /api/auth/initiate` route in web application, creating encrypted/SameSite `daynori_pkce_verifier` cookie binding state, code challenge, and timestamp.
+  - Rewrote web auth callback route (`/api/auth/callback`) to reject unsolicited raw tokens (`unsolicited_token_rejected`), require flow cookie (`no_initiated_flow`), verify state challenge, and consume cookie one-time.
+  - Hardened Android `MobileProviderAuthAdapter` to persist pending flow parameters (`state`, `nonce`, `codeVerifier`) in OS-backed secure storage (`SEC_KEY_PENDING_FLOW`), enabling secure cold-start recovery across process death and rejecting replayed/unsolicited callbacks.
+- **Atomic Optimistic Concurrency Control (Phase 10 Repair):**
+  - Replaced TOCTOU read-then-update pattern in `workspaceRepository.updateProfilePreferences` with atomic SQL predicate: `WHERE id = $1 AND ($7::bigint IS NULL OR revision = $7::bigint)`.
+  - Added concurrent race test verifying two simultaneous requests with identical `expectedRevision`: exactly one passes (200) and the second fails (409 Conflict) without overwriting.
+- **Legacy Workspace Reconciliation Ledger & Preflight (Phase 10 Repair):**
+  - Applied migration `00009_legacy_workspace_reconciliation_and_ownership.sql` establishing `app.legacy_workspace_reconciliation_inventory` to record all duplicate personal workspaces affected by Migration 00008 as `quarantined_pending_review`.
+  - Created procedure `app.reconcile_legacy_workspace()` for reviewed disposition (`archive`, `confirm_room`, `restore_as_personal_backup`).
+  - Created preflight verification script `scripts/preflight-database.mjs` verifying zero unreviewed duplicate workspaces before runtime boot.
+- **Personal Workspace Owner-Only Invariant (Phase 10 Repair):**
+  - Added PostgreSQL trigger `trg_enforce_personal_workspace_ownership` on `app.workspace_memberships` physically blocking adding any user other than the owner to a personal workspace.
+  - Enforced owner-only constraint in API `POST /v1/workspaces/:workspaceId/members` (400 Validation Error).
+  - Kept room creation and sharing inaccessible in user interfaces until planned Phase 51.
+- **Architecture Documentation:**
+  - Published [ADR-0016: Personal Workspace Ownership, Concurrency Control, and Legacy Reconciliation](docs/decisions/0016-personal-workspace-ownership-concurrency-and-legacy-reconciliation.md).
+
 ## Phase 10 — Personal workspace and preferences — 2026-10-15
 
 - **Database-Enforced Personal Workspace Uniqueness & Idempotent Provisioning:**

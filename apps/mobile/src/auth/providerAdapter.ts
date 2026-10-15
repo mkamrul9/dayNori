@@ -88,6 +88,7 @@ export const SEC_KEY_USER_EMAIL = 'daynori_sec_user_email';
 export const SEC_KEY_USER_NAME = 'daynori_sec_user_name';
 export const SEC_KEY_WORKSPACE_ID = 'daynori_sec_workspace_id';
 export const SEC_KEY_SESSION_REVOKED = 'daynori_sec_session_revoked';
+export const SEC_KEY_PENDING_FLOW = 'daynori_sec_pending_flow';
 
 export class MobileProviderAuthAdapter {
   private authenticated: boolean = false;
@@ -356,6 +357,7 @@ export class MobileProviderAuthAdapter {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        await this.initiateAuthFlowAsync('signup');
         return {
           success: true,
           requiresVerification: true,
@@ -463,6 +465,7 @@ export class MobileProviderAuthAdapter {
           error: data.msg || data.message || 'Password recovery request failed',
         };
       }
+      await this.initiateAuthFlowAsync('recovery');
     } catch {
       return {
         success: false,
@@ -479,6 +482,7 @@ export class MobileProviderAuthAdapter {
   /**
    * Initiates an authentication flow (OAuth, magic link, email confirmation).
    * Generates and stores anti-replay state, nonce, and PKCE verifier.
+   * Persists into OS-backed secure storage so process death / cold restart preserves pending flow.
    */
   public initiateAuthFlow(type: 'signup' | 'signin' | 'recovery' = 'signin'): {
     state: string;
@@ -489,13 +493,33 @@ export class MobileProviderAuthAdapter {
     const nonce = crypto.randomUUID();
     const codeVerifier =
       crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-    this.pendingFlow = { state, nonce, codeVerifier, initiatedAt: Date.now(), type };
+    const flow: InitiatedAuthFlow = { state, nonce, codeVerifier, initiatedAt: Date.now(), type };
+    this.pendingFlow = flow;
+    this.secureStore.setItemAsync(SEC_KEY_PENDING_FLOW, JSON.stringify(flow)).catch(() => {});
     return { state, nonce, codeVerifier };
   }
 
   /**
+   * Asynchronously initiates an auth flow, awaiting OS-backed secure storage persistence.
+   */
+  public async initiateAuthFlowAsync(type: 'signup' | 'signin' | 'recovery' = 'signin'): Promise<{
+    state: string;
+    nonce: string;
+    codeVerifier: string;
+  }> {
+    const flow = this.initiateAuthFlow(type);
+    try {
+      await this.secureStore.setItemAsync(SEC_KEY_PENDING_FLOW, JSON.stringify(this.pendingFlow));
+    } catch {
+      // Secure storage write failure
+    }
+    return flow;
+  }
+
+  /**
    * Deep link authentication callback processor.
-   * Requires matching initiated flow, enforces replay protection, and performs provider-verified code/token exchange.
+   * Requires matching initiated flow (restored from secure storage across cold starts if needed),
+   * enforces replay protection, rejects unsolicited tokens, and performs provider-verified code exchange.
    */
   public async handleDeepLink(url: string): Promise<AuthResult> {
     // 1. Parse and validate URL structure
@@ -517,10 +541,29 @@ export class MobileProviderAuthAdapter {
       };
     }
 
-    // 2. Validate against initiated flow
+    // 2. Validate against initiated flow; restore from secure storage across process restart if needed
     const now = Date.now();
-    if (!this.pendingFlow || now - this.pendingFlow.initiatedAt > 10 * 60 * 1000) {
+    let flow = this.pendingFlow;
+    if (!flow) {
+      try {
+        const storedFlow = await this.secureStore.getItemAsync(SEC_KEY_PENDING_FLOW);
+        if (storedFlow) {
+          const parsed = JSON.parse(storedFlow) as InitiatedAuthFlow;
+          if (now - parsed.initiatedAt <= 10 * 60 * 1000) {
+            flow = parsed;
+            this.pendingFlow = parsed;
+          } else {
+            await this.secureStore.deleteItemAsync(SEC_KEY_PENDING_FLOW).catch(() => {});
+          }
+        }
+      } catch {
+        flow = null;
+      }
+    }
+
+    if (!flow || now - flow.initiatedAt > 10 * 60 * 1000) {
       this.pendingFlow = null;
+      await this.secureStore.deleteItemAsync(SEC_KEY_PENDING_FLOW).catch(() => {});
       return {
         success: false,
         error: 'No initiated authentication flow found (unsolicited or expired callback rejected)',
@@ -529,10 +572,7 @@ export class MobileProviderAuthAdapter {
 
     // 3. Binding check: state or nonce must match initiated flow
     const matchingId = payload.nonce || payload.state;
-    if (
-      !matchingId ||
-      (matchingId !== this.pendingFlow.nonce && matchingId !== this.pendingFlow.state)
-    ) {
+    if (!matchingId || (matchingId !== flow.nonce && matchingId !== flow.state)) {
       return {
         success: false,
         error: 'State or nonce does not match initiated authentication flow',
@@ -556,52 +596,40 @@ export class MobileProviderAuthAdapter {
     }
 
     // 5. Genuine provider verification / code exchange
+    // Reject unsolicited raw tokens; code exchange is mandatory for security
+    if (!payload.code) {
+      this.pendingFlow = null;
+      await this.secureStore.deleteItemAsync(SEC_KEY_PENDING_FLOW).catch(() => {});
+      return {
+        success: false,
+        error: 'Callback missing authorization code: unsolicited token logins are forbidden',
+      };
+    }
+
     try {
       let verifiedUser: MobileUser;
       let accessToken: string;
       let refreshToken: string;
 
-      if (payload.code) {
-        if (this.customProvider) {
-          const res = await this.customProvider.exchangeCode(
-            payload.code,
-            this.pendingFlow.codeVerifier
-          );
-          verifiedUser = res.user;
-          accessToken = res.accessToken;
-          refreshToken = res.refreshToken;
-        } else {
-          const ex = await this.fetchProviderCodeExchange(
-            payload.code,
-            this.pendingFlow.codeVerifier
-          );
-          verifiedUser = ex.user;
-          accessToken = ex.accessToken;
-          refreshToken = ex.refreshToken;
-        }
-      } else if (payload.token) {
-        if (this.customProvider) {
-          const user = await this.customProvider.verifyToken(payload.token);
-          if (!user) throw new Error('Provider rejected authentication token');
-          verifiedUser = user;
-          accessToken = payload.token;
-          refreshToken = '';
-        } else {
-          const user = await this.fetchProviderUser(payload.token);
-          if (!user) throw new Error('Provider rejected authentication token');
-          verifiedUser = user;
-          accessToken = payload.token;
-          refreshToken = '';
-        }
+      if (this.customProvider) {
+        const res = await this.customProvider.exchangeCode(payload.code, flow.codeVerifier);
+        verifiedUser = res.user;
+        accessToken = res.accessToken;
+        refreshToken = res.refreshToken;
       } else {
-        return { success: false, error: 'Callback missing authorization code or token' };
+        const ex = await this.fetchProviderCodeExchange(payload.code, flow.codeVerifier);
+        verifiedUser = ex.user;
+        accessToken = ex.accessToken;
+        refreshToken = ex.refreshToken;
       }
 
       this.pendingFlow = null;
+      await this.secureStore.deleteItemAsync(SEC_KEY_PENDING_FLOW).catch(() => {});
       await this.persistSession(verifiedUser, accessToken, refreshToken);
       return { success: true };
     } catch (err) {
       this.pendingFlow = null;
+      await this.secureStore.deleteItemAsync(SEC_KEY_PENDING_FLOW).catch(() => {});
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Provider authentication verification failed',

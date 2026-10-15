@@ -15,7 +15,7 @@ import {
   addMembership,
   removeMembership,
 } from '../../db/index.js';
-import { NotFoundError, validateResponse } from '../../plugins/errorHandler.js';
+import { NotFoundError, ValidationError, validateResponse } from '../../plugins/errorHandler.js';
 
 export function registerMemberRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // GET /v1/workspaces/:workspaceId/members
@@ -78,6 +78,18 @@ export function registerMemberRoutes(app: FastifyInstance, runtimePool: Pool): v
           runtimePool,
           { userId: actor.userId, workspaceId: params.workspaceId },
           async (client) => {
+            const wsRes = await client.query<{ kind: string }>(
+              `SELECT kind FROM app.workspaces WHERE id = $1`,
+              [params.workspaceId]
+            );
+            if (!wsRes.rows[0]) {
+              throw new NotFoundError('Workspace not found');
+            }
+            if (wsRes.rows[0].kind === 'personal') {
+              throw new ValidationError(
+                'Personal workspaces are owner-only in this release; adding additional members is forbidden.'
+              );
+            }
             return addMembership(client, {
               workspaceId: params.workspaceId,
               userId: body.userId,
@@ -102,7 +114,7 @@ export function registerMemberRoutes(app: FastifyInstance, runtimePool: Pool): v
 
         return reply.status(201).send(validateResponse(MemberResponseSchema, payload));
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
+        if (err instanceof NotFoundError || err instanceof ValidationError) {
           throw err;
         }
         // If RLS rejects (e.g. caller is not owner), throw 404 to avoid leaking existence

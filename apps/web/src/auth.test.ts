@@ -4,6 +4,7 @@ import { POST as signUpHandler } from './app/api/auth/sign-up/route.js';
 import { POST as signOutHandler } from './app/api/auth/sign-out/route.js';
 import { GET as sessionHandler } from './app/api/auth/session/route.js';
 import { GET as callbackHandler } from './app/api/auth/callback/route.js';
+import { POST as initiateHandler } from './app/api/auth/initiate/route.js';
 import { POST as provisionHandler } from './app/api/workspaces/provision/route.js';
 import {
   GET as getPreferencesHandler,
@@ -15,6 +16,7 @@ import {
   ACCESS_COOKIE_NAME,
   CSRF_COOKIE_NAME,
   REFRESH_COOKIE_NAME,
+  PKCE_VERIFIER_COOKIE_NAME,
   type WebAuthClientContract,
 } from './auth/session.js';
 
@@ -137,8 +139,9 @@ describe('Web Authentication & Session Contracts (Phase 09 Hardened)', () => {
       if (accessToken) this.revokedTokens.add(accessToken);
     }
 
-    async exchangeCodeForSession(code: string) {
+    async exchangeCodeForSession(code: string, codeVerifier: string) {
       if (this.forceOutage) throw new Error('Authentication service unavailable');
+      if (!codeVerifier) throw new Error('Missing code verifier');
       if (code === 'valid_oauth_code') {
         const id = crypto.randomUUID();
         return {
@@ -248,9 +251,43 @@ describe('Web Authentication & Session Contracts (Phase 09 Hardened)', () => {
       expect(validateAuthRedirectUrl('/today', allowedOrigins)).toBe('/today');
     });
 
-    it('GET /api/auth/callback performs genuine code exchange and sets session cookies', async () => {
+    it('POST /api/auth/initiate creates a cryptographically secure PKCE challenge and sets flow cookie', async () => {
+      const req = createMockRequest({
+        method: 'POST',
+        url: 'http://localhost:3000/api/auth/initiate',
+        csrfToken: validCsrf,
+        cookieCsrf: validCsrf,
+        body: { type: 'signin' },
+      });
+      const res = await initiateHandler(req);
+      expect(res.status).toBe(200);
+
+      const json = await res.json();
+      expect(json.data.state).toBeDefined();
+      expect(json.data.codeChallenge).toBeDefined();
+      expect(json.data.codeChallengeMethod).toBe('S256');
+
+      const cookies = res.headers.get('set-cookie');
+      expect(cookies).toContain(PKCE_VERIFIER_COOKIE_NAME);
+    });
+
+    it('GET /api/auth/callback performs genuine code exchange only when bound to initiated flow cookie & state', async () => {
+      const state = crypto.randomUUID();
+      const codeVerifier = 'test_pkce_verifier_high_entropy_1234567890';
+      const flowCookie = JSON.stringify({
+        state,
+        codeVerifier,
+        type: 'signin',
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+
       const req = new Request(
-        'http://localhost:3000/api/auth/callback?code=valid_oauth_code&next=/today'
+        `http://localhost:3000/api/auth/callback?code=valid_oauth_code&state=${state}&next=/today`,
+        {
+          headers: {
+            cookie: `${PKCE_VERIFIER_COOKIE_NAME}=${encodeURIComponent(flowCookie)}`,
+          },
+        }
       );
       const res = await callbackHandler(req);
 
@@ -259,15 +296,101 @@ describe('Web Authentication & Session Contracts (Phase 09 Hardened)', () => {
       expect(location).toContain('/today');
       expect(location).not.toContain('auth_error');
 
-      // Verified cookies set
+      // Verified session cookies set
       const cookies = res.headers.get('set-cookie');
       expect(cookies).toContain(ACCESS_COOKIE_NAME);
       expect(cookies).toContain(REFRESH_COOKIE_NAME);
+
+      // Verified flow cookie is consumed and cleared (one-time exchange)
+      expect(cookies).toContain(`${PKCE_VERIFIER_COOKIE_NAME}=;`);
+    });
+
+    it('GET /api/auth/callback strictly rejects callbacks missing an initiated flow cookie', async () => {
+      const req = new Request(
+        'http://localhost:3000/api/auth/callback?code=valid_oauth_code&state=arbitrary_state&next=/today'
+      );
+      const res = await callbackHandler(req);
+
+      expect(res.status).toBe(307);
+      const location = res.headers.get('location');
+      expect(location).toContain('auth_error=no_initiated_flow');
+    });
+
+    it('GET /api/auth/callback strictly rejects state mismatch between callback and initiated flow', async () => {
+      const state = crypto.randomUUID();
+      const flowCookie = JSON.stringify({
+        state,
+        codeVerifier: 'verifier_12345',
+        type: 'signin',
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+
+      const req = new Request(
+        `http://localhost:3000/api/auth/callback?code=valid_oauth_code&state=mismatched_state&next=/today`,
+        {
+          headers: {
+            cookie: `${PKCE_VERIFIER_COOKIE_NAME}=${encodeURIComponent(flowCookie)}`,
+          },
+        }
+      );
+      const res = await callbackHandler(req);
+
+      expect(res.status).toBe(307);
+      const location = res.headers.get('location');
+      expect(location).toContain('auth_error=state_mismatch');
+    });
+
+    it('GET /api/auth/callback rejects expired flow cookies', async () => {
+      const state = crypto.randomUUID();
+      const flowCookie = JSON.stringify({
+        state,
+        codeVerifier: 'verifier_12345',
+        type: 'signin',
+        expiresAt: Date.now() - 1000, // expired 1s ago
+      });
+
+      const req = new Request(
+        `http://localhost:3000/api/auth/callback?code=valid_oauth_code&state=${state}&next=/today`,
+        {
+          headers: {
+            cookie: `${PKCE_VERIFIER_COOKIE_NAME}=${encodeURIComponent(flowCookie)}`,
+          },
+        }
+      );
+      const res = await callbackHandler(req);
+
+      expect(res.status).toBe(307);
+      const location = res.headers.get('location');
+      expect(location).toContain('auth_error=no_initiated_flow');
+    });
+
+    it('GET /api/auth/callback strictly rejects unsolicited raw tokens in query parameters', async () => {
+      const req = new Request(
+        'http://localhost:3000/api/auth/callback?token=attacker_raw_jwt_token&next=/today'
+      );
+      const res = await callbackHandler(req);
+
+      expect(res.status).toBe(307);
+      const location = res.headers.get('location');
+      expect(location).toContain('auth_error=unsolicited_token_rejected');
     });
 
     it('GET /api/auth/callback strictly rejects invalid or arbitrary authorization codes', async () => {
+      const state = crypto.randomUUID();
+      const flowCookie = JSON.stringify({
+        state,
+        codeVerifier: 'verifier_12345',
+        type: 'signin',
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+
       const req = new Request(
-        'http://localhost:3000/api/auth/callback?code=arbitrary_forged_code&next=/today'
+        `http://localhost:3000/api/auth/callback?code=arbitrary_forged_code&state=${state}&next=/today`,
+        {
+          headers: {
+            cookie: `${PKCE_VERIFIER_COOKIE_NAME}=${encodeURIComponent(flowCookie)}`,
+          },
+        }
       );
       const res = await callbackHandler(req);
 

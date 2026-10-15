@@ -450,6 +450,7 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
 
   describe('6. Membership Revocation Cutoff and Role Enforcement', () => {
     const guestUserId = crypto.randomUUID();
+    const testRoomId = crypto.randomUUID();
 
     beforeAll(async () => {
       const adminClient = await adminPool.connect();
@@ -458,19 +459,27 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
           `INSERT INTO app.profiles (id, display_name) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
           [guestUserId, `Guest ${testSuffix}`]
         );
+        await adminClient.query(
+          `INSERT INTO app.workspaces (id, name, kind, owner_id) VALUES ($1, $2, 'room', $3);`,
+          [testRoomId, `Test Room ${testSuffix}`, user1Id]
+        );
+        await adminClient.query(
+          `INSERT INTO app.workspace_memberships (workspace_id, user_id, role) VALUES ($1, $2, 'owner');`,
+          [testRoomId, user1Id]
+        );
       } finally {
         adminClient.release();
       }
     });
 
     it('enforces that viewer role cannot insert or update items', async () => {
-      // Add guest as viewer in WS 1
+      // Add guest as viewer in test room
       await withTenantContext(
         runtimePool,
-        { userId: user1Id, workspaceId: workspace1Id },
+        { userId: user1Id, workspaceId: testRoomId },
         async (client) => {
           return addMembership(client, {
-            workspaceId: workspace1Id,
+            workspaceId: testRoomId,
             userId: guestUserId,
             role: 'viewer',
           });
@@ -481,10 +490,10 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       await expect(
         withTenantContext(
           runtimePool,
-          { userId: guestUserId, workspaceId: workspace1Id },
+          { userId: guestUserId, workspaceId: testRoomId },
           async (client) => {
             return createItem(client, {
-              workspaceId: workspace1Id,
+              workspaceId: testRoomId,
               kind: 'note',
               createdBy: guestUserId,
             });
@@ -495,9 +504,9 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       // Viewer attempts to update workspace name -> must fail
       const updated = await withTenantContext(
         runtimePool,
-        { userId: guestUserId, workspaceId: workspace1Id },
+        { userId: guestUserId, workspaceId: testRoomId },
         async (client) => {
-          return updateWorkspace(client, workspace1Id, { name: 'Hacked Name' });
+          return updateWorkspace(client, testRoomId, { name: 'Hacked Name' });
         }
       );
       expect(updated).toBeNull();
@@ -507,31 +516,31 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       // Guest can read workspace list while a member
       const memberWorkspaces = await withTenantContext(
         runtimePool,
-        { userId: guestUserId, workspaceId: workspace1Id },
+        { userId: guestUserId, workspaceId: testRoomId },
         async (client) => {
           return listWorkspaces(client);
         }
       );
-      expect(memberWorkspaces.some((w) => w.id === workspace1Id)).toBe(true);
+      expect(memberWorkspaces.some((w) => w.id === testRoomId)).toBe(true);
 
       // Owner removes guest membership
       await withTenantContext(
         runtimePool,
-        { userId: user1Id, workspaceId: workspace1Id },
+        { userId: user1Id, workspaceId: testRoomId },
         async (client) => {
-          return removeMembership(client, workspace1Id, guestUserId);
+          return removeMembership(client, testRoomId, guestUserId);
         }
       );
 
-      // Now guest queries for WS 1 return nothing
+      // Now guest queries for test room return nothing
       const postRevocation = await withTenantContext(
         runtimePool,
-        { userId: guestUserId, workspaceId: workspace1Id },
+        { userId: guestUserId, workspaceId: testRoomId },
         async (client) => {
           return listWorkspaces(client);
         }
       );
-      expect(postRevocation.some((w) => w.id === workspace1Id)).toBe(false);
+      expect(postRevocation.some((w) => w.id === testRoomId)).toBe(false);
     });
   });
 

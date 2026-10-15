@@ -32,11 +32,15 @@ Group: Foundation and sync. Status is tracked in [progress.json](../roadmap/prog
     - Extended `MobileProviderAuthAdapter` with `provisionPersonalWorkspace`, `getPreferences`, `updatePreferences`, and `getAccessToken`.
     - Persisted `workspaceId` in OS-backed KeyStore (`expo-secure-store` / `SEC_KEY_WORKSPACE_ID`) and restored on cold restart. Purged on sign-out.
     - Extended `SettingsView` (`apps/mobile/src/views/SettingsView.tsx`) with Section 5b: Personal Workspace status card, week start radio selectors (48dp touch targets), and time zone display.
+  - Concurrency & Ownership Repairs (Defects Repaired 2026-10-15):
+    - Atomic revision predicate: Replaced TOCTOU read-then-update in `updateProfilePreferences` with atomic SQL predicate `WHERE id = $1 AND ($7::bigint IS NULL OR revision = $7::bigint)`. Two simultaneous updates with identical `expectedRevision` serialize deterministically; exactly one succeeds and the other returns 409 without overwriting.
+    - Legacy workspace reconciliation ledger: Applied migration `00009_legacy_workspace_reconciliation_and_ownership.sql` inventorying historical workspaces reclassified by Migration 00008 into `app.legacy_workspace_reconciliation_inventory` with status `quarantined_pending_review`, added procedure `app.reconcile_legacy_workspace()`, and preflight verification script `scripts/preflight-database.mjs`.
+    - Database-enforced personal workspace ownership: Trigger `trg_enforce_personal_workspace_ownership` on `app.workspace_memberships` and route `POST /v1/workspaces/:workspaceId/members` strictly forbid adding members to personal workspaces.
 - **Excluded/deferred scope:**
-  - Sharing/inviting other members into personal workspaces — personal workspaces remain strictly single-user. Multi-user workspace sharing is deferred to Phase 49.
-  - Room workspaces UI management — deferred to Phase 49.
-  - Product payload domains (todos, routines, notes, journals, tags) — Phase 11.
-  - Offline sync engine and mutation queue — Phase 12 & Phase 13.
+  - Sharing/inviting other members into personal workspaces — personal workspaces remain strictly single-user. Multi-user workspace sharing is deferred to Phase 51.
+  - Room workspaces UI management — deferred to Phase 51.
+  - Product payload domains (todos, routines, notes, journals, tags) — deferred to later domain phases (Phase 14+); Phase 11 implements local persistence foundations and repositories only.
+  - Offline sync engine and network synchronization — Phase 12 & Phase 13.
   - Physical Android TalkBack hardware verification (Phases 04, 06, 09) — remains blocked pending physical device.
 
 ## Result
@@ -97,7 +101,7 @@ Key architectural properties enforced:
 
 ## Handoff
 
-- **Phase 10 Status:** Software implementation complete and verified across database, backend API, web, and mobile. Completion marked blocked in `docs/roadmap/progress.json` strictly due to physical Android TalkBack hardware verification prerequisite from Phases 04–06 and 09.
-- **Roadmap Progression State:** Phase 10 personal workspace and preferences foundation is ready for Phase 11 (Payload domains: todos, routines, notes, journals, tags).
-- **Next Required Action:** Execute the single conventional commit for Phase 10:
-  `feat(workspaces): add personal workspace and user preferences`
+- **Phase 10 Status:** Software implementation and prerequisite repairs complete and verified across database, backend API, web, and mobile. Completion marked blocked in `docs/roadmap/progress.json` strictly due to physical Android TalkBack hardware verification prerequisite from Phases 04–06 and 09.
+- **Roadmap Progression State:** Phase 10 personal workspace and preferences foundation is repaired and ready for Phase 11 (Local data repositories and migrations: item headers, drafts, pending mutations, sync cursors, preference snapshots).
+- **Next Required Action:** Execute the single conventional commit for Phase 10 repairs:
+  `fix(workspaces): enforce personal workspace ownership, atomic revision predicate, and legacy reconciliation`

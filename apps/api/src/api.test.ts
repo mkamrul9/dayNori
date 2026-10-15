@@ -446,7 +446,7 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
         },
         payload: JSON.stringify({
           name: `User 1 Space ${suffix}`,
-          kind: 'personal',
+          kind: 'room',
         }),
       });
 

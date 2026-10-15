@@ -1,15 +1,60 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import { generateCsrfToken, verifyCsrfToken, type SignUpResponse } from '@daynori/contracts';
 
 export const ACCESS_COOKIE_NAME = 'daynori_access_token';
 export const REFRESH_COOKIE_NAME = 'daynori_refresh_token';
 export const CSRF_COOKIE_NAME = 'daynori_csrf_token';
 export const PKCE_VERIFIER_COOKIE_NAME = 'daynori_pkce_verifier';
+export const FLOW_COOKIE_NAME = PKCE_VERIFIER_COOKIE_NAME;
 
 // 15 minutes for access tokens, 30 days for refresh tokens
 export const ACCESS_TOKEN_MAX_AGE = 15 * 60;
 export const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60;
 export const CSRF_TOKEN_MAX_AGE = 30 * 24 * 60 * 60;
+export const FLOW_COOKIE_MAX_AGE = 10 * 60; // 10 minutes for auth flow callbacks
+
+export interface AuthFlowState {
+  state: string;
+  codeVerifier: string;
+  type: 'signup' | 'signin' | 'recovery';
+  expiresAt: number;
+}
+
+/**
+ * Initiates an authentication flow with a cryptographically secure PKCE challenge
+ * and anti-replay/CSRF state binding.
+ */
+export function initiateWebAuthFlow(type: 'signup' | 'signin' | 'recovery' = 'signin'): {
+  flow: AuthFlowState;
+  serializedCookie: string;
+  state: string;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256';
+} {
+  const state = crypto.randomUUID();
+  const rawBytes = new Uint8Array(48);
+  crypto.getRandomValues(rawBytes);
+  const codeVerifier = Buffer.from(rawBytes).toString('base64url');
+
+  // SHA-256 base64url challenge
+  const hash = createHash('sha256').update(codeVerifier).digest('base64url');
+
+  const flow: AuthFlowState = {
+    state,
+    codeVerifier,
+    type,
+    expiresAt: Date.now() + FLOW_COOKIE_MAX_AGE * 1000,
+  };
+
+  return {
+    flow,
+    serializedCookie: JSON.stringify(flow),
+    state,
+    codeChallenge: hash,
+    codeChallengeMethod: 'S256',
+  };
+}
 
 export const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -145,7 +190,7 @@ export interface WebAuthClientContract {
   logout(accessToken?: string): Promise<void>;
   exchangeCodeForSession(
     code: string,
-    codeVerifier?: string
+    codeVerifier: string
   ): Promise<{ user: WebUser; accessToken: string; refreshToken: string }>;
 }
 
@@ -406,17 +451,21 @@ export class SupabaseAuthProxy implements WebAuthClientContract {
 
   async exchangeCodeForSession(
     code: string,
-    codeVerifier?: string
+    codeVerifier: string
   ): Promise<{ user: WebUser; accessToken: string; refreshToken: string }> {
+    if (!codeVerifier) {
+      throw new Error('Missing required PKCE code verifier for authorization code exchange');
+    }
+
     if (this.testClient) {
       return this.testClient.exchangeCodeForSession(code, codeVerifier);
     }
 
     try {
-      const body: Record<string, string> = { auth_code: code };
-      if (codeVerifier) {
-        body['code_verifier'] = codeVerifier;
-      }
+      const body: Record<string, string> = {
+        auth_code: code,
+        code_verifier: codeVerifier,
+      };
 
       const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=pkce`, {
         method: 'POST',

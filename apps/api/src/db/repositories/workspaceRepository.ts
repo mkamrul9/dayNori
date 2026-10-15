@@ -213,7 +213,7 @@ export async function updateProfilePreferences(
     expectedRevision?: number;
   }
 ): Promise<{ profile: ProfileRecord; conflict: boolean; currentRevision?: number }> {
-  // Read current revision
+  // Read current revision to verify profile exists
   const currentRes = await client.query<ProfileRecord>(
     `SELECT id, display_name, preferred_locale, time_zone, week_start, preferences, preferences_schema_version, revision, created_at, updated_at
      FROM app.profiles
@@ -226,7 +226,7 @@ export async function updateProfilePreferences(
     throw new Error('Profile not found');
   }
 
-  // Concurrency control: check revision if supplied
+  // Pre-check if revision was provided and already does not match
   if (
     params.expectedRevision !== undefined &&
     Number(current.revision) !== params.expectedRevision
@@ -234,6 +234,9 @@ export async function updateProfilePreferences(
     return { profile: current, conflict: true, currentRevision: Number(current.revision) };
   }
 
+  // Atomic revision predicate in UPDATE: ($7::bigint IS NULL OR revision = $7::bigint)
+  // Ensures race conditions between two concurrent updates serialize, where only the
+  // transaction matching the actual committed revision succeeds, and concurrent updates return conflict.
   const updatedRes = await client.query<ProfileRecord>(
     `UPDATE app.profiles
      SET display_name = COALESCE($2, display_name),
@@ -243,7 +246,7 @@ export async function updateProfilePreferences(
          preferences = COALESCE($6::jsonb, preferences),
          revision = revision + 1,
          updated_at = now()
-     WHERE id = $1
+     WHERE id = $1 AND ($7::bigint IS NULL OR revision = $7::bigint)
      RETURNING id, display_name, preferred_locale, time_zone, week_start, preferences, preferences_schema_version, revision, created_at, updated_at;`,
     [
       params.userId,
@@ -252,8 +255,21 @@ export async function updateProfilePreferences(
       params.timeZone || null,
       params.weekStart || null,
       params.preferences ? JSON.stringify(params.preferences) : null,
+      params.expectedRevision !== undefined ? params.expectedRevision : null,
     ]
   );
+
+  if (updatedRes.rows.length === 0) {
+    // Row was modified concurrently between initial read and atomic update
+    const recheckRes = await client.query<ProfileRecord>(
+      `SELECT id, display_name, preferred_locale, time_zone, week_start, preferences, preferences_schema_version, revision, created_at, updated_at
+       FROM app.profiles
+       WHERE id = $1;`,
+      [params.userId]
+    );
+    const rechecked = recheckRes.rows[0]!;
+    return { profile: rechecked, conflict: true, currentRevision: Number(rechecked.revision) };
+  }
 
   return { profile: updatedRes.rows[0]!, conflict: false };
 }
