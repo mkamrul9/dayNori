@@ -12,6 +12,12 @@ import {
   StorageUnavailableError,
   StorageMigrationError,
   StorageKeyError,
+  validateAccountNamespace,
+  validateItemHeaderRecord,
+  validateDraftRecord,
+  validatePendingMutationRecord,
+  validateSyncCursorRecord,
+  validatePreferenceSnapshotRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -35,11 +41,17 @@ export type OpenDatabaseFn = (
 export interface SqliteLocalRepositoryOptions {
   keyManager: MobileKeyManager;
   openDatabaseAsync?: OpenDatabaseFn;
+  databaseExistsAsync?: (dbName: string) => Promise<boolean>;
+  deleteDatabaseAsync?: (dbName: string) => Promise<void>;
+  requireSqlCipher?: boolean;
 }
 
 export class SqliteLocalRepository implements LocalRepositoryPort {
   private keyManager: MobileKeyManager;
   private openDbFn: OpenDatabaseFn;
+  private dbExistsFn?: (dbName: string) => Promise<boolean>;
+  private dbDeleteFn?: (dbName: string) => Promise<void>;
+  private requireSqlCipher: boolean;
   private db: SqliteDatabaseContract | null = null;
   private currentNamespace: AccountNamespace | null = null;
   private isClosed = false;
@@ -53,6 +65,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         const SQLite = await import('expo-sqlite');
         return SQLite.openDatabaseAsync(dbName) as unknown as SqliteDatabaseContract;
       });
+    this.dbExistsFn = options.databaseExistsAsync;
+    this.dbDeleteFn = options.deleteDatabaseAsync;
+    this.requireSqlCipher = options.requireSqlCipher ?? false;
   }
 
   getDatabaseFileName(userId: string, workspaceId: string): string {
@@ -63,14 +78,58 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     return this.currentNamespace;
   }
 
+  /**
+   * Enforces that the repository is open and initialized, and that requested
+   * operations do not cross workspace or account boundaries.
+   */
+  private ensureNamespace(workspaceId?: string, userId?: string): AccountNamespace {
+    if (this.isClosed || !this.db || !this.currentNamespace) {
+      throw new StorageUnavailableError(
+        'Database is not initialized or has been closed. Call initialize() first.'
+      );
+    }
+    if (workspaceId !== undefined && workspaceId !== this.currentNamespace.workspaceId) {
+      throw new StorageUnavailableError(
+        `CROSS_WORKSPACE_VIOLATION: Requested workspace "${workspaceId}" does not match active namespace workspace "${this.currentNamespace.workspaceId}".`
+      );
+    }
+    if (userId !== undefined && userId !== this.currentNamespace.userId) {
+      throw new StorageUnavailableError(
+        `CROSS_ACCOUNT_VIOLATION: Requested user "${userId}" does not match active namespace user "${this.currentNamespace.userId}".`
+      );
+    }
+    return this.currentNamespace;
+  }
+
   async initialize(namespace: AccountNamespace): Promise<void> {
-    this.currentNamespace = namespace;
+    const validatedNs = validateAccountNamespace(namespace);
+
+    // If an existing database connection was open, cleanly close it before switching
+    if (this.db) {
+      await this.close();
+    }
+
+    this.currentNamespace = validatedNs;
     this.isClosed = false;
 
-    const dbName = this.getDatabaseFileName(namespace.userId, namespace.workspaceId);
+    const dbName = this.getDatabaseFileName(validatedNs.userId, validatedNs.workspaceId);
 
-    // 1. Retrieve or generate the encryption key from Android KeyStore
-    const key = await this.keyManager.getOrCreateKey(namespace.userId, namespace.workspaceId);
+    // 1. Distinguish new storage from existing database file
+    const exists = this.dbExistsFn ? await this.dbExistsFn(dbName) : false;
+    const hasExistingKey = await this.keyManager.hasKey(
+      validatedNs.userId,
+      validatedNs.workspaceId
+    );
+
+    if (exists && !hasExistingKey) {
+      // Existing data must never be overwritten with a new key if the original key is missing
+      throw new StorageKeyError(
+        `KEY_NOT_FOUND: Existing database file "${dbName}" found on disk, but encryption key is missing from KeyStore. Will not replace key over existing data.`
+      );
+    }
+
+    // Retrieve existing key or generate a new key for a brand-new database
+    const key = await this.keyManager.getOrCreateKey(validatedNs.userId, validatedNs.workspaceId);
 
     try {
       // 2. Open the SQLite database
@@ -79,21 +138,52 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
       // 3. Apply the SQLCipher encryption key immediately
       await this.db.execAsync(`PRAGMA key = '${key}';`);
 
-      // 4. Verify that the database unlocked successfully by testing a query
+      // 4. Verify SQLCipher capability if required
+      if (this.requireSqlCipher) {
+        const cipherVer = await this.db.getFirstAsync<{ cipher_version?: string }>(
+          'PRAGMA cipher_version;'
+        );
+        if (!cipherVer || !cipherVer.cipher_version) {
+          throw new StorageKeyError(
+            'SQLCIPHER_UNAVAILABLE: Underlying SQLite engine does not support SQLCipher encryption.'
+          );
+        }
+      }
+
+      // 5. Verify decryption by touching the database schema page (not SELECT 1 alone)
       try {
-        await this.db.getAllAsync('SELECT 1;');
-      } catch {
+        await this.db.getAllAsync('SELECT count(*) FROM sqlite_master;');
+      } catch (decryptErr) {
+        // Close handle on decryption failure, preserve file on disk intact
+        if (this.db) {
+          try {
+            await this.db.closeAsync();
+          } catch {
+            /* ignore */
+          }
+          this.db = null;
+        }
+        this.currentNamespace = null;
         throw new StorageKeyError(
-          `KEY_INVALIDATED_OR_MISMATCH: Database file "${dbName}" exists but could not be decrypted with the provided KeyStore key.`
+          `KEY_INVALIDATED_OR_MISMATCH: Database file "${dbName}" exists but could not be decrypted with the provided KeyStore key: ${decryptErr instanceof Error ? decryptErr.message : String(decryptErr)}`
         );
       }
 
-      // 5. Run transaction-safe migrations
+      // 6. Run transaction-safe migrations
       await this.runMigrations();
     } catch (err: unknown) {
       if (err instanceof StorageKeyError) {
         throw err;
       }
+      if (this.db) {
+        try {
+          await this.db.closeAsync();
+        } catch {
+          /* ignore */
+        }
+        this.db = null;
+      }
+      this.currentNamespace = null;
       throw new StorageUnavailableError(
         `Failed to open encrypted database "${dbName}": ${err instanceof Error ? err.message : String(err)}`
       );
@@ -200,6 +290,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
       await this.db.closeAsync();
       this.db = null;
     }
+    this.currentNamespace = null;
   }
 
   private ensureOpen(): SqliteDatabaseContract {
@@ -231,6 +322,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   // --- 1. Item Headers ---
 
   async getItemHeader(workspaceId: string, id: string): Promise<ItemHeaderRecord | null> {
+    this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
     try {
       const row = await db.getFirstAsync<{
@@ -269,6 +361,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async listItemHeaders(workspaceId: string): Promise<ItemHeaderRecord[]> {
+    this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
     try {
       const rows = await db.getAllAsync<{
@@ -309,6 +402,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async upsertItemHeader(header: ItemHeaderRecord): Promise<void> {
+    const valid = validateItemHeaderRecord(header);
+    this.ensureNamespace(valid.workspaceId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
@@ -326,18 +421,18 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           server_revision = excluded.server_revision,
           updated_at = excluded.updated_at,
           deleted_at = excluded.deleted_at;`,
-        header.id,
-        header.workspaceId,
-        header.kind,
-        header.folderId ?? null,
-        header.rank,
-        header.isArchived ? 1 : 0,
-        header.isPinned ? 1 : 0,
-        header.securityScope,
-        header.serverRevision,
-        header.createdAt,
-        header.updatedAt,
-        header.deletedAt ?? null
+        valid.id,
+        valid.workspaceId,
+        valid.kind,
+        valid.folderId ?? null,
+        valid.rank,
+        valid.isArchived ? 1 : 0,
+        valid.isPinned ? 1 : 0,
+        valid.securityScope,
+        valid.serverRevision,
+        valid.createdAt,
+        valid.updatedAt,
+        valid.deletedAt ?? null
       );
     } catch (err) {
       throw this.mapError(err);
@@ -345,6 +440,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async deleteItemHeader(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
@@ -360,6 +456,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   // --- 2. Drafts & Quarantine ---
 
   async getDraft(workspaceId: string, userId: string, id: string): Promise<DraftRecord | null> {
+    this.ensureNamespace(workspaceId, userId);
     const db = this.ensureOpen();
     try {
       const row = await db.getFirstAsync<{
@@ -374,13 +471,13 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         is_quarantined: number;
         quarantined_at: string | null;
       }>(
-        `SELECT * FROM drafts WHERE workspace_id = ? AND user_id = ? AND id = ? AND is_quarantined = 0;`,
+        `SELECT * FROM drafts WHERE workspace_id = ? AND user_id = ? AND id = ?;`,
         workspaceId,
         userId,
         id
       );
 
-      if (!row) return null;
+      if (!row || Boolean(row.is_quarantined)) return null;
       return {
         id: row.id,
         workspaceId: row.workspace_id,
@@ -399,6 +496,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async listDrafts(workspaceId: string, userId: string): Promise<DraftRecord[]> {
+    this.ensureNamespace(workspaceId, userId);
     const db = this.ensureOpen();
     try {
       const rows = await db.getAllAsync<{
@@ -436,11 +534,14 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async saveDraft(draft: DraftRecord): Promise<void> {
+    const valid = validateDraftRecord(draft);
+    this.ensureNamespace(valid.workspaceId, valid.userId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
         `INSERT INTO drafts (
-          id, workspace_id, user_id, entity_type, entity_id, title, payload_json, saved_at, is_quarantined, quarantined_at
+          id, workspace_id, user_id, entity_type, entity_id, title, payload_json,
+          saved_at, is_quarantined, quarantined_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (workspace_id, user_id, id) DO UPDATE SET
           entity_type = excluded.entity_type,
@@ -450,16 +551,16 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           saved_at = excluded.saved_at,
           is_quarantined = excluded.is_quarantined,
           quarantined_at = excluded.quarantined_at;`,
-        draft.id,
-        draft.workspaceId,
-        draft.userId,
-        draft.entityType,
-        draft.entityId,
-        draft.title,
-        JSON.stringify(draft.payload),
-        draft.savedAt,
-        draft.isQuarantined ? 1 : 0,
-        draft.quarantinedAt
+        valid.id,
+        valid.workspaceId,
+        valid.userId,
+        valid.entityType,
+        valid.entityId ?? null,
+        valid.title,
+        JSON.stringify(valid.payload),
+        valid.savedAt,
+        valid.isQuarantined ? 1 : 0,
+        valid.quarantinedAt ?? null
       );
     } catch (err) {
       throw this.mapError(err);
@@ -467,6 +568,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async deleteDraft(workspaceId: string, userId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId, userId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
@@ -481,10 +583,13 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async quarantineUserDrafts(userId: string): Promise<void> {
+    this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
+    const now = new Date().toISOString();
     try {
       await db.runAsync(
-        `UPDATE drafts SET is_quarantined = 1, quarantined_at = datetime('now') WHERE user_id = ? AND is_quarantined = 0;`,
+        `UPDATE drafts SET is_quarantined = 1, quarantined_at = ? WHERE user_id = ? AND is_quarantined = 0;`,
+        now,
         userId
       );
     } catch (err) {
@@ -493,6 +598,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async listQuarantinedDrafts(userId: string): Promise<DraftRecord[]> {
+    this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
     try {
       const rows = await db.getAllAsync<{
@@ -529,6 +635,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async restoreQuarantinedDraft(userId: string, id: string): Promise<void> {
+    this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
@@ -542,6 +649,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async purgeQuarantinedDrafts(userId: string): Promise<void> {
+    this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(`DELETE FROM drafts WHERE user_id = ? AND is_quarantined = 1;`, userId);
@@ -553,6 +661,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   // --- 3. Pending Operations / Mutations ---
 
   async enqueueMutation(mutation: PendingMutationRecord): Promise<void> {
+    const valid = validatePendingMutationRecord(mutation);
+    this.ensureNamespace(valid.workspaceId, valid.userId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
@@ -564,20 +674,20 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           retry_count = excluded.retry_count,
           status = excluded.status,
           last_error = excluded.last_error;`,
-        mutation.operationId,
-        mutation.deviceId,
-        mutation.workspaceId,
-        mutation.userId,
-        mutation.entityType,
-        mutation.entityId,
-        mutation.action,
-        JSON.stringify(mutation.payload),
-        mutation.baseRevision,
-        JSON.stringify(mutation.dependencyOperationIds),
-        mutation.clientTimestamp,
-        mutation.retryCount,
-        mutation.status,
-        mutation.lastError
+        valid.operationId,
+        valid.deviceId,
+        valid.workspaceId,
+        valid.userId,
+        valid.entityType,
+        valid.entityId,
+        valid.action,
+        JSON.stringify(valid.payload),
+        valid.baseRevision,
+        JSON.stringify(valid.dependencyOperationIds),
+        valid.clientTimestamp,
+        valid.retryCount,
+        valid.status,
+        valid.lastError ?? null
       );
     } catch (err) {
       throw this.mapError(err);
@@ -585,6 +695,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async getPendingMutations(workspaceId: string, userId: string): Promise<PendingMutationRecord[]> {
+    this.ensureNamespace(workspaceId, userId);
     const db = this.ensureOpen();
     try {
       const rows = await db.getAllAsync<{
@@ -630,8 +741,20 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async removePendingMutation(operationId: string): Promise<void> {
+    const ns = this.ensureNamespace();
     const db = this.ensureOpen();
     try {
+      // Ensure the mutation belongs to current active namespace before deleting
+      const existing = await db.getFirstAsync<{ workspace_id: string; user_id: string }>(
+        `SELECT workspace_id, user_id FROM pending_mutations WHERE operation_id = ?;`,
+        operationId
+      );
+      if (!existing) {
+        return;
+      }
+      if (existing.workspace_id !== ns.workspaceId || existing.user_id !== ns.userId) {
+        throw new StorageUnavailableError('Cross-workspace mutation removal rejected.');
+      }
       await db.runAsync(`DELETE FROM pending_mutations WHERE operation_id = ?;`, operationId);
     } catch (err) {
       throw this.mapError(err);
@@ -641,11 +764,16 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   // --- 4. Atomic Multi-Store Writes ---
 
   async saveDraftAndMutation(draft: DraftRecord, mutation: PendingMutationRecord): Promise<void> {
+    const validDraft = validateDraftRecord(draft);
+    const validMut = validatePendingMutationRecord(mutation);
+    this.ensureNamespace(validDraft.workspaceId, validDraft.userId);
+    this.ensureNamespace(validMut.workspaceId, validMut.userId);
+
     const db = this.ensureOpen();
     try {
       await db.withTransactionAsync(async () => {
-        await this.saveDraft(draft);
-        await this.enqueueMutation(mutation);
+        await this.saveDraft(validDraft);
+        await this.enqueueMutation(validMut);
       });
     } catch (err) {
       throw this.mapError(err);
@@ -655,6 +783,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   // --- 5. Sync Cursors ---
 
   async getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null> {
+    this.ensureNamespace(workspaceId, userId);
     const db = this.ensureOpen();
     try {
       const row = await db.getFirstAsync<{
@@ -681,6 +810,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async saveCursor(cursor: SyncCursorRecord): Promise<void> {
+    const valid = validateSyncCursorRecord(cursor);
+    this.ensureNamespace(valid.workspaceId, valid.userId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
@@ -691,12 +822,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           cursor = excluded.cursor,
           last_synced_at = excluded.last_synced_at,
           epoch = excluded.epoch;`,
-        cursor.workspaceId,
-        cursor.userId,
-        cursor.lastServerRevision,
-        cursor.cursor,
-        cursor.lastSyncedAt,
-        cursor.epoch
+        valid.workspaceId,
+        valid.userId,
+        valid.lastServerRevision,
+        valid.cursor,
+        valid.lastSyncedAt,
+        valid.epoch
       );
     } catch (err) {
       throw this.mapError(err);
@@ -706,6 +837,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   // --- 6. Preference Snapshots ---
 
   async getPreferenceSnapshot(userId: string): Promise<PreferenceSnapshotRecord | null> {
+    this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
     try {
       const row = await db.getFirstAsync<{
@@ -730,6 +862,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async savePreferenceSnapshot(snapshot: PreferenceSnapshotRecord): Promise<void> {
+    const valid = validatePreferenceSnapshotRecord(snapshot);
+    this.ensureNamespace(undefined, valid.userId);
     const db = this.ensureOpen();
     try {
       await db.runAsync(
@@ -740,11 +874,11 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           schema_version = excluded.schema_version,
           revision = excluded.revision,
           updated_at = excluded.updated_at;`,
-        snapshot.userId,
-        JSON.stringify(snapshot.preferences),
-        snapshot.schemaVersion,
-        snapshot.revision,
-        snapshot.updatedAt
+        valid.userId,
+        JSON.stringify(valid.preferences),
+        valid.schemaVersion,
+        valid.revision,
+        valid.updatedAt
       );
     } catch (err) {
       throw this.mapError(err);
@@ -754,6 +888,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   // --- 7. Boundary Lifecycle & Data Erasure ---
 
   async clearWorkspaceData(workspaceId: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
     try {
       await db.withTransactionAsync(async () => {
@@ -768,14 +903,30 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   }
 
   async clearAccountData(userId: string): Promise<void> {
+    this.ensureNamespace(undefined, userId);
     const db = this.ensureOpen();
+    const wsId = this.currentNamespace?.workspaceId;
     try {
       await db.withTransactionAsync(async () => {
+        // Erase all account-owned data including item headers
+        await db.runAsync(`DELETE FROM item_headers;`);
         await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
         await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
         await db.runAsync(`DELETE FROM sync_cursors WHERE user_id = ?;`, userId);
         await db.runAsync(`DELETE FROM preference_snapshots WHERE user_id = ?;`, userId);
       });
+
+      // Clear all keys from KeyStore
+      await this.keyManager.clearAccountKeys(userId);
+
+      // Close handle and reset state
+      await this.close();
+
+      // Delete database file if deletion adapter is provided
+      if (wsId && this.dbDeleteFn) {
+        const dbName = this.getDatabaseFileName(userId, wsId);
+        await this.dbDeleteFn(dbName);
+      }
     } catch (err) {
       throw this.mapError(err);
     }

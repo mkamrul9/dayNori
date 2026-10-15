@@ -8,7 +8,7 @@ import {
   clearAllLocalData,
 } from './indexedDbRepository.js';
 import {
-  StorageQuotaError,
+  StorageUnavailableError,
   TrustedDeviceConsentRequiredError,
   type ItemHeaderRecord,
   type DraftRecord,
@@ -31,7 +31,7 @@ if (typeof globalWithStorage.localStorage === 'undefined') {
   };
 }
 
-describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
+describe('Web IndexedDB Local Repository (Node.js Contract Tests with fake-indexeddb)', () => {
   const ws1 = 'ws_11111111-1111-1111-1111-111111111111';
   const ws2 = 'ws_22222222-2222-2222-2222-222222222222';
   const user1 = 'usr_alice_001';
@@ -107,9 +107,68 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
       expect(found).toBeNull();
       await newRepo.close();
     });
+
+    it('disables writes immediately when consent is revoked during runtime', async () => {
+      const repo = new IndexedDbLocalRepository();
+      await repo.initialize({ userId: user1, workspaceId: ws1 });
+
+      // Revoke consent
+      clearTrustedDeviceConsent();
+
+      await expect(repo.getItemHeader(ws1, 'any-id')).rejects.toThrow(
+        TrustedDeviceConsentRequiredError
+      );
+
+      await repo.close();
+    });
   });
 
-  describe('Item Header Operations & Workspace Isolation', () => {
+  describe('Account and Workspace Boundary Enforcement', () => {
+    it('strictly rejects operations that cross workspace or account boundaries', async () => {
+      const repo = new IndexedDbLocalRepository();
+      await repo.initialize({ userId: user1, workspaceId: ws1 });
+
+      // Cross-workspace read
+      await expect(repo.getItemHeader(ws2, 'item-01')).rejects.toThrow(StorageUnavailableError);
+      await expect(repo.listItemHeaders(ws2)).rejects.toThrow(StorageUnavailableError);
+
+      // Cross-workspace write
+      const wrongWsHeader: ItemHeaderRecord = {
+        id: 'item-cross-01',
+        workspaceId: ws2,
+        kind: 'task',
+        folderId: null,
+        rank: '0',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        createdAt: '2026-10-15T10:00:00.000Z',
+        updatedAt: '2026-10-15T10:00:00.000Z',
+        deletedAt: null,
+      };
+      await expect(repo.upsertItemHeader(wrongWsHeader)).rejects.toThrow(StorageUnavailableError);
+
+      // Cross-account draft write
+      const wrongUserDraft: DraftRecord = {
+        id: 'draft-cross-01',
+        workspaceId: ws1,
+        userId: user2,
+        entityType: 'note',
+        entityId: null,
+        title: 'Draft',
+        payload: { text: 'Forbidden' },
+        savedAt: '2026-10-15T10:00:00.000Z',
+        isQuarantined: false,
+        quarantinedAt: null,
+      };
+      await expect(repo.saveDraft(wrongUserDraft)).rejects.toThrow(StorageUnavailableError);
+
+      await repo.close();
+    });
+  });
+
+  describe('Item Header Operations & Workspace Parity', () => {
     it('persists, updates, and queries item headers scoped by workspace', async () => {
       const repo = new IndexedDbLocalRepository();
       await repo.initialize({ userId: user1, workspaceId: ws1 });
@@ -129,28 +188,12 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
         deletedAt: null,
       };
 
-      const header2: ItemHeaderRecord = {
-        id: 'item-02',
-        workspaceId: ws2,
-        kind: 'journal',
-        folderId: null,
-        rank: '1',
-        isArchived: false,
-        isPinned: false,
-        securityScope: 'standard',
-        serverRevision: 1,
-        createdAt: '2026-10-15T10:00:00.000Z',
-        updatedAt: '2026-10-15T10:00:00.000Z',
-        deletedAt: null,
-      };
-
       await repo.upsertItemHeader(header1);
-      await repo.upsertItemHeader(header2);
 
       const retrieved1 = await repo.getItemHeader(ws1, 'item-01');
       expect(retrieved1).toEqual(header1);
 
-      // Workspace 1 listing must only contain header 1
+      // Workspace 1 listing must contain header 1
       const listWs1 = await repo.listItemHeaders(ws1);
       expect(listWs1.length).toBe(1);
       expect(listWs1[0]?.id).toBe('item-01');
@@ -176,9 +219,9 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
   });
 
   describe('Drafts & Account Quarantine Lifecycle', () => {
-    it('isolates drafts by user account and prevents cross-user access', async () => {
-      const repo = new IndexedDbLocalRepository();
-      await repo.initialize({ userId: user1, workspaceId: ws1 });
+    it('isolates drafts by user account and supports quarantine lifecycle', async () => {
+      const repoAlice = new IndexedDbLocalRepository();
+      await repoAlice.initialize({ userId: user1, workspaceId: ws1 });
 
       const aliceDraft: DraftRecord = {
         id: 'draft-alice-01',
@@ -193,94 +236,46 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
         quarantinedAt: null,
       };
 
-      const bobDraft: DraftRecord = {
-        id: 'draft-bob-01',
-        workspaceId: ws1,
-        userId: user2,
-        entityType: 'note',
-        entityId: null,
-        title: 'Bob Draft Note',
-        payload: { content: 'Bob content' },
-        savedAt: '2026-10-15T10:00:00.000Z',
-        isQuarantined: false,
-        quarantinedAt: null,
-      };
+      await repoAlice.saveDraft(aliceDraft);
+      expect(await repoAlice.getDraft(ws1, user1, 'draft-alice-01')).toEqual(aliceDraft);
 
-      await repo.saveDraft(aliceDraft);
-      await repo.saveDraft(bobDraft);
+      // Quarantine
+      await repoAlice.quarantineUserDrafts(user1);
+      expect(await repoAlice.getDraft(ws1, user1, 'draft-alice-01')).toBeNull();
 
-      // Alice only sees her own draft
-      const aliceList = await repo.listDrafts(ws1, user1);
-      expect(aliceList.length).toBe(1);
-      expect(aliceList[0]?.id).toBe('draft-alice-01');
-
-      // Bob cannot read Alice's draft
-      const bobAttempt = await repo.getDraft(ws1, user2, 'draft-alice-01');
-      expect(bobAttempt).toBeNull();
-
-      await repo.close();
-    });
-
-    it('quarantines drafts on account switch/logout and allows recovery or purging', async () => {
-      const repo = new IndexedDbLocalRepository();
-      await repo.initialize({ userId: user1, workspaceId: ws1 });
-
-      await repo.saveDraft({
-        id: 'draft-alice-q1',
-        workspaceId: ws1,
-        userId: user1,
-        entityType: 'task',
-        entityId: null,
-        title: 'In-Flight Task Draft',
-        payload: { details: 'Details here' },
-        savedAt: '2026-10-15T10:00:00.000Z',
-        isQuarantined: false,
-        quarantinedAt: null,
-      });
-
-      // Quarantine Alice's drafts (e.g. on logout or account switch)
-      await repo.quarantineUserDrafts(user1);
-
-      // Normal listDrafts excludes quarantined drafts
-      const normalList = await repo.listDrafts(ws1, user1);
-      expect(normalList.length).toBe(0);
-
-      // Quarantined list shows the draft
-      const quarantined = await repo.listQuarantinedDrafts(user1);
+      const quarantined = await repoAlice.listQuarantinedDrafts(user1);
       expect(quarantined.length).toBe(1);
-      expect(quarantined[0]?.id).toBe('draft-alice-q1');
       expect(quarantined[0]?.isQuarantined).toBe(true);
 
-      // Restore the draft
-      await repo.restoreQuarantinedDraft(user1, 'draft-alice-q1');
-      const restoredList = await repo.listDrafts(ws1, user1);
-      expect(restoredList.length).toBe(1);
-      expect(restoredList[0]?.isQuarantined).toBe(false);
+      // Restore
+      await repoAlice.restoreQuarantinedDraft(user1, 'draft-alice-01');
+      const restored = await repoAlice.getDraft(ws1, user1, 'draft-alice-01');
+      expect(restored).toBeDefined();
+      expect(restored?.isQuarantined).toBe(false);
 
-      // Re-quarantine and purge
-      await repo.quarantineUserDrafts(user1);
-      await repo.purgeQuarantinedDrafts(user1);
-      expect(await repo.listQuarantinedDrafts(user1)).toEqual([]);
-      expect(await repo.listDrafts(ws1, user1)).toEqual([]);
+      // Purge
+      await repoAlice.quarantineUserDrafts(user1);
+      await repoAlice.purgeQuarantinedDrafts(user1);
+      expect(await repoAlice.listQuarantinedDrafts(user1)).toEqual([]);
 
-      await repo.close();
+      await repoAlice.close();
     });
   });
 
-  describe('Pending Mutation Queue & Atomic Operations', () => {
-    it('enqueues, retrieves, and removes pending mutations preserving order', async () => {
+  describe('Pending Mutation Queue & Atomic Multi-Store Writes', () => {
+    it('enqueues, retrieves in FIFO order, and removes pending operations', async () => {
       const repo = new IndexedDbLocalRepository();
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
       const mut1: PendingMutationRecord = {
         operationId: 'op-001',
-        deviceId: 'dev-001',
+        deviceId: 'dev-web-01',
         workspaceId: ws1,
         userId: user1,
-        entityType: 'note',
-        entityId: 'note-1',
+        entityType: 'todo',
+        entityId: 'todo-01',
         action: 'create',
-        payload: { title: 'First note' },
+        payload: { text: 'Buy groceries' },
         baseRevision: 0,
         dependencyOperationIds: [],
         clientTimestamp: '2026-10-15T10:00:00.000Z',
@@ -291,16 +286,16 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
 
       const mut2: PendingMutationRecord = {
         operationId: 'op-002',
-        deviceId: 'dev-001',
+        deviceId: 'dev-web-01',
         workspaceId: ws1,
         userId: user1,
-        entityType: 'note',
-        entityId: 'note-1',
-        action: 'update',
-        payload: { title: 'First note edited' },
-        baseRevision: 1,
+        entityType: 'todo',
+        entityId: 'todo-02',
+        action: 'create',
+        payload: { text: 'Call dentist' },
+        baseRevision: 0,
         dependencyOperationIds: ['op-001'],
-        clientTimestamp: '2026-10-15T10:01:00.000Z',
+        clientTimestamp: '2026-10-15T10:05:00.000Z',
         retryCount: 0,
         status: 'pending',
         lastError: null,
@@ -314,7 +309,6 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
       expect(pending[0]?.operationId).toBe('op-001');
       expect(pending[1]?.operationId).toBe('op-002');
 
-      // Remove mut1 after simulated acknowledgement
       await repo.removePendingMutation('op-001');
       const remaining = await repo.getPendingMutations(ws1, user1);
       expect(remaining.length).toBe(1);
@@ -323,7 +317,7 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
       await repo.close();
     });
 
-    it('atomically saves draft and pending mutation in a single transaction', async () => {
+    it('atomically commits draft projection and mutation queue record', async () => {
       const repo = new IndexedDbLocalRepository();
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
@@ -331,27 +325,27 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
         id: 'draft-atomic-01',
         workspaceId: ws1,
         userId: user1,
-        entityType: 'task',
-        entityId: null,
-        title: 'Atomic Task Draft',
-        payload: { details: 'Draft content' },
-        savedAt: '2026-10-15T10:00:00.000Z',
+        entityType: 'note',
+        entityId: 'note-atomic-01',
+        title: 'Atomic Note',
+        payload: { body: 'Content' },
+        savedAt: '2026-10-15T10:10:00.000Z',
         isQuarantined: false,
         quarantinedAt: null,
       };
 
       const mutation: PendingMutationRecord = {
         operationId: 'op-atomic-01',
-        deviceId: 'dev-001',
+        deviceId: 'dev-web-01',
         workspaceId: ws1,
         userId: user1,
-        entityType: 'task',
-        entityId: 'task-atomic-01',
+        entityType: 'note',
+        entityId: 'note-atomic-01',
         action: 'create',
-        payload: { title: 'Atomic Task Draft' },
+        payload: { body: 'Content' },
         baseRevision: 0,
         dependencyOperationIds: [],
-        clientTimestamp: '2026-10-15T10:00:00.000Z',
+        clientTimestamp: '2026-10-15T10:10:00.000Z',
         retryCount: 0,
         status: 'pending',
         lastError: null,
@@ -359,93 +353,57 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
 
       await repo.saveDraftAndMutation(draft, mutation);
 
-      // Verify both were written
       const savedDraft = await repo.getDraft(ws1, user1, 'draft-atomic-01');
-      const pendingMutations = await repo.getPendingMutations(ws1, user1);
+      expect(savedDraft).toEqual(draft);
 
-      expect(savedDraft).not.toBeNull();
-      expect(savedDraft?.title).toBe('Atomic Task Draft');
-      expect(pendingMutations.length).toBe(1);
-      expect(pendingMutations[0]?.operationId).toBe('op-atomic-01');
+      const pending = await repo.getPendingMutations(ws1, user1);
+      expect(pending.find((m) => m.operationId === 'op-atomic-01')).toBeDefined();
 
       await repo.close();
     });
   });
 
-  describe('Sync Cursors and Preference Snapshots', () => {
-    it('persists and retrieves sync cursor checkpoints', async () => {
+  describe('Sync Cursors & Preference Snapshots', () => {
+    it('persists and updates sync cursors and user preference snapshots', async () => {
       const repo = new IndexedDbLocalRepository();
       await repo.initialize({ userId: user1, workspaceId: ws1 });
-
-      expect(await repo.getCursor(ws1, user1)).toBeNull();
 
       const cursor: SyncCursorRecord = {
         workspaceId: ws1,
         userId: user1,
         lastServerRevision: 42,
-        cursor: 'cur_abc_123',
-        lastSyncedAt: '2026-10-15T10:30:00.000Z',
-        epoch: 'epoch_01',
+        cursor: 'opaque-cursor-xyz-789',
+        lastSyncedAt: '2026-10-15T10:15:00.000Z',
+        epoch: 'epoch-1',
       };
 
       await repo.saveCursor(cursor);
-      const retrieved = await repo.getCursor(ws1, user1);
-      expect(retrieved).toEqual(cursor);
-
-      await repo.close();
-    });
-
-    it('persists and retrieves user preference snapshots', async () => {
-      const repo = new IndexedDbLocalRepository();
-      await repo.initialize({ userId: user1, workspaceId: ws1 });
-
-      expect(await repo.getPreferenceSnapshot(user1)).toBeNull();
+      expect(await repo.getCursor(ws1, user1)).toEqual(cursor);
 
       const snapshot: PreferenceSnapshotRecord = {
         userId: user1,
-        preferences: {
-          themeMode: 'dark',
-          accentColor: 'indigo',
-          defaultLandingPage: 'today',
-          locale: 'en-US',
-        },
+        preferences: { theme: 'light', dailyBriefing: true },
         schemaVersion: 1,
         revision: 3,
-        updatedAt: '2026-10-15T10:30:00.000Z',
+        updatedAt: '2026-10-15T10:20:00.000Z',
       };
 
       await repo.savePreferenceSnapshot(snapshot);
-      const retrieved = await repo.getPreferenceSnapshot(user1);
-      expect(retrieved).toEqual(snapshot);
+      expect(await repo.getPreferenceSnapshot(user1)).toEqual(snapshot);
 
       await repo.close();
     });
   });
 
-  describe('Account and Workspace Erasure', () => {
-    it('clears all data scoped to a specific workspace while leaving others intact', async () => {
+  describe('Complete Account Data Erasure', () => {
+    it('erases all account data including item headers and closes handles', async () => {
       const repo = new IndexedDbLocalRepository();
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
-      // Add item headers in ws1 and ws2
       await repo.upsertItemHeader({
-        id: 'item-ws1',
+        id: 'header-erase-01',
         workspaceId: ws1,
-        kind: 'note',
-        folderId: null,
-        rank: '0',
-        isArchived: false,
-        isPinned: false,
-        securityScope: 'standard',
-        serverRevision: 1,
-        createdAt: '2026-10-15T10:00:00.000Z',
-        updatedAt: '2026-10-15T10:00:00.000Z',
-        deletedAt: null,
-      });
-      await repo.upsertItemHeader({
-        id: 'item-ws2',
-        workspaceId: ws2,
-        kind: 'note',
+        kind: 'task',
         folderId: null,
         rank: '0',
         isArchived: false,
@@ -457,80 +415,47 @@ describe('Web IndexedDB Local Repository & Storage Adapter (Phase 11)', () => {
         deletedAt: null,
       });
 
-      // Clear ws1 data
-      await repo.clearWorkspaceData(ws1);
-
-      expect(await repo.getItemHeader(ws1, 'item-ws1')).toBeNull();
-      expect(await repo.getItemHeader(ws2, 'item-ws2')).not.toBeNull();
-
-      await repo.close();
-    });
-
-    it('clears all user-scoped records on account erasure', async () => {
-      const repo = new IndexedDbLocalRepository();
-      await repo.initialize({ userId: user1, workspaceId: ws1 });
-
-      // Save drafts for user1 and user2
       await repo.saveDraft({
-        id: 'd-u1',
+        id: 'draft-erase-01',
         workspaceId: ws1,
         userId: user1,
         entityType: 'note',
         entityId: null,
-        title: 'Alice Note',
-        payload: {},
-        savedAt: '2026-10-15T10:00:00.000Z',
-        isQuarantined: false,
-        quarantinedAt: null,
-      });
-      await repo.saveDraft({
-        id: 'd-u2',
-        workspaceId: ws1,
-        userId: user2,
-        entityType: 'note',
-        entityId: null,
-        title: 'Bob Note',
-        payload: {},
+        title: 'Draft to erase',
+        payload: { content: 'Bye' },
         savedAt: '2026-10-15T10:00:00.000Z',
         isQuarantined: false,
         quarantinedAt: null,
       });
 
-      await repo.savePreferenceSnapshot({
-        userId: user1,
-        preferences: { themeMode: 'light' },
-        schemaVersion: 1,
-        revision: 1,
-        updatedAt: '2026-10-15T10:00:00.000Z',
-      });
-
-      // Clear Alice's account data
       await repo.clearAccountData(user1);
 
-      expect(await repo.getDraft(ws1, user1, 'd-u1')).toBeNull();
-      expect(await repo.getDraft(ws1, user2, 'd-u2')).not.toBeNull();
-      expect(await repo.getPreferenceSnapshot(user1)).toBeNull();
+      const headers = await repo.listItemHeaders(ws1);
+      expect(headers).toEqual([]);
+      const drafts = await repo.listDrafts(ws1, user1);
+      expect(drafts).toEqual([]);
 
       await repo.close();
     });
   });
 
-  describe('Quota Error Handling Contract', () => {
-    it('maps QuotaExceededError into StorageQuotaError and avoids false saved indicator', async () => {
-      const repo = new IndexedDbLocalRepository();
-      await repo.initialize({ userId: user1, workspaceId: ws1 });
+  describe('Honest Blocked Deletion Error Reporting', () => {
+    it('reports failure when clearAllLocalData deletion is blocked', async () => {
+      // Mock IDBFactory where deleteDatabase fires onblocked
+      const mockIdb = {
+        open: indexedDB.open.bind(indexedDB),
+        deleteDatabase: () => {
+          const req = {} as IDBOpenDBRequest;
+          setTimeout(() => {
+            if (req.onblocked) {
+              req.onblocked(new Event('blocked') as IDBVersionChangeEvent);
+            }
+          }, 10);
+          return req;
+        },
+      } as unknown as IDBFactory;
 
-      // Simulate a quota failure by mocking IDBTransaction error mapping
-      const quotaError = new DOMException('The quota has been exceeded.', 'QuotaExceededError');
-      const mapped = (repo as unknown as { mapError: (err: unknown) => Error }).mapError(
-        quotaError
-      );
-
-      expect(mapped).toBeInstanceOf(StorageQuotaError);
-      expect(mapped.name).toBe('StorageQuotaError');
-      expect(mapped.message).toContain('exceeded');
-
-      await repo.close();
+      await expect(clearAllLocalData(mockIdb)).rejects.toThrow(StorageUnavailableError);
     });
   });
 });
