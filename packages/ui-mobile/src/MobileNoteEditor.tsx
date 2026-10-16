@@ -1,18 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import {
   type NoteDocument,
   type NoteBlockNode,
   type NoteListItemNode,
   type NoteChecklistItemNode,
-  type NoteTextInline,
+  type NoteInlineNode,
   extractPlainText,
+  extractInlineText,
   resolveNoteTitle,
   calculateCharCount,
   calculateWordCount,
   generateUuid,
-  validateNoteDocument,
+  createRecoverableNoteDocument,
+  replaceTextInRangeInlines,
+  applyMarkToInlines,
 } from '@daynori/domain';
 
 export interface MobileNoteEditorProps {
@@ -43,11 +46,57 @@ export interface MobileNoteEditorProps {
   testID?: string;
 }
 
+/**
+ * Computes the replacement slice between prevText and newText based on selection or longest common prefix/suffix.
+ */
+function computeTextDiff(
+  prevText: string,
+  newText: string,
+  sel?: { start: number; end: number }
+): { start: number; end: number; replacement: string } {
+  if (sel && sel.start <= sel.end && sel.end <= prevText.length) {
+    const charsAdded = newText.length - (prevText.length - (sel.end - sel.start));
+    if (charsAdded >= 0) {
+      const inserted = newText.slice(sel.start, sel.start + charsAdded);
+      if (
+        prevText.slice(0, sel.start) === newText.slice(0, sel.start) &&
+        prevText.slice(sel.end) === newText.slice(sel.start + charsAdded)
+      ) {
+        return { start: sel.start, end: sel.end, replacement: inserted };
+      }
+    }
+  }
+
+  // Fallback: longest common prefix and suffix
+  let prefixLen = 0;
+  while (
+    prefixLen < prevText.length &&
+    prefixLen < newText.length &&
+    prevText[prefixLen] === newText[prefixLen]
+  ) {
+    prefixLen++;
+  }
+
+  let suffixLen = 0;
+  while (
+    suffixLen < prevText.length - prefixLen &&
+    suffixLen < newText.length - prefixLen &&
+    prevText[prevText.length - 1 - suffixLen] === newText[newText.length - 1 - suffixLen]
+  ) {
+    suffixLen++;
+  }
+
+  const start = prefixLen;
+  const end = prevText.length - suffixLen;
+  const replacement = newText.slice(prefixLen, newText.length - suffixLen);
+  return { start, end, replacement };
+}
+
 export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
   initialTitle = '',
   initialDocument,
   initialFolderId = null,
-  folders: _folders = [],
+  folders = [],
   themeMode = 'light',
   readOnly = false,
   localSaveStatus = 'Saved locally',
@@ -62,18 +111,15 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
   const palette = colors[themeMode];
 
   const [title, setTitle] = useState(initialTitle);
-  const [folderId, _setFolderId] = useState<string | null>(initialFolderId);
+  const [folderId, setFolderId] = useState<string | null>(initialFolderId);
+  const [isFolderPickerVisible, setFolderPickerVisible] = useState(false);
 
+  // Recoverable initial document fallback
   const initialDocResolved = useMemo<NoteDocument>(() => {
-    if (
-      initialDocument &&
-      Array.isArray(initialDocument.content) &&
-      initialDocument.content.length > 0
-    ) {
-      try {
-        return validateNoteDocument(initialDocument);
-      } catch {
-        // Fallback to minimal valid document
+    if (initialDocument) {
+      const { doc } = createRecoverableNoteDocument(initialDocument);
+      if (doc.content.length > 0) {
+        return doc;
       }
     }
     return {
@@ -92,38 +138,114 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
   const [doc, setDoc] = useState<NoteDocument>(initialDocResolved);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
 
+  // Track selection per block
+  const selectionMapRef = useRef<Map<string, { start: number; end: number }>>(new Map());
+
   // Undo / Redo stacks
   const [undoStack, setUndoStack] = useState<NoteDocument[]>([]);
   const [redoStack, setRedoStack] = useState<NoteDocument[]>([]);
 
-  const isDirtyRef = useRef(false);
-  const debouncedSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isComposingRef = useRef(false);
 
+  // Metrics
   const plainText = useMemo(() => extractPlainText(doc), [doc]);
   const wordCount = useMemo(() => calculateWordCount(plainText), [plainText]);
   const charCount = useMemo(() => calculateCharCount(plainText), [plainText]);
 
-  const triggerSave = useCallback(() => {
-    if (onSave && isDirtyRef.current) {
-      isDirtyRef.current = false;
-      const cleanTitle = resolveNoteTitle(title, 'Untitled', plainText);
-      void onSave({
-        title: cleanTitle,
-        document: doc,
-        plainText,
-        folderId: folderId ?? undefined,
-      });
+  // Reliable Save Lifecycle
+  const editGenerationRef = useRef(0);
+  const lastSavedGenerationRef = useRef(0);
+  const isSavingRef = useRef(false);
+  const hasPendingSaveRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const latestSnapshotRef = useRef({ title, doc, folderId, plainText });
+  latestSnapshotRef.current = { title, doc, folderId, plainText };
+
+  const latestOnSaveRef = useRef(onSave);
+  latestOnSaveRef.current = onSave;
+
+  const mutateDoc = useCallback((updater: (prev: NoteDocument) => NoteDocument) => {
+    setDoc((prev: NoteDocument) => {
+      const next = updater(prev);
+      setUndoStack((u) => [...u.slice(-30), prev]);
+      setRedoStack([]);
+      return next;
+    });
+    editGenerationRef.current += 1;
+    setSaveError(null);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const prev = undoStack[undoStack.length - 1];
+    if (!prev) return;
+    setUndoStack((u) => u.slice(0, -1));
+    setRedoStack((r) => [...r, doc]);
+    setDoc(prev);
+    editGenerationRef.current += 1;
+  }, [undoStack, doc]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    if (!next) return;
+    setRedoStack((r) => r.slice(0, -1));
+    setUndoStack((u) => [...u, doc]);
+    setDoc(next);
+    editGenerationRef.current += 1;
+  }, [redoStack, doc]);
+
+  // Serialized durable save executor
+  const performSave = useCallback(async () => {
+    if (readOnly) return;
+    if (isComposingRef.current) return;
+
+    const currentGen = editGenerationRef.current;
+    if (currentGen <= lastSavedGenerationRef.current) return;
+
+    if (isSavingRef.current) {
+      hasPendingSaveRef.current = true;
+      return;
     }
-  }, [title, doc, plainText, folderId, onSave]);
+
+    const saveFn = latestOnSaveRef.current;
+    if (!saveFn) return;
+
+    isSavingRef.current = true;
+    const snapshot = latestSnapshotRef.current;
+    const cleanTitle = resolveNoteTitle(snapshot.title, 'Untitled', snapshot.plainText);
+
+    try {
+      await saveFn({
+        title: cleanTitle,
+        document: snapshot.doc,
+        plainText: snapshot.plainText,
+        folderId: snapshot.folderId,
+      });
+
+      lastSavedGenerationRef.current = currentGen;
+      setSaveError(null);
+    } catch {
+      setSaveError('Save failed. Your edits remain stored in local memory.');
+    } finally {
+      isSavingRef.current = false;
+      if (hasPendingSaveRef.current) {
+        hasPendingSaveRef.current = false;
+        void performSave();
+      }
+    }
+  }, [readOnly]);
 
   // Debounced autosave (600ms)
+  const debouncedSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (readOnly) return;
     if (debouncedSaveRef.current) {
       clearTimeout(debouncedSaveRef.current);
     }
     debouncedSaveRef.current = setTimeout(() => {
-      triggerSave();
+      void performSave();
     }, 600);
 
     return () => {
@@ -131,63 +253,89 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
         clearTimeout(debouncedSaveRef.current);
       }
     };
-  }, [title, doc, folderId, triggerSave, readOnly]);
+  }, [title, doc, folderId, performSave, readOnly]);
 
   // Flush on unmount
   useEffect(() => {
     return () => {
-      if (isDirtyRef.current) {
-        triggerSave();
+      if (editGenerationRef.current > lastSavedGenerationRef.current) {
+        const snap = latestSnapshotRef.current;
+        const saveFn = latestOnSaveRef.current;
+        if (saveFn) {
+          const cleanTitle = resolveNoteTitle(snap.title, 'Untitled', snap.plainText);
+          void saveFn({
+            title: cleanTitle,
+            document: snap.doc,
+            plainText: snap.plainText,
+            folderId: snap.folderId,
+          });
+        }
       }
     };
-  }, [triggerSave]);
+  }, []);
 
-  const mutateDoc = (updater: (prev: NoteDocument) => NoteDocument) => {
-    setDoc((prev: NoteDocument) => {
-      const next = updater(prev);
-      setUndoStack((u) => [...u.slice(-20), prev]);
-      setRedoStack([]);
-      return next;
-    });
-    isDirtyRef.current = true;
-  };
-
-  const handleUndo = () => {
-    if (undoStack.length === 0) return;
-    const prev = undoStack[undoStack.length - 1];
-    if (!prev) return;
-    setUndoStack((u) => u.slice(0, -1));
-    setRedoStack((r) => [...r, doc]);
-    setDoc(prev);
-    isDirtyRef.current = true;
-  };
-
-  const handleRedo = () => {
-    if (redoStack.length === 0) return;
-    const next = redoStack[redoStack.length - 1];
-    if (!next) return;
-    setRedoStack((r) => r.slice(0, -1));
-    setUndoStack((u) => [...u, doc]);
-    setDoc(next);
-    isDirtyRef.current = true;
-  };
-
-  const updateBlockText = (blockId: string, text: string) => {
+  // Block inline text editing preserving all existing runs and marks
+  const updateBlockText = (blockId: string, newText: string) => {
     if (readOnly) return;
-    isDirtyRef.current = true;
+    editGenerationRef.current += 1;
+    setSaveError(null);
+
     setDoc((prev: NoteDocument) => {
       const newContent: NoteBlockNode[] = prev.content.map((b: NoteBlockNode): NoteBlockNode => {
         if (b.id !== blockId) {
-          if (b.type === 'bullet_list' || b.type === 'ordered_list') {
-            const updatedItems: NoteListItemNode[] = b.items.map((it: NoteListItemNode) =>
-              it.id === blockId ? { ...it, content: [{ type: 'text' as const, text }] } : it
-            );
+          if (b.type === 'bullet_list') {
+            const updatedItems: NoteListItemNode[] = b.items.map((it: NoteListItemNode) => {
+              if (it.id === blockId) {
+                const prevText = extractInlineText(it.content);
+                const sel = selectionMapRef.current.get(blockId);
+                const diff = computeTextDiff(prevText, newText, sel);
+                const updated = replaceTextInRangeInlines(
+                  it.content,
+                  diff.start,
+                  diff.end,
+                  diff.replacement
+                );
+                return { ...it, content: updated };
+              }
+              return it;
+            });
+            return { ...b, items: updatedItems };
+          }
+          if (b.type === 'ordered_list') {
+            const updatedItems: NoteListItemNode[] = b.items.map((it: NoteListItemNode) => {
+              if (it.id === blockId) {
+                const prevText = extractInlineText(it.content);
+                const sel = selectionMapRef.current.get(blockId);
+                const diff = computeTextDiff(prevText, newText, sel);
+                const updated = replaceTextInRangeInlines(
+                  it.content,
+                  diff.start,
+                  diff.end,
+                  diff.replacement
+                );
+                return { ...it, content: updated };
+              }
+              return it;
+            });
             return { ...b, items: updatedItems };
           }
           if (b.type === 'checklist') {
             const updatedItems: NoteChecklistItemNode[] = b.items.map(
-              (it: NoteChecklistItemNode) =>
-                it.id === blockId ? { ...it, content: [{ type: 'text' as const, text }] } : it
+              (it: NoteChecklistItemNode) => {
+                if (it.id === blockId) {
+                  const prevText = extractInlineText(it.content);
+                  const sel = selectionMapRef.current.get(blockId);
+                  const diff = computeTextDiff(prevText, newText, sel);
+                  const updated = replaceTextInRangeInlines(
+                    it.content,
+                    diff.start,
+                    diff.end,
+                    diff.replacement
+                  );
+                  return { ...it, content: updated };
+                }
+                return it;
+              }
             );
             return { ...b, items: updatedItems };
           }
@@ -195,9 +343,18 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
         }
 
         if (b.type === 'paragraph' || b.type === 'heading') {
+          const prevText = extractInlineText(b.content);
+          const sel = selectionMapRef.current.get(blockId);
+          const diff = computeTextDiff(prevText, newText, sel);
+          const updated = replaceTextInRangeInlines(
+            b.content || [],
+            diff.start,
+            diff.end,
+            diff.replacement
+          );
           return {
             ...b,
-            content: [{ type: 'text' as const, text }],
+            content: updated,
           };
         }
         return b;
@@ -222,29 +379,91 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
     });
   };
 
+  const toggleBlockBold = () => {
+    if (readOnly || !activeBlockId) return;
+
+    mutateDoc((prev: NoteDocument) => {
+      const newContent: NoteBlockNode[] = prev.content.map((b: NoteBlockNode): NoteBlockNode => {
+        const sel = selectionMapRef.current.get(activeBlockId);
+
+        if (b.id === activeBlockId && (b.type === 'paragraph' || b.type === 'heading')) {
+          const currentInlines = b.content || [];
+          const textLen = extractInlineText(currentInlines).length;
+          const start = sel && sel.start < sel.end ? sel.start : 0;
+          const end = sel && sel.start < sel.end ? sel.end : textLen;
+          const updated = applyMarkToInlines(currentInlines, start, end, 'bold');
+          return { ...b, content: updated };
+        }
+
+        if (b.type === 'bullet_list') {
+          return {
+            ...b,
+            items: b.items.map((it: NoteListItemNode) => {
+              if (it.id === activeBlockId) {
+                const textLen = extractInlineText(it.content).length;
+                const start = sel && sel.start < sel.end ? sel.start : 0;
+                const end = sel && sel.start < sel.end ? sel.end : textLen;
+                return { ...it, content: applyMarkToInlines(it.content, start, end, 'bold') };
+              }
+              return it;
+            }),
+          };
+        }
+
+        if (b.type === 'ordered_list') {
+          return {
+            ...b,
+            items: b.items.map((it: NoteListItemNode) => {
+              if (it.id === activeBlockId) {
+                const textLen = extractInlineText(it.content).length;
+                const start = sel && sel.start < sel.end ? sel.start : 0;
+                const end = sel && sel.start < sel.end ? sel.end : textLen;
+                return { ...it, content: applyMarkToInlines(it.content, start, end, 'bold') };
+              }
+              return it;
+            }),
+          };
+        }
+
+        if (b.type === 'checklist') {
+          return {
+            ...b,
+            items: b.items.map((it: NoteChecklistItemNode) => {
+              if (it.id === activeBlockId) {
+                const textLen = extractInlineText(it.content).length;
+                const start = sel && sel.start < sel.end ? sel.start : 0;
+                const end = sel && sel.start < sel.end ? sel.end : textLen;
+                return { ...it, content: applyMarkToInlines(it.content, start, end, 'bold') };
+              }
+              return it;
+            }),
+          };
+        }
+
+        return b;
+      });
+      return { ...prev, content: newContent };
+    });
+  };
+
   const setBlockType = (
     type: 'paragraph' | 'h1' | 'h2' | 'h3' | 'bullet' | 'ordered' | 'checklist'
   ) => {
     if (readOnly || !activeBlockId) return;
 
     mutateDoc((prev: NoteDocument) => {
-      let currentText = '';
+      let currentInlines: NoteInlineNode[] = [{ type: 'text', text: '' }];
       for (const b of prev.content) {
         if (b.id === activeBlockId && (b.type === 'paragraph' || b.type === 'heading')) {
-          currentText = b.content?.[0]?.type === 'text' ? b.content[0].text : '';
+          currentInlines = b.content || [{ type: 'text', text: '' }];
           break;
         }
-        if (b.type === 'bullet_list' || b.type === 'ordered_list') {
-          const found = b.items.find((it: NoteListItemNode) => it.id === activeBlockId);
+        if (b.type === 'bullet_list' || b.type === 'ordered_list' || b.type === 'checklist') {
+          const found = b.items.find(
+            (it: NoteListItemNode | NoteChecklistItemNode) => it.id === activeBlockId
+          );
           if (found) {
-            currentText = found.content?.[0]?.type === 'text' ? found.content[0].text : '';
-            break;
-          }
-        }
-        if (b.type === 'checklist') {
-          const found = b.items.find((it: NoteChecklistItemNode) => it.id === activeBlockId);
-          if (found) {
-            currentText = found.content?.[0]?.type === 'text' ? found.content[0].text : '';
+            currentInlines = found.content || [{ type: 'text', text: '' }];
             break;
           }
         }
@@ -268,7 +487,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
           newContent.push({
             id: activeBlockId,
             type: 'paragraph',
-            content: [{ type: 'text', text: currentText }],
+            content: currentInlines,
           });
         } else if (type === 'h1' || type === 'h2' || type === 'h3') {
           const level = type === 'h1' ? 1 : type === 'h2' ? 2 : 3;
@@ -276,7 +495,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
             id: activeBlockId,
             type: 'heading',
             level,
-            content: [{ type: 'text', text: currentText }],
+            content: currentInlines,
           });
         } else if (type === 'bullet') {
           newContent.push({
@@ -286,7 +505,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
               {
                 id: activeBlockId,
                 type: 'list_item',
-                content: [{ type: 'text', text: currentText }],
+                content: currentInlines,
               },
             ],
           });
@@ -298,7 +517,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
               {
                 id: activeBlockId,
                 type: 'list_item',
-                content: [{ type: 'text', text: currentText }],
+                content: currentInlines,
               },
             ],
           });
@@ -311,7 +530,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
                 id: activeBlockId,
                 type: 'checklist_item',
                 checked: false,
-                content: [{ type: 'text', text: currentText }],
+                content: currentInlines,
               },
             ],
           });
@@ -322,27 +541,215 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
     });
   };
 
-  const addBlock = () => {
+  const handleAddBlockBelow = (blockId: string) => {
     const newId = generateUuid();
-    mutateDoc((prev: NoteDocument) => ({
-      ...prev,
-      content: [
-        ...prev.content,
-        {
-          id: newId,
-          type: 'paragraph',
-          content: [{ type: 'text', text: '' }],
-        },
-      ],
-    }));
+    mutateDoc((prev: NoteDocument) => {
+      const newContent: NoteBlockNode[] = [];
+      for (const b of prev.content) {
+        if (b.type === 'bullet_list' && b.items.some((it) => it.id === blockId)) {
+          const newItems = [];
+          for (const it of b.items) {
+            newItems.push(it);
+            if (it.id === blockId) {
+              newItems.push({
+                id: newId,
+                type: 'list_item' as const,
+                content: [{ type: 'text' as const, text: '' }],
+              });
+            }
+          }
+          newContent.push({ ...b, items: newItems });
+          continue;
+        }
+        if (b.type === 'ordered_list' && b.items.some((it) => it.id === blockId)) {
+          const newItems = [];
+          for (const it of b.items) {
+            newItems.push(it);
+            if (it.id === blockId) {
+              newItems.push({
+                id: newId,
+                type: 'list_item' as const,
+                content: [{ type: 'text' as const, text: '' }],
+              });
+            }
+          }
+          newContent.push({ ...b, items: newItems });
+          continue;
+        }
+        if (b.type === 'checklist' && b.items.some((it) => it.id === blockId)) {
+          const newItems = [];
+          for (const it of b.items) {
+            newItems.push(it);
+            if (it.id === blockId) {
+              newItems.push({
+                id: newId,
+                type: 'checklist_item' as const,
+                checked: false,
+                content: [{ type: 'text' as const, text: '' }],
+              });
+            }
+          }
+          newContent.push({ ...b, items: newItems });
+          continue;
+        }
+
+        newContent.push(b);
+        if (b.id === blockId) {
+          newContent.push({
+            id: newId,
+            type: 'paragraph',
+            content: [{ type: 'text', text: '' }],
+          });
+        }
+      }
+      return { ...prev, content: newContent };
+    });
     setActiveBlockId(newId);
   };
 
+  const currentFolderName = useMemo(() => {
+    if (!folderId) return 'Inbox (Unfiled)';
+    const found = folders.find((f) => f.id === folderId);
+    return found ? found.name : 'Folder';
+  }, [folderId, folders]);
+
   return (
-    <View style={[styles.container, { backgroundColor: palette.surface }]} testID={testID}>
-      {/* Conflict Resolution Banner */}
+    <View testID={testID} style={[styles.container, { backgroundColor: palette.surface }]}>
+      {/* Header and status indicators */}
+      <View style={[styles.header, { borderBottomColor: palette.border.subtle }]}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.headerStatusText, { color: palette.text.secondary }]}>
+            💾 {localSaveStatus} • ☁️ {cloudSyncStatus}
+          </Text>
+          <Text style={[styles.headerMetricsText, { color: palette.text.muted }]}>
+            {wordCount} words • {charCount} chars
+          </Text>
+        </View>
+
+        <View style={styles.headerActions}>
+          {/* Folder Selector Trigger Button */}
+          {folders.length > 0 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Select folder, currently ${currentFolderName}`}
+              testID="mobile-folder-selector-btn"
+              onPress={() => setFolderPickerVisible(true)}
+              disabled={readOnly}
+              style={[styles.actionBtn, { backgroundColor: palette.surfaceRaised }]}
+            >
+              <Text style={[styles.actionBtnText, { color: palette.text.primary }]}>
+                📁 {currentFolderName}
+              </Text>
+            </Pressable>
+          )}
+
+          {onDelete && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Delete note"
+              testID="mobile-editor-delete-btn"
+              onPress={onDelete}
+              style={[styles.actionBtn, { backgroundColor: palette.status.dangerBg }]}
+            >
+              <Text style={[styles.actionBtnText, { color: palette.status.danger }]}>Trash</Text>
+            </Pressable>
+          )}
+
+          {onClose && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Done editing"
+              testID="mobile-editor-close-btn"
+              onPress={onClose}
+              style={[styles.actionBtn, { backgroundColor: palette.action.primary }]}
+            >
+              <Text style={[styles.actionBtnText, { color: palette.text.inverse }]}>Done</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* Save Error Recovery Notification */}
+      {saveError && (
+        <View
+          style={[
+            styles.saveErrorBanner,
+            {
+              backgroundColor: palette.status.dangerBg,
+              borderColor: palette.status.dangerBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.saveErrorText, { color: palette.status.danger }]}>{saveError}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry save"
+            testID="mobile-retry-save-btn"
+            onPress={() => void performSave()}
+            style={[styles.retryBtn, { borderColor: palette.status.dangerBorder }]}
+          >
+            <Text style={[styles.retryBtnText, { color: palette.status.danger }]}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Folder Picker Modal Sheet */}
+      <Modal
+        visible={isFolderPickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setFolderPickerVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setFolderPickerVisible(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: palette.surfaceRaised }]}>
+            <Text style={[styles.modalTitle, { color: palette.text.primary }]}>Select Folder</Text>
+            <ScrollView style={{ maxHeight: 300 }}>
+              <Pressable
+                accessibilityRole="button"
+                testID="folder-option-inbox"
+                style={[
+                  styles.folderOption,
+                  folderId === null && { backgroundColor: palette.action.subtle },
+                ]}
+                onPress={() => {
+                  setFolderId(null);
+                  editGenerationRef.current += 1;
+                  setFolderPickerVisible(false);
+                }}
+              >
+                <Text style={[styles.folderOptionText, { color: palette.text.primary }]}>
+                  📁 Inbox (Unfiled)
+                </Text>
+              </Pressable>
+              {folders.map((f) => (
+                <Pressable
+                  key={f.id}
+                  accessibilityRole="button"
+                  testID={`folder-option-${f.id}`}
+                  style={[
+                    styles.folderOption,
+                    folderId === f.id && { backgroundColor: palette.action.subtle },
+                  ]}
+                  onPress={() => {
+                    setFolderId(f.id);
+                    editGenerationRef.current += 1;
+                    setFolderPickerVisible(false);
+                  }}
+                >
+                  <Text style={[styles.folderOptionText, { color: palette.text.primary }]}>
+                    📁 {f.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Conflict recovery modal banner */}
       {conflict && (
         <View
+          testID="conflict-banner"
           style={[
             styles.conflictBanner,
             {
@@ -350,40 +757,44 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
               borderColor: palette.status.warningBorder,
             },
           ]}
-          testID="mobile-conflict-banner"
-          accessibilityRole="alert"
         >
           <Text style={[styles.conflictTitle, { color: palette.status.warning }]}>
-            ⚠️ Sync Conflict: Another device edited this note (Server Rev {conflict.serverRevision})
+            ⚠️ Sync Conflict (Server Rev {conflict.serverRevision})
+          </Text>
+          <Text style={[styles.conflictSubtitle, { color: palette.text.primary }]}>
+            Choose how to resolve concurrent changes:
           </Text>
           <View style={styles.conflictActions}>
             <Pressable
-              style={[styles.conflictBtn, { backgroundColor: palette.surface }]}
-              onPress={() => onResolveConflict && onResolveConflict('keep_server')}
               accessibilityRole="button"
               accessibilityLabel="Keep server version"
+              testID="resolve-keep-server"
+              style={[styles.conflictBtn, { backgroundColor: palette.surface }]}
+              onPress={() => onResolveConflict && onResolveConflict('keep_server')}
             >
-              <Text style={{ color: palette.text.primary, fontSize: 12, fontWeight: '600' }}>
+              <Text style={[styles.conflictBtnText, { color: palette.text.primary }]}>
                 Keep Server
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.conflictBtn, { backgroundColor: palette.surface }]}
-              onPress={() => onResolveConflict && onResolveConflict('keep_local')}
               accessibilityRole="button"
               accessibilityLabel="Keep local version"
+              testID="resolve-keep-local"
+              style={[styles.conflictBtn, { backgroundColor: palette.surface }]}
+              onPress={() => onResolveConflict && onResolveConflict('keep_local')}
             >
-              <Text style={{ color: palette.text.primary, fontSize: 12, fontWeight: '600' }}>
+              <Text style={[styles.conflictBtnText, { color: palette.text.primary }]}>
                 Keep Local
               </Text>
             </Pressable>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save as copy"
+              testID="resolve-save-copy"
               style={[styles.conflictBtn, { backgroundColor: palette.action.primary }]}
               onPress={() => onResolveConflict && onResolveConflict('save_copy')}
-              accessibilityRole="button"
-              accessibilityLabel="Save as separate copy"
             >
-              <Text style={{ color: palette.action.label, fontSize: 12, fontWeight: '600' }}>
+              <Text style={[styles.conflictBtnText, { color: palette.text.inverse }]}>
                 Save Copy
               </Text>
             </Pressable>
@@ -391,262 +802,212 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
         </View>
       )}
 
-      {/* Top Header & Restrained Toolbar */}
-      <View
-        style={[
-          styles.toolbar,
-          { backgroundColor: palette.surfaceRaised, borderColor: palette.border.subtle },
-        ]}
-      >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.toolbarScroll}
-        >
+      {/* 48dp Minimum Touch Target Formatting Toolbar */}
+      <View style={[styles.toolbar, { borderBottomColor: palette.border.subtle }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              { borderColor: palette.border.subtle, backgroundColor: palette.surface },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Paragraph format"
+            testID="mobile-format-paragraph"
             onPress={() => setBlockType('paragraph')}
-            accessibilityLabel="Format paragraph"
+            style={styles.toolBtn}
           >
-            <Text style={[styles.toolbarBtnText, { color: palette.text.primary }]}>¶</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>¶</Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              { borderColor: palette.border.subtle, backgroundColor: palette.surface },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Heading 1 format"
+            testID="mobile-format-h1"
             onPress={() => setBlockType('h1')}
-            accessibilityLabel="Format heading 1"
+            style={styles.toolBtn}
           >
-            <Text
-              style={[styles.toolbarBtnText, { color: palette.text.primary, fontWeight: '700' }]}
-            >
+            <Text style={[styles.toolBtnText, { color: palette.text.primary, fontWeight: 'bold' }]}>
               H1
             </Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              { borderColor: palette.border.subtle, backgroundColor: palette.surface },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Heading 2 format"
+            testID="mobile-format-h2"
             onPress={() => setBlockType('h2')}
-            accessibilityLabel="Format heading 2"
+            style={styles.toolBtn}
           >
-            <Text
-              style={[styles.toolbarBtnText, { color: palette.text.primary, fontWeight: '700' }]}
-            >
+            <Text style={[styles.toolBtnText, { color: palette.text.primary, fontWeight: 'bold' }]}>
               H2
             </Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              { borderColor: palette.border.subtle, backgroundColor: palette.surface },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Heading 3 format"
+            testID="mobile-format-h3"
             onPress={() => setBlockType('h3')}
-            accessibilityLabel="Format heading 3"
+            style={styles.toolBtn}
           >
-            <Text
-              style={[styles.toolbarBtnText, { color: palette.text.primary, fontWeight: '700' }]}
-            >
+            <Text style={[styles.toolBtnText, { color: palette.text.primary, fontWeight: 'bold' }]}>
               H3
             </Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              { borderColor: palette.border.subtle, backgroundColor: palette.surface },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle bold"
+            testID="mobile-format-bold"
+            onPress={toggleBlockBold}
+            style={styles.toolBtn}
+          >
+            <Text style={[styles.toolBtnText, { color: palette.text.primary, fontWeight: 'bold' }]}>
+              B
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Bullet list format"
+            testID="mobile-format-bullet"
             onPress={() => setBlockType('bullet')}
-            accessibilityLabel="Format bullet list"
+            style={styles.toolBtn}
           >
-            <Text style={[styles.toolbarBtnText, { color: palette.text.primary }]}>• List</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>• List</Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              { borderColor: palette.border.subtle, backgroundColor: palette.surface },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Ordered list format"
+            testID="mobile-format-ordered"
             onPress={() => setBlockType('ordered')}
-            accessibilityLabel="Format numbered list"
+            style={styles.toolBtn}
           >
-            <Text style={[styles.toolbarBtnText, { color: palette.text.primary }]}>1. List</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>1. List</Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              { borderColor: palette.border.subtle, backgroundColor: palette.surface },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Checklist format"
+            testID="mobile-format-checklist"
             onPress={() => setBlockType('checklist')}
-            accessibilityLabel="Format checklist"
+            style={styles.toolBtn}
           >
-            <Text style={[styles.toolbarBtnText, { color: palette.text.primary }]}>☑ Check</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>☑ Check</Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              {
-                borderColor: palette.border.subtle,
-                backgroundColor: palette.surface,
-                opacity: undoStack.length > 0 ? 1 : 0.4,
-              },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Undo"
+            testID="mobile-editor-undo"
             disabled={undoStack.length === 0}
             onPress={handleUndo}
-            accessibilityLabel="Undo"
+            style={[styles.toolBtn, undoStack.length === 0 && { opacity: 0.4 }]}
           >
-            <Text style={[styles.toolbarBtnText, { color: palette.text.primary }]}>↩</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>↩</Text>
           </Pressable>
           <Pressable
-            style={[
-              styles.toolbarBtn,
-              {
-                borderColor: palette.border.subtle,
-                backgroundColor: palette.surface,
-                opacity: redoStack.length > 0 ? 1 : 0.4,
-              },
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Redo"
+            testID="mobile-editor-redo"
             disabled={redoStack.length === 0}
             onPress={handleRedo}
-            accessibilityLabel="Redo"
+            style={[styles.toolBtn, redoStack.length === 0 && { opacity: 0.4 }]}
           >
-            <Text style={[styles.toolbarBtnText, { color: palette.text.primary }]}>↪</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>↪</Text>
           </Pressable>
         </ScrollView>
       </View>
 
-      {/* Status Bar */}
-      <View style={[styles.statusBar, { borderBottomColor: palette.border.subtle }]}>
-        <View style={styles.statusGroup}>
-          <Text style={[styles.statusText, { color: palette.text.secondary }]}>
-            💾 {localSaveStatus}
-          </Text>
-          <Text style={[styles.statusText, { color: palette.text.secondary }]}>•</Text>
-          <Text style={[styles.statusText, { color: palette.text.secondary }]}>
-            ☁️ {cloudSyncStatus}
-          </Text>
-        </View>
-        <Text style={[styles.statusText, { color: palette.text.secondary }]}>
-          {wordCount} words • {charCount} chars
-        </Text>
-        <View style={styles.actionBtns}>
-          {onClose && (
-            <Pressable
-              onPress={onClose}
-              style={[
-                styles.headerActionBtn,
-                { backgroundColor: palette.surfaceRaised, borderColor: palette.border.subtle },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Done editing"
-            >
-              <Text style={{ color: palette.text.primary, fontSize: 13, fontWeight: '600' }}>
-                Done
-              </Text>
-            </Pressable>
-          )}
-          {onDelete && (
-            <Pressable
-              onPress={onDelete}
-              style={[
-                styles.headerActionBtn,
-                {
-                  backgroundColor: palette.status.dangerBg,
-                  borderColor: palette.status.dangerBorder,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Trash note"
-            >
-              <Text style={{ color: palette.status.danger, fontSize: 13, fontWeight: '600' }}>
-                Trash
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* Editor Body */}
-      <ScrollView style={styles.canvas} contentContainerStyle={styles.canvasContent}>
-        {/* Title Input */}
+      {/* Editor Canvas */}
+      <ScrollView contentContainerStyle={styles.canvas}>
         <TextInput
-          style={[styles.titleInput, { color: palette.text.primary }]}
-          value={title}
+          accessibilityLabel="Note title"
           placeholder="Untitled note..."
           placeholderTextColor={palette.text.muted}
-          editable={!readOnly}
-          onChangeText={(text) => {
-            setTitle(text);
-            isDirtyRef.current = true;
+          value={title}
+          onChangeText={(val) => {
+            setTitle(val);
+            editGenerationRef.current += 1;
+            setSaveError(null);
           }}
-          accessibilityLabel="Note title"
+          editable={!readOnly}
+          style={[styles.titleInput, { color: palette.text.primary }]}
         />
 
-        {/* Structured Blocks */}
         <View style={styles.blocksContainer}>
           {doc.content.map((block: NoteBlockNode) => {
             switch (block.type) {
               case 'paragraph': {
                 const blockId = block.id || 'p-0';
-                const textNode = block.content?.[0] as NoteTextInline | undefined;
-                const text = textNode?.type === 'text' ? textNode.text : '';
+                const text = extractInlineText(block.content);
                 return (
-                  <TextInput
-                    key={blockId}
-                    style={[styles.paragraphInput, { color: palette.text.primary }]}
-                    value={text}
-                    placeholder="Type your thought..."
-                    placeholderTextColor={palette.text.muted}
-                    multiline
-                    editable={!readOnly}
-                    onFocus={() => setActiveBlockId(blockId)}
-                    onChangeText={(newText) => updateBlockText(blockId, newText)}
-                    accessibilityLabel="Paragraph block"
-                  />
+                  <View key={blockId} style={styles.blockRow}>
+                    <TextInput
+                      multiline={true}
+                      scrollEnabled={false}
+                      accessibilityLabel="Paragraph block"
+                      testID={`mobile-block-paragraph-${blockId}`}
+                      placeholder="Type a thought..."
+                      placeholderTextColor={palette.text.muted}
+                      value={text}
+                      onFocus={() => setActiveBlockId(blockId)}
+                      onSelectionChange={(e) => {
+                        selectionMapRef.current.set(blockId, e.nativeEvent.selection);
+                      }}
+                      onChangeText={(val) => updateBlockText(blockId, val)}
+                      onSubmitEditing={() => handleAddBlockBelow(blockId)}
+                      editable={!readOnly}
+                      style={[styles.paragraphInput, { color: palette.text.primary }]}
+                    />
+                  </View>
                 );
               }
               case 'heading': {
                 const blockId = block.id || 'h-0';
-                const textNode = block.content?.[0] as NoteTextInline | undefined;
-                const text = textNode?.type === 'text' ? textNode.text : '';
-                const fontSize = block.level === 1 ? 22 : block.level === 2 ? 18 : 16;
+                const text = extractInlineText(block.content);
+                const fontSize = block.level === 1 ? 26 : block.level === 2 ? 22 : 18;
                 return (
-                  <TextInput
-                    key={blockId}
-                    style={[styles.headingInput, { color: palette.text.primary, fontSize }]}
-                    value={text}
-                    placeholder={`Heading ${block.level}...`}
-                    placeholderTextColor={palette.text.muted}
-                    editable={!readOnly}
-                    onFocus={() => setActiveBlockId(blockId)}
-                    onChangeText={(newText) => updateBlockText(blockId, newText)}
-                    accessibilityLabel={`Heading ${block.level} block`}
-                  />
+                  <View key={blockId} style={styles.blockRow}>
+                    <TextInput
+                      multiline={true}
+                      scrollEnabled={false}
+                      accessibilityLabel={`Heading ${block.level} block`}
+                      testID={`mobile-block-heading-${blockId}`}
+                      placeholder={`Heading ${block.level}...`}
+                      placeholderTextColor={palette.text.muted}
+                      value={text}
+                      onFocus={() => setActiveBlockId(blockId)}
+                      onSelectionChange={(e) => {
+                        selectionMapRef.current.set(blockId, e.nativeEvent.selection);
+                      }}
+                      onChangeText={(val) => updateBlockText(blockId, val)}
+                      onSubmitEditing={() => handleAddBlockBelow(blockId)}
+                      editable={!readOnly}
+                      style={[
+                        styles.headingInput,
+                        { fontSize, color: palette.text.primary, fontWeight: 'bold' },
+                      ]}
+                    />
+                  </View>
                 );
               }
               case 'bullet_list': {
                 return (
                   <View key={block.id || 'bl-0'} style={styles.listContainer}>
                     {block.items.map((it: NoteListItemNode) => {
-                      const text = it.content?.[0]?.type === 'text' ? it.content[0].text : '';
-                      const itemId = it.id || 'li-0';
+                      const itemId = it.id || 'bli-0';
+                      const text = extractInlineText(it.content);
                       return (
                         <View key={itemId} style={styles.listItemRow}>
-                          <Text style={[styles.bulletPoint, { color: palette.text.primary }]}>
+                          <Text style={[styles.bulletBullet, { color: palette.text.secondary }]}>
                             •
                           </Text>
                           <TextInput
-                            style={[styles.listItemInput, { color: palette.text.primary }]}
-                            value={text}
+                            multiline={true}
+                            scrollEnabled={false}
+                            accessibilityLabel="Bullet list item"
+                            testID={`mobile-block-listitem-${itemId}`}
                             placeholder="List item..."
                             placeholderTextColor={palette.text.muted}
-                            editable={!readOnly}
+                            value={text}
                             onFocus={() => setActiveBlockId(itemId)}
-                            onChangeText={(newText) => updateBlockText(itemId, newText)}
-                            accessibilityLabel="Bullet list item"
+                            onSelectionChange={(e) => {
+                              selectionMapRef.current.set(itemId, e.nativeEvent.selection);
+                            }}
+                            onChangeText={(val) => updateBlockText(itemId, val)}
+                            onSubmitEditing={() => handleAddBlockBelow(itemId)}
+                            editable={!readOnly}
+                            style={[styles.itemInput, { color: palette.text.primary }]}
                           />
                         </View>
                       );
@@ -658,22 +1019,29 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
                 return (
                   <View key={block.id || 'ol-0'} style={styles.listContainer}>
                     {block.items.map((it: NoteListItemNode, idx: number) => {
-                      const text = it.content?.[0]?.type === 'text' ? it.content[0].text : '';
                       const itemId = it.id || 'oli-0';
+                      const text = extractInlineText(it.content);
                       return (
                         <View key={itemId} style={styles.listItemRow}>
-                          <Text style={[styles.orderedNumber, { color: palette.text.secondary }]}>
+                          <Text style={[styles.bulletBullet, { color: palette.text.secondary }]}>
                             {idx + 1}.
                           </Text>
                           <TextInput
-                            style={[styles.listItemInput, { color: palette.text.primary }]}
-                            value={text}
-                            placeholder="Numbered item..."
+                            multiline={true}
+                            scrollEnabled={false}
+                            accessibilityLabel="Numbered list item"
+                            testID={`mobile-block-ordereditem-${itemId}`}
+                            placeholder="List item..."
                             placeholderTextColor={palette.text.muted}
-                            editable={!readOnly}
+                            value={text}
                             onFocus={() => setActiveBlockId(itemId)}
-                            onChangeText={(newText) => updateBlockText(itemId, newText)}
-                            accessibilityLabel={`Item ${idx + 1}`}
+                            onSelectionChange={(e) => {
+                              selectionMapRef.current.set(itemId, e.nativeEvent.selection);
+                            }}
+                            onChangeText={(val) => updateBlockText(itemId, val)}
+                            onSubmitEditing={() => handleAddBlockBelow(itemId)}
+                            editable={!readOnly}
+                            style={[styles.itemInput, { color: palette.text.primary }]}
                           />
                         </View>
                       );
@@ -685,52 +1053,46 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
                 return (
                   <View key={block.id || 'cl-0'} style={styles.listContainer}>
                     {block.items.map((it: NoteChecklistItemNode) => {
-                      const text = it.content?.[0]?.type === 'text' ? it.content[0].text : '';
                       const itemId = it.id || 'cli-0';
+                      const text = extractInlineText(it.content);
                       return (
-                        <View key={itemId} style={styles.checkItemRow}>
+                        <View key={itemId} style={styles.checklistRow}>
                           <Pressable
-                            onPress={() => toggleChecklistItem(itemId, !it.checked)}
-                            style={[
-                              styles.checkbox,
-                              {
-                                borderColor: palette.border.strong,
-                                backgroundColor: it.checked
-                                  ? palette.action.primary
-                                  : 'transparent',
-                              },
-                            ]}
                             accessibilityRole="checkbox"
                             accessibilityState={{ checked: it.checked }}
-                            accessibilityLabel={`Checkbox for ${text || 'item'}`}
+                            accessibilityLabel="Toggle checklist item"
+                            testID={`mobile-checklist-toggle-${itemId}`}
+                            onPress={() => toggleChecklistItem(itemId, !it.checked)}
+                            style={[
+                              styles.checkboxBox,
+                              { borderColor: palette.border.subtle },
+                              it.checked && { backgroundColor: palette.action.primary },
+                            ]}
                           >
-                            {it.checked && (
-                              <Text
-                                style={{
-                                  color: palette.action.label,
-                                  fontSize: 12,
-                                  fontWeight: '700',
-                                }}
-                              >
-                                ✓
-                              </Text>
-                            )}
+                            {it.checked && <Text style={styles.checkmark}>✓</Text>}
                           </Pressable>
                           <TextInput
+                            multiline={true}
+                            scrollEnabled={false}
+                            accessibilityLabel="Checklist item"
+                            testID={`mobile-block-checklistitem-${itemId}`}
+                            placeholder="Task..."
+                            placeholderTextColor={palette.text.muted}
+                            value={text}
+                            onFocus={() => setActiveBlockId(itemId)}
+                            onSelectionChange={(e) => {
+                              selectionMapRef.current.set(itemId, e.nativeEvent.selection);
+                            }}
+                            onChangeText={(val) => updateBlockText(itemId, val)}
+                            onSubmitEditing={() => handleAddBlockBelow(itemId)}
+                            editable={!readOnly}
                             style={[
-                              styles.checkItemInput,
+                              styles.itemInput,
                               {
                                 color: it.checked ? palette.text.muted : palette.text.primary,
                                 textDecorationLine: it.checked ? 'line-through' : 'none',
                               },
                             ]}
-                            value={text}
-                            placeholder="To-do item..."
-                            placeholderTextColor={palette.text.muted}
-                            editable={!readOnly}
-                            onFocus={() => setActiveBlockId(itemId)}
-                            onChangeText={(newText) => updateBlockText(itemId, newText)}
-                            accessibilityLabel="Checklist item text"
                           />
                         </View>
                       );
@@ -742,16 +1104,6 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
                 return null;
             }
           })}
-
-          {/* Add block button */}
-          <Pressable
-            onPress={addBlock}
-            style={[styles.addBlockBtn, { borderColor: palette.border.subtle }]}
-            accessibilityRole="button"
-            accessibilityLabel="Add new paragraph block"
-          >
-            <Text style={{ color: palette.text.secondary, fontSize: 14 }}>+ Add Paragraph</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -762,96 +1114,157 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  conflictBanner: {
-    padding: spacing.sm,
+  header: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  headerMetricsText: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
+  actionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    minHeight: 48,
+    minWidth: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  saveErrorBanner: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  saveErrorText: {
+    fontSize: 12,
+    flex: 1,
+  },
+  retryBtn: {
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+  },
+  retryBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    padding: spacing.md,
+    borderTopLeftRadius: radii.card,
+    borderTopRightRadius: radii.card,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: spacing.sm,
+  },
+  folderOption: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radii.sm,
+  },
+  folderOptionText: {
+    fontSize: 15,
+  },
+  conflictBanner: {
+    margin: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.sm,
+    borderWidth: 1,
   },
   conflictTitle: {
     fontSize: 13,
     fontWeight: '700',
-    marginBottom: spacing.xs,
+  },
+  conflictSubtitle: {
+    fontSize: 12,
+    marginVertical: 4,
   },
   conflictActions: {
     flexDirection: 'row',
     gap: spacing.xs,
+    marginTop: 4,
   },
   conflictBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: '#ccc',
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  conflictBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   toolbar: {
-    borderBottomWidth: 1,
-    paddingVertical: spacing.xs,
-  },
-  toolbarScroll: {
-    flexDirection: 'row',
-    gap: spacing.xs,
     paddingHorizontal: spacing.sm,
-  },
-  toolbarBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    minHeight: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  toolbarBtnText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-  },
-  statusGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statusText: {
-    fontSize: 11,
-  },
-  actionBtns: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  headerActionBtn: {
-    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radii.sm,
-    borderWidth: 1,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+  },
+  toolBtn: {
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    marginRight: 4,
+  },
+  toolBtnText: {
+    fontSize: 14,
   },
   canvas: {
-    flex: 1,
-  },
-  canvasContent: {
     padding: spacing.md,
   },
   titleInput: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: 'bold',
     marginBottom: spacing.md,
     padding: 0,
   },
   blocksContainer: {
     gap: spacing.sm,
   },
+  blockRow: {
+    minHeight: 32,
+  },
   paragraphInput: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
     padding: 0,
   },
   headingInput: {
-    fontWeight: '700',
     padding: 0,
   },
   listContainer: {
@@ -859,46 +1272,37 @@ const styles = StyleSheet.create({
   },
   listItemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.xs,
   },
-  bulletPoint: {
+  bulletBullet: {
     fontSize: 16,
-    width: 14,
+    lineHeight: 24,
+    width: 20,
   },
-  orderedNumber: {
-    fontSize: 14,
-    width: 22,
-  },
-  listItemInput: {
+  itemInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
+    lineHeight: 24,
     padding: 0,
   },
-  checkItemRow: {
+  checklistRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.sm,
   },
-  checkbox: {
-    width: 20,
-    height: 20,
+  checkboxBox: {
+    width: 22,
+    height: 22,
     borderRadius: 4,
-    borderWidth: 2,
+    borderWidth: 1.5,
+    marginTop: 2,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  checkItemInput: {
-    flex: 1,
-    fontSize: 15,
-    padding: 0,
-  },
-  addBlockBtn: {
-    paddingVertical: 8,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    marginTop: spacing.sm,
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

@@ -126,5 +126,4 @@ node scripts/validate-planning.mjs
 ## Handoff
 
 - **Completed Deliverable:** Phase 17 focused note editor on web and mobile with direct AST editing, debounced autosave, decoupled sync indicators, IME composition protection, and conflict resolution.
-- **Blocked Status:** Physical hardware verification gates remain open for Phases 04–06, 09–17.
-- **Next Phase:** Phase 18 (Voice capture and offline recording pipeline). Note: audio recording must remain distinct from typed note authoring. Stop here as authorized.
+- **Next Phase:** Phase 18 — Upcoming task domain and deadlines. Note: Task domain handles canonical task entities, priority, statuses, and explicit deadline semantics. Audio recording belongs to its separately scheduled phase. Stop here as authorized.

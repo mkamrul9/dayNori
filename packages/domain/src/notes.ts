@@ -326,7 +326,7 @@ export function extractPlainText(
   return parts.join('\n\n').trim();
 }
 
-function extractInlineText(inlines?: NoteInlineNode[]): string {
+export function extractInlineText(inlines?: NoteInlineNode[]): string {
   if (!inlines || !Array.isArray(inlines)) return '';
   let result = '';
   for (const node of inlines) {
@@ -337,6 +337,228 @@ function extractInlineText(inlines?: NoteInlineNode[]): string {
     }
   }
   return result;
+}
+
+/**
+ * Normalizes mark arrays: removes duplicates and sorts them for deterministic equality checks.
+ */
+function normalizeMarks(marks?: NoteMark[]): NoteMark[] | undefined {
+  if (!marks || marks.length === 0) return undefined;
+  const unique = Array.from(new Set(marks)).sort();
+  return unique.length > 0 ? (unique as NoteMark[]) : undefined;
+}
+
+function areMarksEqual(a?: NoteMark[], b?: NoteMark[]): boolean {
+  const normA = normalizeMarks(a);
+  const normB = normalizeMarks(b);
+  if (!normA && !normB) return true;
+  if (!normA || !normB) return false;
+  if (normA.length !== normB.length) return false;
+  return normA.every((m, i) => m === normB[i]);
+}
+
+/**
+ * Normalizes an array of inline nodes:
+ * - Coalesces contiguous text nodes that share identical marks.
+ * - Drops empty text nodes unless it is the only node in the array.
+ */
+export function normalizeInlines(inlines: NoteInlineNode[]): NoteInlineNode[] {
+  if (!inlines || inlines.length === 0) {
+    return [{ type: 'text', text: '' }];
+  }
+
+  const result: NoteInlineNode[] = [];
+  for (const node of inlines) {
+    if (node.type === 'hard_break') {
+      result.push({ type: 'hard_break' });
+      continue;
+    }
+
+    if (node.type === 'text') {
+      if (node.text.length === 0) {
+        continue;
+      }
+      const prev = result[result.length - 1];
+      if (prev && prev.type === 'text' && areMarksEqual(prev.marks, node.marks)) {
+        prev.text += node.text;
+      } else {
+        const marks = normalizeMarks(node.marks);
+        result.push({
+          type: 'text',
+          text: node.text,
+          ...(marks ? { marks } : {}),
+        });
+      }
+    }
+  }
+
+  if (result.length === 0) {
+    return [{ type: 'text', text: '' }];
+  }
+  return result;
+}
+
+/**
+ * Splits an inline node array into [before, after] at the specified plain-text character offset.
+ * If offset falls inside a text node, splits that node preserving marks on both halves.
+ */
+export function splitInlinesAtOffset(
+  inlines: NoteInlineNode[],
+  offset: number
+): [NoteInlineNode[], NoteInlineNode[]] {
+  const normalized = normalizeInlines(inlines);
+  const before: NoteInlineNode[] = [];
+  const after: NoteInlineNode[] = [];
+
+  let currentOffset = 0;
+  let splitDone = false;
+
+  for (const node of normalized) {
+    if (splitDone) {
+      after.push(node);
+      continue;
+    }
+
+    const nodeLen = node.type === 'hard_break' ? 1 : node.text.length;
+    const nodeEnd = currentOffset + nodeLen;
+
+    if (offset <= currentOffset) {
+      // Split point is at or before this node
+      after.push(node);
+      splitDone = true;
+    } else if (offset >= nodeEnd) {
+      // Split point is after this node
+      before.push(node);
+      currentOffset = nodeEnd;
+    } else {
+      // Split point is strictly inside this node
+      if (node.type === 'text') {
+        const splitIndex = offset - currentOffset;
+        const leftText = node.text.slice(0, splitIndex);
+        const rightText = node.text.slice(splitIndex);
+        const marks = normalizeMarks(node.marks);
+
+        if (leftText.length > 0) {
+          before.push({ type: 'text', text: leftText, ...(marks ? { marks } : {}) });
+        }
+        if (rightText.length > 0) {
+          after.push({ type: 'text', text: rightText, ...(marks ? { marks } : {}) });
+        }
+      } else {
+        // Hard break node
+        before.push(node);
+      }
+      splitDone = true;
+      currentOffset = nodeEnd;
+    }
+  }
+
+  return [normalizeInlines(before), normalizeInlines(after)];
+}
+
+/**
+ * Toggles a formatting mark on a sub-range [startOffset, endOffset] of inlines.
+ * If all text in the range already has the mark, removes it; otherwise adds it.
+ * Preserves untouched content before startOffset and after endOffset.
+ */
+export function applyMarkToInlines(
+  inlines: NoteInlineNode[],
+  startOffset: number,
+  endOffset: number,
+  mark: NoteMark
+): NoteInlineNode[] {
+  if (startOffset >= endOffset) {
+    return normalizeInlines(inlines);
+  }
+
+  const [head, tail] = splitInlinesAtOffset(inlines, endOffset);
+  const [beforeRange, targetRange] = splitInlinesAtOffset(head, startOffset);
+
+  // Check if all text nodes in targetRange already possess the mark
+  const textNodes = targetRange.filter((n): n is NoteTextInline => n.type === 'text');
+  const allHaveMark =
+    textNodes.length > 0 && textNodes.every((n) => n.marks && n.marks.includes(mark));
+
+  const updatedTarget: NoteInlineNode[] = targetRange.map((n) => {
+    if (n.type !== 'text') return n;
+    const currentMarks = new Set(n.marks || []);
+    if (allHaveMark) {
+      currentMarks.delete(mark);
+    } else {
+      currentMarks.add(mark);
+    }
+    const marks = normalizeMarks(Array.from(currentMarks));
+    return {
+      type: 'text',
+      text: n.text,
+      ...(marks ? { marks } : {}),
+    };
+  });
+
+  return normalizeInlines([...beforeRange, ...updatedTarget, ...tail]);
+}
+
+/**
+ * Replaces a slice of text between [startOffset, endOffset] with replacementText.
+ * Preserves all untouched runs, marks, and hard breaks before startOffset and after endOffset.
+ * Newlines in replacementText are converted to hard_break nodes.
+ */
+export function replaceTextInRangeInlines(
+  inlines: NoteInlineNode[],
+  startOffset: number,
+  endOffset: number,
+  replacementText: string,
+  explicitMarks?: NoteMark[]
+): NoteInlineNode[] {
+  const [head, tail] = splitInlinesAtOffset(inlines, endOffset);
+  const [beforeRange, removedRange] = splitInlinesAtOffset(head, startOffset);
+
+  // Determine inherited marks for the inserted text
+  let marks = explicitMarks ? normalizeMarks(explicitMarks) : undefined;
+  if (!marks) {
+    const firstRemovedText = removedRange.find((n): n is NoteTextInline => n.type === 'text');
+    if (firstRemovedText?.marks) {
+      marks = normalizeMarks(firstRemovedText.marks);
+    } else {
+      const lastBeforeText = [...beforeRange]
+        .reverse()
+        .find((n): n is NoteTextInline => n.type === 'text');
+      if (lastBeforeText?.marks) {
+        marks = normalizeMarks(lastBeforeText.marks);
+      }
+    }
+  }
+
+  const insertedNodes: NoteInlineNode[] = [];
+  if (replacementText.length > 0) {
+    const lines = replacementText.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      if (i > 0) {
+        insertedNodes.push({ type: 'hard_break' });
+      }
+      const line = lines[i]!;
+      if (line.length > 0 || lines.length === 1) {
+        insertedNodes.push({
+          type: 'text',
+          text: line,
+          ...(marks ? { marks } : {}),
+        });
+      }
+    }
+  }
+
+  return normalizeInlines([...beforeRange, ...insertedNodes, ...tail]);
+}
+
+/**
+ * Inserts a hard break at the given character offset without modifying surrounding content.
+ */
+export function insertHardBreakInlines(
+  inlines: NoteInlineNode[],
+  offset: number
+): NoteInlineNode[] {
+  const [before, after] = splitInlinesAtOffset(inlines, offset);
+  return normalizeInlines([...before, { type: 'hard_break' }, ...after]);
 }
 
 /**
@@ -745,10 +967,10 @@ function validateChecklistItem(item: unknown): NoteChecklistItemNode {
 export function createRecoverableNoteDocument(
   raw: unknown,
   fallbackText = ''
-): { doc: NoteDocument; rawUnsupported?: unknown } {
+): { doc: NoteDocument; rawUnsupported?: unknown; recovered?: boolean } {
   try {
     const doc = validateNoteDocument(raw);
-    return { doc };
+    return { doc, recovered: false };
   } catch {
     const text =
       typeof raw === 'string'
@@ -763,6 +985,7 @@ export function createRecoverableNoteDocument(
     return {
       doc: createNoteDocumentFromPlainText(text),
       rawUnsupported: raw,
+      recovered: true,
     };
   }
 }

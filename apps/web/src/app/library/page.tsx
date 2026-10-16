@@ -1348,63 +1348,31 @@ export default function LibraryPage() {
       const existing = items.find((i) => i.id === editingNote.id);
       const prevRev = existing?.revision ?? 0;
       const isNew = editingNote.isNew;
+      const targetFolderId =
+        saved.folderId !== undefined ? saved.folderId : (currentFolderId ?? null);
+      const createdAt = (existing as { createdAt?: string })?.createdAt || now;
+      const isArchived = Boolean(
+        (existing as { isArchived?: boolean; archivedAt?: unknown })?.isArchived ||
+        (existing as { archivedAt?: unknown })?.archivedAt
+      );
+      const isPinned = Boolean((existing as { isPinned?: boolean })?.isPinned);
 
       const header: ItemHeaderRecord = {
         id: editingNote.id,
         workspaceId: workspaceId || 'ws-local',
         kind: 'note',
         name: saved.title,
-        parentId: saved.folderId ?? currentFolderId ?? null,
-        folderId: saved.folderId ?? currentFolderId ?? null,
+        parentId: targetFolderId,
+        folderId: targetFolderId,
         rank: existing?.rank ?? generateInitialRank(items.length),
         securityScope: 'standard',
-        isArchived: false,
-        isPinned: false,
+        isArchived,
+        isPinned,
         serverRevision: prevRev,
-        createdAt: (existing as { createdAt?: string })?.createdAt ?? now,
+        createdAt,
         updatedAt: now,
         deletedAt: null,
       };
-
-      setEditingNote((prev) =>
-        prev
-          ? {
-              ...prev,
-              isNew: false,
-              title: saved.title,
-              document: saved.document,
-            }
-          : null
-      );
-
-      if (isNew) {
-        setItems((prev) => [
-          {
-            id: editingNote.id,
-            title: saved.title,
-            kind: 'note',
-            folderId: saved.folderId ?? currentFolderId ?? null,
-            rank: header.rank,
-            scope: 'workspace',
-            revision: 1,
-            metadata: 'Note • Just now',
-          },
-          ...prev,
-        ]);
-      } else {
-        setItems((prev) =>
-          prev.map((i) =>
-            i.id === editingNote.id
-              ? {
-                  ...i,
-                  title: saved.title,
-                  folderId: saved.folderId ?? i.folderId,
-                  revision: i.revision + 1,
-                }
-              : i
-          )
-        );
-      }
 
       try {
         if (syncEngineRef.current) {
@@ -1417,11 +1385,22 @@ export default function LibraryPage() {
                 title: saved.title,
                 document: saved.document,
                 plainText: saved.plainText,
-                folderId: saved.folderId ?? currentFolderId ?? null,
+                folderId: targetFolderId,
               },
             }
           );
           setLocalSaveStatus('Saved on device');
+          setEditingNote((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  isNew: false,
+                  title: saved.title,
+                  document: saved.document,
+                  folderId: targetFolderId,
+                }
+              : null
+          );
           if (isOnline) {
             void syncEngineRef.current.syncNow();
           }
@@ -1437,16 +1416,57 @@ export default function LibraryPage() {
               ? saved.plainText.trim().split(/\s+/).filter(Boolean).length
               : 0,
             charCount: saved.plainText.length,
-            folderId: saved.folderId ?? currentFolderId ?? null,
+            folderId: targetFolderId,
             serverRevision: prevRev,
-            createdAt: now,
+            createdAt,
             updatedAt: now,
             deletedAt: null,
           });
           setLocalSaveStatus('Saved on device');
+          setEditingNote((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  isNew: false,
+                  title: saved.title,
+                  document: saved.document,
+                  folderId: targetFolderId,
+                }
+              : null
+          );
         }
-      } catch {
+
+        // Update items list in view only after durable persistence succeeds
+        if (isNew) {
+          setItems((prev) => [
+            {
+              id: editingNote.id,
+              title: saved.title,
+              kind: 'note',
+              folderId: targetFolderId,
+              rank: header.rank,
+              scope: 'workspace',
+              revision: prevRev || 1,
+              metadata: 'Note • Just now',
+            },
+            ...prev,
+          ]);
+        } else {
+          setItems((prev) =>
+            prev.map((i) =>
+              i.id === editingNote.id
+                ? {
+                    ...i,
+                    title: saved.title,
+                    folderId: targetFolderId,
+                  }
+                : i
+            )
+          );
+        }
+      } catch (err) {
         setLocalSaveStatus('Save failed');
+        throw err;
       }
     },
     [editingNote, items, workspaceId, currentFolderId, isOnline]

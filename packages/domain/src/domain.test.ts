@@ -5,6 +5,7 @@ import {
   validateMinorUnitAmount,
   isValidDateOnly,
   parseDateOnly,
+  type NoteTextInline,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -256,6 +257,55 @@ describe('Domain Rules and Invariants', () => {
       };
 
       expect(() => validateNoteDocument(hugeDoc)).toThrow(/NOTE_PAYLOAD_TOO_LARGE/);
+    });
+
+    it('preserves multiple inline runs, marks, and hard breaks during text editing', async () => {
+      const {
+        extractInlineText,
+        splitInlinesAtOffset,
+        applyMarkToInlines,
+        replaceTextInRangeInlines,
+        insertHardBreakInlines,
+      } = await import('./notes.js');
+
+      const inlines = [
+        { type: 'text' as const, text: 'Hello ' },
+        { type: 'text' as const, text: 'bold world', marks: ['bold' as const] },
+        { type: 'hard_break' as const },
+        { type: 'text' as const, text: 'Bangla বাংলা' },
+      ];
+
+      expect(extractInlineText(inlines)).toBe('Hello bold world\nBangla বাংলা');
+
+      // 1. Split at offset 8 (inside "bold world" -> "bo" and "ld world")
+      const [left, right] = splitInlinesAtOffset(inlines, 8);
+      expect(extractInlineText(left)).toBe('Hello bo');
+      expect(extractInlineText(right)).toBe('ld world\nBangla বাংলা');
+      expect(left[1]).toEqual({ type: 'text', text: 'bo', marks: ['bold'] });
+      expect(right[0]).toEqual({ type: 'text', text: 'ld world', marks: ['bold'] });
+
+      // 2. Type in the middle (insert "wonderful " between "bold " and "world")
+      // Plain text: "Hello bold world\nBangla বাংলা"
+      // "Hello bold " length = 11.
+      const edited = replaceTextInRangeInlines(inlines, 11, 11, 'wonderful ');
+      expect(extractInlineText(edited)).toBe('Hello bold wonderful world\nBangla বাংলা');
+      // Untouched content before and after is preserved
+      expect(edited[0]).toEqual({ type: 'text', text: 'Hello ' });
+      expect(edited[edited.length - 1]).toEqual({ type: 'text', text: 'Bangla বাংলা' });
+      expect(edited.some((n) => n.type === 'hard_break')).toBe(true);
+
+      // 3. Apply mark to selection without destroying surrounding text
+      // Select "Bangla" (offset: "Hello bold world\n" = 17 to 23)
+      const boldBangla = applyMarkToInlines(inlines, 17, 23, 'bold');
+      expect(extractInlineText(boldBangla)).toBe('Hello bold world\nBangla বাংলা');
+      const banglaNode = boldBangla.find(
+        (n): n is NoteTextInline => n.type === 'text' && n.text.includes('Bangla')
+      );
+      expect(banglaNode?.marks).toContain('bold');
+
+      // 4. Insert hard break at offset 6
+      const broken = insertHardBreakInlines(inlines, 6);
+      expect(extractInlineText(broken)).toBe('Hello \nbold world\nBangla বাংলা');
     });
   });
 });

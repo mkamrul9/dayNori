@@ -915,65 +915,34 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (!editingNote) return;
     const now = new Date().toISOString();
     const existing = items.find((i) => i.id === editingNote.id);
-    const prevRev = existing?.revision ?? 0;
+    const prevRev = (existing as { revision?: number })?.revision ?? 0;
     const isNew = editingNote.isNew;
-
-    setEditingNote((prev) =>
-      prev
-        ? {
-            ...prev,
-            isNew: false,
-            title: saved.title,
-            document: saved.document,
-          }
-        : null
+    const targetFolderId =
+      saved.folderId !== undefined ? saved.folderId : (currentFolderId ?? null);
+    const createdAt = (existing as { createdAt?: string })?.createdAt || now;
+    const isArchived = Boolean(
+      (existing as { isArchived?: boolean; archivedAt?: unknown })?.isArchived ||
+      (existing as { archivedAt?: unknown })?.archivedAt
     );
-
-    if (isNew) {
-      setItems((prev) => [
-        {
-          id: editingNote.id,
-          title: saved.title,
-          kind: 'note',
-          folderId: saved.folderId ?? currentFolderId ?? null,
-          rank: existing?.rank ?? generateInitialRank(items.length),
-          revision: 1,
-          metadata: 'Note • Just now',
-        },
-        ...prev,
-      ]);
-    } else {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === editingNote.id
-            ? {
-                ...i,
-                title: saved.title,
-                folderId: saved.folderId ?? i.folderId,
-                revision: i.revision + 1,
-              }
-            : i
-        )
-      );
-    }
+    const isPinned = Boolean((existing as { isPinned?: boolean })?.isPinned);
 
     setLocalStatus('Saving locally...');
-    if (syncEngine && workspaceId) {
-      try {
+    try {
+      if (syncEngine && workspaceId) {
         await syncEngine.saveItem(
           {
             id: editingNote.id,
             workspaceId,
             kind: 'note',
             name: saved.title,
-            parentId: saved.folderId ?? currentFolderId ?? null,
-            folderId: saved.folderId ?? currentFolderId ?? null,
+            parentId: targetFolderId,
+            folderId: targetFolderId,
             rank: existing?.rank ?? generateInitialRank(items.length),
             securityScope: 'standard',
-            isArchived: false,
-            isPinned: false,
+            isArchived,
+            isPinned,
             serverRevision: prevRev,
-            createdAt: now,
+            createdAt,
             updatedAt: now,
             deletedAt: null,
           },
@@ -984,20 +953,27 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               title: saved.title,
               document: saved.document,
               plainText: saved.plainText,
-              folderId: saved.folderId ?? currentFolderId ?? null,
+              folderId: targetFolderId,
             },
           }
         );
         setLocalStatus('Saved locally');
+        setEditingNote((prev) =>
+          prev
+            ? {
+                ...prev,
+                isNew: false,
+                title: saved.title,
+                document: saved.document,
+                folderId: targetFolderId,
+              }
+            : null
+        );
         void syncEngine.syncNow().catch(() => {});
-      } catch {
-        setLocalStatus('Save failed');
-      }
-    } else {
-      const repo =
-        repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
-      if (repo && workspaceId) {
-        try {
+      } else {
+        const repo =
+          repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+        if (repo && workspaceId) {
           await repo.upsertNote({
             id: editingNote.id,
             workspaceId,
@@ -1008,17 +984,58 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               ? saved.plainText.trim().split(/\s+/).filter(Boolean).length
               : 0,
             charCount: saved.plainText.length,
-            folderId: saved.folderId ?? currentFolderId ?? null,
+            folderId: targetFolderId,
             serverRevision: prevRev,
-            createdAt: now,
+            createdAt,
             updatedAt: now,
             deletedAt: null,
           });
           setLocalStatus('Saved locally');
-        } catch {
-          setLocalStatus('Save failed');
+          setEditingNote((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  isNew: false,
+                  title: saved.title,
+                  document: saved.document,
+                  folderId: targetFolderId,
+                }
+              : null
+          );
         }
       }
+
+      // Update items list in view only after durable persistence succeeds
+      if (isNew) {
+        setItems((prev) => [
+          {
+            id: editingNote.id,
+            title: saved.title,
+            kind: 'note',
+            folderId: targetFolderId,
+            rank: existing?.rank ?? generateInitialRank(items.length),
+            revision: prevRev || 1,
+            metadata: 'Note • Just now',
+          },
+          ...prev,
+        ]);
+      } else {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === editingNote.id
+              ? {
+                  ...i,
+                  title: saved.title,
+                  folderId: targetFolderId,
+                  revision: (i.revision || 0) + 1,
+                }
+              : i
+          )
+        );
+      }
+    } catch (err) {
+      setLocalStatus('Save failed');
+      throw err;
     }
   };
 
@@ -1028,11 +1045,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       try {
         await syncEngine.resolveConflict(editingNote.id, resolution);
         void syncEngine.syncNow().catch(() => {});
-      } catch {
-        /* ignore */
+        setEditingNote((prev) => (prev ? { ...prev, conflict: null } : null));
+      } catch (err) {
+        // Do not clear conflict banner if resolution failed
+        console.error('Failed to resolve conflict:', err);
       }
     }
-    setEditingNote((prev) => (prev ? { ...prev, conflict: null } : null));
   };
 
   const handleDeleteNote = async () => {

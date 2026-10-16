@@ -5,13 +5,17 @@ import {
   type NoteBlockNode,
   type NoteListItemNode,
   type NoteChecklistItemNode,
-  type NoteTextInline,
+  type NoteInlineNode,
+  type NoteMark,
   extractPlainText,
+  extractInlineText,
   resolveNoteTitle,
   calculateCharCount,
   calculateWordCount,
   generateUuid,
-  validateNoteDocument,
+  createRecoverableNoteDocument,
+  applyMarkToInlines,
+  normalizeInlines,
 } from '@daynori/domain';
 import { Button } from './Button.js';
 
@@ -44,6 +48,57 @@ export interface NoteEditorProps {
   autoFocus?: boolean;
 }
 
+/**
+ * Traverses an HTML DOM container to serialize rich child nodes back into canonical NoteInlineNode[].
+ * Correctly detects <strong>, <b>, <em>, <i>, font-weight/style inline styles, <br>, and plain text.
+ */
+function parseDomToInlines(container: HTMLElement): NoteInlineNode[] {
+  const inlines: NoteInlineNode[] = [];
+
+  function walk(node: Node, currentMarks: Set<NoteMark>) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.nodeValue || '';
+      if (text.length > 0) {
+        const marks = Array.from(currentMarks);
+        inlines.push({
+          type: 'text',
+          text,
+          ...(marks.length > 0 ? { marks: marks.sort() as NoteMark[] } : {}),
+        });
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.tagName === 'BR') {
+        inlines.push({ type: 'hard_break' });
+        return;
+      }
+
+      const nextMarks = new Set(currentMarks);
+      if (
+        el.tagName === 'STRONG' ||
+        el.tagName === 'B' ||
+        el.style.fontWeight === 'bold' ||
+        el.style.fontWeight === '700'
+      ) {
+        nextMarks.add('bold');
+      }
+      if (el.tagName === 'EM' || el.tagName === 'I' || el.style.fontStyle === 'italic') {
+        nextMarks.add('italic');
+      }
+
+      for (const child of Array.from(el.childNodes)) {
+        walk(child, nextMarks);
+      }
+    }
+  }
+
+  for (const child of Array.from(container.childNodes)) {
+    walk(child, new Set());
+  }
+
+  return normalizeInlines(inlines);
+}
+
 export function NoteEditor({
   id = 'note-editor',
   initialTitle = '',
@@ -70,16 +125,12 @@ export function NoteEditor({
   const [title, setTitle] = useState(initialTitle);
   const [folderId, setFolderId] = useState<string | null>(initialFolderId);
 
+  // Recoverable initial document: never silently drops invalid schemas into empty docs
   const initialDocResolved = useMemo<NoteDocument>(() => {
-    if (
-      initialDocument &&
-      Array.isArray(initialDocument.content) &&
-      initialDocument.content.length > 0
-    ) {
-      try {
-        return validateNoteDocument(initialDocument);
-      } catch {
-        // Fallback to minimal valid document
+    if (initialDocument) {
+      const { doc } = createRecoverableNoteDocument(initialDocument);
+      if (doc.content.length > 0) {
+        return doc;
       }
     }
     return {
@@ -103,8 +154,7 @@ export function NoteEditor({
 
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const isComposingRef = useRef(false);
-  const isDirtyRef = useRef(false);
-  const blockRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
+  const blockRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   // Metrics
   const plainText = useMemo(() => extractPlainText(doc), [doc]);
@@ -115,115 +165,157 @@ export function NoteEditor({
     [title, plainText]
   );
 
-  // Keep focus and selection stable during autosave
-  const debouncedSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 2. Reliable Autosave Lifecycle
+  const editGenerationRef = useRef(0);
+  const lastSavedGenerationRef = useRef(0);
+  const isSavingRef = useRef(false);
+  const hasPendingSaveRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const triggerSave = useCallback(() => {
-    if (onSave && isDirtyRef.current) {
-      isDirtyRef.current = false;
-      const cleanTitle = resolveNoteTitle(title, 'Untitled', plainText);
-      void onSave({
-        title: cleanTitle,
-        document: doc,
-        plainText,
-        folderId: folderId ?? undefined,
-      });
-    }
-  }, [title, doc, plainText, folderId, onSave]);
+  const latestSnapshotRef = useRef({ title, doc, folderId, plainText });
+  latestSnapshotRef.current = { title, doc, folderId, plainText };
 
-  // Autosave with 600ms debounce
-  useEffect(() => {
-    if (readOnly) return;
-    if (debouncedSaveRef.current) {
-      clearTimeout(debouncedSaveRef.current);
-    }
-    debouncedSaveRef.current = setTimeout(() => {
-      triggerSave();
-    }, 600);
-
-    return () => {
-      if (debouncedSaveRef.current) {
-        clearTimeout(debouncedSaveRef.current);
-      }
-    };
-  }, [title, doc, folderId, triggerSave, readOnly]);
-
-  // Flush save on unmount if dirty
-  useEffect(() => {
-    return () => {
-      if (isDirtyRef.current) {
-        triggerSave();
-      }
-    };
-  }, [triggerSave]);
-
-  // Focus management
-  const focusBlock = (blockId: string, atEnd = false) => {
-    setActiveBlockId(blockId);
-    setTimeout(() => {
-      const el = blockRefs.current.get(blockId);
-      if (el) {
-        el.focus();
-        if (atEnd) {
-          const len = el.value.length;
-          el.setSelectionRange(len, len);
-        }
-      }
-    }, 0);
-  };
+  const latestOnSaveRef = useRef(onSave);
+  latestOnSaveRef.current = onSave;
 
   // Push to undo stack before mutating
-  const mutateDoc = (updater: (prev: NoteDocument) => NoteDocument) => {
+  const mutateDoc = useCallback((updater: (prev: NoteDocument) => NoteDocument) => {
     setDoc((prev: NoteDocument) => {
       const next = updater(prev);
-      setUndoStack((u) => [...u.slice(-30), prev]);
+      setUndoStack((u) => [...u.slice(-49), prev]);
       setRedoStack([]);
       return next;
     });
-    isDirtyRef.current = true;
-  };
+    editGenerationRef.current += 1;
+    setSaveError(null);
+  }, []);
 
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
     const previous = undoStack[undoStack.length - 1];
     if (!previous) return;
     setUndoStack((u) => u.slice(0, -1));
     setRedoStack((r) => [...r, doc]);
     setDoc(previous);
-    isDirtyRef.current = true;
-  };
+    editGenerationRef.current += 1;
+  }, [undoStack, doc]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
     const next = redoStack[redoStack.length - 1];
     if (!next) return;
     setRedoStack((r) => r.slice(0, -1));
     setUndoStack((u) => [...u, doc]);
     setDoc(next);
-    isDirtyRef.current = true;
-  };
+    editGenerationRef.current += 1;
+  }, [redoStack, doc]);
 
-  // 2. Block Mutation Handlers
-  const updateBlockText = (blockId: string, newText: string) => {
+  // Serialized durable save executor
+  const performSave = useCallback(async () => {
     if (readOnly) return;
-    isDirtyRef.current = true;
+    if (isComposingRef.current) {
+      // Defer autosave while user is composing complex script / IME characters
+      return;
+    }
+
+    const currentGen = editGenerationRef.current;
+    if (currentGen <= lastSavedGenerationRef.current) {
+      // Clean; nothing new to persist
+      return;
+    }
+
+    if (isSavingRef.current) {
+      hasPendingSaveRef.current = true;
+      return;
+    }
+
+    const onSaveFn = latestOnSaveRef.current;
+    if (!onSaveFn) return;
+
+    isSavingRef.current = true;
+    const snapshot = latestSnapshotRef.current;
+    const cleanTitle = resolveNoteTitle(snapshot.title, 'Untitled', snapshot.plainText);
+
+    try {
+      await onSaveFn({
+        title: cleanTitle,
+        document: snapshot.doc,
+        plainText: snapshot.plainText,
+        folderId: snapshot.folderId,
+      });
+
+      // Advance durable generation only upon successful resolution
+      lastSavedGenerationRef.current = currentGen;
+      setSaveError(null);
+    } catch {
+      // Retain dirty content on failure and surface recovery
+      setSaveError('Persistence failed. Your latest edits remain in memory.');
+    } finally {
+      isSavingRef.current = false;
+      if (hasPendingSaveRef.current) {
+        hasPendingSaveRef.current = false;
+        void performSave();
+      }
+    }
+  }, [readOnly]);
+
+  // Debounced 600ms autosave loop
+  const debouncedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (readOnly) return;
+    if (debouncedTimerRef.current) {
+      clearTimeout(debouncedTimerRef.current);
+    }
+
+    debouncedTimerRef.current = setTimeout(() => {
+      void performSave();
+    }, 600);
+
+    return () => {
+      if (debouncedTimerRef.current) {
+        clearTimeout(debouncedTimerRef.current);
+      }
+    };
+  }, [title, doc, folderId, performSave, readOnly]);
+
+  // Flush on unmount: stable cleanup without running on ordinary re-renders
+  useEffect(() => {
+    return () => {
+      if (editGenerationRef.current > lastSavedGenerationRef.current) {
+        const snap = latestSnapshotRef.current;
+        const saveFn = latestOnSaveRef.current;
+        if (saveFn) {
+          const cleanTitle = resolveNoteTitle(snap.title, 'Untitled', snap.plainText);
+          void saveFn({
+            title: cleanTitle,
+            document: snap.doc,
+            plainText: snap.plainText,
+            folderId: snap.folderId,
+          });
+        }
+      }
+    };
+  }, []);
+
+  // 3. Block Mutation Handlers
+  const updateBlockInlines = (blockId: string, newInlines: NoteInlineNode[]) => {
+    if (readOnly) return;
+    editGenerationRef.current += 1;
+    setSaveError(null);
+
     setDoc((prev: NoteDocument) => {
       const newContent: NoteBlockNode[] = prev.content.map((b: NoteBlockNode): NoteBlockNode => {
         if (b.id !== blockId) {
           if (b.type === 'bullet_list' || b.type === 'ordered_list') {
             const updatedItems: NoteListItemNode[] = b.items.map((it: NoteListItemNode) =>
-              it.id === blockId
-                ? { ...it, content: [{ type: 'text' as const, text: newText }] }
-                : it
+              it.id === blockId ? { ...it, content: newInlines } : it
             );
             return { ...b, items: updatedItems };
           }
           if (b.type === 'checklist') {
             const updatedItems: NoteChecklistItemNode[] = b.items.map(
               (it: NoteChecklistItemNode) =>
-                it.id === blockId
-                  ? { ...it, content: [{ type: 'text' as const, text: newText }] }
-                  : it
+                it.id === blockId ? { ...it, content: newInlines } : it
             );
             return { ...b, items: updatedItems };
           }
@@ -233,7 +325,7 @@ export function NoteEditor({
         if (b.type === 'paragraph' || b.type === 'heading') {
           return {
             ...b,
-            content: [{ type: 'text' as const, text: newText }],
+            content: newInlines,
           };
         }
         return b;
@@ -258,28 +350,89 @@ export function NoteEditor({
     });
   };
 
-  // Toggle bold for active block
+  // Toggle bold formatting on selection without destroying unrelated content
   const toggleBlockBold = () => {
     if (readOnly || !activeBlockId) return;
+
+    // Check if browser DOM selection is active inside activeBlockId
+    if (typeof window !== 'undefined' && window.getSelection) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        try {
+          // Native execCommand toggles bold inline and maintains user selection
+          document.execCommand('bold');
+          const el = blockRefs.current.get(activeBlockId);
+          if (el) {
+            const inlines = parseDomToInlines(el);
+            mutateDoc((prev) => {
+              const updated = prev.content.map((b) => {
+                if (b.id === activeBlockId && (b.type === 'paragraph' || b.type === 'heading')) {
+                  return { ...b, content: inlines };
+                }
+                if (b.type === 'bullet_list') {
+                  return {
+                    ...b,
+                    items: b.items.map((it: NoteListItemNode) =>
+                      it.id === activeBlockId ? { ...it, content: inlines } : it
+                    ),
+                  };
+                }
+                if (b.type === 'ordered_list') {
+                  return {
+                    ...b,
+                    items: b.items.map((it: NoteListItemNode) =>
+                      it.id === activeBlockId ? { ...it, content: inlines } : it
+                    ),
+                  };
+                }
+                if (b.type === 'checklist') {
+                  return {
+                    ...b,
+                    items: b.items.map((it: NoteChecklistItemNode) =>
+                      it.id === activeBlockId ? { ...it, content: inlines } : it
+                    ),
+                  };
+                }
+                return b;
+              });
+              return { ...prev, content: updated };
+            });
+            return;
+          }
+        } catch {
+          // Fall through to domain AST toggle
+        }
+      }
+    }
+
+    // AST fallback: toggle bold mark across the active block's inlines
     mutateDoc((prev: NoteDocument) => {
       const newContent: NoteBlockNode[] = prev.content.map((b: NoteBlockNode): NoteBlockNode => {
         if (b.id === activeBlockId && (b.type === 'paragraph' || b.type === 'heading')) {
-          const currentTextNode = b.content?.[0] as NoteTextInline | undefined;
-          const marks = currentTextNode?.marks || [];
-          const hasBold = marks.includes('bold');
-          const nextMarks = hasBold
-            ? marks.filter((m: string) => m !== 'bold')
-            : [...marks, 'bold' as const];
-          return {
-            ...b,
-            content: [
-              {
-                type: 'text',
-                text: currentTextNode?.text || '',
-                marks: nextMarks.length > 0 ? nextMarks : undefined,
-              },
-            ],
-          };
+          const currentInlines = b.content || [];
+          const textLen = extractInlineText(currentInlines).length;
+          const updated = applyMarkToInlines(currentInlines, 0, textLen, 'bold');
+          return { ...b, content: updated };
+        }
+        if (b.type === 'bullet_list' || b.type === 'ordered_list') {
+          const updatedItems = b.items.map((it: NoteListItemNode) => {
+            if (it.id === activeBlockId) {
+              const textLen = extractInlineText(it.content).length;
+              return { ...it, content: applyMarkToInlines(it.content, 0, textLen, 'bold') };
+            }
+            return it;
+          });
+          return { ...b, items: updatedItems };
+        }
+        if (b.type === 'checklist') {
+          const updatedItems = b.items.map((it: NoteChecklistItemNode) => {
+            if (it.id === activeBlockId) {
+              const textLen = extractInlineText(it.content).length;
+              return { ...it, content: applyMarkToInlines(it.content, 0, textLen, 'bold') };
+            }
+            return it;
+          });
+          return { ...b, items: updatedItems };
         }
         return b;
       });
@@ -287,30 +440,25 @@ export function NoteEditor({
     });
   };
 
-  // Convert current block type
+  // Convert current block type preserving all existing inline runs and marks
   const setBlockType = (
     type: 'paragraph' | 'h1' | 'h2' | 'h3' | 'bullet' | 'ordered' | 'checklist'
   ) => {
     if (readOnly || !activeBlockId) return;
 
     mutateDoc((prev: NoteDocument) => {
-      let currentText = '';
+      let currentInlines: NoteInlineNode[] = [{ type: 'text', text: '' }];
       for (const b of prev.content) {
         if (b.id === activeBlockId && (b.type === 'paragraph' || b.type === 'heading')) {
-          currentText = b.content?.[0]?.type === 'text' ? b.content[0].text : '';
+          currentInlines = b.content || [{ type: 'text', text: '' }];
           break;
         }
-        if (b.type === 'bullet_list' || b.type === 'ordered_list') {
-          const found = b.items.find((it: NoteListItemNode) => it.id === activeBlockId);
+        if (b.type === 'bullet_list' || b.type === 'ordered_list' || b.type === 'checklist') {
+          const found = b.items.find(
+            (it: NoteListItemNode | NoteChecklistItemNode) => it.id === activeBlockId
+          );
           if (found) {
-            currentText = found.content?.[0]?.type === 'text' ? found.content[0].text : '';
-            break;
-          }
-        }
-        if (b.type === 'checklist') {
-          const found = b.items.find((it: NoteChecklistItemNode) => it.id === activeBlockId);
-          if (found) {
-            currentText = found.content?.[0]?.type === 'text' ? found.content[0].text : '';
+            currentInlines = found.content || [{ type: 'text', text: '' }];
             break;
           }
         }
@@ -334,7 +482,7 @@ export function NoteEditor({
           newContent.push({
             id: activeBlockId,
             type: 'paragraph',
-            content: [{ type: 'text', text: currentText }],
+            content: currentInlines,
           });
         } else if (type === 'h1' || type === 'h2' || type === 'h3') {
           const level = type === 'h1' ? 1 : type === 'h2' ? 2 : 3;
@@ -342,7 +490,7 @@ export function NoteEditor({
             id: activeBlockId,
             type: 'heading',
             level,
-            content: [{ type: 'text', text: currentText }],
+            content: currentInlines,
           });
         } else if (type === 'bullet') {
           newContent.push({
@@ -352,7 +500,7 @@ export function NoteEditor({
               {
                 id: activeBlockId,
                 type: 'list_item',
-                content: [{ type: 'text', text: currentText }],
+                content: currentInlines,
               },
             ],
           });
@@ -364,7 +512,7 @@ export function NoteEditor({
               {
                 id: activeBlockId,
                 type: 'list_item',
-                content: [{ type: 'text', text: currentText }],
+                content: currentInlines,
               },
             ],
           });
@@ -377,7 +525,7 @@ export function NoteEditor({
                 id: activeBlockId,
                 type: 'checklist_item',
                 checked: false,
-                content: [{ type: 'text', text: currentText }],
+                content: currentInlines,
               },
             ],
           });
@@ -388,13 +536,12 @@ export function NoteEditor({
     });
   };
 
-  // Keyboard shortcut formatting (Ctrl+S, Ctrl+Z, Ctrl+Y, Enter split)
   const handleKeyDown = (e: React.KeyboardEvent, blockId: string) => {
     if (isComposingRef.current) return;
 
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      triggerSave();
+      void performSave();
       return;
     }
 
@@ -495,8 +642,49 @@ export function NoteEditor({
         return { ...prev, content: newContent };
       });
 
-      focusBlock(newId);
+      setActiveBlockId(newId);
     }
+  };
+
+  // Render a block's rich inline runs
+  const renderInlineContent = (inlines?: NoteInlineNode[]) => {
+    if (!inlines || inlines.length === 0) {
+      return <span data-type="text"></span>;
+    }
+    return inlines.map((node: NoteInlineNode, idx: number) => {
+      if (node.type === 'hard_break') {
+        return <br key={`hb-${idx}`} data-type="hard-break" />;
+      }
+      const isBold = node.marks?.includes('bold');
+      const isItalic = node.marks?.includes('italic');
+
+      if (isBold && isItalic) {
+        return (
+          <strong key={`inline-${idx}`} data-type="text" data-marks="bold,italic">
+            <em>{node.text}</em>
+          </strong>
+        );
+      }
+      if (isBold) {
+        return (
+          <strong key={`inline-${idx}`} data-type="text" data-marks="bold">
+            {node.text}
+          </strong>
+        );
+      }
+      if (isItalic) {
+        return (
+          <em key={`inline-${idx}`} data-type="text" data-marks="italic">
+            {node.text}
+          </em>
+        );
+      }
+      return (
+        <span key={`inline-${idx}`} data-type="text">
+          {node.text}
+        </span>
+      );
+    });
   };
 
   return (
@@ -580,6 +768,42 @@ export function NoteEditor({
         </div>
       )}
 
+      {/* Save Error Recovery Notification */}
+      {saveError && (
+        <div
+          role="alert"
+          data-testid="save-error-banner"
+          style={{
+            padding: `${spacing.sm}px ${spacing.md}px`,
+            backgroundColor: palette.status.dangerBg,
+            color: palette.status.danger,
+            borderBottom: `1px solid ${palette.status.dangerBorder}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: `${typography.webScale.supporting}px`,
+          }}
+        >
+          <span>{saveError}</span>
+          <button
+            type="button"
+            onClick={() => void performSave()}
+            data-testid="retry-save-btn"
+            style={{
+              padding: '4px 8px',
+              borderRadius: `${radii.sm}px`,
+              border: `1px solid ${palette.status.dangerBorder}`,
+              backgroundColor: palette.surface,
+              color: palette.status.danger,
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Retry Save
+          </button>
+        </div>
+      )}
+
       {/* Top Header & Restrained Formatting Toolbar */}
       <div
         role="toolbar"
@@ -607,8 +831,9 @@ export function NoteEditor({
           <button
             type="button"
             aria-label="Paragraph"
-            title="Normal text"
+            title="Convert to Paragraph"
             onClick={() => setBlockType('paragraph')}
+            disabled={readOnly}
             data-testid="format-paragraph"
             style={{
               padding: '6px 10px',
@@ -616,8 +841,8 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
-              fontWeight: 500,
+              cursor: readOnly ? 'default' : 'pointer',
+              fontWeight: 600,
             }}
           >
             ¶
@@ -625,8 +850,9 @@ export function NoteEditor({
           <button
             type="button"
             aria-label="Heading 1"
-            title="Heading 1"
+            title="Convert to Heading 1"
             onClick={() => setBlockType('h1')}
+            disabled={readOnly}
             data-testid="format-h1"
             style={{
               padding: '6px 10px',
@@ -634,7 +860,7 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
+              cursor: readOnly ? 'default' : 'pointer',
               fontWeight: 700,
             }}
           >
@@ -643,8 +869,9 @@ export function NoteEditor({
           <button
             type="button"
             aria-label="Heading 2"
-            title="Heading 2"
+            title="Convert to Heading 2"
             onClick={() => setBlockType('h2')}
+            disabled={readOnly}
             data-testid="format-h2"
             style={{
               padding: '6px 10px',
@@ -652,7 +879,7 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
+              cursor: readOnly ? 'default' : 'pointer',
               fontWeight: 700,
             }}
           >
@@ -661,8 +888,9 @@ export function NoteEditor({
           <button
             type="button"
             aria-label="Heading 3"
-            title="Heading 3"
+            title="Convert to Heading 3"
             onClick={() => setBlockType('h3')}
+            disabled={readOnly}
             data-testid="format-h3"
             style={{
               padding: '6px 10px',
@@ -670,17 +898,21 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
-              fontWeight: 600,
+              cursor: readOnly ? 'default' : 'pointer',
+              fontWeight: 700,
             }}
           >
             H3
           </button>
+
+          <span style={{ color: palette.border.subtle, margin: '0 4px' }}>|</span>
+
           <button
             type="button"
             aria-label="Bold text"
-            title="Toggle bold (Ctrl+B)"
+            title="Toggle Bold (Ctrl+B)"
             onClick={toggleBlockBold}
+            disabled={readOnly}
             data-testid="format-bold"
             style={{
               padding: '6px 10px',
@@ -688,17 +920,19 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
+              cursor: readOnly ? 'default' : 'pointer',
               fontWeight: 700,
             }}
           >
             B
           </button>
+
           <button
             type="button"
             aria-label="Bullet list"
-            title="Bullet list"
+            title="Convert to Bullet List"
             onClick={() => setBlockType('bullet')}
+            disabled={readOnly}
             data-testid="format-bullet"
             style={{
               padding: '6px 10px',
@@ -706,16 +940,17 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
+              cursor: readOnly ? 'default' : 'pointer',
             }}
           >
             • List
           </button>
           <button
             type="button"
-            aria-label="Numbered list"
-            title="Numbered list"
+            aria-label="Ordered list"
+            title="Convert to Numbered List"
             onClick={() => setBlockType('ordered')}
+            disabled={readOnly}
             data-testid="format-ordered"
             style={{
               padding: '6px 10px',
@@ -723,7 +958,7 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
+              cursor: readOnly ? 'default' : 'pointer',
             }}
           >
             1. List
@@ -731,8 +966,9 @@ export function NoteEditor({
           <button
             type="button"
             aria-label="Checklist"
-            title="Checklist"
+            title="Convert to Checklist"
             onClick={() => setBlockType('checklist')}
+            disabled={readOnly}
             data-testid="format-checklist"
             style={{
               padding: '6px 10px',
@@ -740,12 +976,14 @@ export function NoteEditor({
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              cursor: 'pointer',
+              cursor: readOnly ? 'default' : 'pointer',
             }}
           >
-            ☑ Checklist
+            ☑ Check
           </button>
+
           <span style={{ color: palette.border.subtle, margin: '0 4px' }}>|</span>
+
           <button
             type="button"
             aria-label="Undo"
@@ -808,8 +1046,9 @@ export function NoteEditor({
                 id={folderSelectId}
                 value={folderId ?? ''}
                 onChange={(e) => {
-                  setFolderId(e.target.value ? e.target.value : null);
-                  isDirtyRef.current = true;
+                  const newFolder = e.target.value ? e.target.value : null;
+                  setFolderId(newFolder);
+                  editGenerationRef.current += 1;
                 }}
                 disabled={readOnly}
                 data-testid="note-folder-select"
@@ -895,13 +1134,15 @@ export function NoteEditor({
           autoFocus={autoFocus}
           onChange={(e) => {
             setTitle(e.target.value);
-            isDirtyRef.current = true;
+            editGenerationRef.current += 1;
+            setSaveError(null);
           }}
           onCompositionStart={() => {
             isComposingRef.current = true;
           }}
           onCompositionEnd={() => {
             isComposingRef.current = false;
+            editGenerationRef.current += 1;
           }}
           data-testid="note-title-input"
           aria-label="Note title"
@@ -928,51 +1169,56 @@ export function NoteEditor({
             switch (block.type) {
               case 'paragraph': {
                 const blockId = block.id || 'p-0';
-                const textNode = block.content?.[0] as NoteTextInline | undefined;
-                const text = textNode?.type === 'text' ? textNode.text : '';
-                const isBold = textNode?.marks?.includes('bold');
                 return (
-                  <textarea
+                  <div
                     key={blockId}
                     ref={(el) => {
                       if (el) blockRefs.current.set(blockId, el);
                     }}
-                    value={text}
-                    placeholder="Type your thought..."
-                    disabled={readOnly}
-                    rows={1}
+                    contentEditable={!readOnly}
+                    suppressContentEditableWarning={true}
+                    role="textbox"
+                    aria-multiline={true}
+                    aria-label="Paragraph block"
+                    data-testid={`block-paragraph-${blockId}`}
                     onFocus={() => setActiveBlockId(blockId)}
-                    onChange={(e) => updateBlockText(blockId, e.target.value)}
+                    onBlur={(e) => {
+                      const newInlines = parseDomToInlines(e.currentTarget);
+                      updateBlockInlines(blockId, newInlines);
+                    }}
+                    onInput={(e) => {
+                      const newInlines = parseDomToInlines(e.currentTarget);
+                      updateBlockInlines(blockId, newInlines);
+                    }}
                     onKeyDown={(e) => handleKeyDown(e, blockId)}
                     onCompositionStart={() => {
                       isComposingRef.current = true;
                     }}
-                    onCompositionEnd={() => {
+                    onCompositionEnd={(e) => {
                       isComposingRef.current = false;
+                      const newInlines = parseDomToInlines(e.currentTarget);
+                      updateBlockInlines(blockId, newInlines);
                     }}
-                    data-testid={`block-paragraph-${blockId}`}
-                    aria-label="Paragraph block"
                     style={{
                       width: '100%',
                       fontSize: `${typography.webScale.body}px`,
-                      fontWeight: isBold ? 700 : 400,
                       lineHeight: typography.lineHeight.bangla,
                       border: 'none',
                       outline: 'none',
-                      resize: 'none',
                       backgroundColor: 'transparent',
                       color: palette.text.primary,
                       fontFamily: typography.fontFamily.sans,
-                      overflow: 'hidden',
                       minHeight: '28px',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
                     }}
-                  />
+                  >
+                    {renderInlineContent(block.content)}
+                  </div>
                 );
               }
               case 'heading': {
                 const blockId = block.id || 'h-0';
-                const textNode = block.content?.[0] as NoteTextInline | undefined;
-                const text = textNode?.type === 'text' ? textNode.text : '';
                 const fontSize =
                   block.level === 1
                     ? `${typography.webScale.pageTitle}px`
@@ -980,27 +1226,35 @@ export function NoteEditor({
                       ? `${typography.webScale.sectionHeading}px`
                       : `${typography.webScale.body + 2}px`;
                 return (
-                  <input
+                  <div
                     key={blockId}
                     ref={(el) => {
                       if (el) blockRefs.current.set(blockId, el);
                     }}
-                    type="text"
-                    value={text}
-                    placeholder={`Heading ${block.level}...`}
-                    disabled={readOnly}
+                    contentEditable={!readOnly}
+                    suppressContentEditableWarning={true}
+                    role="heading"
+                    aria-level={block.level}
+                    aria-label={`Heading ${block.level} block`}
+                    data-testid={`block-heading-${blockId}`}
                     onFocus={() => setActiveBlockId(blockId)}
-                    onChange={(e) => updateBlockText(blockId, e.target.value)}
+                    onBlur={(e) => {
+                      const newInlines = parseDomToInlines(e.currentTarget);
+                      updateBlockInlines(blockId, newInlines);
+                    }}
+                    onInput={(e) => {
+                      const newInlines = parseDomToInlines(e.currentTarget);
+                      updateBlockInlines(blockId, newInlines);
+                    }}
                     onKeyDown={(e) => handleKeyDown(e, blockId)}
                     onCompositionStart={() => {
                       isComposingRef.current = true;
                     }}
-                    onCompositionEnd={() => {
+                    onCompositionEnd={(e) => {
                       isComposingRef.current = false;
+                      const newInlines = parseDomToInlines(e.currentTarget);
+                      updateBlockInlines(blockId, newInlines);
                     }}
-                    data-testid={`block-heading-${blockId}`}
-                    aria-label={`Heading ${block.level} block`}
-                    aria-level={block.level}
                     style={{
                       width: '100%',
                       fontSize,
@@ -1010,8 +1264,12 @@ export function NoteEditor({
                       backgroundColor: 'transparent',
                       color: palette.text.primary,
                       fontFamily: typography.fontFamily.sans,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
                     }}
-                  />
+                  >
+                    {renderInlineContent(block.content)}
+                  </div>
                 );
               }
               case 'bullet_list': {
@@ -1028,29 +1286,36 @@ export function NoteEditor({
                     }}
                   >
                     {block.items.map((it: NoteListItemNode) => {
-                      const text = it.content?.[0]?.type === 'text' ? it.content[0].text : '';
                       const itemId = it.id || 'li-0';
                       return (
                         <li key={itemId} style={{ color: palette.text.primary }}>
-                          <input
+                          <div
                             ref={(el) => {
                               if (el) blockRefs.current.set(itemId, el);
                             }}
-                            type="text"
-                            value={text}
-                            placeholder="List item..."
-                            disabled={readOnly}
+                            contentEditable={!readOnly}
+                            suppressContentEditableWarning={true}
+                            role="textbox"
+                            aria-label="Bullet list item"
+                            data-testid={`block-listitem-${itemId}`}
                             onFocus={() => setActiveBlockId(itemId)}
-                            onChange={(e) => updateBlockText(itemId, e.target.value)}
+                            onBlur={(e) => {
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
+                            }}
+                            onInput={(e) => {
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
+                            }}
                             onKeyDown={(e) => handleKeyDown(e, itemId)}
                             onCompositionStart={() => {
                               isComposingRef.current = true;
                             }}
-                            onCompositionEnd={() => {
+                            onCompositionEnd={(e) => {
                               isComposingRef.current = false;
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
                             }}
-                            data-testid={`block-listitem-${itemId}`}
-                            aria-label="Bullet list item"
                             style={{
                               width: '100%',
                               border: 'none',
@@ -1059,8 +1324,12 @@ export function NoteEditor({
                               color: palette.text.primary,
                               fontSize: `${typography.webScale.body}px`,
                               fontFamily: typography.fontFamily.sans,
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
                             }}
-                          />
+                          >
+                            {renderInlineContent(it.content)}
+                          </div>
                         </li>
                       );
                     })}
@@ -1081,29 +1350,36 @@ export function NoteEditor({
                     }}
                   >
                     {block.items.map((it: NoteListItemNode) => {
-                      const text = it.content?.[0]?.type === 'text' ? it.content[0].text : '';
                       const itemId = it.id || 'oli-0';
                       return (
                         <li key={itemId} style={{ color: palette.text.primary }}>
-                          <input
+                          <div
                             ref={(el) => {
                               if (el) blockRefs.current.set(itemId, el);
                             }}
-                            type="text"
-                            value={text}
-                            placeholder="Numbered item..."
-                            disabled={readOnly}
+                            contentEditable={!readOnly}
+                            suppressContentEditableWarning={true}
+                            role="textbox"
+                            aria-label="Numbered list item"
+                            data-testid={`block-ordereditem-${itemId}`}
                             onFocus={() => setActiveBlockId(itemId)}
-                            onChange={(e) => updateBlockText(itemId, e.target.value)}
+                            onBlur={(e) => {
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
+                            }}
+                            onInput={(e) => {
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
+                            }}
                             onKeyDown={(e) => handleKeyDown(e, itemId)}
                             onCompositionStart={() => {
                               isComposingRef.current = true;
                             }}
-                            onCompositionEnd={() => {
+                            onCompositionEnd={(e) => {
                               isComposingRef.current = false;
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
                             }}
-                            data-testid={`block-ordereditem-${itemId}`}
-                            aria-label="Ordered list item"
                             style={{
                               width: '100%',
                               border: 'none',
@@ -1112,8 +1388,12 @@ export function NoteEditor({
                               color: palette.text.primary,
                               fontSize: `${typography.webScale.body}px`,
                               fontFamily: typography.fontFamily.sans,
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
                             }}
-                          />
+                          >
+                            {renderInlineContent(it.content)}
+                          </div>
                         </li>
                       );
                     })}
@@ -1126,21 +1406,16 @@ export function NoteEditor({
                     key={block.id || 'cl-0'}
                     role="group"
                     aria-label="Checklist"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: `${spacing.xs}px`,
-                    }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}
                   >
                     {block.items.map((it: NoteChecklistItemNode) => {
-                      const text = it.content?.[0]?.type === 'text' ? it.content[0].text : '';
                       const itemId = it.id || 'cli-0';
                       return (
                         <div
                           key={itemId}
                           style={{
                             display: 'flex',
-                            alignItems: 'center',
+                            alignItems: 'flex-start',
                             gap: `${spacing.sm}px`,
                           }}
                         >
@@ -1149,44 +1424,57 @@ export function NoteEditor({
                             checked={it.checked}
                             disabled={readOnly}
                             onChange={(e) => toggleChecklistItem(itemId, e.target.checked)}
-                            data-testid={`checkbox-${itemId}`}
-                            aria-label={`Checkbox for ${text || 'item'}`}
+                            data-testid={`checklist-checkbox-${itemId}`}
+                            aria-label="Checklist item toggle"
                             style={{
+                              marginTop: '4px',
                               width: '18px',
                               height: '18px',
-                              cursor: 'pointer',
+                              cursor: readOnly ? 'default' : 'pointer',
                             }}
                           />
-                          <input
+                          <div
                             ref={(el) => {
                               if (el) blockRefs.current.set(itemId, el);
                             }}
-                            type="text"
-                            value={text}
-                            placeholder="To-do item..."
-                            disabled={readOnly}
+                            contentEditable={!readOnly}
+                            suppressContentEditableWarning={true}
+                            role="textbox"
+                            aria-label="Checklist item text"
+                            data-testid={`block-checklistitem-${itemId}`}
                             onFocus={() => setActiveBlockId(itemId)}
-                            onChange={(e) => updateBlockText(itemId, e.target.value)}
+                            onBlur={(e) => {
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
+                            }}
+                            onInput={(e) => {
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
+                            }}
                             onKeyDown={(e) => handleKeyDown(e, itemId)}
                             onCompositionStart={() => {
                               isComposingRef.current = true;
                             }}
-                            onCompositionEnd={() => {
+                            onCompositionEnd={(e) => {
                               isComposingRef.current = false;
+                              const newInlines = parseDomToInlines(e.currentTarget);
+                              updateBlockInlines(itemId, newInlines);
                             }}
-                            data-testid={`block-checklistitem-${itemId}`}
-                            aria-label="Checklist item text"
                             style={{
                               flex: 1,
                               border: 'none',
                               outline: 'none',
                               backgroundColor: 'transparent',
-                              color: it.checked ? palette.text.secondary : palette.text.primary,
+                              color: it.checked ? palette.text.muted : palette.text.primary,
                               textDecoration: it.checked ? 'line-through' : 'none',
                               fontSize: `${typography.webScale.body}px`,
                               fontFamily: typography.fontFamily.sans,
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
                             }}
-                          />
+                          >
+                            {renderInlineContent(it.content)}
+                          </div>
                         </div>
                       );
                     })}
