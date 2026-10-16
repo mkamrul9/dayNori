@@ -276,6 +276,9 @@ importers:
       '@daynori/design-tokens':
         specifier: workspace:*
         version: link:../design-tokens
+      '@daynori/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@daynori/config':
         specifier: workspace:*
@@ -295,6 +298,9 @@ importers:
       '@daynori/design-tokens':
         specifier: workspace:*
         version: link:../design-tokens
+      '@daynori/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@daynori/config':
         specifier: workspace:*

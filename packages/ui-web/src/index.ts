@@ -9,3 +9,4 @@ export * from './SkipLink.js';
 export * from './RouteAnnouncer.js';
 export * from './BreadcrumbNav.js';
 export * from './ItemTypeBadge.js';
+export * from './NoteEditor.js';

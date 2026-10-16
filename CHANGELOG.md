@@ -1,5 +1,29 @@
 # Changelog
 
+## Phase 17 — Focused note editor on both platforms — 2026-10-16
+
+- **Shared Web UI Component (`packages/ui-web`):**
+  - Added `NoteEditor` component with distraction-free title and body editing, visible "Untitled" fallback, and auto-resizing text fields.
+  - Implemented direct canonical `NoteDocument` AST editing supporting paragraph, heading (H1–H3), bullet list, ordered list, and checklist blocks with interactive checkbox toggles.
+  - Added restrained accessible formatting toolbar with block controls, bold styling toggle, and session undo/redo buttons with keyboard shortcut support (`Ctrl+Z`, `Ctrl+Y` / `Ctrl+Shift+Z`).
+  - Implemented IME composition tracking (`isComposingRef`) protecting Bengali (Bangla / বাংলা) phonetic typing and complex scripts from debounced save interruptions.
+  - Added 600ms debounced autosave feedback loop decoupling local persistence indicators ("Saved locally", "Saving locally...") from cloud synchronization indicators ("Synced", "Syncing to cloud...", "Offline draft", "Sync conflict").
+  - Added server revision conflict recovery banner with explicit, non-destructive resolution actions: Keep Server, Keep Local, and Save Copy.
+- **Shared Mobile UI Component (`packages/ui-mobile`):**
+  - Added `MobileNoteEditor` component with touch-friendly layout, expandable text inputs, and 48dp minimum touch target formatting toolbar.
+  - Supported block controls (¶, H1, H2, H3, • List, 1. List, ☑ Check), bold inline formatting, and session undo/redo.
+  - Added interactive checklist toggles mutating AST block states atomically.
+  - Supported local persistence status and cloud synchronization badges.
+- **Web Application Integration (`apps/web`):**
+  - Integrated `NoteEditor` directly into `/library` page supporting item selection and URL deep linking via `?create=note`.
+  - Wired global action modal ("📄 New Note / File") to launch the focused note editor immediately.
+  - Supported dual persistence using `IndexedDbLocalRepository` (atomic local draft saves) and `SyncEngine.saveItem` (background cloud synchronization).
+- **Mobile Application Integration (`apps/mobile`):**
+  - Integrated `MobileNoteEditor` into `LibraryView` supporting `+ Note` creation button and note card tap selection.
+  - Supported dual persistence using `SqliteLocalRepository` and `SyncEngine`.
+- **Decision Record:**
+  - Published [ADR-0023: Focused Note Editor and Local Autosave Recovery](docs/decisions/0023-focused-note-editor-and-autosave.md).
+
 ## Phase 16 — Typed note domain and persistence — 2026-10-15
 
 - **Portable Typed Note Document AST (`packages/contracts`, `packages/domain`):**

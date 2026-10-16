@@ -183,7 +183,7 @@ export const AppModals: React.FC = () => {
             <ListRow
               title="📄 New Note / File"
               subtitle="Save reference knowledge, guides, or files to Library"
-              onClick={() => navigateTo('/library')}
+              onClick={() => navigateTo('/library?create=note')}
               themeMode={themeMode}
             />
             <ListRow

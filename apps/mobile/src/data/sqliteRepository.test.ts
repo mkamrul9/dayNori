@@ -647,7 +647,7 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
         title: 'Mobile Architecture Note',
         folderId: null,
         document: {
-          version: 1,
+          version: 1 as const,
           type: 'doc' as const,
           content: [
             {
@@ -657,10 +657,9 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
           ],
         },
         plainText: 'Literal List<T> preservation in SQLite',
+        wordCount: 5,
+        charCount: 38,
         serverRevision: 1,
-        isPinned: false,
-        isArchived: false,
-        rank: '00001000',
         createdAt: '2026-10-16T10:00:00.000Z',
         updatedAt: '2026-10-16T10:00:00.000Z',
         deletedAt: null,

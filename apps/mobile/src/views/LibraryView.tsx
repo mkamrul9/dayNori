@@ -11,6 +11,7 @@ import {
   MobileModalSheet,
   MobileTextField,
   MobileTypeBadge,
+  MobileNoteEditor,
   type MobileBreadcrumbSegment,
 } from '@daynori/ui-mobile';
 import {
@@ -22,6 +23,7 @@ import {
   generateInitialRank,
   generateUuid,
   MAX_FOLDER_DEPTH,
+  type NoteDocument,
 } from '@daynori/domain';
 import type { LibraryFilter } from '../navigation/types';
 
@@ -237,7 +239,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   initialFolders,
   initialItems,
   workspaceId: propWorkspaceId,
-  userId: propUserId,
+  userId: _propUserId,
   repository,
   syncEngine,
   isOnline,
@@ -253,14 +255,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   // Status & Offline/Sync State
   const [isOffline, setIsOffline] = useState(
-    isOnline === false || (syncEngine ? syncEngine.getDiagnostics().networkStatus === 'offline' : false)
+    isOnline === false ||
+      (syncEngine ? syncEngine.getDiagnostics().networkStatus === 'offline' : false)
   );
   const [localStatus, setLocalStatus] = useState('Saved locally');
   const [syncStatus, setSyncStatus] = useState(
     syncEngine
       ? syncEngine.getDiagnostics().cloudSyncStatus === 'syncing'
         ? 'Syncing...'
-        : syncEngine.getDiagnostics().cloudSyncStatus === 'offline'
+        : syncEngine.getDiagnostics().networkStatus === 'offline'
           ? 'Offline'
           : syncEngine.getDiagnostics().cloudSyncStatus === 'error'
             ? 'Sync error'
@@ -268,8 +271,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       : 'Synced'
   );
 
-  const workspaceId = propWorkspaceId || (syncEngine ? syncEngine.getDiagnostics().workspaceId : null);
-  const _userId = propUserId || (syncEngine ? syncEngine.getDiagnostics().userId : null);
+  const workspaceId =
+    propWorkspaceId || (syncEngine ? syncEngine.getDiagnostics().workspaceId : null);
 
   // 1. Subscribe to SyncEngine lifecycle and events
   useEffect(() => {
@@ -279,7 +282,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       setIsOffline(diag.networkStatus === 'offline');
       if (diag.cloudSyncStatus === 'syncing') {
         setSyncStatus('Syncing...');
-      } else if (diag.cloudSyncStatus === 'offline') {
+      } else if (diag.networkStatus === 'offline') {
         setSyncStatus('Offline');
       } else if (diag.cloudSyncStatus === 'error') {
         setSyncStatus('Sync error');
@@ -297,16 +300,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   // 2. Load persisted items from repository if provided
   useEffect(() => {
     if (!workspaceId) return;
-    const repo = repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+    const repo =
+      repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
     if (!repo) return;
 
     let mounted = true;
     void (async () => {
       try {
-        const itemRecords = await repo.listItems(workspaceId, {
-          includeArchived: true,
-          includeDeleted: true,
-        });
+        const itemRecords = await repo.listItemHeaders(workspaceId);
         if (!mounted || itemRecords.length === 0) return;
 
         const loadedFolders: MobileFolderItem[] = [];
@@ -316,22 +317,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           if (item.kind === 'folder') {
             loadedFolders.push({
               id: item.id,
-              name: (item.snapshotPayload?.['name'] as string) || 'Folder',
+              name: item.name || 'Folder',
               parentId: item.folderId,
               rank: item.rank,
-              revision: item.revision,
+              revision: item.serverRevision,
               archivedAt: item.isArchived ? new Date().toISOString() : null,
               trashedAt: item.deletedAt,
             });
           } else {
             loadedItems.push({
               id: item.id,
-              title: (item.snapshotPayload?.['title'] as string) || 'Item',
+              title: item.name || item.title || 'Item',
               kind: item.kind as MobileLibraryRecord['kind'],
               folderId: item.folderId,
               rank: item.rank,
-              revision: item.revision,
-              metadata: `${item.kind.toUpperCase()} • rev ${item.revision}`,
+              revision: item.serverRevision,
+              metadata: `${item.kind.toUpperCase()} • rev ${item.serverRevision}`,
               archivedAt: item.isArchived ? new Date().toISOString() : null,
               trashedAt: item.deletedAt,
             });
@@ -359,9 +360,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     payload: Record<string, unknown>
   ) => {
     setLocalStatus('Saving locally...');
-    if (syncEngine) {
+    if (
+      syncEngine &&
+      (syncEngine as unknown as { enqueueMutation?: (args: unknown) => Promise<void> })
+        .enqueueMutation
+    ) {
       try {
-        await syncEngine.enqueueMutation({
+        await (
+          syncEngine as unknown as { enqueueMutation: (args: unknown) => Promise<void> }
+        ).enqueueMutation({
           command,
           entityType,
           entityId,
@@ -369,7 +376,35 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           payload,
         });
         setLocalStatus('Saved locally');
-        void syncEngine.pushPending().catch(() => {});
+        void (syncEngine as unknown as { pushPending?: () => Promise<void> }).pushPending?.();
+      } catch {
+        setLocalStatus('Save failed');
+      }
+    } else if (syncEngine && workspaceId) {
+      try {
+        await syncEngine.saveItem(
+          {
+            id: entityId,
+            workspaceId,
+            kind: entityType,
+            name: (payload['name'] as string) || 'Folder',
+            parentId: (payload['parentId'] as string) ?? null,
+            folderId: (payload['parentId'] as string) ?? null,
+            rank: (payload['rank'] as string) || '00001000',
+            securityScope: 'standard',
+            isArchived: false,
+            isPinned: false,
+            serverRevision: baseRevision,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            deletedAt: null,
+          },
+          undefined,
+          command as Parameters<typeof syncEngine.saveItem>[2],
+          { payload }
+        );
+        setLocalStatus('Saved locally');
+        void syncEngine.syncNow().catch(() => {});
       } catch {
         setLocalStatus('Save failed');
       }
@@ -380,6 +415,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             id: entityId,
             workspaceId,
             kind: 'folder',
+            name: (payload['name'] as string) || 'Folder',
             folderId: (payload['parentId'] as string) || null,
             rank: (payload['rank'] as string) || '00001000',
             isArchived: false,
@@ -389,7 +425,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             deletedAt: null,
-            snapshotPayload: payload,
           });
         }
         setLocalStatus('Saved locally');
@@ -417,6 +452,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   const [trashTargetFolder, setTrashTargetFolder] = useState<MobileFolderItem | null>(null);
   const [trashSubtree, setTrashSubtree] = useState(true);
+
+  // Active Note Editor State
+  const [editingNote, setEditingNote] = useState<{
+    id: string;
+    title: string;
+    folderId: string | null;
+    document?: NoteDocument;
+    isNew: boolean;
+    conflict?: {
+      serverRevision: number;
+      serverTitle?: string;
+      serverDocument?: NoteDocument;
+    } | null;
+  } | null>(null);
 
   // Undo Toast State
   const [undoToast, setUndoToast] = useState<{
@@ -630,13 +679,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             f.id === targetId ? { ...f, name: origName, revision: f.revision + 1 } : f
           )
         );
-        void persistMutation(
-          'updateFolder',
-          'folder',
-          targetId,
-          renameTargetFolder.revision + 1,
-          { name: origName }
-        );
+        void persistMutation('updateFolder', 'folder', targetId, renameTargetFolder.revision + 1, {
+          name: origName,
+        });
         setUndoToast(null);
       },
     });
@@ -810,6 +855,240 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setTimeout(() => setFeedbackMessage(null), 3000);
   };
 
+  const handleOpenNewNote = () => {
+    const newId = generateUuid();
+    setEditingNote({
+      id: newId,
+      title: '',
+      folderId: currentFolderId,
+      isNew: true,
+      conflict: null,
+    });
+  };
+
+  const handleOpenNote = async (item: MobileLibraryRecord) => {
+    let doc: NoteDocument | undefined;
+    let conflictInfo: {
+      serverRevision: number;
+      serverTitle?: string;
+      serverDocument?: NoteDocument;
+    } | null = null;
+
+    const repo =
+      repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+    if (repo && workspaceId) {
+      try {
+        const loaded = await repo.getNote(workspaceId, item.id);
+        if (loaded) {
+          doc = loaded.document;
+        }
+        const conflicts = await repo.listConflicts(workspaceId);
+        const found = conflicts.find((c) => c.entityId === item.id);
+        if (found) {
+          conflictInfo = {
+            serverRevision: found.serverRevision,
+            serverTitle: found.serverState?.['title'] as string | undefined,
+            serverDocument: found.serverState?.['document'] as NoteDocument | undefined,
+          };
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+
+    setEditingNote({
+      id: item.id,
+      title: item.title,
+      folderId: item.folderId,
+      document: doc,
+      isNew: false,
+      conflict: conflictInfo,
+    });
+  };
+
+  const handleSaveNote = async (saved: {
+    title: string;
+    document: NoteDocument;
+    plainText: string;
+    folderId?: string | null;
+  }) => {
+    if (!editingNote) return;
+    const now = new Date().toISOString();
+    const existing = items.find((i) => i.id === editingNote.id);
+    const prevRev = existing?.revision ?? 0;
+    const isNew = editingNote.isNew;
+
+    setEditingNote((prev) =>
+      prev
+        ? {
+            ...prev,
+            isNew: false,
+            title: saved.title,
+            document: saved.document,
+          }
+        : null
+    );
+
+    if (isNew) {
+      setItems((prev) => [
+        {
+          id: editingNote.id,
+          title: saved.title,
+          kind: 'note',
+          folderId: saved.folderId ?? currentFolderId ?? null,
+          rank: existing?.rank ?? generateInitialRank(items.length),
+          revision: 1,
+          metadata: 'Note • Just now',
+        },
+        ...prev,
+      ]);
+    } else {
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === editingNote.id
+            ? {
+                ...i,
+                title: saved.title,
+                folderId: saved.folderId ?? i.folderId,
+                revision: i.revision + 1,
+              }
+            : i
+        )
+      );
+    }
+
+    setLocalStatus('Saving locally...');
+    if (syncEngine && workspaceId) {
+      try {
+        await syncEngine.saveItem(
+          {
+            id: editingNote.id,
+            workspaceId,
+            kind: 'note',
+            name: saved.title,
+            parentId: saved.folderId ?? currentFolderId ?? null,
+            folderId: saved.folderId ?? currentFolderId ?? null,
+            rank: existing?.rank ?? generateInitialRank(items.length),
+            securityScope: 'standard',
+            isArchived: false,
+            isPinned: false,
+            serverRevision: prevRev,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+          },
+          undefined,
+          isNew ? 'createNote' : 'updateNote',
+          {
+            payload: {
+              title: saved.title,
+              document: saved.document,
+              plainText: saved.plainText,
+              folderId: saved.folderId ?? currentFolderId ?? null,
+            },
+          }
+        );
+        setLocalStatus('Saved locally');
+        void syncEngine.syncNow().catch(() => {});
+      } catch {
+        setLocalStatus('Save failed');
+      }
+    } else {
+      const repo =
+        repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+      if (repo && workspaceId) {
+        try {
+          await repo.upsertNote({
+            id: editingNote.id,
+            workspaceId,
+            title: saved.title,
+            document: saved.document,
+            plainText: saved.plainText,
+            wordCount: saved.plainText
+              ? saved.plainText.trim().split(/\s+/).filter(Boolean).length
+              : 0,
+            charCount: saved.plainText.length,
+            folderId: saved.folderId ?? currentFolderId ?? null,
+            serverRevision: prevRev,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+          });
+          setLocalStatus('Saved locally');
+        } catch {
+          setLocalStatus('Save failed');
+        }
+      }
+    }
+  };
+
+  const handleResolveConflict = async (resolution: 'keep_server' | 'keep_local' | 'save_copy') => {
+    if (!editingNote) return;
+    if (syncEngine) {
+      try {
+        await syncEngine.resolveConflict(editingNote.id, resolution);
+        void syncEngine.syncNow().catch(() => {});
+      } catch {
+        /* ignore */
+      }
+    }
+    setEditingNote((prev) => (prev ? { ...prev, conflict: null } : null));
+  };
+
+  const handleDeleteNote = async () => {
+    if (!editingNote) return;
+    const noteId = editingNote.id;
+    setItems((prev) => prev.filter((i) => i.id !== noteId));
+    setEditingNote(null);
+
+    if (syncEngine && workspaceId) {
+      try {
+        await syncEngine.saveItem(
+          {
+            id: noteId,
+            workspaceId,
+            kind: 'note',
+            folderId: null,
+            rank: '00001000',
+            isArchived: false,
+            isPinned: false,
+            securityScope: 'standard',
+            serverRevision: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            deletedAt: new Date().toISOString(),
+          },
+          undefined,
+          'trashNote'
+        );
+        void syncEngine.syncNow().catch(() => {});
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  if (editingNote) {
+    return (
+      <View style={{ flex: 1, backgroundColor: palette.surface }}>
+        <MobileNoteEditor
+          initialTitle={editingNote.title}
+          initialDocument={editingNote.document}
+          initialFolderId={editingNote.folderId}
+          folders={folders.map((f) => ({ id: f.id, name: f.name }))}
+          themeMode={themeMode}
+          localSaveStatus={localStatus}
+          cloudSyncStatus={syncStatus}
+          conflict={editingNote.conflict}
+          onSave={handleSaveNote}
+          onResolveConflict={handleResolveConflict}
+          onClose={() => setEditingNote(null)}
+          onDelete={handleDeleteNote}
+        />
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       testID={testID}
@@ -829,6 +1108,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           💾 {localStatus} • ☁️ {isOffline ? 'Offline' : syncStatus}
         </Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create new note"
+            onPress={handleOpenNewNote}
+            style={[styles.sampleJourneysBtn, { backgroundColor: palette.action.primary }]}
+          >
+            <Text style={[styles.sampleJourneysText, { color: palette.action.label }]}>+ Note</Text>
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Load sample journeys"
@@ -1047,21 +1334,28 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           />
         ) : (
           paginatedItems.map((item) => (
-            <MobileCard key={item.id} themeMode={themeMode} style={styles.itemCard}>
-              <View style={styles.itemRow}>
-                <MobileTypeBadge kind={item.kind} themeMode={themeMode} />
-                <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                  <Text style={[styles.itemTitle, { color: palette.text.primary }]}>
-                    {item.title}
-                  </Text>
-                  {item.metadata && (
-                    <Text style={[styles.itemMeta, { color: palette.text.secondary }]}>
-                      {item.metadata}
+            <Pressable
+              key={item.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Open note ${item.title}`}
+              onPress={() => item.kind === 'note' && void handleOpenNote(item)}
+            >
+              <MobileCard themeMode={themeMode} style={styles.itemCard}>
+                <View style={styles.itemRow}>
+                  <MobileTypeBadge kind={item.kind} themeMode={themeMode} />
+                  <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                    <Text style={[styles.itemTitle, { color: palette.text.primary }]}>
+                      {item.title}
                     </Text>
-                  )}
+                    {item.metadata && (
+                      <Text style={[styles.itemMeta, { color: palette.text.secondary }]}>
+                        {item.metadata}
+                      </Text>
+                    )}
+                  </View>
                 </View>
-              </View>
-            </MobileCard>
+              </MobileCard>
+            </Pressable>
           ))
         )}
 

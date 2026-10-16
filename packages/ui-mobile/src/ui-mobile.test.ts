@@ -12,6 +12,7 @@ import {
   MobileEmptyState,
   MobileNavigationBar,
   MobileHeader,
+  MobileNoteEditor,
 } from './index.js';
 
 describe('UI Mobile Primitives', () => {
@@ -82,5 +83,25 @@ describe('UI Mobile Primitives', () => {
     });
     expect(header.props.title).toBe('Today');
     expect(header.props.onOpenSearch).toBeDefined();
+  });
+
+  it('instantiates MobileNoteEditor with initial title, document, and conflict state', () => {
+    expect(MobileNoteEditor).toBeDefined();
+
+    const editor = React.createElement(MobileNoteEditor, {
+      initialTitle: 'Mobile Meeting Notes',
+      initialFolderId: 'folder-123',
+      localSaveStatus: 'Saved locally',
+      cloudSyncStatus: 'Syncing...',
+      conflict: {
+        serverRevision: 4,
+        serverTitle: 'Server Revision Title',
+      },
+    });
+
+    expect(editor.type).toBe(MobileNoteEditor);
+    expect(editor.props.initialTitle).toBe('Mobile Meeting Notes');
+    expect(editor.props.initialFolderId).toBe('folder-123');
+    expect(editor.props.conflict?.serverRevision).toBe(4);
   });
 });

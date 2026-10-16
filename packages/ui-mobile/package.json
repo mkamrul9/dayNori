@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@daynori/design-tokens": "workspace:*"
+    "@daynori/design-tokens": "workspace:*",
+    "@daynori/domain": "workspace:*"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

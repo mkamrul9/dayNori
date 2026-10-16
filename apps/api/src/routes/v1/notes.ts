@@ -375,7 +375,8 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
               );
             }
             if (receipt.status === 'accepted') {
-              const durableResult = receipt.resultPayload?.result as Record<string, unknown> | undefined;
+              const durableResult = receipt.resultPayload?.result as
+                Record<string, unknown> | undefined;
               return reply.status(200).send({
                 data: durableResult || {
                   id: noteId,
@@ -391,7 +392,12 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           // Lock row and recheck
           await lockWorkspaceSyncState(client, workspaceId);
 
-          const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
           if (lockedReceipt) {
             if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
               throw new ConflictError(
@@ -399,7 +405,8 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
               );
             }
             if (lockedReceipt.status === 'accepted') {
-              const durableResult = lockedReceipt.resultPayload?.result as Record<string, unknown> | undefined;
+              const durableResult = lockedReceipt.resultPayload?.result as
+                Record<string, unknown> | undefined;
               return reply.status(200).send({
                 data: durableResult || {
                   id: noteId,
@@ -520,7 +527,12 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           // Lock row and recheck
           await lockWorkspaceSyncState(client, workspaceId);
 
-          const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
           if (lockedReceipt) {
             if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
               throw new ConflictError(

@@ -10,6 +10,7 @@ import {
   Feedback,
   ItemTypeBadge,
   TextField,
+  NoteEditor,
   type BreadcrumbItem,
 } from '@daynori/ui-web';
 import {
@@ -21,6 +22,7 @@ import {
   generateInitialRank,
   generateUuid,
   MAX_FOLDER_DEPTH,
+  type NoteDocument,
 } from '@daynori/domain';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
 import type { ItemHeaderRecord, SyncEngine } from '@daynori/sync';
@@ -85,6 +87,20 @@ export default function LibraryPage() {
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Active Note Editor State
+  const [editingNote, setEditingNote] = useState<{
+    id: string;
+    title: string;
+    folderId: string | null;
+    document?: NoteDocument;
+    isNew: boolean;
+    conflict?: {
+      serverRevision: number;
+      serverTitle?: string;
+      serverDocument?: NoteDocument;
+    } | null;
+  } | null>(null);
 
   // Modals State
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -1261,6 +1277,246 @@ export default function LibraryPage() {
     announce('Cleared sample journeys. Library is now empty.');
   };
 
+  // Note Editor Handlers
+  const handleOpenNewNote = useCallback(() => {
+    const newId = generateUuid();
+    setEditingNote({
+      id: newId,
+      title: '',
+      folderId: currentFolderId,
+      isNew: true,
+      conflict: null,
+    });
+    announce('Opened new note editor');
+  }, [currentFolderId, announce]);
+
+  const handleOpenItem = useCallback(
+    async (item: LibraryItemRecord) => {
+      if (item.kind === 'note') {
+        let doc: NoteDocument | undefined;
+        let conflictInfo: {
+          serverRevision: number;
+          serverTitle?: string;
+          serverDocument?: NoteDocument;
+        } | null = null;
+
+        if (localRepoRef.current) {
+          try {
+            const loaded = await localRepoRef.current.getNote(workspaceId || 'ws-local', item.id);
+            if (loaded) {
+              doc = loaded.document;
+            }
+            const pendingConflicts = await localRepoRef.current.listConflicts(
+              workspaceId || 'ws-local'
+            );
+            const foundConflict = pendingConflicts.find((c) => c.entityId === item.id);
+            if (foundConflict) {
+              conflictInfo = {
+                serverRevision: foundConflict.serverRevision,
+                serverTitle: foundConflict.serverState?.['title'] as string | undefined,
+                serverDocument: foundConflict.serverState?.['document'] as NoteDocument | undefined,
+              };
+            }
+          } catch {
+            /* ignore fallback */
+          }
+        }
+
+        setEditingNote({
+          id: item.id,
+          title: item.title,
+          folderId: item.folderId,
+          document: doc,
+          isNew: false,
+          conflict: conflictInfo,
+        });
+        announce(`Opened note ${item.title}`);
+      }
+    },
+    [workspaceId, announce]
+  );
+
+  const handleSaveNote = useCallback(
+    async (saved: {
+      title: string;
+      document: NoteDocument;
+      plainText: string;
+      folderId?: string | null;
+    }) => {
+      if (!editingNote) return;
+      const now = new Date().toISOString();
+      const existing = items.find((i) => i.id === editingNote.id);
+      const prevRev = existing?.revision ?? 0;
+      const isNew = editingNote.isNew;
+
+      const header: ItemHeaderRecord = {
+        id: editingNote.id,
+        workspaceId: workspaceId || 'ws-local',
+        kind: 'note',
+        name: saved.title,
+        parentId: saved.folderId ?? currentFolderId ?? null,
+        folderId: saved.folderId ?? currentFolderId ?? null,
+        rank: existing?.rank ?? generateInitialRank(items.length),
+        securityScope: 'standard',
+        isArchived: false,
+        isPinned: false,
+        serverRevision: prevRev,
+        createdAt: (existing as { createdAt?: string })?.createdAt ?? now,
+        updatedAt: now,
+        deletedAt: null,
+      };
+
+      setEditingNote((prev) =>
+        prev
+          ? {
+              ...prev,
+              isNew: false,
+              title: saved.title,
+              document: saved.document,
+            }
+          : null
+      );
+
+      if (isNew) {
+        setItems((prev) => [
+          {
+            id: editingNote.id,
+            title: saved.title,
+            kind: 'note',
+            folderId: saved.folderId ?? currentFolderId ?? null,
+            rank: header.rank,
+            scope: 'workspace',
+            revision: 1,
+            metadata: 'Note • Just now',
+          },
+          ...prev,
+        ]);
+      } else {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === editingNote.id
+              ? {
+                  ...i,
+                  title: saved.title,
+                  folderId: saved.folderId ?? i.folderId,
+                  revision: i.revision + 1,
+                }
+              : i
+          )
+        );
+      }
+
+      try {
+        if (syncEngineRef.current) {
+          await syncEngineRef.current.saveItem(
+            header,
+            undefined,
+            isNew ? 'createNote' : 'updateNote',
+            {
+              payload: {
+                title: saved.title,
+                document: saved.document,
+                plainText: saved.plainText,
+                folderId: saved.folderId ?? currentFolderId ?? null,
+              },
+            }
+          );
+          setLocalSaveStatus('Saved on device');
+          if (isOnline) {
+            void syncEngineRef.current.syncNow();
+          }
+        } else if (localRepoRef.current) {
+          await localRepoRef.current.upsertItemHeader(header);
+          await localRepoRef.current.upsertNote({
+            id: editingNote.id,
+            workspaceId: workspaceId || 'ws-local',
+            title: saved.title,
+            document: saved.document,
+            plainText: saved.plainText,
+            wordCount: saved.plainText
+              ? saved.plainText.trim().split(/\s+/).filter(Boolean).length
+              : 0,
+            charCount: saved.plainText.length,
+            folderId: saved.folderId ?? currentFolderId ?? null,
+            serverRevision: prevRev,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+          });
+          setLocalSaveStatus('Saved on device');
+        }
+      } catch {
+        setLocalSaveStatus('Save failed');
+      }
+    },
+    [editingNote, items, workspaceId, currentFolderId, isOnline]
+  );
+
+  const handleResolveConflict = useCallback(
+    async (resolution: 'keep_server' | 'keep_local' | 'save_copy') => {
+      if (!editingNote) return;
+      try {
+        if (syncEngineRef.current) {
+          await syncEngineRef.current.resolveConflict(editingNote.id, resolution);
+          if (isOnline) {
+            await syncEngineRef.current.syncNow();
+          }
+        }
+        setEditingNote((prev) => (prev ? { ...prev, conflict: null } : null));
+        announce(`Resolved conflict with option: ${resolution}`);
+      } catch {
+        announce('Failed to resolve conflict');
+      }
+    },
+    [editingNote, isOnline, announce]
+  );
+
+  const handleDeleteNote = useCallback(async () => {
+    if (!editingNote) return;
+    const noteId = editingNote.id;
+    const existing = items.find((i) => i.id === noteId);
+    if (!existing) {
+      setEditingNote(null);
+      return;
+    }
+    const now = new Date().toISOString();
+    setItems((prev) => prev.filter((i) => i.id !== noteId));
+    setEditingNote(null);
+    announce(`Deleted note ${existing.title}`);
+
+    const header: ItemHeaderRecord = {
+      id: noteId,
+      workspaceId: workspaceId || 'ws-local',
+      kind: 'note',
+      name: existing.title,
+      parentId: existing.folderId,
+      folderId: existing.folderId,
+      rank: existing.rank,
+      securityScope: 'standard',
+      isArchived: false,
+      isPinned: false,
+      serverRevision: existing.revision,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: now,
+    };
+
+    if (syncEngineRef.current) {
+      await syncEngineRef.current.saveItem(header, undefined, 'trashNote');
+      if (isOnline) void syncEngineRef.current.syncNow();
+    }
+  }, [editingNote, items, workspaceId, isOnline, announce]);
+
+  // Handle URL query parameter ?create=note
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('create') === 'note') {
+        handleOpenNewNote();
+      }
+    }
+  }, [handleOpenNewNote]);
+
   return (
     <div
       aria-busy={isLoading}
@@ -1388,428 +1644,494 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* Accessible Breadcrumbs */}
-      <div style={{ marginBottom: spacing.md }}>
-        <BreadcrumbNav items={breadcrumbItems} onNavigateBack={handleNavigateUp} />
-      </div>
-
-      {/* Toolbar: Search, Filters, and Actions */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: spacing.sm,
-          marginBottom: spacing.md,
-        }}
-      >
-        {/* Module Filter Tabs */}
-        <div
-          role="tablist"
-          aria-label="Filter library content by type"
-          style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
-        >
-          {(
-            [
-              { key: 'all', label: 'All Items' },
-              { key: 'notes', label: 'Notes' },
-              { key: 'knowledge', label: 'Knowledge' },
-              { key: 'files', label: 'Files' },
-              { key: 'tasks', label: 'Tasks' },
-            ] as const
-          ).map((tab) => {
-            const isSelected = typeFilter === tab.key;
-            return (
-              <button
-                key={tab.key}
-                role="tab"
-                aria-selected={isSelected}
-                onClick={() => {
-                  setTypeFilter(tab.key);
-                  setPage(1);
-                  announce(`Filtered view by ${tab.label}`);
-                }}
-                style={{
-                  minHeight: touchTargets.webMin,
-                  padding: '6px 12px',
-                  borderRadius: radii.sm,
-                  fontSize: typography.webScale.supporting,
-                  fontWeight: isSelected ? '600' : '400',
-                  border: isSelected
-                    ? `1px solid ${palette.action.primary}`
-                    : `1px solid ${palette.border.subtle}`,
-                  backgroundColor: isSelected ? palette.action.subtle : palette.surface,
-                  color: isSelected ? palette.action.primary : palette.text.secondary,
-                  cursor: 'pointer',
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            type="search"
-            placeholder="Search items..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(1);
-            }}
-            aria-label="Search items"
-            style={{
-              padding: '6px 12px',
-              borderRadius: radii.sm,
-              border: `1px solid ${palette.border.subtle}`,
-              backgroundColor: palette.surface,
-              color: palette.text.primary,
-              fontSize: typography.webScale.supporting,
-              minHeight: touchTargets.webMin,
-            }}
-          />
-
-          <Button
-            variant="primary"
-            onClick={() => handleOpenCreateModal(currentFolderId)}
-            aria-label="Create new workspace folder"
-          >
-            + New Folder
-          </Button>
-
-          {folders.length === 0 && (
+      {editingNote ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Button
-              id="load-demo-journeys-btn"
-              variant="secondary"
-              onClick={handleLoadSampleJourneys}
-              aria-label="Load demo journeys"
-            >
-              Demo Journeys
-            </Button>
-          )}
-
-          {folders.length > 0 && (
-            <Button
-              id="clear-demo-journeys-btn"
               variant="subtle"
-              onClick={handleClearDemoJourneys}
-              aria-label="Clear demo journeys"
+              onClick={() => setEditingNote(null)}
+              aria-label="Back to Library"
             >
-              Clear Demo
+              ← Back to Library
             </Button>
-          )}
-
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: typography.webScale.metadata,
-              color: palette.text.secondary,
-              cursor: 'pointer',
-              marginLeft: spacing.xs,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-              aria-label="Show archived items and folders"
-            />
-            Show Archived
-          </label>
-        </div>
-      </div>
-
-      {/* Subfolders Section */}
-      {currentSubfolders.length > 0 && (
-        <section aria-labelledby="subfolders-heading" style={{ marginBottom: spacing.lg }}>
-          <h2
-            id="subfolders-heading"
-            style={{
-              fontSize: typography.webScale.body,
-              fontWeight: '600',
-              marginBottom: spacing.xs,
-              color: palette.text.primary,
-            }}
-          >
-            {currentFolder ? 'Subfolders' : 'Workspace Folders'} ({currentSubfolders.length})
-          </h2>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: spacing.sm,
-            }}
-          >
-            {currentSubfolders.map((f, index) => {
-              const count = folderCounts[f.id] ?? 0;
-              return (
-                <div
-                  key={f.id}
-                  style={{
-                    backgroundColor: palette.surface,
-                    borderRadius: radii.card,
-                    border: `1px solid ${palette.border.subtle}`,
-                    padding: spacing.sm,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: spacing.xs,
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      setCurrentFolderId(f.id);
-                      setPage(1);
-                      announce(`Opened folder ${f.name}`);
-                    }}
-                    title={`Open ${f.name}`}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      flex: 1,
-                      minHeight: touchTargets.webMin,
-                    }}
-                  >
-                    <span style={{ fontSize: typography.webScale.sectionHeading }}>
-                      {f.icon ?? '📁'}
-                    </span>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: typography.webScale.supporting,
-                          fontWeight: '600',
-                          color: palette.text.primary,
-                        }}
-                      >
-                        {f.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: typography.webScale.metadata,
-                          color: palette.text.muted,
-                        }}
-                      >
-                        {count} {count === 1 ? 'item' : 'items'}
-                        {f.archivedAt && ' • Archived'}
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Folder Actions Menu */}
-                  <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <button
-                      onClick={() => handleReorder(f.id, 'up')}
-                      disabled={index === 0}
-                      title="Move Up"
-                      aria-label={`Move ${f.name} up`}
-                      style={{
-                        padding: '4px 6px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: index === 0 ? 'not-allowed' : 'pointer',
-                        opacity: index === 0 ? 0.3 : 1,
-                      }}
-                    >
-                      ▲
-                    </button>
-                    <button
-                      onClick={() => handleReorder(f.id, 'down')}
-                      disabled={index === currentSubfolders.length - 1}
-                      title="Move Down"
-                      aria-label={`Move ${f.name} down`}
-                      style={{
-                        padding: '4px 6px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: index === currentSubfolders.length - 1 ? 'not-allowed' : 'pointer',
-                        opacity: index === currentSubfolders.length - 1 ? 0.3 : 1,
-                      }}
-                    >
-                      ▼
-                    </button>
-                    <button
-                      onClick={() => handleOpenRename(f)}
-                      title="Rename"
-                      aria-label={`Rename ${f.name}`}
-                      style={{
-                        padding: '4px 6px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => handleOpenMove(f)}
-                      title="Move"
-                      aria-label={`Move ${f.name}`}
-                      style={{
-                        padding: '4px 6px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ➡️
-                    </button>
-                    <button
-                      onClick={() => handleToggleArchive(f)}
-                      title={f.archivedAt ? 'Unarchive' : 'Archive'}
-                      aria-label={`${f.archivedAt ? 'Unarchive' : 'Archive'} ${f.name}`}
-                      style={{
-                        padding: '4px 6px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      📦
-                    </button>
-                    <button
-                      onClick={() => handleOpenTrash(f)}
-                      title="Delete"
-                      aria-label={`Delete ${f.name}`}
-                      style={{
-                        padding: '4px 6px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
           </div>
-        </section>
-      )}
-
-      {/* Items Section */}
-      <section aria-labelledby="items-heading">
-        <h2
-          id="items-heading"
-          style={{
-            fontSize: typography.webScale.body,
-            fontWeight: '600',
-            marginBottom: spacing.xs,
-            color: palette.text.primary,
-          }}
-        >
-          {currentFolder ? `${currentFolder.name} Items` : 'Inbox & Unfiled Items'} ({totalItems})
-        </h2>
-
-        {paginatedItems.length === 0 ? (
-          <EmptyState
-            id="library-empty-state"
-            title={folders.length === 0 ? 'Your library is empty' : 'No items found'}
-            description={
-              currentSubfolders.length === 0
-                ? 'Your library is empty. Create a folder or load demo journeys.'
-                : 'No items in this folder matching your active filters.'
-            }
-            actionLabel={folders.length === 0 ? 'Load Demo Journeys' : 'New Folder'}
-            onAction={
-              folders.length === 0
-                ? handleLoadSampleJourneys
-                : () => handleOpenCreateModal(currentFolderId)
-            }
+          <NoteEditor
+            id={editingNote.id}
+            initialTitle={editingNote.title}
+            initialDocument={editingNote.document}
+            initialFolderId={editingNote.folderId}
+            folders={folders.map((f) => ({ id: f.id, name: f.name }))}
+            themeMode={themeMode}
+            localSaveStatus={localSaveStatus}
+            cloudSyncStatus={cloudSyncStatus}
+            conflict={editingNote.conflict}
+            onSave={handleSaveNote}
+            onResolveConflict={handleResolveConflict}
+            onClose={() => setEditingNote(null)}
+            onDelete={handleDeleteNote}
           />
-        ) : (
-          <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-            {paginatedItems.map((item) => (
-              <div
-                key={item.id}
-                role="listitem"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: `${spacing.sm} ${spacing.md}`,
-                  backgroundColor: palette.surface,
-                  border: `1px solid ${palette.border.subtle}`,
-                  borderRadius: radii.card,
-                  gap: spacing.sm,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                  <ItemTypeBadge kind={item.kind} />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: typography.webScale.supporting,
-                        fontWeight: '500',
-                        color: palette.text.primary,
-                      }}
-                    >
-                      {item.title}
-                    </div>
-                    {item.metadata && (
-                      <div
-                        style={{
-                          fontSize: typography.webScale.metadata,
-                          color: palette.text.muted,
-                        }}
-                      >
-                        {item.metadata}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+        </div>
+      ) : (
+        <>
+          {/* Accessible Breadcrumbs */}
+          <div style={{ marginBottom: spacing.md }}>
+            <BreadcrumbNav items={breadcrumbItems} onNavigateBack={handleNavigateUp} />
           </div>
-        )}
 
-        {/* Accessible Pagination */}
-        {totalPages > 1 && (
+          {/* Toolbar: Search, Filters, and Actions */}
           <div
             style={{
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
-              justifyContent: 'center',
+              justifyContent: 'space-between',
               gap: spacing.sm,
-              marginTop: spacing.md,
+              marginBottom: spacing.md,
             }}
           >
-            <Button
-              variant="secondary"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              aria-label="Previous page"
+            {/* Module Filter Tabs */}
+            <div
+              role="tablist"
+              aria-label="Filter library content by type"
+              style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
             >
-              Previous
-            </Button>
-            <span
-              style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary }}
+              {(
+                [
+                  { key: 'all', label: 'All Items' },
+                  { key: 'notes', label: 'Notes' },
+                  { key: 'knowledge', label: 'Knowledge' },
+                  { key: 'files', label: 'Files' },
+                  { key: 'tasks', label: 'Tasks' },
+                ] as const
+              ).map((tab) => {
+                const isSelected = typeFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => {
+                      setTypeFilter(tab.key);
+                      setPage(1);
+                      announce(`Filtered view by ${tab.label}`);
+                    }}
+                    style={{
+                      minHeight: touchTargets.webMin,
+                      padding: '6px 12px',
+                      borderRadius: radii.sm,
+                      fontSize: typography.webScale.supporting,
+                      fontWeight: isSelected ? '600' : '400',
+                      border: isSelected
+                        ? `1px solid ${palette.action.primary}`
+                        : `1px solid ${palette.border.subtle}`,
+                      backgroundColor: isSelected ? palette.action.subtle : palette.surface,
+                      color: isSelected ? palette.action.primary : palette.text.secondary,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Action Buttons */}
+            <div
+              style={{ display: 'flex', gap: spacing.xs, alignItems: 'center', flexWrap: 'wrap' }}
             >
-              Page {page} of {totalPages}
-            </span>
-            <Button
-              variant="secondary"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              aria-label="Next page"
-            >
-              Next
-            </Button>
+              <input
+                type="search"
+                placeholder="Search items..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Search items"
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: radii.sm,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                  fontSize: typography.webScale.supporting,
+                  minHeight: touchTargets.webMin,
+                }}
+              />
+
+              <Button variant="primary" onClick={handleOpenNewNote} aria-label="Create new note">
+                + New Note
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => handleOpenCreateModal(currentFolderId)}
+                aria-label="Create new workspace folder"
+              >
+                + New Folder
+              </Button>
+
+              {folders.length === 0 && (
+                <Button
+                  id="load-demo-journeys-btn"
+                  variant="secondary"
+                  onClick={handleLoadSampleJourneys}
+                  aria-label="Load demo journeys"
+                >
+                  Demo Journeys
+                </Button>
+              )}
+
+              {folders.length > 0 && (
+                <Button
+                  id="clear-demo-journeys-btn"
+                  variant="subtle"
+                  onClick={handleClearDemoJourneys}
+                  aria-label="Clear demo journeys"
+                >
+                  Clear Demo
+                </Button>
+              )}
+
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: typography.webScale.metadata,
+                  color: palette.text.secondary,
+                  cursor: 'pointer',
+                  marginLeft: spacing.xs,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => setShowArchived(e.target.checked)}
+                  aria-label="Show archived items and folders"
+                />
+                Show Archived
+              </label>
+            </div>
           </div>
-        )}
-      </section>
+
+          {/* Subfolders Section */}
+          {currentSubfolders.length > 0 && (
+            <section aria-labelledby="subfolders-heading" style={{ marginBottom: spacing.lg }}>
+              <h2
+                id="subfolders-heading"
+                style={{
+                  fontSize: typography.webScale.body,
+                  fontWeight: '600',
+                  marginBottom: spacing.xs,
+                  color: palette.text.primary,
+                }}
+              >
+                {currentFolder ? 'Subfolders' : 'Workspace Folders'} ({currentSubfolders.length})
+              </h2>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: spacing.sm,
+                }}
+              >
+                {currentSubfolders.map((f, index) => {
+                  const count = folderCounts[f.id] ?? 0;
+                  return (
+                    <div
+                      key={f.id}
+                      style={{
+                        backgroundColor: palette.surface,
+                        borderRadius: radii.card,
+                        border: `1px solid ${palette.border.subtle}`,
+                        padding: spacing.sm,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: spacing.xs,
+                      }}
+                    >
+                      <button
+                        onClick={() => {
+                          setCurrentFolderId(f.id);
+                          setPage(1);
+                          announce(`Opened folder ${f.name}`);
+                        }}
+                        title={`Open ${f.name}`}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flex: 1,
+                          minHeight: touchTargets.webMin,
+                        }}
+                      >
+                        <span style={{ fontSize: typography.webScale.sectionHeading }}>
+                          {f.icon ?? '📁'}
+                        </span>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: typography.webScale.supporting,
+                              fontWeight: '600',
+                              color: palette.text.primary,
+                            }}
+                          >
+                            {f.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: typography.webScale.metadata,
+                              color: palette.text.muted,
+                            }}
+                          >
+                            {count} {count === 1 ? 'item' : 'items'}
+                            {f.archivedAt && ' • Archived'}
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Folder Actions Menu */}
+                      <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <button
+                          onClick={() => handleReorder(f.id, 'up')}
+                          disabled={index === 0}
+                          title="Move Up"
+                          aria-label={`Move ${f.name} up`}
+                          style={{
+                            padding: '4px 6px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: index === 0 ? 'not-allowed' : 'pointer',
+                            opacity: index === 0 ? 0.3 : 1,
+                          }}
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => handleReorder(f.id, 'down')}
+                          disabled={index === currentSubfolders.length - 1}
+                          title="Move Down"
+                          aria-label={`Move ${f.name} down`}
+                          style={{
+                            padding: '4px 6px',
+                            background: 'none',
+                            border: 'none',
+                            cursor:
+                              index === currentSubfolders.length - 1 ? 'not-allowed' : 'pointer',
+                            opacity: index === currentSubfolders.length - 1 ? 0.3 : 1,
+                          }}
+                        >
+                          ▼
+                        </button>
+                        <button
+                          onClick={() => handleOpenRename(f)}
+                          title="Rename"
+                          aria-label={`Rename ${f.name}`}
+                          style={{
+                            padding: '4px 6px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleOpenMove(f)}
+                          title="Move"
+                          aria-label={`Move ${f.name}`}
+                          style={{
+                            padding: '4px 6px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ➡️
+                        </button>
+                        <button
+                          onClick={() => handleToggleArchive(f)}
+                          title={f.archivedAt ? 'Unarchive' : 'Archive'}
+                          aria-label={`${f.archivedAt ? 'Unarchive' : 'Archive'} ${f.name}`}
+                          style={{
+                            padding: '4px 6px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          📦
+                        </button>
+                        <button
+                          onClick={() => handleOpenTrash(f)}
+                          title="Delete"
+                          aria-label={`Delete ${f.name}`}
+                          style={{
+                            padding: '4px 6px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Items Section */}
+          <section aria-labelledby="items-heading">
+            <h2
+              id="items-heading"
+              style={{
+                fontSize: typography.webScale.body,
+                fontWeight: '600',
+                marginBottom: spacing.xs,
+                color: palette.text.primary,
+              }}
+            >
+              {currentFolder ? `${currentFolder.name} Items` : 'Inbox & Unfiled Items'} (
+              {totalItems})
+            </h2>
+
+            {paginatedItems.length === 0 ? (
+              <EmptyState
+                id="library-empty-state"
+                title={folders.length === 0 ? 'Your library is empty' : 'No items found'}
+                description={
+                  currentSubfolders.length === 0
+                    ? 'Your library is empty. Create a folder or load demo journeys.'
+                    : 'No items in this folder matching your active filters.'
+                }
+                actionLabel={folders.length === 0 ? 'Load Demo Journeys' : 'New Folder'}
+                onAction={
+                  folders.length === 0
+                    ? handleLoadSampleJourneys
+                    : () => handleOpenCreateModal(currentFolderId)
+                }
+              />
+            ) : (
+              <div
+                role="list"
+                style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}
+              >
+                {paginatedItems.map((item) => (
+                  <div
+                    key={item.id}
+                    role="listitem"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: `${spacing.sm} ${spacing.md}`,
+                      backgroundColor: palette.surface,
+                      border: `1px solid ${palette.border.subtle}`,
+                      borderRadius: radii.card,
+                      gap: spacing.sm,
+                      cursor: item.kind === 'note' ? 'pointer' : 'default',
+                    }}
+                    onClick={() => {
+                      if (item.kind === 'note') {
+                        void handleOpenItem(item);
+                      }
+                    }}
+                  >
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1 }}
+                    >
+                      <ItemTypeBadge kind={item.kind} />
+                      <div>
+                        <div
+                          style={{
+                            fontSize: typography.webScale.supporting,
+                            fontWeight: '500',
+                            color: palette.text.primary,
+                          }}
+                        >
+                          {item.title}
+                        </div>
+                        {item.metadata && (
+                          <div
+                            style={{
+                              fontSize: typography.webScale.metadata,
+                              color: palette.text.muted,
+                            }}
+                          >
+                            {item.metadata}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {item.kind === 'note' && (
+                      <Button
+                        variant="subtle"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleOpenItem(item);
+                        }}
+                        aria-label={`Edit note ${item.title}`}
+                      >
+                        Edit Note
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Accessible Pagination */}
+            {totalPages > 1 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: spacing.sm,
+                  marginTop: spacing.md,
+                }}
+              >
+                <Button
+                  variant="secondary"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  aria-label="Previous page"
+                >
+                  Previous
+                </Button>
+                <span
+                  style={{
+                    fontSize: typography.webScale.supporting,
+                    color: palette.text.secondary,
+                  }}
+                >
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  aria-label="Next page"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       {/* Floating Reversible Undo Toast */}
       {undoToast && (

@@ -12,6 +12,7 @@ import {
   EmptyState,
   SkipLink,
   RouteAnnouncer,
+  NoteEditor,
 } from './index.js';
 
 describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
@@ -365,6 +366,69 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('aria-live="polite"');
       expect(html).toContain('aria-atomic="true"');
       expect(html).toContain('Navigated to Today view');
+    });
+  });
+
+  describe('NoteEditor Component', () => {
+    it('renders distraction-free note editor with title input, toolbar, and blocks', () => {
+      const html = renderToString(
+        React.createElement(NoteEditor, {
+          initialTitle: 'Test Note',
+          localSaveStatus: 'Saved locally',
+          cloudSyncStatus: 'Synced',
+        })
+      );
+      expect(html).toContain('data-testid="note-editor"');
+      expect(html).toContain('role="toolbar"');
+      expect(html).toContain('aria-label="Note editor toolbar"');
+      expect(html).toContain('value="Test Note"');
+      expect(html).toContain('placeholder="Untitled note..."');
+      expect(html).toContain('data-testid="format-paragraph"');
+      expect(html).toContain('data-testid="format-h1"');
+      expect(html).toContain('data-testid="format-bold"');
+      expect(html).toContain('data-testid="editor-undo"');
+      expect(html).toContain('data-testid="editor-redo"');
+      expect(html).toContain('Saved locally');
+      expect(html).toContain('Synced');
+    });
+
+    it('renders conflict banner when conflict is present', () => {
+      const html = renderToString(
+        React.createElement(NoteEditor, {
+          initialTitle: 'Conflict Note',
+          conflict: {
+            serverRevision: 5,
+            serverTitle: 'Server Note',
+          },
+        })
+      );
+      expect(html).toContain('data-testid="conflict-banner"');
+      expect(html).toContain('Server Rev');
+      expect(html).toContain('5');
+      expect(html).toContain('data-testid="resolve-keep-server"');
+      expect(html).toContain('data-testid="resolve-keep-local"');
+      expect(html).toContain('data-testid="resolve-save-copy"');
+    });
+
+    it('preserves Bangla Unicode content cleanly in note editor rendering', () => {
+      const html = renderToString(
+        React.createElement(NoteEditor, {
+          initialTitle: 'বাংলা নোট শিরোনাম',
+          initialDocument: {
+            version: 1,
+            type: 'doc',
+            content: [
+              {
+                id: 'p-1',
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'এটি একটি বাংলা অনুচ্ছেদ' }],
+              },
+            ],
+          },
+        })
+      );
+      expect(html).toContain('বাংলা নোট শিরোনাম');
+      expect(html).toContain('এটি একটি বাংলা অনুচ্ছেদ');
     });
   });
 });

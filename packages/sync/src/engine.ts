@@ -1,4 +1,9 @@
-import type { SyncCommand, SyncPushRequest, SyncCommandType, NoteDocument } from '@daynori/contracts';
+import type {
+  SyncCommand,
+  SyncPushRequest,
+  SyncCommandType,
+  NoteDocument,
+} from '@daynori/contracts';
 import type { LocalRepositoryPort } from './ports.js';
 import type {
   AccountNamespace,
@@ -416,8 +421,7 @@ export class SyncEngine {
 
     let noteRecord: NoteRecord | undefined;
     if (isNote) {
-      const doc =
-        (draft?.payload?.['document'] as Record<string, unknown> | undefined) ||
+      const doc = (draft?.payload?.['document'] as Record<string, unknown> | undefined) ||
         (options?.payload?.['document'] as Record<string, unknown> | undefined) || {
           version: 1,
           type: 'doc',
@@ -1172,7 +1176,8 @@ export class SyncEngine {
             id: conflict.entityId,
             workspaceId: conflict.workspaceId,
             folderId: (s['folderId'] as string | null) ?? null,
-            title: (s['title'] as string | undefined) ?? (s['name'] as string | undefined) ?? 'Untitled',
+            title:
+              (s['title'] as string | undefined) ?? (s['name'] as string | undefined) ?? 'Untitled',
             document: s['document'] as NoteDocument,
             plainText: (s['plainText'] as string) || '',
             wordCount: (s['wordCount'] as number) || 0,
@@ -1277,7 +1282,8 @@ export class SyncEngine {
             id: conflict.entityId,
             workspaceId: conflict.workspaceId,
             folderId: (s['folderId'] as string | null) ?? null,
-            title: (s['title'] as string | undefined) ?? (s['name'] as string | undefined) ?? 'Untitled',
+            title:
+              (s['title'] as string | undefined) ?? (s['name'] as string | undefined) ?? 'Untitled',
             document: s['document'] as NoteDocument,
             plainText: (s['plainText'] as string) || '',
             wordCount: (s['wordCount'] as number) || 0,

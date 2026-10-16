@@ -559,7 +559,11 @@ export function validateNoteDocument(input: unknown): NoteDocument {
   const validatedBlocks: NoteBlockNode[] = [];
 
   for (const block of doc.content) {
-    if (!block || typeof block !== 'object' || typeof (block as { type?: unknown }).type !== 'string') {
+    if (
+      !block ||
+      typeof block !== 'object' ||
+      typeof (block as { type?: unknown }).type !== 'string'
+    ) {
       throw new Error('NOTE_BLOCK_INVALID: Block must be a valid object with a string type.');
     }
 
@@ -673,7 +677,9 @@ function validateInlines(inlines?: unknown): NoteInlineNode[] {
         marks = [];
         for (const m of (n as Partial<NoteTextInline>).marks!) {
           if (m !== 'bold' && m !== 'italic') {
-            throw new Error(`NOTE_MARK_UNSUPPORTED: Unsupported mark "${m}". Allowed marks: bold, italic.`);
+            throw new Error(
+              `NOTE_MARK_UNSUPPORTED: Unsupported mark "${m}". Allowed marks: bold, italic.`
+            );
           }
           if (!marks.includes(m)) marks.push(m);
         }
@@ -699,7 +705,9 @@ function validateListItem(item: unknown): NoteListItemNode {
   }
   const it = item as Partial<NoteListItemNode>;
   if (it.type !== 'list_item') {
-    throw new Error(`NOTE_LIST_ITEM_INVALID: List item must have type="list_item". Received: ${it.type}`);
+    throw new Error(
+      `NOTE_LIST_ITEM_INVALID: List item must have type="list_item". Received: ${it.type}`
+    );
   }
   const itemId = typeof it.id === 'string' ? it.id.slice(0, 128) : undefined;
   return {
@@ -745,7 +753,10 @@ export function createRecoverableNoteDocument(
     const text =
       typeof raw === 'string'
         ? raw
-        : raw && typeof raw === 'object' && 'plainText' in raw && typeof (raw as { plainText: unknown }).plainText === 'string'
+        : raw &&
+            typeof raw === 'object' &&
+            'plainText' in raw &&
+            typeof (raw as { plainText: unknown }).plainText === 'string'
           ? (raw as { plainText: string }).plainText
           : fallbackText;
 

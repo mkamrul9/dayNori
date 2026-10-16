@@ -142,9 +142,8 @@ describe('Domain Rules and Invariants', () => {
     });
 
     it('preserves literal programming examples, comparison operators, and HTML examples while stripping null bytes', async () => {
-      const { validateNoteDocument, extractPlainText, sanitizeInertString } = await import(
-        './notes.js'
-      );
+      const { validateNoteDocument, extractPlainText, sanitizeInertString } =
+        await import('./notes.js');
 
       // Verify sanitizeInertString keeps angle brackets and comparison operators
       expect(sanitizeInertString('List<T> items = new List<T>();')).toBe(
