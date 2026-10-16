@@ -6,4 +6,5 @@ export * from './item.js';
 export * from './user.js';
 export * from './sync.js';
 export * from './organization.js';
+export * from './note.js';
 export * from './openapi.js';

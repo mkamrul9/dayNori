@@ -21,6 +21,10 @@ export const SyncCommandTypeSchema = z.enum([
   'unpinFolder',
   'trashFolder',
   'restoreFolder',
+  'createNote',
+  'updateNote',
+  'trashNote',
+  'restoreNote',
 ]);
 
 export type SyncCommandType = z.infer<typeof SyncCommandTypeSchema>;
@@ -36,7 +40,7 @@ export const SyncCommandSchema = z
     commandVersion: z.number().int().min(1).default(1),
     schemaVersion: z.number().int().min(1).default(1),
     command: SyncCommandTypeSchema,
-    entityType: z.enum(['item', 'folder']),
+    entityType: z.enum(['item', 'folder', 'note']),
     entityId: z.string().uuid(),
     baseRevision: z.number().int().nonnegative().default(0),
     dependencyOperationIds: z.array(z.string().uuid()).max(50).default([]),

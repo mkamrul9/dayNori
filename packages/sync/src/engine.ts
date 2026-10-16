@@ -318,20 +318,29 @@ export class SyncEngine {
 
     const isFolder =
       item.kind === 'folder' || (command !== undefined && command.includes('Folder'));
+    const isNote = item.kind === 'note' || (command !== undefined && command.includes('Note'));
     const determinedCommand =
       command ||
       (item.serverRevision === 0
         ? isFolder
           ? 'createFolder'
-          : 'createItem'
+          : isNote
+            ? 'createNote'
+            : 'createItem'
         : isFolder
           ? 'updateFolder'
-          : 'updateItem');
+          : isNote
+            ? 'updateNote'
+            : 'updateItem');
 
     const action: 'create' | 'update' | 'delete' =
-      determinedCommand === 'trashItem' || determinedCommand === 'trashFolder'
+      determinedCommand === 'trashItem' ||
+      determinedCommand === 'trashFolder' ||
+      determinedCommand === 'trashNote'
         ? 'delete'
-        : determinedCommand === 'createItem' || determinedCommand === 'createFolder'
+        : determinedCommand === 'createItem' ||
+            determinedCommand === 'createFolder' ||
+            determinedCommand === 'createNote'
           ? 'create'
           : 'update';
 
@@ -349,16 +358,30 @@ export class SyncEngine {
           isPinned: item.isPinned,
           ...(options?.payload || {}),
         }
-      : {
-          kind: item.kind,
-          rank: item.rank,
-          folderId: item.folderId,
-          securityScope: item.securityScope,
-          isArchived: item.isArchived,
-          isPinned: item.isPinned,
-          ...(item.name ? { name: item.name } : {}),
-          ...(options?.payload || {}),
-        };
+      : isNote
+        ? {
+            kind: 'note',
+            title: item.title || item.name || 'Untitled',
+            folderId: item.folderId,
+            rank: item.rank,
+            securityScope: item.securityScope,
+            isArchived: item.isArchived,
+            isPinned: item.isPinned,
+            ...(draft?.payload?.['document'] ? { document: draft.payload['document'] } : {}),
+            ...(draft?.payload?.['plainText'] ? { plainText: draft.payload['plainText'] } : {}),
+            ...(options?.payload || {}),
+          }
+        : {
+            kind: item.kind,
+            rank: item.rank,
+            folderId: item.folderId,
+            securityScope: item.securityScope,
+            isArchived: item.isArchived,
+            isPinned: item.isPinned,
+            ...(item.name ? { name: item.name } : {}),
+            ...(item.title ? { title: item.title } : {}),
+            ...(options?.payload || {}),
+          };
 
     // Calculate baseRevision for unsent intents:
     // If there are pending operations for this entity, chain expected base revision
@@ -375,7 +398,7 @@ export class SyncEngine {
       deviceId: this.deviceId,
       workspaceId: item.workspaceId,
       userId: this.namespace.userId,
-      entityType: isFolder ? 'folder' : 'item',
+      entityType: isFolder ? 'folder' : isNote ? 'note' : 'item',
       entityId: item.id,
       action,
       command: determinedCommand,
@@ -619,10 +642,13 @@ export class SyncEngine {
                   ? (origMutation.payload['folderId'] as string | null)
                   : header.folderId,
               deletedAt:
-                origMutation.command === 'trashItem' || origMutation.command === 'trashFolder'
+                origMutation.command === 'trashItem' ||
+                origMutation.command === 'trashFolder' ||
+                origMutation.command === 'trashNote'
                   ? new Date().toISOString()
                   : origMutation.command === 'restoreItem' ||
-                      origMutation.command === 'restoreFolder'
+                      origMutation.command === 'restoreFolder' ||
+                      origMutation.command === 'restoreNote'
                     ? null
                     : header.deletedAt,
             }
@@ -631,7 +657,11 @@ export class SyncEngine {
               workspaceId: this.namespace.workspaceId,
               kind:
                 (origMutation.payload['kind'] as string) ||
-                (origMutation.entityType === 'folder' ? 'folder' : 'note'),
+                (origMutation.entityType === 'folder'
+                  ? 'folder'
+                  : origMutation.entityType === 'note'
+                    ? 'note'
+                    : 'note'),
               folderId: (origMutation.payload['folderId'] as string | null) ?? null,
               rank: (origMutation.payload['rank'] as string) || '0',
               isArchived: Boolean(origMutation.payload['isArchived'] ?? false),
@@ -639,14 +669,21 @@ export class SyncEngine {
               securityScope:
                 (origMutation.payload['securityScope'] as 'standard' | 'vault') || 'standard',
               serverRevision: result.revision,
-              name: origMutation.payload['name'] as string | undefined,
+              name:
+                (origMutation.payload['name'] as string | undefined) ??
+                (origMutation.payload['title'] as string | undefined),
+              title:
+                (origMutation.payload['title'] as string | undefined) ??
+                (origMutation.payload['name'] as string | undefined),
               color: origMutation.payload['color'] as string | null | undefined,
               icon: origMutation.payload['icon'] as string | null | undefined,
               parentId: (origMutation.payload['parentId'] as string | null) ?? null,
               createdAt: origMutation.clientTimestamp,
               updatedAt: new Date().toISOString(),
               deletedAt:
-                origMutation.command === 'trashItem' || origMutation.command === 'trashFolder'
+                origMutation.command === 'trashItem' ||
+                origMutation.command === 'trashFolder' ||
+                origMutation.command === 'trashNote'
                   ? new Date().toISOString()
                   : null,
             };
@@ -977,7 +1014,12 @@ export class SyncEngine {
         entityType: conflict.entityType,
         entityId: conflict.entityId,
         action: 'update',
-        command: conflict.entityType === 'folder' ? 'updateFolder' : 'updateItem',
+        command:
+          conflict.entityType === 'folder'
+            ? 'updateFolder'
+            : conflict.entityType === 'note'
+              ? 'updateNote'
+              : 'updateItem',
         commandVersion: 1,
         schemaVersion: 1,
         payload,

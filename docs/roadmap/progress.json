@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-15",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 13 shared client synchronization engine provisional implementation delivered and verified across real PostgreSQL and production browser IndexedDB (offline queue draining, lost-response idempotency, tab coordination, explicit conflict recovery, snapshot reset). Completion for Phases 04–06, 09, 10, 11, 12, and 13 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 13 (Shared client synchronization engine) provisional implementation delivered and verified across real PostgreSQL integration suite and real browser IndexedDB CDP test. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 16 typed note domain and persistence provisional implementation delivered and verified across real PostgreSQL integration suite, Fastify REST endpoints, and SyncEngine. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, and 16 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 16 (Typed note domain and persistence) provisional implementation delivered and verified across real PostgreSQL integration suite. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -98,7 +98,9 @@
     },
     {
       "id": "16",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional typed note domain and persistence delivered and verified across real PostgreSQL, Fastify API, SyncEngine, and local repositories (portable versioned AST, Unicode & Bangla preservation, inert rendering, revision conflicts, and RLS isolation). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-16.md"
     },
     {
       "id": "17",

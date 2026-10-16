@@ -97,4 +97,93 @@ describe('Domain Rules and Invariants', () => {
       ]);
     });
   });
+
+  describe('Typed Notes Domain Rules & Invariants', () => {
+    it('resolves note titles with honest "Untitled" fallback and length limits', async () => {
+      const { resolveNoteTitle } = await import('./notes.js');
+      expect(resolveNoteTitle('')).toBe('Untitled');
+      expect(resolveNoteTitle('   ')).toBe('Untitled');
+      expect(resolveNoteTitle(null)).toBe('Untitled');
+      expect(resolveNoteTitle(undefined)).toBe('Untitled');
+      expect(resolveNoteTitle('Meeting Notes')).toBe('Meeting Notes');
+      expect(resolveNoteTitle('  বাংলা নোট  ')).toBe('বাংলা নোট');
+      // Truncates strings exceeding 255 chars
+      const longTitle = 'A'.repeat(300);
+      expect(resolveNoteTitle(longTitle).length).toBe(255);
+    });
+
+    it('creates note document AST from plain text and preserves Unicode / Bangla', async () => {
+      const {
+        createNoteDocumentFromPlainText,
+        extractPlainText,
+        calculateWordCount,
+        calculateCharCount,
+      } = await import('./notes.js');
+
+      const plain = `# বাংলা টাইপড নোট\n\nএটি একটি পরীক্ষার প্যারাগ্রাফ।\n\n- প্রথম কাজ\n- দ্বিতীয় কাজ\n\n[ ] অসম্পূর্ণ চেকলিস্ট\n[x] সম্পন্ন চেকলিস্ট`;
+      const doc = createNoteDocumentFromPlainText(plain);
+
+      expect(doc.version).toBe(1);
+      expect(doc.type).toBe('doc');
+      expect(doc.content.length).toBe(4); // heading, paragraph, bullet_list, checklist
+
+      // Verify AST extraction round-trip
+      const extracted = extractPlainText(doc);
+      expect(extracted).toContain('# বাংলা টাইপড নোট');
+      expect(extracted).toContain('এটি একটি পরীক্ষার প্যারাগ্রাফ।');
+      expect(extracted).toContain('- প্রথম কাজ');
+      expect(extracted).toContain('[x] সম্পন্ন চেকলিস্ট');
+
+      // Verify word count & character count
+      const wordCount = calculateWordCount(extracted);
+      const charCount = calculateCharCount(extracted);
+      expect(wordCount).toBeGreaterThan(10);
+      expect(charCount).toBe(Array.from(extracted).length);
+    });
+
+    it('sanitizes inert strings without executing or interpreting markup', async () => {
+      const { validateNoteDocument, extractPlainText } = await import('./notes.js');
+
+      const maliciousDoc = {
+        version: 1,
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: '<script>alert("pwned")</script>\0NullByteTest',
+              },
+            ],
+          },
+        ],
+      };
+
+      const validated = validateNoteDocument(maliciousDoc);
+      // Null byte and executable markup are stripped to guarantee inert text
+      const plain = extractPlainText(validated);
+      expect(plain).toBe('NullByteTest');
+      expect(plain).not.toContain('\0');
+      expect(plain).not.toContain('<script>');
+    });
+
+    it('rejects oversized documents exceeding 512KB payload limit', async () => {
+      const { validateNoteDocument } = await import('./notes.js');
+
+      const hugeText = 'X'.repeat(600 * 1024);
+      const hugeDoc = {
+        version: 1,
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: hugeText }],
+          },
+        ],
+      };
+
+      expect(() => validateNoteDocument(hugeDoc)).toThrow(/NOTE_PAYLOAD_TOO_LARGE/);
+    });
+  });
 });

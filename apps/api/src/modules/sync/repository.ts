@@ -505,12 +505,15 @@ export async function listActiveItemsForBootstrap(
     folder_name: string | null;
     folder_color: string | null;
     folder_icon: string | null;
+    note_title: string | null;
   }>(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by, i.created_at, i.updated_at, i.deleted_at,
             i.display_order, i.revision, i.rank, i.is_archived, i.is_pinned, i.security_scope,
-            f.name as folder_name, f.color as folder_color, f.icon as folder_icon
+            f.name as folder_name, f.color as folder_color, f.icon as folder_icon,
+            n.title as note_title
      FROM app.items i
      LEFT JOIN app.folders f ON f.workspace_id = i.workspace_id AND f.id = i.id
+     LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
      WHERE i.workspace_id = $1 AND i.deleted_at IS NULL
      ORDER BY i.created_at ASC;`,
     [workspaceId]
@@ -532,7 +535,7 @@ export async function listActiveItemsForBootstrap(
     isArchived: r.is_archived,
     isPinned: r.is_pinned,
     securityScope: r.security_scope,
-    name: r.folder_name ?? undefined,
+    name: r.folder_name ?? r.note_title ?? undefined,
     color: r.folder_color,
     icon: r.folder_icon,
   }));

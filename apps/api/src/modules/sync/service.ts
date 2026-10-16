@@ -44,6 +44,17 @@ import {
   trashFolder,
   restoreFolder,
 } from '../organization/service.js';
+import { createNote, updateNote, trashNote, restoreNote } from '../notes/service.js';
+import {
+  type NoteDocument,
+  validateNoteDocument,
+  extractPlainText,
+  createNoteDocumentFromPlainText,
+  createEmptyNoteDocument,
+  resolveNoteTitle,
+  calculateWordCount,
+  calculateCharCount,
+} from '@daynori/domain';
 import { withTenantContext } from '../../db/index.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
 
@@ -992,6 +1003,207 @@ export class SyncService {
       }
     }
 
+    // --- Unified Note Commands ---
+    if (
+      cmd.command === 'createNote' ||
+      cmd.command === 'updateNote' ||
+      cmd.command === 'trashNote' ||
+      cmd.command === 'restoreNote'
+    ) {
+      try {
+        let resultRevision = 1;
+        const appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'createNote': {
+            if (existingItem) {
+              throw new ValidationError(
+                `Entity with ID ${cmd.entityId} already exists in this workspace.`
+              );
+            }
+            const note = await createNote(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              {
+                id: cmd.entityId,
+                title: typeof cmd.payload['title'] === 'string' ? cmd.payload['title'] : undefined,
+                folderId:
+                  typeof cmd.payload['folderId'] === 'string'
+                    ? cmd.payload['folderId']
+                    : typeof cmd.payload['parentId'] === 'string'
+                      ? cmd.payload['parentId']
+                      : null,
+                document: cmd.payload['document']
+                  ? validateNoteDocument(cmd.payload['document'])
+                  : undefined,
+                plainText:
+                  typeof cmd.payload['plainText'] === 'string'
+                    ? cmd.payload['plainText']
+                    : undefined,
+                rank: typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : '00001000',
+                isPinned: Boolean(cmd.payload['isPinned']),
+                securityScope: cmd.payload['securityScope'] === 'vault' ? 'vault' : 'standard',
+              },
+              cmd.operationId
+            );
+            resultRevision = note.revision;
+            resultPayload = { note };
+            break;
+          }
+          case 'updateNote': {
+            const note = await updateNote(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                baseRevision: cmd.baseRevision,
+                title: typeof cmd.payload['title'] === 'string' ? cmd.payload['title'] : undefined,
+                folderId:
+                  typeof cmd.payload['folderId'] === 'string'
+                    ? cmd.payload['folderId']
+                    : cmd.payload['folderId'] === null
+                      ? null
+                      : undefined,
+                document: cmd.payload['document']
+                  ? validateNoteDocument(cmd.payload['document'])
+                  : undefined,
+                plainText:
+                  typeof cmd.payload['plainText'] === 'string'
+                    ? cmd.payload['plainText']
+                    : undefined,
+                rank: typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : undefined,
+                isPinned:
+                  typeof cmd.payload['isPinned'] === 'boolean'
+                    ? cmd.payload['isPinned']
+                    : undefined,
+                isArchived:
+                  typeof cmd.payload['isArchived'] === 'boolean'
+                    ? cmd.payload['isArchived']
+                    : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = note.revision;
+            resultPayload = { note };
+            break;
+          }
+          case 'trashNote': {
+            const res = await trashNote(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            resultPayload = { ...res };
+            break;
+          }
+          case 'restoreNote': {
+            const note = await restoreNote(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.operationId
+            );
+            resultRevision = note.revision;
+            resultPayload = { note };
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          const conflictError = {
+            code: 'REVISION_CONFLICT',
+            message: err.message,
+          };
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictError },
+          });
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: cmd.baseRevision,
+            seq: null,
+            error: conflictError,
+          };
+        }
+
+        const message = err instanceof Error ? err.message : String(err);
+        const code = err instanceof NotFoundError ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+        const errorPayload = { code, message };
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
     // --- Command: createItem ---
     if (cmd.command === 'createItem') {
       if (existingItem) {
@@ -1185,6 +1397,43 @@ export class SyncService {
         );
       }
 
+      if (kind === 'note') {
+        let doc: NoteDocument;
+        let pt: string;
+        if (cmd.payload['document']) {
+          doc = validateNoteDocument(cmd.payload['document']);
+          pt = extractPlainText(doc);
+        } else if (typeof cmd.payload['plainText'] === 'string') {
+          doc = createNoteDocumentFromPlainText(cmd.payload['plainText']);
+          pt = cmd.payload['plainText'].trim();
+        } else {
+          doc = createEmptyNoteDocument();
+          pt = '';
+        }
+        const noteTitle = resolveNoteTitle(
+          typeof cmd.payload['title'] === 'string'
+            ? cmd.payload['title']
+            : typeof cmd.payload['name'] === 'string'
+              ? cmd.payload['name']
+              : undefined,
+          'Untitled'
+        );
+        const wc = calculateWordCount(pt);
+        const cc = calculateCharCount(pt);
+        await client.query(
+          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (workspace_id, id) DO UPDATE SET
+             title = EXCLUDED.title,
+             document = EXCLUDED.document,
+             plain_text = EXCLUDED.plain_text,
+             word_count = EXCLUDED.word_count,
+             char_count = EXCLUDED.char_count,
+             updated_at = now();`,
+          [cmd.entityId, cmd.workspaceId, noteTitle, JSON.stringify(doc), pt, wc, cc]
+        );
+      }
+
       const changeData = {
         kind,
         folderId,
@@ -1197,6 +1446,19 @@ export class SyncService {
               name: cmd.payload['name'] || 'Untitled Folder',
               color: cmd.payload['color'] || null,
               icon: cmd.payload['icon'] || null,
+            }
+          : {}),
+        ...(kind === 'note'
+          ? {
+              title:
+                typeof cmd.payload['title'] === 'string'
+                  ? cmd.payload['title']
+                  : typeof cmd.payload['name'] === 'string'
+                    ? cmd.payload['name']
+                    : 'Untitled',
+              document: cmd.payload['document'] || createEmptyNoteDocument(),
+              plainText:
+                typeof cmd.payload['plainText'] === 'string' ? cmd.payload['plainText'] : '',
             }
           : {}),
       };
@@ -1528,6 +1790,57 @@ export class SyncService {
           }
         }
 
+        if (
+          existingItem.kind === 'note' &&
+          ('title' in cmd.payload ||
+            'document' in cmd.payload ||
+            'plainText' in cmd.payload ||
+            'name' in cmd.payload)
+        ) {
+          const curNoteRes = await client.query<{
+            title: string;
+            document: NoteDocument;
+            plain_text: string;
+          }>(
+            `SELECT title, document, plain_text FROM app.notes WHERE workspace_id = $1 AND id = $2;`,
+            [cmd.workspaceId, cmd.entityId]
+          );
+          const curNote = curNoteRes.rows[0];
+          let doc = curNote?.document ?? createEmptyNoteDocument();
+          let pt = curNote?.plain_text ?? '';
+          if (cmd.payload['document'] !== undefined) {
+            doc = validateNoteDocument(cmd.payload['document']);
+            pt = extractPlainText(doc);
+          } else if (cmd.payload['plainText'] !== undefined) {
+            doc = createNoteDocumentFromPlainText(String(cmd.payload['plainText']));
+            pt = String(cmd.payload['plainText']).trim();
+          }
+          const rawTitle =
+            cmd.payload['title'] !== undefined
+              ? cmd.payload['title']
+              : cmd.payload['name'] !== undefined
+                ? cmd.payload['name']
+                : undefined;
+          const title =
+            rawTitle !== undefined
+              ? resolveNoteTitle(String(rawTitle), 'Untitled')
+              : (curNote?.title ?? 'Untitled');
+          const wc = calculateWordCount(pt);
+          const cc = calculateCharCount(pt);
+          await client.query(
+            `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (workspace_id, id) DO UPDATE SET
+               title = EXCLUDED.title,
+               document = EXCLUDED.document,
+               plain_text = EXCLUDED.plain_text,
+               word_count = EXCLUDED.word_count,
+               char_count = EXCLUDED.char_count,
+               updated_at = now();`,
+            [cmd.entityId, cmd.workspaceId, title, JSON.stringify(doc), pt, wc, cc]
+          );
+        }
+
         await updateItemForSync(client, {
           id: cmd.entityId,
           workspaceId: cmd.workspaceId,
@@ -1540,6 +1853,13 @@ export class SyncService {
         changeData = {
           ...(hasFolderId ? { folderId } : {}),
           ...(rank !== undefined ? { rank } : {}),
+          ...(existingItem.kind === 'note'
+            ? {
+                ...('title' in cmd.payload ? { title: cmd.payload['title'] } : {}),
+                ...('document' in cmd.payload ? { document: cmd.payload['document'] } : {}),
+                ...('plainText' in cmd.payload ? { plainText: cmd.payload['plainText'] } : {}),
+              }
+            : {}),
         };
         break;
       }

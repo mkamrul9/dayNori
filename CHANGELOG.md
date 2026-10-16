@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 16 — Typed note domain and persistence — 2026-10-15
+
+- **Portable Typed Note Document AST (`packages/contracts`, `packages/domain`):**
+  - Defined version 1 `NoteDocument` AST with typed blocks (`paragraph`, `heading` levels 1–3, `bullet_list`, `ordered_list`, `checklist_item`) and inline text nodes with optional marks (`bold`, `italic`, `hard_break`).
+  - Implemented plain text projection (`extractPlainText`) and Unicode-aware character/word counting (`calculateWordCount`, `calculateCharCount`).
+  - Added title derivation invariant (`resolveNoteTitle`) falling back to the first non-empty line of content text.
+  - Enforced strict payload and node boundaries (`MAX_NOTE_DOCUMENT_BYTES = 512 * 1024`, `MAX_NOTE_NODES = 5000`).
+  - Preserved complex Unicode and South Asian scripts (Bangla / বাংলা) across parsing, storage, and retrieval.
+  - Implemented inert text sanitization (`sanitizeInertString`) stripping ASCII control codes (< 32, preserving `\t`, `\n`, `\r`), `<script>`/`<style>` blocks, and raw HTML markup tags.
+- **PostgreSQL Persistence & RLS (`infra/supabase`):**
+  - Applied migration `00014_typed_notes_and_persistence.sql` creating `app.notes` with composite primary key `(workspace_id, id)` and foreign key referencing `app.items(workspace_id, id) ON DELETE CASCADE`.
+  - Added GIN full-text index `idx_notes_search` on combined title and plain text.
+  - Configured tenant RLS policies (`p_notes_select`, `p_notes_insert`, `p_notes_update`, `p_notes_delete`) ensuring strict tenant isolation and write authorization checks.
+- **Fastify API Routes & Services (`apps/api`):**
+  - Added note endpoints at `/v1/workspaces/:workspaceId/notes`: `POST` (create), `GET /:id` (detail), `GET` (list with filters), `PATCH /:id` (update with optimistic revision checks), `POST /:id/trash` (soft-delete), and `POST /:id/restore` (restore).
+  - Integrated with monotonic change feed (`app.changes`), outbox intent dispatch (`app.outbox_intents`), and durable `x-operation-id` idempotency caching.
+  - Supported query boolean coercion via `QueryBooleanSchema` preventing `"false"` string evaluation bugs.
+- **Sync Engine & Local Repositories (`packages/sync`, `apps/api`):**
+  - Handled note commands (`createNote`, `updateNote`, `trashNote`, `restoreNote`) in client `SyncEngine` and server `SyncService`.
+  - Joined `app.notes` in bootstrap query `listActiveItemsForBootstrap` to populate note titles and plain text in client bootstrap snapshots.
+  - Preserved offline note drafts in `IndexedDbLocalRepository` and `SqliteLocalRepository` with conflict detection on reconnect.
+- **API Client Library (`packages/api-client`):**
+  - Added typed methods to `DaynoriApiClient`: `createNote`, `getNote`, `listNotes`, `updateNote`, `trashNote`, and `restoreNote`.
+- **Decision Record:**
+  - Published [ADR-0022: Typed Note Domain and Persistence](docs/decisions/0022-typed-note-domain-and-persistence.md).
+
 ## Phase 15 — Folder browsing and organization interfaces — 2026-10-15
 
 - **Web Library Interface (`apps/web`):**

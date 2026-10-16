@@ -47,6 +47,8 @@ import {
   ItemTagListResponseSchema,
   ItemLinkResponseSchema,
   ItemLinkListResponseSchema,
+  NoteResponseSchema,
+  NoteListResponseSchema,
   type CreateFolderRequest,
   type UpdateFolderRequest,
   type MoveFolderRequest,
@@ -68,6 +70,11 @@ import {
   type ItemTagListResponse,
   type ItemLinkResponse,
   type ItemLinkListResponse,
+  type CreateNoteRequest,
+  type UpdateNoteRequest,
+  type NoteListQuery,
+  type NoteResponse,
+  type NoteListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -745,6 +752,107 @@ export class DaynoriApiClient {
       options
     );
     return ItemLinkListResponseSchema.parse(raw);
+  }
+
+  // --- Notes (Phase 16) ---
+
+  async createNote(
+    workspaceId: string,
+    request: CreateNoteRequest,
+    options?: RequestOptions
+  ): Promise<NoteResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/notes`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return NoteResponseSchema.parse(raw);
+  }
+
+  async getNote(
+    workspaceId: string,
+    noteId: string,
+    options?: RequestOptions
+  ): Promise<NoteResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/notes/${noteId}`,
+      { method: 'GET' },
+      options
+    );
+    return NoteResponseSchema.parse(raw);
+  }
+
+  async listNotes(
+    workspaceId: string,
+    query?: Partial<NoteListQuery>,
+    options?: RequestOptions
+  ): Promise<NoteListResponse> {
+    const params = new URLSearchParams();
+    if (query?.folderId !== undefined) {
+      if (query.folderId === null) {
+        params.set('folderId', 'null');
+      } else {
+        params.set('folderId', query.folderId);
+      }
+    }
+    if (query?.isArchived !== undefined) {
+      params.set('isArchived', String(query.isArchived));
+    }
+    if (query?.search) {
+      params.set('search', query.search);
+    }
+    if (query?.limit !== undefined) {
+      params.set('limit', String(query.limit));
+    }
+    if (query?.cursor) {
+      params.set('cursor', query.cursor);
+    }
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/notes${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return NoteListResponseSchema.parse(raw);
+  }
+
+  async updateNote(
+    workspaceId: string,
+    noteId: string,
+    request: UpdateNoteRequest,
+    options?: RequestOptions
+  ): Promise<NoteResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/notes/${noteId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return NoteResponseSchema.parse(raw);
+  }
+
+  async trashNote(
+    workspaceId: string,
+    noteId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { id: string; revision: number }; meta: { timestamp: string } }> {
+    const raw = await this.request<{
+      data: { id: string; revision: number };
+      meta: { timestamp: string };
+    }>(`/v1/workspaces/${workspaceId}/notes/${noteId}/trash`, { method: 'POST' }, options);
+    return raw;
+  }
+
+  async restoreNote(
+    workspaceId: string,
+    noteId: string,
+    options?: RequestOptions
+  ): Promise<NoteResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/notes/${noteId}/restore`,
+      { method: 'POST' },
+      options
+    );
+    return NoteResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---
