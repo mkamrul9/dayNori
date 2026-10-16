@@ -116,7 +116,9 @@
     },
     {
       "id": "19",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional upcoming task workflows, priority views, detail editors, subtask hierarchy, and multi-platform Plan interfaces delivered under owner authorization and verified across Vitest pure domain, integration journeys, Web Next.js Plan page, and Mobile React Native PlanView. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-19.md"
     },
     {
       "id": "20",

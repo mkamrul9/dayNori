@@ -617,5 +617,77 @@ describe('Domain Rules and Invariants', () => {
       const nyKeyDateOnly = getTaskDeadlineSortKey(dateOnlyTask.deadline, 'America/New_York');
       expect(nyKeyDateOnly).toBe('2026-10-17T03:59:59.999Z');
     });
+
+    it('formats deadline explanations with explicit text and dates, not color alone', async () => {
+      const { formatTaskDeadlineExplanation } = await import('./tasks.js');
+
+      const refDate = new Date('2026-10-16T12:00:00.000Z');
+
+      // 1. None
+      const expNone = formatTaskDeadlineExplanation({ type: 'none' }, 'UTC', refDate);
+      expect(expNone.isOverdue).toBe(false);
+      expect(expNone.label).toBe('No deadline');
+
+      // 2. Overdue by 2 days (Oct 14)
+      const expOverdue = formatTaskDeadlineExplanation(
+        { type: 'date', date: '2026-10-14' },
+        'UTC',
+        refDate
+      );
+      expect(expOverdue.isOverdue).toBe(true);
+      expect(expOverdue.overdueText).toBe('Overdue by 2 days (Due 2026-10-14)');
+
+      // 3. Due today
+      const expToday = formatTaskDeadlineExplanation(
+        { type: 'date', date: '2026-10-16' },
+        'UTC',
+        refDate
+      );
+      expect(expToday.isOverdue).toBe(false);
+      expect(expToday.label).toContain('Today');
+
+      // 4. Due tomorrow
+      const expTomorrow = formatTaskDeadlineExplanation(
+        { type: 'date', date: '2026-10-17' },
+        'UTC',
+        refDate
+      );
+      expect(expTomorrow.isOverdue).toBe(false);
+      expect(expTomorrow.label).toContain('Tomorrow');
+
+      // 5. Timed with timezone difference disclosure
+      const expTimed = formatTaskDeadlineExplanation(
+        {
+          type: 'timed',
+          timestamp: '2026-10-16T16:00:00.000Z',
+          timezone: 'America/New_York',
+        },
+        'Asia/Dhaka',
+        refDate
+      );
+      expect(expTimed.timezoneNote).toBe('Scheduled in America/New_York (viewing in Asia/Dhaka)');
+    });
+
+    it('detects nonexistent and ambiguous local times during daylight saving transitions', async () => {
+      const { checkLocalTimeDisambiguation } = await import('./tasks.js');
+
+      // In America/New_York, 2026-03-08 at 02:30 is nonexistent (spring forward 02:00 -> 03:00)
+      const springForward = checkLocalTimeDisambiguation('2026-03-08', '02:30', 'America/New_York');
+      expect(springForward.type).toBe('nonexistent');
+      if (springForward.type === 'nonexistent') {
+        expect(springForward.explanation).toContain('does not exist');
+      }
+
+      // In America/New_York, 2026-11-01 at 01:30 is ambiguous (fall back 02:00 -> 01:00)
+      const fallBack = checkLocalTimeDisambiguation('2026-11-01', '01:30', 'America/New_York');
+      expect(fallBack.type).toBe('ambiguous');
+      if (fallBack.type === 'ambiguous') {
+        expect(fallBack.explanation).toContain('occurs twice');
+      }
+
+      // Normal time (e.g. 10:00 AM on 2026-10-16 in UTC or Asia/Dhaka)
+      const normalTime = checkLocalTimeDisambiguation('2026-10-16', '10:00', 'Asia/Dhaka');
+      expect(normalTime.type).toBe('exact');
+    });
   });
 });

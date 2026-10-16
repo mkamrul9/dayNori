@@ -1,5 +1,41 @@
 # Changelog
 
+## Phase 19 — Upcoming task lists and detail views — 2026-10-16
+
+- **Prerequisite Correctness Repairs (`apps/api`, `packages/domain`, `packages/sync`, commit `41061fc`):**
+  - Parameterized `userTimezone` in PostgreSQL task queries, completely eliminating SQL injection risks.
+  - Bracketed `OR` predicate in Today task view to prevent bypass of workspace RLS or status constraints.
+  - Added deterministic secondary sort keys before pagination `LIMIT` clauses to guarantee stable page boundaries.
+  - Enforced strong type constraints on continuation cursors.
+  - Resolved timezone consistency in `getTaskDeadlineSortKey` with explicit reference dates.
+  - Added full subtree depth checks enforcing maximum depth of 3 levels across subtask hierarchies.
+  - Implemented transactional concurrency locking on task mutations with optimistic revision verification.
+  - Ensured durable idempotency replay returns original mutation receipts on repeated identical operation IDs.
+  - Preserved local task projections during tombstone metadata sync and tag reconciliation.
+- **Pure Domain & Timezone Helpers (`packages/domain`):**
+  - Added `formatTaskDeadlineExplanation` returning structured text-based overdue explanations, relative dates, and timezone notes to avoid relying on color alone.
+  - Added `checkLocalTimeDisambiguation` detecting nonexistent spring-forward gaps and ambiguous fall-back overlaps during DST transitions.
+- **Accessible Web Components (`packages/ui-web`):**
+  - Added `TaskRow` component with custom accessible checkbox, priority badges, text-based overdue warnings, tag chips, subtask count indicators, and bulk selection controls.
+  - Added `TaskDetailEditor` modal with title auto-focus, details textarea, priority, status, folder, tags, subtasks manager (depth <= 3), and deadline picker supporting none, calendar date, and timed deadlines with timezone selection and DST disambiguation warnings.
+- **Web Application Plan Page (`apps/web`):**
+  - Implemented production Plan page (`/plan`) connected to `IndexedDbLocalRepository`, `useAuth()`, and `SyncEngine`.
+  - Added dedicated priority views: Today, Upcoming, Overdue, Completed, Undated, and All Tasks.
+  - Added quick capture bar with deadline presets (`Today`, `Tomorrow`, `No date`).
+  - Added sorting and filtering by priority, folder, and deadline.
+  - Added safe confirmable bulk actions (complete, delete, move) operating on explicit ID arrays with review confirmation modals.
+  - Added floating undo toast for 5-second reversal of task completions.
+  - Added accessible live announcements and viewing timezone selector.
+- **Mobile Application Plan View (`apps/mobile`):**
+  - Enhanced React Native `PlanView` connected to `LocalRepositoryPort` and `SyncEngine` while preserving routines and calendar subviews.
+  - Added quick capture input bar with quick deadline preset buttons.
+  - Added view filter pills for switching between Today, Upcoming, Overdue, Completed, and All.
+  - Added task list rendering with priority badges, text-based overdue explanations, and subtask counters.
+  - Added modal sheet editor (`MobileModalSheet`) for task detail editing, subtasks, and deadline selection.
+  - Added reversible completion with bottom undo banner.
+- **Decision Record:**
+  - Published [ADR-0025: Upcoming Task Workflows, Priority Views, and Multi-Platform Plan Interfaces](docs/decisions/0025-upcoming-task-workflows-and-views.md).
+
 ## Phase 18 — Upcoming task domain and deadlines — 2026-10-16
 
 - **Shared Task Domain & Explicit Deadline Semantics (`packages/domain`, `packages/contracts`):**

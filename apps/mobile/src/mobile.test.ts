@@ -202,6 +202,74 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       expect(activeSubView).toBe('routines');
     });
 
+    it('interactively creates tasks, toggles completion, and supports undo in PlanView', () => {
+      let renderer!: ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(PlanView, {
+            themeMode: 'light',
+            initialSubView: 'tasks',
+          })
+        );
+      });
+
+      const root = renderer.root;
+
+      // 1. Quick capture a task
+      const input = root.findByProps({ testID: 'plan-quick-add-input' });
+      act(() => {
+        input.props.onChangeText('Mobile Test Task');
+      });
+
+      const addBtn = root.findByProps({ testID: 'plan-quick-add-btn' });
+      act(() => {
+        addBtn.props.onPress();
+      });
+
+      // Verify task appears
+      const treeStr = JSON.stringify(renderer.toJSON());
+      expect(treeStr).toContain('Mobile Test Task');
+
+      // 2. Toggle completion on task t1
+      const t1Toggle = renderer.root.findByProps({ testID: 'task-toggle-t1' });
+      act(() => {
+        t1Toggle.props.onPress();
+      });
+
+      // Assert undo banner appears
+      const undoBanner = renderer.root.findByProps({ testID: 'plan-undo-banner' });
+      expect(undoBanner).toBeDefined();
+
+      // Click Undo
+      const undoBtn = renderer.root.findByProps({ testID: 'plan-undo-btn' });
+      act(() => {
+        undoBtn.props.onPress();
+      });
+
+      // Checkbox for t1 should be unchecked again
+      const t1Restored = renderer.root.findByProps({ testID: 'task-toggle-t1' });
+      expect((t1Restored.props.accessibilityState as { checked: boolean }).checked).toBe(false);
+    });
+
+    it('displays overdue task explanations using explicit text and dates, not color alone', () => {
+      let renderer!: ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(PlanView, {
+            themeMode: 'light',
+            initialSubView: 'tasks',
+          })
+        );
+      });
+
+      const jsonStr = JSON.stringify(renderer.toJSON());
+      // t3 in sample tasks is 2 days overdue
+      expect(jsonStr).toContain('Overdue by');
+      expect(jsonStr).toContain('Due');
+    });
+
     it('mounts LibraryView and interactively switches module filter chips', () => {
       let activeFilter = 'all';
       let renderer: ReactTestRenderer;

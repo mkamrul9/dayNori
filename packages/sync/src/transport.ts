@@ -97,16 +97,67 @@ export function classifySyncError(error: unknown): ClassifiedSyncError {
  * exposing syncPush, syncPull, and syncBootstrap methods.
  */
 export class ApiClientSyncTransport implements SyncTransportPort {
+  private client: {
+    syncPush(req: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse>;
+    syncPull(query: SyncPullQuery, options?: { signal?: AbortSignal }): Promise<SyncPullResponse>;
+    syncBootstrap(
+      query: SyncBootstrapQuery,
+      options?: { signal?: AbortSignal }
+    ): Promise<SyncBootstrapResponse>;
+  };
+
   constructor(
-    private client: {
-      syncPush(req: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse>;
-      syncPull(query: SyncPullQuery, options?: { signal?: AbortSignal }): Promise<SyncPullResponse>;
-      syncBootstrap(
-        query: SyncBootstrapQuery,
-        options?: { signal?: AbortSignal }
-      ): Promise<SyncBootstrapResponse>;
+    clientOrOptions:
+      | {
+          syncPush(
+            req: SyncPushRequest,
+            options?: { signal?: AbortSignal }
+          ): Promise<SyncPushResponse>;
+          syncPull(
+            query: SyncPullQuery,
+            options?: { signal?: AbortSignal }
+          ): Promise<SyncPullResponse>;
+          syncBootstrap(
+            query: SyncBootstrapQuery,
+            options?: { signal?: AbortSignal }
+          ): Promise<SyncBootstrapResponse>;
+        }
+      | {
+          client: {
+            syncPush(
+              req: SyncPushRequest,
+              options?: { signal?: AbortSignal }
+            ): Promise<SyncPushResponse>;
+            syncPull(
+              query: SyncPullQuery,
+              options?: { signal?: AbortSignal }
+            ): Promise<SyncPullResponse>;
+            syncBootstrap(
+              query: SyncBootstrapQuery,
+              options?: { signal?: AbortSignal }
+            ): Promise<SyncBootstrapResponse>;
+          };
+        }
+  ) {
+    if ('client' in clientOrOptions && clientOrOptions.client) {
+      this.client = clientOrOptions.client;
+    } else {
+      this.client = clientOrOptions as {
+        syncPush(
+          req: SyncPushRequest,
+          options?: { signal?: AbortSignal }
+        ): Promise<SyncPushResponse>;
+        syncPull(
+          query: SyncPullQuery,
+          options?: { signal?: AbortSignal }
+        ): Promise<SyncPullResponse>;
+        syncBootstrap(
+          query: SyncBootstrapQuery,
+          options?: { signal?: AbortSignal }
+        ): Promise<SyncBootstrapResponse>;
+      };
     }
-  ) {}
+  }
 
   push(request: SyncPushRequest, options?: { signal?: AbortSignal }): Promise<SyncPushResponse> {
     return this.client.syncPush(request, options);

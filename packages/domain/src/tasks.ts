@@ -497,3 +497,237 @@ export function reconcileTaskKind(kind: string): 'task' {
   }
   throw new Error(`INVALID_ITEM_KIND: Expected task or todo, received ${kind}`);
 }
+
+export interface TaskDeadlineExplanation {
+  label: string;
+  isOverdue: boolean;
+  overdueText?: string;
+  timezoneNote?: string;
+}
+
+/**
+ * Explains and formats a task deadline with explicit text and dates,
+ * fulfilling accessibility and timezone disclosure requirements.
+ */
+export function formatTaskDeadlineExplanation(
+  deadline: TaskDeadline,
+  userTimezone = 'UTC',
+  referenceDate = new Date()
+): TaskDeadlineExplanation {
+  if (!isValidIanaTimezone(userTimezone)) {
+    throw new Error(`INVALID_TIMEZONE: '${userTimezone}' is not a recognized IANA timezone`);
+  }
+
+  if (deadline.type === 'none') {
+    return {
+      label: 'No deadline',
+      isOverdue: false,
+    };
+  }
+
+  const todayStr = getCalendarDateInTimezone(referenceDate, userTimezone);
+
+  if (deadline.type === 'date') {
+    if (!isValidCalendarDateString(deadline.date)) {
+      return {
+        label: `Invalid date: ${deadline.date}`,
+        isOverdue: false,
+      };
+    }
+
+    const [dYear, dMonth, dDay] = deadline.date.split('-').map(Number);
+    const [tYear, tMonth, tDay] = todayStr.split('-').map(Number);
+    const dUtc = Date.UTC(dYear!, dMonth! - 1, dDay!);
+    const tUtc = Date.UTC(tYear!, tMonth! - 1, tDay!);
+    const diffDays = Math.round((dUtc - tUtc) / (24 * 60 * 60 * 1000));
+
+    if (diffDays < 0) {
+      const daysOverdue = Math.abs(diffDays);
+      const text =
+        daysOverdue === 1
+          ? `Overdue by 1 day (Due ${deadline.date})`
+          : `Overdue by ${daysOverdue} days (Due ${deadline.date})`;
+      return {
+        label: `Due ${deadline.date}`,
+        isOverdue: true,
+        overdueText: text,
+      };
+    } else if (diffDays === 0) {
+      return {
+        label: `Due Today (${deadline.date})`,
+        isOverdue: false,
+      };
+    } else if (diffDays === 1) {
+      return {
+        label: `Due Tomorrow (${deadline.date})`,
+        isOverdue: false,
+      };
+    } else {
+      return {
+        label: `Due in ${diffDays} days (${deadline.date})`,
+        isOverdue: false,
+      };
+    }
+  }
+
+  if (deadline.type === 'timed') {
+    const dueTime = new Date(deadline.timestamp);
+    if (isNaN(dueTime.getTime())) {
+      return {
+        label: 'Invalid timestamp',
+        isOverdue: false,
+      };
+    }
+
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: userTimezone,
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    const formatted = formatter.format(dueTime);
+    const isOverdue = dueTime.getTime() < referenceDate.getTime();
+
+    let timezoneNote: string | undefined;
+    if (deadline.timezone && deadline.timezone !== userTimezone) {
+      timezoneNote = `Scheduled in ${deadline.timezone} (viewing in ${userTimezone})`;
+    }
+
+    if (isOverdue) {
+      const overdueHours = Math.round(
+        (referenceDate.getTime() - dueTime.getTime()) / (60 * 60 * 1000)
+      );
+      const overdueText =
+        overdueHours >= 24
+          ? `Overdue by ${Math.floor(overdueHours / 24)}d (${formatted})`
+          : `Overdue (${formatted})`;
+      return {
+        label: `Due ${formatted}`,
+        isOverdue: true,
+        overdueText,
+        timezoneNote,
+      };
+    }
+
+    return {
+      label: `Due ${formatted}`,
+      isOverdue: false,
+      timezoneNote,
+    };
+  }
+
+  return {
+    label: 'No deadline',
+    isOverdue: false,
+  };
+}
+
+export type LocalTimeDisambiguation =
+  | { type: 'exact'; utcTimestamp: string }
+  | { type: 'nonexistent'; explanation: string; suggestedUtcTimestamp?: string }
+  | {
+      type: 'ambiguous';
+      explanation: string;
+      earlierUtcTimestamp: string;
+      laterUtcTimestamp: string;
+    };
+
+/**
+ * Checks a calendar date and local time string for nonexistent or ambiguous local times
+ * caused by daylight saving transitions in the specified timezone.
+ */
+export function checkLocalTimeDisambiguation(
+  dateStr: string,
+  timeStr: string,
+  timezone: string
+): LocalTimeDisambiguation {
+  if (!isValidIanaTimezone(timezone)) {
+    throw new Error(`INVALID_TIMEZONE: '${timezone}' is not a recognized IANA timezone`);
+  }
+  if (!isValidCalendarDateString(dateStr)) {
+    throw new Error(`INVALID_CALENDAR_DATE: '${dateStr}' is not a valid calendar date`);
+  }
+
+  const [hourStr, minStr] = timeStr.split(':');
+  const targetHour = parseInt(hourStr || '0', 10);
+  const targetMin = parseInt(minStr || '0', 10);
+
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const y = parseInt(yearStr!, 10);
+  const m = parseInt(monthStr!, 10);
+  const d = parseInt(dayStr!, 10);
+
+  // Approximate UTC timestamp around noon on that date
+  const baseUtc = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  });
+
+  function getLocalParts(ms: number) {
+    const parts = dtf.formatToParts(new Date(ms));
+    const p: Record<string, string> = {};
+    for (const part of parts) {
+      p[part.type] = part.value;
+    }
+    let hr = parseInt(p.hour || '0', 10);
+    if (hr === 24) hr = 0;
+    return {
+      year: parseInt(p.year || '0', 10),
+      month: parseInt(p.month || '0', 10),
+      day: parseInt(p.day || '0', 10),
+      hour: hr,
+      minute: parseInt(p.minute || '0', 10),
+    };
+  }
+
+  // Scan the 24 hours (with 15 min steps) in this day to find matches
+  const matches: number[] = [];
+  const startOfDayUtc = baseUtc - 14 * 60 * 60 * 1000;
+  const endOfDayUtc = baseUtc + 14 * 60 * 60 * 1000;
+
+  for (let t = startOfDayUtc; t <= endOfDayUtc; t += 60 * 1000) {
+    const lp = getLocalParts(t);
+    if (
+      lp.year === y &&
+      lp.month === m &&
+      lp.day === d &&
+      lp.hour === targetHour &&
+      lp.minute === targetMin
+    ) {
+      matches.push(t);
+      // Skip ahead 30 mins to avoid duplicate readings of the exact same minute
+      t += 29 * 60 * 1000;
+    }
+  }
+
+  if (matches.length === 0) {
+    return {
+      type: 'nonexistent',
+      explanation: `The time ${timeStr} does not exist on ${dateStr} in ${timezone} due to a daylight saving time transition.`,
+    };
+  }
+
+  if (matches.length === 1) {
+    return {
+      type: 'exact',
+      utcTimestamp: new Date(matches[0]!).toISOString(),
+    };
+  }
+
+  return {
+    type: 'ambiguous',
+    explanation: `The time ${timeStr} occurs twice on ${dateStr} in ${timezone} due to a daylight saving time transition.`,
+    earlierUtcTimestamp: new Date(matches[0]!).toISOString(),
+    laterUtcTimestamp: new Date(matches[matches.length - 1]!).toISOString(),
+  };
+}

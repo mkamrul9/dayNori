@@ -10,3 +10,5 @@ export * from './RouteAnnouncer.js';
 export * from './BreadcrumbNav.js';
 export * from './ItemTypeBadge.js';
 export * from './NoteEditor.js';
+export * from './TaskRow.js';
+export * from './TaskDetailEditor.js';

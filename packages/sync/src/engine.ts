@@ -36,7 +36,9 @@ export interface SaveItemOptions {
 export interface SyncEngineOptions {
   repository: LocalRepositoryPort;
   transport: SyncTransportPort;
-  namespace: AccountNamespace;
+  namespace?: AccountNamespace;
+  workspaceId?: string;
+  userId?: string;
   deviceId: string;
   coordination?: TabCoordinationPort;
   idGenerator?: () => string;
@@ -116,7 +118,10 @@ export class SyncEngine {
   constructor(options: SyncEngineOptions) {
     this.repository = options.repository;
     this.transport = options.transport;
-    this.namespace = options.namespace;
+    this.namespace = options.namespace ?? {
+      workspaceId: options.workspaceId ?? '',
+      userId: options.userId ?? '',
+    };
     this.deviceId = options.deviceId;
     this.coordination = options.coordination ?? new SingleProcessCoordinator();
     this.generateId = options.idGenerator ?? defaultIdGenerator;
@@ -619,6 +624,16 @@ export class SyncEngine {
     return this.activeSyncPromise;
   }
 
+  /**
+   * Alias for synchronize: ensures engine is started and triggers syncNow immediately.
+   */
+  async synchronize(): Promise<void> {
+    if (!this.isRunning) {
+      await this.start();
+    }
+    return this.syncNow();
+  }
+
   private async executeSyncCycle(): Promise<void> {
     const currentGen = ++this.syncGeneration;
     const currentNsKey = `${this.namespace.userId}:${this.namespace.workspaceId}`;
@@ -701,9 +716,20 @@ export class SyncEngine {
     const batch = sortedQueue.slice(0, 50);
 
     const commands: SyncCommand[] = batch.map((m) => {
+      const isTask = m.entityType === 'task';
       const cmdType: SyncCommandType =
         (m.command as SyncCommandType) ||
-        (m.action === 'delete' ? 'trashItem' : m.action === 'create' ? 'createItem' : 'updateItem');
+        (isTask
+          ? m.action === 'delete'
+            ? 'trashTask'
+            : m.action === 'create'
+              ? 'createTask'
+              : 'updateTask'
+          : m.action === 'delete'
+            ? 'trashItem'
+            : m.action === 'create'
+              ? 'createItem'
+              : 'updateItem');
 
       return {
         operationId: m.operationId,
@@ -784,8 +810,8 @@ export class SyncEngine {
                 (origMutation.payload['kind'] as string) ||
                 (origMutation.entityType === 'folder'
                   ? 'folder'
-                  : origMutation.entityType === 'note'
-                    ? 'note'
+                  : origMutation.entityType === 'task'
+                    ? 'task'
                     : 'note'),
               folderId: (origMutation.payload['folderId'] as string | null) ?? null,
               rank: (origMutation.payload['rank'] as string) || '0',

@@ -13,6 +13,8 @@ import {
   SkipLink,
   RouteAnnouncer,
   NoteEditor,
+  TaskRow,
+  TaskDetailEditor,
 } from './index.js';
 
 describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
@@ -429,6 +431,54 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       );
       expect(html).toContain('বাংলা নোট শিরোনাম');
       expect(html).toContain('এটি একটি বাংলা অনুচ্ছেদ');
+    });
+  });
+
+  describe('TaskRow & TaskDetailEditor Accessibility', () => {
+    it('renders TaskRow with accessible attributes, priority label, and overdue warning text', () => {
+      const html = renderToString(
+        React.createElement(TaskRow, {
+          id: 'task-test-1',
+          title: 'Review quarterly architecture plan',
+          priority: 'urgent',
+          status: 'todo',
+          deadline: { type: 'date', date: '2026-10-10' },
+          themeMode: 'light',
+          userTimezone: 'UTC',
+        })
+      );
+      expect(html).toContain('Review quarterly architecture plan');
+      expect(html).toContain('Urgent');
+      expect(html).toContain('Overdue by');
+      expect(html).toContain('Due 2026-10-10');
+      expect(html).toContain('role="listitem"');
+      expect(html).toContain(
+        'Mark task &quot;Review quarterly architecture plan&quot; as completed'
+      );
+    });
+
+    it('renders TaskDetailEditor with dialog role and deadline options', () => {
+      const html = renderToString(
+        React.createElement(TaskDetailEditor, {
+          id: 'task-test-2',
+          initialTitle: 'Detailed Task Specification',
+          initialPriority: 'high',
+          initialStatus: 'todo',
+          initialDeadline: {
+            type: 'timed',
+            timestamp: '2026-10-16T15:00:00.000Z',
+            timezone: 'UTC',
+          },
+          themeMode: 'light',
+          userTimezone: 'UTC',
+        })
+      );
+      expect(html).toContain('role="dialog"');
+      expect(html).toContain('aria-modal="true"');
+      expect(html).toContain('Task Details');
+      expect(html).toContain('Detailed Task Specification');
+      expect(html).toContain('High');
+      expect(html).toContain('Save Task');
     });
   });
 });
