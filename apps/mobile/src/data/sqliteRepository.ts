@@ -8,6 +8,7 @@ import type {
   LocalRepositoryPort,
   ConflictRecord,
   NoteRecord,
+  TaskRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -22,6 +23,7 @@ import {
   validatePreferenceSnapshotRecord,
   validateConflictRecord,
   validateNoteRecord,
+  validateTaskRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -418,6 +420,34 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             );
 
             INSERT INTO schema_migrations (version, applied_at) VALUES (4, datetime('now'));
+          `);
+        }
+
+        if (currentVersion < 5) {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS tasks (
+              id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              folder_id TEXT,
+              title TEXT NOT NULL,
+              details TEXT,
+              priority TEXT NOT NULL,
+              status TEXT NOT NULL,
+              deadline_json TEXT NOT NULL,
+              completed_at TEXT,
+              reopened_at TEXT,
+              completion_history_json TEXT NOT NULL,
+              parent_id TEXT,
+              subtask_order INTEGER NOT NULL DEFAULT 0,
+              tags_json TEXT NOT NULL,
+              server_revision INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT,
+              PRIMARY KEY (workspace_id, id)
+            );
+
+            INSERT INTO schema_migrations (version, applied_at) VALUES (5, datetime('now'));
           `);
         }
       });
@@ -1018,16 +1048,64 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     );
   }
 
+  private async upsertTaskDirect(valid: TaskRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO tasks (
+        id, workspace_id, folder_id, title, details, priority, status,
+        deadline_json, completed_at, reopened_at, completion_history_json,
+        parent_id, subtask_order, tags_json, server_revision, created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        folder_id = excluded.folder_id,
+        title = excluded.title,
+        details = excluded.details,
+        priority = excluded.priority,
+        status = excluded.status,
+        deadline_json = excluded.deadline_json,
+        completed_at = excluded.completed_at,
+        reopened_at = excluded.reopened_at,
+        completion_history_json = excluded.completion_history_json,
+        parent_id = excluded.parent_id,
+        subtask_order = excluded.subtask_order,
+        tags_json = excluded.tags_json,
+        server_revision = excluded.server_revision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        deleted_at = excluded.deleted_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.folderId ?? null,
+      valid.title,
+      valid.details ?? null,
+      valid.priority,
+      valid.status,
+      JSON.stringify(valid.deadline),
+      valid.completedAt ?? null,
+      valid.reopenedAt ?? null,
+      JSON.stringify(valid.completionHistory),
+      valid.parentId ?? null,
+      valid.subtaskOrder,
+      JSON.stringify(valid.tags),
+      valid.serverRevision,
+      valid.createdAt,
+      valid.updatedAt,
+      valid.deletedAt ?? null
+    );
+  }
+
   async saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
     draft?: DraftRecord,
-    note?: NoteRecord
+    note?: NoteRecord,
+    task?: TaskRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
     const validDraft = draft ? validateDraftRecord(draft) : undefined;
     const validNote = note ? validateNoteRecord(note) : undefined;
+    const validTask = task ? validateTaskRecord(task) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
@@ -1036,6 +1114,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     }
     if (validNote) {
       this.ensureNamespace(validNote.workspaceId);
+    }
+    if (validTask) {
+      this.ensureNamespace(validTask.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1050,6 +1131,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validNote) {
             await this.upsertNoteDirect(validNote);
           }
+          if (validTask) {
+            await this.upsertTaskDirect(validTask);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1060,12 +1144,15 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   async applyAcknowledgment(
     header: ItemHeaderRecord,
     operationId: string,
-    note?: NoteRecord
+    note?: NoteRecord,
+    task?: TaskRecord
   ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
     const validNote = note ? validateNoteRecord(note) : undefined;
+    const validTask = task ? validateTaskRecord(task) : undefined;
     this.ensureNamespace(valid.workspaceId);
     if (validNote) this.ensureNamespace(validNote.workspaceId);
+    if (validTask) this.ensureNamespace(validTask.workspaceId);
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1075,6 +1162,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM pending_mutations WHERE operation_id = ?;`, operationId);
           if (validNote) {
             await this.upsertNoteDirect(validNote);
+          }
+          if (validTask) {
+            await this.upsertTaskDirect(validTask);
           }
         });
       } catch (err) {
@@ -1086,7 +1176,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   async applyPullPage(
     changes: ItemHeaderRecord[],
     newCursor: SyncCursorRecord,
-    notes?: NoteRecord[]
+    notes?: NoteRecord[],
+    tasks?: TaskRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1097,6 +1188,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedNotes = (notes || []).map((n) => validateNoteRecord(n));
     for (const n of validatedNotes) {
       this.ensureNamespace(n.workspaceId);
+    }
+    const validatedTasks = (tasks || []).map((t) => validateTaskRecord(t));
+    for (const t of validatedTasks) {
+      this.ensureNamespace(t.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1143,6 +1238,18 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertNoteDirect(n);
           }
 
+          for (const t of validatedTasks) {
+            const existingTask = await db.getFirstAsync<{ server_revision: number }>(
+              `SELECT server_revision FROM tasks WHERE workspace_id = ? AND id = ?;`,
+              t.workspaceId,
+              t.id
+            );
+            if (existingTask && existingTask.server_revision > t.serverRevision) {
+              continue;
+            }
+            await this.upsertTaskDirect(t);
+          }
+
           // Cursor advancement check: protect against moving cursor backward
           const existingCursor = await db.getFirstAsync<{ last_server_revision: number }>(
             `SELECT last_server_revision FROM sync_cursors WHERE workspace_id = ? AND user_id = ?;`,
@@ -1167,7 +1274,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     items: ItemHeaderRecord[],
     watermarkCursor: SyncCursorRecord,
     preserveLocalItemIds: Set<string>,
-    notes?: NoteRecord[]
+    notes?: NoteRecord[],
+    tasks?: TaskRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1178,6 +1286,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedNotes = (notes || []).map((n) => validateNoteRecord(n));
     for (const n of validatedNotes) {
       this.ensureNamespace(n.workspaceId);
+    }
+    const validatedTasks = (tasks || []).map((t) => validateTaskRecord(t));
+    for (const t of validatedTasks) {
+      this.ensureNamespace(t.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1215,7 +1327,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertNoteDirect(n);
           }
 
-          // 4. Update watermark cursor
+          // 4. Upsert snapshot tasks
+          for (const t of validatedTasks) {
+            await this.upsertTaskDirect(t);
+          }
+
+          // 5. Update watermark cursor
           await this.saveCursorDirect(validCursor);
         });
       } catch (err) {
@@ -1367,13 +1484,15 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     newMutation?: PendingMutationRecord,
     removeOperationId?: string,
     updatedNote?: NoteRecord,
-    recoveryDraft?: DraftRecord
+    recoveryDraft?: DraftRecord,
+    updatedTask?: TaskRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
     const validNewMut = newMutation ? validatePendingMutationRecord(newMutation) : undefined;
     const validNote = updatedNote ? validateNoteRecord(updatedNote) : undefined;
     const validDraft = recoveryDraft ? validateDraftRecord(recoveryDraft) : undefined;
+    const validTask = updatedTask ? validateTaskRecord(updatedTask) : undefined;
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1402,6 +1521,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
 
           if (validNote) {
             await this.upsertNoteDirect(validNote);
+          }
+
+          if (validTask) {
+            await this.upsertTaskDirect(validTask);
           }
 
           if (validDraft) {
@@ -1522,7 +1645,139 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 7. Sync Cursors ---
+  // --- 7. Tasks & Deadlines ---
+
+  async getTask(workspaceId: string, id: string): Promise<TaskRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string;
+        details: string | null;
+        priority: string;
+        status: string;
+        deadline_json: string;
+        completed_at: string | null;
+        reopened_at: string | null;
+        completion_history_json: string;
+        parent_id: string | null;
+        subtask_order: number;
+        tags_json: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(`SELECT * FROM tasks WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+
+      if (!row) return null;
+      return validateTaskRecord({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        folderId: row.folder_id ?? undefined,
+        title: row.title,
+        details: row.details ?? undefined,
+        priority: row.priority,
+        status: row.status,
+        deadline: JSON.parse(row.deadline_json),
+        completedAt: row.completed_at ?? undefined,
+        reopenedAt: row.reopened_at ?? undefined,
+        completionHistory: JSON.parse(row.completion_history_json),
+        parentId: row.parent_id ?? undefined,
+        subtaskOrder: row.subtask_order,
+        tags: JSON.parse(row.tags_json),
+        serverRevision: row.server_revision,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at ?? null,
+      });
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listTasks(workspaceId: string): Promise<TaskRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const rows = await db.getAllAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string;
+        details: string | null;
+        priority: string;
+        status: string;
+        deadline_json: string;
+        completed_at: string | null;
+        reopened_at: string | null;
+        completion_history_json: string;
+        parent_id: string | null;
+        subtask_order: number;
+        tags_json: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(
+        `SELECT * FROM tasks WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at ASC;`,
+        workspaceId
+      );
+
+      return rows.map((row) =>
+        validateTaskRecord({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          folderId: row.folder_id ?? undefined,
+          title: row.title,
+          details: row.details ?? undefined,
+          priority: row.priority,
+          status: row.status,
+          deadline: JSON.parse(row.deadline_json),
+          completedAt: row.completed_at ?? undefined,
+          reopenedAt: row.reopened_at ?? undefined,
+          completionHistory: JSON.parse(row.completion_history_json),
+          parentId: row.parent_id ?? undefined,
+          subtaskOrder: row.subtask_order,
+          tags: JSON.parse(row.tags_json),
+          serverRevision: row.server_revision,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          deletedAt: null,
+        })
+      );
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async upsertTask(task: TaskRecord): Promise<void> {
+    const valid = validateTaskRecord(task);
+    this.ensureNamespace(valid.workspaceId);
+    return this.runWithLock(async () => {
+      try {
+        await this.upsertTaskDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async deleteTask(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(`DELETE FROM tasks WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  // --- 8. Sync Cursors ---
 
   private async saveCursorDirect(valid: SyncCursorRecord): Promise<void> {
     const db = this.ensureOpen();
@@ -1649,6 +1904,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM sync_cursors WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM conflicts WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM notes WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM tasks WHERE workspace_id = ?;`, workspaceId);
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1663,7 +1919,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     return this.runWithLock(async () => {
       try {
         await db.withTransactionAsync(async () => {
-          // Erase all account-owned data including item headers and notes
+          // Erase all account-owned data including item headers, notes, and tasks
           await db.runAsync(`DELETE FROM item_headers;`);
           await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
@@ -1671,6 +1927,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM preference_snapshots WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM conflicts WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM notes;`);
+          await db.runAsync(`DELETE FROM tasks;`);
         });
 
         // Clear all keys from KeyStore

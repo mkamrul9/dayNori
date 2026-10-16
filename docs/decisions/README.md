@@ -25,5 +25,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0021: Folder Browsing and Library Interfaces](0021-folder-browsing-and-library-interfaces.md)
 - [ADR-0022: Typed Note Domain and Persistence](0022-typed-note-domain-and-persistence.md)
 - [ADR-0023: Focused Note Editor and Local Autosave Recovery](0023-focused-note-editor-and-autosave.md)
+- [ADR-0024: Task Domain, Deadlines, Subtasks, and Multi-Platform Synchronization](0024-task-domain-and-deadlines.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

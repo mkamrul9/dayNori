@@ -308,4 +308,252 @@ describe('Domain Rules and Invariants', () => {
       expect(extractInlineText(broken)).toBe('Hello \nbold world\nBangla বাংলা');
     });
   });
+
+  describe('Task Domain & Deadline Semantics', () => {
+    it('validates task titles enforcing non-empty and length limits with Unicode & Bangla support', async () => {
+      const { validateTaskTitle } = await import('./tasks.js');
+
+      expect(validateTaskTitle('  Learn TypeScript  ')).toBe('Learn TypeScript');
+      expect(validateTaskTitle('বাংলা কাজের শিরোনাম')).toBe('বাংলা কাজের শিরোনাম');
+      expect(validateTaskTitle('🎯 Project milestone 1')).toBe('🎯 Project milestone 1');
+
+      expect(() => validateTaskTitle('')).toThrow(/TASK_TITLE_REQUIRED/);
+      expect(() => validateTaskTitle('   ')).toThrow(/TASK_TITLE_REQUIRED/);
+
+      const tooLong = 'A'.repeat(256);
+      expect(() => validateTaskTitle(tooLong)).toThrow(/TASK_TITLE_TOO_LONG/);
+    });
+
+    it('validates calendar dates, leap days, and IANA timezones accurately', async () => {
+      const { isValidCalendarDateString, isValidIanaTimezone, isLeapYear } =
+        await import('./tasks.js');
+
+      // Leap years
+      expect(isLeapYear(2024)).toBe(true);
+      expect(isLeapYear(2000)).toBe(true);
+      expect(isLeapYear(2025)).toBe(false);
+      expect(isLeapYear(1900)).toBe(false);
+
+      // Leap day boundary
+      expect(isValidCalendarDateString('2024-02-29')).toBe(true);
+      expect(isValidCalendarDateString('2025-02-29')).toBe(false);
+      expect(isValidCalendarDateString('2026-02-30')).toBe(false);
+      expect(isValidCalendarDateString('2026-04-31')).toBe(false); // April has 30 days
+      expect(isValidCalendarDateString('2026-12-31')).toBe(true);
+      expect(isValidCalendarDateString('not-a-date')).toBe(false);
+
+      // IANA timezones
+      expect(isValidIanaTimezone('Asia/Dhaka')).toBe(true);
+      expect(isValidIanaTimezone('America/New_York')).toBe(true);
+      expect(isValidIanaTimezone('UTC')).toBe(true);
+      expect(isValidIanaTimezone('Mars/Phobos')).toBe(false);
+      expect(isValidIanaTimezone('')).toBe(false);
+    });
+
+    it('determines exact overdue boundaries for date-only and timed deadlines across timezones', async () => {
+      const { isTaskOverdue, isTaskDueToday } = await import('./tasks.js');
+
+      // Reference instant: 2026-10-16 12:00:00 UTC
+      // In Asia/Dhaka (UTC+6): 2026-10-16 18:00:00 (Today is 2026-10-16)
+      // In America/New_York (UTC-4): 2026-10-16 08:00:00 (Today is 2026-10-16)
+      // In Pacific/Auckland (UTC+13): 2026-10-17 01:00:00 (Today is 2026-10-17)
+      const now = new Date('2026-10-16T12:00:00.000Z');
+
+      const taskDateOnly = {
+        status: 'todo' as const,
+        deadline: { type: 'date' as const, date: '2026-10-16' },
+      };
+
+      // In Asia/Dhaka and America/New_York, 2026-10-16 is Today (not overdue yet!)
+      expect(isTaskOverdue(taskDateOnly, now, 'Asia/Dhaka')).toBe(false);
+      expect(isTaskDueToday(taskDateOnly, now, 'Asia/Dhaka')).toBe(true);
+      expect(isTaskOverdue(taskDateOnly, now, 'America/New_York')).toBe(false);
+
+      // In Pacific/Auckland, it is already 2026-10-17, so 2026-10-16 is Overdue!
+      expect(isTaskOverdue(taskDateOnly, now, 'Pacific/Auckland')).toBe(true);
+      expect(isTaskDueToday(taskDateOnly, now, 'Pacific/Auckland')).toBe(false);
+
+      // Timed deadline: due at 2026-10-16 11:00:00 UTC
+      const taskTimedPast = {
+        status: 'todo' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T11:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+      };
+      // At 12:00:00 UTC, timed task due at 11:00:00 UTC is overdue everywhere
+      expect(isTaskOverdue(taskTimedPast, now, 'Asia/Dhaka')).toBe(true);
+      expect(isTaskOverdue(taskTimedPast, now, 'America/New_York')).toBe(true);
+
+      // Timed deadline: due at 2026-10-16 15:00:00 UTC (future)
+      const taskTimedFuture = {
+        status: 'todo' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T15:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+      };
+      expect(isTaskOverdue(taskTimedFuture, now, 'Asia/Dhaka')).toBe(false);
+
+      // Completed or cancelled tasks are NEVER overdue
+      const completedTask = {
+        status: 'completed' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T11:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+      };
+      expect(isTaskOverdue(completedTask, now, 'Asia/Dhaka')).toBe(false);
+
+      // Clearing deadline removes task from overdue
+      const clearedDeadlineTask = {
+        status: 'todo' as const,
+        deadline: { type: 'none' as const },
+      };
+      expect(isTaskOverdue(clearedDeadlineTask, now, 'Asia/Dhaka')).toBe(false);
+    });
+
+    it('manages task completion idempotency and retains reopening history', async () => {
+      const { completeTask, reopenTask } = await import('./tasks.js');
+
+      const initialTask = {
+        id: 'task-1',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Complete Phase 18',
+        priority: 'high' as const,
+        status: 'todo' as const,
+        deadline: { type: 'none' as const },
+        completedAt: null,
+        reopenedAt: null,
+        completionHistory: [],
+        parentId: null,
+        subtaskOrder: 0,
+        tags: [],
+        rank: '00001000',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard' as const,
+        revision: 1,
+        createdAt: '2026-10-16T10:00:00.000Z',
+        updatedAt: '2026-10-16T10:00:00.000Z',
+        deletedAt: null,
+      };
+
+      // 1. First completion
+      const completed = completeTask(initialTask, '2026-10-16T11:00:00.000Z');
+      expect(completed.changed).toBe(true);
+      expect(completed.task.status).toBe('completed');
+      expect(completed.task.completedAt).toBe('2026-10-16T11:00:00.000Z');
+      expect(completed.task.completionHistory).toHaveLength(1);
+
+      // 2. Duplicate completion retry: must be a no-op and preserve original completedAt
+      const duplicate = completeTask(completed.task, '2026-10-16T12:00:00.000Z');
+      expect(duplicate.changed).toBe(false);
+      expect(duplicate.task.completedAt).toBe('2026-10-16T11:00:00.000Z');
+      expect(duplicate.task.completionHistory).toHaveLength(1);
+
+      // 3. Reopen task
+      const reopened = reopenTask(completed.task, '2026-10-16T13:00:00.000Z');
+      expect(reopened.changed).toBe(true);
+      expect(reopened.task.status).toBe('todo');
+      expect(reopened.task.completedAt).toBeNull();
+      expect(reopened.task.reopenedAt).toBe('2026-10-16T13:00:00.000Z');
+      expect(reopened.task.completionHistory[0]?.reopenedAt).toBe('2026-10-16T13:00:00.000Z');
+    });
+
+    it('enforces subtask hierarchy invariants, rejects self-parenting and cycles, and bounds depth', async () => {
+      const { validateSubtaskHierarchy, MAX_SUBTASK_DEPTH } = await import('./tasks.js');
+
+      expect(MAX_SUBTASK_DEPTH).toBe(3);
+
+      const taskGraph: Record<string, string | null> = {
+        'root-1': null,
+        'sub-1': 'root-1',
+        'sub-2': 'sub-1',
+        'sub-3': 'sub-2', // depth 4 (exceeds max 3)
+      };
+      const lookup = (id: string) => taskGraph[id];
+
+      // Self-parenting
+      const selfParent = validateSubtaskHierarchy('task-x', 'task-x', lookup);
+      expect(selfParent.isValid).toBe(false);
+      expect(selfParent.error).toContain('TASK_SELF_PARENTING');
+
+      // Valid depth 2 (child of root)
+      const validChild = validateSubtaskHierarchy('task-new', 'root-1', lookup);
+      expect(validChild.isValid).toBe(true);
+      expect(validChild.depth).toBe(2);
+
+      // Valid depth 3 (grandchild of root)
+      const validGrandchild = validateSubtaskHierarchy('task-new', 'sub-1', lookup);
+      expect(validGrandchild.isValid).toBe(true);
+      expect(validGrandchild.depth).toBe(3);
+
+      // Depth limit exceeded (depth 4)
+      const tooDeep = validateSubtaskHierarchy('task-new', 'sub-2', lookup);
+      expect(tooDeep.isValid).toBe(false);
+      expect(tooDeep.error).toContain('TASK_MAX_SUBTASK_DEPTH_EXCEEDED');
+
+      // Cyclic reference: root-1 -> sub-1 -> sub-2 -> root-1
+      const cyclicGraph: Record<string, string | null> = {
+        'task-a': 'task-c',
+        'task-b': 'task-a',
+        'task-c': 'task-b',
+      };
+      const cycle = validateSubtaskHierarchy('task-a', 'task-c', (id) => cyclicGraph[id]);
+      expect(cycle.isValid).toBe(false);
+      expect(cycle.error).toContain('TASK_SUBTASK_CYCLE');
+    });
+
+    it('orders upcoming tasks deterministically by due date, priority, createdAt, and ID', async () => {
+      const { compareTasksUpcoming } = await import('./tasks.js');
+
+      const tasks = [
+        {
+          id: 'task-undated',
+          priority: 'urgent' as const,
+          deadline: { type: 'none' as const },
+          createdAt: '2026-10-16T08:00:00.000Z',
+        },
+        {
+          id: 'task-due-tomorrow-high',
+          priority: 'high' as const,
+          deadline: { type: 'date' as const, date: '2026-10-17' },
+          createdAt: '2026-10-16T08:00:00.000Z',
+        },
+        {
+          id: 'task-due-today-normal',
+          priority: 'normal' as const,
+          deadline: { type: 'date' as const, date: '2026-10-16' },
+          createdAt: '2026-10-16T09:00:00.000Z',
+        },
+        {
+          id: 'task-due-today-urgent',
+          priority: 'urgent' as const,
+          deadline: { type: 'date' as const, date: '2026-10-16' },
+          createdAt: '2026-10-16T09:00:00.000Z',
+        },
+      ];
+
+      const sorted = [...tasks].sort((a, b) => compareTasksUpcoming(a, b, 'UTC'));
+
+      // Due today urgent should come first, then due today normal, then due tomorrow, then undated
+      expect(sorted[0]?.id).toBe('task-due-today-urgent');
+      expect(sorted[1]?.id).toBe('task-due-today-normal');
+      expect(sorted[2]?.id).toBe('task-due-tomorrow-high');
+      expect(sorted[3]?.id).toBe('task-undated');
+    });
+
+    it('reconciles task/todo aliases into canonical task kind', async () => {
+      const { reconcileTaskKind } = await import('./tasks.js');
+
+      expect(reconcileTaskKind('task')).toBe('task');
+      expect(reconcileTaskKind('todo')).toBe('task');
+      expect(() => reconcileTaskKind('note')).toThrow(/INVALID_ITEM_KIND/);
+    });
+  });
 });

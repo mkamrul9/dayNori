@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-16",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 17 focused note editor on both platforms provisional implementation delivered and verified across Vitest, React Native mobile tests, CDP browser testing, and integration test suite. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, and 17 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 17 (Focused note editor on both platforms) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 18 upcoming task domain and deadlines provisional implementation delivered and verified across PostgreSQL, Fastify API, SyncEngine, Web IndexedDB, and Mobile SQLite repositories. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, and 18 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 18 (Upcoming task domain and deadlines) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -110,7 +110,9 @@
     },
     {
       "id": "18",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional task domain, explicit deadlines (date-only and timed with IANA timezone), subtask hierarchy, PostgreSQL persistence, sync dispatcher, and IndexedDB/SQLite adapters delivered under owner authorization and verified across Vitest and integration test suites. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-18.md"
     },
     {
       "id": "19",

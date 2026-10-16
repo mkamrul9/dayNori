@@ -249,12 +249,12 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
       const version = await repo.getCurrentSchemaVersion();
-      expect(version).toBe(4);
+      expect(version).toBe(5);
 
       // Re-running initialization should not fail or duplicate migrations
       await repo.initialize({ userId: user1, workspaceId: ws1 });
       const versionAfter = await repo.getCurrentSchemaVersion();
-      expect(versionAfter).toBe(4);
+      expect(versionAfter).toBe(5);
 
       await repo.close();
     });
@@ -679,6 +679,55 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
 
       await repo.deleteNote(ws1, 'note-mob-001');
       const afterDelete = await repo.getNote(ws1, 'note-mob-001');
+      expect(afterDelete).toBeNull();
+
+      await repo.close();
+    });
+
+    it('persists, updates, queries, and deletes tasks (migration 5)', async () => {
+      const repo = createRepo();
+      await repo.initialize({ userId: user1, workspaceId: ws1 });
+
+      const task = {
+        id: 'task-mob-001',
+        workspaceId: ws1,
+        title: 'Mobile Inspection Task',
+        details: 'Check SQLite persistence',
+        priority: 'urgent' as const,
+        status: 'todo' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-31T12:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+        folderId: null,
+        parentId: null,
+        subtaskOrder: 0,
+        tags: ['mobile', 'qa'],
+        completedAt: null,
+        reopenedAt: null,
+        completionHistory: [],
+        serverRevision: 1,
+        createdAt: '2026-10-16T10:00:00.000Z',
+        updatedAt: '2026-10-16T10:00:00.000Z',
+        deletedAt: null,
+      };
+
+      await repo.upsertTask(task);
+
+      const fetched = await repo.getTask(ws1, 'task-mob-001');
+      expect(fetched).not.toBeNull();
+      expect(fetched?.title).toBe('Mobile Inspection Task');
+      expect(fetched?.priority).toBe('urgent');
+      expect(fetched?.deadline.type).toBe('timed');
+      expect(fetched?.tags).toEqual(['mobile', 'qa']);
+
+      const list = await repo.listTasks(ws1);
+      expect(list.length).toBe(1);
+      expect(list[0]?.id).toBe('task-mob-001');
+
+      await repo.deleteTask(ws1, 'task-mob-001');
+      const afterDelete = await repo.getTask(ws1, 'task-mob-001');
       expect(afterDelete).toBeNull();
 
       await repo.close();

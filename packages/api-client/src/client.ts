@@ -75,6 +75,15 @@ import {
   type NoteListQuery,
   type NoteResponse,
   type NoteListResponse,
+  TaskResponseSchema,
+  TaskListResponseSchema,
+  type CreateTaskRequest,
+  type UpdateTaskRequest,
+  type CompleteTaskRequest,
+  type ReopenTaskRequest,
+  type TaskListQuery,
+  type TaskResponse,
+  type TaskListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -853,6 +862,137 @@ export class DaynoriApiClient {
       options
     );
     return NoteResponseSchema.parse(raw);
+  }
+
+  // --- Task Module (Phase 18) ---
+
+  async createTask(
+    workspaceId: string,
+    request: CreateTaskRequest,
+    options?: RequestOptions
+  ): Promise<TaskResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tasks`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return TaskResponseSchema.parse(raw);
+  }
+
+  async getTask(
+    workspaceId: string,
+    taskId: string,
+    options?: RequestOptions
+  ): Promise<TaskResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tasks/${taskId}`,
+      { method: 'GET' },
+      options
+    );
+    return TaskResponseSchema.parse(raw);
+  }
+
+  async listTasks(
+    workspaceId: string,
+    query?: TaskListQuery,
+    options?: RequestOptions
+  ): Promise<TaskListResponse> {
+    const params = new URLSearchParams();
+    if (query?.folderId !== undefined) {
+      if (query.folderId === null) params.set('folderId', 'null');
+      else params.set('folderId', query.folderId);
+    }
+    if (query?.status) params.set('status', query.status);
+    if (query?.priority) params.set('priority', query.priority);
+    if (query?.parentId !== undefined) {
+      if (query.parentId === null) params.set('parentId', 'null');
+      else params.set('parentId', query.parentId);
+    }
+    if (query?.tag) params.set('tag', query.tag);
+    if (query?.filter) params.set('filter', query.filter);
+    if (query?.userTimezone) params.set('userTimezone', query.userTimezone);
+    if (query?.sortBy) params.set('sortBy', query.sortBy);
+    if (query?.sortDirection) params.set('sortDirection', query.sortDirection);
+    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    if (query?.cursor) params.set('cursor', query.cursor);
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tasks${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return TaskListResponseSchema.parse(raw);
+  }
+
+  async updateTask(
+    workspaceId: string,
+    taskId: string,
+    request: UpdateTaskRequest,
+    options?: RequestOptions
+  ): Promise<TaskResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tasks/${taskId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return TaskResponseSchema.parse(raw);
+  }
+
+  async completeTask(
+    workspaceId: string,
+    taskId: string,
+    request?: CompleteTaskRequest,
+    options?: RequestOptions
+  ): Promise<TaskResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tasks/${taskId}/complete`,
+      { method: 'POST', body: JSON.stringify(request || {}) },
+      options
+    );
+    return TaskResponseSchema.parse(raw);
+  }
+
+  async reopenTask(
+    workspaceId: string,
+    taskId: string,
+    request?: ReopenTaskRequest,
+    options?: RequestOptions
+  ): Promise<TaskResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tasks/${taskId}/reopen`,
+      { method: 'POST', body: JSON.stringify(request || {}) },
+      options
+    );
+    return TaskResponseSchema.parse(raw);
+  }
+
+  async trashTask(
+    workspaceId: string,
+    taskId: string,
+    options?: RequestOptions
+  ): Promise<{
+    data: { id: string; trashed: boolean; revision: number };
+    meta: { requestId: string };
+  }> {
+    const raw = await this.request<{
+      data: { id: string; trashed: boolean; revision: number };
+      meta: { requestId: string };
+    }>(`/v1/workspaces/${workspaceId}/tasks/${taskId}`, { method: 'DELETE' }, options);
+    return raw;
+  }
+
+  async restoreTask(
+    workspaceId: string,
+    taskId: string,
+    options?: RequestOptions
+  ): Promise<TaskResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/tasks/${taskId}/restore`,
+      { method: 'POST' },
+      options
+    );
+    return TaskResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

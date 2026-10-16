@@ -6,6 +6,12 @@
  */
 
 import { type NoteDocument, validateNoteDocument } from '@daynori/domain';
+import type {
+  TaskPriority,
+  TaskStatus,
+  TaskDeadline,
+  TaskCompletionHistoryItem,
+} from '@daynori/contracts';
 
 export const MAX_PAYLOAD_BYTES = 1024 * 1024; // 1 MiB max serialized payload size
 export const MAX_ID_LENGTH = 128;
@@ -376,6 +382,74 @@ export function validateNoteRecord(input: unknown): NoteRecord {
     plainText: typeof r.plainText === 'string' ? r.plainText : '',
     wordCount: typeof r.wordCount === 'number' ? r.wordCount : 0,
     charCount: typeof r.charCount === 'number' ? r.charCount : 0,
+    serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
+    createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
+    updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
+    deletedAt: r.deletedAt ? String(r.deletedAt) : null,
+  };
+}
+
+export interface TaskRecord {
+  id: string;
+  workspaceId: string;
+  folderId: string | null;
+  title: string;
+  details: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  deadline: TaskDeadline;
+  completedAt: string | null;
+  reopenedAt: string | null;
+  completionHistory: TaskCompletionHistoryItem[];
+  parentId: string | null;
+  subtaskOrder: number;
+  tags: string[];
+  serverRevision: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export function validateTaskRecord(input: unknown): TaskRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: TaskRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+
+  const priority = r.priority as TaskPriority;
+  const validPriorities = ['low', 'normal', 'high', 'urgent'];
+  const safePriority: TaskPriority = validPriorities.includes(priority) ? priority : 'normal';
+
+  const status = r.status as TaskStatus;
+  const validStatuses = ['todo', 'in_progress', 'completed', 'cancelled'];
+  const safeStatus: TaskStatus = validStatuses.includes(status) ? status : 'todo';
+
+  const deadline =
+    r.deadline && typeof r.deadline === 'object' && 'type' in r.deadline
+      ? (r.deadline as TaskDeadline)
+      : { type: 'none' as const };
+
+  const history = Array.isArray(r.completionHistory)
+    ? (r.completionHistory as TaskCompletionHistoryItem[])
+    : [];
+
+  const tags = Array.isArray(r.tags) ? r.tags.map(String) : [];
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    folderId: r.folderId !== null && r.folderId !== undefined ? String(r.folderId) : null,
+    title: typeof r.title === 'string' && r.title.trim().length > 0 ? r.title.trim() : 'Untitled',
+    details: typeof r.details === 'string' ? r.details : null,
+    priority: safePriority,
+    status: safeStatus,
+    deadline,
+    completedAt: r.completedAt ? String(r.completedAt) : null,
+    reopenedAt: r.reopenedAt ? String(r.reopenedAt) : null,
+    completionHistory: history,
+    parentId: r.parentId ? String(r.parentId) : null,
+    subtaskOrder: typeof r.subtaskOrder === 'number' ? r.subtaskOrder : 0,
+    tags,
     serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
     createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
     updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),

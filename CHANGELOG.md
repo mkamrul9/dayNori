@@ -1,5 +1,44 @@
 # Changelog
 
+## Phase 18 — Upcoming task domain and deadlines — 2026-10-16
+
+- **Shared Task Domain & Explicit Deadline Semantics (`packages/domain`, `packages/contracts`):**
+  - Canonical task model with validated non-empty title, optional details, priority (`low`, `normal`, `high`, `urgent`, defaulting to `normal`), status (`todo`, `in_progress`, `completed`, `cancelled`), and folder/Inbox placement.
+  - One-off work model: task completion does not spawn recurring events or reset at midnight; daily routines remain a strictly separate domain.
+  - Reconciled existing `todo` item aliases with `task` canonical representation (`canonicalItemType("todo") === "task"`).
+  - Explicit three-state deadline semantics: `none`, `date` (validated Gregorian calendar date string `YYYY-MM-DD` with leap year verification), and `timed` (authoritative ISO 8601 instant with explicit IANA timezone).
+  - Timezone-safe calculations: `isTaskOverdue` evaluates date-only deadlines against 23:59:59.999 in the specified viewing timezone and timed deadlines against the exact UTC instant; `isTaskDueToday` correctly scopes to the viewing timezone's calendar day.
+  - Deterministic upcoming comparison (`compareTasksUpcoming`) sorting by deadline presence, deadline instant/date, priority weight (`urgent` > `high` > `normal` > `low`), creation time, and stable ID.
+  - Idempotent task completion (`completeTask`) and reopening (`reopenTask`) retaining full transition history while avoiding duplicate entries on retry.
+  - Transactional subtask hierarchy validation (`validateSubtaskHierarchy`) enforcing bounded depth (maximum 3 levels), same authorized workspace, and cycle prevention (`NO_SELF_PARENT`, `SUBTASK_CYCLE_DETECTED`).
+- **PostgreSQL Persistence & Tenant Isolation (`infra/supabase`):**
+  - Applied migration `00015_tasks_domain_and_deadlines.sql` creating `app.tasks` with composite foreign key `(workspace_id, id) REFERENCES app.items(workspace_id, id) ON DELETE CASCADE` and self-referencing `parent_task_id`.
+  - Added database check constraints on status, priority, and deadline types.
+  - Added targeted indexes on status, priority, due date, parent task ID, and workspace isolation.
+  - Configured strict Row-Level Security policies (`p_tasks_select`, `p_tasks_insert`, `p_tasks_update`, `p_tasks_delete`) scoped to authorized workspace membership.
+- **Fastify API Routes & Services (`apps/api`):**
+  - Added task REST endpoints under `/v1/workspaces/:workspaceId/tasks`:
+    - `POST /` (create task)
+    - `GET /` (list tasks with filtering by folderId, status, priority, overdue status, search, and stable pagination)
+    - `GET /:id` (task detail)
+    - `PATCH /:id` (update task with optimistic concurrency revision checks)
+    - `POST /:id/complete` (idempotent complete with history recording)
+    - `POST /:id/reopen` (idempotent reopen with history recording)
+    - `POST /:id/trash` (soft-delete task envelope and item header)
+    - `POST /:id/restore` (restore task from trash)
+  - Emitted monotonic change records into `app.changes` and outbox intents into `app.outbox_intents` atomically within database transactions.
+  - Added durable idempotency key caching via `x-operation-id` / `Idempotency-Key` headers.
+- **Client & Sync Engine Integration (`packages/api-client`, `packages/sync`, `apps/api`):**
+  - Extended `DaynoriApiClient` with task CRUD, completion, and reopening methods.
+  - Defined `TaskRecord` interface in `@daynori/sync` models and ports.
+  - Added unified task sync command dispatcher in `SyncService.dispatchCommand` for `createTask`, `updateTask`, `trashTask`, `restoreTask`, `completeTask`, and `reopenTask`.
+  - Integrated task projections into client `SyncEngine` for offline writes, pull integration, and conflict recovery.
+- **Local Persistence Adapters (`apps/web`, `apps/mobile`):**
+  - Extended Web `IndexedDbLocalRepository` to schema version 4 with dedicated `tasks` object store and index on `[workspaceId+status]`.
+  - Extended Mobile `SqliteLocalRepository` to migration version 5 with dedicated `tasks` table, indexing, and transactional operations.
+- **Decision Record:**
+  - Published [ADR-0024: Task Domain, Explicit Deadlines, and Subtask Invariants](docs/decisions/0024-task-domain-and-deadlines.md).
+
 ## Phase 17 — Focused note editor on both platforms — 2026-10-16
 
 - **Shared Web UI Component (`packages/ui-web`):**

@@ -3,6 +3,10 @@ import type {
   SyncPushRequest,
   SyncCommandType,
   NoteDocument,
+  TaskPriority,
+  TaskStatus,
+  TaskDeadline,
+  TaskCompletionHistoryItem,
 } from '@daynori/contracts';
 import type { LocalRepositoryPort } from './ports.js';
 import type {
@@ -16,6 +20,7 @@ import type {
   ConflictRecord,
   SyncDiagnostics,
   NoteRecord,
+  TaskRecord,
 } from './models.js';
 import { type SyncTransportPort, classifySyncError } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
@@ -325,6 +330,10 @@ export class SyncEngine {
     const isFolder =
       item.kind === 'folder' || (command !== undefined && command.includes('Folder'));
     const isNote = item.kind === 'note' || (command !== undefined && command.includes('Note'));
+    const isTask =
+      item.kind === 'task' ||
+      item.kind === 'todo' ||
+      (command !== undefined && command.includes('Task'));
     const determinedCommand =
       command ||
       (item.serverRevision === 0
@@ -332,21 +341,27 @@ export class SyncEngine {
           ? 'createFolder'
           : isNote
             ? 'createNote'
-            : 'createItem'
+            : isTask
+              ? 'createTask'
+              : 'createItem'
         : isFolder
           ? 'updateFolder'
           : isNote
             ? 'updateNote'
-            : 'updateItem');
+            : isTask
+              ? 'updateTask'
+              : 'updateItem');
 
     const action: 'create' | 'update' | 'delete' =
       determinedCommand === 'trashItem' ||
       determinedCommand === 'trashFolder' ||
-      determinedCommand === 'trashNote'
+      determinedCommand === 'trashNote' ||
+      determinedCommand === 'trashTask'
         ? 'delete'
         : determinedCommand === 'createItem' ||
             determinedCommand === 'createFolder' ||
-            determinedCommand === 'createNote'
+            determinedCommand === 'createNote' ||
+            determinedCommand === 'createTask'
           ? 'create'
           : 'update';
 
@@ -377,17 +392,37 @@ export class SyncEngine {
             ...(draft?.payload?.['plainText'] ? { plainText: draft.payload['plainText'] } : {}),
             ...(options?.payload || {}),
           }
-        : {
-            kind: item.kind,
-            rank: item.rank,
-            folderId: item.folderId,
-            securityScope: item.securityScope,
-            isArchived: item.isArchived,
-            isPinned: item.isPinned,
-            ...(item.name ? { name: item.name } : {}),
-            ...(item.title ? { title: item.title } : {}),
-            ...(options?.payload || {}),
-          };
+        : isTask
+          ? {
+              kind: 'task',
+              title: item.title || item.name || 'Untitled',
+              folderId: item.folderId,
+              rank: item.rank,
+              securityScope: item.securityScope,
+              isArchived: item.isArchived,
+              isPinned: item.isPinned,
+              priority: (options?.payload?.['priority'] as TaskPriority | undefined) ?? 'normal',
+              status: (options?.payload?.['status'] as TaskStatus | undefined) ?? 'todo',
+              deadline: (options?.payload?.['deadline'] as TaskDeadline | undefined) ?? {
+                type: 'none',
+              },
+              details: (options?.payload?.['details'] as string | null | undefined) ?? null,
+              parentId: (options?.payload?.['parentId'] as string | null | undefined) ?? null,
+              subtaskOrder: (options?.payload?.['subtaskOrder'] as number | undefined) ?? 0,
+              tags: (options?.payload?.['tags'] as string[] | undefined) ?? [],
+              ...(options?.payload || {}),
+            }
+          : {
+              kind: item.kind,
+              rank: item.rank,
+              folderId: item.folderId,
+              securityScope: item.securityScope,
+              isArchived: item.isArchived,
+              isPinned: item.isPinned,
+              ...(item.name ? { name: item.name } : {}),
+              ...(item.title ? { title: item.title } : {}),
+              ...(options?.payload || {}),
+            };
 
     // Calculate baseRevision for unsent intents:
     // If there are pending operations for this entity, chain expected base revision
@@ -404,7 +439,7 @@ export class SyncEngine {
       deviceId: this.deviceId,
       workspaceId: item.workspaceId,
       userId: this.namespace.userId,
-      entityType: isFolder ? 'folder' : isNote ? 'note' : 'item',
+      entityType: isFolder ? 'folder' : isNote ? 'note' : isTask ? 'task' : 'item',
       entityId: item.id,
       action,
       command: determinedCommand,
@@ -456,9 +491,56 @@ export class SyncEngine {
       };
     }
 
+    let taskRecord: TaskRecord | undefined;
+    if (isTask) {
+      const priority = (options?.payload?.['priority'] as TaskPriority | undefined) ?? 'normal';
+      const status = (options?.payload?.['status'] as TaskStatus | undefined) ?? 'todo';
+      const deadline = (options?.payload?.['deadline'] as TaskDeadline | undefined) ?? {
+        type: 'none',
+      };
+      const details = (options?.payload?.['details'] as string | null | undefined) ?? null;
+      const completedAt =
+        (options?.payload?.['completedAt'] as string | null | undefined) ??
+        (status === 'completed' ? clientTimestamp : null);
+      const reopenedAt = (options?.payload?.['reopenedAt'] as string | null | undefined) ?? null;
+      const completionHistory =
+        (options?.payload?.['completionHistory'] as TaskCompletionHistoryItem[] | undefined) ??
+        (status === 'completed' ? [{ completedAt: clientTimestamp }] : []);
+      const parentId = (options?.payload?.['parentId'] as string | null | undefined) ?? null;
+      const subtaskOrder = (options?.payload?.['subtaskOrder'] as number | undefined) ?? 0;
+      const tags = (options?.payload?.['tags'] as string[] | undefined) ?? [];
+
+      taskRecord = {
+        id: item.id,
+        workspaceId: item.workspaceId,
+        folderId: item.folderId ?? null,
+        title: item.title || item.name || 'Untitled',
+        details,
+        priority,
+        status,
+        deadline,
+        completedAt,
+        reopenedAt,
+        completionHistory,
+        parentId,
+        subtaskOrder,
+        tags,
+        serverRevision: item.serverRevision,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        deletedAt: item.deletedAt,
+      };
+    }
+
     // 2. Perform atomic local storage write via transaction
     try {
-      await this.repository.saveItemTransaction(item, mutationRecord, draft, noteRecord);
+      await this.repository.saveItemTransaction(
+        item,
+        mutationRecord,
+        draft,
+        noteRecord,
+        taskRecord
+      );
     } catch (err) {
       // Local transaction failed: cannot show as saved on device
       this.itemStates.set(item.id, {
@@ -748,9 +830,35 @@ export class SyncEngine {
           }
         }
 
+        let taskToAck: TaskRecord | undefined;
+        if (
+          updatedHeader.kind === 'task' ||
+          updatedHeader.kind === 'todo' ||
+          origMutation.entityType === 'task'
+        ) {
+          const existingTask = await this.repository.getTask(
+            this.namespace.workspaceId,
+            result.entityId
+          );
+          if (existingTask) {
+            taskToAck = {
+              ...existingTask,
+              serverRevision: result.revision,
+              title: updatedHeader.title || updatedHeader.name || existingTask.title,
+              folderId: updatedHeader.folderId ?? null,
+              deletedAt: updatedHeader.deletedAt,
+            };
+          }
+        }
+
         // B. Retain pending work until the durable result is applied locally
         // and apply acknowledgment atomically in a single transaction
-        await this.repository.applyAcknowledgment(updatedHeader, result.operationId, noteToAck);
+        await this.repository.applyAcknowledgment(
+          updatedHeader,
+          result.operationId,
+          noteToAck,
+          taskToAck
+        );
 
         // C. Update item sync state: do NOT report item synced if other operations for it remain unresolved
         const remainingForEntity = (
@@ -862,6 +970,7 @@ export class SyncEngine {
 
         const changesToApply: ItemHeaderRecord[] = [];
         const notesToApply: NoteRecord[] = [];
+        const tasksToApply: TaskRecord[] = [];
 
         for (const change of pullRes.data.changes) {
           totalChanges++;
@@ -871,7 +980,12 @@ export class SyncEngine {
             change.entityId
           );
 
-          const defaultKind = change.entityType === 'folder' ? 'folder' : 'note';
+          const defaultKind =
+            change.entityType === 'folder'
+              ? 'folder'
+              : change.entityType === 'task'
+                ? 'task'
+                : 'note';
           const kind = typeof data.kind === 'string' ? data.kind : existing?.kind || defaultKind;
 
           // Distinguish an omitted field from an explicit null
@@ -969,6 +1083,53 @@ export class SyncEngine {
               });
             }
           }
+
+          if (kind === 'task' || kind === 'todo' || change.entityType === 'task') {
+            const title = typeof data.title === 'string' ? data.title : name || 'Untitled';
+            const details = typeof data.details === 'string' ? data.details : null;
+            const priority = (data.priority as TaskPriority | undefined) ?? 'normal';
+            const status = (data.status as TaskStatus | undefined) ?? 'todo';
+            const deadline =
+              data.deadline && typeof data.deadline === 'object' && 'type' in data.deadline
+                ? (data.deadline as TaskDeadline)
+                : { type: 'none' as const };
+            const completedAt =
+              typeof data.completedAt === 'string'
+                ? data.completedAt
+                : status === 'completed'
+                  ? updatedAt
+                  : null;
+            const reopenedAt = typeof data.reopenedAt === 'string' ? data.reopenedAt : null;
+            const completionHistory = Array.isArray(data.completionHistory)
+              ? (data.completionHistory as TaskCompletionHistoryItem[])
+              : status === 'completed'
+                ? [{ completedAt: completedAt || updatedAt }]
+                : [];
+            const parentId = typeof data.parentId === 'string' ? data.parentId : null;
+            const subtaskOrder = typeof data.subtaskOrder === 'number' ? data.subtaskOrder : 0;
+            const tags = Array.isArray(data.tags) ? data.tags.map(String) : [];
+
+            tasksToApply.push({
+              id: change.entityId,
+              workspaceId: this.namespace.workspaceId,
+              folderId: folderId ?? null,
+              title,
+              details,
+              priority,
+              status,
+              deadline,
+              completedAt,
+              reopenedAt,
+              completionHistory,
+              parentId,
+              subtaskOrder,
+              tags,
+              serverRevision: change.revision,
+              createdAt,
+              updatedAt,
+              deletedAt,
+            });
+          }
         }
 
         const newCursorRecord: SyncCursorRecord = {
@@ -984,7 +1145,12 @@ export class SyncEngine {
         };
 
         // Atomically apply changes and advance cursor in single transaction
-        await this.repository.applyPullPage(changesToApply, newCursorRecord, notesToApply);
+        await this.repository.applyPullPage(
+          changesToApply,
+          newCursorRecord,
+          notesToApply,
+          tasksToApply
+        );
 
         this.lastSyncedAt = newCursorRecord.lastSyncedAt;
         this.accessEpoch = pullRes.data.accessEpoch;
@@ -1062,6 +1228,7 @@ export class SyncEngine {
     ]);
 
     const snapshotNotes: NoteRecord[] = [];
+    const snapshotTasks: TaskRecord[] = [];
     for (const item of bootstrapRes.data.items) {
       const raw = item as Record<string, unknown>;
       if (item.kind === 'note' && raw.document) {
@@ -1080,6 +1247,45 @@ export class SyncEngine {
           deletedAt: item.deletedAt,
         });
       }
+
+      if (item.kind === 'task' || item.kind === 'todo') {
+        const priority = (raw.priority as TaskPriority | undefined) ?? 'normal';
+        const status = (raw.status as TaskStatus | undefined) ?? 'todo';
+        const deadline =
+          raw.deadline && typeof raw.deadline === 'object' && 'type' in raw.deadline
+            ? (raw.deadline as TaskDeadline)
+            : { type: 'none' as const };
+        const details = typeof raw.details === 'string' ? raw.details : null;
+        const completedAt = typeof raw.completedAt === 'string' ? raw.completedAt : null;
+        const reopenedAt = typeof raw.reopenedAt === 'string' ? raw.reopenedAt : null;
+        const completionHistory = Array.isArray(raw.completionHistory)
+          ? (raw.completionHistory as TaskCompletionHistoryItem[])
+          : [];
+        const parentId = typeof raw.parentId === 'string' ? raw.parentId : null;
+        const subtaskOrder = typeof raw.subtaskOrder === 'number' ? raw.subtaskOrder : 0;
+        const tags = Array.isArray(raw.tags) ? raw.tags.map(String) : [];
+
+        snapshotTasks.push({
+          id: item.id,
+          workspaceId: item.workspaceId,
+          folderId: item.folderId ?? null,
+          title: (raw.title as string) || item.name || 'Untitled',
+          details,
+          priority,
+          status,
+          deadline,
+          completedAt,
+          reopenedAt,
+          completionHistory,
+          parentId,
+          subtaskOrder,
+          tags,
+          serverRevision: item.revision,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          deletedAt: item.deletedAt,
+        });
+      }
     }
 
     // Atomically install snapshot, replacing obsolete projections while preserving local work
@@ -1087,7 +1293,8 @@ export class SyncEngine {
       snapshotItems,
       newCursor,
       preserveLocalItemIds,
-      snapshotNotes
+      snapshotNotes,
+      snapshotTasks
     );
 
     this.lastSyncedAt = newCursor.lastSyncedAt;
@@ -1138,7 +1345,9 @@ export class SyncEngine {
             ? 'createFolder'
             : conflict.entityType === 'note'
               ? 'createNote'
-              : 'createItem',
+              : conflict.entityType === 'task'
+                ? 'createTask'
+                : 'createItem',
         commandVersion: 1,
         schemaVersion: 1,
         payload: copyPayload,
@@ -1153,12 +1362,13 @@ export class SyncEngine {
       // Also accept server state for original entity
       let serverHeader: ItemHeaderRecord | undefined = undefined;
       let serverNote: NoteRecord | undefined = undefined;
+      let serverTask: TaskRecord | undefined = undefined;
       if (conflict.serverState) {
         const s = conflict.serverState;
         serverHeader = {
           id: conflict.entityId,
           workspaceId: conflict.workspaceId,
-          kind: (s['kind'] as string) || 'note',
+          kind: (s['kind'] as string) || (conflict.entityType === 'task' ? 'task' : 'note'),
           folderId: (s['folderId'] as string | null) ?? null,
           rank: (s['rank'] as string) || '0',
           isArchived: Boolean(s['isArchived'] ?? false),
@@ -1188,6 +1398,33 @@ export class SyncEngine {
             deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
           };
         }
+        if (conflict.entityType === 'task' || s['kind'] === 'task' || s['kind'] === 'todo') {
+          serverTask = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            folderId: (s['folderId'] as string | null) ?? null,
+            title: (s['title'] as string) || (s['name'] as string) || 'Untitled',
+            details: typeof s['details'] === 'string' ? s['details'] : null,
+            priority: (s['priority'] as TaskPriority | undefined) ?? 'normal',
+            status: (s['status'] as TaskStatus | undefined) ?? 'todo',
+            deadline:
+              s['deadline'] && typeof s['deadline'] === 'object' && 'type' in s['deadline']
+                ? (s['deadline'] as TaskDeadline)
+                : { type: 'none' as const },
+            completedAt: typeof s['completedAt'] === 'string' ? s['completedAt'] : null,
+            reopenedAt: typeof s['reopenedAt'] === 'string' ? s['reopenedAt'] : null,
+            completionHistory: Array.isArray(s['completionHistory'])
+              ? (s['completionHistory'] as TaskCompletionHistoryItem[])
+              : [],
+            parentId: typeof s['parentId'] === 'string' ? s['parentId'] : null,
+            subtaskOrder: typeof s['subtaskOrder'] === 'number' ? s['subtaskOrder'] : 0,
+            tags: Array.isArray(s['tags']) ? s['tags'].map(String) : [],
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+            deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+          };
+        }
       }
 
       await this.repository.resolveConflictTransaction(
@@ -1196,7 +1433,9 @@ export class SyncEngine {
         serverHeader,
         copyMutation,
         conflict.operationId,
-        serverNote
+        serverNote,
+        undefined,
+        serverTask
       );
 
       this.itemStates.set(conflict.entityId, {
@@ -1229,7 +1468,9 @@ export class SyncEngine {
             ? 'updateFolder'
             : conflict.entityType === 'note'
               ? 'updateNote'
-              : 'updateItem',
+              : conflict.entityType === 'task'
+                ? 'updateTask'
+                : 'updateItem',
         commandVersion: 1,
         schemaVersion: 1,
         payload,
@@ -1259,12 +1500,13 @@ export class SyncEngine {
       // keep_server: accept server representation
       let updatedHeader: ItemHeaderRecord | undefined = undefined;
       let updatedNote: NoteRecord | undefined = undefined;
+      let updatedTask: TaskRecord | undefined = undefined;
       if (conflict.serverState) {
         const s = conflict.serverState;
         updatedHeader = {
           id: conflict.entityId,
           workspaceId: conflict.workspaceId,
-          kind: (s['kind'] as string) || 'note',
+          kind: (s['kind'] as string) || (conflict.entityType === 'task' ? 'task' : 'note'),
           folderId: (s['folderId'] as string | null) ?? null,
           rank: (s['rank'] as string) || '0',
           isArchived: Boolean(s['isArchived'] ?? false),
@@ -1288,6 +1530,33 @@ export class SyncEngine {
             plainText: (s['plainText'] as string) || '',
             wordCount: (s['wordCount'] as number) || 0,
             charCount: (s['charCount'] as number) || 0,
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+            deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+          };
+        }
+        if (conflict.entityType === 'task' || s['kind'] === 'task' || s['kind'] === 'todo') {
+          updatedTask = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            folderId: (s['folderId'] as string | null) ?? null,
+            title: (s['title'] as string) || (s['name'] as string) || 'Untitled',
+            details: typeof s['details'] === 'string' ? s['details'] : null,
+            priority: (s['priority'] as TaskPriority | undefined) ?? 'normal',
+            status: (s['status'] as TaskStatus | undefined) ?? 'todo',
+            deadline:
+              s['deadline'] && typeof s['deadline'] === 'object' && 'type' in s['deadline']
+                ? (s['deadline'] as TaskDeadline)
+                : { type: 'none' as const },
+            completedAt: typeof s['completedAt'] === 'string' ? s['completedAt'] : null,
+            reopenedAt: typeof s['reopenedAt'] === 'string' ? s['reopenedAt'] : null,
+            completionHistory: Array.isArray(s['completionHistory'])
+              ? (s['completionHistory'] as TaskCompletionHistoryItem[])
+              : [],
+            parentId: typeof s['parentId'] === 'string' ? s['parentId'] : null,
+            subtaskOrder: typeof s['subtaskOrder'] === 'number' ? s['subtaskOrder'] : 0,
+            tags: Array.isArray(s['tags']) ? s['tags'].map(String) : [],
             serverRevision: conflict.serverRevision,
             createdAt: (s['createdAt'] as string) || new Date().toISOString(),
             updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
@@ -1320,7 +1589,8 @@ export class SyncEngine {
         undefined,
         conflict.operationId,
         updatedNote,
-        recoveryDraft
+        recoveryDraft,
+        updatedTask
       );
 
       this.itemStates.set(conflict.entityId, {
@@ -1346,6 +1616,14 @@ export class SyncEngine {
 
   async getNote(id: string): Promise<NoteRecord | null> {
     return this.repository.getNote(this.namespace.workspaceId, id);
+  }
+
+  async getTask(id: string): Promise<TaskRecord | null> {
+    return this.repository.getTask(this.namespace.workspaceId, id);
+  }
+
+  async listTasks(): Promise<TaskRecord[]> {
+    return this.repository.listTasks(this.namespace.workspaceId);
   }
 
   // --- Auth & Account Boundary Handlers ---

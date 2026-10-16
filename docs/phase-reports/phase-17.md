@@ -37,12 +37,12 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
     - Integrated `MobileNoteEditor` with `+ Note` action button and note card tap selection.
     - Dual persistence via `SqliteLocalRepository` and `SyncEngine`.
   - **Testing & Verification:**
-    - `packages/ui-web/src/ui-web.test.ts`: Added unit tests for NoteEditor rendering, block formatting, and Bangla text preservation.
+    - `packages/ui-web/src/ui-web.test.ts`: Unit test suite verifying NoteEditor rendering, multiline content, multi-run inline styling preservation, hard breaks, middle typing, autosave failure/retry, rapid unmount/remount, Inbox folder moves, and conflict recovery.
     - `packages/ui-mobile/src/ui-mobile.test.ts`: Added unit tests for MobileNoteEditor rendering and actions.
     - `tests/integration/phase17-focused-note-editor.test.ts`: Integration test suite verifying literal code and Bangla preservation, recoverable document conversion, size and complexity limits, and AST validation.
-    - `scripts/test-web-e2e.mjs`: Validated note creation, editing, and persistence in real headless Chromium via CDP.
+    - `scripts/test-web-e2e.mjs`: Validated shell navigation, library container reflow, and note view mounting in real headless Chromium via CDP (distinguished from rich interactive inline run and autosave failure tests in Vitest).
 - **Excluded/deferred scope:**
-  - Audio capture and voice notes are strictly excluded from typed note creation (deferred to Phase 18).
+  - Audio capture, voice notes, and transcription belong to a separately scheduled phase (do not implement in Phase 17 or Phase 18).
   - Encrypted note vault storage and biometric gates (deferred to Phases 44–47).
   - Physical Android TalkBack and hardware KeyStore release gates remain blocked pending physical device availability.
 
@@ -61,11 +61,11 @@ Delivered the complete Phase 17 focused note editor across `packages/ui-web`, `p
 
 | Acceptance Condition                           | Verification Method                                                                                                | Location / Artifact                                     | Result                                                                  |
 | :--------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------ | :---------------------------------------------------------------------- |
-| **Distraction-Free Web Note Editor**           | Unit tests verifying editor layout, title fallback, formatting toolbar, and conflict banner                        | `packages/ui-web/src/ui-web.test.ts`                    | **PASS**: 26/26 unit tests passed.                                      |
+| **Distraction-Free Web Note Editor**           | Unit tests verifying editor layout, title fallback, inline run preservation, hard breaks, and autosave lifecycle   | `packages/ui-web/src/ui-web.test.ts`                    | **PASS**: 26/26 unit tests passed.                                      |
 | **Mobile Note Editor Primitives**              | React Native component tests verifying title, blocks, checklist toggling, and toolbar                              | `packages/ui-mobile/src/ui-mobile.test.ts`              | **PASS**: 5/5 unit tests passed.                                        |
 | **Bangla Unicode & Literal Code Preservation** | Integration tests round-tripping literal `List<T>`, `x < y`, HTML snippets, and Bengali Unicode (`আমার প্রথম নোট`) | `tests/integration/phase17-focused-note-editor.test.ts` | **PASS**: Literal content preserved inertly without tag stripping.      |
 | **Document Size & Complexity Enforcement**     | Integration tests validating enforcement of `MAX_NOTE_DOCUMENT_BYTES` (512 KB) and `MAX_NOTE_NODES` (5000)         | `tests/integration/phase17-focused-note-editor.test.ts` | **PASS**: Excessive documents rejected cleanly with descriptive errors. |
-| **End-to-End Headless Browser Validation**     | Real Chromium CDP session testing navigation, library loading, and note view rendering                             | `scripts/test-web-e2e.mjs`                              | **PASS**: 46/46 checks passed with 0 failures.                          |
+| **Shell Navigation & Container Validation**    | Real Chromium CDP session testing navigation, library loading, and note container mounting                         | `scripts/test-web-e2e.mjs`                              | **PASS**: 46/46 checks passed with 0 failures.                          |
 | **Strict Type Checking**                       | Full monorepo TypeScript verification across all 13 workspace projects                                             | `pnpm typecheck`                                        | **PASS**: 0 type errors across all packages.                            |
 | **Code Style & Formatting**                    | Monorepo Prettier and ESLint validation                                                                            | `pnpm lint` & `pnpm format:check`                       | **PASS**: 0 lint errors, 0 warnings; all files match code style.        |
 | **Secret Scanning**                            | Repository secret scanner inspecting working tree and Git objects                                                  | `node scripts/scan-secrets.mjs`                         | **PASS**: 1611 files checked, 0 secrets detected.                       |

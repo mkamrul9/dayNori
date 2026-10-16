@@ -7,6 +7,7 @@ import type {
   AccountNamespace,
   ConflictRecord,
   NoteRecord,
+  TaskRecord,
 } from './models.js';
 import type { ClientMutation } from './types.js';
 import type { WorkspaceId } from '@daynori/domain';
@@ -56,23 +57,27 @@ export interface LocalRepositoryPort {
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
     draft?: DraftRecord,
-    note?: NoteRecord
+    note?: NoteRecord,
+    task?: TaskRecord
   ): Promise<void>;
   applyAcknowledgment(
     header: ItemHeaderRecord,
     operationId: string,
-    note?: NoteRecord
+    note?: NoteRecord,
+    task?: TaskRecord
   ): Promise<void>;
   applyPullPage(
     changes: ItemHeaderRecord[],
     newCursor: SyncCursorRecord,
-    notes?: NoteRecord[]
+    notes?: NoteRecord[],
+    tasks?: TaskRecord[]
   ): Promise<void>;
   installBootstrapGeneration(
     items: ItemHeaderRecord[],
     watermarkCursor: SyncCursorRecord,
     preserveLocalItemIds: Set<string>,
-    notes?: NoteRecord[]
+    notes?: NoteRecord[],
+    tasks?: TaskRecord[]
   ): Promise<void>;
 
   // --- 5. Conflicts ---
@@ -86,7 +91,8 @@ export interface LocalRepositoryPort {
     newMutation?: PendingMutationRecord,
     removeOperationId?: string,
     updatedNote?: NoteRecord,
-    recoveryDraft?: DraftRecord
+    recoveryDraft?: DraftRecord,
+    updatedTask?: TaskRecord
   ): Promise<void>;
 
   // --- 6. Notes & Documents ---
@@ -94,6 +100,12 @@ export interface LocalRepositoryPort {
   listNotes(workspaceId: string): Promise<NoteRecord[]>;
   upsertNote(note: NoteRecord): Promise<void>;
   deleteNote(workspaceId: string, id: string): Promise<void>;
+
+  // --- 7. Tasks & Deadlines ---
+  getTask(workspaceId: string, id: string): Promise<TaskRecord | null>;
+  listTasks(workspaceId: string): Promise<TaskRecord[]>;
+  upsertTask(task: TaskRecord): Promise<void>;
+  deleteTask(workspaceId: string, id: string): Promise<void>;
 
   // --- 7. Sync Cursors ---
   getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null>;

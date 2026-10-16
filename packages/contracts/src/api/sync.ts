@@ -25,6 +25,12 @@ export const SyncCommandTypeSchema = z.enum([
   'updateNote',
   'trashNote',
   'restoreNote',
+  'createTask',
+  'updateTask',
+  'trashTask',
+  'restoreTask',
+  'completeTask',
+  'reopenTask',
 ]);
 
 export type SyncCommandType = z.infer<typeof SyncCommandTypeSchema>;

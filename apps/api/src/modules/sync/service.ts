@@ -9,6 +9,7 @@ import type {
   Tag,
   ItemTag,
   ItemLink,
+  TaskDeadline,
 } from '@daynori/contracts';
 import {
   lockWorkspaceSyncState,
@@ -45,6 +46,15 @@ import {
   restoreFolder,
 } from '../organization/service.js';
 import { createNote, getNote, updateNote, trashNote, restoreNote } from '../notes/service.js';
+import {
+  createTask,
+  getTask,
+  updateTask,
+  trashTask,
+  restoreTask,
+  completeTaskService,
+  reopenTaskService,
+} from '../tasks/service.js';
 import {
   type NoteDocument,
   validateNoteDocument,
@@ -1249,6 +1259,312 @@ export class SyncService {
             appliedChangeSeq: null,
             resultPayload: { error: conflictError },
           });
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: cmd.baseRevision,
+            seq: null,
+            error: conflictError,
+          };
+        }
+
+        const message = err instanceof Error ? err.message : String(err);
+        const code = err instanceof NotFoundError ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+        const errorPayload = { code, message };
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
+    // --- Unified Task Commands ---
+    if (
+      cmd.command === 'createTask' ||
+      cmd.command === 'updateTask' ||
+      cmd.command === 'trashTask' ||
+      cmd.command === 'restoreTask' ||
+      cmd.command === 'completeTask' ||
+      cmd.command === 'reopenTask'
+    ) {
+      try {
+        let resultRevision = 1;
+        let appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'createTask': {
+            if (existingItem) {
+              throw new ValidationError(
+                `Entity with ID ${cmd.entityId} already exists in this workspace.`
+              );
+            }
+            const task = await createTask(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              {
+                id: cmd.entityId,
+                title:
+                  typeof cmd.payload['title'] === 'string'
+                    ? cmd.payload['title']
+                    : typeof cmd.payload['name'] === 'string'
+                      ? cmd.payload['name']
+                      : 'Untitled Task',
+                details: typeof cmd.payload['details'] === 'string' ? cmd.payload['details'] : null,
+                folderId:
+                  typeof cmd.payload['folderId'] === 'string' ? cmd.payload['folderId'] : null,
+                priority:
+                  typeof cmd.payload['priority'] === 'string'
+                    ? (cmd.payload['priority'] as 'low' | 'normal' | 'high' | 'urgent')
+                    : 'normal',
+                status:
+                  typeof cmd.payload['status'] === 'string'
+                    ? (cmd.payload['status'] as 'todo' | 'in_progress' | 'completed' | 'cancelled')
+                    : 'todo',
+                deadline:
+                  (cmd.payload['deadline'] as TaskDeadline | undefined) ?? { type: 'none' },
+                parentId:
+                  typeof cmd.payload['parentId'] === 'string' ? cmd.payload['parentId'] : null,
+                subtaskOrder:
+                  typeof cmd.payload['subtaskOrder'] === 'number' ? cmd.payload['subtaskOrder'] : 0,
+                tags: Array.isArray(cmd.payload['tags']) ? (cmd.payload['tags'] as string[]) : [],
+                rank: typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : '00001000',
+                isPinned: Boolean(cmd.payload['isPinned']),
+                securityScope: cmd.payload['securityScope'] === 'vault' ? 'vault' : 'standard',
+              },
+              cmd.operationId
+            );
+            resultRevision = task.revision;
+            appliedSeq = task.seq;
+            resultPayload = { task };
+            break;
+          }
+          case 'updateTask': {
+            const task = await updateTask(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                baseRevision: cmd.baseRevision,
+                title: typeof cmd.payload['title'] === 'string' ? cmd.payload['title'] : undefined,
+                details:
+                  typeof cmd.payload['details'] === 'string'
+                    ? cmd.payload['details']
+                    : cmd.payload['details'] === null
+                      ? null
+                      : undefined,
+                folderId:
+                  typeof cmd.payload['folderId'] === 'string'
+                    ? cmd.payload['folderId']
+                    : cmd.payload['folderId'] === null
+                      ? null
+                      : undefined,
+                priority:
+                  typeof cmd.payload['priority'] === 'string'
+                    ? (cmd.payload['priority'] as 'low' | 'normal' | 'high' | 'urgent')
+                    : undefined,
+                status:
+                  typeof cmd.payload['status'] === 'string'
+                    ? (cmd.payload['status'] as 'todo' | 'in_progress' | 'completed' | 'cancelled')
+                    : undefined,
+                deadline: cmd.payload['deadline'] as TaskDeadline | undefined,
+                parentId:
+                  typeof cmd.payload['parentId'] === 'string'
+                    ? cmd.payload['parentId']
+                    : cmd.payload['parentId'] === null
+                      ? null
+                      : undefined,
+                subtaskOrder:
+                  typeof cmd.payload['subtaskOrder'] === 'number'
+                    ? cmd.payload['subtaskOrder']
+                    : undefined,
+                tags: Array.isArray(cmd.payload['tags'])
+                  ? (cmd.payload['tags'] as string[])
+                  : undefined,
+                rank: typeof cmd.payload['rank'] === 'string' ? cmd.payload['rank'] : undefined,
+                isPinned:
+                  typeof cmd.payload['isPinned'] === 'boolean'
+                    ? cmd.payload['isPinned']
+                    : undefined,
+                isArchived:
+                  typeof cmd.payload['isArchived'] === 'boolean'
+                    ? cmd.payload['isArchived']
+                    : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = task.revision;
+            appliedSeq = task.seq;
+            resultPayload = { task };
+            break;
+          }
+          case 'completeTask': {
+            const task = await completeTaskService(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                baseRevision: cmd.baseRevision > 0 ? cmd.baseRevision : undefined,
+                completedAt:
+                  typeof cmd.payload['completedAt'] === 'string'
+                    ? cmd.payload['completedAt']
+                    : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = task.revision;
+            appliedSeq = task.seq;
+            resultPayload = { task };
+            break;
+          }
+          case 'reopenTask': {
+            const task = await reopenTaskService(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                baseRevision: cmd.baseRevision > 0 ? cmd.baseRevision : undefined,
+                reopenedAt:
+                  typeof cmd.payload['reopenedAt'] === 'string'
+                    ? cmd.payload['reopenedAt']
+                    : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = task.revision;
+            appliedSeq = task.seq;
+            resultPayload = { task };
+            break;
+          }
+          case 'trashTask': {
+            const expectedRev =
+              typeof cmd.payload['expectedRevision'] === 'number'
+                ? cmd.payload['expectedRevision']
+                : cmd.baseRevision > 0
+                  ? cmd.baseRevision
+                  : undefined;
+            const res = await trashTask(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              expectedRev,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            appliedSeq = res.seq;
+            resultPayload = { ...res };
+            break;
+          }
+          case 'restoreTask': {
+            const expectedRev =
+              typeof cmd.payload['expectedRevision'] === 'number'
+                ? cmd.payload['expectedRevision']
+                : cmd.baseRevision > 0
+                  ? cmd.baseRevision
+                  : undefined;
+            const task = await restoreTask(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              expectedRev,
+              cmd.operationId
+            );
+            resultRevision = task.revision;
+            appliedSeq = task.seq;
+            resultPayload = { task };
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          let currentServerRevision: number | undefined;
+          let currentServerState: Record<string, unknown> | undefined;
+          try {
+            const currentTask = await getTask(client, cmd.workspaceId, cmd.entityId, true);
+            currentServerRevision = currentTask.revision;
+            currentServerState = { ...currentTask };
+          } catch {
+            // Task may not exist
+          }
+
+          const conflictError = {
+            code: 'REVISION_CONFLICT',
+            message: err.message,
+            ...(currentServerRevision !== undefined ? { currentServerRevision } : {}),
+            ...(currentServerState ? { currentServerState } : {}),
+          };
+
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictError },
+          });
+
           return {
             operationId: cmd.operationId,
             status: 'conflict',
