@@ -1543,7 +1543,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
 
   async listJournalEntries(
     workspaceId: string,
-    options?: { entryDate?: string; startDate?: string; endDate?: string }
+    options?: {
+      entryDate?: string;
+      startDate?: string;
+      endDate?: string;
+      includeDeleted?: boolean;
+    }
   ): Promise<JournalEntryRecord[]> {
     this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
@@ -1556,7 +1561,11 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         const raw = (req.result as unknown[]) || [];
         let results = raw
           .map((j) => validateJournalEntryRecord(j))
-          .filter((j) => j.workspaceId === workspaceId && j.deletedAt === null);
+          .filter(
+            (j) =>
+              j.workspaceId === workspaceId &&
+              (options?.includeDeleted ? true : j.deletedAt === null)
+          );
 
         if (options?.entryDate) {
           results = results.filter((j) => j.entryDate === options.entryDate);

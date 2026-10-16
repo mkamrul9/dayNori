@@ -145,7 +145,12 @@ export interface LocalRepositoryPort {
   getJournalEntry(workspaceId: string, id: string): Promise<JournalEntryRecord | null>;
   listJournalEntries(
     workspaceId: string,
-    options?: { entryDate?: string; startDate?: string; endDate?: string }
+    options?: {
+      entryDate?: string;
+      startDate?: string;
+      endDate?: string;
+      includeDeleted?: boolean;
+    }
   ): Promise<JournalEntryRecord[]>;
   upsertJournalEntry(entry: JournalEntryRecord): Promise<void>;
   deleteJournalEntry(workspaceId: string, id: string): Promise<void>;

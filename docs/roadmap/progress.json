@@ -141,7 +141,7 @@
     {
       "id": "23",
       "status": "blocked",
-      "reason": "Provisional journal writing and reflection interfaces, calm focused writing surfaces, day and month navigation, backdating badges, optional reflection prompt trays, canonical folder placement, draft recovery, journal-scoped search with snippet privacy suppression, and Trash/restore lifecycles delivered under owner authorization and verified across Vitest pure domain, Web JournalEditor, Mobile JournalView, and integration test journeys (15/15 test files and 211/211 integration tests passing, 40/40 test files and 553/553 unit tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "reason": "Provisional journal writing and reflection interfaces, calm focused writing surfaces, day and month navigation, backdating badges, optional reflection prompt trays, canonical folder placement, autosave draft recovery, journal-scoped search with snippet privacy suppression, mobile AST preservation without flattening, and Trash/restore lifecycles delivered under owner authorization and verified across Vitest pure domain, Web JournalEditor, Mobile JournalView, and integration test journeys (15/15 test files and 212/212 integration tests passing, 41/41 test files and 558/558 unit/view tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
       "report": "docs/phase-reports/phase-23.md"
     },
     {

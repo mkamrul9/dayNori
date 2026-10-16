@@ -1,10 +1,11 @@
-import React, { useCallback, useId, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import {
   type NoteDocument,
   isEntryBackdated,
   REFLECTION_TEMPLATES,
   instantiateReflectionTemplate,
+  createEmptyNoteDocument,
   type JournalPromptItem,
 } from '@daynori/domain';
 import { NoteEditor } from './NoteEditor.js';
@@ -32,6 +33,17 @@ export interface JournalEditorProps {
     serverTitle?: string;
     serverDocument?: NoteDocument;
   } | null;
+  onDraftChange?: (entry: {
+    title: string;
+    entryDate: string;
+    timezone: string;
+    document: NoteDocument;
+    plainText: string;
+    mood: string | null;
+    prompts: JournalPromptItem[];
+    tags: string[];
+    folderId?: string | null;
+  }) => void;
   onSave?: (entry: {
     title: string;
     entryDate: string;
@@ -65,6 +77,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   initialEntryDate,
   initialTimezone,
   initialDocument,
+  initialPlainText = '',
   initialMood = null,
   initialPrompts = [],
   initialTags = [],
@@ -75,6 +88,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   localSaveStatus = 'Saved on this device',
   cloudSyncStatus = 'Synced',
   conflict = null,
+  onDraftChange,
   onSave,
   onResolveConflict,
   onClose,
@@ -114,43 +128,176 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     return isEntryBackdated(entryDate, new Date(), timezone);
   }, [entryDate, timezone]);
 
+  const latestNoteRef = useRef<{
+    title: string;
+    document: NoteDocument;
+    plainText: string;
+    folderId?: string | null;
+  }>({
+    title: initialTitle || '',
+    document: initialDocument || createEmptyNoteDocument(),
+    plainText: initialPlainText || '',
+    folderId: initialFolderId,
+  });
+
+  const latestOnDraftChangeRef = useRef(onDraftChange);
+  latestOnDraftChangeRef.current = onDraftChange;
+
+  const latestOnSaveRef = useRef(onSave);
+  latestOnSaveRef.current = onSave;
+
+  const metadataTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (metadataTimerRef.current) {
+        clearTimeout(metadataTimerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleMetadataSave = useCallback(
+    (
+      newDate: string,
+      newMood: string | null,
+      newPrompts: JournalPromptItem[],
+      newTags: string[]
+    ) => {
+      const note = latestNoteRef.current;
+      latestOnDraftChangeRef.current?.({
+        title: note.title,
+        entryDate: newDate,
+        timezone,
+        document: note.document,
+        plainText: note.plainText,
+        mood: newMood,
+        prompts: newPrompts,
+        tags: newTags,
+        folderId: note.folderId,
+      });
+
+      if (readOnly) return;
+      if (metadataTimerRef.current) {
+        clearTimeout(metadataTimerRef.current);
+      }
+      metadataTimerRef.current = setTimeout(() => {
+        void latestOnSaveRef.current?.({
+          title: note.title,
+          entryDate: newDate,
+          timezone,
+          document: note.document,
+          plainText: note.plainText,
+          mood: newMood,
+          prompts: newPrompts,
+          tags: newTags,
+          folderId: note.folderId,
+        });
+      }, 600);
+    },
+    [timezone, readOnly]
+  );
+
+  const handleNoteChange = useCallback(
+    (noteData: {
+      title: string;
+      document: NoteDocument;
+      plainText: string;
+      folderId?: string | null;
+    }) => {
+      latestNoteRef.current = noteData;
+      latestOnDraftChangeRef.current?.({
+        title: noteData.title,
+        entryDate,
+        timezone,
+        document: noteData.document,
+        plainText: noteData.plainText,
+        mood,
+        prompts,
+        tags,
+        folderId: noteData.folderId,
+      });
+    },
+    [entryDate, timezone, mood, prompts, tags]
+  );
+
+  const handleDateChange = useCallback(
+    (newDate: string) => {
+      setEntryDate(newDate);
+      scheduleMetadataSave(newDate, mood, prompts, tags);
+    },
+    [mood, prompts, tags, scheduleMetadataSave]
+  );
+
+  const handleMoodSelect = useCallback(
+    (selectedMood: string | null) => {
+      const nextMood = mood === selectedMood ? null : selectedMood;
+      setMood(nextMood);
+      scheduleMetadataSave(entryDate, nextMood, prompts, tags);
+    },
+    [mood, entryDate, prompts, tags, scheduleMetadataSave]
+  );
+
   const handleAddTag = useCallback(() => {
     const trimmed = newTagInput.trim().toLowerCase();
     if (!trimmed) return;
+    let nextTags = tags;
     if (!tags.includes(trimmed)) {
-      setTags((prev) => [...prev, trimmed]);
+      nextTags = [...tags, trimmed];
+      setTags(nextTags);
+      scheduleMetadataSave(entryDate, mood, prompts, nextTags);
     }
     setNewTagInput('');
-  }, [newTagInput, tags]);
+  }, [newTagInput, tags, entryDate, mood, prompts, scheduleMetadataSave]);
 
-  const handleRemoveTag = useCallback((tagToRemove: string) => {
-    setTags((prev) => prev.filter((t) => t !== tagToRemove));
-  }, []);
+  const handleRemoveTag = useCallback(
+    (tagToRemove: string) => {
+      const nextTags = tags.filter((t) => t !== tagToRemove);
+      setTags(nextTags);
+      scheduleMetadataSave(entryDate, mood, prompts, nextTags);
+    },
+    [tags, entryDate, mood, prompts, scheduleMetadataSave]
+  );
 
-  const handleSelectTemplate = useCallback((templateId: string) => {
-    const newPrompts = instantiateReflectionTemplate(templateId);
-    setPrompts(newPrompts);
-    setShowPromptTray(newPrompts.length > 0);
-  }, []);
+  const handleSelectTemplate = useCallback(
+    (templateId: string) => {
+      const newPrompts = instantiateReflectionTemplate(templateId);
+      setPrompts(newPrompts);
+      setShowPromptTray(newPrompts.length > 0);
+      scheduleMetadataSave(entryDate, mood, newPrompts, tags);
+    },
+    [entryDate, mood, tags, scheduleMetadataSave]
+  );
 
-  const handlePromptChange = useCallback((idx: number, response: string) => {
-    setPrompts((prev) => {
-      const updated = [...prev];
-      if (updated[idx]) {
-        updated[idx] = { ...updated[idx]!, response };
-      }
-      return updated;
-    });
-  }, []);
+  const handlePromptChange = useCallback(
+    (idx: number, response: string) => {
+      setPrompts((prev) => {
+        const updated = [...prev];
+        if (updated[idx]) {
+          updated[idx] = { ...updated[idx]!, response };
+        }
+        scheduleMetadataSave(entryDate, mood, updated, tags);
+        return updated;
+      });
+    },
+    [entryDate, mood, tags, scheduleMetadataSave]
+  );
 
-  const handleRemovePrompt = useCallback((idx: number) => {
-    setPrompts((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
+  const handleRemovePrompt = useCallback(
+    (idx: number) => {
+      setPrompts((prev) => {
+        const updated = prev.filter((_, i) => i !== idx);
+        scheduleMetadataSave(entryDate, mood, updated, tags);
+        return updated;
+      });
+    },
+    [entryDate, mood, tags, scheduleMetadataSave]
+  );
 
   const handleDismissPrompts = useCallback(() => {
     setPrompts([]);
     setShowPromptTray(false);
-  }, []);
+    scheduleMetadataSave(entryDate, mood, [], tags);
+  }, [entryDate, mood, tags, scheduleMetadataSave]);
 
   const handleNoteSave = useCallback(
     async (noteData: {
@@ -159,6 +306,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       plainText: string;
       folderId?: string | null;
     }) => {
+      latestNoteRef.current = noteData;
       if (!onSave) return;
       await onSave({
         title: noteData.title,
@@ -227,7 +375,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
             type="date"
             value={entryDate}
             disabled={readOnly}
-            onChange={(e) => setEntryDate(e.target.value)}
+            onChange={(e) => handleDateChange(e.target.value)}
             data-testid="journal-date-input"
             aria-label="Select journal entry calendar date"
             style={{
@@ -330,7 +478,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               <button
                 key={m.value}
                 type="button"
-                onClick={() => setMood(isSelected ? null : m.value)}
+                onClick={() => handleMoodSelect(m.value)}
                 disabled={readOnly}
                 data-testid={`journal-mood-${m.value}`}
                 aria-pressed={isSelected}
@@ -358,7 +506,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           {mood && (
             <button
               type="button"
-              onClick={() => setMood(null)}
+              onClick={() => handleMoodSelect(null)}
               data-testid="journal-clear-mood-btn"
               aria-label="Clear selected mood"
               style={{
@@ -628,6 +776,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           localSaveStatus={localSaveStatus}
           cloudSyncStatus={cloudSyncStatus}
           conflict={conflict}
+          onChange={handleNoteChange}
           onSave={handleNoteSave}
           onResolveConflict={onResolveConflict}
           onClose={onClose}

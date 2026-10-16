@@ -65,6 +65,19 @@ function offsetDateIso(dateIso: string, dayOffset: number): string {
   }
 }
 
+/**
+ * Adds or subtracts months from a YYYY-MM-DD string safely.
+ */
+function offsetMonthIso(dateIso: string, monthOffset: number): string {
+  try {
+    const [y, m, d] = dateIso.split('-').map(Number);
+    const date = new Date(Date.UTC(y!, m! - 1 + monthOffset, d!));
+    return date.toISOString().slice(0, 10);
+  } catch {
+    return dateIso;
+  }
+}
+
 export default function JournalPage() {
   const { themeMode } = useShell();
   const { isAuthenticated, openAuthModal, user, workspaceId } = useAuth();
@@ -85,6 +98,7 @@ export default function JournalPage() {
   const [viewMode, setViewMode] = useState<'day' | 'timeline' | 'trash'>('day');
   const [searchQuery, setSearchQuery] = useState('');
   const [suppressSnippets, setSuppressSnippets] = useState(true);
+  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
 
   // Storage, sync engine, and namespace isolation
   const syncEngineRef = useRef<SyncEngine | null>(null);
@@ -128,6 +142,19 @@ export default function JournalPage() {
       }
       setEntries(allEntries);
 
+      // Load folders for canonical placement from item headers
+      const headers = await repo.listItemHeaders(currentNamespace.workspaceId);
+      if (
+        activeNamespaceRef.current?.userId === currentNamespace.userId &&
+        activeNamespaceRef.current?.workspaceId === currentNamespace.workspaceId
+      ) {
+        setFolders(
+          headers
+            .filter((h) => h.kind === 'folder' && !h.deletedAt)
+            .map((f) => ({ id: f.id, name: f.title || f.name || 'Untitled folder' }))
+        );
+      }
+
       // Check for pending recoverable drafts
       const drafts = await repo.listDrafts(currentNamespace.workspaceId, currentNamespace.userId);
       const journalDraft = drafts.find((d) => d.entityType === 'journal_entry');
@@ -142,6 +169,23 @@ export default function JournalPage() {
     }
   }, []);
 
+  // Midnight date refresh timer for today
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleMidnight = () => {
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+      timer = setTimeout(() => {
+        setSelectedDate(getTodayIso(userTimezone));
+        scheduleMidnight();
+      }, midnight.getTime() - now.getTime());
+    };
+    scheduleMidnight();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [userTimezone]);
+
   // Initialize storage & SyncEngine on mount / auth change
   useEffect(() => {
     let isCancelled = false;
@@ -152,6 +196,7 @@ export default function JournalPage() {
     setActiveConflict(null);
     setIsEditorOpen(false);
     setEditingEntry(null);
+    setFolders([]);
 
     if (syncEngineRef.current) {
       void syncEngineRef.current.stop();
@@ -188,6 +233,14 @@ export default function JournalPage() {
 
         localRepoRef.current = repo;
         setLocalSaveStatus('Saved on this device');
+
+        // Load persisted privacy preferences
+        const snapshot = await repo.getPreferenceSnapshot(user!.id);
+        const displayPrefs =
+          (snapshot?.preferences?.displayPreferences as Record<string, unknown>) || {};
+        if (typeof displayPrefs.suppressBodySnippets === 'boolean') {
+          setSuppressSnippets(displayPrefs.suppressBodySnippets);
+        }
 
         // Create and start sync engine
         const engine = createWebSyncEngine({
@@ -251,8 +304,9 @@ export default function JournalPage() {
   // Open writing surface for a new entry
   const handleOpenNewEntry = useCallback(
     (targetDate: string = selectedDate) => {
+      const newId = generateUuid();
+      activeDraftIdRef.current = newId;
       setEditingEntry(null);
-      activeDraftIdRef.current = generateUuid();
       setSelectedDate(targetDate);
       setIsEditorOpen(true);
       announce(`Opened reflection writing surface for ${targetDate}`);
@@ -355,6 +409,74 @@ export default function JournalPage() {
     }
   }, [pendingDraft, workspaceId, user, announce]);
 
+  // Debounced durable draft persistence during writing
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDraftChange = useCallback(
+    (draftData: {
+      title: string;
+      entryDate: string;
+      timezone: string;
+      document: NoteDocument;
+      plainText: string;
+      mood: string | null;
+      prompts: JournalPromptItem[];
+      tags: string[];
+      folderId?: string | null;
+    }) => {
+      const repo = localRepoRef.current;
+      const currentNamespace = activeNamespaceRef.current;
+      if (!repo || !currentNamespace) return;
+
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current);
+      }
+
+      draftTimerRef.current = setTimeout(async () => {
+        try {
+          if (
+            activeNamespaceRef.current?.userId !== currentNamespace.userId ||
+            activeNamespaceRef.current?.workspaceId !== currentNamespace.workspaceId
+          ) {
+            return;
+          }
+          await repo.saveDraft({
+            id: activeDraftIdRef.current,
+            workspaceId: currentNamespace.workspaceId,
+            userId: currentNamespace.userId,
+            entityType: 'journal_entry',
+            entityId: editingEntry?.id ?? activeDraftIdRef.current,
+            title: draftData.title || 'Untitled journal draft',
+            payload: {
+              ...draftData,
+              editingEntryId: editingEntry?.id ?? null,
+            },
+            savedAt: new Date().toISOString(),
+            isQuarantined: false,
+            quarantinedAt: null,
+          });
+        } catch {
+          // quiet draft error
+        }
+      }, 300);
+    },
+    [editingEntry]
+  );
+
+  // Serialized autosave executor
+  const isSavingRef = useRef(false);
+  const pendingSaveRef = useRef<{
+    title: string;
+    entryDate: string;
+    timezone: string;
+    document: NoteDocument;
+    plainText: string;
+    mood: string | null;
+    prompts: JournalPromptItem[];
+    tags: string[];
+    folderId?: string | null;
+  } | null>(null);
+
   // Save journal entry (atomic transaction with mutation intent and local persistence)
   const handleSaveEntry = useCallback(
     async (data: {
@@ -371,17 +493,26 @@ export default function JournalPage() {
       const repo = localRepoRef.current;
       if (!repo || !workspaceId || !user) {
         setLocalSaveStatus('Storage error: not initialized');
+        throw new Error('Storage not initialized');
+      }
+
+      if (isSavingRef.current) {
+        pendingSaveRef.current = data;
         return;
       }
 
+      isSavingRef.current = true;
       setLocalSaveStatus('Saving on device...');
       const nowIso = new Date().toISOString();
       const isNew = !editingEntry;
-      const entryId = editingEntry?.id ?? generateUuid();
+      const entryId = editingEntry?.id ?? activeDraftIdRef.current;
       const baseRev = editingEntry?.serverRevision ?? 0;
 
       const resolvedTitle =
-        data.title.trim() || resolveJournalTitle(null, data.entryDate, data.plainText);
+        data.title.trim() ||
+        resolveJournalTitle(null, data.entryDate, data.plainText, {
+          suppressBodySnippet: suppressSnippets,
+        });
 
       const itemHeader: ItemHeaderRecord = {
         id: entryId,
@@ -467,15 +598,16 @@ export default function JournalPage() {
           journalEntry
         );
 
-        // Delete any draft tied to this editing session
+        // Update editingEntry with the saved entry so subsequent saves are updates
+        setEditingEntry(journalEntry);
+        setLocalSaveStatus('Saved on this device');
+
+        // Delete any draft tied to this editing session ONLY after replacement is durable
         await repo.deleteDraft(workspaceId, user.id, activeDraftIdRef.current);
         if (pendingDraft && pendingDraft.id === activeDraftIdRef.current) {
           setPendingDraft(null);
         }
 
-        setLocalSaveStatus('Saved on this device');
-        setIsEditorOpen(false);
-        setEditingEntry(null);
         await reloadEntries();
         announce(`Journal reflection for ${data.entryDate} saved.`);
 
@@ -484,11 +616,83 @@ export default function JournalPage() {
           void syncEngineRef.current.syncNow().catch(() => {});
         }
       } catch (err) {
-        setLocalSaveStatus(err instanceof Error ? err.message : 'Storage write failed');
+        const errorMsg = err instanceof Error ? err.message : 'Storage write failed';
+        setLocalSaveStatus(`Save error: ${errorMsg}`);
+        throw err;
+      } finally {
+        isSavingRef.current = false;
+        if (pendingSaveRef.current) {
+          const nextData = pendingSaveRef.current;
+          pendingSaveRef.current = null;
+          void handleSaveEntry(nextData);
+        }
       }
     },
-    [editingEntry, workspaceId, user, pendingDraft, reloadEntries, announce]
+    [editingEntry, workspaceId, user, suppressSnippets, pendingDraft, reloadEntries, announce]
   );
+
+  // Conflict resolution handler
+  const handleResolveConflict = useCallback(
+    async (resolution: 'keep_server' | 'keep_local' | 'save_copy') => {
+      const engine = syncEngineRef.current;
+      const repo = localRepoRef.current;
+      const currentNamespace = activeNamespaceRef.current;
+      if (!engine || !repo || !currentNamespace || !activeConflict) return;
+
+      try {
+        await engine.resolveConflict(activeConflict.id, resolution);
+        setActiveConflict(null);
+        await reloadEntries();
+        announce(`Conflict resolved with ${resolution.replace('_', ' ')}.`);
+      } catch (err) {
+        setLocalSaveStatus(err instanceof Error ? err.message : 'Conflict resolution failed');
+      }
+    },
+    [activeConflict, reloadEntries, announce]
+  );
+
+  // Privacy snippet toggle persisting to account preferences
+  const handleToggleSnippets = useCallback(async () => {
+    const nextVal = !suppressSnippets;
+    setSuppressSnippets(nextVal);
+    const repo = localRepoRef.current;
+    const currentNamespace = activeNamespaceRef.current;
+    if (repo && currentNamespace) {
+      try {
+        const snapshot = await repo.getPreferenceSnapshot(currentNamespace.userId);
+        const existingPrefs = (snapshot?.preferences as Record<string, unknown>) || {};
+        const existingDisplay = (existingPrefs.displayPreferences as Record<string, unknown>) || {};
+        const updatedDisplay = {
+          theme: (existingDisplay.theme as 'system' | 'light' | 'dark') || 'system',
+          compactMode: Boolean(existingDisplay.compactMode),
+          journalPreviewHidden:
+            existingDisplay.journalPreviewHidden !== undefined
+              ? Boolean(existingDisplay.journalPreviewHidden)
+              : true,
+          suppressBodySnippets: nextVal,
+        };
+        await repo.savePreferenceSnapshot({
+          userId: currentNamespace.userId,
+          preferences: {
+            ...existingPrefs,
+            displayPreferences: updatedDisplay,
+          },
+          schemaVersion: snapshot?.schemaVersion ?? 1,
+          revision: (snapshot?.revision ?? 0) + 1,
+          updatedAt: new Date().toISOString(),
+        });
+        if (apiClientRef.current) {
+          void apiClientRef.current
+            .updateUserPreferences({
+              preferences: updatedDisplay,
+            })
+            .catch(() => {});
+        }
+      } catch {
+        // quiet
+      }
+    }
+  }, [suppressSnippets]);
 
   // Trash an entry
   const handleTrashEntry = useCallback(
@@ -701,6 +905,7 @@ export default function JournalPage() {
       >
         <RouteAnnouncer message={liveAnnouncement} />
         <JournalEditor
+          id={editingEntry?.id ?? activeDraftIdRef.current}
           initialTitle={editingEntry?.title ?? ''}
           initialEntryDate={editingEntry?.entryDate ?? selectedDate}
           initialTimezone={editingEntry?.timezone ?? userTimezone}
@@ -710,6 +915,7 @@ export default function JournalPage() {
           initialPrompts={editingEntry?.prompts ?? []}
           initialTags={editingEntry?.tags ?? []}
           initialFolderId={editingEntry?.folderId ?? null}
+          folders={folders}
           themeMode={themeMode}
           localSaveStatus={localSaveStatus}
           cloudSyncStatus={cloudSyncStatus}
@@ -721,7 +927,9 @@ export default function JournalPage() {
                 }
               : null
           }
+          onDraftChange={handleDraftChange}
           onSave={handleSaveEntry}
+          onResolveConflict={handleResolveConflict}
           onTrash={editingEntry ? () => handleTrashEntry(editingEntry) : undefined}
           onClose={() => {
             setIsEditorOpen(false);
@@ -887,8 +1095,18 @@ export default function JournalPage() {
         {viewMode === 'day' && (
           <div
             data-testid="journal-date-stepper"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}
           >
+            <Button
+              size="compact"
+              variant="subtle"
+              themeMode={themeMode}
+              aria-label="Previous month"
+              data-testid="prev-month-button"
+              onClick={() => setSelectedDate((d) => offsetMonthIso(d, -1))}
+            >
+              ◀ Month
+            </Button>
             <Button
               size="compact"
               variant="subtle"
@@ -926,6 +1144,16 @@ export default function JournalPage() {
               onClick={() => setSelectedDate((d) => offsetDateIso(d, 1))}
             >
               ▶
+            </Button>
+            <Button
+              size="compact"
+              variant="subtle"
+              themeMode={themeMode}
+              aria-label="Next month"
+              data-testid="next-month-button"
+              onClick={() => setSelectedDate((d) => offsetMonthIso(d, 1))}
+            >
+              Month ▶
             </Button>
             <Button
               size="compact"
@@ -992,7 +1220,7 @@ export default function JournalPage() {
                 ? 'Unhide reflection text snippets'
                 : 'Hide reflection text snippets for privacy'
             }
-            onClick={() => setSuppressSnippets((prev) => !prev)}
+            onClick={handleToggleSnippets}
           >
             {suppressSnippets ? '👁️ Show Snippets' : '🔒 Hide Snippets'}
           </Button>
@@ -1079,8 +1307,12 @@ export default function JournalPage() {
           style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}
         >
           {visibleEntries.map((entry) => {
-            const displayTitle =
-              entry.title || resolveJournalTitle(null, entry.entryDate, entry.plainText);
+            const displayTitle = resolveJournalTitle(
+              entry.title,
+              entry.entryDate,
+              entry.plainText,
+              { suppressBodySnippet: suppressSnippets }
+            );
 
             return (
               <Card key={entry.id} themeMode={themeMode}>

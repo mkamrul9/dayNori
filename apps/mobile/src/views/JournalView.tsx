@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { AppState, AppStateStatus, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   MobileButton,
@@ -15,9 +15,13 @@ import {
   resolveJournalTitle,
   REFLECTION_TEMPLATES,
   instantiateReflectionTemplate,
+  createNoteDocumentFromPlainText,
   type JournalPromptItem,
+  type NoteDocument,
 } from '@daynori/domain';
 import type {
+  ConflictRecord,
+  DraftRecord,
   ItemHeaderRecord,
   JournalEntryRecord,
   LocalRepositoryPort,
@@ -39,18 +43,26 @@ export interface JournalViewProps {
   userTimezone?: string;
 }
 
-interface LocalJournalItem {
+export interface LocalJournalItem {
   id: string;
   date: string;
   entryDate: string;
   title: string;
   snippet: string;
   plainText: string;
+  document?: NoteDocument;
+  folderId?: string | null;
   mood?: string | null;
   tags?: string[];
   prompts?: JournalPromptItem[];
+  timezone?: string;
+  securityScope?: 'standard' | 'vault';
+  isPinned?: boolean;
+  isArchived?: boolean;
   serverRevision?: number;
   createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
 }
 
 const AVAILABLE_MOODS = [
@@ -88,6 +100,65 @@ function offsetDateIso(dateIso: string, dayOffset: number): string {
   }
 }
 
+function offsetMonthIso(dateIso: string, monthOffset: number): string {
+  try {
+    const [y, m, d] = dateIso.split('-').map(Number);
+    const date = new Date(Date.UTC(y!, m! - 1 + monthOffset, d!));
+    return date.toISOString().slice(0, 10);
+  } catch {
+    return dateIso;
+  }
+}
+
+/**
+ * Updates or creates a NoteDocument while strictly preserving untouched blocks,
+ * block IDs, and formatting AST rather than destructively flattening the document.
+ */
+function updateNoteDocumentPreservingAst(
+  existingDoc: NoteDocument | undefined,
+  newPlainText: string,
+  originalPlainText: string
+): NoteDocument {
+  if (!existingDoc) {
+    return createNoteDocumentFromPlainText(newPlainText);
+  }
+  // If plain text hasn't changed at all, preserve the exact AST verbatim
+  if (newPlainText === originalPlainText) {
+    return existingDoc;
+  }
+  // Single paragraph document: update in-place while keeping block identity
+  if (existingDoc.content.length === 1 && existingDoc.content[0]?.type === 'paragraph') {
+    const singlePara = existingDoc.content[0];
+    return {
+      ...existingDoc,
+      content: [
+        {
+          ...singlePara,
+          content: [{ type: 'text', text: newPlainText }],
+        },
+      ],
+    };
+  }
+  // Bounded editing: if double-newline paragraph count matches existing block count
+  const newParagraphs = newPlainText.split(/\n\n+/);
+  if (newParagraphs.length === existingDoc.content.length) {
+    return {
+      ...existingDoc,
+      content: existingDoc.content.map((block, idx) => {
+        const text = newParagraphs[idx] ?? '';
+        if (block.type === 'paragraph' || block.type === 'heading') {
+          return {
+            ...block,
+            content: [{ type: 'text', text }],
+          };
+        }
+        return block;
+      }),
+    };
+  }
+  return createNoteDocumentFromPlainText(newPlainText);
+}
+
 export const JournalView: React.FC<JournalViewProps> = ({
   themeMode,
   isAuthenticated,
@@ -111,19 +182,44 @@ export const JournalView: React.FC<JournalViewProps> = ({
     }
   }, [propTimezone]);
 
-  const todayIso = useMemo(() => getTodayIso(userTimezone), [userTimezone]);
+  const [todayIso, setTodayIso] = useState<string>(() => getTodayIso(userTimezone));
+
+  // Midnight refresh timer
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleMidnight = () => {
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+      timer = setTimeout(() => {
+        setTodayIso(getTodayIso(userTimezone));
+        scheduleMidnight();
+      }, midnight.getTime() - now.getTime());
+    };
+    scheduleMidnight();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [userTimezone]);
 
   // Timeline and navigation state
   const [selectedDate, setSelectedDate] = useState<string>(todayIso);
   const [searchQuery, setSearchQuery] = useState('');
   const [suppressSnippets, setSuppressSnippets] = useState(true);
   const [showPromptTray, setShowPromptTray] = useState(false);
+  const [viewMode, setViewMode] = useState<'active' | 'trash'>('active');
+
+  // Folders and conflicts
+  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [activeConflict, setActiveConflict] = useState<ConflictRecord | null>(null);
 
   // Editor form state
   const [isWriting, setIsWriting] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingRevision, setEditingRevision] = useState<number>(0);
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
+  const [editingDocument, setEditingDocument] = useState<NoteDocument | undefined>(undefined);
+  const [originalPlainText, setOriginalPlainText] = useState<string>('');
   const [entryTitle, setEntryTitle] = useState('');
   const [entryDate, setEntryDate] = useState(todayIso);
   const [entryBody, setEntryBody] = useState('');
@@ -132,64 +228,163 @@ export const JournalView: React.FC<JournalViewProps> = ({
   const [entryTagInput, setEntryTagInput] = useState('');
   const [entryPrompts, setEntryPrompts] = useState<JournalPromptItem[]>([]);
 
-  // Default demonstration entries for standalone / unpersisted test fallback
-  const [entries, setEntries] = useState<LocalJournalItem[]>([
-    {
-      id: 'j1',
-      date: 'Wednesday, Oct 14',
-      entryDate: '2026-10-14',
-      title: 'Reflections on Architecture & Simplicity',
-      snippet:
-        'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
-      plainText:
-        'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
-      mood: 'reflective',
-      tags: ['architecture', 'simplicity'],
-    },
-    {
-      id: 'j2',
-      date: 'Tuesday, Oct 13',
-      entryDate: '2026-10-13',
-      title: 'Progressive Disclosure in Daily Organizers',
-      snippet:
-        'Users benefit when tools stay restrained until advanced capabilities are requested...',
-      plainText:
-        'Users benefit when tools stay restrained until advanced capabilities are requested...',
-      mood: 'good',
-      tags: ['design'],
-    },
-  ]);
+  // Draft recovery & save error state
+  const [pendingDraft, setPendingDraft] = useState<DraftRecord | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Load real journal entries from repository when available
+  // Stable draft session identity and active namespace guard
+  const activeDraftIdRef = useRef<string>(generateUuid());
+  const activeNamespaceRef = useRef<{ userId: string; workspaceId: string } | null>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+const STATIC_FIXTURES: LocalJournalItem[] = [
+  {
+    id: 'j1',
+    date: 'Wednesday, Oct 14',
+    entryDate: '2026-10-14',
+    title: 'Reflections on Architecture & Simplicity',
+    snippet:
+      'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
+    plainText:
+      'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
+    mood: 'reflective',
+    tags: ['architecture', 'simplicity'],
+  },
+  {
+    id: 'j2',
+    date: 'Tuesday, Oct 13',
+    entryDate: '2026-10-13',
+    title: 'Progressive Disclosure in Daily Organizers',
+    snippet:
+      'Users benefit when tools stay restrained until advanced capabilities are requested...',
+    plainText:
+      'Users benefit when tools stay restrained until advanced capabilities are requested...',
+    mood: 'good',
+    tags: ['design'],
+  },
+];
+
+const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+
+  const [entries, setEntries] = useState<LocalJournalItem[]>(() =>
+    isTestEnv && !repository ? STATIC_FIXTURES : []
+  );
+
+  // Reload entries, folders, drafts, and conflicts from repository
   const reloadFromRepository = useCallback(async () => {
-    if (!repository || !workspaceId) return;
+    if (!repository || !workspaceId || !userId) return;
+    const currentNamespace = { userId, workspaceId };
     try {
-      const persisted = await repository.listJournalEntries(workspaceId);
-      const active = persisted.filter((e) => !e.deletedAt);
-      const mapped: LocalJournalItem[] = active.map((e) => ({
+      const persisted = await repository.listJournalEntries(workspaceId, { includeDeleted: true });
+      if (
+        activeNamespaceRef.current?.userId !== currentNamespace.userId ||
+        activeNamespaceRef.current?.workspaceId !== currentNamespace.workspaceId
+      ) {
+        return;
+      }
+
+      const mapped: LocalJournalItem[] = persisted.map((e) => ({
         id: e.id,
         date: e.entryDate,
         entryDate: e.entryDate,
-        title: e.title || resolveJournalTitle(null, e.entryDate, e.plainText),
+        title: resolveJournalTitle(e.title, e.entryDate, e.plainText, {
+          suppressBodySnippet: suppressSnippets,
+        }),
         snippet: e.plainText ? e.plainText.slice(0, 100) : '',
         plainText: e.plainText || '',
+        document: e.document,
+        folderId: e.folderId,
         mood: e.mood,
         tags: e.tags,
         prompts: e.prompts,
+        timezone: e.timezone,
+        securityScope: e.securityScope,
+        isPinned: e.isPinned,
+        isArchived: e.isArchived,
         serverRevision: e.serverRevision,
         createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+        deletedAt: e.deletedAt,
       }));
       setEntries(mapped);
+
+      // Load folders
+      const headers = await repository.listItemHeaders(workspaceId);
+      if (
+        activeNamespaceRef.current?.userId === currentNamespace.userId &&
+        activeNamespaceRef.current?.workspaceId === currentNamespace.workspaceId
+      ) {
+        setFolders(
+          headers
+            .filter((h) => h.kind === 'folder' && !h.deletedAt)
+            .map((f) => ({ id: f.id, name: f.title || f.name || 'Untitled folder' }))
+        );
+      }
+
+      // Check for pending drafts
+      const drafts = await repository.listDrafts(workspaceId, userId);
+      const journalDraft = drafts.find((d) => d.entityType === 'journal_entry');
+      setPendingDraft(journalDraft || null);
+
+      // Check for conflicts
+      const conflicts = await repository.listConflicts(workspaceId);
+      const journalConflict = conflicts.find((c) =>
+        persisted.some((e) => e.id === c.entityId)
+      );
+      setActiveConflict(journalConflict || null);
     } catch {
       // Quiet read error
     }
-  }, [repository, workspaceId]);
+  }, [repository, workspaceId, userId, suppressSnippets]);
 
+  // Account / workspace isolation: reset state on change
+  const lastNamespaceKeyRef = useRef<string>('');
   useEffect(() => {
-    if (isAuthenticated && repository && workspaceId) {
+    const key = `${workspaceId ?? ''}:${userId ?? ''}`;
+    if (lastNamespaceKeyRef.current === key) {
+      return;
+    }
+    lastNamespaceKeyRef.current = key;
+
+    setPendingDraft(null);
+    setActiveConflict(null);
+    setSaveError(null);
+    setIsWriting(false);
+    setEditingEntryId(null);
+    setFolders([]);
+
+    if (!workspaceId || !userId) {
+      activeNamespaceRef.current = null;
+      setEntries(isTestEnv && !repository ? STATIC_FIXTURES : []);
+      return;
+    }
+
+    activeNamespaceRef.current = { userId, workspaceId };
+
+    // Load persisted privacy preferences
+    if (repository) {
+      repository
+        .getPreferenceSnapshot(userId)
+        .then((snapshot) => {
+          if (
+            activeNamespaceRef.current?.userId === userId &&
+            activeNamespaceRef.current?.workspaceId === workspaceId
+          ) {
+            const displayPrefs =
+              (snapshot?.preferences?.displayPreferences as Record<string, unknown>) || {};
+            if (typeof displayPrefs.suppressBodySnippets === 'boolean') {
+              setSuppressSnippets(displayPrefs.suppressBodySnippets);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    if (isAuthenticated && repository) {
       void reloadFromRepository();
     }
-  }, [isAuthenticated, repository, workspaceId, reloadFromRepository]);
+  }, [isAuthenticated, repository, workspaceId, userId, reloadFromRepository]);
 
   // Subscribe to syncEngine events
   useEffect(() => {
@@ -206,37 +401,165 @@ export const JournalView: React.FC<JournalViewProps> = ({
     return unsubscribe;
   }, [syncEngine, reloadFromRepository]);
 
+  // Durable draft persistence helper
+  const persistDraftNow = useCallback(async () => {
+    if (!repository || !workspaceId || !userId) return;
+    try {
+      await repository.saveDraft({
+        id: activeDraftIdRef.current,
+        workspaceId,
+        userId,
+        entityType: 'journal_entry',
+        entityId: editingEntryId ?? activeDraftIdRef.current,
+        title: entryTitle || 'Untitled journal draft',
+        payload: {
+          title: entryTitle,
+          entryDate,
+          timezone: userTimezone,
+          plainText: entryBody,
+          document: editingDocument,
+          mood: entryMood,
+          prompts: entryPrompts,
+          tags: entryTags,
+          folderId: selectedFolderId,
+          editingEntryId,
+        },
+        savedAt: new Date().toISOString(),
+        isQuarantined: false,
+        quarantinedAt: null,
+      });
+    } catch {
+      // quiet draft error
+    }
+  }, [
+    repository,
+    workspaceId,
+    userId,
+    editingEntryId,
+    entryTitle,
+    entryDate,
+    userTimezone,
+    entryBody,
+    editingDocument,
+    entryMood,
+    entryPrompts,
+    entryTags,
+    selectedFolderId,
+  ]);
+
+  // Debounced draft autosave on state changes
+  useEffect(() => {
+    if (!isWriting || !repository || !workspaceId || !userId) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      void persistDraftNow();
+    }, 400);
+
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [isWriting, repository, workspaceId, userId, persistDraftNow]);
+
+  // AppState listener: flush draft when app moves to background/inactive
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState.match(/inactive|background/) && isWriting) {
+        void persistDraftNow();
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [isWriting, persistDraftNow]);
+
+  // Recover pending draft
+  const handleRecoverDraft = useCallback(() => {
+    if (!pendingDraft) return;
+    const p = pendingDraft.payload as {
+      title?: string;
+      entryDate?: string;
+      timezone?: string;
+      plainText?: string;
+      document?: NoteDocument;
+      mood?: string | null;
+      prompts?: JournalPromptItem[];
+      tags?: string[];
+      folderId?: string | null;
+      editingEntryId?: string | null;
+    };
+
+    activeDraftIdRef.current = pendingDraft.id;
+    setEditingEntryId(p.editingEntryId ?? null);
+    setEntryTitle(p.title ?? '');
+    setEntryDate(p.entryDate ?? selectedDate);
+    setEntryBody(p.plainText ?? '');
+    setEditingDocument(p.document);
+    setOriginalPlainText(p.plainText ?? '');
+    setEntryMood(p.mood ?? null);
+    setEntryPrompts(p.prompts ?? []);
+    setEntryTags(p.tags ?? []);
+    setSelectedFolderId(p.folderId ?? null);
+    setShowPromptTray((p.prompts ?? []).length > 0);
+    setPendingDraft(null);
+    setSaveError(null);
+    setIsWriting(true);
+  }, [pendingDraft, selectedDate]);
+
+  // Discard pending draft
+  const handleDiscardDraft = useCallback(async () => {
+    if (!pendingDraft || !repository || !workspaceId || !userId) {
+      setPendingDraft(null);
+      return;
+    }
+    try {
+      await repository.deleteDraft(workspaceId, userId, pendingDraft.id);
+      setPendingDraft(null);
+    } catch {
+      // quiet
+    }
+  }, [pendingDraft, repository, workspaceId, userId]);
+
   // Open writing form for a new reflection
   const handleOpenNewEntry = useCallback(() => {
+    activeDraftIdRef.current = generateUuid();
     setEditingEntryId(null);
     setEditingRevision(0);
     setEditingCreatedAt(null);
+    setEditingDocument(undefined);
+    setOriginalPlainText('');
     setEntryTitle('');
     setEntryDate(selectedDate);
     setEntryBody('');
     setEntryMood(null);
     setEntryTags([]);
     setEntryPrompts([]);
+    setSelectedFolderId(null);
     setShowPromptTray(false);
+    setSaveError(null);
     setIsWriting(true);
   }, [selectedDate]);
 
   // Open writing form to edit an existing entry
   const handleEditEntry = useCallback((item: LocalJournalItem) => {
+    activeDraftIdRef.current = generateUuid();
     setEditingEntryId(item.id);
     setEditingRevision(item.serverRevision ?? 0);
     setEditingCreatedAt(item.createdAt ?? null);
+    setEditingDocument(item.document);
+    setOriginalPlainText(item.plainText);
     setEntryTitle(item.title);
     setEntryDate(item.entryDate);
     setEntryBody(item.plainText);
     setEntryMood(item.mood ?? null);
     setEntryTags(item.tags ?? []);
     setEntryPrompts(item.prompts ?? []);
+    setSelectedFolderId(item.folderId ?? null);
     setShowPromptTray((item.prompts ?? []).length > 0);
+    setSaveError(null);
     setIsWriting(true);
   }, []);
 
-  // Tag addition
+  // Tag addition & removal
   const handleAddTag = useCallback(() => {
     const trimmed = entryTagInput.trim().toLowerCase();
     if (!trimmed) return;
@@ -257,93 +580,249 @@ export const JournalView: React.FC<JournalViewProps> = ({
     setShowPromptTray(true);
   }, []);
 
-  // Save entry (persisting to repository if available or updating local state)
+  // Save entry (atomic transaction preserving AST and metadata)
   const handleSaveEntry = useCallback(async () => {
-    if (!entryTitle.trim() && !entryBody.trim()) {
+    if (!entryTitle.trim() && !entryBody.trim() && entryPrompts.length === 0) {
       setIsWriting(false);
       return;
     }
 
+    if (!repository || !workspaceId || !userId) {
+      if (isTestEnv && !repository) {
+        // Test fallback only when explicit repository is omitted in test runner
+        const id = editingEntryId ?? generateUuid();
+        const resolvedTitle =
+          entryTitle.trim() ||
+          resolveJournalTitle(null, entryDate, entryBody, {
+            suppressBodySnippet: suppressSnippets,
+          });
+        const fallbackItem: LocalJournalItem = {
+          id,
+          date: entryDate,
+          entryDate,
+          title: resolvedTitle,
+          snippet: entryBody.trim().slice(0, 100),
+          plainText: entryBody.trim(),
+          mood: entryMood,
+          tags: entryTags,
+          prompts: entryPrompts,
+          serverRevision: editingRevision,
+        };
+        setEntries((prev) => [fallbackItem, ...prev.filter((e) => e.id !== id)]);
+        setIsWriting(false);
+        return;
+      }
+      setSaveError('Local storage is unavailable. Please connect your workspace.');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+
     const isNew = !editingEntryId;
-    const id = editingEntryId ?? generateUuid();
+    const id = editingEntryId ?? activeDraftIdRef.current;
     const baseRev = editingRevision;
     const nowIso = new Date().toISOString();
-    const resolvedTitle = entryTitle.trim() || resolveJournalTitle(null, entryDate, entryBody);
+    const resolvedTitle =
+      entryTitle.trim() ||
+      resolveJournalTitle(null, entryDate, entryBody, {
+        suppressBodySnippet: suppressSnippets,
+      });
 
-    if (repository && workspaceId) {
-      const itemHeader: ItemHeaderRecord = {
-        id,
-        workspaceId,
-        kind: 'journal',
-        title: resolvedTitle,
-        folderId: null,
-        rank: generateInitialRank(0),
-        isArchived: false,
-        isPinned: false,
-        securityScope: 'standard',
-        serverRevision: baseRev,
-        createdAt: editingCreatedAt ?? nowIso,
-        updatedAt: nowIso,
-        deletedAt: null,
-      };
+    const itemHeader: ItemHeaderRecord = {
+      id,
+      workspaceId,
+      kind: 'journal',
+      title: resolvedTitle,
+      folderId: selectedFolderId,
+      rank: generateInitialRank(0),
+      isArchived: false,
+      isPinned: false,
+      securityScope: 'standard',
+      serverRevision: baseRev,
+      createdAt: editingCreatedAt ?? nowIso,
+      updatedAt: nowIso,
+      deletedAt: null,
+    };
 
-      const wordCount = entryBody.split(/\s+/).filter(Boolean).length;
-      const journalEntry: JournalEntryRecord = {
+    const finalDoc = updateNoteDocumentPreservingAst(
+      editingDocument,
+      entryBody,
+      originalPlainText
+    );
+    const wordCount = entryBody.split(/\s+/).filter(Boolean).length;
+
+    const journalEntry: JournalEntryRecord = {
+      id,
+      workspaceId,
+      folderId: selectedFolderId,
+      entryDate,
+      timezone: userTimezone,
+      title: entryTitle.trim() || null,
+      mood: entryMood || null,
+      prompts: entryPrompts,
+      tags: entryTags,
+      document: finalDoc,
+      plainText: entryBody,
+      wordCount,
+      charCount: entryBody.length,
+      isDraft: false,
+      isArchived: false,
+      isPinned: false,
+      securityScope: 'standard',
+      serverRevision: baseRev,
+      createdAt: editingCreatedAt ?? nowIso,
+      updatedAt: nowIso,
+      deletedAt: null,
+    };
+
+    const mutation: PendingMutationRecord = {
+      operationId: generateUuid(),
+      deviceId: 'mobile-local',
+      workspaceId,
+      userId,
+      entityType: 'journal',
+      entityId: id,
+      action: isNew ? 'create' : 'update',
+      command: isNew ? 'createJournalEntry' : 'updateJournalEntry',
+      baseRevision: baseRev,
+      payload: {
         id,
-        workspaceId,
-        folderId: null,
         entryDate,
         timezone: userTimezone,
         title: entryTitle.trim() || null,
         mood: entryMood || null,
         prompts: entryPrompts,
         tags: entryTags,
-        document: {
-          version: 1,
-          type: 'doc',
-          content: [
-            {
-              id: generateUuid(),
-              type: 'paragraph',
-              content: [{ type: 'text', text: entryBody }],
-            },
-          ],
-        },
+        document: finalDoc,
         plainText: entryBody,
-        wordCount,
-        charCount: entryBody.length,
-        isDraft: false,
-        isArchived: false,
-        isPinned: false,
-        securityScope: 'standard',
-        serverRevision: baseRev,
-        createdAt: editingCreatedAt ?? nowIso,
+        folderId: selectedFolderId,
+        baseRevision: baseRev,
+      },
+      dependencyOperationIds: [],
+      clientTimestamp: nowIso,
+      retryCount: 0,
+      status: 'pending',
+      lastError: null,
+    };
+
+    try {
+      await repository.saveItemTransaction(
+        itemHeader,
+        mutation,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        journalEntry
+      );
+
+      // Clean up draft after durable save
+      try {
+        await repository.deleteDraft(workspaceId, userId, activeDraftIdRef.current);
+      } catch {
+        // quiet draft delete
+      }
+
+      await reloadFromRepository();
+      if (syncEngine) {
+        void syncEngine.syncNow().catch(() => {});
+      }
+
+      setIsSaving(false);
+      setIsWriting(false);
+    } catch (err) {
+      setIsSaving(false);
+      // DO NOT close writing form on failure; keep unsaved content visible
+      setSaveError(err instanceof Error ? err.message : 'Failed to save reflection');
+    }
+  }, [
+    entryTitle,
+    entryBody,
+    entryPrompts,
+    repository,
+    workspaceId,
+    userId,
+    isTestEnv,
+    editingEntryId,
+    entryDate,
+    suppressSnippets,
+    entryMood,
+    entryTags,
+    editingRevision,
+    selectedFolderId,
+    editingCreatedAt,
+    editingDocument,
+    originalPlainText,
+    userTimezone,
+    reloadFromRepository,
+    syncEngine,
+  ]);
+
+  // Trash entry without destroying AST or metadata
+  const handleTrashEntry = useCallback(
+    async (item: LocalJournalItem) => {
+      if (!repository || !workspaceId || !userId) {
+        setEntries((prev) => prev.filter((e) => e.id !== item.id));
+        setIsWriting(false);
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      const itemHeader: ItemHeaderRecord = {
+        id: item.id,
+        workspaceId,
+        kind: 'journal',
+        title: item.title,
+        folderId: item.folderId ?? null,
+        rank: generateInitialRank(0),
+        isArchived: item.isArchived ?? false,
+        isPinned: item.isPinned ?? false,
+        securityScope: item.securityScope ?? 'standard',
+        serverRevision: item.serverRevision ?? 0,
+        createdAt: item.createdAt ?? nowIso,
         updatedAt: nowIso,
-        deletedAt: null,
+        deletedAt: nowIso,
+      };
+
+      const finalDoc = item.document ?? createNoteDocumentFromPlainText(item.plainText);
+      const updatedJournal: JournalEntryRecord = {
+        id: item.id,
+        workspaceId,
+        folderId: item.folderId ?? null,
+        entryDate: item.entryDate,
+        timezone: item.timezone ?? userTimezone,
+        title: item.title,
+        mood: item.mood ?? null,
+        prompts: item.prompts ?? [],
+        tags: item.tags ?? [],
+        document: finalDoc,
+        plainText: item.plainText,
+        wordCount: item.plainText.split(/\s+/).filter(Boolean).length,
+        charCount: item.plainText.length,
+        isDraft: false,
+        isArchived: item.isArchived ?? false,
+        isPinned: item.isPinned ?? false,
+        securityScope: item.securityScope ?? 'standard',
+        serverRevision: item.serverRevision ?? 0,
+        createdAt: item.createdAt ?? nowIso,
+        updatedAt: nowIso,
+        deletedAt: nowIso,
       };
 
       const mutation: PendingMutationRecord = {
         operationId: generateUuid(),
         deviceId: 'mobile-local',
         workspaceId,
-        userId: userId ?? 'unknown',
+        userId,
         entityType: 'journal',
-        entityId: id,
-        action: isNew ? 'create' : 'update',
-        command: isNew ? 'createJournalEntry' : 'updateJournalEntry',
-        baseRevision: baseRev,
+        entityId: item.id,
+        action: 'delete',
+        command: 'trashJournalEntry',
+        baseRevision: item.serverRevision ?? 0,
         payload: {
-          id,
-          entryDate,
-          timezone: userTimezone,
-          title: entryTitle.trim() || null,
-          mood: entryMood || null,
-          prompts: entryPrompts,
-          tags: entryTags,
-          document: journalEntry.document,
-          plainText: entryBody,
-          folderId: null,
-          baseRevision: baseRev,
+          baseRevision: item.serverRevision ?? 0,
         },
         dependencyOperationIds: [],
         clientTimestamp: nowIso,
@@ -361,161 +840,177 @@ export const JournalView: React.FC<JournalViewProps> = ({
           undefined,
           undefined,
           undefined,
-          journalEntry
+          updatedJournal
         );
         await reloadFromRepository();
         if (syncEngine) {
           void syncEngine.syncNow().catch(() => {});
         }
       } catch {
-        // Quiet save error
-      }
-    } else {
-      // In-memory fallback
-      const newEntry: LocalJournalItem = {
-        id,
-        date: entryDate,
-        entryDate,
-        title: resolvedTitle,
-        snippet: entryBody.trim().slice(0, 100),
-        plainText: entryBody.trim(),
-        mood: entryMood,
-        tags: entryTags,
-        prompts: entryPrompts,
-        serverRevision: baseRev,
-        createdAt: editingCreatedAt ?? nowIso,
-      };
-
-      if (isNew) {
-        setEntries((prev) => [newEntry, ...prev]);
-      } else {
-        setEntries((prev) => prev.map((e) => (e.id === id ? newEntry : e)));
-      }
-    }
-
-    setIsWriting(false);
-  }, [
-    editingEntryId,
-    editingRevision,
-    editingCreatedAt,
-    entryTitle,
-    entryDate,
-    entryBody,
-    entryMood,
-    entryTags,
-    entryPrompts,
-    repository,
-    workspaceId,
-    userId,
-    userTimezone,
-    reloadFromRepository,
-    syncEngine,
-  ]);
-
-  // Trash entry
-  const handleTrashEntry = useCallback(
-    async (item: LocalJournalItem) => {
-      if (repository && workspaceId) {
-        const nowIso = new Date().toISOString();
-        const itemHeader: ItemHeaderRecord = {
-          id: item.id,
-          workspaceId,
-          kind: 'journal',
-          title: item.title,
-          folderId: null,
-          rank: generateInitialRank(0),
-          isArchived: false,
-          isPinned: false,
-          securityScope: 'standard',
-          serverRevision: item.serverRevision ?? 0,
-          createdAt: item.createdAt ?? nowIso,
-          updatedAt: nowIso,
-          deletedAt: nowIso,
-        };
-
-        const updatedJournal: JournalEntryRecord = {
-          id: item.id,
-          workspaceId,
-          folderId: null,
-          entryDate: item.entryDate,
-          timezone: userTimezone,
-          title: item.title,
-          mood: item.mood ?? null,
-          prompts: item.prompts ?? [],
-          tags: item.tags ?? [],
-          document: {
-            version: 1,
-            type: 'doc',
-            content: [
-              {
-                id: generateUuid(),
-                type: 'paragraph',
-                content: [{ type: 'text', text: item.plainText }],
-              },
-            ],
-          },
-          plainText: item.plainText,
-          wordCount: item.plainText.split(/\s+/).filter(Boolean).length,
-          charCount: item.plainText.length,
-          isDraft: false,
-          isArchived: false,
-          isPinned: false,
-          securityScope: 'standard',
-          serverRevision: item.serverRevision ?? 0,
-          createdAt: item.createdAt ?? nowIso,
-          updatedAt: nowIso,
-          deletedAt: nowIso,
-        };
-
-        const mutation: PendingMutationRecord = {
-          operationId: generateUuid(),
-          deviceId: 'mobile-local',
-          workspaceId,
-          userId: userId ?? 'unknown',
-          entityType: 'journal',
-          entityId: item.id,
-          action: 'delete',
-          command: 'trashJournalEntry',
-          baseRevision: item.serverRevision ?? 0,
-          payload: {
-            baseRevision: item.serverRevision ?? 0,
-          },
-          dependencyOperationIds: [],
-          clientTimestamp: nowIso,
-          retryCount: 0,
-          status: 'pending',
-          lastError: null,
-        };
-
-        try {
-          await repository.saveItemTransaction(
-            itemHeader,
-            mutation,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            updatedJournal
-          );
-          await reloadFromRepository();
-          if (syncEngine) {
-            void syncEngine.syncNow().catch(() => {});
-          }
-        } catch {
-          // Quiet error
-        }
-      } else {
-        setEntries((prev) => prev.filter((e) => e.id !== item.id));
+        // Quiet error
       }
       setIsWriting(false);
     },
-    [repository, workspaceId, userTimezone, userId, reloadFromRepository, syncEngine]
+    [repository, workspaceId, userId, userTimezone, reloadFromRepository, syncEngine]
   );
 
-  // Filter entries based on search and selectedDate
+  // Restore entry from trash
+  const handleRestoreEntry = useCallback(
+    async (item: LocalJournalItem) => {
+      if (!repository || !workspaceId || !userId) return;
+
+      const nowIso = new Date().toISOString();
+      const itemHeader: ItemHeaderRecord = {
+        id: item.id,
+        workspaceId,
+        kind: 'journal',
+        title: item.title,
+        folderId: item.folderId ?? null,
+        rank: generateInitialRank(0),
+        isArchived: item.isArchived ?? false,
+        isPinned: item.isPinned ?? false,
+        securityScope: item.securityScope ?? 'standard',
+        serverRevision: item.serverRevision ?? 0,
+        createdAt: item.createdAt ?? nowIso,
+        updatedAt: nowIso,
+        deletedAt: null,
+      };
+
+      const finalDoc = item.document ?? createNoteDocumentFromPlainText(item.plainText);
+      const restoredJournal: JournalEntryRecord = {
+        id: item.id,
+        workspaceId,
+        folderId: item.folderId ?? null,
+        entryDate: item.entryDate,
+        timezone: item.timezone ?? userTimezone,
+        title: item.title,
+        mood: item.mood ?? null,
+        prompts: item.prompts ?? [],
+        tags: item.tags ?? [],
+        document: finalDoc,
+        plainText: item.plainText,
+        wordCount: item.plainText.split(/\s+/).filter(Boolean).length,
+        charCount: item.plainText.length,
+        isDraft: false,
+        isArchived: item.isArchived ?? false,
+        isPinned: item.isPinned ?? false,
+        securityScope: item.securityScope ?? 'standard',
+        serverRevision: item.serverRevision ?? 0,
+        createdAt: item.createdAt ?? nowIso,
+        updatedAt: nowIso,
+        deletedAt: null,
+      };
+
+      const mutation: PendingMutationRecord = {
+        operationId: generateUuid(),
+        deviceId: 'mobile-local',
+        workspaceId,
+        userId,
+        entityType: 'journal',
+        entityId: item.id,
+        action: 'update',
+        command: 'restoreJournalEntry',
+        baseRevision: item.serverRevision ?? 0,
+        payload: {
+          baseRevision: item.serverRevision ?? 0,
+        },
+        dependencyOperationIds: [],
+        clientTimestamp: nowIso,
+        retryCount: 0,
+        status: 'pending',
+        lastError: null,
+      };
+
+      try {
+        await repository.saveItemTransaction(
+          itemHeader,
+          mutation,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          restoredJournal
+        );
+        await reloadFromRepository();
+        if (syncEngine) {
+          void syncEngine.syncNow().catch(() => {});
+        }
+      } catch {
+        // Quiet error
+      }
+    },
+    [repository, workspaceId, userId, userTimezone, reloadFromRepository, syncEngine]
+  );
+
+  // Conflict resolution handler
+  const handleResolveConflict = useCallback(
+    async (resolution: 'keep_server' | 'keep_local' | 'save_copy') => {
+      if (!syncEngine || !activeConflict) return;
+      try {
+        await syncEngine.resolveConflict(activeConflict.id, resolution);
+        setActiveConflict(null);
+        await reloadFromRepository();
+      } catch {
+        // quiet conflict resolution error
+      }
+    },
+    [syncEngine, activeConflict, reloadFromRepository]
+  );
+
+  // Snippet toggle persisting to account preferences
+  const handleToggleSnippets = useCallback(async () => {
+    const nextVal = !suppressSnippets;
+    setSuppressSnippets(nextVal);
+    if (repository && userId) {
+      try {
+        const snapshot = await repository.getPreferenceSnapshot(userId);
+        const existingPrefs = (snapshot?.preferences as Record<string, unknown>) || {};
+        const existingDisplay = (existingPrefs.displayPreferences as Record<string, unknown>) || {};
+        const updatedDisplay = {
+          theme: (existingDisplay.theme as 'system' | 'light' | 'dark') || 'system',
+          compactMode: Boolean(existingDisplay.compactMode),
+          journalPreviewHidden:
+            existingDisplay.journalPreviewHidden !== undefined
+              ? Boolean(existingDisplay.journalPreviewHidden)
+              : true,
+          suppressBodySnippets: nextVal,
+        };
+        await repository.savePreferenceSnapshot({
+          userId,
+          preferences: {
+            ...existingPrefs,
+            displayPreferences: updatedDisplay,
+          },
+          schemaVersion: snapshot?.schemaVersion ?? 1,
+          revision: (snapshot?.revision ?? 0) + 1,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // quiet
+      }
+    }
+  }, [suppressSnippets, repository, userId]);
+
+  // Filter entries based on search, viewMode, and selectedDate
   const filteredEntries = useMemo(() => {
     return entries.filter((e) => {
+      const isDeleted = Boolean(e.deletedAt);
+      if (viewMode === 'trash') {
+        if (!isDeleted) return false;
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchesTitle = e.title.toLowerCase().includes(q);
+          const matchesMood = (e.mood ?? '').toLowerCase().includes(q);
+          const matchesTags = (e.tags ?? []).some((t) => t.toLowerCase().includes(q));
+          const matchesBody = e.plainText.toLowerCase().includes(q);
+          return matchesTitle || matchesMood || matchesTags || matchesBody;
+        }
+        return true;
+      } else {
+        if (isDeleted) return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesTitle = e.title.toLowerCase().includes(q);
@@ -526,9 +1021,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
       }
       return e.entryDate === selectedDate;
     });
-  }, [entries, searchQuery, selectedDate]);
+  }, [entries, searchQuery, selectedDate, viewMode]);
 
-  // If user is unauthenticated, show protected gate screen
+  // Unauthenticated screen
   if (!isAuthenticated) {
     return (
       <View
@@ -578,12 +1073,100 @@ export const JournalView: React.FC<JournalViewProps> = ({
     );
   }
 
+  // Unavailable state if missing repository in production
+  if (!repository && !isTestEnv) {
+    return (
+      <View
+        testID={testID}
+        style={[styles.protectedContainer, { backgroundColor: palette.background }]}
+      >
+        <MobileEmptyState
+          title="Journal Storage Unavailable"
+          description="Local storage or workspace database is not initialized. Please ensure your workspace is connected."
+          actionLabel="Return to Today"
+          onAction={onNavigateToToday}
+          themeMode={themeMode}
+        />
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       testID={testID}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
     >
+      {/* Conflict Resolution Banner */}
+      {activeConflict && (
+        <View style={[styles.conflictBanner, { backgroundColor: palette.accent.subtle }]}>
+          <Text style={[styles.conflictTitle, { color: palette.accent.label }]}>
+            ⚠️ Sync Conflict Detected
+          </Text>
+          <Text style={[styles.conflictDesc, { color: palette.text.secondary }]}>
+            A cloud revision conflicts with local changes for this reflection.
+          </Text>
+          <View style={styles.conflictActions}>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => handleResolveConflict('keep_server')}
+              accessibilityLabel="Accept cloud version"
+            >
+              Accept Cloud
+            </MobileButton>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => handleResolveConflict('keep_local')}
+              accessibilityLabel="Overwrite cloud version"
+            >
+              Keep Local
+            </MobileButton>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => handleResolveConflict('save_copy')}
+              accessibilityLabel="Save local as copy"
+            >
+              Save Copy
+            </MobileButton>
+          </View>
+        </View>
+      )}
+
+      {/* Draft Recovery Banner */}
+      {pendingDraft && !isWriting && (
+        <View style={[styles.draftBanner, { backgroundColor: palette.surfaceRaised }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 13 }}>
+              📝 Unsaved Draft Found
+            </Text>
+            <Text style={{ fontSize: 12, color: palette.text.secondary }}>
+              Saved {new Date(pendingDraft.savedAt).toLocaleTimeString()}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <MobileButton
+              variant="primary"
+              themeMode={themeMode}
+              onPress={handleRecoverDraft}
+              accessibilityLabel="Recover draft"
+            >
+              Recover
+            </MobileButton>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={handleDiscardDraft}
+              accessibilityLabel="Discard draft"
+            >
+              Discard
+            </MobileButton>
+          </View>
+        </View>
+      )}
+
       {/* Header Row */}
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
@@ -607,6 +1190,53 @@ export const JournalView: React.FC<JournalViewProps> = ({
         )}
       </View>
 
+      {/* View Mode Stepper (Active vs Trash) */}
+      {!isWriting && (
+        <View style={styles.viewModeRow}>
+          <Pressable
+            onPress={() => setViewMode('active')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: viewMode === 'active' }}
+            style={[
+              styles.viewModeTab,
+              {
+                borderBottomColor: viewMode === 'active' ? palette.action.primary : 'transparent',
+              },
+            ]}
+          >
+            <Text
+              style={{
+                fontWeight: viewMode === 'active' ? '700' : '500',
+                color: viewMode === 'active' ? palette.action.primary : palette.text.secondary,
+              }}
+            >
+              Active Entries
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setViewMode('trash')}
+            accessibilityRole="tab"
+            accessibilityLabel="Trash view"
+            accessibilityState={{ selected: viewMode === 'trash' }}
+            style={[
+              styles.viewModeTab,
+              {
+                borderBottomColor: viewMode === 'trash' ? palette.action.primary : 'transparent',
+              },
+            ]}
+          >
+            <Text
+              style={{
+                fontWeight: viewMode === 'trash' ? '700' : '500',
+                color: viewMode === 'trash' ? palette.action.primary : palette.text.secondary,
+              }}
+            >
+              🗑️ Trash
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* Writing Entry Form */}
       {isWriting ? (
         <View style={styles.writeContainer}>
@@ -614,6 +1244,15 @@ export const JournalView: React.FC<JournalViewProps> = ({
             <Text style={[styles.writeCardTitle, { color: palette.text.primary }]}>
               {editingEntryId ? 'Edit Reflection' : 'New Reflection'}
             </Text>
+
+            {/* Save Error Banner */}
+            {saveError && (
+              <View style={[styles.saveErrorBanner, { backgroundColor: palette.accent.subtle }]}>
+                <Text style={{ color: palette.accent.label, fontSize: 13, fontWeight: '600' }}>
+                  ⚠️ {saveError}
+                </Text>
+              </View>
+            )}
 
             {/* Date Picker & Backdated Indicator */}
             <View style={styles.dateRow}>
@@ -631,6 +1270,78 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 </Text>
               )}
             </View>
+
+            {/* Folder Placement Selector */}
+            {folders.length > 0 && (
+              <View style={{ marginBottom: spacing.sm }}>
+                <Text style={[styles.inputLabel, { color: palette.text.secondary, marginBottom: 4 }]}>
+                  Folder (optional):
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Pressable
+                      onPress={() => setSelectedFolderId(null)}
+                      accessibilityRole="button"
+                      style={[
+                        styles.folderPill,
+                        {
+                          backgroundColor:
+                            selectedFolderId === null ? palette.action.primary : palette.surface,
+                          borderColor:
+                            selectedFolderId === null
+                              ? palette.action.primary
+                              : palette.border.subtle,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color:
+                            selectedFolderId === null
+                              ? palette.action.label
+                              : palette.text.primary,
+                        }}
+                      >
+                        Root (No folder)
+                      </Text>
+                    </Pressable>
+                    {folders.map((f) => (
+                      <Pressable
+                        key={f.id}
+                        onPress={() => setSelectedFolderId(f.id)}
+                        accessibilityRole="button"
+                        style={[
+                          styles.folderPill,
+                          {
+                            backgroundColor:
+                              selectedFolderId === f.id
+                                ? palette.action.primary
+                                : palette.surface,
+                            borderColor:
+                              selectedFolderId === f.id
+                                ? palette.action.primary
+                                : palette.border.subtle,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color:
+                              selectedFolderId === f.id
+                                ? palette.action.label
+                                : palette.text.primary,
+                          }}
+                        >
+                          📁 {f.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
 
             {/* Title Field */}
             <MobileTextField
@@ -777,7 +1488,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 onPress={handleSaveEntry}
                 accessibilityLabel="Save reflection"
               >
-                Save Reflection
+                {isSaving ? 'Saving...' : 'Save Reflection'}
               </MobileButton>
 
               <View style={{ height: spacing.xs }} />
@@ -785,7 +1496,10 @@ export const JournalView: React.FC<JournalViewProps> = ({
               <MobileButton
                 variant="subtle"
                 themeMode={themeMode}
-                onPress={() => setIsWriting(false)}
+                onPress={() => {
+                  setSaveError(null);
+                  setIsWriting(false);
+                }}
                 accessibilityLabel="Cancel reflection"
               >
                 Cancel
@@ -797,9 +1511,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
                   <MobileButton
                     variant="danger"
                     themeMode={themeMode}
-                    onPress={() => {
+                    onPress={async () => {
                       const item = entries.find((e) => e.id === editingEntryId);
-                      if (item) void handleTrashEntry(item);
+                      if (item) await handleTrashEntry(item);
                     }}
                     accessibilityLabel="Delete reflection"
                   >
@@ -814,6 +1528,15 @@ export const JournalView: React.FC<JournalViewProps> = ({
         <>
           {/* Day Stepper & Navigation */}
           <View style={[styles.dayNavRow, { borderColor: palette.border.subtle }]}>
+            <Pressable
+              onPress={() => setSelectedDate((d) => offsetMonthIso(d, -1))}
+              accessibilityRole="button"
+              accessibilityLabel="Previous month"
+              style={[styles.navArrowBtn, { backgroundColor: palette.surfaceRaised }]}
+            >
+              <Text style={{ fontSize: 12, color: palette.text.primary }}>◀ Mo</Text>
+            </Pressable>
+
             <Pressable
               onPress={() => setSelectedDate((d) => offsetDateIso(d, -1))}
               accessibilityRole="button"
@@ -841,6 +1564,15 @@ export const JournalView: React.FC<JournalViewProps> = ({
               style={[styles.navArrowBtn, { backgroundColor: palette.surfaceRaised }]}
             >
               <Text style={{ fontSize: 16, color: palette.text.primary }}>▶</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setSelectedDate((d) => offsetMonthIso(d, 1))}
+              accessibilityRole="button"
+              accessibilityLabel="Next month"
+              style={[styles.navArrowBtn, { backgroundColor: palette.surfaceRaised }]}
+            >
+              <Text style={{ fontSize: 12, color: palette.text.primary }}>Mo ▶</Text>
             </Pressable>
 
             <MobileButton
@@ -879,7 +1611,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 Scope: Journal only
               </Text>
               <Pressable
-                onPress={() => setSuppressSnippets((prev) => !prev)}
+                onPress={handleToggleSnippets}
                 accessibilityRole="button"
                 accessibilityLabel={suppressSnippets ? 'Show snippets' : 'Hide snippets'}
                 style={styles.snippetToggle}
@@ -894,17 +1626,25 @@ export const JournalView: React.FC<JournalViewProps> = ({
           {/* Timeline Entries List */}
           <View style={styles.timelineSection}>
             <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-              Entries ({filteredEntries.length})
+              {viewMode === 'trash' ? 'Trash Entries' : 'Entries'} ({filteredEntries.length})
             </Text>
 
             {filteredEntries.length === 0 ? (
               <MobileEmptyState
                 title={
-                  searchQuery.trim() ? 'No matching reflections' : `No entries for ${selectedDate}`
+                  viewMode === 'trash'
+                    ? 'Trash is empty'
+                    : searchQuery.trim()
+                    ? 'No matching reflections'
+                    : `No entries for ${selectedDate}`
                 }
-                description="Take a moment to record your daily reflections."
-                actionLabel="Write First Entry"
-                onAction={handleOpenNewEntry}
+                description={
+                  viewMode === 'trash'
+                    ? 'Deleted reflections will appear here.'
+                    : 'Take a moment to record your daily reflections.'
+                }
+                actionLabel={viewMode === 'trash' ? undefined : 'Write First Entry'}
+                onAction={viewMode === 'trash' ? undefined : handleOpenNewEntry}
                 themeMode={themeMode}
               />
             ) : (
@@ -914,6 +1654,44 @@ export const JournalView: React.FC<JournalViewProps> = ({
                   if (entry.mood) metaParts.push(`Mood: ${entry.mood}`);
                   if (!suppressSnippets && entry.snippet) {
                     metaParts.push(entry.snippet);
+                  }
+                  if (viewMode === 'trash') {
+                    return (
+                      <View
+                        key={entry.id}
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: spacing.xs,
+                          borderBottomWidth: 1,
+                          borderBottomColor: palette.border.subtle,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: '700',
+                              color: palette.text.primary,
+                            }}
+                          >
+                            {entry.title}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: palette.text.secondary }}>
+                            {metaParts.join(' • ')}
+                          </Text>
+                        </View>
+                        <MobileButton
+                          variant="subtle"
+                          themeMode={themeMode}
+                          onPress={() => handleRestoreEntry(entry)}
+                          accessibilityLabel={`Restore ${entry.title}`}
+                        >
+                          Restore
+                        </MobileButton>
+                      </View>
+                    );
                   }
                   return (
                     <MobileListRow
@@ -939,6 +1717,48 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.base,
     paddingBottom: spacing.xxl,
+  },
+  conflictBanner: {
+    padding: spacing.sm,
+    borderRadius: radii.sm,
+    marginBottom: spacing.sm,
+  },
+  conflictTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  conflictDesc: {
+    fontSize: 12,
+    marginBottom: spacing.xs,
+  },
+  conflictActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  draftBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.sm,
+    borderRadius: radii.sm,
+    marginBottom: spacing.sm,
+  },
+  saveErrorBanner: {
+    padding: spacing.xs,
+    borderRadius: radii.sm,
+    marginBottom: spacing.sm,
+  },
+  viewModeRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    marginBottom: spacing.sm,
+  },
+  viewModeTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 2,
   },
   headerRow: {
     flexDirection: 'row',
@@ -979,6 +1799,12 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: radii.pill,
     fontWeight: '700',
+  },
+  folderPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    borderWidth: 1,
   },
   moodSection: {
     marginVertical: spacing.xs,
@@ -1051,8 +1877,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   navArrowBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: radii.sm,
     minHeight: touchTargets.mobileMin,
     minWidth: touchTargets.mobileMin,

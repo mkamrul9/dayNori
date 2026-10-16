@@ -29,16 +29,30 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
     - Implemented journal-scoped search with snippet privacy toggle (`"Show snippets"` / `"Hide snippets"`).
     - Implemented mobile writing sheet with optional title, mood pills, tag chips, reflection template selection, and multiline body text.
     - Connected mobile app root (`apps/mobile/App.tsx`) to pass `repository`, `syncEngine`, `workspaceId`, `userId`, and `isOnline` to `JournalView`.
-  - **Prerequisite Foundation Repairs (Fixed in prior commit `227a23f`)**:
-    - Finding A: Journal bootstrap omits persisted entry content. Fixed by adding `journalEntries` projection across server SQL query, contracts, transport, SyncEngine, and local repositories.
-    - Finding B: Concurrency and lifecycle locking. Fixed by acquiring workspace sync lock before reading authoritative state in update/trash/restore routes, enriching restore responses, and adding idempotent receipt replay protection.
-    - Finding C: Clearing optional fields. Fixed by distinguishing explicit null from missing fields in pull synchronization.
-    - Finding D: Privacy log leak. Fixed by eliminating raw journal-derived strings from error logs and expanding SafeLogger sensitive key redacting.
-    - Finding E: Validation and non-UTC date stability. Fixed by enforcing calendar date text representations and rejecting invalid cursors and oversized prompt responses.
+  - **Phase 22/23 Experience & Foundation Repairs**:
+    - **Web Autosave & Draft Recovery**:
+      - Kept editor surface open during autosave, maintaining stable entry and session identity.
+      - Wired `onDraftChange` and debounced metadata updates to durable `repo.saveDraft`, saving date, mood, prompts, tags, and document before explicit submission.
+      - Retained unsaved content with actionable error display on save failure; drafts are only deleted after confirmed replacement.
+    - **Mobile Document AST & Metadata Preservation**:
+      - Preserved canonical `NoteDocument` AST, block identities, formatting, folder placement, authoring timezone, and flags without flattening into a single paragraph.
+      - Added mobile autosave with debounced draft saving and `AppState` background listener.
+      - Draft recovery banner with Recover and Discard flows.
+      - Removed production reliance on synthetic login and entries, providing a clear unavailable state when runtime services are uninitialized.
+      - Handled save failures cleanly without closing the writing modal.
+    - **Privacy Preferences & Account Isolation**:
+      - Synchronized `suppressBodySnippets` to `savePreferenceSnapshot`.
+      - Suppressing body snippets forces neutral fallback titles (`resolveJournalTitle` returns `Journal entry - YYYY-MM-DD` rather than leaking the first line of private entries).
+      - Guarded asynchronous reads, mutations, and subscriptions against stale namespaces on account switch.
+    - **Disconnected Interactions & Lifecycle**:
+      - Connected sync conflict controls to `SyncEngine.resolveConflict` for `keep_local`, `accept_cloud`, and `save_copy`.
+      - Connected folder list from repository and enabled mobile Trash and restore flows.
+      - Implemented midnight timer to refresh "Today" across calendar boundaries and timezone changes.
   - **Comprehensive Test Coverage**:
+    - Added real-view wiring tests in `apps/mobile/src/views/JournalView.test.ts` (5 tests covering draft recovery, failed save error retention, conflict resolution, privacy preference persistence, and AST preservation through Trash/restore).
     - Added unit tests for `JournalEditor` in `packages/ui-web/src/ui-web.test.ts`.
-    - Added mobile unit tests for writing, templates, day navigation, and privacy toggles in `apps/mobile/src/mobile.test.ts`.
-    - Created 6 integration journeys in `tests/integration/phase23-journal-writing.test.ts` verifying offline writing, draft recovery, rapid edits, conflicts, backdating, multi-entry days, bootstrap, privacy, and SQLite persistence.
+    - Added mobile unit tests in `apps/mobile/src/mobile.test.ts`.
+    - Expanded integration suite in `tests/integration/phase23-journal-writing.test.ts` (7 journeys covering web-to-mobile multi-block AST preservation, privacy title neutrality, and end-to-end sync).
 - **Excluded/deferred scope:**
   - Physical Android TalkBack and hardware KeyStore release gates remain blocked pending physical hardware testing.
   - Full native WYSIWYG mobile rich text block editor is scheduled for subsequent mobile editor iterations.
@@ -46,7 +60,7 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 
 ## Result
 
-Delivered production-grade journal writing and reflection interfaces across Web and Mobile:
+Delivered provisionally verified journal writing and reflection interfaces across Web and Mobile with remaining hardware gates blocked:
 
 1. **Focused, Calm Writing Canvas**:
    - Web users write in `JournalEditor` which reuses the distraction-free `NoteEditor` block canvas.
@@ -55,7 +69,7 @@ Delivered production-grade journal writing and reflection interfaces across Web 
    - Preserves multiline Bengali (Bangla) text bit-for-bit without lossy flattening.
 2. **Robust Draft Recovery & Timestamp Protection**:
    - Local drafts are saved atomically during typing and before unload or navigation.
-   - Unsaved drafts survive browser crashes, tab closures, and restarts, offering clear recovery prompts.
+   - Unsaved drafts survive browser crashes, backgrounding, and restarts, offering clear recovery prompts.
    - Older server save responses cannot overwrite newer typing.
 3. **Dated Timeline & Multi-Entry Support**:
    - Users can create multiple entries on the same calendar date without uniqueness constraints.
@@ -64,8 +78,8 @@ Delivered production-grade journal writing and reflection interfaces across Web 
 4. **Journal-Scoped Search & Privacy Defaults**:
    - Explicit search scope indicator ("Scope: Journal only").
    - By default, reflection body snippets are suppressed (`suppressBodySnippets: true`) to prevent accidental shoulder-surfing exposure.
+   - Neutral fallback titles (`resolveJournalTitle`) prevent body snippets from leaking as titles.
    - Users can manually unhide snippets when operating in private environments.
-   - Honest fallback titles (`resolveJournalTitle`) are generated when a title is absent.
 
 ## Verification evidence
 
@@ -101,12 +115,13 @@ $ pnpm format:check
 # Exit code: 0
 ```
 
-### 5. Unit Tests
+### 5. Unit & View Wiring Tests
 
 ```bash
 $ pnpm test:unit
-# Result: 40 test files passed (553 unit tests).
+# Result: 41 test files passed (558 tests).
 # Key suites:
+#   ✓ apps/mobile/src/views/JournalView.test.ts (5 tests: draft recovery, failed save error, conflict resolution, privacy snapshot, AST preservation)
 #   ✓ packages/ui-web/src/ui-web.test.ts (35 tests)
 #   ✓ apps/mobile/src/mobile.test.ts (29 tests)
 #   ✓ packages/domain/src/domain.test.ts
@@ -117,15 +132,16 @@ $ pnpm test:unit
 
 ```bash
 $ pnpm test:integration
-# Result: 15 test files passed (211 tests).
+# Result: 15 test files passed (212 tests).
 # Key suite:
-#   ✓ tests/integration/phase23-journal-writing.test.ts (6 tests)
+#   ✓ tests/integration/phase23-journal-writing.test.ts (7 tests)
 #     - Journey 1: Offline writing, draft interruption, restart, recovery, sync, and Bangla preservation
 #     - Journey 2: Long documents, rapid concurrent edits with conflict detection, and deterministic resolution
 #     - Journey 3: Backdating, multiple entries per day, day navigation query filtering, and trash/restore
 #     - Journey 4: Multi-client bootstrap and expired cursor reset with complete snapshot consistency
-#     - Journey 5: Privacy preferences, account switching, and complete serialized log canary verification
+#     - Journey 5: Privacy preferences, account switching, neutral fallback titles, and complete serialized log canary verification
 #     - Journey 6: SqliteLocalRepository journal persistence, prompt templates, and draft quarantine
+#     - Journey 7: Web-to-mobile rich-document editing without flattening or metadata loss
 # Exit code: 0
 ```
 
@@ -159,7 +175,7 @@ $ git diff --check
 
 ## Handoff and next phase
 
-Phase 23 is provisionally complete with all software requirements implemented and verified.
+Phase 23 is provisionally complete with software requirements implemented and verified against unit and integration suites; physical hardware and KeyStore release gates remain explicitly blocked.
 The next phase in the canonical plan is:
 
 - **[Phase 24 — Private binary upload lifecycle](../roadmap/phases/24-private-binary-upload-lifecycle.md)**

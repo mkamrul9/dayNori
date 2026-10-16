@@ -7,21 +7,21 @@
   - Added dismissible reflection prompt tray with canonical reflection templates (`REFLECTION_TEMPLATES`: Daily check-in, Evening reflection, Gratitude & grounding, Weekly review, Hard moments & release) inserting portable AST blocks into the editor.
   - Replaced in-memory web demo with authenticated runtime using `IndexedDbLocalRepository` and `createWebSyncEngine` with active namespace guarding (`activeNamespaceRef`) to isolate account state during asynchronous switches.
   - Added day/month navigation stepper with date jump, multiple entries per day list, and journal-scoped search with snippet privacy suppression (`suppressBodySnippets: true` by default).
-  - Implemented atomic draft persistence (`repo.saveDraft`, `repo.listDrafts`, `repo.deleteDraft`) before navigation and tab teardown, enabling seamless draft recovery across browser crashes or uncommitted edits.
-  - Connected entry lifecycle routes (archive, trash, restore) to real API and sync event stream.
+  - Repaired web autosave: editor stays open during autosave, allocations maintain stable identity, saves are serialized, newer typing is protected during delayed writes, and metadata-only changes trigger debounced persistence.
+  - Implemented durable draft persistence during writing with `onDraftChange` and debounced save; drafts survive crashes and are only cleared after successful durable save.
+  - Connected conflict resolution banner directly to `SyncEngine.resolveConflict`.
 - **Accessible Mobile Journal Surface (`apps/mobile`):**
   - Connected `JournalView` to `SqliteLocalRepository` and client `SyncEngine` with offline local-first mutation intent creation.
-  - Implemented mobile writing sheet with title, non-clinical mood selector, tag management, reflection prompt selector, multiline body editor, touch targets >= 48dp, and screen-reader accessibility labels.
-  - Added day navigation (◀, ▶, Today jump, backdated badge indicator), multiple entries per date listing, and journal-scoped search with snippet privacy toggle.
-  - Preserved unauthenticated gate card accessibility identifiers (`"Authentication Required for Journal"`, `"Authenticate with synthetic account"`).
-- **Integration Test Journeys (`tests/integration`):**
-  - Added `tests/integration/phase23-journal-writing.test.ts` with 6 end-to-end integration journeys verifying:
-    1. Offline writing, draft interruption, restart, draft recovery, local atomic commit, and eventual sync to server with Bengali (Bangla) Unicode bit-for-bit preservation.
-    2. Long documents, rapid edits, conflict detection on stale revision, and deterministic resolution.
-    3. Backdating, multiple entries per day, date-filtered query pagination, and trash/restore lifecycle.
-    4. Multi-client bootstrap and expired cursor reset with complete snapshot consistency.
-    5. Privacy preferences, fallback titles via `resolveJournalTitle`, namespace account isolation, and complete serialized log canary verification.
-    6. `SqliteLocalRepository` journal persistence, reflection template instantiation, and prompt mapping.
+  - Preserved canonical `NoteDocument` AST, block identities, formatting, folder placement, authoring timezone, and flags without destructive flattening to a single paragraph.
+  - Implemented real mobile autosave with debounced draft saving and `AppState` background listener.
+  - Implemented draft recovery banner with Recover and Discard flows.
+  - Removed production reliance on synthetic login and entries, providing a clear unavailable state when runtime services are uninitialized.
+  - Added mobile Trash and restore flows with soft-delete filtering.
+  - Synchronized `suppressBodySnippets` to `savePreferenceSnapshot` and guarded fallback titles (`resolveJournalTitle` returns neutral date title when snippets are suppressed).
+  - Added midnight refresh timer across date and timezone changes.
+- **Verification & Wiring Tests (`apps/mobile`, `tests/integration`):**
+  - Added real-view wiring test suite `apps/mobile/src/views/JournalView.test.ts` (5 tests verifying draft recovery, writing surface retention on save failure, conflict resolution, privacy snapshot persistence, and AST preservation through Trash/restore).
+  - Expanded `tests/integration/phase23-journal-writing.test.ts` to 7 journeys, adding multi-block AST web-to-mobile roundtrip preservation and snippet-suppressed neutral title guarantees.
 - **Decision Record:**
   - Published [ADR-0029: Journal Writing, Reflection Prompts, and Local Draft Recovery](docs/decisions/0029-journal-writing-and-reflection-interfaces.md).
 

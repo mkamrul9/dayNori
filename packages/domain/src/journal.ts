@@ -213,18 +213,19 @@ export function validateJournalTags(tags?: unknown[]): string[] {
 
 /**
  * Resolves an honest display title for a journal entry.
- * If title is absent, uses the first non-empty line of content text,
- * or falls back to "Journal entry - {entryDate}".
+ * If title is absent and snippets are not suppressed, uses the first non-empty line of content text.
+ * If snippets are suppressed or body is empty, falls back to neutral date title: "Journal entry - {entryDate}".
  */
 export function resolveJournalTitle(
   title?: string | null,
   entryDate?: string,
-  contentText?: string
+  contentText?: string,
+  options?: { suppressBodySnippet?: boolean }
 ): string {
   const validated = validateJournalTitle(title);
   if (validated) return validated;
 
-  if (contentText && contentText.trim().length > 0) {
+  if (!options?.suppressBodySnippet && contentText && contentText.trim().length > 0) {
     const firstLine = contentText.trim().split(/\r?\n/)[0]!.trim();
     if (firstLine.length > 0) {
       return firstLine.slice(0, MAX_JOURNAL_TITLE_LENGTH);

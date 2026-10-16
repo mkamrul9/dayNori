@@ -655,6 +655,15 @@ describe('Phase 23: Journal Writing and Reflection Interfaces (Integration Tests
     );
     expect(fallbackTitle).toBe('First line of reflection text.');
 
+    // Suppressing body snippets forces neutral date title even if body text exists
+    const neutralTitle = resolveJournalTitle(
+      null,
+      '2026-10-16',
+      'First line of confidential reflection.',
+      { suppressBodySnippet: true }
+    );
+    expect(neutralTitle).toBe('Journal entry - 2026-10-16');
+
     const defaultTitle = resolveJournalTitle(null, '2026-10-16', '');
     expect(defaultTitle).toBe('Journal entry - 2026-10-16');
 
@@ -783,5 +792,143 @@ describe('Phase 23: Journal Writing and Reflection Interfaces (Integration Tests
     expect(loaded?.prompts[0]?.prompt).toBe('What went well today?');
 
     await sqliteRepo.close();
+  });
+
+  it('Journey 7: Web-to-mobile rich-document editing without flattening or metadata loss', async () => {
+    // 1. Web creates a rich document with Heading, Blockquote, BulletList, and Paragraph blocks
+    const entryId = crypto.randomUUID();
+    const folderRes = await clientA.createFolder(workspaceAId, { name: 'Mindfulness' });
+    const folderId = folderRes.data.id;
+
+    const richDocument: NoteDocument = {
+      version: 1,
+      type: 'doc',
+      content: [
+        {
+          id: 'heading-1',
+          type: 'heading',
+          level: 2,
+          content: [{ type: 'text', text: 'Evening Mindfulness Reflection' }],
+        },
+        {
+          id: 'p-1',
+          type: 'paragraph',
+          content: [{ type: 'text', text: '“Breathe in calm, breathe out stress.”' }],
+        },
+        {
+          id: 'list-1',
+          type: 'bullet_list',
+          items: [
+            {
+              id: 'li-1',
+              type: 'list_item',
+              content: [{ type: 'text', text: 'Grateful for quiet morning walk' }],
+            },
+            {
+              id: 'li-2',
+              type: 'list_item',
+              content: [{ type: 'text', text: 'আজকের দিনটি চমৎকার ছিল (Bangla reflection)' }],
+            },
+          ],
+        },
+        {
+          id: 'check-1',
+          type: 'checklist',
+          items: [
+            {
+              id: 'ci-1',
+              type: 'checklist_item',
+              checked: true,
+              content: [{ type: 'text', text: '10 minute meditation' }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const created = await clientA.createJournalEntry(workspaceAId, {
+      id: entryId,
+      folderId,
+      entryDate: '2026-10-16',
+      timezone: 'Asia/Dhaka',
+      title: 'Mindfulness & Gratitude',
+      mood: 'peaceful',
+      tags: ['mindfulness', 'dhaka'],
+      document: richDocument,
+      plainText:
+        'Evening Mindfulness Reflection\n“Breathe in calm, breathe out stress.”\nGrateful for quiet morning walk\nআজকের দিনটি চমৎকার ছিল (Bangla reflection)\n10 minute meditation',
+    });
+    expect(created.data.id).toBe(entryId);
+    expect(created.data.document.content.length).toBe(4);
+
+    // 2. Mobile pulls entry into SqliteLocalRepository
+    const rawDb = new DatabaseSync(':memory:');
+    const adapter = new NodeSqliteAdapter(rawDb);
+    const keyManager = new MobileKeyManager(new MemorySecureStore());
+    const mobileRepo = new SqliteLocalRepository({
+      keyManager,
+      openDatabaseAsync: async () => adapter,
+      databaseExistsAsync: async () => false,
+      requireSqlCipher: false,
+    });
+    await mobileRepo.initialize({ userId: userAId, workspaceId: workspaceAId });
+
+    const mobileEngine = new SyncEngine({
+      repository: mobileRepo,
+      transport: new ApiClientSyncTransport(clientA),
+      namespace: { userId: userAId, workspaceId: workspaceAId },
+      deviceId: 'mobile-test-device',
+    });
+    await mobileEngine.start();
+    await mobileEngine.syncNow();
+
+    // 3. Mobile reads the entry and verifies AST blocks are completely preserved
+    const mobileEntry = await mobileRepo.getJournalEntry(workspaceAId, entryId);
+    expect(mobileEntry).toBeDefined();
+    expect(mobileEntry?.document.content.length).toBe(4);
+    expect(mobileEntry?.document.content[0]?.type).toBe('heading');
+    expect(mobileEntry?.document.content[1]?.type).toBe('paragraph');
+    expect(mobileEntry?.document.content[2]?.type).toBe('bullet_list');
+    expect(mobileEntry?.document.content[3]?.type).toBe('checklist');
+
+    // 4. Mobile edits metadata (mood, tags) and appends a block without flattening
+    const updatedDocument: NoteDocument = {
+      ...mobileEntry!.document,
+      content: [
+        ...mobileEntry!.document.content,
+        {
+          id: 'p-appended',
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Appended reflection from mobile device.' }],
+        },
+      ],
+    };
+
+    const updateOp = crypto.randomUUID();
+    const updated = await clientA.updateJournalEntry(
+      workspaceAId,
+      entryId,
+      {
+        baseRevision: mobileEntry!.serverRevision,
+        mood: 'serene',
+        tags: ['mindfulness', 'dhaka', 'mobile-reflection'],
+        document: updatedDocument,
+        plainText: `${mobileEntry!.plainText}\nAppended reflection from mobile device.`,
+      },
+      updateOp
+    );
+    expect(updated.data.mood).toBe('serene');
+    expect(updated.data.tags).toContain('mobile-reflection');
+    expect(updated.data.document.content.length).toBe(5);
+
+    // 5. Verify original blocks (heading, paragraph, bullet_list, checklist) still exist unchanged
+    expect(updated.data.document.content[0]?.type).toBe('heading');
+    expect(updated.data.document.content[1]?.type).toBe('paragraph');
+    expect(updated.data.document.content[2]?.type).toBe('bullet_list');
+    expect(updated.data.document.content[3]?.type).toBe('checklist');
+    expect(updated.data.document.content[4]?.type).toBe('paragraph');
+
+    await mobileEngine.stop();
+    await mobileRepo.close();
   });
 });

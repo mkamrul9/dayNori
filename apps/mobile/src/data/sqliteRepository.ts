@@ -2503,12 +2503,20 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
 
   async listJournalEntries(
     workspaceId: string,
-    options?: { entryDate?: string; startDate?: string; endDate?: string }
+    options?: {
+      entryDate?: string;
+      startDate?: string;
+      endDate?: string;
+      includeDeleted?: boolean;
+    }
   ): Promise<JournalEntryRecord[]> {
     this.ensureNamespace(workspaceId);
     const db = this.ensureOpen();
     try {
-      let sql = `SELECT * FROM journal_entries WHERE workspace_id = ? AND deleted_at IS NULL`;
+      let sql = `SELECT * FROM journal_entries WHERE workspace_id = ?`;
+      if (!options?.includeDeleted) {
+        sql += ` AND deleted_at IS NULL`;
+      }
       const params: unknown[] = [workspaceId];
       if (options?.entryDate) {
         sql += ` AND entry_date = ?`;
@@ -2570,7 +2578,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           serverRevision: row.server_revision,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
-          deletedAt: null,
+          deletedAt: row.deleted_at ?? null,
         })
       );
     } catch (err) {

@@ -34,6 +34,12 @@ export interface NoteEditorProps {
     serverTitle?: string;
     serverDocument?: NoteDocument;
   } | null;
+  onChange?: (note: {
+    title: string;
+    document: NoteDocument;
+    plainText: string;
+    folderId?: string | null;
+  }) => void;
   onSave?: (note: {
     title: string;
     document: NoteDocument;
@@ -110,6 +116,7 @@ export function NoteEditor({
   localSaveStatus = 'Saved locally',
   cloudSyncStatus = 'Synced',
   conflict = null,
+  onChange,
   onSave,
   onResolveConflict,
   onClose,
@@ -177,6 +184,13 @@ export function NoteEditor({
 
   const latestOnSaveRef = useRef(onSave);
   latestOnSaveRef.current = onSave;
+
+  const latestOnChangeRef = useRef(onChange);
+  latestOnChangeRef.current = onChange;
+
+  useEffect(() => {
+    latestOnChangeRef.current?.({ title, document: doc, plainText, folderId });
+  }, [title, doc, folderId, plainText]);
 
   // Push to undo stack before mutating
   const mutateDoc = useCallback((updater: (prev: NoteDocument) => NoteDocument) => {
