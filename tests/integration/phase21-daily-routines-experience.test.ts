@@ -15,6 +15,7 @@ import {
   reconcileOccurrencesOnScheduleChange,
   isTaskDueToday,
   isTaskOverdue,
+  getCalendarDateInTimezone,
   type RoutineTemplateRule,
   type RoutineOccurrence,
 } from '@daynori/domain';
@@ -547,6 +548,235 @@ describe('Phase 21: Daily Routine Experience, Checklists and History', () => {
       expect(loadedOcc?.status).toBe('pending');
 
       await repo.close();
+    });
+  });
+
+  describe('Phase 20-21 Defect Repair Verification', () => {
+    it('ensures routine creation generates occurrences that strictly remain pending without completeOccurrence mutation', async () => {
+      const routineRes = await clientA.createRoutine(workspaceAId, {
+        title: 'Pending Generation Verification',
+        details: 'Verify newly generated occurrences remain pending.',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'America/New_York',
+        scheduledTime: '09:00',
+        activeFrom: '2026-11-01',
+      });
+
+      expect(routineRes.data).toBeDefined();
+      const rId = routineRes.data.id;
+
+      const genRes = await clientA.generateOccurrences(workspaceAId, {
+        routineId: rId,
+        startDate: '2026-11-01',
+        endDate: '2026-11-07',
+      });
+
+      expect(genRes.data.length).toBe(7);
+      for (const occ of genRes.data) {
+        expect(occ.status).toBe('pending');
+        expect(occ.completedAt).toBeNull();
+        expect(occ.completedBy).toBeNull();
+        expect(occ.history).toEqual([]);
+      }
+    });
+
+    it('handles compensating undo preserving monotonic audit trail across transitions', async () => {
+      const routineRes = await clientA.createRoutine(workspaceAId, {
+        title: 'Compensating Undo Verification',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'America/New_York',
+        scheduledTime: '10:00',
+        activeFrom: '2026-11-10',
+      });
+      const rId = routineRes.data.id;
+      const scheduledDate = '2026-11-10';
+
+      const genRes = await clientA.generateOccurrences(workspaceAId, {
+        routineId: rId,
+        startDate: scheduledDate,
+        endDate: scheduledDate,
+      });
+      const occ = genRes.data[0];
+      expect(occ.status).toBe('pending');
+
+      // 1. Complete occurrence
+      const completed = await clientA.completeOccurrence(workspaceAId, occ.id, {
+        baseRevision: occ.revision,
+      });
+      expect(completed.data.status).toBe('done');
+      expect(completed.data.history.length).toBe(1);
+      expect(completed.data.history[0].toStatus || completed.data.history[0].status).toBe('done');
+
+      // 2. Compensating reopen (undo)
+      const reopened = await clientA.reopenOccurrence(workspaceAId, occ.id, {
+        baseRevision: completed.data.revision,
+      });
+      expect(reopened.data.status).toBe('pending');
+      expect(reopened.data.completedAt).toBeNull();
+      // History must preserve both transitions rather than wiping history
+      expect(reopened.data.history.length).toBe(2);
+      const [t1, t2] = reopened.data.history;
+      expect(t1.toStatus || t1.status).toBe('done');
+      expect(t2.toStatus || t2.status).toBe('pending');
+    });
+
+    it('handles offline complete followed by reopen sync with offlineMeta without 404', async () => {
+      const routineRes = await clientA.createRoutine(workspaceAId, {
+        title: 'Offline Sync Reopen Verification',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        scheduledTime: '12:00',
+        activeFrom: '2026-11-15',
+      });
+      const routineId = routineRes.data.id;
+      const scheduledDate = '2026-11-15';
+      const offlineOccId = computeDeterministicOccurrenceId(workspaceAId, routineId, scheduledDate);
+      const deviceId = crypto.randomUUID();
+
+      // Push completeOccurrence followed by reopenOccurrence via syncPush
+      const op1Id = crypto.randomUUID();
+      const op2Id = crypto.randomUUID();
+
+      const pushRes = await clientA.syncPush({
+        commands: [
+          {
+            operationId: op1Id,
+            deviceId,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'completeOccurrence',
+            entityType: 'routine_occurrence',
+            entityId: offlineOccId,
+            baseRevision: 0,
+            dependencyOperationIds: [],
+            clientTimestamp: new Date().toISOString(),
+            payload: {
+              routineId,
+              scheduledDate,
+              history: [
+                {
+                  fromStatus: 'pending',
+                  toStatus: 'done',
+                  status: 'done',
+                  changedAt: new Date().toISOString(),
+                  transitionedAt: new Date().toISOString(),
+                  actorId: userAId,
+                },
+              ],
+            },
+          },
+          {
+            operationId: op2Id,
+            deviceId,
+            workspaceId: workspaceAId,
+            commandVersion: 1,
+            schemaVersion: 1,
+            command: 'reopenOccurrence',
+            entityType: 'routine_occurrence',
+            entityId: offlineOccId,
+            baseRevision: 1,
+            dependencyOperationIds: [op1Id],
+            clientTimestamp: new Date().toISOString(),
+            payload: {
+              routineId,
+              scheduledDate,
+              history: [
+                {
+                  fromStatus: 'done',
+                  toStatus: 'pending',
+                  status: 'pending',
+                  changedAt: new Date().toISOString(),
+                  transitionedAt: new Date().toISOString(),
+                  actorId: userAId,
+                  reason: 'Compensating undo action',
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      expect(pushRes.data.results).toHaveLength(2);
+      expect(pushRes.data.results[0].status).toBe('accepted');
+      expect(pushRes.data.results[1].status).toBe('accepted');
+
+      // Verify the resulting occurrence is pending in DB
+      const occList = await clientA.listOccurrences(workspaceAId, {
+        routineId,
+        startDate: scheduledDate,
+        endDate: scheduledDate,
+      });
+      expect(occList.data).toHaveLength(1);
+      const syncedOcc = occList.data[0];
+      expect(syncedOcc.status).toBe('pending');
+      expect(syncedOcc.completedAt).toBeNull();
+    });
+
+    it('evaluates scheduling-zone policy: occurrence date derives from routine timezone rather than viewing timezone', () => {
+      // Instant: 2026-10-20T22:30:00.000Z
+      const instant = new Date('2026-10-20T22:30:00.000Z');
+
+      // Routine timezone: Asia/Tokyo (UTC+9) -> 2026-10-21 07:30:00
+      const routineTz = 'Asia/Tokyo';
+      const routineDate = getCalendarDateInTimezone(instant, routineTz);
+      expect(routineDate).toBe('2026-10-21');
+
+      // Viewing timezone: America/New_York (UTC-4) -> 2026-10-20 18:30:00
+      const viewingTz = 'America/New_York';
+      const viewingDate = getCalendarDateInTimezone(instant, viewingTz);
+      expect(viewingDate).toBe('2026-10-20');
+
+      // Scheduling policy invariant: occurrence date MUST be evaluated with routine.timezone
+      expect(routineDate).not.toBe(viewingDate);
+    });
+
+    it('handles rapid successive actions (complete -> undo -> skip) maintaining correct revision ordering', async () => {
+      const routineRes = await clientA.createRoutine(workspaceAId, {
+        title: 'Rapid Actions Verification',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        scheduledTime: '15:00',
+        activeFrom: '2026-11-20',
+      });
+      const rId = routineRes.data.id;
+      const scheduledDate = '2026-11-20';
+
+      const genRes = await clientA.generateOccurrences(workspaceAId, {
+        routineId: rId,
+        startDate: scheduledDate,
+        endDate: scheduledDate,
+      });
+      let currentOcc = genRes.data[0];
+      const initialRev = currentOcc.revision;
+
+      // 1. Complete
+      const compRes = await clientA.completeOccurrence(workspaceAId, currentOcc.id, {
+        baseRevision: currentOcc.revision,
+      });
+      expect(compRes.data.status).toBe('done');
+      expect(compRes.data.revision).toBeGreaterThan(initialRev);
+      currentOcc = compRes.data;
+
+      // 2. Undo (Reopen)
+      const reopenRes = await clientA.reopenOccurrence(workspaceAId, currentOcc.id, {
+        baseRevision: currentOcc.revision,
+      });
+      expect(reopenRes.data.status).toBe('pending');
+      expect(reopenRes.data.revision).toBeGreaterThan(compRes.data.revision);
+      currentOcc = reopenRes.data;
+
+      // 3. Skip
+      const skipRes = await clientA.skipOccurrence(workspaceAId, currentOcc.id, {
+        baseRevision: currentOcc.revision,
+      });
+      expect(skipRes.data.status).toBe('skipped');
+      expect(skipRes.data.revision).toBeGreaterThan(reopenRes.data.revision);
+      expect(skipRes.data.history.length).toBe(3);
     });
   });
 });

@@ -32,6 +32,7 @@ import {
   isRoutineScheduledOnDate,
   calculateGentleProgress,
   reconcileOccurrencesOnScheduleChange,
+  selectApplicableScheduleRule,
   isTaskDueToday,
   isTaskOverdue,
   type RoutineFrequency,
@@ -39,6 +40,7 @@ import {
   type RoutineOccurrenceStatus,
   type RoutineOccurrence,
   type RoutineTemplateRule,
+  type RoutineOccurrenceTransition,
 } from '@daynori/domain';
 
 export const TodayView: React.FC = () => {
@@ -48,7 +50,7 @@ export const TodayView: React.FC = () => {
   const { workspaceId, user } = useAuth();
 
   // Viewing timezone
-  const [viewingTimezone] = useState<string>(() => {
+  const [viewingTimezone, setViewingTimezone] = useState<string>(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     } catch {
@@ -56,10 +58,13 @@ export const TodayView: React.FC = () => {
     }
   });
 
-  // Calculate Today and Yesterday calendar dates in user's timezone
+  // Current calendar reference time
+  const [currentNow, setCurrentNow] = useState<Date>(() => new Date());
+
+  // Calculate Today and Yesterday calendar dates in user's viewing timezone
   const todayDate = useMemo(() => {
-    return getCalendarDateInTimezone(new Date(), viewingTimezone);
-  }, [viewingTimezone]);
+    return getCalendarDateInTimezone(currentNow, viewingTimezone);
+  }, [currentNow, viewingTimezone]);
 
   const yesterdayDate = useMemo(() => {
     return addCalendarDays(todayDate, -1);
@@ -74,6 +79,7 @@ export const TodayView: React.FC = () => {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingRoutine, setEditingRoutine] = useState<RoutineRecord | null>(null);
   const [historyRoutine, setHistoryRoutine] = useState<RoutineRecord | null>(null);
+  const [historyOccurrences, setHistoryOccurrences] = useState<RoutineOccurrenceRecord[]>([]);
 
   // Undo Toast state
   const [undoToast, setUndoToast] = useState<{
@@ -140,6 +146,14 @@ export const TodayView: React.FC = () => {
           },
         });
         syncEngineRef.current = engine;
+
+        // Subscribe to synchronization updates so arriving records appear without manual reload
+        engine.onEvent((event) => {
+          if (event.type === 'sync_completed' && event.changesCount > 0) {
+            void loadData();
+          }
+        });
+
         await engine.start();
       }
 
@@ -152,25 +166,62 @@ export const TodayView: React.FC = () => {
         addCalendarDays(todayDate, 7)
       );
 
-      // Generate missing occurrences for today if routine is scheduled today
+      // Generate missing occurrences for each routine using its scheduling timezone and applicable schedule rule
       const updatedOccurrences = [...loadedOccurrences];
       for (const r of loadedRoutines) {
-        if (!r.isPaused && !r.isArchived && isRoutineScheduledOnDate(r, todayDate)) {
+        const routineDate = getCalendarDateInTimezone(currentNow, r.timezone);
+        const rule: RoutineTemplateRule = {
+          id: r.id,
+          workspaceId: r.workspaceId,
+          folderId: r.folderId,
+          title: r.title,
+          details: r.details,
+          frequency: r.frequency,
+          weekdays: r.weekdays,
+          timezone: r.timezone,
+          scheduledTime: r.scheduledTime,
+          activeFrom: r.activeFrom,
+          activeTo: r.activeTo,
+          isPaused: r.isPaused,
+          isArchived: r.isArchived,
+          scheduleRevision: r.scheduleRevision,
+          effectiveDate: r.effectiveDate,
+        };
+        const applicable = selectApplicableScheduleRule([], rule, routineDate);
+        const ruleTarget = {
+          frequency: applicable.frequency,
+          weekdays: applicable.weekdays,
+          activeFrom: applicable.activeFrom,
+          activeTo: applicable.activeTo,
+          isPaused: r.isPaused,
+          isArchived: r.isArchived,
+        };
+
+        if (!r.isPaused && !r.isArchived && isRoutineScheduledOnDate(ruleTarget, routineDate)) {
           const exists = updatedOccurrences.some(
-            (o) => o.routineId === r.id && o.scheduledDate === todayDate && o.status !== 'cancelled'
+            (o) =>
+              o.routineId === r.id && o.scheduledDate === routineDate && o.status !== 'cancelled'
           );
           if (!exists) {
-            const deterministicId = computeDeterministicOccurrenceId(workspaceId, r.id, todayDate);
-            const plannedInstant = calculatePlannedInstant(todayDate, r.scheduledTime, r.timezone);
+            const deterministicId = computeDeterministicOccurrenceId(
+              workspaceId,
+              r.id,
+              routineDate
+            );
+            const plannedInstant = calculatePlannedInstant(
+              routineDate,
+              applicable.scheduledTime,
+              applicable.timezone
+            );
             const nowIso = new Date().toISOString();
             const newOcc: RoutineOccurrenceRecord = {
               id: deterministicId,
               workspaceId,
               routineId: r.id,
-              scheduledDate: todayDate,
-              scheduleRevision: r.scheduleRevision,
+              scheduledDate: routineDate,
+              scheduleRevision: applicable.scheduleRevision,
               plannedInstant,
-              timezone: r.timezone,
+              timezone: applicable.timezone,
               status: 'pending',
               completedAt: null,
               completedBy: null,
@@ -203,7 +254,47 @@ export const TodayView: React.FC = () => {
       setErrorMessage(err instanceof Error ? err.message : String(err));
       setIsLoading(false);
     }
-  }, [workspaceId, user?.id, todayDate, yesterdayDate, viewingTimezone]);
+  }, [workspaceId, user?.id, todayDate, yesterdayDate, viewingTimezone, currentNow]);
+
+  // Calendar boundary rollover, resume, and timezone change listeners
+  useEffect(() => {
+    const checkCalendarDate = () => {
+      const now = new Date();
+      const currentCalDate = getCalendarDateInTimezone(now, viewingTimezone);
+      if (currentCalDate !== todayDate) {
+        setCurrentNow(now);
+      }
+      try {
+        const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        if (detectedTz !== viewingTimezone) {
+          setViewingTimezone(detectedTz);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const intervalId = setInterval(checkCalendarDate, 15000);
+
+    const handleResume = () => {
+      checkCalendarDate();
+      void loadData();
+    };
+
+    window.addEventListener('focus', handleResume);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleResume();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleResume);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [viewingTimezone, todayDate, loadData]);
 
   useEffect(() => {
     void loadData();
@@ -219,18 +310,59 @@ export const TodayView: React.FC = () => {
     };
   }, [loadData]);
 
-  // Today's paired routine items: routines active today with their today occurrence
+  // Today's paired routine items: routines active today with their occurrence evaluated in their scheduling zone
   const todayRoutineItems = useMemo(() => {
     return routines
-      .filter((r) => isRoutineScheduledOnDate(r, todayDate) || r.isPaused)
       .map((routine) => {
+        const routineDate = getCalendarDateInTimezone(currentNow, routine.timezone);
+        const rule: RoutineTemplateRule = {
+          id: routine.id,
+          workspaceId: routine.workspaceId,
+          folderId: routine.folderId,
+          title: routine.title,
+          details: routine.details,
+          frequency: routine.frequency,
+          weekdays: routine.weekdays,
+          timezone: routine.timezone,
+          scheduledTime: routine.scheduledTime,
+          activeFrom: routine.activeFrom,
+          activeTo: routine.activeTo,
+          isPaused: routine.isPaused,
+          isArchived: routine.isArchived,
+          scheduleRevision: routine.scheduleRevision,
+          effectiveDate: routine.effectiveDate,
+        };
+        const applicable = selectApplicableScheduleRule([], rule, routineDate);
+        const ruleTarget = {
+          frequency: applicable.frequency,
+          weekdays: applicable.weekdays,
+          activeFrom: applicable.activeFrom,
+          activeTo: applicable.activeTo,
+          isPaused: routine.isPaused,
+          isArchived: routine.isArchived,
+        };
+        const isScheduled = isRoutineScheduledOnDate(ruleTarget, routineDate);
+        if (!isScheduled && !routine.isPaused) {
+          return null;
+        }
         const occ = occurrences.find(
           (o) =>
-            o.routineId === routine.id && o.scheduledDate === todayDate && o.status !== 'cancelled'
+            o.routineId === routine.id &&
+            o.scheduledDate === routineDate &&
+            o.status !== 'cancelled'
         );
-        return { routine, occurrence: occ || null };
-      });
-  }, [routines, occurrences, todayDate]);
+        return { routine, occurrence: occ || null, routineDate };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          routine: RoutineRecord;
+          occurrence: RoutineOccurrenceRecord | null;
+          routineDate: string;
+        } => item !== null
+      );
+  }, [routines, occurrences, currentNow]);
 
   // Gentle progress summary
   const progress = useMemo(() => {
@@ -239,6 +371,24 @@ export const TodayView: React.FC = () => {
       .filter((o): o is RoutineOccurrenceRecord => o !== null);
     return calculateGentleProgress(todayOccs);
   }, [todayRoutineItems]);
+
+  // Bounded History Loading
+  const handleOpenHistory = async (routine: RoutineRecord) => {
+    setHistoryRoutine(routine);
+    if (localRepoRef.current && workspaceId) {
+      const routineDate = getCalendarDateInTimezone(currentNow, routine.timezone);
+      const past90 = addCalendarDays(routineDate, -90);
+      const loaded = await localRepoRef.current.listRoutineOccurrences(
+        workspaceId,
+        routine.id,
+        past90,
+        routineDate
+      );
+      setHistoryOccurrences(loaded);
+    } else {
+      setHistoryOccurrences(occurrences.filter((o) => o.routineId === routine.id));
+    }
+  };
 
   // Routine Checklist Actions
   const handleCompleteOccurrence = async (occurrenceId: string) => {
@@ -251,7 +401,7 @@ export const TodayView: React.FC = () => {
     const prevHistory = [...occ.history];
 
     const nowIso = new Date().toISOString();
-    const updatedHistory = [
+    const updatedHistory: RoutineOccurrenceRecord['history'] = [
       ...occ.history,
       {
         fromStatus: occ.status,
@@ -260,6 +410,7 @@ export const TodayView: React.FC = () => {
         changedAt: nowIso,
         transitionedAt: nowIso,
         actorId: user?.id || null,
+        reason: null,
       },
     ];
 
@@ -270,16 +421,16 @@ export const TodayView: React.FC = () => {
       completedBy: user?.id || null,
       history: updatedHistory,
       updatedAt: nowIso,
-      serverRevision: occ.serverRevision + 1,
+      // Keep authoritative serverRevision (do NOT increment locally)
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
+    setHistoryOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertRoutineOccurrence(updated);
-    }
     if (syncEngineRef.current) {
       await syncEngineRef.current.saveRoutineOccurrence(updated, 'completeOccurrence');
+    } else if (localRepoRef.current) {
+      await localRepoRef.current.upsertRoutineOccurrence(updated);
     }
 
     setUndoToast({
@@ -304,7 +455,7 @@ export const TodayView: React.FC = () => {
     const prevHistory = [...occ.history];
 
     const nowIso = new Date().toISOString();
-    const updatedHistory = [
+    const updatedHistory: RoutineOccurrenceRecord['history'] = [
       ...occ.history,
       {
         fromStatus: occ.status,
@@ -313,6 +464,7 @@ export const TodayView: React.FC = () => {
         changedAt: nowIso,
         transitionedAt: nowIso,
         actorId: user?.id || null,
+        reason: null,
       },
     ];
 
@@ -323,16 +475,16 @@ export const TodayView: React.FC = () => {
       completedBy: null,
       history: updatedHistory,
       updatedAt: nowIso,
-      serverRevision: occ.serverRevision + 1,
+      // Keep authoritative serverRevision
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
+    setHistoryOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertRoutineOccurrence(updated);
-    }
     if (syncEngineRef.current) {
       await syncEngineRef.current.saveRoutineOccurrence(updated, 'skipOccurrence');
+    } else if (localRepoRef.current) {
+      await localRepoRef.current.upsertRoutineOccurrence(updated);
     }
 
     setUndoToast({
@@ -353,7 +505,7 @@ export const TodayView: React.FC = () => {
     const routine = routines.find((r) => r.id === occ.routineId);
 
     const nowIso = new Date().toISOString();
-    const updatedHistory = [
+    const updatedHistory: RoutineOccurrenceRecord['history'] = [
       ...occ.history,
       {
         fromStatus: occ.status,
@@ -362,6 +514,7 @@ export const TodayView: React.FC = () => {
         changedAt: nowIso,
         transitionedAt: nowIso,
         actorId: user?.id || null,
+        reason: null,
       },
     ];
 
@@ -372,16 +525,16 @@ export const TodayView: React.FC = () => {
       completedBy: null,
       history: updatedHistory,
       updatedAt: nowIso,
-      serverRevision: occ.serverRevision + 1,
+      // Keep authoritative serverRevision
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
+    setHistoryOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertRoutineOccurrence(updated);
-    }
     if (syncEngineRef.current) {
       await syncEngineRef.current.saveRoutineOccurrence(updated, 'reopenOccurrence');
+    } else if (localRepoRef.current) {
+      await localRepoRef.current.upsertRoutineOccurrence(updated);
     }
 
     setUndoToast(null);
@@ -393,21 +546,35 @@ export const TodayView: React.FC = () => {
     const occ = occurrences.find((o) => o.id === undoToast.occurrenceId);
     if (!occ) return;
 
+    // Use a revision-protected compensating transition that preserves audit trail
+    const targetStatus = undoToast.previousStatus;
     const nowIso = new Date().toISOString();
+    const compensatingTransition: RoutineOccurrenceTransition = {
+      fromStatus: occ.status,
+      toStatus: targetStatus,
+      status: targetStatus,
+      previousStatus: occ.status,
+      changedAt: nowIso,
+      transitionedAt: nowIso,
+      actorId: user?.id || null,
+      reason: 'Compensating undo action',
+    };
+
     const restored: RoutineOccurrenceRecord = {
       ...occ,
-      status: undoToast.previousStatus,
-      completedAt: undoToast.previousCompletedAt,
-      history: undoToast.previousHistory,
+      status: targetStatus,
+      completedAt: targetStatus === 'done' ? undoToast.previousCompletedAt || nowIso : null,
+      completedBy: targetStatus === 'done' ? user?.id || null : null,
+      history: [...occ.history, compensatingTransition],
       updatedAt: nowIso,
-      serverRevision: occ.serverRevision + 1,
+      // Keep authoritative serverRevision
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === undoToast.occurrenceId ? restored : o)));
+    setHistoryOccurrences((prev) =>
+      prev.map((o) => (o.id === undoToast.occurrenceId ? restored : o))
+    );
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertRoutineOccurrence(restored);
-    }
     if (syncEngineRef.current) {
       const command =
         restored.status === 'done'
@@ -416,6 +583,8 @@ export const TodayView: React.FC = () => {
             ? 'skipOccurrence'
             : 'reopenOccurrence';
       await syncEngineRef.current.saveRoutineOccurrence(restored, command);
+    } else if (localRepoRef.current) {
+      await localRepoRef.current.upsertRoutineOccurrence(restored);
     }
 
     setUndoToast(null);
@@ -431,20 +600,19 @@ export const TodayView: React.FC = () => {
     const updated: RoutineRecord = {
       ...routine,
       isPaused: newPaused,
-      serverRevision: routine.serverRevision + 1,
       updatedAt: new Date().toISOString(),
+      // Keep authoritative serverRevision
     };
 
     setRoutines((prev) => prev.map((r) => (r.id === routineId ? updated : r)));
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertRoutine(updated);
-    }
     if (syncEngineRef.current) {
       await syncEngineRef.current.saveRoutine(
         updated,
         newPaused ? 'pauseRoutine' : 'resumeRoutine'
       );
+    } else if (localRepoRef.current) {
+      await localRepoRef.current.upsertRoutine(updated);
     }
 
     announce(
@@ -471,7 +639,6 @@ export const TodayView: React.FC = () => {
 
     if (editingRoutine) {
       // Update routine
-      const nextRev = editingRoutine.serverRevision + 1;
       const nextScheduleRev = editingRoutine.scheduleRevision + 1;
 
       const updated: RoutineRecord = {
@@ -487,7 +654,7 @@ export const TodayView: React.FC = () => {
         effectiveDate: formData.effectiveDate,
         isPaused: formData.isPaused,
         scheduleRevision: nextScheduleRev,
-        serverRevision: nextRev,
+        // Keep authoritative serverRevision
         updatedAt: nowIso,
       };
 
@@ -559,7 +726,6 @@ export const TodayView: React.FC = () => {
       setOccurrences(reconciledOccurrences);
 
       if (localRepoRef.current) {
-        await localRepoRef.current.upsertRoutine(updated);
         for (const o of reconciledOccurrences) {
           await localRepoRef.current.upsertRoutineOccurrence(o);
         }
@@ -567,6 +733,8 @@ export const TodayView: React.FC = () => {
 
       if (syncEngineRef.current) {
         await syncEngineRef.current.saveRoutine(updated, 'updateRoutine');
+      } else if (localRepoRef.current) {
+        await localRepoRef.current.upsertRoutine(updated);
       }
 
       announce(`Updated routine "${updated.title}".`);
@@ -596,11 +764,12 @@ export const TodayView: React.FC = () => {
         deletedAt: null,
       };
 
+      const routineDate = getCalendarDateInTimezone(currentNow, newRoutine.timezone);
       const newOccs: RoutineOccurrenceRecord[] = [];
-      if (isRoutineScheduledOnDate(newRoutine, todayDate)) {
-        const occId = computeDeterministicOccurrenceId(workspaceId, newId, todayDate);
+      if (isRoutineScheduledOnDate(newRoutine, routineDate)) {
+        const occId = computeDeterministicOccurrenceId(workspaceId, newId, routineDate);
         const plannedInstant = calculatePlannedInstant(
-          todayDate,
+          routineDate,
           newRoutine.scheduledTime,
           newRoutine.timezone
         );
@@ -608,7 +777,7 @@ export const TodayView: React.FC = () => {
           id: occId,
           workspaceId,
           routineId: newId,
-          scheduledDate: todayDate,
+          scheduledDate: routineDate,
           scheduleRevision: 1,
           plannedInstant,
           timezone: newRoutine.timezone,
@@ -626,18 +795,18 @@ export const TodayView: React.FC = () => {
       setRoutines((prev) => [...prev, newRoutine]);
       setOccurrences((prev) => [...prev, ...newOccs]);
 
+      // Save pending occurrences locally so they are visible immediately
       if (localRepoRef.current) {
-        await localRepoRef.current.upsertRoutine(newRoutine);
         for (const o of newOccs) {
           await localRepoRef.current.upsertRoutineOccurrence(o);
         }
       }
 
+      // Save routine to SyncEngine - DO NOT queue completeOccurrence!
       if (syncEngineRef.current) {
         await syncEngineRef.current.saveRoutine(newRoutine, 'createRoutine');
-        for (const o of newOccs) {
-          await syncEngineRef.current.saveRoutineOccurrence(o, 'completeOccurrence');
-        }
+      } else if (localRepoRef.current) {
+        await localRepoRef.current.upsertRoutine(newRoutine);
       }
 
       announce(`Created new routine "${newRoutine.title}".`);
@@ -656,14 +825,11 @@ export const TodayView: React.FC = () => {
       status: newStatus,
       completedAt: newStatus === 'completed' ? nowIso : null,
       updatedAt: nowIso,
-      serverRevision: task.serverRevision + 1,
+      // Keep authoritative serverRevision
     };
 
     setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertTask(updated);
-    }
     if (syncEngineRef.current) {
       const itemHeader: ItemHeaderRecord = {
         id: task.id,
@@ -688,6 +854,8 @@ export const TodayView: React.FC = () => {
           payload: { status: newStatus, completedAt: updated.completedAt },
         }
       );
+    } else if (localRepoRef.current) {
+      await localRepoRef.current.upsertTask(updated);
     }
 
     announce(
@@ -1057,7 +1225,7 @@ export const TodayView: React.FC = () => {
                   No routines scheduled for today.
                 </div>
               ) : (
-                todayRoutineItems.map(({ routine, occurrence }) => (
+                todayRoutineItems.map(({ routine, occurrence, routineDate }) => (
                   <RoutineRow
                     key={routine.id}
                     routine={{
@@ -1072,7 +1240,7 @@ export const TodayView: React.FC = () => {
                       isArchived: routine.isArchived,
                     }}
                     occurrence={occurrence}
-                    viewingDate={todayDate}
+                    viewingDate={routineDate}
                     themeMode={themeMode}
                     onComplete={handleCompleteOccurrence}
                     onSkip={handleSkipOccurrence}
@@ -1087,7 +1255,7 @@ export const TodayView: React.FC = () => {
                     onViewHistory={(id) => {
                       const r = routines.find((item) => item.id === id);
                       if (r) {
-                        setHistoryRoutine(r);
+                        void handleOpenHistory(r);
                       }
                     }}
                     onTogglePause={handleTogglePauseRoutine}
@@ -1295,9 +1463,12 @@ export const TodayView: React.FC = () => {
       {historyRoutine && (
         <RoutineHistoryViewer
           isOpen={Boolean(historyRoutine)}
-          onClose={() => setHistoryRoutine(null)}
+          onClose={() => {
+            setHistoryRoutine(null);
+            setHistoryOccurrences([]);
+          }}
           routineTitle={historyRoutine.title}
-          occurrences={occurrences
+          occurrences={historyOccurrences
             .filter((o) => o.routineId === historyRoutine.id)
             .map((o) => ({
               ...o,

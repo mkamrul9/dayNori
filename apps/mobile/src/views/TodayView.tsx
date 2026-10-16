@@ -1,5 +1,13 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import {
+  ActivityIndicator,
+  AppState,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   MobileButton,
@@ -13,10 +21,25 @@ import {
 import {
   calculateGentleProgress,
   explainWhyDueToday,
+  getCalendarDateInTimezone,
+  addCalendarDays,
+  calculatePlannedInstant,
+  computeDeterministicOccurrenceId,
+  isRoutineScheduledOnDate,
+  isTaskDueToday,
+  isTaskOverdue,
   type RoutineFrequency,
   type Weekday,
   type RoutineOccurrenceStatus,
+  type RoutineOccurrenceTransition,
 } from '@daynori/domain';
+import type {
+  LocalRepositoryPort,
+  SyncEngine,
+  RoutineOccurrenceRecord,
+  TaskRecord,
+  ItemHeaderRecord,
+} from '@daynori/sync';
 
 export interface MobileRoutineItem {
   id: string;
@@ -57,6 +80,11 @@ export interface TodayViewProps {
   initialRoutines?: MobileRoutineItem[];
   initialOccurrences?: MobileOccurrenceItem[];
   initialTasks?: MobileTaskItem[];
+  repository?: LocalRepositoryPort;
+  syncEngine?: SyncEngine;
+  workspaceId?: string | null;
+  userId?: string | null;
+  isOnline?: boolean;
 }
 
 const DEFAULT_TODAY = '2026-10-14';
@@ -145,18 +173,51 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onNavigateToJournal,
   onOpenCreate,
   testID = 'today-view',
-  todayDate = DEFAULT_TODAY,
+  todayDate: todayDateProp = DEFAULT_TODAY,
   initialRoutines = DEFAULT_ROUTINES,
   initialOccurrences = DEFAULT_OCCURRENCES,
   initialTasks = DEFAULT_TASKS,
+  repository,
+  syncEngine,
+  workspaceId,
+  userId,
+  isOnline: _isOnline = true,
 }) => {
   const palette = colors[themeMode];
+  const isProduction = Boolean(repository && workspaceId);
+
+  // Timezone & dynamic calendar reference
+  const [viewingTimezone] = useState<string>(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  });
+
+  const [currentNow, setCurrentNow] = useState<Date>(() => new Date());
+
+  const todayDate = useMemo(() => {
+    if (!isProduction) return todayDateProp;
+    return getCalendarDateInTimezone(currentNow, viewingTimezone);
+  }, [isProduction, todayDateProp, currentNow, viewingTimezone]);
+
+  const yesterdayDate = useMemo(() => {
+    return addCalendarDays(todayDate, -1);
+  }, [todayDate]);
 
   // Interactive state toggles for testing empty, loading, and error states
   const [demoState, setDemoState] = useState<'normal' | 'empty' | 'loading' | 'error'>('normal');
   const [tasks, setTasks] = useState<MobileTaskItem[]>(initialTasks);
-  const [routines] = useState<MobileRoutineItem[]>(initialRoutines);
+  const [routines, setRoutines] = useState<MobileRoutineItem[]>(initialRoutines);
   const [occurrences, setOccurrences] = useState<MobileOccurrenceItem[]>(initialOccurrences);
+  const rawTasksRef = useRef<TaskRecord[]>([]);
+
+  // History sheet state
+  const [historyRoutine, setHistoryRoutine] = useState<MobileRoutineItem | null>(null);
+  const [historyOccurrencesList, setHistoryOccurrencesList] = useState<RoutineOccurrenceRecord[]>(
+    []
+  );
 
   // Undo notification state
   const [undoNotice, setUndoNotice] = useState<{
@@ -165,11 +226,142 @@ export const TodayView: React.FC<TodayViewProps> = ({
     occurrenceId: string;
     previousStatus: RoutineOccurrenceStatus;
     previousCompletedAt: string | null;
+    previousHistory: RoutineOccurrenceTransition[];
   } | null>(null);
   const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // History sheet state
-  const [historyRoutine, setHistoryRoutine] = useState<MobileRoutineItem | null>(null);
+  // Production data loader
+  const loadProductionData = useCallback(async () => {
+    if (!repository || !workspaceId) return;
+
+    try {
+      const loadedRoutines = await repository.listRoutines(workspaceId);
+      const loadedOccurrences = await repository.listRoutineOccurrences(
+        workspaceId,
+        undefined,
+        yesterdayDate,
+        addCalendarDays(todayDate, 7)
+      );
+
+      // Generate missing occurrences for each routine using its scheduling timezone
+      const updatedOccurrences = [...loadedOccurrences];
+      for (const r of loadedRoutines) {
+        const routineDate = getCalendarDateInTimezone(currentNow, r.timezone);
+        if (!r.isPaused && !r.isArchived && isRoutineScheduledOnDate(r, routineDate)) {
+          const exists = updatedOccurrences.some(
+            (o) =>
+              o.routineId === r.id && o.scheduledDate === routineDate && o.status !== 'cancelled'
+          );
+          if (!exists) {
+            const deterministicId = computeDeterministicOccurrenceId(
+              workspaceId,
+              r.id,
+              routineDate
+            );
+            const plannedInstant = calculatePlannedInstant(
+              routineDate,
+              r.scheduledTime,
+              r.timezone
+            );
+            const nowIso = new Date().toISOString();
+            const newOcc: RoutineOccurrenceRecord = {
+              id: deterministicId,
+              workspaceId,
+              routineId: r.id,
+              scheduledDate: routineDate,
+              scheduleRevision: r.scheduleRevision,
+              plannedInstant,
+              timezone: r.timezone,
+              status: 'pending',
+              completedAt: null,
+              completedBy: null,
+              history: [],
+              serverRevision: 1,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            };
+            await repository.upsertRoutineOccurrence(newOcc);
+            updatedOccurrences.push(newOcc);
+          }
+        }
+      }
+
+      // Filter tasks due today
+      const allTasks = await repository.listTasks(workspaceId);
+      rawTasksRef.current = allTasks;
+      const refDate = new Date();
+      const todayTasks = allTasks.filter(
+        (t) =>
+          t.deletedAt === null &&
+          (isTaskDueToday({ deadline: t.deadline }, refDate, viewingTimezone) ||
+            isTaskOverdue({ status: t.status, deadline: t.deadline }, refDate, viewingTimezone))
+      );
+
+      setRoutines(
+        loadedRoutines.map((r) => ({
+          id: r.id,
+          title: r.title,
+          details: r.details,
+          frequency: r.frequency,
+          weekdays: r.weekdays,
+          timezone: r.timezone,
+          scheduledTime: r.scheduledTime,
+          activeFrom: r.activeFrom,
+          activeTo: r.activeTo,
+          isPaused: r.isPaused,
+          isArchived: r.isArchived,
+        }))
+      );
+      setOccurrences(
+        updatedOccurrences.map((o) => ({
+          id: o.id,
+          routineId: o.routineId,
+          status: o.status,
+          completedAt: o.completedAt,
+          scheduledDate: o.scheduledDate,
+        }))
+      );
+      setTasks(
+        todayTasks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          due: t.deadline?.type === 'timed' ? `Due ${t.deadline.timestamp.slice(11, 16)}` : 'Today',
+          completed: t.status === 'completed',
+        }))
+      );
+    } catch {
+      // ignore
+    }
+  }, [repository, workspaceId, yesterdayDate, todayDate, currentNow, viewingTimezone]);
+
+  useEffect(() => {
+    if (isProduction) {
+      void loadProductionData();
+    }
+  }, [isProduction, loadProductionData]);
+
+  // AppState foreground resume listener
+  useEffect(() => {
+    if (!isProduction) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setCurrentNow(new Date());
+        void loadProductionData();
+      }
+    });
+    return () => sub.remove();
+  }, [isProduction, loadProductionData]);
+
+  // SyncEngine event listener
+  useEffect(() => {
+    if (!syncEngine || !isProduction) return;
+    const unsub = syncEngine.onEvent((event) => {
+      if (event.type === 'sync_completed' && event.changesCount > 0) {
+        void loadProductionData();
+      }
+    });
+    return unsub;
+  }, [syncEngine, isProduction, loadProductionData]);
 
   useEffect(() => {
     return () => {
@@ -179,16 +371,60 @@ export const TodayView: React.FC<TodayViewProps> = ({
     };
   }, []);
 
-  const toggleTask = (id: string) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  const toggleTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const newCompleted = !task.completed;
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, completed: newCompleted } : t)));
+
+    if (rawTasksRef.current && workspaceId) {
+      const rawTask = rawTasksRef.current.find((t) => t.id === id);
+      if (rawTask) {
+        const nowIso = new Date().toISOString();
+        const updatedTask: TaskRecord = {
+          ...rawTask,
+          status: newCompleted ? 'completed' : 'todo',
+          completedAt: newCompleted ? nowIso : null,
+          updatedAt: nowIso,
+        };
+        if (syncEngine) {
+          const itemHeader: ItemHeaderRecord = {
+            id: rawTask.id,
+            workspaceId,
+            folderId: rawTask.folderId,
+            name: rawTask.title,
+            kind: 'task',
+            rank: '00001000',
+            securityScope: 'standard',
+            isArchived: false,
+            isPinned: false,
+            serverRevision: rawTask.serverRevision,
+            createdAt: rawTask.createdAt,
+            updatedAt: nowIso,
+            deletedAt: null,
+          };
+          await syncEngine.saveItem(
+            itemHeader,
+            undefined,
+            newCompleted ? 'completeTask' : 'reopenTask',
+            { payload: { status: updatedTask.status, completedAt: updatedTask.completedAt } }
+          );
+        } else if (repository) {
+          await repository.upsertTask(updatedTask);
+        }
+      }
+    }
   };
 
   // Find occurrence for a routine today
   const getTodayOccurrence = (routineId: string): MobileOccurrenceItem | null => {
+    const routine = routines.find((r) => r.id === routineId);
+    const routineDate =
+      isProduction && routine ? getCalendarDateInTimezone(currentNow, routine.timezone) : todayDate;
     return (
       occurrences.find(
         (o) =>
-          o.routineId === routineId && o.scheduledDate === todayDate && o.status !== 'cancelled'
+          o.routineId === routineId && o.scheduledDate === routineDate && o.status !== 'cancelled'
       ) || null
     );
   };
@@ -206,7 +442,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
     routineId: string,
     occurrenceId: string,
     previousStatus: RoutineOccurrenceStatus,
-    previousCompletedAt: string | null
+    previousCompletedAt: string | null,
+    previousHistory: RoutineOccurrenceTransition[] = []
   ) => {
     if (undoTimeoutRef.current) {
       clearTimeout(undoTimeoutRef.current);
@@ -217,13 +454,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
       occurrenceId,
       previousStatus,
       previousCompletedAt,
+      previousHistory,
     });
     undoTimeoutRef.current = setTimeout(() => {
       setUndoNotice(null);
     }, 5000);
   };
 
-  const handleCompleteRoutine = (routineId: string, occurrenceId?: string) => {
+  const handleCompleteRoutine = async (routineId: string, occurrenceId?: string) => {
     const occ = occurrenceId
       ? occurrences.find((o) => o.id === occurrenceId)
       : getTodayOccurrence(routineId);
@@ -231,7 +469,28 @@ export const TodayView: React.FC<TodayViewProps> = ({
     const prevStatus = occ?.status || 'pending';
     const prevCompletedAt = occ?.completedAt || null;
     const nowIso = new Date().toISOString();
-    const effectiveOccId = occ?.id || `occ_${routineId}_${todayDate}`;
+    const routine = routines.find((r) => r.id === routineId);
+    const routineDate =
+      isProduction && routine ? getCalendarDateInTimezone(currentNow, routine.timezone) : todayDate;
+    const effectiveOccId =
+      occ?.id ||
+      (workspaceId
+        ? computeDeterministicOccurrenceId(workspaceId, routineId, routineDate)
+        : `occ_${routineId}_${todayDate}`);
+
+    const prevHistory = (occ as RoutineOccurrenceRecord)?.history || [];
+    const updatedHistory: RoutineOccurrenceTransition[] = [
+      ...prevHistory,
+      {
+        fromStatus: prevStatus,
+        toStatus: 'done',
+        status: 'done',
+        changedAt: nowIso,
+        transitionedAt: nowIso,
+        actorId: userId || null,
+        reason: null,
+      },
+    ];
 
     setOccurrences((prev) => {
       const existing = prev.find((o) => o.id === effectiveOccId);
@@ -247,29 +506,76 @@ export const TodayView: React.FC<TodayViewProps> = ({
           routineId,
           status: 'done',
           completedAt: nowIso,
-          scheduledDate: todayDate,
+          scheduledDate: routineDate,
         },
       ];
     });
 
-    const routine = routines.find((r) => r.id === routineId);
+    if (isProduction && workspaceId) {
+      const occRecord: RoutineOccurrenceRecord = {
+        id: effectiveOccId,
+        workspaceId,
+        routineId,
+        scheduledDate: occ?.scheduledDate || routineDate,
+        scheduleRevision: 1,
+        plannedInstant: null,
+        timezone: routine?.timezone || 'UTC',
+        status: 'done',
+        completedAt: nowIso,
+        completedBy: userId || null,
+        history: updatedHistory,
+        serverRevision: (occ as RoutineOccurrenceRecord)?.serverRevision || 1,
+        createdAt: (occ as RoutineOccurrenceRecord)?.createdAt || nowIso,
+        updatedAt: nowIso,
+      };
+
+      if (syncEngine) {
+        await syncEngine.saveRoutineOccurrence(occRecord, 'completeOccurrence');
+      } else if (repository) {
+        await repository.upsertRoutineOccurrence(occRecord);
+      }
+    }
+
     showUndoToast(
       `Marked "${routine?.title || 'routine'}" as done.`,
       routineId,
       effectiveOccId,
       prevStatus,
-      prevCompletedAt
+      prevCompletedAt,
+      prevHistory
     );
   };
 
-  const handleSkipRoutine = (routineId: string, occurrenceId?: string) => {
+  const handleSkipRoutine = async (routineId: string, occurrenceId?: string) => {
     const occ = occurrenceId
       ? occurrences.find((o) => o.id === occurrenceId)
       : getTodayOccurrence(routineId);
 
     const prevStatus = occ?.status || 'pending';
     const prevCompletedAt = occ?.completedAt || null;
-    const effectiveOccId = occ?.id || `occ_${routineId}_${todayDate}`;
+    const nowIso = new Date().toISOString();
+    const routine = routines.find((r) => r.id === routineId);
+    const routineDate =
+      isProduction && routine ? getCalendarDateInTimezone(currentNow, routine.timezone) : todayDate;
+    const effectiveOccId =
+      occ?.id ||
+      (workspaceId
+        ? computeDeterministicOccurrenceId(workspaceId, routineId, routineDate)
+        : `occ_${routineId}_${todayDate}`);
+
+    const prevHistory = (occ as RoutineOccurrenceRecord)?.history || [];
+    const updatedHistory: RoutineOccurrenceTransition[] = [
+      ...prevHistory,
+      {
+        fromStatus: prevStatus,
+        toStatus: 'skipped',
+        status: 'skipped',
+        changedAt: nowIso,
+        transitionedAt: nowIso,
+        actorId: userId || null,
+        reason: null,
+      },
+    ];
 
     setOccurrences((prev) => {
       const existing = prev.find((o) => o.id === effectiveOccId);
@@ -285,38 +591,122 @@ export const TodayView: React.FC<TodayViewProps> = ({
           routineId,
           status: 'skipped',
           completedAt: null,
-          scheduledDate: todayDate,
+          scheduledDate: routineDate,
         },
       ];
     });
 
-    const routine = routines.find((r) => r.id === routineId);
+    if (isProduction && workspaceId) {
+      const occRecord: RoutineOccurrenceRecord = {
+        id: effectiveOccId,
+        workspaceId,
+        routineId,
+        scheduledDate: occ?.scheduledDate || routineDate,
+        scheduleRevision: 1,
+        plannedInstant: null,
+        timezone: routine?.timezone || 'UTC',
+        status: 'skipped',
+        completedAt: null,
+        completedBy: null,
+        history: updatedHistory,
+        serverRevision: (occ as RoutineOccurrenceRecord)?.serverRevision || 1,
+        createdAt: (occ as RoutineOccurrenceRecord)?.createdAt || nowIso,
+        updatedAt: nowIso,
+      };
+
+      if (syncEngine) {
+        await syncEngine.saveRoutineOccurrence(occRecord, 'skipOccurrence');
+      } else if (repository) {
+        await repository.upsertRoutineOccurrence(occRecord);
+      }
+    }
+
     showUndoToast(
       `Skipped "${routine?.title || 'routine'}".`,
       routineId,
       effectiveOccId,
       prevStatus,
-      prevCompletedAt
+      prevCompletedAt,
+      prevHistory
     );
   };
 
-  const handleReopenRoutine = (routineId: string, occurrenceId?: string) => {
-    const effectiveOccId = occurrenceId || getTodayOccurrence(routineId)?.id;
-    if (!effectiveOccId) return;
+  const handleReopenRoutine = async (routineId: string, occurrenceId?: string) => {
+    const occ = occurrenceId
+      ? occurrences.find((o) => o.id === occurrenceId)
+      : getTodayOccurrence(routineId);
+    if (!occ) return;
+
+    const nowIso = new Date().toISOString();
+    const routine = routines.find((r) => r.id === routineId);
+    const prevHistory = (occ as RoutineOccurrenceRecord)?.history || [];
+    const updatedHistory: RoutineOccurrenceTransition[] = [
+      ...prevHistory,
+      {
+        fromStatus: occ.status,
+        toStatus: 'pending',
+        status: 'pending',
+        changedAt: nowIso,
+        transitionedAt: nowIso,
+        actorId: userId || null,
+        reason: null,
+      },
+    ];
 
     setOccurrences((prev) =>
-      prev.map((o) =>
-        o.id === effectiveOccId ? { ...o, status: 'pending', completedAt: null } : o
-      )
+      prev.map((o) => (o.id === occ.id ? { ...o, status: 'pending', completedAt: null } : o))
     );
+
+    if (isProduction && workspaceId) {
+      const occRecord: RoutineOccurrenceRecord = {
+        id: occ.id,
+        workspaceId,
+        routineId,
+        scheduledDate: occ.scheduledDate,
+        scheduleRevision: 1,
+        plannedInstant: (occ as RoutineOccurrenceRecord)?.plannedInstant || null,
+        timezone: routine?.timezone || 'UTC',
+        status: 'pending',
+        completedAt: null,
+        completedBy: null,
+        history: updatedHistory,
+        serverRevision: (occ as RoutineOccurrenceRecord)?.serverRevision || 1,
+        createdAt: (occ as RoutineOccurrenceRecord)?.createdAt || nowIso,
+        updatedAt: nowIso,
+      };
+
+      if (syncEngine) {
+        await syncEngine.saveRoutineOccurrence(occRecord, 'reopenOccurrence');
+      } else if (repository) {
+        await repository.upsertRoutineOccurrence(occRecord);
+      }
+    }
   };
 
-  const handleUndo = () => {
+  const handleUndo = async () => {
     if (!undoNotice) return;
     if (undoTimeoutRef.current) {
       clearTimeout(undoTimeoutRef.current);
     }
-    const { occurrenceId, previousStatus, previousCompletedAt } = undoNotice;
+    const { occurrenceId, previousStatus, previousCompletedAt, previousHistory } = undoNotice;
+    const occ = occurrences.find((o) => o.id === occurrenceId);
+    if (!occ) return;
+
+    const nowIso = new Date().toISOString();
+    const routine = routines.find((r) => r.id === occ.routineId);
+
+    // Revision-protected compensating transition
+    const compensatingTransition: RoutineOccurrenceTransition = {
+      fromStatus: occ.status,
+      toStatus: previousStatus,
+      status: previousStatus,
+      previousStatus: occ.status,
+      changedAt: nowIso,
+      transitionedAt: nowIso,
+      actorId: userId || null,
+      reason: 'Compensating undo action',
+    };
+
     setOccurrences((prev) =>
       prev.map((o) =>
         o.id === occurrenceId
@@ -324,16 +714,89 @@ export const TodayView: React.FC<TodayViewProps> = ({
           : o
       )
     );
+
+    if (isProduction && workspaceId) {
+      const restoredOcc: RoutineOccurrenceRecord = {
+        id: occurrenceId,
+        workspaceId,
+        routineId: occ.routineId,
+        scheduledDate: occ.scheduledDate,
+        scheduleRevision: 1,
+        plannedInstant: (occ as RoutineOccurrenceRecord)?.plannedInstant || null,
+        timezone: routine?.timezone || 'UTC',
+        status: previousStatus,
+        completedAt: previousStatus === 'done' ? previousCompletedAt || nowIso : null,
+        completedBy: previousStatus === 'done' ? userId || null : null,
+        history: [...previousHistory, compensatingTransition],
+        serverRevision: (occ as RoutineOccurrenceRecord)?.serverRevision || 1,
+        createdAt: (occ as RoutineOccurrenceRecord)?.createdAt || nowIso,
+        updatedAt: nowIso,
+      };
+
+      if (syncEngine) {
+        const command =
+          previousStatus === 'done'
+            ? 'completeOccurrence'
+            : previousStatus === 'skipped'
+              ? 'skipOccurrence'
+              : 'reopenOccurrence';
+        await syncEngine.saveRoutineOccurrence(restoredOcc, command);
+      } else if (repository) {
+        await repository.upsertRoutineOccurrence(restoredOcc);
+      }
+    }
+
     setUndoNotice(null);
+  };
+
+  const handleOpenHistory = async (routine: MobileRoutineItem) => {
+    setHistoryRoutine(routine);
+    if (repository && workspaceId) {
+      const routineDate = getCalendarDateInTimezone(currentNow, routine.timezone);
+      const past90 = addCalendarDays(routineDate, -90);
+      const list = await repository.listRoutineOccurrences(
+        workspaceId,
+        routine.id,
+        past90,
+        routineDate
+      );
+      setHistoryOccurrencesList(list);
+    } else {
+      setHistoryOccurrencesList(
+        occurrences
+          .filter((o) => o.routineId === routine.id)
+          .map((o) => ({
+            id: o.id,
+            workspaceId: 'ws-sample',
+            routineId: o.routineId,
+            scheduledDate: o.scheduledDate,
+            scheduleRevision: 1,
+            plannedInstant: null,
+            timezone: routine.timezone,
+            status: o.status,
+            completedAt: o.completedAt || null,
+            completedBy: null,
+            history: [],
+            serverRevision: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }))
+      );
+    }
   };
 
   // Occurrences for currently selected history routine
   const historyOccurrences = useMemo(() => {
     if (!historyRoutine) return [];
+    if (historyOccurrencesList.length > 0) {
+      return historyOccurrencesList
+        .filter((o) => o.routineId === historyRoutine.id)
+        .sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate));
+    }
     return occurrences
       .filter((o) => o.routineId === historyRoutine.id)
       .sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate));
-  }, [historyRoutine, occurrences]);
+  }, [historyRoutine, occurrences, historyOccurrencesList]);
 
   const historyProgress = useMemo(() => {
     return calculateGentleProgress(historyOccurrences);
@@ -477,7 +940,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                     onReopen={handleReopenRoutine}
                     onViewHistory={(id) => {
                       const r = routines.find((item) => item.id === id);
-                      if (r) setHistoryRoutine(r);
+                      if (r) void handleOpenHistory(r);
                     }}
                     testID={`mobile-routine-row-${routine.id}`}
                   />
@@ -592,7 +1055,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
       {historyRoutine && (
         <MobileModalSheet
           visible={Boolean(historyRoutine)}
-          onClose={() => setHistoryRoutine(null)}
+          onClose={() => {
+            setHistoryRoutine(null);
+            setHistoryOccurrencesList([]);
+          }}
           title={`History: ${historyRoutine.title}`}
           themeMode={themeMode}
           testID="mobile-routine-history-sheet"

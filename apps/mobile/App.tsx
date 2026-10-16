@@ -349,6 +349,11 @@ export default function App() {
             onNavigateToPlan={() => setCurrentTab('plan')}
             onNavigateToJournal={() => setCurrentTab('journal')}
             onOpenCreate={() => setActiveModal('create')}
+            repository={repository ?? undefined}
+            syncEngine={syncEngine ?? undefined}
+            workspaceId={userNamespace?.workspaceId ?? null}
+            userId={userNamespace?.userId ?? null}
+            isOnline={isOnline}
           />
         )}
 

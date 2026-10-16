@@ -1486,11 +1486,149 @@ export async function reopenOccurrenceService(
   occurrenceId: string,
   actorUserId: string,
   baseRevision: number,
-  operationId?: string
+  operationId?: string,
+  offlineMeta?: {
+    routineId?: string;
+    scheduledDate?: string;
+    history?: RoutineOccurrenceTransition[];
+  }
 ): Promise<RoutineOccurrence & { seq: number }> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  const current = await getOccurrence(client, workspaceId, occurrenceId, true);
+  const occRes = await client.query<OccurrenceDbRow>(
+    `SELECT * FROM app.routine_occurrences
+     WHERE workspace_id = $1 AND id = $2
+     FOR UPDATE;`,
+    [workspaceId, occurrenceId]
+  );
+
+  if (occRes.rows.length === 0) {
+    if (offlineMeta?.routineId && offlineMeta?.scheduledDate) {
+      const routineRes = await client.query<RoutineDbRow>(
+        `SELECT * FROM app.routines WHERE workspace_id = $1 AND id = $2;`,
+        [workspaceId, offlineMeta.routineId]
+      );
+      if (routineRes.rows.length === 0) {
+        throw new NotFoundError(`Routine ${offlineMeta.routineId} not found.`);
+      }
+      const routine = mapRowToRoutine(routineRes.rows[0]!);
+
+      const expectedId = computeDeterministicOccurrenceId(
+        workspaceId,
+        offlineMeta.routineId,
+        offlineMeta.scheduledDate
+      );
+      if (occurrenceId !== expectedId) {
+        throw new NotFoundError(
+          `Occurrence ${occurrenceId} not found and does not match deterministic ID.`
+        );
+      }
+
+      const revsRes = await client.query<RoutineScheduleRevisionDbRow>(
+        `SELECT * FROM app.routine_schedule_revisions
+         WHERE workspace_id = $1 AND routine_id = $2
+         ORDER BY schedule_revision ASC;`,
+        [workspaceId, offlineMeta.routineId]
+      );
+      const revisions: RoutineScheduleRevisionRule[] = revsRes.rows.map((r) => ({
+        workspaceId,
+        routineId: routine.id,
+        scheduleRevision: Number(r.schedule_revision),
+        effectiveDate: formatDateOnly(r.effective_date)!,
+        frequency: r.frequency,
+        weekdays: (r.weekdays || []) as DomainWeekday[],
+        timezone: r.timezone,
+        scheduledTime: r.scheduled_time,
+        activeFrom: formatDateOnly(r.active_from)!,
+        activeTo: formatDateOnly(r.active_to),
+        isPaused: r.is_paused,
+      }));
+
+      const rule: RoutineTemplateRule = {
+        id: routine.id,
+        workspaceId: routine.workspaceId,
+        folderId: routine.folderId,
+        title: routine.title,
+        details: routine.details,
+        frequency: routine.frequency,
+        weekdays: routine.weekdays as DomainWeekday[],
+        timezone: routine.timezone,
+        scheduledTime: routine.scheduledTime,
+        activeFrom: routine.activeFrom,
+        activeTo: routine.activeTo,
+        isPaused: routine.isPaused,
+        isArchived: routine.isArchived,
+        scheduleRevision: routine.scheduleRevision,
+        effectiveDate: routine.effectiveDate,
+      };
+
+      const applicable = selectApplicableScheduleRule(revisions, rule, offlineMeta.scheduledDate);
+      const plannedInstant = calculatePlannedInstant(
+        offlineMeta.scheduledDate,
+        applicable.scheduledTime,
+        applicable.timezone
+      );
+
+      const opId = operationId || crypto.randomUUID();
+      const history: RoutineOccurrenceTransition[] =
+        offlineMeta.history && offlineMeta.history.length > 0
+          ? offlineMeta.history
+          : [
+              {
+                fromStatus: 'done' as const,
+                toStatus: 'pending' as const,
+                status: 'pending' as const,
+                transitionedAt: new Date().toISOString(),
+                changedAt: new Date().toISOString(),
+                actorId: actorUserId,
+              },
+            ];
+
+      const insertRes = await client.query<OccurrenceDbRow>(
+        `INSERT INTO app.routine_occurrences (
+           id, workspace_id, routine_id, scheduled_date, schedule_revision,
+           planned_instant, timezone, status, completed_at, completed_by,
+           history, server_revision, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', null, null, $8::jsonb, 1, now(), now())
+         ON CONFLICT (workspace_id, routine_id, scheduled_date) DO UPDATE
+         SET status = 'pending', completed_at = null, completed_by = null,
+             history = EXCLUDED.history, server_revision = app.routine_occurrences.server_revision + 1, updated_at = now()
+         RETURNING *;`,
+        [
+          occurrenceId,
+          workspaceId,
+          offlineMeta.routineId,
+          offlineMeta.scheduledDate,
+          applicable.scheduleRevision,
+          plannedInstant ? new Date(plannedInstant) : null,
+          applicable.timezone,
+          JSON.stringify(history),
+        ]
+      );
+
+      const createdOcc = mapRowToOccurrence(insertRes.rows[0]!);
+      const nextSeq = syncState.nextChangeSeq;
+
+      await insertChange(client, {
+        workspaceId,
+        seq: nextSeq,
+        entityType: 'routine_occurrence',
+        entityId: occurrenceId,
+        revision: createdOcc.serverRevision,
+        isTombstone: false,
+        operationId: opId,
+        changeData: createdOcc,
+      });
+
+      await updateWorkspaceSyncSeq(client, workspaceId, nextSeq + 1);
+
+      return { ...createdOcc, seq: nextSeq };
+    }
+
+    throw new NotFoundError(`Routine occurrence ${occurrenceId} not found.`);
+  }
+
+  const current = mapRowToOccurrence(occRes.rows[0]!);
   if (current.serverRevision !== baseRevision) {
     throw new ConflictError(
       `REVISION_CONFLICT: Occurrence revision is ${current.serverRevision}, but reopen requested baseRevision ${baseRevision}.`

@@ -2019,13 +2019,25 @@ export class SyncService {
           }
           case 'reopenOccurrence':
           case 'reopenRoutineOccurrence': {
+            const occPayload = cmd.payload as Record<string, unknown> | undefined;
             const occ = await reopenOccurrenceService(
               client,
               cmd.workspaceId,
               cmd.entityId,
               actorUserId,
               cmd.baseRevision,
-              cmd.operationId
+              cmd.operationId,
+              {
+                routineId:
+                  typeof occPayload?.routineId === 'string' ? occPayload.routineId : undefined,
+                scheduledDate:
+                  typeof occPayload?.scheduledDate === 'string'
+                    ? occPayload.scheduledDate
+                    : undefined,
+                history: Array.isArray(occPayload?.history)
+                  ? (occPayload.history as RoutineOccurrenceTransition[])
+                  : undefined,
+              }
             );
             resultRevision = occ.serverRevision;
             appliedSeq = occ.seq;
