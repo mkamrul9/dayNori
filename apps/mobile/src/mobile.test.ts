@@ -514,6 +514,132 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
         accessibilityLabel: 'Write new reflection',
       });
       expect(newEntryBtn).toBeDefined();
+
+      // Open reflection writing form
+      act(() => {
+        newEntryBtn.props.onPress();
+      });
+
+      // Verify form elements exist: Title, Body, Save, Cancel
+      const saveBtn = authRenderer!.root.findByProps({
+        accessibilityLabel: 'Save reflection',
+      });
+      expect(saveBtn).toBeDefined();
+
+      const cancelBtn = authRenderer!.root.findByProps({
+        accessibilityLabel: 'Cancel reflection',
+      });
+      expect(cancelBtn).toBeDefined();
+
+      // Cancel writing returns to timeline
+      act(() => {
+        cancelBtn.props.onPress();
+      });
+      expect(
+        authRenderer!.root.findByProps({
+          accessibilityLabel: 'Write new reflection',
+        })
+      ).toBeDefined();
+    });
+
+    it('handles writing a reflection with mood selection and template prompts in JournalView', () => {
+      let renderer: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(JournalView, {
+            themeMode: 'light',
+            isAuthenticated: true,
+            onLoginSynthetic: () => {},
+            onNavigateToToday: () => {},
+          })
+        );
+      });
+
+      // 1. Click write
+      const writeBtn = renderer!.root.findByProps({
+        accessibilityLabel: 'Write new reflection',
+      });
+      act(() => {
+        writeBtn.props.onPress();
+      });
+
+      // 2. Select mood
+      const moodBtn = renderer!.root.findByProps({
+        accessibilityLabel: 'Mood Great',
+      });
+      expect(moodBtn).toBeDefined();
+      act(() => {
+        moodBtn.props.onPress();
+      });
+
+      // 3. Toggle prompt tray
+      const promptTrayBtn = renderer!.root.findByProps({
+        accessibilityLabel: 'Toggle reflection templates',
+      });
+      expect(promptTrayBtn).toBeDefined();
+      act(() => {
+        promptTrayBtn.props.onPress();
+      });
+
+      // 4. Save entry
+      const saveBtn = renderer!.root.findByProps({
+        accessibilityLabel: 'Save reflection',
+      });
+      act(() => {
+        saveBtn.props.onPress();
+      });
+    });
+
+    it('navigates days and supports snippet privacy toggle in JournalView', () => {
+      let renderer: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(JournalView, {
+            themeMode: 'light',
+            isAuthenticated: true,
+            onLoginSynthetic: () => {},
+            onNavigateToToday: () => {},
+          })
+        );
+      });
+
+      const prevDayBtn = renderer!.root.findByProps({
+        accessibilityLabel: 'Previous day',
+      });
+      expect(prevDayBtn).toBeDefined();
+      act(() => {
+        prevDayBtn.props.onPress();
+      });
+
+      const nextDayBtn = renderer!.root.findByProps({
+        accessibilityLabel: 'Next day',
+      });
+      expect(nextDayBtn).toBeDefined();
+      act(() => {
+        nextDayBtn.props.onPress();
+      });
+
+      const todayBtn = renderer!.root.findByProps({
+        accessibilityLabel: 'Jump to today',
+      });
+      expect(todayBtn).toBeDefined();
+      act(() => {
+        todayBtn.props.onPress();
+      });
+
+      // Toggle privacy snippets
+      const snippetToggle = renderer!.root.findByProps({
+        accessibilityLabel: 'Show snippets',
+      });
+      expect(snippetToggle).toBeDefined();
+      act(() => {
+        snippetToggle.props.onPress();
+      });
+      expect(
+        renderer!.root.findByProps({
+          accessibilityLabel: 'Hide snippets',
+        })
+      ).toBeDefined();
     });
 
     it('mounts SettingsView, handles theme toggle and isolates dev review tools', () => {

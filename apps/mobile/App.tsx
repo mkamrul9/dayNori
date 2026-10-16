@@ -385,6 +385,11 @@ export default function App() {
             isAuthenticated={isAuthenticated}
             onLoginSynthetic={() => defaultAuthAdapter.loginSynthetic()}
             onNavigateToToday={() => setCurrentTab('today')}
+            repository={repository ?? undefined}
+            syncEngine={syncEngine ?? undefined}
+            workspaceId={userNamespace?.workspaceId ?? null}
+            userId={userNamespace?.userId ?? null}
+            isOnline={isOnline}
           />
         )}
       </View>

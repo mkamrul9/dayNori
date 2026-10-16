@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 23 — Journal writing and reflection interfaces — 2026-10-17
+
+- **Focused Web Journal Canvas (`packages/ui-web`, `apps/web`):**
+  - Implemented `JournalEditor` providing a calm, distraction-free writing surface composing `NoteEditor`, backdated badge indicator (`isEntryBackdated`), entry date picker, authoring timezone display, non-clinical mood pills (`great`, `good`, `okay`, `difficult`, `reflective`), tag chip management, canonical folder placement, dual save indicator (`"Saved locally"`, `"Synced"`), and conflict banner (`keep_server`, `keep_local`, `save_copy`).
+  - Added dismissible reflection prompt tray with canonical reflection templates (`REFLECTION_TEMPLATES`: Daily check-in, Evening reflection, Gratitude & grounding, Weekly review, Hard moments & release) inserting portable AST blocks into the editor.
+  - Replaced in-memory web demo with authenticated runtime using `IndexedDbLocalRepository` and `createWebSyncEngine` with active namespace guarding (`activeNamespaceRef`) to isolate account state during asynchronous switches.
+  - Added day/month navigation stepper with date jump, multiple entries per day list, and journal-scoped search with snippet privacy suppression (`suppressBodySnippets: true` by default).
+  - Implemented atomic draft persistence (`repo.saveDraft`, `repo.listDrafts`, `repo.deleteDraft`) before navigation and tab teardown, enabling seamless draft recovery across browser crashes or uncommitted edits.
+  - Connected entry lifecycle routes (archive, trash, restore) to real API and sync event stream.
+- **Accessible Mobile Journal Surface (`apps/mobile`):**
+  - Connected `JournalView` to `SqliteLocalRepository` and client `SyncEngine` with offline local-first mutation intent creation.
+  - Implemented mobile writing sheet with title, non-clinical mood selector, tag management, reflection prompt selector, multiline body editor, touch targets >= 48dp, and screen-reader accessibility labels.
+  - Added day navigation (◀, ▶, Today jump, backdated badge indicator), multiple entries per date listing, and journal-scoped search with snippet privacy toggle.
+  - Preserved unauthenticated gate card accessibility identifiers (`"Authentication Required for Journal"`, `"Authenticate with synthetic account"`).
+- **Integration Test Journeys (`tests/integration`):**
+  - Added `tests/integration/phase23-journal-writing.test.ts` with 6 end-to-end integration journeys verifying:
+    1. Offline writing, draft interruption, restart, draft recovery, local atomic commit, and eventual sync to server with Bengali (Bangla) Unicode bit-for-bit preservation.
+    2. Long documents, rapid edits, conflict detection on stale revision, and deterministic resolution.
+    3. Backdating, multiple entries per day, date-filtered query pagination, and trash/restore lifecycle.
+    4. Multi-client bootstrap and expired cursor reset with complete snapshot consistency.
+    5. Privacy preferences, fallback titles via `resolveJournalTitle`, namespace account isolation, and complete serialized log canary verification.
+    6. `SqliteLocalRepository` journal persistence, reflection template instantiation, and prompt mapping.
+- **Decision Record:**
+  - Published [ADR-0029: Journal Writing, Reflection Prompts, and Local Draft Recovery](docs/decisions/0029-journal-writing-and-reflection-interfaces.md).
+
 ## Phase 22 — Journal entries and privacy defaults — 2026-10-16
 
 - **Shared Journal Domain Model & Contracts (`packages/domain`, `packages/contracts`):**

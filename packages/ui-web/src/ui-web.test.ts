@@ -13,6 +13,7 @@ import {
   SkipLink,
   RouteAnnouncer,
   NoteEditor,
+  JournalEditor,
   TaskRow,
   TaskDetailEditor,
   RoutineRow,
@@ -23,6 +24,7 @@ import {
 describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
   it('exports all core accessible primitives', () => {
     expect(Button).toBeDefined();
+    expect(JournalEditor).toBeDefined();
     expect(Card).toBeDefined();
     expect(TextField).toBeDefined();
     expect(Dialog).toBeDefined();
@@ -584,6 +586,85 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('Completed');
       expect(html).toContain('2026-10-14');
       expect(html).toContain('Skipped');
+    });
+  });
+
+  describe('JournalEditor Component', () => {
+    it('renders focused journal editor with date, mood options, and reflection controls', () => {
+      const html = renderToString(
+        React.createElement(JournalEditor, {
+          initialTitle: 'Evening Reflection',
+          initialEntryDate: '2026-10-16',
+          initialMood: 'reflective',
+          initialTags: ['evening', 'focus'],
+          localSaveStatus: 'Saved locally',
+          cloudSyncStatus: 'Synced with cloud',
+        })
+      );
+
+      expect(html).toContain('data-testid="journal-editor"');
+      expect(html).toContain('value="Evening Reflection"');
+      expect(html).toContain('value="2026-10-16"');
+      expect(html).toContain('data-testid="journal-mood-reflective"');
+      expect(html).toContain('aria-pressed="true"');
+      expect(html).toContain('data-testid="journal-tag-evening"');
+      expect(html).toContain('data-testid="journal-tag-focus"');
+      expect(html).toContain('data-testid="journal-toggle-prompts-btn"');
+      expect(html).toContain('Saved locally');
+      expect(html).toContain('Synced with cloud');
+    });
+
+    it('displays backdated indicator badge when entry date is in the past', () => {
+      const html = renderToString(
+        React.createElement(JournalEditor, {
+          initialTitle: 'Past Journal Entry',
+          initialEntryDate: '2020-01-01',
+          initialTimezone: 'UTC',
+        })
+      );
+
+      expect(html).toContain('data-testid="journal-backdated-badge"');
+      expect(html).toContain('Backdated');
+    });
+
+    it('renders conflict resolution banner with recovery choices when conflict is present', () => {
+      const html = renderToString(
+        React.createElement(JournalEditor, {
+          initialTitle: 'Local version of journal',
+          conflict: {
+            serverRevision: 4,
+            serverTitle: 'Server version of journal',
+          },
+        })
+      );
+
+      expect(html).toContain('data-testid="conflict-banner"');
+      expect(html).toContain('data-testid="resolve-keep-server"');
+      expect(html).toContain('data-testid="resolve-keep-local"');
+      expect(html).toContain('data-testid="resolve-save-copy"');
+    });
+
+    it('preserves Bangla Unicode document and text cleanly', () => {
+      const html = renderToString(
+        React.createElement(JournalEditor, {
+          initialTitle: 'আজকের চিন্তা ও আত্মবিশ্লেষণ',
+          initialMood: 'great',
+          initialDocument: {
+            version: 1,
+            type: 'doc',
+            content: [
+              {
+                id: 'p-1',
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'শান্ত ও নিরিবিলি পরিবেশে আজকের ভাবনা।' }],
+              },
+            ],
+          },
+        })
+      );
+
+      expect(html).toContain('আজকের চিন্তা ও আত্মবিশ্লেষণ');
+      expect(html).toContain('শান্ত ও নিরিবিলি পরিবেশে আজকের ভাবনা।');
     });
   });
 });

@@ -15,3 +15,4 @@ export * from './TaskDetailEditor.js';
 export * from './RoutineRow.js';
 export * from './RoutineDetailEditor.js';
 export * from './RoutineHistoryViewer.js';
+export * from './JournalEditor.js';
