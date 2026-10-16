@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const artifactsDir = path.join(root, 'artifacts', 'indexeddb-browser');
+const artifactsDir = path.join(root, 'artifacts', 'local', 'indexeddb-browser');
 fs.mkdirSync(artifactsDir, { recursive: true });
 
 const edgeCandidates = [
@@ -33,12 +33,16 @@ const modelsSrc = fs.readFileSync(path.join(root, 'packages/sync/src/models.ts')
 let repoSrc = fs.readFileSync(path.join(root, 'apps/web/src/data/indexedDbRepository.ts'), 'utf8');
 
 // Strip TypeScript imports and exports so it forms a clean browser closure
-let cleanErrors = errorsSrc.replace(/^export\s+(default\s+)?/gm, '');
-let cleanModels = modelsSrc.replace(/^export\s+(default\s+)?/gm, '');
-let cleanRepo = repoSrc
-  .replace(/import\s+type\s+[^;]+;\s*/g, '')
-  .replace(/import\s*\{[^}]*\}\s*from\s*['"]@daynori\/sync['"];\s*/g, '')
-  .replace(/^export\s+(default\s+)?/gm, '');
+const stripImports = (src) =>
+  src
+    .replace(/import\s+type\s+[\s\S]*?;\s*/g, '')
+    .replace(/import\s*\{[\s\S]*?\}\s*from\s*['"][^'"]+['"];\s*/g, '')
+    .replace(/import\s+[\s\S]*?;\s*/g, '')
+    .replace(/^export\s+(default\s+)?/gm, '');
+
+let cleanErrors = stripImports(errorsSrc);
+let cleanModels = stripImports(modelsSrc);
+let cleanRepo = stripImports(repoSrc);
 
 const combinedSource = `
 (function(window) {
@@ -155,9 +159,15 @@ ws.addEventListener('message', (event) => {
   }
 });
 
+fs.writeFileSync(path.join(artifactsDir, 'transpiled-bundle.js'), transpiledBundle);
+
 await new Promise((r) => ws.addEventListener('open', r));
 await send('Runtime.enable');
 await send('Page.enable');
+
+eventHandlers.set('Runtime.exceptionThrown', (params) => {
+  console.error('Browser Exception Thrown:', JSON.stringify(params.exceptionDetails));
+});
 
 // Wait for initial load
 await new Promise((r) => setTimeout(r, 500));

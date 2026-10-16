@@ -689,5 +689,80 @@ describe('Domain Rules and Invariants', () => {
       const normalTime = checkLocalTimeDisambiguation('2026-10-16', '10:00', 'Asia/Dhaka');
       expect(normalTime.type).toBe('exact');
     });
+
+    it('accurately resolves times in UTC+14, negative offsets, and half/quarter-hour zones', async () => {
+      const { checkLocalTimeDisambiguation, addCalendarDays, getCalendarDateTimeParts } =
+        await import('./tasks.js');
+
+      // 1. Gregorian calendar day arithmetic
+      expect(addCalendarDays('2026-02-28', 1)).toBe('2026-03-01'); // non-leap year
+      expect(addCalendarDays('2024-02-28', 1)).toBe('2024-02-29'); // leap year
+      expect(addCalendarDays('2024-02-29', 1)).toBe('2024-03-01');
+      expect(addCalendarDays('2026-01-01', -1)).toBe('2025-12-31');
+
+      // 2. Synchronized date and time derivation from instant
+      const testInstant = new Date('2026-10-16T18:30:00.000Z');
+      const partsTokyo = getCalendarDateTimeParts(testInstant, 'Asia/Tokyo'); // UTC+9 -> Oct 17, 03:30
+      expect(partsTokyo.date).toBe('2026-10-17');
+      expect(partsTokyo.time).toBe('03:30');
+
+      const partsNY = getCalendarDateTimeParts(testInstant, 'America/New_York'); // UTC-4 (EDT) -> Oct 16, 14:30
+      expect(partsNY.date).toBe('2026-10-16');
+      expect(partsNY.time).toBe('14:30');
+
+      // 3. UTC+14 (Pacific/Kiritimati)
+      // 08:30 in Kiritimati on 2026-10-16 corresponds to 2026-10-15 18:30:00.000Z
+      const kiritimati = checkLocalTimeDisambiguation('2026-10-16', '08:30', 'Pacific/Kiritimati');
+      expect(kiritimati.type).toBe('exact');
+      if (kiritimati.type === 'exact') {
+        expect(kiritimati.utcTimestamp).toBe('2026-10-15T18:30:00.000Z');
+      }
+
+      // Midnight in Kiritimati
+      const kiritimatiMidnight = checkLocalTimeDisambiguation(
+        '2026-10-16',
+        '00:00',
+        'Pacific/Kiritimati'
+      );
+      expect(kiritimatiMidnight.type).toBe('exact');
+      if (kiritimatiMidnight.type === 'exact') {
+        expect(kiritimatiMidnight.utcTimestamp).toBe('2026-10-15T10:00:00.000Z');
+      }
+
+      // 4. Negative offset (Pacific/Pago_Pago, UTC-11)
+      // 23:30 in Pago Pago on 2026-10-16 corresponds to 2026-10-17 10:30:00.000Z
+      const pagoPago = checkLocalTimeDisambiguation('2026-10-16', '23:30', 'Pacific/Pago_Pago');
+      expect(pagoPago.type).toBe('exact');
+      if (pagoPago.type === 'exact') {
+        expect(pagoPago.utcTimestamp).toBe('2026-10-17T10:30:00.000Z');
+      }
+
+      // 5. Half-hour and quarter-hour zones (Asia/Kathmandu UTC+5:45, Asia/Kolkata UTC+5:30)
+      const kathmandu = checkLocalTimeDisambiguation('2026-10-16', '12:00', 'Asia/Kathmandu');
+      expect(kathmandu.type).toBe('exact');
+      if (kathmandu.type === 'exact') {
+        expect(kathmandu.utcTimestamp).toBe('2026-10-16T06:15:00.000Z');
+      }
+
+      const kolkata = checkLocalTimeDisambiguation('2026-10-16', '12:00', 'Asia/Kolkata');
+      expect(kolkata.type).toBe('exact');
+      if (kolkata.type === 'exact') {
+        expect(kolkata.utcTimestamp).toBe('2026-10-16T06:30:00.000Z');
+      }
+
+      // 6. Validation of invalid clock values
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', '24:00', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', '12:60', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', '-1:30', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', 'invalid', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+    });
   });
 });

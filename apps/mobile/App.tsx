@@ -13,6 +13,12 @@ import { MobileHeader, MobileNavigationBar, type MobileTab } from '@daynori/ui-m
 import { parseDeepLinkUrl, type DeepLinkPayload } from '@daynori/contracts';
 
 import { defaultAuthAdapter } from './src/auth/authAdapter';
+import { MobileKeyManager } from './src/data/keyManager.js';
+import { SqliteLocalRepository } from './src/data/sqliteRepository.js';
+import { createMobileSyncEngine } from './src/data/syncAdapter.js';
+import { defaultSecureStorage } from './src/auth/secureStorage.js';
+import { createApiClient } from '@daynori/api-client';
+import type { SyncEngine } from '@daynori/sync';
 import type { ActiveModal, CreateDraft, LibraryFilter, PlanSubView } from './src/navigation/types';
 import { TodayView } from './src/views/TodayView';
 import { PlanView } from './src/views/PlanView';
@@ -30,6 +36,15 @@ export default function App() {
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+
+  // Production encrypted repository and sync engine state
+  const [repository, setRepository] = useState<SqliteLocalRepository | null>(null);
+  const [syncEngine, setSyncEngine] = useState<SyncEngine | null>(null);
+  const [userNamespace, setUserNamespace] = useState<{
+    userId: string;
+    workspaceId: string;
+  } | null>(null);
+  const [isOnline] = useState<boolean>(true);
 
   // Input draft preservation across shell navigation
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -67,6 +82,77 @@ export default function App() {
     });
     return unsubscribe;
   }, [pendingProtectedDest]);
+
+  // Production Storage & Sync Engine Lifecycle
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function initMobileStorage() {
+      if (!isAuthenticated) {
+        if (syncEngine) {
+          void syncEngine.stop();
+          setSyncEngine(null);
+        }
+        if (repository) {
+          void repository.close();
+          setRepository(null);
+        }
+        setUserNamespace(null);
+        return;
+      }
+
+      const currentUser = defaultAuthAdapter.getCurrentUser();
+      if (!currentUser?.id || !currentUser?.workspaceId) {
+        setUserNamespace(null);
+        return;
+      }
+
+      setUserNamespace({ userId: currentUser.id, workspaceId: currentUser.workspaceId });
+
+      try {
+        const keyManager = new MobileKeyManager(defaultSecureStorage);
+        const repo = new SqliteLocalRepository({ keyManager });
+        await repo.initialize({
+          userId: currentUser.id,
+          workspaceId: currentUser.workspaceId,
+        });
+
+        if (isCancelled) {
+          await repo.close();
+          return;
+        }
+
+        setRepository(repo);
+
+        const client = createApiClient({
+          baseUrl: 'http://localhost:3000',
+        });
+
+        const engine = createMobileSyncEngine({
+          repository: repo,
+          apiClient: client,
+          namespace: { userId: currentUser.id, workspaceId: currentUser.workspaceId },
+          secureStore: defaultSecureStorage,
+        });
+
+        if (isCancelled) {
+          await repo.close();
+          return;
+        }
+
+        setSyncEngine(engine);
+        await engine.start();
+      } catch {
+        /* storage initialization error handled gracefully */
+      }
+    }
+
+    void initMobileStorage();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAuthenticated]);
 
   // 2. Android Hardware Back Handling
   useEffect(() => {
@@ -271,6 +357,11 @@ export default function App() {
             themeMode={themeMode}
             initialSubView={planSubView}
             onSubViewChange={setPlanSubView}
+            repository={repository ?? undefined}
+            syncEngine={syncEngine ?? undefined}
+            workspaceId={userNamespace?.workspaceId ?? null}
+            userId={userNamespace?.userId ?? null}
+            isOnline={isOnline}
           />
         )}
 

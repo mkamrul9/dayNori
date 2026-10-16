@@ -636,8 +636,60 @@ export type LocalTimeDisambiguation =
     };
 
 /**
+ * Adds an integer number of calendar days to a YYYY-MM-DD date string using pure Gregorian calendar rules.
+ */
+export function addCalendarDays(dateStr: string, days: number): string {
+  if (!isValidCalendarDateString(dateStr)) {
+    throw new Error(`INVALID_CALENDAR_DATE: '${dateStr}' is not a valid calendar date`);
+  }
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const y = parseInt(yearStr!, 10);
+  const m = parseInt(monthStr!, 10);
+  const d = parseInt(dayStr!, 10);
+  const dt = new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0, 0));
+  const resYear = dt.getUTCFullYear();
+  const resMonth = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const resDay = String(dt.getUTCDate()).padStart(2, '0');
+  return `${resYear}-${resMonth}-${resDay}`;
+}
+
+/**
+ * Derives both the calendar date (YYYY-MM-DD) and 24h clock time (HH:mm) from the exact same instant
+ * and IANA timezone, ensuring zero date-shift or desynchronization when reopening tasks.
+ */
+export function getCalendarDateTimeParts(
+  instant: Date,
+  timeZone: string
+): { date: string; time: string } {
+  const safeZone = isValidIanaTimezone(timeZone) ? timeZone : 'UTC';
+  const dtf = new Intl.DateTimeFormat('en-CA', {
+    timeZone: safeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(instant);
+  const p: Record<string, string> = {};
+  for (const part of parts) {
+    p[part.type] = part.value;
+  }
+  let hr = p.hour || '00';
+  if (hr === '24') hr = '00';
+  return {
+    date: `${p.year}-${p.month}-${p.day}`,
+    time: `${hr}:${p.minute || '00'}`,
+  };
+}
+
+/**
  * Checks a calendar date and local time string for nonexistent or ambiguous local times
  * caused by daylight saving transitions in the specified timezone.
+ *
+ * Scans candidate window derived from timezone offset to accurately cover UTC+14,
+ * negative offsets, half/quarter hour zones, and DST transition gaps/folds.
  */
 export function checkLocalTimeDisambiguation(
   dateStr: string,
@@ -651,17 +703,28 @@ export function checkLocalTimeDisambiguation(
     throw new Error(`INVALID_CALENDAR_DATE: '${dateStr}' is not a valid calendar date`);
   }
 
-  const [hourStr, minStr] = timeStr.split(':');
-  const targetHour = parseInt(hourStr || '0', 10);
-  const targetMin = parseInt(minStr || '0', 10);
+  if (!timeStr || typeof timeStr !== 'string') {
+    throw new Error('INVALID_TIME_STRING: Time must be a valid non-empty string in HH:mm format');
+  }
+
+  const timeMatch = timeStr.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!timeMatch) {
+    throw new Error(`INVALID_TIME_STRING: '${timeStr}' is not a valid time string. Expected HH:mm`);
+  }
+
+  const targetHour = parseInt(timeMatch[1]!, 10);
+  const targetMin = parseInt(timeMatch[2]!, 10);
+
+  if (targetHour < 0 || targetHour > 23 || targetMin < 0 || targetMin > 59) {
+    throw new Error(
+      `INVALID_TIME_STRING: Time values out of bounds (hour: ${targetHour}, minute: ${targetMin}). Hours must be 0-23, minutes 0-59.`
+    );
+  }
 
   const [yearStr, monthStr, dayStr] = dateStr.split('-');
   const y = parseInt(yearStr!, 10);
   const m = parseInt(monthStr!, 10);
   const d = parseInt(dayStr!, 10);
-
-  // Approximate UTC timestamp around noon on that date
-  const baseUtc = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
 
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
@@ -690,12 +753,27 @@ export function checkLocalTimeDisambiguation(
     };
   }
 
-  // Scan the 24 hours (with 15 min steps) in this day to find matches
-  const matches: number[] = [];
-  const startOfDayUtc = baseUtc - 14 * 60 * 60 * 1000;
-  const endOfDayUtc = baseUtc + 14 * 60 * 60 * 1000;
+  // Derive candidate UTC instant based on probe local-to-UTC offset
+  const probeUtc = Date.UTC(y, m - 1, d, targetHour, targetMin, 0, 0);
+  const probeLocal = getLocalParts(probeUtc);
+  const probeLocalAsUtc = Date.UTC(
+    probeLocal.year,
+    probeLocal.month - 1,
+    probeLocal.day,
+    probeLocal.hour,
+    probeLocal.minute,
+    0,
+    0
+  );
+  const offsetMs = probeLocalAsUtc - probeUtc;
+  const candidateUtc = probeUtc - offsetMs;
 
-  for (let t = startOfDayUtc; t <= endOfDayUtc; t += 60 * 1000) {
+  // Scan +/- 4 hours around candidate instant at 1-minute steps
+  const matches: number[] = [];
+  const startScanUtc = candidateUtc - 4 * 60 * 60 * 1000;
+  const endScanUtc = candidateUtc + 4 * 60 * 60 * 1000;
+
+  for (let t = startScanUtc; t <= endScanUtc; t += 60 * 1000) {
     const lp = getLocalParts(t);
     if (
       lp.year === y &&
@@ -704,9 +782,10 @@ export function checkLocalTimeDisambiguation(
       lp.hour === targetHour &&
       lp.minute === targetMin
     ) {
-      matches.push(t);
-      // Skip ahead 30 mins to avoid duplicate readings of the exact same minute
-      t += 29 * 60 * 1000;
+      // Check if this match is distinct from the previous match (e.g., at least 15 min apart for folds)
+      if (matches.length === 0 || t - matches[matches.length - 1]! >= 15 * 60 * 1000) {
+        matches.push(t);
+      }
     }
   }
 

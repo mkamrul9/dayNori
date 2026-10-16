@@ -14,12 +14,18 @@ import type {
   SyncEngine,
   TaskRecord,
   PendingMutationRecord,
+  ItemHeaderRecord,
 } from '@daynori/sync';
 import {
   isTaskOverdue,
   isTaskDueToday,
   compareTasksUpcoming,
   formatTaskDeadlineExplanation,
+  getCalendarDateInTimezone,
+  addCalendarDays,
+  getCalendarDateTimeParts,
+  checkLocalTimeDisambiguation,
+  isValidCalendarDateString,
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
@@ -39,6 +45,7 @@ export interface PlanViewProps {
   syncEngine?: SyncEngine;
   isOnline?: boolean;
   userTimezone?: string;
+  isDemo?: boolean;
 }
 
 export const SAMPLE_MOBILE_TASKS: TaskRecord[] = [
@@ -120,19 +127,30 @@ export const PlanView: React.FC<PlanViewProps> = ({
   onSubViewChange,
   testID = 'plan-view',
   initialTasks,
-  workspaceId = 'ws-mobile',
-  userId = 'user-mobile',
+  workspaceId,
+  userId,
   repository,
-  syncEngine: _syncEngine,
+  syncEngine,
   isOnline: _isOnline = true,
   userTimezone = 'UTC',
+  isDemo,
 }) => {
   const palette = colors[themeMode];
   const [activeSubView, setActiveSubView] = useState<PlanSubView>(initialSubView);
   const [taskFilter, setTaskFilter] = useState<MobileTaskFilter>('all');
 
+  // Confine synthetic sample tasks to explicit demo/test environments
+  const isDemoOrTest =
+    isDemo ||
+    Boolean(initialTasks) ||
+    (typeof process !== 'undefined' && process.env.NODE_ENV === 'test' && !repository);
+
   // Tasks state
-  const [tasks, setTasks] = useState<TaskRecord[]>(initialTasks || SAMPLE_MOBILE_TASKS);
+  const [tasks, setTasks] = useState<TaskRecord[]>(() => {
+    if (initialTasks) return initialTasks;
+    if (isDemoOrTest) return SAMPLE_MOBILE_TASKS;
+    return [];
+  });
 
   // Quick Capture State
   const [quickTitle, setQuickTitle] = useState('');
@@ -149,6 +167,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const [editStatus, setEditStatus] = useState<TaskStatus>('todo');
   const [editDeadlineType, setEditDeadlineType] = useState<'none' | 'date' | 'timed'>('none');
   const [editDeadlineDate, setEditDeadlineDate] = useState('');
+  const [editDeadlineTime, setEditDeadlineTime] = useState('12:00');
+  const [editError, setEditError] = useState<string | null>(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   // Undo Toast state
@@ -156,6 +176,10 @@ export const PlanView: React.FC<PlanViewProps> = ({
     taskId: string;
     taskTitle: string;
     previousStatus: TaskStatus;
+    previousCompletedAt: string | null;
+    previousReopenedAt: string | null;
+    previousHistory: TaskRecord['completionHistory'];
+    previousRevision: number;
     expiresAt: number;
   } | null>(null);
 
@@ -164,19 +188,40 @@ export const PlanView: React.FC<PlanViewProps> = ({
     if (onSubViewChange) onSubViewChange(subView);
   };
 
-  // Load from repository if provided
+  // Subscribe to production repository and sync engine
   useEffect(() => {
     if (!repository || !workspaceId) return;
-    let active = true;
+    let isCancelled = false;
+
+    // Load initial tasks from local durable storage
     void repository.listTasks(workspaceId).then((loaded) => {
-      if (active && loaded && loaded.length > 0) {
+      if (!isCancelled && loaded) {
         setTasks(loaded.filter((t) => t.deletedAt === null));
       }
     });
+
+    // Subscribe to durable sync events
+    if (syncEngine) {
+      const unsub = syncEngine.onEvent((evt) => {
+        if (isCancelled) return;
+        if (evt.type === 'sync_completed' || evt.type === 'conflict_resolved') {
+          void repository.listTasks(workspaceId).then((loaded) => {
+            if (!isCancelled && loaded) {
+              setTasks(loaded.filter((t) => t.deletedAt === null));
+            }
+          });
+        }
+      });
+      return () => {
+        isCancelled = true;
+        unsub?.();
+      };
+    }
+
     return () => {
-      active = false;
+      isCancelled = true;
     };
-  }, [repository, workspaceId]);
+  }, [repository, workspaceId, syncEngine]);
 
   // Undo timer
   useEffect(() => {
@@ -253,7 +298,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       .sort((a, b) => compareTasksUpcoming(a, b, userTimezone));
   }, [tasks, taskFilter, userTimezone]);
 
-  // Find subtasks for parent
+  // Subtasks for parent
   const getSubtasks = useCallback(
     (parentId: string) => {
       return tasks.filter((t) => t.parentId === parentId && t.deletedAt === null);
@@ -261,19 +306,87 @@ export const PlanView: React.FC<PlanViewProps> = ({
     [tasks]
   );
 
-  // Quick Add Task
+  // Atomic transactional persistence helper
+  const persistTaskChange = async (
+    action: 'create' | 'update' | 'delete',
+    command: 'createTask' | 'updateTask' | 'completeTask' | 'reopenTask' | 'trashTask',
+    task: TaskRecord,
+    payload: Record<string, unknown>
+  ): Promise<boolean> => {
+    const activeWorkspace = workspaceId || (isDemoOrTest ? 'ws-sample' : null);
+    const activeUser = userId || (isDemoOrTest ? 'usr-sample' : null);
+
+    if (!activeWorkspace || !activeUser) return false;
+
+    const nowIso = new Date().toISOString();
+    const itemHeader: ItemHeaderRecord = {
+      id: task.id,
+      workspaceId: activeWorkspace,
+      folderId: task.folderId,
+      name: task.title,
+      kind: 'task',
+      rank: '00001000',
+      securityScope: 'standard',
+      isArchived: false,
+      isPinned: false,
+      serverRevision: task.serverRevision,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      deletedAt: task.deletedAt,
+    };
+
+    if (syncEngine) {
+      try {
+        await syncEngine.saveItem(itemHeader, undefined, command, { payload });
+        return true;
+      } catch {
+        return false;
+      }
+    } else if (repository) {
+      try {
+        const mutation: PendingMutationRecord = {
+          operationId: `op-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          deviceId: 'mobile-local',
+          workspaceId: activeWorkspace,
+          userId: activeUser,
+          entityType: 'task',
+          entityId: task.id,
+          action,
+          command,
+          baseRevision: task.serverRevision,
+          payload,
+          dependencyOperationIds: [],
+          clientTimestamp: nowIso,
+          retryCount: 0,
+          status: 'pending',
+          lastError: null,
+        };
+        await repository.saveItemTransaction(itemHeader, mutation, undefined, undefined, task);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return true; // memory fallback for standalone test rendering
+  };
+
+  // Quick Add Task with timezone-aware calendar dates
   const handleQuickAdd = async () => {
     const trimmed = quickTitle.trim();
     if (!trimmed) return;
 
+    const activeWorkspace = workspaceId || (isDemoOrTest ? 'ws-sample' : null);
+    if (!activeWorkspace && !isDemoOrTest) return;
+
     let deadline: TaskDeadline = { type: 'none' };
     const now = new Date();
+    const todayDateStr = getCalendarDateInTimezone(now, userTimezone);
     if (quickDeadlinePreset === 'today') {
-      deadline = { type: 'date', date: now.toISOString().slice(0, 10) };
+      deadline = { type: 'date', date: todayDateStr };
     } else if (quickDeadlinePreset === 'tomorrow') {
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      deadline = { type: 'date', date: tomorrow.toISOString().slice(0, 10) };
+      const tomorrowDateStr = addCalendarDays(todayDateStr, 1);
+      deadline = { type: 'date', date: tomorrowDateStr };
     }
 
     const newId = `t-${Date.now()}`;
@@ -281,7 +394,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
     const newTask: TaskRecord = {
       id: newId,
-      workspaceId: workspaceId || 'ws-mobile',
+      workspaceId: activeWorkspace || 'ws-sample',
       folderId: null,
       title: trimmed,
       details: null,
@@ -300,31 +413,17 @@ export const PlanView: React.FC<PlanViewProps> = ({
       deletedAt: null,
     };
 
-    setTasks((prev) => [newTask, ...prev]);
-    setQuickTitle('');
+    if (!repository && !syncEngine) {
+      setTasks((prev) => [newTask, ...prev]);
+      setQuickTitle('');
+      return;
+    }
 
-    if (repository && workspaceId) {
-      await repository.upsertTask(newTask);
-      if (userId) {
-        const mutation: PendingMutationRecord = {
-          operationId: `op-${Date.now()}`,
-          deviceId: 'mobile-local',
-          entityType: 'task',
-          action: 'create',
-          command: 'createTask',
-          status: 'pending',
-          retryCount: 0,
-          lastError: null,
-          workspaceId,
-          userId,
-          entityId: newId,
-          clientTimestamp: nowIso,
-          baseRevision: 0,
-          dependencyOperationIds: [],
-          payload: { title: trimmed, priority: quickPriority, deadline },
-        };
-        await repository.enqueueMutation(mutation);
-      }
+    const mutationPayload = { title: trimmed, priority: quickPriority, deadline };
+    const ok = await persistTaskChange('create', 'createTask', newTask, mutationPayload);
+    if (ok) {
+      setTasks((prev) => [newTask, ...prev]);
+      setQuickTitle('');
     }
   };
 
@@ -333,6 +432,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
     const isCompleting = task.status !== 'completed';
     const nowIso = new Date().toISOString();
     const newStatus: TaskStatus = isCompleting ? 'completed' : 'todo';
+
+    const previousHistory = [...task.completionHistory];
+    const previousCompletedAt = task.completedAt;
+    const previousReopenedAt = task.reopenedAt;
+    const previousStatus = task.status;
+    const previousRevision = task.serverRevision;
 
     const updated: TaskRecord = {
       ...task,
@@ -349,44 +454,59 @@ export const PlanView: React.FC<PlanViewProps> = ({
       updatedAt: nowIso,
     };
 
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
-
-    if (isCompleting) {
-      setUndoToast({
-        taskId: task.id,
-        taskTitle: task.title,
-        previousStatus: task.status,
-        expiresAt: Date.now() + 5000,
-      });
+    if (!repository && !syncEngine) {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      if (isCompleting) {
+        setUndoToast({
+          taskId: task.id,
+          taskTitle: task.title,
+          previousStatus,
+          previousCompletedAt,
+          previousReopenedAt,
+          previousHistory,
+          previousRevision,
+          expiresAt: Date.now() + 5000,
+        });
+      }
+      return;
     }
 
-    if (repository && workspaceId && userId) {
-      await repository.upsertTask(updated);
-      const mutation: PendingMutationRecord = {
-        operationId: `op-${Date.now()}`,
-        deviceId: 'mobile-local',
-        entityType: 'task',
-        action: 'update',
-        command: isCompleting ? 'completeTask' : 'reopenTask',
-        status: 'pending',
-        retryCount: 0,
-        lastError: null,
-        workspaceId,
-        userId,
-        entityId: task.id,
-        clientTimestamp: nowIso,
-        baseRevision: task.serverRevision,
-        dependencyOperationIds: [],
-        payload: { status: newStatus },
-      };
-      await repository.enqueueMutation(mutation);
+    const ok = await persistTaskChange(
+      'update',
+      isCompleting ? 'completeTask' : 'reopenTask',
+      updated,
+      { status: newStatus, completedAt: updated.completedAt, reopenedAt: updated.reopenedAt }
+    );
+
+    if (ok) {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+
+      if (isCompleting) {
+        setUndoToast({
+          taskId: task.id,
+          taskTitle: task.title,
+          previousStatus,
+          previousCompletedAt,
+          previousReopenedAt,
+          previousHistory,
+          previousRevision,
+          expiresAt: Date.now() + 5000,
+        });
+      }
     }
   };
 
-  // Undo
+  // Revision-protected Undo without fabricating extra history
   const handleUndo = async () => {
     if (!undoToast) return;
-    const { taskId, previousStatus } = undoToast;
+    const {
+      taskId,
+      previousStatus,
+      previousCompletedAt,
+      previousReopenedAt,
+      previousHistory,
+      previousRevision,
+    } = undoToast;
     setUndoToast(null);
 
     const task = tasks.find((t) => t.id === taskId);
@@ -396,38 +516,27 @@ export const PlanView: React.FC<PlanViewProps> = ({
     const restored: TaskRecord = {
       ...task,
       status: previousStatus,
-      completedAt: null,
-      reopenedAt: nowIso,
-      completionHistory: [
-        ...task.completionHistory,
-        { completedAt: task.completedAt || nowIso, reopenedAt: nowIso },
-      ],
+      completedAt: previousCompletedAt,
+      reopenedAt: previousReopenedAt,
+      completionHistory: previousHistory,
       serverRevision: task.serverRevision + 1,
       updatedAt: nowIso,
     };
 
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? restored : t)));
+    if (!repository && !syncEngine) {
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? restored : t)));
+      return;
+    }
 
-    if (repository && workspaceId && userId) {
-      await repository.upsertTask(restored);
-      const mutation: PendingMutationRecord = {
-        operationId: `op-${Date.now()}`,
-        deviceId: 'mobile-local',
-        entityType: 'task',
-        action: 'update',
-        command: 'reopenTask',
-        status: 'pending',
-        retryCount: 0,
-        lastError: null,
-        workspaceId,
-        userId,
-        entityId: taskId,
-        clientTimestamp: nowIso,
-        baseRevision: task.serverRevision,
-        dependencyOperationIds: [],
-        payload: { status: previousStatus },
-      };
-      await repository.enqueueMutation(mutation);
+    const ok = await persistTaskChange('update', 'reopenTask', restored, {
+      status: previousStatus,
+      completedAt: previousCompletedAt,
+      reopenedAt: previousReopenedAt,
+      baseRevision: previousRevision,
+    });
+
+    if (ok) {
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? restored : t)));
     }
   };
 
@@ -439,30 +548,70 @@ export const PlanView: React.FC<PlanViewProps> = ({
     setEditPriority(task.priority);
     setEditStatus(task.status);
     setEditDeadlineType(task.deadline.type);
-    setEditDeadlineDate(
-      task.deadline.type === 'date'
-        ? task.deadline.date
-        : task.deadline.type === 'timed'
-          ? task.deadline.timestamp.slice(0, 10)
-          : new Date().toISOString().slice(0, 10)
-    );
+    if (task.deadline.type === 'date') {
+      setEditDeadlineDate(task.deadline.date);
+      setEditDeadlineTime('12:00');
+    } else if (task.deadline.type === 'timed') {
+      const parts = getCalendarDateTimeParts(
+        new Date(task.deadline.timestamp),
+        task.deadline.timezone || userTimezone
+      );
+      setEditDeadlineDate(parts.date);
+      setEditDeadlineTime(parts.time);
+    } else {
+      setEditDeadlineDate(getCalendarDateInTimezone(new Date(), userTimezone));
+      setEditDeadlineTime('12:00');
+    }
+    setEditError(null);
   };
 
-  // Save Detail Sheet
+  // Save Detail Sheet with verified timezone rules and no fixed 18:00 UTC substitution
   const handleSaveDetail = async () => {
     if (!editingTask) return;
     const trimmed = editTitle.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setEditError('Task title is required');
+      return;
+    }
 
     let deadline: TaskDeadline = { type: 'none' };
     if (editDeadlineType === 'date') {
-      deadline = { type: 'date', date: editDeadlineDate || new Date().toISOString().slice(0, 10) };
+      if (!isValidCalendarDateString(editDeadlineDate)) {
+        setEditError('Invalid calendar date format (expected YYYY-MM-DD)');
+        return;
+      }
+      deadline = { type: 'date', date: editDeadlineDate };
     } else if (editDeadlineType === 'timed') {
-      deadline = {
-        type: 'timed',
-        timestamp: `${editDeadlineDate || new Date().toISOString().slice(0, 10)}T18:00:00.000Z`,
-        timezone: userTimezone,
-      };
+      if (!isValidCalendarDateString(editDeadlineDate)) {
+        setEditError('Invalid calendar date format (expected YYYY-MM-DD)');
+        return;
+      }
+      try {
+        const disambig = checkLocalTimeDisambiguation(
+          editDeadlineDate,
+          editDeadlineTime || '12:00',
+          userTimezone
+        );
+        if (disambig.type === 'exact') {
+          deadline = {
+            type: 'timed',
+            timestamp: disambig.utcTimestamp,
+            timezone: userTimezone,
+          };
+        } else if (disambig.type === 'ambiguous') {
+          deadline = {
+            type: 'timed',
+            timestamp: disambig.earlierUtcTimestamp,
+            timezone: userTimezone,
+          };
+        } else {
+          setEditError(`Nonexistent local time: ${disambig.explanation}`);
+          return;
+        }
+      } catch (err: unknown) {
+        setEditError(err instanceof Error ? err.message : 'Invalid time string');
+        return;
+      }
     }
 
     const nowIso = new Date().toISOString();
@@ -477,35 +626,18 @@ export const PlanView: React.FC<PlanViewProps> = ({
       updatedAt: nowIso,
     };
 
-    setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
-    setEditingTask(null);
+    const mutationPayload = {
+      title: trimmed,
+      details: editDetails.trim() || null,
+      priority: editPriority,
+      status: editStatus,
+      deadline,
+    };
 
-    if (repository && workspaceId && userId) {
-      await repository.upsertTask(updated);
-      const mutation: PendingMutationRecord = {
-        operationId: `op-${Date.now()}`,
-        deviceId: 'mobile-local',
-        entityType: 'task',
-        action: 'update',
-        command: 'updateTask',
-        status: 'pending',
-        retryCount: 0,
-        lastError: null,
-        workspaceId,
-        userId,
-        entityId: editingTask.id,
-        clientTimestamp: nowIso,
-        baseRevision: editingTask.serverRevision,
-        dependencyOperationIds: [],
-        payload: {
-          title: trimmed,
-          details: editDetails.trim() || null,
-          priority: editPriority,
-          status: editStatus,
-          deadline,
-        },
-      };
-      await repository.enqueueMutation(mutation);
+    const ok = await persistTaskChange('update', 'updateTask', updated, mutationPayload);
+    if (ok) {
+      setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
+      setEditingTask(null);
     }
   };
 
@@ -519,8 +651,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
     const nowIso = new Date().toISOString();
     const newSubtask: TaskRecord = {
       id: newId,
-      workspaceId: workspaceId || 'ws-mobile',
-      folderId: null,
+      workspaceId: editingTask.workspaceId,
+      folderId: editingTask.folderId,
       title: trimmed,
       details: null,
       priority: editingTask.priority,
@@ -530,7 +662,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       reopenedAt: null,
       completionHistory: [],
       parentId: editingTask.id,
-      subtaskOrder: 1,
+      subtaskOrder: tasks.filter((t) => t.parentId === editingTask.id).length + 1,
       tags: [],
       serverRevision: 1,
       createdAt: nowIso,
@@ -538,13 +670,61 @@ export const PlanView: React.FC<PlanViewProps> = ({
       deletedAt: null,
     };
 
-    setTasks((prev) => [...prev, newSubtask]);
-    setNewSubtaskTitle('');
-
-    if (repository && workspaceId) {
-      await repository.upsertTask(newSubtask);
+    const ok = await persistTaskChange('create', 'createTask', newSubtask, {
+      title: trimmed,
+      parentId: editingTask.id,
+    });
+    if (ok) {
+      setTasks((prev) => [...prev, newSubtask]);
+      setNewSubtaskTitle('');
     }
   };
+
+  // Delete / Trash preserving task payload
+  const handleDeleteTask = async () => {
+    if (!editingTask) return;
+    const nowIso = new Date().toISOString();
+    const trashed: TaskRecord = {
+      ...editingTask,
+      deletedAt: nowIso,
+      serverRevision: editingTask.serverRevision + 1,
+      updatedAt: nowIso,
+    };
+
+    const ok = await persistTaskChange('delete', 'trashTask', trashed, { deletedAt: nowIso });
+    if (ok) {
+      setTasks((prev) =>
+        prev.filter((t) => t.id !== editingTask.id && t.parentId !== editingTask.id)
+      );
+      setEditingTask(null);
+    }
+  };
+
+  // Fail clearly when required production dependencies are missing in production
+  if (!isDemoOrTest && (!workspaceId || !repository || !userId)) {
+    return (
+      <View
+        testID={testID}
+        style={[
+          styles.scrollContent,
+          { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
+        ]}
+      >
+        <Text style={[styles.sectionTitle, { color: palette.text.primary, textAlign: 'center' }]}>
+          Sign In Required
+        </Text>
+        <Text
+          style={[
+            styles.sectionCaption,
+            { color: palette.text.secondary, textAlign: 'center', marginTop: 8 },
+          ]}
+        >
+          An authenticated workspace and encrypted storage repository are required to manage tasks.
+          Please sign in or connect a workspace in Settings.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -552,47 +732,40 @@ export const PlanView: React.FC<PlanViewProps> = ({
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Sub-view navigation selector (Tasks | Routines | Calendar) */}
+      {/* Three-tab Sub-view Selector */}
       <View
-        accessibilityRole="tablist"
-        accessibilityLabel="Plan sub-views"
         style={[
           styles.subViewSelector,
-          {
-            backgroundColor: palette.surface,
-            borderColor: palette.border.subtle,
-          },
+          { backgroundColor: palette.surface, borderColor: palette.border.subtle },
         ]}
       >
         {(
           [
-            { key: 'tasks', label: 'Tasks' },
-            { key: 'routines', label: 'Routines' },
-            { key: 'calendar', label: 'Calendar' },
+            { id: 'tasks', label: 'Tasks', testID: 'plan-tab-tasks' },
+            { id: 'routines', label: 'Routines', testID: 'plan-tab-routines' },
+            { id: 'calendar', label: 'Calendar', testID: 'plan-tab-calendar' },
           ] as const
         ).map((tab) => {
-          const isSelected = activeSubView === tab.key;
+          const active = activeSubView === tab.id;
           return (
             <Pressable
-              key={tab.key}
-              testID={`plan-tab-${tab.key}`}
+              key={tab.id}
+              testID={tab.testID}
               accessibilityRole="tab"
-              accessibilityLabel={`${tab.label} sub-view`}
-              accessibilityState={{ selected: isSelected }}
-              onPress={() => setSubView(tab.key)}
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`Switch to ${tab.label} sub-view`}
+              onPress={() => setSubView(tab.id)}
               style={[
                 styles.subViewTab,
-                {
-                  backgroundColor: isSelected ? palette.action.primary : 'transparent',
-                },
+                { backgroundColor: active ? palette.action.primary : 'transparent' },
               ]}
             >
               <Text
                 style={[
                   styles.subViewTabText,
                   {
-                    color: isSelected ? palette.action.label : palette.text.secondary,
-                    fontWeight: isSelected ? '700' : '600',
+                    color: active ? palette.action.label : palette.text.primary,
+                    fontWeight: active ? '700' : '400',
                   },
                 ]}
               >
@@ -606,7 +779,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       {/* Sub-view 1: Tasks */}
       {activeSubView === 'tasks' && (
         <View testID="plan-tasks-subview" style={styles.section}>
-          {/* Quick Capture Input */}
+          {/* Quick Capture Bar */}
           <View
             style={[
               styles.quickAddContainer,
@@ -619,37 +792,41 @@ export const PlanView: React.FC<PlanViewProps> = ({
               onChangeText={setQuickTitle}
               placeholder="Quick capture a task..."
               placeholderTextColor={palette.text.muted}
-              accessibilityLabel="Quick capture a task title"
               style={[styles.quickAddInput, { color: palette.text.primary }]}
+              accessibilityLabel="Quick capture task title input"
             />
             <View style={styles.quickAddButtonsRow}>
-              {/* Due Date Presets */}
-              <View style={styles.presetGroup}>
-                {(['today', 'tomorrow', 'none'] as const).map((p) => (
+              {/* Presets */}
+              <View style={styles.presetButtonsRow}>
+                {(['today', 'tomorrow', 'none'] as const).map((preset) => (
                   <Pressable
-                    key={p}
-                    onPress={() => setQuickDeadlinePreset(p)}
+                    key={preset}
+                    onPress={() => setQuickDeadlinePreset(preset)}
                     style={[
-                      styles.smallPill,
+                      styles.presetPill,
                       {
                         backgroundColor:
-                          quickDeadlinePreset === p ? palette.action.primary : 'transparent',
+                          quickDeadlinePreset === preset ? palette.action.primary : 'transparent',
                         borderColor: palette.border.subtle,
                       },
                     ]}
                   >
                     <Text
                       style={[
-                        styles.smallPillText,
+                        styles.presetPillText,
                         {
                           color:
-                            quickDeadlinePreset === p
+                            quickDeadlinePreset === preset
                               ? palette.action.label
                               : palette.text.secondary,
                         },
                       ]}
                     >
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                      {preset === 'today'
+                        ? 'Today'
+                        : preset === 'tomorrow'
+                          ? 'Tomorrow'
+                          : 'No date'}
                     </Text>
                   </Pressable>
                 ))}
@@ -662,11 +839,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
                 disabled={!quickTitle.trim()}
                 onPress={handleQuickAdd}
                 style={[
-                  styles.quickAddSubmitBtn,
+                  styles.quickAddBtn,
                   {
                     backgroundColor: quickTitle.trim()
                       ? palette.action.primary
-                      : palette.border.subtle,
+                      : palette.action.disabled,
                   },
                 ]}
               >
@@ -675,73 +852,89 @@ export const PlanView: React.FC<PlanViewProps> = ({
             </View>
           </View>
 
-          {/* Filter Pills */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-            <View style={styles.filterBar}>
-              {(['all', 'today', 'upcoming', 'overdue', 'completed', 'undated'] as const).map(
-                (filter) => (
-                  <Pressable
-                    key={filter}
-                    testID={`filter-task-${filter}`}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Filter ${filter} tasks`}
-                    accessibilityState={{ selected: taskFilter === filter }}
-                    onPress={() => setTaskFilter(filter)}
+          {/* Module Filter Chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterChipRow}
+          >
+            {(
+              [
+                { id: 'all', label: 'All' },
+                { id: 'today', label: 'Today' },
+                { id: 'upcoming', label: 'Upcoming' },
+                { id: 'overdue', label: 'Overdue' },
+                { id: 'completed', label: 'Completed' },
+                { id: 'undated', label: 'Undated' },
+              ] as const
+            ).map((filter) => {
+              const active = taskFilter === filter.id;
+              return (
+                <Pressable
+                  key={filter.id}
+                  testID={`plan-filter-${filter.id}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`Filter by ${filter.label}`}
+                  onPress={() => setTaskFilter(filter.id)}
+                  style={[
+                    styles.filterChip,
+                    {
+                      backgroundColor: active ? palette.action.primary : palette.surface,
+                      borderColor: palette.border.subtle,
+                    },
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.filterPill,
-                      {
-                        backgroundColor:
-                          taskFilter === filter ? palette.action.subtle : palette.surface,
-                        borderColor:
-                          taskFilter === filter ? palette.action.primary : palette.border.subtle,
-                      },
+                      styles.filterChipText,
+                      { color: active ? palette.action.label : palette.text.primary },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.filterPillText,
-                        {
-                          color:
-                            taskFilter === filter ? palette.action.primary : palette.text.secondary,
-                          fontWeight: taskFilter === filter ? '700' : '500',
-                        },
-                      ]}
-                    >
-                      {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                    </Text>
-                  </Pressable>
-                )
-              )}
-            </View>
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
-          {/* Task List */}
+          {/* Task Items List */}
           <MobileCard themeMode={themeMode}>
             {filteredTasks.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: palette.text.muted }]}>
-                  No tasks matching "{taskFilter}".
+              <View style={styles.emptyTasksContainer}>
+                <Text style={[styles.emptyTasksText, { color: palette.text.secondary }]}>
+                  {taskFilter === 'today'
+                    ? 'No tasks due today'
+                    : taskFilter === 'overdue'
+                      ? 'No overdue tasks'
+                      : taskFilter === 'upcoming'
+                        ? 'No upcoming tasks'
+                        : taskFilter === 'completed'
+                          ? 'No completed tasks'
+                          : taskFilter === 'undated'
+                            ? 'No undated tasks'
+                            : 'No tasks found'}
                 </Text>
               </View>
             ) : (
               filteredTasks.map((task) => {
                 const isCompleted = task.status === 'completed';
-                const deadlineExp = formatTaskDeadlineExplanation(task.deadline, userTimezone);
                 const subtasks = getSubtasks(task.id);
+                const deadlineExp = formatTaskDeadlineExplanation(
+                  task.deadline,
+                  userTimezone,
+                  new Date()
+                );
 
                 return (
-                  <View key={task.id} style={styles.taskRowContainer}>
-                    <View style={styles.taskMainRow}>
-                      {/* Checkbox */}
+                  <View key={task.id} style={styles.taskItemWrapper}>
+                    <View style={styles.taskItemRow}>
+                      {/* Completion Checkbox */}
                       <Pressable
                         testID={`task-toggle-${task.id}`}
                         accessibilityRole="checkbox"
-                        accessibilityLabel={
-                          isCompleted
-                            ? `Reopen task "${task.title}"`
-                            : `Mark task "${task.title}" as completed`
-                        }
                         accessibilityState={{ checked: isCompleted }}
+                        accessibilityLabel={`Mark "${task.title}" as ${isCompleted ? 'incomplete' : 'complete'}`}
                         onPress={() => handleToggleComplete(task)}
                         style={[
                           styles.checkbox,
@@ -905,30 +1098,25 @@ export const PlanView: React.FC<PlanViewProps> = ({
       {/* Sub-view 3: Calendar */}
       {activeSubView === 'calendar' && (
         <View testID="plan-calendar-subview" style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            Agenda — Wednesday, Oct 14
-          </Text>
           <Text style={[styles.sectionCaption, { color: palette.text.secondary }]}>
-            Agenda and projections of scheduled tasks and private event records.
+            Chronological projection combining appointments and prioritized tasks.
           </Text>
-
           <MobileCard themeMode={themeMode}>
-            {calendarEvents.map((event) => (
+            {calendarEvents.map((evt) => (
               <MobileListRow
-                key={event.id}
-                title={event.title}
-                metadata={`${event.time} • ${event.type}`}
+                key={evt.id}
+                title={evt.title}
+                metadata={`${evt.time} • ${evt.type}`}
                 themeMode={themeMode}
                 onPress={() => {}}
-                accessibilityLabel={`${event.title}, ${event.time}, type ${event.type}`}
+                accessibilityLabel={`${evt.title}, ${evt.time}, ${evt.type}`}
               />
             ))}
           </MobileCard>
-
           <View style={styles.calendarNote}>
             <Text style={[styles.calendarNoteText, { color: palette.text.muted }]}>
-              ℹ️ Editing a projected task updates its canonical task. Standalone events are stored
-              locally. External calendar sync is excluded from the initial event workflow.
+              Calendar appointments remain independent of local storage and do not overwrite task
+              state.
             </Text>
           </View>
         </View>
@@ -969,6 +1157,23 @@ export const PlanView: React.FC<PlanViewProps> = ({
           testID="plan-task-detail-sheet"
         >
           <View style={styles.sheetContent}>
+            {editError && (
+              <View
+                accessibilityRole="alert"
+                style={{
+                  padding: spacing.sm,
+                  backgroundColor: palette.status.dangerBg,
+                  borderColor: palette.status.dangerBorder,
+                  borderWidth: 1,
+                  borderRadius: radii.sm,
+                }}
+              >
+                <Text style={{ color: palette.status.danger, fontSize: 13, fontWeight: '600' }}>
+                  {editError}
+                </Text>
+              </View>
+            )}
+
             <MobileTextField
               label="Title"
               value={editTitle}
@@ -1015,6 +1220,62 @@ export const PlanView: React.FC<PlanViewProps> = ({
               </View>
             </View>
 
+            {/* Deadline Selector */}
+            <View style={styles.sheetFieldGroup}>
+              <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Deadline</Text>
+              <View style={styles.sheetPillRow}>
+                {(['none', 'date', 'timed'] as const).map((dtype) => (
+                  <Pressable
+                    key={dtype}
+                    onPress={() => setEditDeadlineType(dtype)}
+                    style={[
+                      styles.sheetPill,
+                      {
+                        backgroundColor:
+                          editDeadlineType === dtype ? palette.action.primary : palette.surface,
+                        borderColor: palette.border.subtle,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetPillText,
+                        {
+                          color:
+                            editDeadlineType === dtype
+                              ? palette.action.label
+                              : palette.text.primary,
+                        },
+                      ]}
+                    >
+                      {dtype === 'none' ? 'None' : dtype === 'date' ? 'Date Only' : 'Timed'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {editDeadlineType !== 'none' && (
+                <View style={{ gap: 8, marginTop: 4 }}>
+                  <MobileTextField
+                    label="Calendar Date (YYYY-MM-DD)"
+                    value={editDeadlineDate}
+                    onChangeText={setEditDeadlineDate}
+                    placeholder="2026-10-16"
+                    themeMode={themeMode}
+                  />
+                  {editDeadlineType === 'timed' && (
+                    <MobileTextField
+                      label="Time (HH:mm)"
+                      value={editDeadlineTime}
+                      onChangeText={setEditDeadlineTime}
+                      placeholder="17:00"
+                      themeMode={themeMode}
+                    />
+                  )}
+                </View>
+              )}
+            </View>
+
             {/* Subtasks Section */}
             <View style={styles.sheetFieldGroup}>
               <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Subtasks</Text>
@@ -1038,6 +1299,13 @@ export const PlanView: React.FC<PlanViewProps> = ({
                 title="Save Task"
                 variant="primary"
                 onPress={handleSaveDetail}
+                themeMode={themeMode}
+              />
+              <View style={{ height: 8 }} />
+              <MobileButton
+                title="Move to Trash"
+                variant="subtle"
+                onPress={handleDeleteTask}
                 themeMode={themeMode}
               />
             </View>
@@ -1101,72 +1369,69 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.xs,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  presetGroup: {
+  presetButtonsRow: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 6,
   },
-  smallPill: {
+  presetPill: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: radii.sm,
     borderWidth: 1,
   },
-  smallPillText: {
-    fontSize: 11,
-    fontWeight: '600',
+  presetPillText: {
+    fontSize: 12,
   },
-  quickAddSubmitBtn: {
-    paddingHorizontal: spacing.md,
+  quickAddBtn: {
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.sm,
-    minHeight: 36,
+    minHeight: 32,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   quickAddBtnText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  filterScroll: {
-    marginBottom: spacing.sm,
-  },
-  filterBar: {
+  filterChipRow: {
     flexDirection: 'row',
-    gap: spacing.xs,
+    gap: 8,
+    paddingBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  filterPill: {
-    minHeight: 36,
-    paddingHorizontal: spacing.md,
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: radii.pill,
     borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  emptyTasksContainer: {
+    padding: spacing.xl,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  filterPillText: {
-    fontSize: 12,
-  },
-  emptyContainer: {
-    padding: spacing.lg,
-    alignItems: 'center',
-  },
-  emptyText: {
+  emptyTasksText: {
     fontSize: 14,
   },
-  taskRowContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+  taskItemWrapper: {
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(150, 150, 150, 0.2)',
   },
-  taskMainRow: {
+  taskItemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
   },
   checkbox: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     borderRadius: radii.sm,
     borderWidth: 2,
     alignItems: 'center',
@@ -1180,16 +1445,17 @@ const styles = StyleSheet.create({
   },
   taskContent: {
     flex: 1,
+    gap: 4,
   },
   taskTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: '500',
+    lineHeight: 20,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 8,
     flexWrap: 'wrap',
   },
   priorityBadge: {

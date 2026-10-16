@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import {
   type TaskPriority,
@@ -7,6 +7,9 @@ import {
   isValidCalendarDateString,
   isValidIanaTimezone,
   checkLocalTimeDisambiguation,
+  getCalendarDateTimeParts,
+  getCalendarDateInTimezone,
+  type LocalTimeDisambiguation,
   MAX_TASK_TITLE_LENGTH,
   MAX_TASK_DETAILS_LENGTH,
   MAX_SUBTASK_DEPTH,
@@ -80,30 +83,37 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
     useState<Array<{ id?: string; title: string; status: TaskStatus }>>(initialSubtasks);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
+  // Derive both date and time synchronously from the exact same timezone
+  const deadlineZoneInitial =
+    initialDeadline.type === 'timed' ? initialDeadline.timezone : userTimezone;
+
+  const initialParts = useMemo(() => {
+    if (initialDeadline.type === 'timed') {
+      const zone = initialDeadline.timezone || userTimezone;
+      return getCalendarDateTimeParts(new Date(initialDeadline.timestamp), zone);
+    }
+    return null;
+  }, [initialDeadline, userTimezone]);
+
   // Deadline state
   const [deadlineType, setDeadlineType] = useState<'none' | 'date' | 'timed'>(initialDeadline.type);
+  const [deadlineZone, setDeadlineZone] = useState<string>(deadlineZoneInitial);
   const [deadlineDate, setDeadlineDate] = useState<string>(
     initialDeadline.type === 'date'
       ? initialDeadline.date
-      : initialDeadline.type === 'timed'
-        ? initialDeadline.timestamp.slice(0, 10)
-        : new Date().toISOString().slice(0, 10)
+      : initialParts
+        ? initialParts.date
+        : getCalendarDateInTimezone(new Date(), userTimezone)
   );
   const [deadlineTime, setDeadlineTime] = useState<string>(
-    initialDeadline.type === 'timed'
-      ? new Date(initialDeadline.timestamp).toLocaleTimeString('en-US', {
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: initialDeadline.timezone || userTimezone,
-        })
-      : '17:00'
+    initialParts ? initialParts.time : '17:00'
   );
-  const [deadlineZone, setDeadlineZone] = useState<string>(
-    initialDeadline.type === 'timed' ? initialDeadline.timezone : userTimezone
-  );
+  const [ambiguousChoice, setAmbiguousChoice] = useState<'earlier' | 'later'>('earlier');
 
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [disambiguationResult, setDisambiguationResult] = useState<LocalTimeDisambiguation | null>(
+    null
+  );
   const [disambiguationNotice, setDisambiguationNotice] = useState<string | null>(null);
 
   // Check local time disambiguation when timed deadline fields change
@@ -115,6 +125,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
     ) {
       try {
         const result = checkLocalTimeDisambiguation(deadlineDate, deadlineTime, deadlineZone);
+        setDisambiguationResult(result);
         if (result.type === 'nonexistent') {
           setDisambiguationNotice(`⚠️ Nonexistent local time: ${result.explanation}`);
         } else if (result.type === 'ambiguous') {
@@ -122,10 +133,12 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
         } else {
           setDisambiguationNotice(null);
         }
-      } catch {
-        setDisambiguationNotice(null);
+      } catch (err: unknown) {
+        setDisambiguationResult(null);
+        setDisambiguationNotice(err instanceof Error ? err.message : null);
       }
     } else {
+      setDisambiguationResult(null);
       setDisambiguationNotice(null);
     }
   }, [deadlineType, deadlineDate, deadlineTime, deadlineZone]);
@@ -199,27 +212,20 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
         return;
       }
 
-      // Convert local date + time in deadlineZone to ISO timestamp
+      // Disambiguate local time
       try {
-        const [hStr, mStr] = deadlineTime.split(':');
-        const h = parseInt(hStr || '0', 10);
-        const m = parseInt(mStr || '0', 10);
-        const [yStr, moStr, dStr] = deadlineDate.split('-');
-        const y = parseInt(yStr!, 10);
-        const mo = parseInt(moStr!, 10);
-        const d = parseInt(dStr!, 10);
-
-        // Disambiguate local time
         const disambig = checkLocalTimeDisambiguation(deadlineDate, deadlineTime, deadlineZone);
         let utcIso: string;
         if (disambig.type === 'exact') {
           utcIso = disambig.utcTimestamp;
         } else if (disambig.type === 'ambiguous') {
-          // Default to earlier timestamp
-          utcIso = disambig.earlierUtcTimestamp;
+          utcIso =
+            ambiguousChoice === 'later' ? disambig.laterUtcTimestamp : disambig.earlierUtcTimestamp;
         } else {
-          // Nonexistent: fallback to noon UTC approximation
-          utcIso = new Date(Date.UTC(y, mo - 1, d, h, m, 0)).toISOString();
+          setValidationError(
+            `Nonexistent local time: ${disambig.explanation}. Please adjust the time to a valid instant outside the DST gap.`
+          );
+          return;
         }
 
         deadline = {
@@ -691,6 +697,80 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
                       />
                     </div>
                   </>
+                )}
+                {disambiguationNotice && (
+                  <div
+                    style={{
+                      gridColumn: '1 / -1',
+                      marginTop: `${spacing.xs}px`,
+                      padding: `${spacing.xs}px ${spacing.sm}px`,
+                      borderRadius: radii.sm,
+                      fontSize: '12px',
+                      backgroundColor:
+                        disambiguationResult?.type === 'nonexistent'
+                          ? palette.status.dangerBg
+                          : palette.status.warningBg,
+                      color:
+                        disambiguationResult?.type === 'nonexistent'
+                          ? palette.status.danger
+                          : palette.status.warning,
+                      border: `1px solid ${
+                        disambiguationResult?.type === 'nonexistent'
+                          ? palette.status.dangerBorder
+                          : palette.status.warningBorder
+                      }`,
+                    }}
+                  >
+                    {disambiguationNotice}
+                    {disambiguationResult?.type === 'ambiguous' && (
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          display: 'flex',
+                          gap: '12px',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>Choice:</span>
+                        <label
+                          style={{
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="ambiguous-choice-editor"
+                            value="earlier"
+                            checked={ambiguousChoice === 'earlier'}
+                            onChange={() => setAmbiguousChoice('earlier')}
+                          />
+                          Earlier occurrence (
+                          {disambiguationResult.earlierUtcTimestamp.slice(11, 16)} UTC)
+                        </label>
+                        <label
+                          style={{
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="ambiguous-choice-editor"
+                            value="later"
+                            checked={ambiguousChoice === 'later'}
+                            onChange={() => setAmbiguousChoice('later')}
+                          />
+                          Later occurrence ({disambiguationResult.laterUtcTimestamp.slice(11, 16)}{' '}
+                          UTC)
+                        </label>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}

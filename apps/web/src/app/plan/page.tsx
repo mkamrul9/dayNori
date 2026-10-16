@@ -10,10 +10,11 @@ import {
   getTrustedDeviceConsent,
   setTrustedDeviceConsent,
 } from '../../data/indexedDbRepository';
+import { createWebSyncEngine } from '../../data/syncAdapter';
 import {
-  SyncEngine,
-  ApiClientSyncTransport,
+  type SyncEngine,
   type TaskRecord,
+  type ItemHeaderRecord,
   type PendingMutationRecord,
 } from '@daynori/sync';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
@@ -21,6 +22,8 @@ import {
   isTaskOverdue,
   isTaskDueToday,
   compareTasksUpcoming,
+  getCalendarDateInTimezone,
+  addCalendarDays,
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
@@ -29,6 +32,12 @@ import {
 export type PlanViewFilter = 'today' | 'upcoming' | 'overdue' | 'completed' | 'undated' | 'all';
 export type PlanSortBy = 'deadline' | 'priority' | 'createdAt';
 export type PlanSortDir = 'asc' | 'desc';
+
+export interface BulkActionReviewItem {
+  id: string;
+  revision: number;
+  title: string;
+}
 
 export default function PlanPage() {
   const liveRegionId = useId();
@@ -52,20 +61,24 @@ export default function PlanPage() {
     }
   });
 
-  // Tasks state
+  // Consent & storage state
+  const [hasConsent, setHasConsent] = useState<boolean>(() => getTrustedDeviceConsent());
+  const [consentRefused, setConsentRefused] = useState<boolean>(false);
+
+  // Tasks & real folders state
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
-  const [folders] = useState<Array<{ id: string; name: string }>>([
-    { id: 'inbox', name: 'Inbox' },
-    { id: 'work', name: 'Work' },
-    { id: 'personal', name: 'Personal' },
-  ]);
+  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
+  const [bulkMoveTargetFolderId, setBulkMoveTargetFolderId] = useState<string>('');
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState<string>('');
 
   // Status & Sync Indicators
-  const [localSaveStatus, setLocalSaveStatus] = useState<string>('Saved locally');
-  const [cloudSyncStatus, setCloudSyncStatus] = useState<string>('Synced');
+  const [localSaveStatus, setLocalSaveStatus] = useState<string>(
+    hasConsent ? 'Saved locally' : 'Device storage off (consent needed)'
+  );
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<string>('Connecting...');
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
@@ -85,7 +98,8 @@ export default function PlanPage() {
   const [bulkActionConfirm, setBulkActionConfirm] = useState<{
     action: 'complete' | 'delete' | 'move';
     count: number;
-    folderId?: string;
+    folderId?: string | null;
+    reviewedItems: BulkActionReviewItem[];
   } | null>(null);
 
   // Undo Toast State
@@ -93,6 +107,10 @@ export default function PlanPage() {
     taskId: string;
     taskTitle: string;
     previousStatus: TaskStatus;
+    previousCompletedAt: string | null;
+    previousReopenedAt: string | null;
+    previousHistory: TaskRecord['completionHistory'];
+    previousRevision: number;
     expiresAt: number;
   } | null>(null);
 
@@ -148,109 +166,141 @@ export default function PlanPage() {
     return () => clearInterval(timer);
   }, [undoToast]);
 
-  // Create standard mutation helper
-  const createMutation = useCallback(
-    (params: {
-      action: 'create' | 'update' | 'delete';
-      command?: string;
-      entityId: string;
-      baseRevision: number;
-      payload?: Record<string, unknown>;
-      clientTimestamp?: string;
-    }): PendingMutationRecord => ({
-      operationId: crypto.randomUUID(),
-      deviceId: 'web-browser-tab',
-      workspaceId: workspaceId || '',
-      userId: user?.id || '',
-      entityType: 'task',
-      entityId: params.entityId,
-      action: params.action,
-      command: params.command,
-      baseRevision: params.baseRevision,
-      payload: params.payload ?? {},
-      dependencyOperationIds: [],
-      clientTimestamp: params.clientTimestamp || new Date().toISOString(),
-      retryCount: 0,
-      status: 'pending',
-      lastError: null,
-    }),
-    [workspaceId, user?.id]
-  );
-
-  // Initialize Local Repository & Sync Engine
+  // Initialize Storage, API Proxy, and Sync Engine
   useEffect(() => {
     let isCancelled = false;
 
+    // Reset view state when account/workspace changes to prevent cross-account exposure
+    setTasks([]);
+    setFolders([]);
+    setSelectedTaskIds(new Set());
+
+    // Stop prior sync engine & close prior repository
+    if (syncEngineRef.current) {
+      void syncEngineRef.current.stop();
+      syncEngineRef.current = null;
+    }
+    if (localRepoRef.current) {
+      void localRepoRef.current.close();
+      localRepoRef.current = null;
+    }
+
+    if (!workspaceId || !user?.id) {
+      setLocalSaveStatus('Signed out');
+      setCloudSyncStatus('Not connected');
+      setIsLoading(false);
+      return;
+    }
+
+    // Reuse authenticated same-origin API proxy
+    const client = createApiClient({
+      baseUrl: '/api',
+    });
+    apiClientRef.current = client;
+
     async function initStorage() {
-      if (!workspaceId || !user?.id) {
-        setIsLoading(false);
-        return;
+      setIsLoading(true);
+
+      const consent = getTrustedDeviceConsent();
+      setHasConsent(consent);
+
+      // Load real workspace folders via API proxy
+      try {
+        const folderRes = await client.listFolders(workspaceId!);
+        if (!isCancelled && folderRes.data) {
+          setFolders(folderRes.data.map((f) => ({ id: f.id, name: f.name })));
+        }
+      } catch {
+        /* Ignore folder fetch failure in offline mode */
       }
 
-      try {
-        if (!getTrustedDeviceConsent()) {
-          setTrustedDeviceConsent(true);
-        }
+      if (consent) {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({
+            userId: user!.id,
+            workspaceId: workspaceId!,
+          });
 
-        const repo = new IndexedDbLocalRepository();
-        await repo.initialize({
-          userId: user.id,
-          workspaceId,
-        });
+          if (isCancelled) {
+            await repo.close();
+            return;
+          }
 
-        if (isCancelled) {
-          await repo.close();
-          return;
-        }
-
-        localRepoRef.current = repo;
-
-        // Initialize API Client
-        const token =
-          typeof window !== 'undefined' ? localStorage.getItem('daynori_token') || '' : '';
-        const client = createApiClient({
-          baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
-          token,
-        });
-        apiClientRef.current = client;
-
-        // Initialize Sync Engine
-        const transport = new ApiClientSyncTransport({ client });
-        const engine = new SyncEngine({
-          workspaceId,
-          userId: user.id,
-          repository: repo,
-          transport,
-          deviceId: 'web-browser-tab',
-        });
-        syncEngineRef.current = engine;
-
-        // Initial Local Load
-        const localTasks = await repo.listTasks(workspaceId);
-        if (!isCancelled) {
-          setTasks(localTasks.filter((t) => t.deletedAt === null));
-          setIsLoading(false);
+          localRepoRef.current = repo;
           setLocalSaveStatus('Saved locally');
-          setCloudSyncStatus(navigator.onLine ? 'Synced' : 'Offline');
-        }
 
-        // Trigger Sync in background
-        if (navigator.onLine) {
-          void engine.synchronize().then(() => {
-            if (!isCancelled) {
-              void repo.listTasks(workspaceId).then((refreshed) => {
-                if (!isCancelled) {
-                  setTasks(refreshed.filter((t) => t.deletedAt === null));
-                }
-              });
+          // Initialize Web Sync Engine with multi-tab coordination
+          const engine = createWebSyncEngine({
+            repository: repo,
+            apiClient: client,
+            namespace: { userId: user!.id, workspaceId: workspaceId! },
+          });
+          syncEngineRef.current = engine;
+
+          // Subscribe to sync engine status changes
+          engine.onEvent((evt) => {
+            if (isCancelled) return;
+            if (evt.type === 'state_changed') {
+              switch (evt.status) {
+                case 'synced':
+                  setCloudSyncStatus('Synced');
+                  break;
+                case 'syncing':
+                  setCloudSyncStatus('Syncing changes...');
+                  break;
+                case 'saved_locally':
+                  setCloudSyncStatus('Offline — saved locally');
+                  break;
+                case 'conflict':
+                  setCloudSyncStatus('Conflict detected');
+                  break;
+                case 'error':
+                  setCloudSyncStatus('Sync error');
+                  break;
+                default:
+                  setCloudSyncStatus('Synced');
+              }
             }
           });
+
+          await engine.start();
+
+          // Load local tasks
+          const localTasks = await repo.listTasks(workspaceId!);
+          if (!isCancelled) {
+            setTasks(localTasks.filter((t) => t.deletedAt === null));
+            setIsLoading(false);
+            setCloudSyncStatus(navigator.onLine ? 'Synced' : 'Offline');
+          }
+        } catch (err: unknown) {
+          if (!isCancelled) {
+            setErrorMessage(
+              err instanceof Error ? err.message : 'Failed to initialize local task storage.'
+            );
+            setIsLoading(false);
+          }
         }
-      } catch (err: unknown) {
+      } else {
+        // Honest indication: deliberate consent not yet granted
+        setLocalSaveStatus('Device storage off (consent needed)');
+        setCloudSyncStatus(navigator.onLine ? 'Online only' : 'Offline');
+
+        // When consent is not granted, load directly from authenticated API
+        try {
+          const res = await client.listTasks(workspaceId!);
+          if (!isCancelled && res.data) {
+            setTasks(
+              res.data.map((t) => ({
+                ...t,
+                serverRevision: t.revision,
+              }))
+            );
+          }
+        } catch {
+          /* Fallback offline/unconnected */
+        }
         if (!isCancelled) {
-          setErrorMessage(
-            err instanceof Error ? err.message : 'Failed to initialize task storage.'
-          );
           setIsLoading(false);
         }
       }
@@ -260,11 +310,137 @@ export default function PlanPage() {
 
     return () => {
       isCancelled = true;
+      if (syncEngineRef.current) {
+        void syncEngineRef.current.stop();
+        syncEngineRef.current = null;
+      }
       if (localRepoRef.current) {
         void localRepoRef.current.close();
+        localRepoRef.current = null;
       }
     };
-  }, [workspaceId, user?.id]);
+  }, [workspaceId, user?.id, hasConsent]);
+
+  // Execute shared atomic transactional commands across storage and sync
+  const executeTaskCommand = async (
+    action: 'create' | 'update' | 'delete',
+    command: 'createTask' | 'updateTask' | 'completeTask' | 'reopenTask' | 'trashTask',
+    task: TaskRecord,
+    mutationPayload: Record<string, unknown>
+  ): Promise<boolean> => {
+    if (!workspaceId || !user?.id) return false;
+
+    const nowIso = new Date().toISOString();
+    const itemHeader: ItemHeaderRecord = {
+      id: task.id,
+      workspaceId,
+      folderId: task.folderId,
+      name: task.title,
+      kind: 'task',
+      rank: '00001000',
+      securityScope: 'standard',
+      isArchived: false,
+      isPinned: false,
+      serverRevision: task.serverRevision,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      deletedAt: task.deletedAt,
+    };
+
+    if (syncEngineRef.current) {
+      try {
+        await syncEngineRef.current.saveItem(itemHeader, undefined, command, {
+          payload: mutationPayload,
+        });
+        setLocalSaveStatus('Saved locally');
+        return true;
+      } catch (err) {
+        setErrorMessage(
+          err instanceof Error ? err.message : 'Storage write failed. Changes were not persisted.'
+        );
+        setLocalSaveStatus('Error saving locally');
+        return false;
+      }
+    } else if (localRepoRef.current) {
+      try {
+        const mutation: PendingMutationRecord = {
+          operationId: crypto.randomUUID(),
+          deviceId: 'web-browser-tab',
+          workspaceId,
+          userId: user.id,
+          entityType: 'task',
+          entityId: task.id,
+          action,
+          command,
+          baseRevision: task.serverRevision,
+          payload: mutationPayload,
+          dependencyOperationIds: [],
+          clientTimestamp: nowIso,
+          retryCount: 0,
+          status: 'pending',
+          lastError: null,
+        };
+        await localRepoRef.current.saveItemTransaction(
+          itemHeader,
+          mutation,
+          undefined,
+          undefined,
+          task
+        );
+        setLocalSaveStatus('Saved locally');
+        return true;
+      } catch (err) {
+        setErrorMessage(
+          err instanceof Error ? err.message : 'Storage write failed. Changes were not persisted.'
+        );
+        setLocalSaveStatus('Error saving locally');
+        return false;
+      }
+    } else if (apiClientRef.current) {
+      // Direct API proxy write when trusted-device storage is refused
+      try {
+        if (command === 'createTask') {
+          await apiClientRef.current.createTask(workspaceId, {
+            id: task.id,
+            title: task.title,
+            details: task.details,
+            priority: task.priority,
+            status: task.status,
+            deadline: task.deadline,
+            folderId: task.folderId,
+            parentId: task.parentId,
+            subtaskOrder: task.subtaskOrder,
+            tags: task.tags,
+            isPinned: false,
+            securityScope: 'standard',
+          });
+        } else if (command === 'trashTask') {
+          await apiClientRef.current.trashTask(workspaceId, task.id);
+        } else {
+          await apiClientRef.current.updateTask(workspaceId, task.id, {
+            title: task.title,
+            details: task.details,
+            priority: task.priority,
+            status: task.status,
+            deadline: task.deadline,
+            folderId: task.folderId,
+            parentId: task.parentId,
+            subtaskOrder: task.subtaskOrder,
+            tags: task.tags,
+            baseRevision: task.serverRevision,
+          });
+        }
+        setLocalSaveStatus('Online only (no device storage)');
+        return true;
+      } catch (err) {
+        setErrorMessage(
+          err instanceof Error ? err.message : 'API write failed. Changes were not persisted.'
+        );
+        return false;
+      }
+    }
+    return false;
+  };
 
   // Filter and Sort Tasks
   const displayedTasks = useMemo(() => {
@@ -282,8 +458,7 @@ export default function PlanPage() {
           if (t.priority !== priorityFilter) return false;
         }
 
-        // Subtasks: root view shows top-level tasks (parentId === null) or all depending on view
-        // Here we group subtasks under parents, so top list shows parentId === null
+        // Subtasks: root view shows top-level tasks (parentId === null)
         if (t.parentId) {
           return false;
         }
@@ -338,21 +513,18 @@ export default function PlanPage() {
     [tasks]
   );
 
-  // Quick Task Creation
+  // Quick Task Creation (timezone-aware calendar dates)
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanTitle = quickTitle.trim();
     if (!cleanTitle || !workspaceId || !user?.id) return;
 
     let deadline: TaskDeadline = { type: 'none' };
-    const today = new Date();
+    const todayDateStr = getCalendarDateInTimezone(new Date(), viewingTimezone);
     if (quickDeadlinePreset === 'today') {
-      const todayDateStr = today.toISOString().slice(0, 10);
       deadline = { type: 'date', date: todayDateStr };
     } else if (quickDeadlinePreset === 'tomorrow') {
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowDateStr = tomorrow.toISOString().slice(0, 10);
+      const tomorrowDateStr = addCalendarDays(todayDateStr, 1);
       deadline = { type: 'date', date: tomorrowDateStr };
     }
 
@@ -380,34 +552,21 @@ export default function PlanPage() {
       deletedAt: null,
     };
 
-    setQuickTitle('');
-    setTasks((prev) => [newTask, ...prev]);
-    announce(`Created task: ${cleanTitle}`);
+    const mutationPayload = {
+      title: cleanTitle,
+      priority: 'normal',
+      deadline,
+      folderId: selectedFolderId,
+    };
 
-    // Persist locally
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertTask(newTask);
-      setLocalSaveStatus('Saved locally');
-
-      // Enqueue mutation for sync
-      const mutation = createMutation({
-        action: 'create',
-        command: 'createTask',
-        entityId: taskId,
-        baseRevision: 0,
-        payload: {
-          title: cleanTitle,
-          priority: 'normal',
-          deadline,
-          folderId: selectedFolderId,
-        },
-      });
-      await localRepoRef.current.enqueueMutation(mutation);
-
-      if (syncEngineRef.current && navigator.onLine) {
-        void syncEngineRef.current.synchronize();
-      }
+    // Atomic durable write
+    const ok = await executeTaskCommand('create', 'createTask', newTask, mutationPayload);
+    if (ok) {
+      setQuickTitle('');
+      setTasks((prev) => [newTask, ...prev]);
+      announce(`Created task: ${cleanTitle}`);
     }
+    // On failure, quickTitle is deliberately retained
   };
 
   // Toggle Task Completion
@@ -418,6 +577,12 @@ export default function PlanPage() {
     const isCompleting = task.status !== 'completed';
     const newStatus: TaskStatus = isCompleting ? 'completed' : 'todo';
     const nowIso = new Date().toISOString();
+
+    const previousHistory = [...task.completionHistory];
+    const previousCompletedAt = task.completedAt;
+    const previousReopenedAt = task.reopenedAt;
+    const previousStatus = task.status;
+    const previousRevision = task.serverRevision;
 
     const updatedTask: TaskRecord = {
       ...task,
@@ -434,47 +599,52 @@ export default function PlanPage() {
       updatedAt: nowIso,
     };
 
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? updatedTask : t)));
+    const mutationPayload = {
+      status: newStatus,
+      completedAt: updatedTask.completedAt,
+      reopenedAt: updatedTask.reopenedAt,
+    };
 
-    if (isCompleting) {
-      announce(`Task "${task.title}" completed.`);
-      setUndoToast({
-        taskId,
-        taskTitle: task.title,
-        previousStatus: task.status,
-        expiresAt: Date.now() + 5000,
-      });
-    } else {
-      announce(`Task "${task.title}" reopened.`);
-    }
+    const ok = await executeTaskCommand(
+      'update',
+      isCompleting ? 'completeTask' : 'reopenTask',
+      updatedTask,
+      mutationPayload
+    );
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertTask(updatedTask);
-      setLocalSaveStatus('Saved locally');
+    if (ok) {
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? updatedTask : t)));
 
-      const mutation = createMutation({
-        action: 'update',
-        command: isCompleting ? 'completeTask' : 'reopenTask',
-        entityId: taskId,
-        baseRevision: task.serverRevision,
-        payload: {
-          status: newStatus,
-          completedAt: updatedTask.completedAt,
-          reopenedAt: updatedTask.reopenedAt,
-        },
-      });
-      await localRepoRef.current.enqueueMutation(mutation);
-
-      if (syncEngineRef.current && navigator.onLine) {
-        void syncEngineRef.current.synchronize();
+      if (isCompleting) {
+        announce(`Task "${task.title}" completed.`);
+        setUndoToast({
+          taskId,
+          taskTitle: task.title,
+          previousStatus,
+          previousCompletedAt,
+          previousReopenedAt,
+          previousHistory,
+          previousRevision,
+          expiresAt: Date.now() + 5000,
+        });
+      } else {
+        announce(`Task "${task.title}" reopened.`);
       }
     }
   };
 
-  // Undo Completion
+  // Revision-protected Undo Completion without fabricating extra history
   const handleUndo = async () => {
     if (!undoToast) return;
-    const { taskId, previousStatus } = undoToast;
+    const {
+      taskId,
+      taskTitle,
+      previousStatus,
+      previousCompletedAt,
+      previousReopenedAt,
+      previousHistory,
+      previousRevision,
+    } = undoToast;
     setUndoToast(null);
 
     const task = tasks.find((t) => t.id === taskId);
@@ -484,33 +654,23 @@ export default function PlanPage() {
     const restoredTask: TaskRecord = {
       ...task,
       status: previousStatus,
-      completedAt: null,
-      reopenedAt: nowIso,
-      completionHistory: [
-        ...task.completionHistory,
-        { completedAt: task.completedAt || nowIso, reopenedAt: nowIso },
-      ],
+      completedAt: previousCompletedAt,
+      reopenedAt: previousReopenedAt,
+      completionHistory: previousHistory,
       serverRevision: task.serverRevision + 1,
       updatedAt: nowIso,
     };
 
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? restoredTask : t)));
-    announce(`Undid completion for "${task.title}".`);
+    const ok = await executeTaskCommand('update', 'reopenTask', restoredTask, {
+      status: previousStatus,
+      completedAt: previousCompletedAt,
+      reopenedAt: previousReopenedAt,
+      baseRevision: previousRevision,
+    });
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.upsertTask(restoredTask);
-      const mutation = createMutation({
-        action: 'update',
-        command: 'reopenTask',
-        entityId: taskId,
-        baseRevision: task.serverRevision,
-        payload: { status: previousStatus, reopenedAt: nowIso },
-      });
-      await localRepoRef.current.enqueueMutation(mutation);
-
-      if (syncEngineRef.current && navigator.onLine) {
-        void syncEngineRef.current.synchronize();
-      }
+    if (ok) {
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? restoredTask : t)));
+      announce(`Undid completion for "${taskTitle}".`);
     }
   };
 
@@ -543,30 +703,21 @@ export default function PlanPage() {
         updatedAt: nowIso,
       };
 
-      setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
-      setEditingTask(null);
-      announce(`Updated task "${data.title}"`);
+      const mutationPayload = {
+        title: data.title,
+        details: data.details ?? null,
+        priority: data.priority,
+        status: data.status,
+        deadline: data.deadline,
+        folderId: data.folderId ?? null,
+        tags: data.tags,
+      };
 
-      if (localRepoRef.current) {
-        await localRepoRef.current.upsertTask(updated);
-        const mutation = createMutation({
-          action: 'update',
-          command: 'updateTask',
-          entityId: editingTask.id,
-          baseRevision: editingTask.serverRevision,
-          payload: {
-            title: data.title,
-            details: data.details ?? null,
-            priority: data.priority,
-            status: data.status,
-            deadline: data.deadline,
-            folderId: data.folderId ?? null,
-            tags: data.tags,
-          },
-        });
-        await localRepoRef.current.enqueueMutation(mutation);
+      const ok = await executeTaskCommand('update', 'updateTask', updated, mutationPayload);
+      if (ok) {
+        setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
 
-        // Process newly added subtasks
+        // Persist newly added subtasks atomically
         if (data.subtasks && data.subtasks.length > 0) {
           for (let i = 0; i < data.subtasks.length; i++) {
             const st = data.subtasks[i]!;
@@ -592,27 +743,20 @@ export default function PlanPage() {
                 updatedAt: nowIso,
                 deletedAt: null,
               };
-              await localRepoRef.current.upsertTask(newSubtask);
-              const subMutation = createMutation({
-                action: 'create',
-                command: 'createTask',
-                entityId: subtaskId,
-                baseRevision: 0,
-                payload: {
-                  title: st.title,
-                  parentId: editingTask.id,
-                  subtaskOrder: i + 1,
-                },
+              const subOk = await executeTaskCommand('create', 'createTask', newSubtask, {
+                title: st.title,
+                parentId: editingTask.id,
+                subtaskOrder: i + 1,
               });
-              await localRepoRef.current.enqueueMutation(subMutation);
-              setTasks((prev) => [...prev, newSubtask]);
+              if (subOk) {
+                setTasks((prev) => [...prev, newSubtask]);
+              }
             }
           }
         }
 
-        if (syncEngineRef.current && navigator.onLine) {
-          void syncEngineRef.current.synchronize();
-        }
+        setEditingTask(null);
+        announce(`Updated task "${data.title}"`);
       }
     } else {
       // Create fresh task from editor
@@ -638,59 +782,47 @@ export default function PlanPage() {
         deletedAt: null,
       };
 
-      setTasks((prev) => [freshTask, ...prev]);
-      setIsCreatingNew(false);
-      announce(`Created task "${data.title}"`);
+      const mutationPayload = {
+        title: data.title,
+        details: data.details ?? null,
+        priority: data.priority,
+        status: data.status,
+        deadline: data.deadline,
+        folderId: data.folderId ?? null,
+        tags: data.tags,
+      };
 
-      if (localRepoRef.current) {
-        await localRepoRef.current.upsertTask(freshTask);
-        const mutation = createMutation({
-          action: 'create',
-          command: 'createTask',
-          entityId: newId,
-          baseRevision: 0,
-          payload: {
-            title: data.title,
-            details: data.details ?? null,
-            priority: data.priority,
-            status: data.status,
-            deadline: data.deadline,
-            folderId: data.folderId ?? null,
-            tags: data.tags,
-          },
-        });
-        await localRepoRef.current.enqueueMutation(mutation);
-
-        if (syncEngineRef.current && navigator.onLine) {
-          void syncEngineRef.current.synchronize();
-        }
+      const ok = await executeTaskCommand('create', 'createTask', freshTask, mutationPayload);
+      if (ok) {
+        setTasks((prev) => [freshTask, ...prev]);
+        setIsCreatingNew(false);
+        announce(`Created task "${data.title}"`);
       }
     }
   };
 
-  // Delete / Trash Task
+  // Delete / Trash Task preserving payload as tombstone
   const handleDeleteTask = async () => {
     if (!editingTask || !workspaceId || !user?.id) return;
     const taskId = editingTask.id;
     const taskTitle = editingTask.title;
-    setEditingTask(null);
+    const nowIso = new Date().toISOString();
 
-    setTasks((prev) => prev.filter((t) => t.id !== taskId && t.parentId !== taskId));
-    announce(`Deleted task "${taskTitle}"`);
+    const trashedTask: TaskRecord = {
+      ...editingTask,
+      deletedAt: nowIso,
+      serverRevision: editingTask.serverRevision + 1,
+      updatedAt: nowIso,
+    };
 
-    if (localRepoRef.current) {
-      await localRepoRef.current.deleteTask(workspaceId, taskId);
-      const mutation = createMutation({
-        action: 'delete',
-        command: 'trashTask',
-        entityId: taskId,
-        baseRevision: editingTask.serverRevision,
-      });
-      await localRepoRef.current.enqueueMutation(mutation);
+    const ok = await executeTaskCommand('delete', 'trashTask', trashedTask, {
+      deletedAt: nowIso,
+    });
 
-      if (syncEngineRef.current && navigator.onLine) {
-        void syncEngineRef.current.synchronize();
-      }
+    if (ok) {
+      setTasks((prev) => prev.filter((t) => t.id !== taskId && t.parentId !== taskId));
+      setEditingTask(null);
+      announce(`Moved task "${taskTitle}" to trash.`);
     }
   };
 
@@ -716,91 +848,110 @@ export default function PlanPage() {
     }
   };
 
+  // Open Bulk Action Confirmation capturing reviewed IDs and revisions
+  const handleOpenBulkConfirm = (
+    action: 'complete' | 'delete' | 'move',
+    folderId?: string | null
+  ) => {
+    const reviewedItems: BulkActionReviewItem[] = [];
+    for (const id of selectedTaskIds) {
+      const t = tasks.find((item) => item.id === id);
+      if (t) {
+        reviewedItems.push({ id: t.id, revision: t.serverRevision, title: t.title });
+      }
+    }
+
+    if (reviewedItems.length === 0) return;
+
+    setBulkActionConfirm({
+      action,
+      count: reviewedItems.length,
+      folderId: folderId ?? null,
+      reviewedItems,
+    });
+  };
+
+  // Execute Bulk Action with scope revalidation and explicit partial failure reporting
   const handleExecuteBulkAction = async () => {
     if (!bulkActionConfirm || !workspaceId || !user?.id) return;
-    const { action, folderId: targetFolderId } = bulkActionConfirm;
-    const targetIds = Array.from(selectedTaskIds);
+    const { action, folderId: targetFolderId, reviewedItems } = bulkActionConfirm;
     setBulkActionConfirm(null);
     setSelectedTaskIds(new Set());
 
     const nowIso = new Date().toISOString();
+    let succeededCount = 0;
+    const failedTitles: string[] = [];
 
-    if (action === 'complete') {
-      setTasks((prev) =>
-        prev.map((t) =>
-          targetIds.includes(t.id)
-            ? {
-                ...t,
-                status: 'completed',
-                completedAt: nowIso,
-                completionHistory: [...t.completionHistory, { completedAt: nowIso }],
-                serverRevision: t.serverRevision + 1,
-                updatedAt: nowIso,
-              }
-            : t
-        )
-      );
-      announce(`Completed ${targetIds.length} tasks.`);
+    for (const reviewed of reviewedItems) {
+      // Revalidate item presence, scope, and revision
+      const currentTask = tasks.find((t) => t.id === reviewed.id && t.workspaceId === workspaceId);
+      if (!currentTask || currentTask.serverRevision !== reviewed.revision) {
+        failedTitles.push(reviewed.title);
+        continue;
+      }
 
-      if (localRepoRef.current) {
-        for (const id of targetIds) {
-          const t = tasks.find((item) => item.id === id);
-          if (t) {
-            await localRepoRef.current.upsertTask({
-              ...t,
-              status: 'completed',
-              completedAt: nowIso,
-              serverRevision: t.serverRevision + 1,
-              updatedAt: nowIso,
-            });
-            const mutation = createMutation({
-              action: 'update',
-              command: 'completeTask',
-              entityId: id,
-              baseRevision: t.serverRevision,
-              payload: { status: 'completed', completedAt: nowIso },
-            });
-            await localRepoRef.current.enqueueMutation(mutation);
-          }
+      if (action === 'complete') {
+        const updated: TaskRecord = {
+          ...currentTask,
+          status: 'completed',
+          completedAt: nowIso,
+          completionHistory: [...currentTask.completionHistory, { completedAt: nowIso }],
+          serverRevision: currentTask.serverRevision + 1,
+          updatedAt: nowIso,
+        };
+        const ok = await executeTaskCommand('update', 'completeTask', updated, {
+          status: 'completed',
+          completedAt: nowIso,
+        });
+        if (ok) {
+          setTasks((prev) => prev.map((t) => (t.id === reviewed.id ? updated : t)));
+          succeededCount++;
+        } else {
+          failedTitles.push(reviewed.title);
+        }
+      } else if (action === 'delete') {
+        const trashed: TaskRecord = {
+          ...currentTask,
+          deletedAt: nowIso,
+          serverRevision: currentTask.serverRevision + 1,
+          updatedAt: nowIso,
+        };
+        const ok = await executeTaskCommand('delete', 'trashTask', trashed, {
+          deletedAt: nowIso,
+        });
+        if (ok) {
+          setTasks((prev) =>
+            prev.filter((t) => t.id !== reviewed.id && t.parentId !== reviewed.id)
+          );
+          succeededCount++;
+        } else {
+          failedTitles.push(reviewed.title);
+        }
+      } else if (action === 'move') {
+        const moved: TaskRecord = {
+          ...currentTask,
+          folderId: targetFolderId ?? null,
+          serverRevision: currentTask.serverRevision + 1,
+          updatedAt: nowIso,
+        };
+        const ok = await executeTaskCommand('update', 'updateTask', moved, {
+          folderId: targetFolderId ?? null,
+        });
+        if (ok) {
+          setTasks((prev) => prev.map((t) => (t.id === reviewed.id ? moved : t)));
+          succeededCount++;
+        } else {
+          failedTitles.push(reviewed.title);
         }
       }
-    } else if (action === 'delete') {
-      setTasks((prev) => prev.filter((t) => !targetIds.includes(t.id)));
-      announce(`Deleted ${targetIds.length} tasks.`);
-
-      if (localRepoRef.current) {
-        for (const id of targetIds) {
-          const t = tasks.find((item) => item.id === id);
-          if (t) {
-            await localRepoRef.current.deleteTask(workspaceId, id);
-            const mutation = createMutation({
-              action: 'delete',
-              command: 'trashTask',
-              entityId: id,
-              baseRevision: t.serverRevision,
-            });
-            await localRepoRef.current.enqueueMutation(mutation);
-          }
-        }
-      }
-    } else if (action === 'move') {
-      setTasks((prev) =>
-        prev.map((t) =>
-          targetIds.includes(t.id)
-            ? {
-                ...t,
-                folderId: targetFolderId ?? null,
-                serverRevision: t.serverRevision + 1,
-                updatedAt: nowIso,
-              }
-            : t
-        )
-      );
-      announce(`Moved ${targetIds.length} tasks.`);
     }
 
-    if (syncEngineRef.current && navigator.onLine) {
-      void syncEngineRef.current.synchronize();
+    if (failedTitles.length > 0) {
+      setErrorMessage(
+        `Action partially succeeded: ${succeededCount} processed, but ${failedTitles.length} items failed or had conflicting edits (${failedTitles.join(', ')}).`
+      );
+    } else {
+      announce(`Processed ${succeededCount} tasks successfully.`);
     }
   };
 
@@ -881,22 +1032,30 @@ export default function PlanPage() {
             <option value={viewingTimezone}>{viewingTimezone}</option>
             <option value="Asia/Dhaka">Asia/Dhaka (+06:00)</option>
             <option value="America/New_York">America/New_York</option>
+            <option value="Pacific/Kiritimati">Pacific/Kiritimati (+14:00)</option>
             <option value="UTC">UTC (+00:00)</option>
           </select>
+
           <span
             style={{
               fontSize: '12px',
               padding: '3px 8px',
               borderRadius: radii.pill,
-              backgroundColor: themeMode === 'dark' ? '#1e293b' : '#f1f5f9',
-              color: palette.text.secondary,
+              backgroundColor: hasConsent
+                ? themeMode === 'dark'
+                  ? '#1e293b'
+                  : '#f1f5f9'
+                : palette.status.warningBg,
+              color: hasConsent ? palette.text.secondary : palette.status.warning,
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
+              border: `1px solid ${hasConsent ? palette.border.subtle : palette.status.warningBorder}`,
             }}
           >
             💾 {localSaveStatus}
           </span>
+
           <span
             style={{
               fontSize: '12px',
@@ -923,11 +1082,65 @@ export default function PlanPage() {
           >
             {isOnline ? `☁️ ${cloudSyncStatus}` : '⚡ Offline'}
           </span>
+
           <Button variant="primary" size="compact" onClick={() => setIsCreatingNew(true)}>
             + New Task
           </Button>
         </div>
       </div>
+
+      {/* Honest Trusted-Device Consent Banner & Refusal Path */}
+      {!hasConsent && !consentRefused && (
+        <Card
+          style={{
+            marginBottom: `${spacing.md}px`,
+            padding: `${spacing.base}px`,
+            backgroundColor: themeMode === 'dark' ? 'rgba(234, 179, 8, 0.1)' : '#fffbeb',
+            border: '1px solid #f59e0b',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: palette.text.primary }}>
+              🔒 Trusted-Device Local Storage Consent
+            </span>
+            <p
+              style={{
+                fontSize: '13px',
+                margin: 0,
+                color: palette.text.secondary,
+                lineHeight: 1.4,
+              }}
+            >
+              Offline device storage is disabled on this browser. To keep tasks available offline
+              and speed up navigation, enable trusted-device storage. You may also refuse and
+              continue in online-only mode.
+            </p>
+            <div style={{ display: 'flex', gap: `${spacing.sm}px`, marginTop: '4px' }}>
+              <Button
+                variant="primary"
+                size="compact"
+                onClick={() => {
+                  setTrustedDeviceConsent(true);
+                  setHasConsent(true);
+                  announce('Trusted-device storage enabled.');
+                }}
+              >
+                Enable Device Storage
+              </Button>
+              <Button
+                variant="subtle"
+                size="compact"
+                onClick={() => {
+                  setConsentRefused(true);
+                  announce('Operating in online-only mode without local persistence.');
+                }}
+              >
+                Continue without Device Storage
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Error message banner */}
       {errorMessage && (
@@ -1197,6 +1410,8 @@ export default function PlanPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: `${spacing.sm}px`,
             padding: `${spacing.sm}px ${spacing.base}px`,
             backgroundColor: themeMode === 'dark' ? '#1e293b' : '#eff6ff',
             border: `1px solid ${palette.action.primary}`,
@@ -1207,23 +1422,53 @@ export default function PlanPage() {
           <span style={{ fontSize: '14px', fontWeight: 600, color: palette.action.primary }}>
             {selectedTaskIds.size} {selectedTaskIds.size === 1 ? 'task' : 'tasks'} selected
           </span>
-          <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: `${spacing.xs}px`,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
             <Button
               size="compact"
               variant="secondary"
-              onClick={() =>
-                setBulkActionConfirm({ action: 'complete', count: selectedTaskIds.size })
-              }
+              onClick={() => handleOpenBulkConfirm('complete')}
             >
               Mark Complete
             </Button>
-            <Button
-              size="compact"
-              variant="danger"
-              onClick={() =>
-                setBulkActionConfirm({ action: 'delete', count: selectedTaskIds.size })
-              }
-            >
+            {folders.length > 0 && (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <select
+                  value={bulkMoveTargetFolderId}
+                  onChange={(e) => setBulkMoveTargetFolderId(e.target.value)}
+                  aria-label="Select target folder for bulk move"
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '12px',
+                    borderRadius: radii.sm,
+                    border: `1px solid ${palette.border.subtle}`,
+                    backgroundColor: palette.surface,
+                    color: palette.text.primary,
+                  }}
+                >
+                  <option value="">Move to Inbox (None)</option>
+                  {folders.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      📁 {f.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  size="compact"
+                  variant="secondary"
+                  onClick={() => handleOpenBulkConfirm('move', bulkMoveTargetFolderId || null)}
+                >
+                  Move
+                </Button>
+              </div>
+            )}
+            <Button size="compact" variant="danger" onClick={() => handleOpenBulkConfirm('delete')}>
               Delete Selected
             </Button>
             <Button size="compact" variant="subtle" onClick={() => setSelectedTaskIds(new Set())}>
@@ -1388,7 +1633,12 @@ export default function PlanPage() {
                 marginBottom: '8px',
               }}
             >
-              Confirm Bulk {bulkActionConfirm.action === 'complete' ? 'Completion' : 'Deletion'}
+              Confirm Bulk{' '}
+              {bulkActionConfirm.action === 'complete'
+                ? 'Completion'
+                : bulkActionConfirm.action === 'delete'
+                  ? 'Deletion'
+                  : 'Move'}
             </h2>
             <p
               style={{
@@ -1399,9 +1649,13 @@ export default function PlanPage() {
               }}
             >
               Are you sure you want to{' '}
-              {bulkActionConfirm.action === 'complete' ? 'mark as completed' : 'permanently delete'}{' '}
-              <strong>{bulkActionConfirm.count} selected tasks</strong>? This action affects only
-              visible, reviewed selections.
+              {bulkActionConfirm.action === 'complete'
+                ? 'mark as completed'
+                : bulkActionConfirm.action === 'delete'
+                  ? 'move to trash'
+                  : `move to ${folders.find((f) => f.id === bulkActionConfirm.folderId)?.name || 'Inbox'}`}{' '}
+              <strong>{bulkActionConfirm.count} selected tasks</strong>? This action will apply to
+              all reviewed selections.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: `${spacing.sm}px` }}>
               <Button variant="subtle" size="compact" onClick={() => setBulkActionConfirm(null)}>
@@ -1412,7 +1666,12 @@ export default function PlanPage() {
                 size="compact"
                 onClick={handleExecuteBulkAction}
               >
-                Confirm {bulkActionConfirm.action === 'complete' ? 'Complete' : 'Delete'}
+                Confirm{' '}
+                {bulkActionConfirm.action === 'complete'
+                  ? 'Complete'
+                  : bulkActionConfirm.action === 'delete'
+                    ? 'Delete'
+                    : 'Move'}
               </Button>
             </div>
           </div>
