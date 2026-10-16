@@ -14,6 +14,7 @@ import {
   type PendingMutationRecord,
   type SyncCursorRecord,
   type PreferenceSnapshotRecord,
+  type JournalEntryRecord,
 } from '@daynori/sync';
 
 /**
@@ -249,12 +250,12 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
       const version = await repo.getCurrentSchemaVersion();
-      expect(version).toBe(6);
+      expect(version).toBe(7);
 
       // Re-running initialization should not fail or duplicate migrations
       await repo.initialize({ userId: user1, workspaceId: ws1 });
       const versionAfter = await repo.getCurrentSchemaVersion();
-      expect(versionAfter).toBe(6);
+      expect(versionAfter).toBe(7);
 
       await repo.close();
     });
@@ -728,6 +729,105 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
 
       await repo.deleteTask(ws1, 'task-mob-001');
       const afterDelete = await repo.getTask(ws1, 'task-mob-001');
+      expect(afterDelete).toBeNull();
+
+      await repo.close();
+    });
+  });
+
+  describe('Journal Entries (migration 7)', () => {
+    it('persists, updates, queries, filters by date, and deletes journal entries with Unicode/Bangla content', async () => {
+      const repo = createRepo();
+      await repo.initialize({ userId: user1, workspaceId: ws1 });
+
+      const entry1: JournalEntryRecord = {
+        id: 'journal-mob-001',
+        workspaceId: ws1,
+        folderId: null,
+        entryDate: '2026-10-16',
+        timezone: 'Asia/Dhaka',
+        title: 'সন্ধ্যার ভাবনা (Evening Reflections)',
+        document: {
+          version: 1,
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'আজকের দিনটি চমৎকার ছিল। শিমুল ফুল ফুটেছে।' }],
+            },
+          ],
+        },
+        plainText: 'আজকের দিনটি চমৎকার ছিল। শিমুল ফুল ফুটেছে।',
+        wordCount: 7,
+        charCount: 42,
+        mood: 'peaceful',
+        prompts: [
+          {
+            prompt: 'আজকের কোন ঘটনাটি আপনার মনে সবচেয়ে বেশি দাগ কেটেছে?',
+            response: 'শিমুল ফুল দেখা।',
+          },
+        ],
+        tags: ['bangla', 'reflections', 'daily'],
+        isDraft: false,
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        createdAt: '2026-10-16T18:30:00.000Z',
+        updatedAt: '2026-10-16T18:30:00.000Z',
+        deletedAt: null,
+      };
+
+      const entry2: JournalEntryRecord = {
+        id: 'journal-mob-002',
+        workspaceId: ws1,
+        folderId: null,
+        entryDate: '2026-10-17',
+        timezone: 'UTC',
+        title: 'Morning Plan',
+        document: { version: 1, type: 'doc', content: [] },
+        plainText: 'Planning the weekend trip.',
+        wordCount: 4,
+        charCount: 26,
+        mood: 'energized',
+        prompts: [],
+        tags: ['weekend'],
+        isDraft: false,
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        createdAt: '2026-10-17T07:00:00.000Z',
+        updatedAt: '2026-10-17T07:00:00.000Z',
+        deletedAt: null,
+      };
+
+      await repo.upsertJournalEntry(entry1);
+      await repo.upsertJournalEntry(entry2);
+
+      // Verify single fetch
+      const fetched = await repo.getJournalEntry(ws1, 'journal-mob-001');
+      expect(fetched).not.toBeNull();
+      expect(fetched?.title).toBe('সন্ধ্যার ভাবনা (Evening Reflections)');
+      expect(fetched?.plainText).toBe('আজকের দিনটি চমৎকার ছিল। শিমুল ফুল ফুটেছে।');
+      expect(fetched?.mood).toBe('peaceful');
+      expect(fetched?.tags).toEqual(['bangla', 'reflections', 'daily']);
+
+      // Verify date filter
+      const filtered = await repo.listJournalEntries(ws1, { entryDate: '2026-10-16' });
+      expect(filtered.length).toBe(1);
+      expect(filtered[0]?.id).toBe('journal-mob-001');
+
+      // Verify range filter
+      const rangeFiltered = await repo.listJournalEntries(ws1, {
+        startDate: '2026-10-16',
+        endDate: '2026-10-17',
+      });
+      expect(rangeFiltered.length).toBe(2);
+
+      // Verify delete
+      await repo.deleteJournalEntry(ws1, 'journal-mob-001');
+      const afterDelete = await repo.getJournalEntry(ws1, 'journal-mob-001');
       expect(afterDelete).toBeNull();
 
       await repo.close();

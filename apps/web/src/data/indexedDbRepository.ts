@@ -11,6 +11,7 @@ import type {
   TaskRecord,
   RoutineRecord,
   RoutineOccurrenceRecord,
+  JournalEntryRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -28,11 +29,12 @@ import {
   validateTaskRecord,
   validateRoutineRecord,
   validateRoutineOccurrenceRecord,
+  validateJournalEntryRecord,
 } from '@daynori/sync';
 
 export const TRUSTED_DEVICE_CONSENT_KEY = 'daynori_trusted_device_consent';
 export const DB_NAME = 'daynori_web_storage';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 export const COORDINATION_CHANNEL_NAME = 'daynori_storage_coordination';
 
 function getStorage(): Storage | null {
@@ -259,6 +261,15 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
               unique: true,
             });
             occStore.createIndex('by_date', ['workspaceId', 'scheduledDate'], {
+              unique: false,
+            });
+          }
+
+          if (!db.objectStoreNames.contains('journal_entries')) {
+            const journalStore = db.createObjectStore('journal_entries', {
+              keyPath: ['workspaceId', 'id'],
+            });
+            journalStore.createIndex('by_date', ['workspaceId', 'entryDate'], {
               unique: false,
             });
           }
@@ -651,7 +662,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     note?: NoteRecord,
     task?: TaskRecord,
     routine?: RoutineRecord,
-    occurrence?: RoutineOccurrenceRecord
+    occurrence?: RoutineOccurrenceRecord,
+    journalEntry?: JournalEntryRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
@@ -660,6 +672,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     const validTask = task ? validateTaskRecord(task) : undefined;
     const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
     const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
+    const validJournal = journalEntry ? validateJournalEntryRecord(journalEntry) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
@@ -678,6 +691,9 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     if (validOccurrence) {
       this.ensureNamespace(validOccurrence.workspaceId);
     }
+    if (validJournal) {
+      this.ensureNamespace(validJournal.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -687,6 +703,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validTask) stores.push('tasks');
       if (validRoutine) stores.push('routines');
       if (validOccurrence) stores.push('routine_occurrences');
+      if (validJournal) stores.push('journal_entries');
       const tx = db.transaction(stores, 'readwrite');
       tx.objectStore('item_headers').put(validItem);
       tx.objectStore('pending_mutations').put(validMut);
@@ -705,6 +722,9 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validOccurrence) {
         tx.objectStore('routine_occurrences').put(validOccurrence);
       }
+      if (validJournal) {
+        tx.objectStore('journal_entries').put(validJournal);
+      }
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
@@ -718,18 +738,21 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     note?: NoteRecord,
     task?: TaskRecord,
     routine?: RoutineRecord,
-    occurrence?: RoutineOccurrenceRecord
+    occurrence?: RoutineOccurrenceRecord,
+    journalEntry?: JournalEntryRecord
   ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
     const validNote = note ? validateNoteRecord(note) : undefined;
     const validTask = task ? validateTaskRecord(task) : undefined;
     const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
     const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
+    const validJournal = journalEntry ? validateJournalEntryRecord(journalEntry) : undefined;
     this.ensureNamespace(valid.workspaceId);
     if (validNote) this.ensureNamespace(validNote.workspaceId);
     if (validTask) this.ensureNamespace(validTask.workspaceId);
     if (validRoutine) this.ensureNamespace(validRoutine.workspaceId);
     if (validOccurrence) this.ensureNamespace(validOccurrence.workspaceId);
+    if (validJournal) this.ensureNamespace(validJournal.workspaceId);
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -738,6 +761,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validTask) stores.push('tasks');
       if (validRoutine) stores.push('routines');
       if (validOccurrence) stores.push('routine_occurrences');
+      if (validJournal) stores.push('journal_entries');
       const tx = db.transaction(stores, 'readwrite');
       tx.objectStore('item_headers').put(valid);
       tx.objectStore('pending_mutations').delete(operationId);
@@ -753,6 +777,9 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validOccurrence) {
         tx.objectStore('routine_occurrences').put(validOccurrence);
       }
+      if (validJournal) {
+        tx.objectStore('journal_entries').put(validJournal);
+      }
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
@@ -766,7 +793,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     notes?: NoteRecord[],
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
-    occurrences?: RoutineOccurrenceRecord[]
+    occurrences?: RoutineOccurrenceRecord[],
+    journalEntries?: JournalEntryRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -790,6 +818,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     for (const o of validatedOccurrences) {
       this.ensureNamespace(o.workspaceId);
     }
+    const validatedJournalEntries = (journalEntries || []).map((j) =>
+      validateJournalEntryRecord(j)
+    );
+    for (const j of validatedJournalEntries) {
+      this.ensureNamespace(j.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -798,6 +832,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validatedTasks.length > 0) stores.push('tasks');
       if (validatedRoutines.length > 0) stores.push('routines');
       if (validatedOccurrences.length > 0) stores.push('routine_occurrences');
+      if (validatedJournalEntries.length > 0) stores.push('journal_entries');
       const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
@@ -806,6 +841,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       const routineStore = validatedRoutines.length > 0 ? tx.objectStore('routines') : null;
       const occStore =
         validatedOccurrences.length > 0 ? tx.objectStore('routine_occurrences') : null;
+      const journalStore =
+        validatedJournalEntries.length > 0 ? tx.objectStore('journal_entries') : null;
 
       // 1. Process each item change under protection against stale concurrent overwrites
       for (const change of validatedChanges) {
@@ -891,7 +928,23 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       }
 
-      // 6. Cursor advancement: protect against moving cursor backward
+      // 6. Process journal entries in the same transaction
+      if (journalStore) {
+        for (const j of validatedJournalEntries) {
+          const getJournalReq = journalStore.get([j.workspaceId, j.id]);
+          getJournalReq.onsuccess = () => {
+            const existing = getJournalReq.result
+              ? validateJournalEntryRecord(getJournalReq.result)
+              : null;
+            if (existing && existing.serverRevision > j.serverRevision) {
+              return;
+            }
+            journalStore.put(j);
+          };
+        }
+      }
+
+      // 7. Cursor advancement: protect against moving cursor backward
       const cursorGetReq = cursorStore.get([validCursor.workspaceId, validCursor.userId]);
       cursorGetReq.onsuccess = () => {
         const existingCursor = cursorGetReq.result
@@ -917,7 +970,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     notes?: NoteRecord[],
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
-    occurrences?: RoutineOccurrenceRecord[]
+    occurrences?: RoutineOccurrenceRecord[],
+    journalEntries?: JournalEntryRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -941,6 +995,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     for (const o of validatedOccurrences) {
       this.ensureNamespace(o.workspaceId);
     }
+    const validatedJournalEntries = (journalEntries || []).map((j) =>
+      validateJournalEntryRecord(j)
+    );
+    for (const j of validatedJournalEntries) {
+      this.ensureNamespace(j.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -949,6 +1009,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validatedTasks.length > 0) stores.push('tasks');
       if (validatedRoutines.length > 0) stores.push('routines');
       if (validatedOccurrences.length > 0) stores.push('routine_occurrences');
+      if (validatedJournalEntries.length > 0) stores.push('journal_entries');
       const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
@@ -957,6 +1018,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       const routineStore = validatedRoutines.length > 0 ? tx.objectStore('routines') : null;
       const occStore =
         validatedOccurrences.length > 0 ? tx.objectStore('routine_occurrences') : null;
+      const journalStore =
+        validatedJournalEntries.length > 0 ? tx.objectStore('journal_entries') : null;
 
       const snapshotIds = new Set(validItems.map((i) => i.id));
 
@@ -1012,7 +1075,14 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           }
         }
 
-        // 7. Update watermark cursor
+        // 7. Upsert snapshot journal entries
+        if (journalStore) {
+          for (const j of validatedJournalEntries) {
+            journalStore.put(j);
+          }
+        }
+
+        // 8. Update watermark cursor
         cursorStore.put(validCursor);
       };
 
@@ -1092,7 +1162,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     recoveryDraft?: DraftRecord,
     updatedTask?: TaskRecord,
     updatedRoutine?: RoutineRecord,
-    updatedOccurrence?: RoutineOccurrenceRecord
+    updatedOccurrence?: RoutineOccurrenceRecord,
+    updatedJournalEntry?: JournalEntryRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
@@ -1104,6 +1175,14 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     const validOccurrence = updatedOccurrence
       ? validateRoutineOccurrenceRecord(updatedOccurrence)
       : undefined;
+    const validJournal = updatedJournalEntry
+      ? validateJournalEntryRecord(updatedJournalEntry)
+      : undefined;
+
+    const existingConflict = await this.getConflict(ns.workspaceId, conflictId);
+    if (existingConflict) {
+      existingConflict.resolved = true;
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -1113,6 +1192,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validTask) stores.push('tasks');
       if (validRoutine) stores.push('routines');
       if (validOccurrence) stores.push('routine_occurrences');
+      if (validJournal) stores.push('journal_entries');
       const tx = db.transaction(stores, 'readwrite');
       const conflictStore = tx.objectStore('conflicts');
       const itemStore = tx.objectStore('item_headers');
@@ -1122,16 +1202,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       const taskStore = validTask ? tx.objectStore('tasks') : null;
       const routineStore = validRoutine ? tx.objectStore('routines') : null;
       const occStore = validOccurrence ? tx.objectStore('routine_occurrences') : null;
+      const journalStore = validJournal ? tx.objectStore('journal_entries') : null;
 
       // 1. Mark conflict resolved
-      const getReq = conflictStore.get([ns.workspaceId, conflictId]);
-      getReq.onsuccess = () => {
-        if (getReq.result) {
-          const rec = validateConflictRecord(getReq.result);
-          rec.resolved = true;
-          conflictStore.put(rec);
-        }
-      };
+      if (existingConflict) {
+        conflictStore.put(existingConflict);
+      }
 
       // 2. Remove old operation if specified
       if (removeOperationId) {
@@ -1168,7 +1244,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         occStore.put(validOccurrence);
       }
 
-      // 9. Save recovery draft if specified
+      // 9. Update journal if specified
+      if (validJournal && journalStore) {
+        journalStore.put(validJournal);
+      }
+
+      // 10. Save recovery draft if specified
       if (validDraft && draftStore) {
         draftStore.put(validDraft);
       }
@@ -1445,7 +1526,88 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 9. Sync Cursors ---
+  // --- 9. Journal Entries ---
+
+  async getJournalEntry(workspaceId: string, id: string): Promise<JournalEntryRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('journal_entries', 'readonly');
+      const store = tx.objectStore('journal_entries');
+      const req = store.get([workspaceId, id]);
+
+      req.onsuccess = () => resolve(req.result ? validateJournalEntryRecord(req.result) : null);
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async listJournalEntries(
+    workspaceId: string,
+    options?: { entryDate?: string; startDate?: string; endDate?: string }
+  ): Promise<JournalEntryRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('journal_entries', 'readonly');
+      const store = tx.objectStore('journal_entries');
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const raw = (req.result as unknown[]) || [];
+        let results = raw
+          .map((j) => validateJournalEntryRecord(j))
+          .filter((j) => j.workspaceId === workspaceId && j.deletedAt === null);
+
+        if (options?.entryDate) {
+          results = results.filter((j) => j.entryDate === options.entryDate);
+        }
+        if (options?.startDate) {
+          results = results.filter((j) => j.entryDate >= options.startDate!);
+        }
+        if (options?.endDate) {
+          results = results.filter((j) => j.entryDate <= options.endDate!);
+        }
+
+        results.sort((a, b) => {
+          if (a.entryDate !== b.entryDate) return b.entryDate.localeCompare(a.entryDate);
+          return b.createdAt.localeCompare(a.createdAt);
+        });
+        resolve(results);
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async upsertJournalEntry(entry: JournalEntryRecord): Promise<void> {
+    const valid = validateJournalEntryRecord(entry);
+    this.ensureNamespace(valid.workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('journal_entries', 'readwrite');
+      const store = tx.objectStore('journal_entries');
+      store.put(valid);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async deleteJournalEntry(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('journal_entries', 'readwrite');
+      const store = tx.objectStore('journal_entries');
+      store.delete([workspaceId, id]);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  // --- 10. Sync Cursors ---
 
   async getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null> {
     this.ensureNamespace(workspaceId, userId);
@@ -1523,6 +1685,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           'tasks',
           'routines',
           'routine_occurrences',
+          'journal_entries',
         ],
         'readwrite'
       );
@@ -1626,6 +1789,17 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       };
 
+      // 10. Clear journal entries
+      const journalStore = tx.objectStore('journal_entries');
+      const journalReq = journalStore.getAll();
+      journalReq.onsuccess = () => {
+        for (const j of journalReq.result as JournalEntryRecord[]) {
+          if (j.workspaceId === workspaceId) {
+            journalStore.delete([j.workspaceId, j.id]);
+          }
+        }
+      };
+
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
       tx.onabort = () => reject(this.mapError(tx.error));
@@ -1648,6 +1822,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           'tasks',
           'routines',
           'routine_occurrences',
+          'journal_entries',
         ],
         'readwrite'
       );
@@ -1719,6 +1894,10 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       // 10. Clear routine occurrences
       const occStore = tx.objectStore('routine_occurrences');
       occStore.clear();
+
+      // 11. Clear journal entries
+      const journalStore = tx.objectStore('journal_entries');
+      journalStore.clear();
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));

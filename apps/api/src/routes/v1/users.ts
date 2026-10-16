@@ -39,6 +39,8 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
         preferences: {
           theme: profile.preferences?.theme || 'system',
           compactMode: Boolean(profile.preferences?.compactMode),
+          journalPreviewHidden: profile.preferences?.journalPreviewHidden !== false,
+          suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
         },
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),
@@ -113,6 +115,8 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
         preferences: {
           theme: profile.preferences?.theme || 'system',
           compactMode: Boolean(profile.preferences?.compactMode),
+          journalPreviewHidden: profile.preferences?.journalPreviewHidden !== false,
+          suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
         },
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),

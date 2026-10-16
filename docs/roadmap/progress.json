@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-16",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 20 daily routine schedules and occurrences provisional implementation delivered and verified across PostgreSQL, Fastify API, SyncEngine, Web IndexedDB, and Mobile SQLite repositories. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, and 20 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 20 (Daily routine schedules and occurrences) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 22 journal entries and privacy defaults provisional implementation delivered and verified across PostgreSQL, Fastify API, SyncEngine, Web IndexedDB, and Mobile SQLite repositories. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, and 22 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 22 (Journal entries and privacy defaults) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -134,7 +134,9 @@
     },
     {
       "id": "22",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional journal domain, dated entries, optional reflection metadata, PostgreSQL persistence with Row-Level Security, Fastify journal REST routes, SyncEngine integration, Web IndexedDB and Mobile SQLite local storage adapters, and privacy defaults delivered under owner authorization and verified across Vitest pure domain, multi-client integration journeys, SQLite storage, and PostgreSQL RLS tests (14/14 test files and 196/196 integration tests passing, 39/39 test files and 532/532 unit tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-22.md"
     },
     {
       "id": "23",

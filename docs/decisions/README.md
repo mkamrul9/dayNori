@@ -28,5 +28,7 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0024: Task Domain, Deadlines, Subtasks, and Multi-Platform Synchronization](0024-task-domain-and-deadlines.md)
 - [ADR-0025: Upcoming Task Workflows, Priority Views, and Multi-Platform Plan Interfaces](0025-upcoming-task-workflows-and-views.md)
 - [ADR-0026: Daily Routine Schedules, Date-Scoped Occurrences, and Lifecycle Reconciliation](0026-routine-schedules-and-occurrences.md)
+- [ADR-0027: Daily Routine Checklists, Non-Punitive Progress, and Completion History](0027-daily-routine-checklist-and-history.md)
+- [ADR-0028: Journal Entries, Dated Local Semantics, and Privacy Defaults](0028-journal-entries-and-privacy-defaults.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

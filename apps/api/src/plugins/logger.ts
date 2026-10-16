@@ -10,7 +10,7 @@ const SENSITIVE_HEADERS = new Set([
 ]);
 
 const SENSITIVE_KEY_PATTERN =
-  /(?:token|secret|password|bearer|auth|jwt|credential|key|refresh|hash)/i;
+  /(?:token|secret|password|bearer|auth|jwt|credential|key|refresh|hash|journal|document|plaintext|body|prompt|mood)/i;
 
 /**
  * Redacts secrets, passwords, tokens, and database credentials from string messages and stacks

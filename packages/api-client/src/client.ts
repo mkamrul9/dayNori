@@ -99,6 +99,13 @@ import {
   type RoutineListResponse,
   type RoutineOccurrenceResponse,
   type RoutineOccurrenceListResponse,
+  JournalEntryResponseSchema,
+  JournalEntryListResponseSchema,
+  type CreateJournalEntryRequest,
+  type UpdateJournalEntryRequest,
+  type JournalEntryListQuery,
+  type JournalEntryResponse,
+  type JournalEntryListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -1183,6 +1190,127 @@ export class DaynoriApiClient {
       options
     );
     return RoutineOccurrenceResponseSchema.parse(raw);
+  }
+
+  // --- Journal Module (Phase 22) ---
+
+  async createJournalEntry(
+    workspaceId: string,
+    request: CreateJournalEntryRequest,
+    options?: RequestOptions
+  ): Promise<JournalEntryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/journal`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return JournalEntryResponseSchema.parse(raw);
+  }
+
+  async getJournalEntry(
+    workspaceId: string,
+    journalId: string,
+    options?: RequestOptions
+  ): Promise<JournalEntryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/journal/${journalId}`,
+      { method: 'GET' },
+      options
+    );
+    return JournalEntryResponseSchema.parse(raw);
+  }
+
+  async listJournalEntries(
+    workspaceId: string,
+    query?: JournalEntryListQuery,
+    options?: RequestOptions
+  ): Promise<JournalEntryListResponse> {
+    const params = new URLSearchParams();
+    if (query?.folderId !== undefined) {
+      params.set('folderId', query.folderId);
+    }
+    if (query?.date) params.set('date', query.date);
+    if (query?.startDate) params.set('startDate', query.startDate);
+    if (query?.endDate) params.set('endDate', query.endDate);
+    if (query?.isDraft !== undefined) params.set('isDraft', String(query.isDraft));
+    if (query?.isArchived !== undefined) params.set('isArchived', String(query.isArchived));
+    if (query?.tag) params.set('tag', query.tag);
+    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    if (query?.cursor) params.set('cursor', query.cursor);
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/journal${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return JournalEntryListResponseSchema.parse(raw);
+  }
+
+  async updateJournalEntry(
+    workspaceId: string,
+    journalId: string,
+    request: UpdateJournalEntryRequest,
+    options?: RequestOptions
+  ): Promise<JournalEntryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/journal/${journalId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return JournalEntryResponseSchema.parse(raw);
+  }
+
+  async trashJournalEntry(
+    workspaceId: string,
+    journalId: string,
+    baseRevision?: number,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; revision: number }; meta: { requestId: string } }> {
+    const raw = await this.request<{
+      data: { success: boolean; revision: number };
+      meta: { requestId: string };
+    }>(
+      `/v1/workspaces/${workspaceId}/journal/${journalId}/trash`,
+      {
+        method: 'POST',
+        body: baseRevision !== undefined ? JSON.stringify({ baseRevision }) : undefined,
+      },
+      options
+    );
+    return raw;
+  }
+
+  async restoreJournalEntry(
+    workspaceId: string,
+    journalId: string,
+    baseRevision?: number,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; revision: number }; meta: { requestId: string } }> {
+    const raw = await this.request<{
+      data: { success: boolean; revision: number };
+      meta: { requestId: string };
+    }>(
+      `/v1/workspaces/${workspaceId}/journal/${journalId}/restore`,
+      {
+        method: 'POST',
+        body: baseRevision !== undefined ? JSON.stringify({ baseRevision }) : undefined,
+      },
+      options
+    );
+    return raw;
+  }
+
+  async getReflectionTemplates(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<{ data: unknown; meta: { requestId: string } }> {
+    const raw = await this.request<{ data: unknown; meta: { requestId: string } }>(
+      `/v1/workspaces/${workspaceId}/journal/templates`,
+      { method: 'GET' },
+      options
+    );
+    return raw;
   }
 
   // --- Legacy Phase 01 compatibility ---

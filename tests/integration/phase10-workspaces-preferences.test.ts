@@ -110,7 +110,12 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
       expect(res.data.profile.timeZone).toBe('Europe/London');
       expect(res.data.profile.preferredLocale).toBe('en-GB');
       expect(res.data.profile.weekStart).toBe('monday');
-      expect(res.data.profile.preferences).toEqual({ theme: 'system', compactMode: false });
+      expect(res.data.profile.preferences).toEqual({
+        theme: 'system',
+        compactMode: false,
+        journalPreviewHidden: true,
+        suppressBodySnippets: true,
+      });
       expect(res.data.profile.revision).toBe(1);
 
       provisionedWorkspaceId = res.data.workspace.id;
@@ -239,7 +244,12 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
       expect(profileRes.data.timeZone).toBe('Europe/London');
       expect(profileRes.data.preferredLocale).toBe('en-GB');
       expect(profileRes.data.weekStart).toBe('monday');
-      expect(profileRes.data.preferences).toEqual({ theme: 'system', compactMode: false });
+      expect(profileRes.data.preferences).toEqual({
+        theme: 'system',
+        compactMode: false,
+        journalPreviewHidden: true,
+        suppressBodySnippets: true,
+      });
       expect(profileRes.data.preferencesSchemaVersion).toBe(1);
       expect(profileRes.data.revision).toBe(1);
     });
@@ -294,7 +304,12 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
       expect(updated.data.timeZone).toBe('America/New_York');
       expect(updated.data.preferredLocale).toBe('en-US');
       expect(updated.data.weekStart).toBe('sunday');
-      expect(updated.data.preferences).toEqual({ theme: 'dark', compactMode: true });
+      expect(updated.data.preferences).toEqual({
+        theme: 'dark',
+        compactMode: true,
+        journalPreviewHidden: true,
+        suppressBodySnippets: true,
+      });
       expect(updated.data.revision).toBe(2);
     });
 

@@ -75,6 +75,13 @@ import {
   reopenOccurrenceService,
 } from '../routines/service.js';
 import {
+  createJournalEntry,
+  getJournalEntry,
+  updateJournalEntry,
+  trashJournalEntry,
+  restoreJournalEntry,
+} from '../journal/service.js';
+import {
   type NoteDocument,
   validateNoteDocument,
   extractPlainText,
@@ -2106,6 +2113,245 @@ export class SyncService {
             resultPayload: { error: conflictError },
           });
 
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: cmd.baseRevision,
+            seq: null,
+            error: conflictError,
+          };
+        }
+
+        const message = err instanceof Error ? err.message : String(err);
+        const code = err instanceof NotFoundError ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+        const errorPayload = { code, message };
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
+    // --- Phase 22: Journal Entry Commands ---
+    if (
+      cmd.command === 'createJournalEntry' ||
+      cmd.command === 'updateJournalEntry' ||
+      cmd.command === 'trashJournalEntry' ||
+      cmd.command === 'restoreJournalEntry'
+    ) {
+      try {
+        let resultRevision = 1;
+        let appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'createJournalEntry': {
+            if (existingItem) {
+              throw new ValidationError(
+                `Entity with ID ${cmd.entityId} already exists in this workspace.`
+              );
+            }
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const entry = await createJournalEntry(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              {
+                id: cmd.entityId,
+                folderId: typeof payload['folderId'] === 'string' ? payload['folderId'] : null,
+                title: typeof payload['title'] === 'string' ? payload['title'] : null,
+                entryDate:
+                  typeof payload['entryDate'] === 'string'
+                    ? payload['entryDate']
+                    : new Date().toISOString().slice(0, 10),
+                timezone: typeof payload['timezone'] === 'string' ? payload['timezone'] : 'UTC',
+                document: payload['document'] ? (payload['document'] as NoteDocument) : undefined,
+                plainText:
+                  typeof payload['plainText'] === 'string' ? payload['plainText'] : undefined,
+                mood: typeof payload['mood'] === 'string' ? payload['mood'] : null,
+                prompts: Array.isArray(payload['prompts'])
+                  ? (payload['prompts'] as Array<{
+                      id?: string;
+                      prompt: string;
+                      response?: string;
+                    }>)
+                  : undefined,
+                tags: Array.isArray(payload['tags']) ? (payload['tags'] as string[]) : undefined,
+                isDraft: Boolean(payload['isDraft']),
+                isPinned: Boolean(payload['isPinned']),
+                securityScope: payload['securityScope'] === 'vault' ? 'vault' : 'standard',
+              },
+              cmd.operationId
+            );
+            resultRevision = entry.serverRevision;
+            appliedSeq = entry.seq;
+            resultPayload = { entry };
+            break;
+          }
+          case 'updateJournalEntry': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const entry = await updateJournalEntry(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                baseRevision: cmd.baseRevision,
+                folderId:
+                  typeof payload['folderId'] === 'string'
+                    ? payload['folderId']
+                    : payload['folderId'] === null
+                      ? null
+                      : undefined,
+                title:
+                  typeof payload['title'] === 'string'
+                    ? payload['title']
+                    : payload['title'] === null
+                      ? null
+                      : undefined,
+                entryDate:
+                  typeof payload['entryDate'] === 'string' ? payload['entryDate'] : undefined,
+                timezone: typeof payload['timezone'] === 'string' ? payload['timezone'] : undefined,
+                document: payload['document'] ? (payload['document'] as NoteDocument) : undefined,
+                plainText:
+                  typeof payload['plainText'] === 'string' ? payload['plainText'] : undefined,
+                mood:
+                  typeof payload['mood'] === 'string'
+                    ? payload['mood']
+                    : payload['mood'] === null
+                      ? null
+                      : undefined,
+                prompts: Array.isArray(payload['prompts'])
+                  ? (payload['prompts'] as Array<{
+                      id?: string;
+                      prompt: string;
+                      response?: string;
+                    }>)
+                  : undefined,
+                tags: Array.isArray(payload['tags']) ? (payload['tags'] as string[]) : undefined,
+                isDraft: typeof payload['isDraft'] === 'boolean' ? payload['isDraft'] : undefined,
+                isArchived:
+                  typeof payload['isArchived'] === 'boolean' ? payload['isArchived'] : undefined,
+                isPinned:
+                  typeof payload['isPinned'] === 'boolean' ? payload['isPinned'] : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = entry.serverRevision;
+            appliedSeq = entry.seq;
+            resultPayload = { entry };
+            break;
+          }
+          case 'trashJournalEntry': {
+            const res = await trashJournalEntry(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            appliedSeq = res.seq;
+            break;
+          }
+          case 'restoreJournalEntry': {
+            const res = await restoreJournalEntry(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            appliedSeq = res.seq;
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          let currentServerRevision: number | undefined;
+          let currentServerState: Record<string, unknown> | undefined;
+          try {
+            const currentEntry = await getJournalEntry(client, cmd.workspaceId, cmd.entityId);
+            currentServerRevision = currentEntry.serverRevision;
+            currentServerState = { ...currentEntry };
+          } catch {
+            // Entry may not exist
+          }
+
+          const conflictError = {
+            code: 'REVISION_CONFLICT',
+            message: err.message,
+            ...(currentServerRevision !== undefined ? { currentServerRevision } : {}),
+            ...(currentServerState ? { currentServerState } : {}),
+          };
+
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictError },
+          });
           return {
             operationId: cmd.operationId,
             status: 'conflict',

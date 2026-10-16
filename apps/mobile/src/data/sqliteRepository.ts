@@ -11,6 +11,7 @@ import type {
   TaskRecord,
   RoutineRecord,
   RoutineOccurrenceRecord,
+  JournalEntryRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -28,6 +29,7 @@ import {
   validateTaskRecord,
   validateRoutineRecord,
   validateRoutineOccurrenceRecord,
+  validateJournalEntryRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -504,6 +506,40 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             ON routine_occurrences (workspace_id, routine_id, scheduled_date);
 
             INSERT INTO schema_migrations (version, applied_at) VALUES (6, datetime('now'));
+          `);
+        }
+
+        if (currentVersion < 7) {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS journal_entries (
+              id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              folder_id TEXT,
+              entry_date TEXT NOT NULL,
+              timezone TEXT NOT NULL DEFAULT 'UTC',
+              title TEXT,
+              document_json TEXT NOT NULL,
+              plain_text TEXT NOT NULL,
+              word_count INTEGER NOT NULL,
+              char_count INTEGER NOT NULL,
+              mood TEXT,
+              prompts_json TEXT NOT NULL,
+              tags_json TEXT NOT NULL,
+              is_draft INTEGER NOT NULL DEFAULT 0,
+              is_archived INTEGER NOT NULL DEFAULT 0,
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              security_scope TEXT NOT NULL DEFAULT 'standard',
+              server_revision INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT,
+              PRIMARY KEY (workspace_id, id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_journal_entries_date
+            ON journal_entries (workspace_id, entry_date);
+
+            INSERT INTO schema_migrations (version, applied_at) VALUES (7, datetime('now'));
           `);
         }
       });
@@ -1239,6 +1275,58 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     );
   }
 
+  private async upsertJournalEntryDirect(valid: JournalEntryRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO journal_entries (
+        id, workspace_id, folder_id, entry_date, timezone, title, document_json, plain_text,
+        word_count, char_count, mood, prompts_json, tags_json, is_draft, is_archived,
+        is_pinned, security_scope, server_revision, created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        folder_id = excluded.folder_id,
+        entry_date = excluded.entry_date,
+        timezone = excluded.timezone,
+        title = excluded.title,
+        document_json = excluded.document_json,
+        plain_text = excluded.plain_text,
+        word_count = excluded.word_count,
+        char_count = excluded.char_count,
+        mood = excluded.mood,
+        prompts_json = excluded.prompts_json,
+        tags_json = excluded.tags_json,
+        is_draft = excluded.is_draft,
+        is_archived = excluded.is_archived,
+        is_pinned = excluded.is_pinned,
+        security_scope = excluded.security_scope,
+        server_revision = excluded.server_revision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        deleted_at = excluded.deleted_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.folderId ?? null,
+      valid.entryDate,
+      valid.timezone,
+      valid.title ?? null,
+      JSON.stringify(valid.document),
+      valid.plainText,
+      valid.wordCount,
+      valid.charCount,
+      valid.mood ?? null,
+      JSON.stringify(valid.prompts),
+      JSON.stringify(valid.tags),
+      valid.isDraft ? 1 : 0,
+      valid.isArchived ? 1 : 0,
+      valid.isPinned ? 1 : 0,
+      valid.securityScope,
+      valid.serverRevision,
+      valid.createdAt,
+      valid.updatedAt,
+      valid.deletedAt ?? null
+    );
+  }
+
   async saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
@@ -1246,7 +1334,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     note?: NoteRecord,
     task?: TaskRecord,
     routine?: RoutineRecord,
-    occurrence?: RoutineOccurrenceRecord
+    occurrence?: RoutineOccurrenceRecord,
+    journalEntry?: JournalEntryRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
@@ -1255,6 +1344,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validTask = task ? validateTaskRecord(task) : undefined;
     const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
     const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
+    const validJournal = journalEntry ? validateJournalEntryRecord(journalEntry) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
@@ -1272,6 +1362,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     }
     if (validOccurrence) {
       this.ensureNamespace(validOccurrence.workspaceId);
+    }
+    if (validJournal) {
+      this.ensureNamespace(validJournal.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1295,6 +1388,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validOccurrence) {
             await this.upsertRoutineOccurrenceDirect(validOccurrence);
           }
+          if (validJournal) {
+            await this.upsertJournalEntryDirect(validJournal);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1308,18 +1404,21 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     note?: NoteRecord,
     task?: TaskRecord,
     routine?: RoutineRecord,
-    occurrence?: RoutineOccurrenceRecord
+    occurrence?: RoutineOccurrenceRecord,
+    journalEntry?: JournalEntryRecord
   ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
     const validNote = note ? validateNoteRecord(note) : undefined;
     const validTask = task ? validateTaskRecord(task) : undefined;
     const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
     const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
+    const validJournal = journalEntry ? validateJournalEntryRecord(journalEntry) : undefined;
     this.ensureNamespace(valid.workspaceId);
     if (validNote) this.ensureNamespace(validNote.workspaceId);
     if (validTask) this.ensureNamespace(validTask.workspaceId);
     if (validRoutine) this.ensureNamespace(validRoutine.workspaceId);
     if (validOccurrence) this.ensureNamespace(validOccurrence.workspaceId);
+    if (validJournal) this.ensureNamespace(validJournal.workspaceId);
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1339,6 +1438,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validOccurrence) {
             await this.upsertRoutineOccurrenceDirect(validOccurrence);
           }
+          if (validJournal) {
+            await this.upsertJournalEntryDirect(validJournal);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1352,7 +1454,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     notes?: NoteRecord[],
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
-    occurrences?: RoutineOccurrenceRecord[]
+    occurrences?: RoutineOccurrenceRecord[],
+    journalEntries?: JournalEntryRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1375,6 +1478,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedOccurrences = (occurrences || []).map((o) => validateRoutineOccurrenceRecord(o));
     for (const o of validatedOccurrences) {
       this.ensureNamespace(o.workspaceId);
+    }
+    const validatedJournalEntries = (journalEntries || []).map((j) =>
+      validateJournalEntryRecord(j)
+    );
+    for (const j of validatedJournalEntries) {
+      this.ensureNamespace(j.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1457,6 +1566,18 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertRoutineOccurrenceDirect(o);
           }
 
+          for (const j of validatedJournalEntries) {
+            const existingJournal = await db.getFirstAsync<{ server_revision: number }>(
+              `SELECT server_revision FROM journal_entries WHERE workspace_id = ? AND id = ?;`,
+              j.workspaceId,
+              j.id
+            );
+            if (existingJournal && existingJournal.server_revision > j.serverRevision) {
+              continue;
+            }
+            await this.upsertJournalEntryDirect(j);
+          }
+
           // Cursor advancement check: protect against moving cursor backward
           const existingCursor = await db.getFirstAsync<{ last_server_revision: number }>(
             `SELECT last_server_revision FROM sync_cursors WHERE workspace_id = ? AND user_id = ?;`,
@@ -1484,7 +1605,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     notes?: NoteRecord[],
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
-    occurrences?: RoutineOccurrenceRecord[]
+    occurrences?: RoutineOccurrenceRecord[],
+    journalEntries?: JournalEntryRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1507,6 +1629,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedOccurrences = (occurrences || []).map((o) => validateRoutineOccurrenceRecord(o));
     for (const o of validatedOccurrences) {
       this.ensureNamespace(o.workspaceId);
+    }
+    const validatedJournalEntries = (journalEntries || []).map((j) =>
+      validateJournalEntryRecord(j)
+    );
+    for (const j of validatedJournalEntries) {
+      this.ensureNamespace(j.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1559,7 +1687,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertRoutineOccurrenceDirect(o);
           }
 
-          // 7. Update watermark cursor
+          // 7. Upsert snapshot journal entries
+          for (const j of validatedJournalEntries) {
+            await this.upsertJournalEntryDirect(j);
+          }
+
+          // 8. Update watermark cursor
           await this.saveCursorDirect(validCursor);
         });
       } catch (err) {
@@ -1714,7 +1847,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     recoveryDraft?: DraftRecord,
     updatedTask?: TaskRecord,
     updatedRoutine?: RoutineRecord,
-    updatedOccurrence?: RoutineOccurrenceRecord
+    updatedOccurrence?: RoutineOccurrenceRecord,
+    updatedJournalEntry?: JournalEntryRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
@@ -1725,6 +1859,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validRoutine = updatedRoutine ? validateRoutineRecord(updatedRoutine) : undefined;
     const validOccurrence = updatedOccurrence
       ? validateRoutineOccurrenceRecord(updatedOccurrence)
+      : undefined;
+    const validJournal = updatedJournalEntry
+      ? validateJournalEntryRecord(updatedJournalEntry)
       : undefined;
 
     const db = this.ensureOpen();
@@ -1766,6 +1903,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
 
           if (validOccurrence) {
             await this.upsertRoutineOccurrenceDirect(validOccurrence);
+          }
+
+          if (validJournal) {
+            await this.upsertJournalEntryDirect(validJournal);
           }
 
           if (validDraft) {
@@ -2301,7 +2442,171 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 9. Sync Cursors ---
+  // --- 9. Journal Entries ---
+
+  async getJournalEntry(workspaceId: string, id: string): Promise<JournalEntryRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        entry_date: string;
+        timezone: string;
+        title: string | null;
+        document_json: string;
+        plain_text: string;
+        word_count: number;
+        char_count: number;
+        mood: string | null;
+        prompts_json: string;
+        tags_json: string;
+        is_draft: number;
+        is_archived: number;
+        is_pinned: number;
+        security_scope: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(`SELECT * FROM journal_entries WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+
+      if (!row) return null;
+      return validateJournalEntryRecord({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        folderId: row.folder_id ?? null,
+        entryDate: row.entry_date,
+        timezone: row.timezone ?? 'UTC',
+        title: row.title ?? null,
+        document: JSON.parse(row.document_json),
+        plainText: row.plain_text,
+        wordCount: row.word_count,
+        charCount: row.char_count,
+        mood: row.mood ?? null,
+        prompts: JSON.parse(row.prompts_json),
+        tags: JSON.parse(row.tags_json),
+        isDraft: Boolean(row.is_draft),
+        isArchived: Boolean(row.is_archived),
+        isPinned: Boolean(row.is_pinned),
+        securityScope: (row.security_scope as 'standard' | 'vault') || 'standard',
+        serverRevision: row.server_revision,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at ?? null,
+      });
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listJournalEntries(
+    workspaceId: string,
+    options?: { entryDate?: string; startDate?: string; endDate?: string }
+  ): Promise<JournalEntryRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      let sql = `SELECT * FROM journal_entries WHERE workspace_id = ? AND deleted_at IS NULL`;
+      const params: unknown[] = [workspaceId];
+      if (options?.entryDate) {
+        sql += ` AND entry_date = ?`;
+        params.push(options.entryDate);
+      }
+      if (options?.startDate) {
+        sql += ` AND entry_date >= ?`;
+        params.push(options.startDate);
+      }
+      if (options?.endDate) {
+        sql += ` AND entry_date <= ?`;
+        params.push(options.endDate);
+      }
+      sql += ` ORDER BY entry_date DESC, created_at DESC;`;
+
+      const rows = await db.getAllAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        entry_date: string;
+        timezone: string;
+        title: string | null;
+        document_json: string;
+        plain_text: string;
+        word_count: number;
+        char_count: number;
+        mood: string | null;
+        prompts_json: string;
+        tags_json: string;
+        is_draft: number;
+        is_archived: number;
+        is_pinned: number;
+        security_scope: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(sql, ...params);
+
+      return rows.map((row) =>
+        validateJournalEntryRecord({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          folderId: row.folder_id ?? null,
+          entryDate: row.entry_date,
+          timezone: row.timezone ?? 'UTC',
+          title: row.title ?? null,
+          document: JSON.parse(row.document_json),
+          plainText: row.plain_text,
+          wordCount: row.word_count,
+          charCount: row.char_count,
+          mood: row.mood ?? null,
+          prompts: JSON.parse(row.prompts_json),
+          tags: JSON.parse(row.tags_json),
+          isDraft: Boolean(row.is_draft),
+          isArchived: Boolean(row.is_archived),
+          isPinned: Boolean(row.is_pinned),
+          securityScope: (row.security_scope as 'standard' | 'vault') || 'standard',
+          serverRevision: row.server_revision,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          deletedAt: null,
+        })
+      );
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async upsertJournalEntry(entry: JournalEntryRecord): Promise<void> {
+    const valid = validateJournalEntryRecord(entry);
+    this.ensureNamespace(valid.workspaceId);
+    return this.runWithLock(async () => {
+      try {
+        await this.upsertJournalEntryDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async deleteJournalEntry(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `DELETE FROM journal_entries WHERE workspace_id = ? AND id = ?;`,
+          workspaceId,
+          id
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  // --- 10. Sync Cursors ---
 
   private async saveCursorDirect(valid: SyncCursorRecord): Promise<void> {
     const db = this.ensureOpen();
@@ -2431,6 +2736,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM tasks WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM routines WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM routine_occurrences WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM journal_entries WHERE workspace_id = ?;`, workspaceId);
         });
       } catch (err) {
         throw this.mapError(err);
@@ -2445,7 +2751,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     return this.runWithLock(async () => {
       try {
         await db.withTransactionAsync(async () => {
-          // Erase all account-owned data including item headers, notes, tasks, routines, and occurrences
+          // Erase all account-owned data including item headers, notes, tasks, routines, occurrences, and journal entries
           await db.runAsync(`DELETE FROM item_headers;`);
           await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
@@ -2456,6 +2762,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM tasks;`);
           await db.runAsync(`DELETE FROM routines;`);
           await db.runAsync(`DELETE FROM routine_occurrences;`);
+          await db.runAsync(`DELETE FROM journal_entries;`);
         });
 
         // Clear all keys from KeyStore

@@ -12,6 +12,8 @@ export const DisplayPreferencesSchema = z
   .object({
     theme: ThemePreferenceSchema.default('system'),
     compactMode: z.boolean().default(false),
+    journalPreviewHidden: z.boolean().default(true),
+    suppressBodySnippets: z.boolean().default(true),
   })
   .strict();
 export type DisplayPreferences = z.infer<typeof DisplayPreferencesSchema>;

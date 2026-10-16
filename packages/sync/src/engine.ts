@@ -11,6 +11,7 @@ import type {
   Weekday,
   RoutineOccurrenceStatus,
   RoutineOccurrenceTransition,
+  JournalPromptEntry,
 } from '@daynori/contracts';
 import type { LocalRepositoryPort } from './ports.js';
 import type {
@@ -27,6 +28,7 @@ import type {
   TaskRecord,
   RoutineRecord,
   RoutineOccurrenceRecord,
+  JournalEntryRecord,
 } from './models.js';
 import { type SyncTransportPort, classifySyncError } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
@@ -347,6 +349,10 @@ export class SyncEngine {
       (command !== undefined && command.includes('Task'));
     const isRoutine =
       item.kind === 'routine' || (command !== undefined && command.includes('Routine'));
+    const isJournal =
+      item.kind === 'journal_entry' ||
+      item.kind === 'journal' ||
+      (command !== undefined && (command.includes('Journal') || command.includes('journal')));
 
     const determinedCommand =
       command ||
@@ -359,7 +365,9 @@ export class SyncEngine {
               ? 'createTask'
               : isRoutine
                 ? 'createRoutine'
-                : 'createItem'
+                : isJournal
+                  ? 'createJournalEntry'
+                  : 'createItem'
         : isFolder
           ? 'updateFolder'
           : isNote
@@ -368,20 +376,24 @@ export class SyncEngine {
               ? 'updateTask'
               : isRoutine
                 ? 'updateRoutine'
-                : 'updateItem');
+                : isJournal
+                  ? 'updateJournalEntry'
+                  : 'updateItem');
 
     const action: 'create' | 'update' | 'delete' =
       determinedCommand === 'trashItem' ||
       determinedCommand === 'trashFolder' ||
       determinedCommand === 'trashNote' ||
       determinedCommand === 'trashTask' ||
-      determinedCommand === 'trashRoutine'
+      determinedCommand === 'trashRoutine' ||
+      determinedCommand === 'trashJournalEntry'
         ? 'delete'
         : determinedCommand === 'createItem' ||
             determinedCommand === 'createFolder' ||
             determinedCommand === 'createNote' ||
             determinedCommand === 'createTask' ||
-            determinedCommand === 'createRoutine'
+            determinedCommand === 'createRoutine' ||
+            determinedCommand === 'createJournalEntry'
           ? 'create'
           : 'update';
 
@@ -460,17 +472,52 @@ export class SyncEngine {
                   clientTimestamp.slice(0, 10),
                 ...(options?.payload || {}),
               }
-            : {
-                kind: item.kind,
-                rank: item.rank,
-                folderId: item.folderId,
-                securityScope: item.securityScope,
-                isArchived: item.isArchived,
-                isPinned: item.isPinned,
-                ...(item.name ? { name: item.name } : {}),
-                ...(item.title ? { title: item.title } : {}),
-                ...(options?.payload || {}),
-              };
+            : isJournal
+              ? {
+                  kind: 'journal_entry',
+                  title: item.title ?? (options?.payload?.['title'] as string | null) ?? null,
+                  folderId: item.folderId,
+                  rank: item.rank,
+                  securityScope: item.securityScope,
+                  isArchived: item.isArchived,
+                  isPinned: item.isPinned,
+                  entryDate:
+                    (options?.payload?.['entryDate'] as string | undefined) ??
+                    (draft?.payload?.['entryDate'] as string | undefined) ??
+                    clientTimestamp.slice(0, 10),
+                  timezone:
+                    (options?.payload?.['timezone'] as string | undefined) ??
+                    (draft?.payload?.['timezone'] as string | undefined) ??
+                    'UTC',
+                  mood: (options?.payload?.['mood'] as string | null | undefined) ?? null,
+                  prompts:
+                    (options?.payload?.['prompts'] as JournalPromptEntry[] | undefined) ??
+                    (draft?.payload?.['prompts'] as JournalPromptEntry[] | undefined) ??
+                    [],
+                  tags:
+                    (options?.payload?.['tags'] as string[] | undefined) ??
+                    (draft?.payload?.['tags'] as string[] | undefined) ??
+                    [],
+                  isDraft: Boolean(
+                    options?.payload?.['isDraft'] ?? draft?.payload?.['isDraft'] ?? false
+                  ),
+                  ...(draft?.payload?.['document'] ? { document: draft.payload['document'] } : {}),
+                  ...(draft?.payload?.['plainText']
+                    ? { plainText: draft.payload['plainText'] }
+                    : {}),
+                  ...(options?.payload || {}),
+                }
+              : {
+                  kind: item.kind,
+                  rank: item.rank,
+                  folderId: item.folderId,
+                  securityScope: item.securityScope,
+                  isArchived: item.isArchived,
+                  isPinned: item.isPinned,
+                  ...(item.name ? { name: item.name } : {}),
+                  ...(item.title ? { title: item.title } : {}),
+                  ...(options?.payload || {}),
+                };
 
     // Calculate baseRevision for unsent intents:
     // If there are pending operations for this entity, chain expected base revision
@@ -495,7 +542,9 @@ export class SyncEngine {
             ? 'task'
             : isRoutine
               ? 'routine'
-              : 'item',
+              : isJournal
+                ? 'journal_entry'
+                : 'item',
       entityId: item.id,
       action,
       command: determinedCommand,
@@ -615,6 +664,61 @@ export class SyncEngine {
       };
     }
 
+    let journalRecord: JournalEntryRecord | undefined;
+    if (isJournal) {
+      const p = options?.payload || {};
+      const doc = (draft?.payload?.['document'] as Record<string, unknown> | undefined) ||
+        (p['document'] as Record<string, unknown> | undefined) || {
+          version: 1,
+          type: 'doc',
+          content: [],
+        };
+      const plainText =
+        (draft?.payload?.['plainText'] as string | undefined) ??
+        (p['plainText'] as string | undefined) ??
+        '';
+      const wordCount =
+        (draft?.payload?.['wordCount'] as number | undefined) ??
+        (p['wordCount'] as number | undefined) ??
+        (plainText ? plainText.trim().split(/\s+/).filter(Boolean).length : 0);
+      const charCount =
+        (draft?.payload?.['charCount'] as number | undefined) ??
+        (p['charCount'] as number | undefined) ??
+        plainText.length;
+      const prompts =
+        (p['prompts'] as JournalPromptEntry[]) ||
+        (draft?.payload?.['prompts'] as JournalPromptEntry[]) ||
+        [];
+      const tags = (p['tags'] as string[]) || (draft?.payload?.['tags'] as string[]) || [];
+
+      journalRecord = {
+        id: item.id,
+        workspaceId: item.workspaceId,
+        folderId: item.folderId ?? null,
+        title: item.title ?? (p['title'] as string | null) ?? null,
+        entryDate:
+          (p['entryDate'] as string) ||
+          (draft?.payload?.['entryDate'] as string) ||
+          clientTimestamp.slice(0, 10),
+        timezone: (p['timezone'] as string) || (draft?.payload?.['timezone'] as string) || 'UTC',
+        document: doc as NoteDocument,
+        plainText,
+        wordCount,
+        charCount,
+        mood: (p['mood'] as string | null) ?? null,
+        prompts,
+        tags,
+        isDraft: Boolean(p['isDraft'] ?? draft?.payload?.['isDraft'] ?? false),
+        isArchived: Boolean(p['isArchived'] ?? item.isArchived ?? false),
+        isPinned: Boolean(p['isPinned'] ?? item.isPinned ?? false),
+        securityScope: item.securityScope,
+        serverRevision: item.serverRevision,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        deletedAt: item.deletedAt,
+      };
+    }
+
     // 2. Perform atomic local storage write via transaction
     try {
       await this.repository.saveItemTransaction(
@@ -623,7 +727,9 @@ export class SyncEngine {
         draft,
         noteRecord,
         taskRecord,
-        routineRecord
+        routineRecord,
+        undefined,
+        journalRecord
       );
     } catch (err) {
       // Local transaction failed: cannot show as saved on device
@@ -696,6 +802,52 @@ export class SyncEngine {
       ...(options?.payload || {}),
     };
     return this.saveItem(itemHeader, undefined, command || 'createRoutine', {
+      ...options,
+      payload,
+    });
+  }
+
+  async saveJournalEntry(
+    entry: JournalEntryRecord,
+    command?: SyncCommandType,
+    options?: SaveItemOptions
+  ): Promise<PendingMutationRecord> {
+    const itemHeader: ItemHeaderRecord = {
+      id: entry.id,
+      workspaceId: entry.workspaceId,
+      kind: 'journal_entry',
+      folderId: entry.folderId,
+      rank: '00001000',
+      isArchived: entry.isArchived,
+      isPinned: entry.isPinned,
+      securityScope: entry.securityScope,
+      serverRevision: entry.serverRevision,
+      title: entry.title ?? undefined,
+      name: entry.title ?? undefined,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      deletedAt: entry.deletedAt,
+    };
+    const payload = {
+      id: entry.id,
+      folderId: entry.folderId,
+      title: entry.title,
+      entryDate: entry.entryDate,
+      timezone: entry.timezone,
+      document: entry.document,
+      plainText: entry.plainText,
+      wordCount: entry.wordCount,
+      charCount: entry.charCount,
+      mood: entry.mood,
+      prompts: entry.prompts,
+      tags: entry.tags,
+      isDraft: entry.isDraft,
+      isArchived: entry.isArchived,
+      isPinned: entry.isPinned,
+      securityScope: entry.securityScope,
+      ...(options?.payload || {}),
+    };
+    return this.saveItem(itemHeader, undefined, command || 'createJournalEntry', {
       ...options,
       payload,
     });
@@ -1082,7 +1234,8 @@ export class SyncEngine {
                 origMutation.command === 'trashFolder' ||
                 origMutation.command === 'trashNote' ||
                 origMutation.command === 'trashTask' ||
-                origMutation.command === 'trashRoutine'
+                origMutation.command === 'trashRoutine' ||
+                origMutation.command === 'trashJournalEntry'
                   ? new Date().toISOString()
                   : null,
             };
@@ -1156,6 +1309,28 @@ export class SyncEngine {
           }
         }
 
+        let journalToAck: JournalEntryRecord | undefined;
+        if (
+          updatedHeader.kind === 'journal_entry' ||
+          updatedHeader.kind === 'journal' ||
+          origMutation.entityType === 'journal_entry'
+        ) {
+          const existingJournal = await this.repository.getJournalEntry(
+            this.namespace.workspaceId,
+            result.entityId
+          );
+          if (existingJournal) {
+            journalToAck = {
+              ...existingJournal,
+              serverRevision: result.revision,
+              title:
+                updatedHeader.title !== undefined ? updatedHeader.title : existingJournal.title,
+              folderId: updatedHeader.folderId ?? null,
+              deletedAt: updatedHeader.deletedAt,
+            };
+          }
+        }
+
         // B. Retain pending work until the durable result is applied locally
         // and apply acknowledgment atomically in a single transaction
         await this.repository.applyAcknowledgment(
@@ -1164,7 +1339,8 @@ export class SyncEngine {
           noteToAck,
           taskToAck,
           routineToAck,
-          occurrenceToAck
+          occurrenceToAck,
+          journalToAck
         );
 
         // C. Update item sync state: do NOT report item synced if other operations for it remain unresolved
@@ -1280,6 +1456,7 @@ export class SyncEngine {
         const tasksToApply: TaskRecord[] = [];
         const routinesToApply: RoutineRecord[] = [];
         const occurrencesToApply: RoutineOccurrenceRecord[] = [];
+        const journalEntriesToApply: JournalEntryRecord[] = [];
 
         for (const change of pullRes.data.changes) {
           totalChanges++;
@@ -1583,6 +1760,71 @@ export class SyncEngine {
               deletedAt,
             });
           }
+
+          if (
+            kind === 'journal_entry' ||
+            kind === 'journal' ||
+            change.entityType === 'journal_entry'
+          ) {
+            const existingJournal = await this.repository.getJournalEntry(
+              this.namespace.workspaceId,
+              change.entityId
+            );
+            const doc = (data.document as NoteDocument | undefined) ||
+              existingJournal?.document || {
+                version: 1,
+                type: 'doc',
+                content: [],
+              };
+            const plainText =
+              typeof data.plainText === 'string'
+                ? data.plainText
+                : (existingJournal?.plainText ?? '');
+            const wordCount =
+              typeof data.wordCount === 'number'
+                ? data.wordCount
+                : (existingJournal?.wordCount ??
+                  (plainText ? plainText.trim().split(/\s+/).filter(Boolean).length : 0));
+            const charCount =
+              typeof data.charCount === 'number'
+                ? data.charCount
+                : (existingJournal?.charCount ?? plainText.length);
+            const prompts = Array.isArray(data.prompts)
+              ? (data.prompts as JournalPromptEntry[])
+              : (existingJournal?.prompts ?? []);
+            const tags = Array.isArray(data.tags)
+              ? data.tags.map(String)
+              : (existingJournal?.tags ?? []);
+
+            journalEntriesToApply.push({
+              id: change.entityId,
+              workspaceId: this.namespace.workspaceId,
+              folderId: folderId ?? null,
+              title: (data.title as string | null) ?? existingJournal?.title ?? null,
+              entryDate:
+                (data.entryDate as string) ||
+                (existingJournal?.entryDate ?? createdAt.slice(0, 10)),
+              timezone: (data.timezone as string) || (existingJournal?.timezone ?? 'UTC'),
+              document: doc,
+              plainText,
+              wordCount,
+              charCount,
+              mood: typeof data.mood === 'string' ? data.mood : (existingJournal?.mood ?? null),
+              prompts,
+              tags,
+              isDraft: Boolean(data.isDraft ?? existingJournal?.isDraft ?? false),
+              isArchived,
+              isPinned,
+              securityScope:
+                (securityScope as 'standard' | 'vault') ||
+                existingJournal?.securityScope ||
+                'standard',
+              serverRevision: change.revision,
+              createdAt,
+              updatedAt,
+              deletedAt,
+            });
+          }
         }
 
         const newCursorRecord: SyncCursorRecord = {
@@ -1604,7 +1846,8 @@ export class SyncEngine {
           notesToApply,
           tasksToApply,
           routinesToApply,
-          occurrencesToApply
+          occurrencesToApply,
+          journalEntriesToApply
         );
 
         this.lastSyncedAt = newCursorRecord.lastSyncedAt;
@@ -1686,6 +1929,7 @@ export class SyncEngine {
     const snapshotTasks: TaskRecord[] = [];
     const snapshotRoutines: RoutineRecord[] = [];
     const snapshotOccurrences: RoutineOccurrenceRecord[] = [];
+    const snapshotJournalEntries: JournalEntryRecord[] = [];
 
     for (const item of bootstrapRes.data.items) {
       const raw = item as Record<string, unknown>;
@@ -1771,6 +2015,32 @@ export class SyncEngine {
           deletedAt: item.deletedAt,
         });
       }
+
+      if (item.kind === 'journal_entry') {
+        snapshotJournalEntries.push({
+          id: item.id,
+          workspaceId: item.workspaceId,
+          folderId: item.folderId ?? null,
+          title: (raw.title as string | null) ?? null,
+          entryDate: (raw.entryDate as string) || item.createdAt.slice(0, 10),
+          timezone: (raw.timezone as string) || 'UTC',
+          document: (raw.document as NoteDocument) || { version: 1, type: 'doc', content: [] },
+          plainText: (raw.plainText as string) || '',
+          wordCount: typeof raw.wordCount === 'number' ? raw.wordCount : 0,
+          charCount: typeof raw.charCount === 'number' ? raw.charCount : 0,
+          mood: (raw.mood as string | null) ?? null,
+          prompts: Array.isArray(raw.prompts) ? (raw.prompts as JournalPromptEntry[]) : [],
+          tags: Array.isArray(raw.tags) ? raw.tags.map(String) : [],
+          isDraft: Boolean(raw.isDraft),
+          isArchived: item.isArchived,
+          isPinned: item.isPinned,
+          securityScope: item.securityScope,
+          serverRevision: item.revision,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          deletedAt: item.deletedAt,
+        });
+      }
     }
 
     const bData = bootstrapRes.data as Record<string, unknown>;
@@ -1822,6 +2092,15 @@ export class SyncEngine {
       }
     }
 
+    if (Array.isArray(bData['journalEntries'])) {
+      for (const j of bData['journalEntries'] as JournalEntryRecord[]) {
+        snapshotJournalEntries.push({
+          ...j,
+          serverRevision: (j as { revision?: number }).revision || j.serverRevision || 1,
+        });
+      }
+    }
+
     // Atomically install snapshot, replacing obsolete projections while preserving local work
     await this.repository.installBootstrapGeneration(
       snapshotItems,
@@ -1830,7 +2109,8 @@ export class SyncEngine {
       snapshotNotes,
       snapshotTasks,
       snapshotRoutines,
-      snapshotOccurrences
+      snapshotOccurrences,
+      snapshotJournalEntries
     );
 
     this.lastSyncedAt = newCursor.lastSyncedAt;
@@ -1864,6 +2144,7 @@ export class SyncEngine {
         'Copy';
       const copyPayload = {
         ...conflict.localPayload,
+        id: copyEntityId,
         title: `${localTitle} (Copy)`,
         name: `${localTitle} (Copy)`,
       };
@@ -1883,7 +2164,9 @@ export class SyncEngine {
               ? 'createNote'
               : conflict.entityType === 'task'
                 ? 'createTask'
-                : 'createItem',
+                : conflict.entityType === 'journal_entry'
+                  ? 'createJournalEntry'
+                  : 'createItem',
         commandVersion: 1,
         schemaVersion: 1,
         payload: copyPayload,
@@ -1899,6 +2182,7 @@ export class SyncEngine {
       let serverHeader: ItemHeaderRecord | undefined = undefined;
       let serverNote: NoteRecord | undefined = undefined;
       let serverTask: TaskRecord | undefined = undefined;
+      let serverJournal: JournalEntryRecord | undefined = undefined;
       if (conflict.serverState) {
         const s = conflict.serverState;
         serverHeader = {
@@ -1961,6 +2245,35 @@ export class SyncEngine {
             deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
           };
         }
+        if (
+          conflict.entityType === 'journal_entry' ||
+          s['kind'] === 'journal_entry' ||
+          s['kind'] === 'journal'
+        ) {
+          serverJournal = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            folderId: (s['folderId'] as string | null) ?? null,
+            title: (s['title'] as string | null) ?? null,
+            entryDate: (s['entryDate'] as string) || (s['createdAt'] as string).slice(0, 10),
+            timezone: (s['timezone'] as string) || 'UTC',
+            document: (s['document'] as NoteDocument) || { version: 1, type: 'doc', content: [] },
+            plainText: (s['plainText'] as string) || '',
+            wordCount: (s['wordCount'] as number) || 0,
+            charCount: (s['charCount'] as number) || 0,
+            mood: (s['mood'] as string | null) ?? null,
+            prompts: Array.isArray(s['prompts']) ? (s['prompts'] as JournalPromptEntry[]) : [],
+            tags: Array.isArray(s['tags']) ? s['tags'].map(String) : [],
+            isDraft: Boolean(s['isDraft']),
+            isArchived: Boolean(s['isArchived']),
+            isPinned: Boolean(s['isPinned']),
+            securityScope: (s['securityScope'] as 'standard' | 'vault') || 'standard',
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+            deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+          };
+        }
       }
 
       await this.repository.resolveConflictTransaction(
@@ -1971,7 +2284,10 @@ export class SyncEngine {
         conflict.operationId,
         serverNote,
         undefined,
-        serverTask
+        serverTask,
+        undefined,
+        undefined,
+        serverJournal
       );
 
       this.itemStates.set(conflict.entityId, {
@@ -2006,7 +2322,9 @@ export class SyncEngine {
               ? 'updateNote'
               : conflict.entityType === 'task'
                 ? 'updateTask'
-                : 'updateItem',
+                : conflict.entityType === 'journal_entry'
+                  ? 'updateJournalEntry'
+                  : 'updateItem',
         commandVersion: 1,
         schemaVersion: 1,
         payload,
@@ -2039,6 +2357,7 @@ export class SyncEngine {
       let updatedTask: TaskRecord | undefined = undefined;
       let updatedRoutine: RoutineRecord | undefined = undefined;
       let updatedOccurrence: RoutineOccurrenceRecord | undefined = undefined;
+      let updatedJournal: JournalEntryRecord | undefined = undefined;
       if (conflict.serverState) {
         const s = conflict.serverState;
         updatedHeader = {
@@ -2050,7 +2369,9 @@ export class SyncEngine {
               ? 'task'
               : conflict.entityType === 'routine'
                 ? 'routine'
-                : 'note'),
+                : conflict.entityType === 'journal_entry'
+                  ? 'journal_entry'
+                  : 'note'),
           folderId: (s['folderId'] as string | null) ?? null,
           rank: (s['rank'] as string) || '0',
           isArchived: Boolean(s['isArchived'] ?? false),
@@ -2131,6 +2452,35 @@ export class SyncEngine {
             deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
           };
         }
+        if (
+          conflict.entityType === 'journal_entry' ||
+          s['kind'] === 'journal_entry' ||
+          s['kind'] === 'journal'
+        ) {
+          updatedJournal = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            folderId: (s['folderId'] as string | null) ?? null,
+            title: (s['title'] as string | null) ?? null,
+            entryDate: (s['entryDate'] as string) || (s['createdAt'] as string).slice(0, 10),
+            timezone: (s['timezone'] as string) || 'UTC',
+            document: (s['document'] as NoteDocument) || { version: 1, type: 'doc', content: [] },
+            plainText: (s['plainText'] as string) || '',
+            wordCount: (s['wordCount'] as number) || 0,
+            charCount: (s['charCount'] as number) || 0,
+            mood: (s['mood'] as string | null) ?? null,
+            prompts: Array.isArray(s['prompts']) ? (s['prompts'] as JournalPromptEntry[]) : [],
+            tags: Array.isArray(s['tags']) ? s['tags'].map(String) : [],
+            isDraft: Boolean(s['isDraft']),
+            isArchived: Boolean(s['isArchived']),
+            isPinned: Boolean(s['isPinned']),
+            securityScope: (s['securityScope'] as 'standard' | 'vault') || 'standard',
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+            deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+          };
+        }
 
         if (conflict.entityType === 'routine_occurrence') {
           updatedOccurrence = {
@@ -2181,7 +2531,8 @@ export class SyncEngine {
         recoveryDraft,
         updatedTask,
         updatedRoutine,
-        updatedOccurrence
+        updatedOccurrence,
+        updatedJournal
       );
 
       this.itemStates.set(conflict.entityId, {
@@ -2240,6 +2591,18 @@ export class SyncEngine {
       startDate,
       endDate
     );
+  }
+
+  async getJournalEntry(id: string): Promise<JournalEntryRecord | null> {
+    return this.repository.getJournalEntry(this.namespace.workspaceId, id);
+  }
+
+  async listJournalEntries(options?: {
+    entryDate?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<JournalEntryRecord[]> {
+    return this.repository.listJournalEntries(this.namespace.workspaceId, options);
   }
 
   // --- Auth & Account Boundary Handlers ---

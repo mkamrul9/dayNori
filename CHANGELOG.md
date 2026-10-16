@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 22 — Journal entries and privacy defaults — 2026-10-16
+
+- **Shared Journal Domain Model & Contracts (`packages/domain`, `packages/contracts`):**
+  - Implemented `JournalEntry` entity with stable UUID identity, user-selected calendar date (`entryDate`), authoring timezone (`timezone`), portable AST document (`NoteDocument`), plain text, word/char counts, optional non-clinical mood (`great`, `good`, `okay`, `difficult`, `reflective`), optional reflection prompts (`JournalPromptEntry[]`), tags, draft status, and folder placement.
+  - Implemented `isEntryBackdated` to identify intentional backdating by comparing authoring date against current local date in the specified timezone without modifying physical timestamps.
+  - Implemented `computeJournalStats` for accurate multilingual word/char counts, preserving multiline text and complex Bengali (Bangla) Unicode script bit-for-bit.
+  - Defined strict Zod schemas for entry creation, updates, date-filtered queries, and lifecycle state changes in `@daynori/contracts`.
+  - Extended `DisplayPreferencesSchema` with privacy-preserving defaults: `journalPreviewHidden: true` and `suppressBodySnippets: true`.
+- **PostgreSQL Persistence & Tenant Isolation (`infra/supabase`):**
+  - Applied migration `00019_journal_entries.sql` creating `app.journal_entries` table with foreign key cascading to `app.items(id)`.
+  - Configured PostgreSQL Row-Level Security (RLS) policies strictly scoping journal access to personal workspace owners, rejecting access from shared workspaces or collaborative rooms.
+- **Fastify API Routes & Sync Dispatcher (`apps/api`):**
+  - Implemented transactional REST routes under `/v1/workspaces/:workspaceId/journal` for entry creation, listing, retrieval, updates with optimistic concurrency control (`baseRevision`), archive, trash, and restore.
+  - Integrated change feed emission producing `journal_entry` events on workspace sync streams.
+- **Privacy Guardrails & Operational Log Sanitization (`apps/api`):**
+  - Enhanced `SafeLogger` to redact journal titles, document contents, plain text snippets, moods, and reflection prompt responses from operational logs and error diagnostics with `[REDACTED_JOURNAL_CONTENT]`.
+- **Client Storage Adapters & Synchronization (`@daynori/sync`, `apps/web`, `apps/mobile`):**
+  - Extended `SyncEngine` with typed journal sync commands and non-destructive conflict recovery (`save_copy` and recovery drafts).
+  - Extended Web IndexedDB adapter (`apps/web/src/data/indexedDbRepository.ts`, `DB_VERSION = 6`) with `journal_entries` object store and indices.
+  - Extended Mobile SQLite adapter (`apps/mobile/src/data/sqliteRepository.ts`, migration version 7) with `local_journal_entries` table.
+- **Decision Record:**
+  - Published [ADR-0028: Journal Entries, Dated Local Semantics, and Privacy Defaults](docs/decisions/0028-journal-entries-and-privacy-defaults.md).
+
 ## Phase 21 — Daily routine experience and history — 2026-10-16
 
 - **Shared Domain Logic & Gentle Progress (`packages/domain`):**

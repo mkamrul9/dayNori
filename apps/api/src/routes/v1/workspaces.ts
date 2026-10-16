@@ -59,6 +59,8 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
             preferences: {
               theme: result.profile.preferences?.theme || 'system',
               compactMode: Boolean(result.profile.preferences?.compactMode),
+              journalPreviewHidden: result.profile.preferences?.journalPreviewHidden !== false,
+              suppressBodySnippets: result.profile.preferences?.suppressBodySnippets !== false,
             },
             preferencesSchemaVersion: result.profile.preferences_schema_version,
             revision: Number(result.profile.revision),

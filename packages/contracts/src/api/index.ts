@@ -9,4 +9,5 @@ export * from './organization.js';
 export * from './note.js';
 export * from './task.js';
 export * from './routine.js';
+export * from './journal.js';
 export * from './openapi.js';

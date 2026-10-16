@@ -1128,4 +1128,120 @@ describe('Domain Rules and Invariants', () => {
       expect(future).toContain('Past completed and skipped history is preserved');
     });
   });
+
+  describe('Journal Domain & Reflection Defaults', () => {
+    it('validates calendar date format YYYY-MM-DD and rejects malformed strings', async () => {
+      const { validateJournalEntryDate } = await import('./journal.js');
+
+      expect(validateJournalEntryDate('2026-10-16')).toBe('2026-10-16');
+      expect(validateJournalEntryDate('2025-01-01')).toBe('2025-01-01');
+
+      expect(() => validateJournalEntryDate('16-10-2026')).toThrow(RangeError);
+      expect(() => validateJournalEntryDate('2026/10/16')).toThrow(RangeError);
+      expect(() => validateJournalEntryDate('not-a-date')).toThrow(RangeError);
+    });
+
+    it('validates IANA timezones strictly', async () => {
+      const { validateJournalTimezone } = await import('./journal.js');
+
+      expect(validateJournalTimezone('America/New_York')).toBe('America/New_York');
+      expect(validateJournalTimezone('Asia/Dhaka')).toBe('Asia/Dhaka');
+      expect(validateJournalTimezone('UTC')).toBe('UTC');
+
+      expect(() => validateJournalTimezone('Fake/Zone')).toThrow(RangeError);
+      expect(() => validateJournalTimezone('')).toThrow(RangeError);
+    });
+
+    it('preserves Unicode and non-Latin scripts (Bangla) in journal title and body', async () => {
+      const { validateJournalTitle, resolveJournalTitle } = await import('./journal.js');
+
+      const banglaTitle = 'আজকের বিশেষ অভিজ্ঞতা ও পর্যালোচনা';
+      expect(validateJournalTitle(banglaTitle)).toBe(banglaTitle);
+
+      // Title derived from first non-empty line of content
+      const derived = resolveJournalTitle(
+        null,
+        '2026-10-16',
+        '  ভোরের আলো ফুটতেই কাজ শুরু করলাম...\nপরবর্তী লাইন  '
+      );
+      expect(derived).toBe('ভোরের আলো ফুটতেই কাজ শুরু করলাম...');
+
+      // Fallback when both title and content are missing
+      const fallback = resolveJournalTitle(null, '2026-10-16', '');
+      expect(fallback).toBe('Journal entry - 2026-10-16');
+    });
+
+    it('supports optional non-clinical mood without forced scoring', async () => {
+      const { validateJournalMood } = await import('./journal.js');
+
+      expect(validateJournalMood(null)).toBeNull();
+      expect(validateJournalMood(undefined)).toBeNull();
+      expect(validateJournalMood('thoughtful & energized')).toBe('thoughtful & energized');
+      expect(validateJournalMood('calm')).toBe('calm');
+      expect(validateJournalMood('peaceful')).toBe('peaceful');
+
+      expect(() => validateJournalMood('a'.repeat(60))).toThrow(RangeError);
+    });
+
+    it('provides structured non-clinical reflection templates with dismissal and blank defaults', async () => {
+      const { getReflectionTemplates, getReflectionTemplateById, instantiateReflectionTemplate } =
+        await import('./journal.js');
+
+      const templates = getReflectionTemplates();
+      expect(templates.length).toBeGreaterThanOrEqual(4);
+
+      const blank = getReflectionTemplateById('blank');
+      expect(blank).toBeDefined();
+      expect(blank?.prompts).toEqual([]);
+
+      const daily = getReflectionTemplateById('daily_reflection');
+      expect(daily).toBeDefined();
+      expect(daily?.prompts.length).toBeGreaterThan(0);
+
+      const instantiated = instantiateReflectionTemplate('daily_reflection');
+      expect(instantiated.length).toBe(daily!.prompts.length);
+      expect(instantiated[0]!.prompt).toBe(daily!.prompts[0]);
+      expect(instantiated[0]!.response).toBe('');
+    });
+
+    it('correctly evaluates intentional backdating relative to creation instant', async () => {
+      const { isEntryBackdated } = await import('./journal.js');
+
+      // Creation instant: 2026-10-16T12:00:00Z in America/New_York (calendar date 2026-10-16)
+      const creationInstant = '2026-10-16T12:00:00.000Z';
+      const timezone = 'America/New_York';
+
+      // Past entry date: backdated
+      expect(isEntryBackdated('2026-10-10', creationInstant, timezone)).toBe(true);
+      // Same day entry date: not backdated
+      expect(isEntryBackdated('2026-10-16', creationInstant, timezone)).toBe(false);
+      // Future entry date: not backdated
+      expect(isEntryBackdated('2026-10-20', creationInstant, timezone)).toBe(false);
+    });
+
+    it('redacts sensitive preview content and body snippets by default', async () => {
+      const { redactJournalPreview } = await import('./journal.js');
+
+      const entry = {
+        id: 'j-1',
+        title: 'Deep Private Reflection',
+        plainText: 'This is my deeply confidential thought that should never leak.',
+        prompts: [{ prompt: 'What happened?', response: 'Very personal answer.' }],
+        mood: 'pensive',
+      };
+
+      // Default privacy: suppressBodySnippets is true
+      const redacted = redactJournalPreview(entry);
+      expect(redacted.plainText).toBe('[Private journal entry]');
+      expect(redacted.prompts?.[0]?.response).toBe('[Redacted response]');
+      expect(redacted.title).toBe('Deep Private Reflection');
+
+      // When suppressBodySnippets is explicitly false
+      const unredacted = redactJournalPreview(entry, { suppressBodySnippets: false });
+      expect(unredacted.plainText).toBe(
+        'This is my deeply confidential thought that should never leak.'
+      );
+      expect(unredacted.prompts?.[0]?.response).toBe('Very personal answer.');
+    });
+  });
 });

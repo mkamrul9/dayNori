@@ -15,6 +15,7 @@ import type {
   Weekday,
   RoutineOccurrenceStatus,
   RoutineOccurrenceTransition,
+  JournalPromptEntry,
 } from '@daynori/contracts';
 
 export const MAX_PAYLOAD_BYTES = 1024 * 1024; // 1 MiB max serialized payload size
@@ -563,5 +564,72 @@ export function validateRoutineOccurrenceRecord(input: unknown): RoutineOccurren
     serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
     createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
     updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
+  };
+}
+
+export interface JournalEntryRecord {
+  id: string;
+  workspaceId: string;
+  folderId: string | null;
+  title: string | null;
+  entryDate: string; // YYYY-MM-DD
+  timezone: string;
+  document: NoteDocument;
+  plainText: string;
+  wordCount: number;
+  charCount: number;
+  mood: string | null;
+  prompts: JournalPromptEntry[];
+  tags: string[];
+  isDraft: boolean;
+  isArchived: boolean;
+  isPinned: boolean;
+  securityScope: 'standard' | 'vault';
+  serverRevision: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export function validateJournalEntryRecord(input: unknown): JournalEntryRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: JournalEntryRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+  const doc = validateNoteDocument(r.document);
+  const securityScope = r.securityScope === 'vault' ? 'vault' : 'standard';
+
+  const prompts = Array.isArray(r.prompts)
+    ? (r.prompts as JournalPromptEntry[]).map((p) => ({
+        id: typeof p?.id === 'string' ? p.id : undefined,
+        prompt: assertNonEmptyString(p?.prompt, 'prompt', 500),
+        response: typeof p?.response === 'string' ? p.response.slice(0, 5000) : undefined,
+      }))
+    : [];
+
+  const tags = Array.isArray(r.tags) ? r.tags.map(String) : [];
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    folderId: r.folderId !== null && r.folderId !== undefined ? String(r.folderId) : null,
+    title: typeof r.title === 'string' ? r.title : null,
+    entryDate: assertNonEmptyString(r.entryDate, 'entryDate', 10),
+    timezone: typeof r.timezone === 'string' && r.timezone.length > 0 ? r.timezone : 'UTC',
+    document: doc,
+    plainText: typeof r.plainText === 'string' ? r.plainText : '',
+    wordCount: typeof r.wordCount === 'number' ? r.wordCount : 0,
+    charCount: typeof r.charCount === 'number' ? r.charCount : 0,
+    mood: typeof r.mood === 'string' ? r.mood : null,
+    prompts,
+    tags,
+    isDraft: Boolean(r.isDraft),
+    isArchived: Boolean(r.isArchived),
+    isPinned: Boolean(r.isPinned),
+    securityScope,
+    serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
+    createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
+    updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
+    deletedAt: r.deletedAt ? String(r.deletedAt) : null,
   };
 }
