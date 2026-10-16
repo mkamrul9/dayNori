@@ -62,7 +62,10 @@ function normalizeDateString(d: string | Date): string {
   if (typeof d === 'string') {
     return d.slice(0, 10);
   }
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function mapRowToJournalEntry(r: JournalEntryDbRow): JournalEntry {
@@ -282,7 +285,7 @@ export async function getJournalEntry(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
             i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
             i.is_archived, i.is_pinned, i.security_scope,
-            j.title, j.entry_date, j.timezone, j.document, j.plain_text,
+            j.title, j.entry_date::text as entry_date, j.timezone, j.document, j.plain_text,
             j.word_count, j.char_count, j.mood, j.prompts, j.tags, j.is_draft
      FROM app.items i
      JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
@@ -336,10 +339,10 @@ export function decodeJournalCursor(
         id: String(parsed.id),
       };
     }
-  } catch {
-    /* ignore malformed cursor */
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
   }
-  return null;
+  throw new ValidationError('MALFORMED_CURSOR: Invalid pagination cursor.');
 }
 
 export async function listJournalEntries(
@@ -415,7 +418,7 @@ export async function listJournalEntries(
     SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
            i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
            i.is_archived, i.is_pinned, i.security_scope,
-           j.title, j.entry_date, j.timezone, j.document, j.plain_text,
+           j.title, j.entry_date::text as entry_date, j.timezone, j.document, j.plain_text,
            j.word_count, j.char_count, j.mood, j.prompts, j.tags, j.is_draft
     FROM app.items i
     JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
@@ -454,12 +457,15 @@ export async function updateJournalEntry(
 ): Promise<JournalEntryWithSeq> {
   await assertPersonalWorkspace(client, workspaceId);
 
-  // 1. Fetch existing entry
+  // 1. Acquire workspace sync lock first to protect against race conditions and stale revision checks
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  // 2. Fetch existing entry under lock
   const existingRes = await client.query<JournalEntryDbRow>(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
             i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
             i.is_archived, i.is_pinned, i.security_scope,
-            j.title, j.entry_date, j.timezone, j.document, j.plain_text,
+            j.title, j.entry_date::text as entry_date, j.timezone, j.document, j.plain_text,
             j.word_count, j.char_count, j.mood, j.prompts, j.tags, j.is_draft
      FROM app.items i
      JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
@@ -483,7 +489,7 @@ export async function updateJournalEntry(
     );
   }
 
-  // 2. Validate folder if changing
+  // 3. Validate folder if changing
   const nextFolderId = input.folderId !== undefined ? input.folderId : existing.folder_id;
   if (nextFolderId && nextFolderId !== existing.folder_id) {
     const fRes = await client.query<{ id: string; security_scope: string }>(
@@ -503,7 +509,7 @@ export async function updateJournalEntry(
     }
   }
 
-  // 3. Resolve document, plainText, and title updates
+  // 4. Resolve document, plainText, and title updates
   let document: NoteDocument = existing.document;
   let plainText: string = existing.plain_text;
 
@@ -540,9 +546,6 @@ export async function updateJournalEntry(
   const charCount = calculateCharCount(plainText);
   const nextRevision = currentRev + 1;
 
-  // 4. Lock sync state and update
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
-
   await client.query(
     `UPDATE app.items
      SET folder_id = $1, is_archived = $2, is_pinned = $3, revision = $4,
@@ -557,7 +560,7 @@ export async function updateJournalEntry(
          word_count = $6, char_count = $7, mood = $8, prompts = $9, tags = $10,
          is_draft = $11, updated_at = now()
      WHERE workspace_id = $12 AND id = $13
-     RETURNING id, workspace_id, title, entry_date, timezone, document, plain_text,
+     RETURNING id, workspace_id, title, entry_date::text as entry_date, timezone, document, plain_text,
                word_count, char_count, mood, prompts, tags, is_draft, created_at, updated_at;`,
     [
       title,
@@ -651,6 +654,9 @@ export async function trashJournalEntry(
 ): Promise<{ seq: number; revision: number }> {
   await assertPersonalWorkspace(client, workspaceId);
 
+  // 1. Acquire lock first before checking revision and authoritative state
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
   const existingRes = await client.query<{ revision: number; deleted_at: Date | null }>(
     `SELECT revision, deleted_at FROM app.items WHERE workspace_id = $1 AND id = $2 AND kind = 'journal_entry';`,
     [workspaceId, entryId]
@@ -662,17 +668,17 @@ export async function trashJournalEntry(
 
   const existing = existingRes.rows[0]!;
   if (existing.deleted_at) {
-    return { seq: 0, revision: existing.revision };
+    return { seq: 0, revision: Number(existing.revision) };
   }
 
-  if (baseRevision !== undefined && baseRevision !== existing.revision) {
+  const currentRev = Number(existing.revision);
+  if (baseRevision !== undefined && baseRevision !== currentRev) {
     throw new ConflictError(
-      `Conflict trashing journal entry: base revision ${baseRevision} does not match current server revision ${existing.revision}.`
+      `Conflict trashing journal entry: base revision ${baseRevision} does not match current server revision ${currentRev}.`
     );
   }
 
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
-  const nextRevision = existing.revision + 1;
+  const nextRevision = currentRev + 1;
   const seq = syncState.nextChangeSeq;
 
   await client.query(
@@ -711,11 +717,21 @@ export async function restoreJournalEntry(
   actorUserId: string,
   baseRevision?: number,
   operationId?: string
-): Promise<{ seq: number; revision: number }> {
+): Promise<{ seq: number; revision: number; entry: JournalEntry }> {
   await assertPersonalWorkspace(client, workspaceId);
 
-  const existingRes = await client.query<{ revision: number; deleted_at: Date | null }>(
-    `SELECT revision, deleted_at FROM app.items WHERE workspace_id = $1 AND id = $2 AND kind = 'journal_entry';`,
+  // 1. Acquire lock first before checking revision and authoritative state
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const existingRes = await client.query<JournalEntryDbRow>(
+    `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
+            i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
+            i.is_archived, i.is_pinned, i.security_scope,
+            j.title, j.entry_date::text as entry_date, j.timezone, j.document, j.plain_text,
+            j.word_count, j.char_count, j.mood, j.prompts, j.tags, j.is_draft
+     FROM app.items i
+     JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
+     WHERE i.workspace_id = $1 AND i.id = $2;`,
     [workspaceId, entryId]
   );
 
@@ -725,17 +741,17 @@ export async function restoreJournalEntry(
 
   const existing = existingRes.rows[0]!;
   if (!existing.deleted_at) {
-    return { seq: 0, revision: existing.revision };
+    return { seq: 0, revision: Number(existing.revision), entry: mapRowToJournalEntry(existing) };
   }
 
-  if (baseRevision !== undefined && baseRevision !== existing.revision) {
+  const currentRev = Number(existing.revision);
+  if (baseRevision !== undefined && baseRevision !== currentRev) {
     throw new ConflictError(
-      `Conflict restoring journal entry: base revision ${baseRevision} does not match current server revision ${existing.revision}.`
+      `Conflict restoring journal entry: base revision ${baseRevision} does not match current server revision ${currentRev}.`
     );
   }
 
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
-  const nextRevision = existing.revision + 1;
+  const nextRevision = currentRev + 1;
   const seq = syncState.nextChangeSeq;
 
   await client.query(
@@ -745,6 +761,12 @@ export async function restoreJournalEntry(
     [nextRevision, actorUserId, workspaceId, entryId]
   );
 
+  const restoredEntry = mapRowToJournalEntry({
+    ...existing,
+    revision: nextRevision,
+    deleted_at: null,
+  });
+
   await insertChange(client, {
     workspaceId,
     seq,
@@ -753,7 +775,29 @@ export async function restoreJournalEntry(
     revision: nextRevision,
     isTombstone: false,
     operationId: operationId || crypto.randomUUID(),
-    changeData: { kind: 'journal_entry', restored: true },
+    changeData: {
+      kind: 'journal_entry',
+      restored: true,
+      folderId: existing.folder_id,
+      title: existing.title,
+      entryDate: normalizeDateString(existing.entry_date),
+      timezone: existing.timezone,
+      document: existing.document,
+      plainText: existing.plain_text,
+      wordCount: Number(existing.word_count),
+      charCount: Number(existing.char_count),
+      mood: existing.mood,
+      prompts: Array.isArray(existing.prompts)
+        ? existing.prompts
+        : typeof existing.prompts === 'string'
+          ? JSON.parse(existing.prompts)
+          : [],
+      tags: Array.isArray(existing.tags) ? existing.tags : [],
+      isDraft: Boolean(existing.is_draft),
+      isArchived: Boolean(existing.is_archived),
+      isPinned: Boolean(existing.is_pinned),
+      securityScope: existing.security_scope,
+    },
   });
 
   await insertOutboxIntent(client, {
@@ -764,5 +808,5 @@ export async function restoreJournalEntry(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
-  return { seq, revision: nextRevision };
+  return { seq, revision: nextRevision, entry: restoredEntry };
 }

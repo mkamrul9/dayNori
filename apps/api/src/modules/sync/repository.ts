@@ -519,11 +519,15 @@ export async function listActiveItemsForBootstrap(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by, i.created_at, i.updated_at, i.deleted_at,
             i.display_order, i.revision, i.rank, i.is_archived, i.is_pinned, i.security_scope,
             f.name as folder_name, f.color as folder_color, f.icon as folder_icon,
-            n.title as note_title, n.document as note_document, n.plain_text as note_plain_text,
-            n.word_count as note_word_count, n.char_count as note_char_count
+            COALESCE(n.title, j.title) as note_title,
+            COALESCE(n.document, j.document) as note_document,
+            COALESCE(n.plain_text, j.plain_text) as note_plain_text,
+            COALESCE(n.word_count, j.word_count) as note_word_count,
+            COALESCE(n.char_count, j.char_count) as note_char_count
      FROM app.items i
      LEFT JOIN app.folders f ON f.workspace_id = i.workspace_id AND f.id = i.id
      LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
+     LEFT JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
      WHERE i.workspace_id = $1 AND i.deleted_at IS NULL
      ORDER BY i.created_at ASC;`,
     [workspaceId]

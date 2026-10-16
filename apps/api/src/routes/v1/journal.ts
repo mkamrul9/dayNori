@@ -391,6 +391,7 @@ export function registerJournalRoutes(app: FastifyInstance, pool: Pool): void {
       const parsedBody = TrashRestoreRequestSchema.parse(request.body);
       const actorUserId = actor.userId;
       const operationId = request.headers['x-operation-id'] as string | undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'web-client';
 
       return withTenantContext(pool, { userId: actorUserId, workspaceId }, async (client) => {
         const accessRes = await client.query<{ exists: boolean }>(
@@ -401,13 +402,78 @@ export function registerJournalRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
+        if (operationId) {
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'trashJournalEntry',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'journal_entry',
+            entityId: journalId,
+            baseRevision: parsedBody?.baseRevision ?? 0,
+            payload: { baseRevision: parsedBody?.baseRevision },
+          });
+
+          await lockWorkspaceSyncState(client, workspaceId);
+
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
+          if (lockedReceipt) {
+            if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            if (lockedReceipt.status === 'accepted') {
+              return reply.status(200).send({
+                data: { success: true, revision: lockedReceipt.acceptedRevision ?? 0 },
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              });
+            }
+          }
+
+          const result = await trashJournalEntry(
+            client,
+            workspaceId,
+            journalId,
+            actorUserId,
+            parsedBody?.baseRevision,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'trashJournalEntry',
+            entityType: 'journal_entry',
+            entityId: journalId,
+            schemaVersion: 1,
+            baseRevision: parsedBody?.baseRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: result.revision,
+            appliedChangeSeq: result.seq,
+            resultPayload: { revision: result.revision },
+          });
+
+          return reply.status(200).send({
+            data: { success: true, revision: result.revision },
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          });
+        }
+
         const result = await trashJournalEntry(
           client,
           workspaceId,
           journalId,
           actorUserId,
-          parsedBody?.baseRevision,
-          operationId
+          parsedBody?.baseRevision
         );
 
         return reply.status(200).send({
@@ -432,6 +498,7 @@ export function registerJournalRoutes(app: FastifyInstance, pool: Pool): void {
       const parsedBody = TrashRestoreRequestSchema.parse(request.body);
       const actorUserId = actor.userId;
       const operationId = request.headers['x-operation-id'] as string | undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'web-client';
 
       return withTenantContext(pool, { userId: actorUserId, workspaceId }, async (client) => {
         const accessRes = await client.query<{ exists: boolean }>(
@@ -442,17 +509,86 @@ export function registerJournalRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
+        if (operationId) {
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'restoreJournalEntry',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'journal_entry',
+            entityId: journalId,
+            baseRevision: parsedBody?.baseRevision ?? 0,
+            payload: { baseRevision: parsedBody?.baseRevision },
+          });
+
+          await lockWorkspaceSyncState(client, workspaceId);
+
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
+          if (lockedReceipt) {
+            if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            if (lockedReceipt.status === 'accepted') {
+              return reply.status(200).send({
+                data: {
+                  success: true,
+                  revision: lockedReceipt.acceptedRevision ?? 0,
+                  entry: lockedReceipt.resultPayload?.entry,
+                },
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              });
+            }
+          }
+
+          const result = await restoreJournalEntry(
+            client,
+            workspaceId,
+            journalId,
+            actorUserId,
+            parsedBody?.baseRevision,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'restoreJournalEntry',
+            entityType: 'journal_entry',
+            entityId: journalId,
+            schemaVersion: 1,
+            baseRevision: parsedBody?.baseRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: result.revision,
+            appliedChangeSeq: result.seq,
+            resultPayload: { revision: result.revision, entry: result.entry },
+          });
+
+          return reply.status(200).send({
+            data: { success: true, revision: result.revision, entry: result.entry },
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          });
+        }
+
         const result = await restoreJournalEntry(
           client,
           workspaceId,
           journalId,
           actorUserId,
-          parsedBody?.baseRevision,
-          operationId
+          parsedBody?.baseRevision
         );
 
         return reply.status(200).send({
-          data: { success: true, revision: result.revision },
+          data: { success: true, revision: result.revision, entry: result.entry },
           meta: { requestId: request.id, serverTime: new Date().toISOString() },
         });
       });

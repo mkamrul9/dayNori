@@ -20,6 +20,12 @@
   - Extended `SyncEngine` with typed journal sync commands and non-destructive conflict recovery (`save_copy` and recovery drafts).
   - Extended Web IndexedDB adapter (`apps/web/src/data/indexedDbRepository.ts`, `DB_VERSION = 6`) with `journal_entries` object store and indices.
   - Extended Mobile SQLite adapter (`apps/mobile/src/data/sqliteRepository.ts`, migration version 7) with `local_journal_entries` table.
+- **Journal Foundation & Prerequisite Repairs (Findings A–E):**
+  - **Bootstrap Snapshot Fidelity (Finding A):** Added complete, validated `journalEntries` projection to sync bootstrap query, response schema, transport, SyncEngine, and local repositories; guarded against corrupted snapshots without fabricating empty entries.
+  - **Concurrency & Lifecycle Protection (Finding B):** Acquired workspace sync locks prior to reading authoritative revisions in journal update, trash, and restore routes; serialized concurrent same-revision writes with 409 Conflict rejection; enriched restoration payloads with full entry projections; implemented idempotent receipt replay protection on trash and restore routes.
+  - **Explicit Null Synchronization (Finding C):** Fixed sync pull mapping to distinguish explicit `null` from undefined fields, cleanly clearing titles, moods, folders, prompts, and tags across clients while preserving untouched fields during partial updates.
+  - **Privacy Guardrails & Complete Log Sanitization (Finding D):** Enforced controlled operational event messages and extended `SafeLogger` sanitization to titles, documents, reflections, prompts, and errors; asserted complete serialized log entries contain zero canary leaks.
+  - **Validation & Non-UTC Semantics (Finding E):** Fixed non-UTC date-only shifts using SQL date-only casting; enforced prompt response bounds (<=5000 chars) with `RangeError`; validated cursors; rejected generic item creation for `journal_entry`; corrected ADR-0028 storage claims and vault phase references (Phases 44–47).
 - **Decision Record:**
   - Published [ADR-0028: Journal Entries, Dated Local Semantics, and Privacy Defaults](docs/decisions/0028-journal-entries-and-privacy-defaults.md).
 

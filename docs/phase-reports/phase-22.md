@@ -36,7 +36,7 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
     - Validated multiple entries on a single date, intentional backdating, Bengali (Bangla) Unicode preservation, personal workspace isolation, cross-account authorization rejection, offline sync, revision conflict resolution via `save_copy`, operational log sanitization, and SQLite storage lifecycle.
 - **Excluded/deferred scope:**
   - Phase 23 (Journal writing and reflection interfaces): Full web/mobile editor interfaces, reflection prompt selector UI, and mood picker components belong to Phase 23.
-  - Vault client-side end-to-end encryption belongs to Phase 30+; ordinary journals rely on PostgreSQL RLS and local storage access controls.
+  - Vault client-side end-to-end encryption belongs to Phases 44–47; ordinary journals rely on PostgreSQL RLS and local storage access controls.
   - Physical Android TalkBack and hardware KeyStore release gates remain blocked pending physical hardware testing.
 
 ## Result

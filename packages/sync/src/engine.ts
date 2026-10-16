@@ -1789,18 +1789,45 @@ export class SyncEngine {
               typeof data.charCount === 'number'
                 ? data.charCount
                 : (existingJournal?.charCount ?? plainText.length);
-            const prompts = Array.isArray(data.prompts)
-              ? (data.prompts as JournalPromptEntry[])
-              : (existingJournal?.prompts ?? []);
-            const tags = Array.isArray(data.tags)
-              ? data.tags.map(String)
-              : (existingJournal?.tags ?? []);
+            const journalPrompts =
+              'prompts' in data
+                ? Array.isArray(data.prompts)
+                  ? (data.prompts as JournalPromptEntry[])
+                  : []
+                : (existingJournal?.prompts ?? []);
+            const journalTags =
+              'tags' in data
+                ? Array.isArray(data.tags)
+                  ? data.tags.map(String)
+                  : []
+                : (existingJournal?.tags ?? []);
+
+            const journalTitle =
+              'title' in data
+                ? data.title !== null && data.title !== undefined
+                  ? String(data.title)
+                  : null
+                : (existingJournal?.title ?? null);
+
+            const journalMood =
+              'mood' in data
+                ? data.mood !== null && data.mood !== undefined
+                  ? String(data.mood)
+                  : null
+                : (existingJournal?.mood ?? null);
+
+            const journalFolderId =
+              'folderId' in data
+                ? data.folderId !== null && data.folderId !== undefined
+                  ? String(data.folderId)
+                  : null
+                : (existingJournal?.folderId ?? folderId ?? null);
 
             journalEntriesToApply.push({
               id: change.entityId,
               workspaceId: this.namespace.workspaceId,
-              folderId: folderId ?? null,
-              title: (data.title as string | null) ?? existingJournal?.title ?? null,
+              folderId: journalFolderId,
+              title: journalTitle,
               entryDate:
                 (data.entryDate as string) ||
                 (existingJournal?.entryDate ?? createdAt.slice(0, 10)),
@@ -1809,9 +1836,9 @@ export class SyncEngine {
               plainText,
               wordCount,
               charCount,
-              mood: typeof data.mood === 'string' ? data.mood : (existingJournal?.mood ?? null),
-              prompts,
-              tags,
+              mood: journalMood,
+              prompts: journalPrompts,
+              tags: journalTags,
               isDraft: Boolean(data.isDraft ?? existingJournal?.isDraft ?? false),
               isArchived,
               isPinned,
@@ -1931,6 +1958,18 @@ export class SyncEngine {
     const snapshotOccurrences: RoutineOccurrenceRecord[] = [];
     const snapshotJournalEntries: JournalEntryRecord[] = [];
 
+    const bData = bootstrapRes.data as Record<string, unknown>;
+    const journalMap = new Map<string, JournalEntryRecord>();
+    if (Array.isArray(bData['journalEntries'])) {
+      for (const j of bData['journalEntries'] as JournalEntryRecord[]) {
+        if (!j || !j.id) continue;
+        journalMap.set(j.id, {
+          ...j,
+          serverRevision: (j as { revision?: number }).revision || j.serverRevision || 1,
+        });
+      }
+    }
+
     for (const item of bootstrapRes.data.items) {
       const raw = item as Record<string, unknown>;
       if (item.kind === 'note' && raw.document) {
@@ -2017,33 +2056,47 @@ export class SyncEngine {
       }
 
       if (item.kind === 'journal_entry') {
-        snapshotJournalEntries.push({
-          id: item.id,
-          workspaceId: item.workspaceId,
-          folderId: item.folderId ?? null,
-          title: (raw.title as string | null) ?? null,
-          entryDate: (raw.entryDate as string) || item.createdAt.slice(0, 10),
-          timezone: (raw.timezone as string) || 'UTC',
-          document: (raw.document as NoteDocument) || { version: 1, type: 'doc', content: [] },
-          plainText: (raw.plainText as string) || '',
-          wordCount: typeof raw.wordCount === 'number' ? raw.wordCount : 0,
-          charCount: typeof raw.charCount === 'number' ? raw.charCount : 0,
-          mood: (raw.mood as string | null) ?? null,
-          prompts: Array.isArray(raw.prompts) ? (raw.prompts as JournalPromptEntry[]) : [],
-          tags: Array.isArray(raw.tags) ? raw.tags.map(String) : [],
-          isDraft: Boolean(raw.isDraft),
-          isArchived: item.isArchived,
-          isPinned: item.isPinned,
-          securityScope: item.securityScope,
-          serverRevision: item.revision,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-          deletedAt: item.deletedAt,
-        });
+        const existingJ = journalMap.get(item.id);
+        if (existingJ) {
+          snapshotJournalEntries.push(existingJ);
+          journalMap.delete(item.id);
+        } else if (raw.document && raw.entryDate) {
+          snapshotJournalEntries.push({
+            id: item.id,
+            workspaceId: item.workspaceId,
+            folderId: item.folderId ?? null,
+            title: (raw.title as string | null) ?? null,
+            entryDate: String(raw.entryDate),
+            timezone: (raw.timezone as string) || 'UTC',
+            document: raw.document as NoteDocument,
+            plainText: (raw.plainText as string) || '',
+            wordCount: typeof raw.wordCount === 'number' ? raw.wordCount : 0,
+            charCount: typeof raw.charCount === 'number' ? raw.charCount : 0,
+            mood: (raw.mood as string | null) ?? null,
+            prompts: Array.isArray(raw.prompts) ? (raw.prompts as JournalPromptEntry[]) : [],
+            tags: Array.isArray(raw.tags) ? raw.tags.map(String) : [],
+            isDraft: Boolean(raw.isDraft),
+            isArchived: item.isArchived,
+            isPinned: item.isPinned,
+            securityScope: item.securityScope,
+            serverRevision: item.revision,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            deletedAt: item.deletedAt,
+          });
+        } else {
+          throw new Error(
+            `Bootstrap snapshot corrupted: item ${item.id} of kind journal_entry is missing required journal content.`
+          );
+        }
       }
     }
 
-    const bData = bootstrapRes.data as Record<string, unknown>;
+    // Add any remaining journal entries from the snapshot map
+    for (const remainingJ of journalMap.values()) {
+      snapshotJournalEntries.push(remainingJ);
+    }
+
     if (Array.isArray(bData['routines'])) {
       for (const r of bData['routines'] as RoutineRecord[]) {
         snapshotRoutines.push({
@@ -2088,15 +2141,6 @@ export class SyncEngine {
           serverRevision: (occ as { revision?: number }).revision || occ.serverRevision || 1,
           createdAt: occ.createdAt,
           updatedAt: occ.updatedAt,
-        });
-      }
-    }
-
-    if (Array.isArray(bData['journalEntries'])) {
-      for (const j of bData['journalEntries'] as JournalEntryRecord[]) {
-        snapshotJournalEntries.push({
-          ...j,
-          serverRevision: (j as { revision?: number }).revision || j.serverRevision || 1,
         });
       }
     }

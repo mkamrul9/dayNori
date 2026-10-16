@@ -3,7 +3,12 @@ import {
   isValidIanaTimezone,
   getCalendarDateInTimezone,
 } from './tasks.js';
-import { type NoteDocument, createEmptyNoteDocument } from './notes.js';
+import {
+  type NoteDocument,
+  createEmptyNoteDocument,
+  calculateWordCount,
+  calculateCharCount,
+} from './notes.js';
 
 export const MAX_JOURNAL_TITLE_LENGTH = 255;
 export const MAX_JOURNAL_MOOD_LENGTH = 50;
@@ -159,10 +164,12 @@ export function validateJournalPrompts(prompts?: unknown[]): JournalPromptItem[]
         `Journal prompt at index ${idx} exceeds maximum length of ${MAX_JOURNAL_PROMPT_LENGTH} characters.`
       );
     }
-    const response =
-      typeof p['response'] === 'string'
-        ? p['response'].slice(0, MAX_JOURNAL_RESPONSE_LENGTH)
-        : undefined;
+    if (typeof p['response'] === 'string' && p['response'].length > MAX_JOURNAL_RESPONSE_LENGTH) {
+      throw new RangeError(
+        `Journal prompt response at index ${idx} exceeds maximum length of ${MAX_JOURNAL_RESPONSE_LENGTH} characters.`
+      );
+    }
+    const response = typeof p['response'] === 'string' ? p['response'] : undefined;
 
     return {
       id: typeof p['id'] === 'string' ? p['id'] : undefined,
@@ -170,6 +177,16 @@ export function validateJournalPrompts(prompts?: unknown[]): JournalPromptItem[]
       response,
     };
   });
+}
+
+/**
+ * Computes word and character counts deterministically, supporting Unicode script and multiline content.
+ */
+export function computeJournalStats(plainText: string): { wordCount: number; charCount: number } {
+  return {
+    wordCount: calculateWordCount(plainText),
+    charCount: calculateCharCount(plainText),
+  };
 }
 
 /**

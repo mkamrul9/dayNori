@@ -199,9 +199,10 @@ export function createErrorHandler(logger: SafeLogger) {
     const sanitizedMessage = sanitizeLogString(error.message);
     const sanitizedStack = error.stack ? sanitizeLogString(error.stack) : undefined;
 
-    logger.error(requestId, `Unhandled server error: ${sanitizedMessage}`, {
-      stack: sanitizedStack,
+    logger.error(requestId, 'Unhandled server error occurred', {
       name: error.name,
+      message: sanitizedMessage,
+      stack: sanitizedStack,
     });
 
     const body: ApiErrorResponse = {

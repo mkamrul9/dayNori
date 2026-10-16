@@ -10,7 +10,7 @@ const SENSITIVE_HEADERS = new Set([
 ]);
 
 const SENSITIVE_KEY_PATTERN =
-  /(?:token|secret|password|bearer|auth|jwt|credential|key|refresh|hash|journal|document|plaintext|body|prompt|mood)/i;
+  /(?:token|secret|password|bearer|auth|jwt|credential|key|refresh|hash|journal|document|plaintext|plain_text|body|prompt|mood|title|entry_date|entrydate|reflection|content|tags|response|localpayload)/i;
 
 /**
  * Redacts secrets, passwords, tokens, and database credentials from string messages and stacks
@@ -40,6 +40,14 @@ export function sanitizeLogString(str: string): string {
 export function sanitizeLogValue(val: unknown, depth = 0): unknown {
   if (depth > 5 || val === null || val === undefined) {
     return val;
+  }
+
+  if (val instanceof Error) {
+    return {
+      name: val.name,
+      message: sanitizeLogString(val.message),
+      stack: val.stack ? sanitizeLogString(val.stack) : undefined,
+    };
   }
 
   if (typeof val === 'string') {

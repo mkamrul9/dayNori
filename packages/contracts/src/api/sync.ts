@@ -166,6 +166,7 @@ export type SyncPullResponse = z.infer<typeof SyncPullResponseSchema>;
 
 import { FolderSchema, TagSchema, ItemTagSchema, ItemLinkSchema } from './organization.js';
 import { RoutineSchema, RoutineOccurrenceSchema } from './routine.js';
+import { JournalEntrySchema } from './journal.js';
 
 export const SyncBootstrapQuerySchema = z.object({
   workspaceId: z.string().uuid(),
@@ -182,6 +183,7 @@ export const SyncBootstrapResponseSchema = z.object({
     itemLinks: z.array(ItemLinkSchema).optional().default([]),
     routines: z.array(RoutineSchema).optional().default([]),
     routineOccurrences: z.array(RoutineOccurrenceSchema).optional().default([]),
+    journalEntries: z.array(JournalEntrySchema).optional().default([]),
     watermarkCursor: z.string(),
     accessEpoch: z.string(),
   }),

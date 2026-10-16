@@ -37,7 +37,7 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
     - `tests/integration/phase21-daily-routines-experience.test.ts`: End-to-end multi-day journey testing deterministic occurrence generation, completion transitions, reversible undo, multi-day progression, yesterday's completion retention, schedule modification impact, gentle progress calculation, and tenant isolation.
     - Unit tests across `packages/domain`, `packages/ui-web`, `packages/ui-mobile`, and `apps/mobile`.
 - **Excluded/deferred scope:**
-  - Phase 22 (Daily note, today integration, and day review): Connecting daily notes, mood tracking, and day review summaries.
+  - Phase 22 (Journal entries and privacy defaults): Private dated journal entries, reflection metadata, personal workspace isolation, and RLS.
   - Physical Android TalkBack and hardware KeyStore release gates remain blocked pending physical hardware testing.
 
 ## Result

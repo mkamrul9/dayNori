@@ -14,6 +14,7 @@ import type {
   Weekday,
   RoutineOccurrence,
   RoutineOccurrenceTransition,
+  JournalEntry,
 } from '@daynori/contracts';
 import {
   lockWorkspaceSyncState,
@@ -2431,6 +2432,39 @@ export class SyncService {
       const newRevision = 1;
       const seq = syncState.nextChangeSeq;
       const kind = typeof cmd.payload['kind'] === 'string' ? cmd.payload['kind'] : 'note';
+
+      if (kind === 'journal_entry') {
+        const error = {
+          code: 'VALIDATION_FAILED',
+          message: 'Journal entries must be created via createJournalEntry command.',
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error,
+        };
+      }
+
       const folderId =
         typeof cmd.payload['parentId'] === 'string'
           ? cmd.payload['parentId']
@@ -3260,6 +3294,7 @@ export class SyncService {
     itemLinks: ItemLink[];
     routines: Routine[];
     routineOccurrences: RoutineOccurrence[];
+    journalEntries: JournalEntry[];
     watermarkCursor: string;
     accessEpoch: string;
   }> {
@@ -3581,6 +3616,89 @@ export class SyncService {
           };
         });
 
+        // Fetch active journal entries
+        const journalsRes = await client.query<{
+          id: string;
+          workspace_id: string;
+          folder_id: string | null;
+          title: string | null;
+          entry_date: string | Date;
+          timezone: string;
+          document: unknown;
+          plain_text: string;
+          word_count: number | string;
+          char_count: number | string;
+          mood: string | null;
+          prompts: unknown;
+          tags: string[];
+          is_draft: boolean;
+          is_archived: boolean;
+          is_pinned: boolean;
+          security_scope: 'standard' | 'vault';
+          revision: string | number;
+          created_at: Date;
+          updated_at: Date;
+          deleted_at: Date | null;
+        }>(
+          `SELECT
+            j.id, j.workspace_id, i.folder_id, j.title, j.entry_date::text as entry_date, j.timezone,
+            j.document, j.plain_text, j.word_count, j.char_count, j.mood, j.prompts, j.tags,
+            j.is_draft, i.is_archived, i.is_pinned, i.security_scope,
+            i.revision, i.created_at, i.updated_at, i.deleted_at
+          FROM app.journal_entries j
+          JOIN app.items i ON i.workspace_id = j.workspace_id AND i.id = j.id
+          WHERE j.workspace_id = $1 AND i.deleted_at IS NULL
+          ORDER BY j.entry_date DESC, i.created_at DESC;`,
+          [workspaceId]
+        );
+
+        const formattedJournalEntries: JournalEntry[] = journalsRes.rows.map((r) => {
+          let prompts = [];
+          if (Array.isArray(r.prompts)) {
+            prompts = r.prompts;
+          } else if (typeof r.prompts === 'string') {
+            try {
+              prompts = JSON.parse(r.prompts);
+            } catch {
+              prompts = [];
+            }
+          }
+          let doc: NoteDocument = { version: 1, type: 'doc', content: [] };
+          if (r.document && typeof r.document === 'object') {
+            doc = r.document as NoteDocument;
+          } else if (typeof r.document === 'string') {
+            try {
+              doc = JSON.parse(r.document);
+            } catch {
+              // fallback
+            }
+          }
+
+          return {
+            id: r.id,
+            workspaceId: r.workspace_id,
+            folderId: r.folder_id,
+            title: r.title,
+            entryDate: formatDateOnly(r.entry_date)!,
+            timezone: r.timezone,
+            document: doc,
+            plainText: r.plain_text,
+            wordCount: Number(r.word_count),
+            charCount: Number(r.char_count),
+            mood: r.mood,
+            prompts,
+            tags: Array.isArray(r.tags) ? r.tags : [],
+            isDraft: Boolean(r.is_draft),
+            isArchived: Boolean(r.is_archived),
+            isPinned: Boolean(r.is_pinned),
+            securityScope: r.security_scope,
+            serverRevision: Number(r.revision) || 1,
+            createdAt: new Date(r.created_at).toISOString(),
+            updatedAt: new Date(r.updated_at).toISOString(),
+            deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
+          };
+        });
+
         return {
           items: formattedItems,
           folders: formattedFolders,
@@ -3589,6 +3707,7 @@ export class SyncService {
           itemLinks: formattedItemLinks,
           routines: formattedRoutines,
           routineOccurrences: formattedOccurrences,
+          journalEntries: formattedJournalEntries,
           watermarkCursor,
           accessEpoch: syncState.accessEpoch,
         };

@@ -350,12 +350,14 @@ describe('Phase 19: Upcoming Task Workflows, Priority Views, and End-to-End Veri
   });
 
   it('Journey 4: Date-only and timed deadlines across Asia/Dhaka and America/New_York', async () => {
-    // 2026-10-16 timed deadline at 21:00 Dhaka time (15:00 UTC)
+    const todayDhakaStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(
+      new Date()
+    );
     const timedDhaka = await clientA.createTask(workspace1Id, {
       title: 'Dhaka Evening Review',
       deadline: {
         type: 'timed',
-        timestamp: '2026-10-16T15:00:00.000Z',
+        timestamp: `${todayDhakaStr}T15:00:00.000Z`,
         timezone: 'Asia/Dhaka',
       },
     });

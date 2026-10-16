@@ -48,6 +48,16 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
               throw new NotFoundError('Workspace not found');
             }
 
+            if (query.kind === 'journal_entry') {
+              const wsCheck = await client.query<{ kind: string }>(
+                `SELECT kind FROM app.workspaces WHERE id = $1;`,
+                [params.workspaceId]
+              );
+              if (!wsCheck.rows[0] || wsCheck.rows[0].kind !== 'personal') {
+                throw new NotFoundError('Workspace not found');
+              }
+            }
+
             // Fetch limit + 1 to determine if next page exists
             return listItems(client, params.workspaceId, {
               kind: query.kind,
@@ -123,6 +133,12 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
           );
           if (!accessRes.rows[0]?.exists) {
             throw new NotFoundError('Workspace not found or unauthorized');
+          }
+
+          if (body.kind === 'journal_entry') {
+            throw new ValidationError(
+              'Journal entries cannot be created via the generic item endpoint. Use dedicated /v1/workspaces/:workspaceId/journal routes.'
+            );
           }
 
           // Enforce folder invariants: validate folderId reference
@@ -259,6 +275,22 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
           throw new NotFoundError('Item not found');
         }
 
+        if (item.kind === 'journal_entry') {
+          await withTenantContext(
+            runtimePool,
+            { userId: actor.userId, workspaceId: params.workspaceId },
+            async (client) => {
+              const wsCheck = await client.query<{ kind: string }>(
+                `SELECT kind FROM app.workspaces WHERE id = $1;`,
+                [params.workspaceId]
+              );
+              if (!wsCheck.rows[0] || wsCheck.rows[0].kind !== 'personal') {
+                throw new NotFoundError('Item not found');
+              }
+            }
+          );
+        }
+
         const payload: ItemResponse = {
           data: {
             id: item.id,
@@ -317,6 +349,16 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
             const existing = await getItem(client, params.workspaceId, params.itemId);
             if (!existing || existing.deleted_at !== null) {
               return false;
+            }
+
+            if (existing.kind === 'journal_entry') {
+              const wsCheck = await client.query<{ kind: string }>(
+                `SELECT kind FROM app.workspaces WHERE id = $1;`,
+                [params.workspaceId]
+              );
+              if (!wsCheck.rows[0] || wsCheck.rows[0].kind !== 'personal') {
+                throw new NotFoundError('Item not found');
+              }
             }
 
             const newRevision = existing.revision + 1;

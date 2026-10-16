@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Provisional dated journal domain, optional reflection metadata, PostgreSQL persistence with Row-Level Security, Fastify journal REST endpoints, SyncEngine journal integration, Web IndexedDB and Mobile SQLite encrypted storage adapters, and account-scoped privacy defaults delivered under owner authorization and verified across Vitest pure domain, multi-client integration journeys, SQLite storage, and PostgreSQL RLS tests; physical Android TalkBack hardware and KeyStore release gates remain pending).
+Accepted (Provisional dated journal domain, optional reflection metadata, PostgreSQL persistence with Row-Level Security, Fastify journal REST endpoints, SyncEngine journal integration, Web IndexedDB and Mobile SQLite local storage adapters, and account-scoped privacy defaults delivered under owner authorization and verified across Vitest pure domain, multi-client integration journeys, SQLite storage, and PostgreSQL RLS tests; physical Android TalkBack hardware and KeyStore release gates remain pending).
 
 ## Context
 
@@ -85,4 +85,4 @@ Key architectural and product requirements:
   - Full offline-first authoring, synchronization, and conflict resolution across web and mobile.
 - **Negative / Tradeoffs**:
   - Searching journals requires explicit user-selected Journal scope because global search omits journal entries to preserve preview privacy.
-  - End-to-end client encryption remains deferred to the later dedicated vault release (Phase 30+); standard journals rely on PostgreSQL RLS and local storage security.
+  - End-to-end client encryption remains deferred to the later dedicated vault release (Phases 44–47); standard journals rely on PostgreSQL RLS and local storage security.

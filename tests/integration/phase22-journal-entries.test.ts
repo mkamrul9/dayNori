@@ -601,12 +601,17 @@ describe('Phase 22: Journal Entries and Privacy Defaults (Integration Tests)', (
       // Exercise SafeLogger directly with sensitive journal objects
       const directLoggerEntries: StructuredLogEntry[] = [];
       const canaryLogger = new SafeLogger((e) => directLoggerEntries.push(e));
-      canaryLogger.error('req-canary-01', `Error logging journal ${CANARY_STRING}`, {
+      canaryLogger.error('req-canary-01', 'Operational journal mutation error', {
+        title: `Canary Title ${CANARY_STRING}`,
         journal: { text: CANARY_STRING },
         document: { plainText: CANARY_STRING },
         plainText: CANARY_STRING,
         prompt: CANARY_STRING,
+        response: CANARY_STRING,
         mood: CANARY_STRING,
+        tags: [CANARY_STRING],
+        reflection: { content: CANARY_STRING },
+        localPayload: { entry: CANARY_STRING },
       });
 
       // 1. Assert captured API server logs contain ZERO canary leaks
@@ -615,16 +620,10 @@ describe('Phase 22: Journal Entries and Privacy Defaults (Integration Tests)', (
         expect(serialized).not.toContain(CANARY_STRING);
       }
 
-      // 2. Assert direct SafeLogger entries redact sensitive keys
+      // 2. Assert direct SafeLogger entries redact sensitive keys and serialized entries contain ZERO canary leaks
       for (const log of directLoggerEntries) {
-        const details = log.details as Record<string, unknown> | undefined;
-        if (details) {
-          expect(details['journal']).toBe('[REDACTED]');
-          expect(details['document']).toBe('[REDACTED]');
-          expect(details['plainText']).toBe('[REDACTED]');
-          expect(details['prompt']).toBe('[REDACTED]');
-          expect(details['mood']).toBe('[REDACTED]');
-        }
+        const serialized = JSON.stringify(log);
+        expect(serialized).not.toContain(CANARY_STRING);
       }
     });
   });
@@ -698,6 +697,378 @@ describe('Phase 22: Journal Entries and Privacy Defaults (Integration Tests)', (
       expect(afterClear).toBeNull();
 
       await repo.close();
+    });
+  });
+
+  describe('Suite 8: Concurrency Locking, Restore Payload Reconstruction, and Idempotent Receipt Replay', () => {
+    it('serializes concurrent updates on the same base revision with one 200 and one 409 conflict', async () => {
+      const entry = await clientA.createJournalEntry(workspaceAId, {
+        title: 'Concurrent Base Entry',
+        entryDate: '2026-10-17',
+        plainText: 'Base text.',
+      });
+      const entryId = entry.data.id;
+      const baseRev = entry.data.serverRevision;
+
+      const [res1, res2] = await Promise.allSettled([
+        clientA.updateJournalEntry(workspaceAId, entryId, {
+          title: 'Update Race Winner 1',
+          baseRevision: baseRev,
+        }),
+        clientA.updateJournalEntry(workspaceAId, entryId, {
+          title: 'Update Race Winner 2',
+          baseRevision: baseRev,
+        }),
+      ]);
+
+      const succeeded = [res1, res2].filter((r) => r.status === 'fulfilled');
+      const rejected = [res1, res2].filter((r) => r.status === 'rejected');
+
+      expect(succeeded.length).toBe(1);
+      expect(rejected.length).toBe(1);
+
+      // Final state matches the successful write
+      const current = await clientA.getJournalEntry(workspaceAId, entryId);
+      const expectedTitle = (
+        succeeded[0] as PromiseFulfilledResult<
+          Awaited<ReturnType<typeof clientA.updateJournalEntry>>
+        >
+      ).value.data.title;
+      expect(current.data.title).toBe(expectedTitle);
+    });
+
+    it('returns full authoritative entry projection upon restore to reconstruct un-cached entries', async () => {
+      const entry = await clientA.createJournalEntry(workspaceAId, {
+        title: 'Entry to be Restored',
+        entryDate: '2026-10-17',
+        plainText: 'Body of restored entry.',
+        mood: 'calm',
+        prompts: [{ prompt: 'Question?', response: 'Answer.' }],
+        tags: ['restore-test'],
+      });
+      const entryId = entry.data.id;
+
+      const trashRes = await clientA.trashJournalEntry(
+        workspaceAId,
+        entryId,
+        entry.data.serverRevision
+      );
+      expect(trashRes.data.success).toBe(true);
+
+      const restoreRes = await clientA.restoreJournalEntry(
+        workspaceAId,
+        entryId,
+        trashRes.data.revision
+      );
+      expect(restoreRes.data.success).toBe(true);
+      expect(restoreRes.data.entry).toBeDefined();
+
+      const restoredEntry = restoreRes.data.entry as Record<string, unknown>;
+      expect(restoredEntry['id']).toBe(entryId);
+      expect(restoredEntry['title']).toBe('Entry to be Restored');
+      expect(restoredEntry['entryDate']).toBe('2026-10-17');
+      expect(restoredEntry['mood']).toBe('calm');
+      expect(restoredEntry['plainText']).toBe('Body of restored entry.');
+      expect(restoredEntry['document']).toBeDefined();
+    });
+
+    it('replays receipts for trash and restore and prevents re-trashing upon receipt replay', async () => {
+      const entry = await clientA.createJournalEntry(workspaceAId, {
+        title: 'Replay Idempotency Entry',
+        entryDate: '2026-10-17',
+        plainText: 'Idempotency test.',
+      });
+      const entryId = entry.data.id;
+      const opTrashId = crypto.randomUUID();
+      const opRestoreId = crypto.randomUUID();
+
+      // 1. Trash with operation ID
+      const trashRes = await clientA.trashJournalEntry(workspaceAId, entryId, undefined, {
+        headers: { 'x-operation-id': opTrashId, 'x-device-id': 'device-idem-1' },
+      });
+      expect(trashRes.data.success).toBe(true);
+
+      // 2. Restore with operation ID
+      const restoreRes = await clientA.restoreJournalEntry(workspaceAId, entryId, undefined, {
+        headers: { 'x-operation-id': opRestoreId, 'x-device-id': 'device-idem-1' },
+      });
+      expect(restoreRes.data.success).toBe(true);
+
+      // Verify entry is currently active (restored)
+      const restored = await clientA.getJournalEntry(workspaceAId, entryId);
+      expect(restored.data.deletedAt).toBeNull();
+
+      // 3. Replay the old trash operation ID
+      const replayedTrash = await clientA.trashJournalEntry(workspaceAId, entryId, undefined, {
+        headers: { 'x-operation-id': opTrashId, 'x-device-id': 'device-idem-1' },
+      });
+      expect(replayedTrash.data.success).toBe(true);
+      expect(replayedTrash.data.revision).toBe(trashRes.data.revision);
+
+      // 4. Verify the entry was NOT re-trashed by replaying the old trash receipt
+      const stillActive = await clientA.getJournalEntry(workspaceAId, entryId);
+      expect(stillActive.data.deletedAt).toBeNull();
+    });
+  });
+
+  describe('Suite 9: Authoritative Bootstrap, Expired Cursor Reset, and Corrupted Snapshot Guard', () => {
+    it('transfers complete validated journal snapshot to a fresh client during bootstrap', async () => {
+      // 1. Create a folder and an entry with exact document, date, timezone, metadata, and folder
+      const folder = await clientA.createFolder(workspaceAId, { name: 'Reflections Folder' });
+      const folderId = folder.data.id;
+
+      const fullDoc: NoteDocument = {
+        version: 1,
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Authoritative bootstrap snapshot test.' }],
+          },
+        ],
+      };
+
+      const created = await clientA.createJournalEntry(workspaceAId, {
+        title: 'Bootstrap Snapshot Entry',
+        folderId,
+        entryDate: '2026-10-18',
+        timezone: 'America/New_York',
+        document: fullDoc,
+        plainText: 'Authoritative bootstrap snapshot test.',
+        mood: 'reflective',
+        prompts: [{ prompt: 'What did you discover?', response: 'The power of snapshots.' }],
+        tags: ['bootstrap', 'snapshot'],
+      });
+
+      // 2. Setup fresh client repository and engine
+      const freshRepo = new IndexedDbLocalRepository();
+      await freshRepo.initialize({ userId: userAId, workspaceId: workspaceAId });
+
+      const transport = new ApiClientSyncTransport(clientA);
+      const freshEngine = new SyncEngine({
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: 'device-fresh-bootstrap',
+        repository: freshRepo,
+        transport,
+        pollIntervalMs: 60000,
+      });
+
+      try {
+        await freshEngine.start();
+        await freshEngine.resetAndBootstrap();
+
+        const localEntry = await freshRepo.getJournalEntry(workspaceAId, created.data.id);
+        expect(localEntry).not.toBeNull();
+        expect(localEntry?.id).toBe(created.data.id);
+        expect(localEntry?.title).toBe('Bootstrap Snapshot Entry');
+        expect(localEntry?.folderId).toBe(folderId);
+        expect(localEntry?.entryDate).toBe('2026-10-18');
+        expect(localEntry?.timezone).toBe('America/New_York');
+        expect(localEntry?.mood).toBe('reflective');
+        expect(localEntry?.plainText).toBe('Authoritative bootstrap snapshot test.');
+        expect(localEntry?.document).toEqual(fullDoc);
+        expect(localEntry?.prompts[0]?.response).toBe('The power of snapshots.');
+        expect(localEntry?.tags).toEqual(['bootstrap', 'snapshot']);
+        expect(localEntry?.serverRevision).toBe(created.data.serverRevision);
+
+        // Expired cursor reset test: calling resetAndBootstrap again preserves all data
+        await freshEngine.resetAndBootstrap();
+        const reloadedEntry = await freshRepo.getJournalEntry(workspaceAId, created.data.id);
+        expect(reloadedEntry?.title).toBe('Bootstrap Snapshot Entry');
+        expect(reloadedEntry?.entryDate).toBe('2026-10-18');
+      } finally {
+        await freshEngine.stop();
+        await freshRepo.close();
+      }
+    });
+
+    it('rejects corrupted bootstrap snapshot if journal item lacks required content instead of creating empty entry', async () => {
+      const mockTransport = {
+        push: async () => ({ applied: [], conflicts: [], serverRevision: 1 }),
+        pull: async () => ({ changes: [], checkpoint: { lastSeq: 0 } }),
+        bootstrap: async () => ({
+          data: {
+            schemaVersion: 1,
+            watermark: 1,
+            items: [
+              {
+                id: crypto.randomUUID(),
+                workspaceId: workspaceAId,
+                folderId: null,
+                kind: 'journal_entry',
+                isArchived: false,
+                isPinned: false,
+                securityScope: 'standard',
+                revision: 1,
+                createdAt: '2026-10-16T12:00:00Z',
+                updatedAt: '2026-10-16T12:00:00Z',
+                deletedAt: null,
+                // document and entryDate intentionally missing!
+              },
+            ],
+            folders: [],
+            tags: [],
+            itemTags: [],
+            notes: [],
+            routines: [],
+            routineOccurrences: [],
+            journalEntries: [], // Omits journal projection
+          },
+          meta: { requestId: 'req-mock', serverTime: new Date().toISOString() },
+        }),
+      };
+
+      const testRepo = new IndexedDbLocalRepository();
+      await testRepo.initialize({ userId: userAId, workspaceId: workspaceAId });
+
+      const testEngine = new SyncEngine({
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: 'device-corrupted-test',
+        repository: testRepo,
+        transport: mockTransport as unknown as ApiClientSyncTransport,
+        pollIntervalMs: 60000,
+      });
+
+      try {
+        await expect(testEngine.resetAndBootstrap()).rejects.toThrow(
+          /missing required journal content/
+        );
+      } finally {
+        await testEngine.stop();
+        await testRepo.close();
+      }
+    });
+  });
+
+  describe('Suite 10: Explicit Null Field Clearing and Partial Update Preservation', () => {
+    it('synchronizes explicit null to clear title, mood, folder, prompts, and tags across clients', async () => {
+      const folder = await clientA.createFolder(workspaceAId, { name: 'Initial Folder' });
+      const created = await clientA.createJournalEntry(workspaceAId, {
+        title: 'Title to be cleared',
+        folderId: folder.data.id,
+        entryDate: '2026-10-16',
+        plainText: 'Persistent body text.',
+        mood: 'great',
+        prompts: [{ prompt: 'Clear this?', response: 'Yes.' }],
+        tags: ['tag-to-clear'],
+      });
+
+      const entryId = created.data.id;
+
+      // Update clearing title, mood, folder, prompts, and tags
+      const updated = await clientA.updateJournalEntry(workspaceAId, entryId, {
+        title: null,
+        mood: null,
+        folderId: null,
+        prompts: [],
+        tags: [],
+        baseRevision: created.data.serverRevision,
+      });
+
+      expect(updated.data.title).toBeNull();
+      expect(updated.data.mood).toBeNull();
+      expect(updated.data.folderId).toBeNull();
+      expect(updated.data.prompts).toEqual([]);
+      expect(updated.data.tags).toEqual([]);
+      expect(updated.data.plainText).toBe('Persistent body text.');
+
+      // Pull sync into client B repository via SyncEngine
+      const repoB = new IndexedDbLocalRepository();
+      await repoB.initialize({ userId: userAId, workspaceId: workspaceAId });
+      const transport = new ApiClientSyncTransport(clientA);
+      const engineB = new SyncEngine({
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: 'device-clear-fields',
+        repository: repoB,
+        transport,
+        pollIntervalMs: 60000,
+      });
+
+      try {
+        await engineB.start();
+        await engineB.pullChanges();
+
+        const pulled = await repoB.getJournalEntry(workspaceAId, entryId);
+        expect(pulled?.title).toBeNull();
+        expect(pulled?.mood).toBeNull();
+        expect(pulled?.folderId).toBeNull();
+        expect(pulled?.prompts).toEqual([]);
+        expect(pulled?.tags).toEqual([]);
+        expect(pulled?.plainText).toBe('Persistent body text.');
+
+        // Test partial local update: update only mood, untouched fields remain untouched
+        const partialUpdated = await clientA.updateJournalEntry(workspaceAId, entryId, {
+          mood: 'content',
+          baseRevision: updated.data.serverRevision,
+        });
+        expect(partialUpdated.data.mood).toBe('content');
+        expect(partialUpdated.data.title).toBeNull();
+        expect(partialUpdated.data.plainText).toBe('Persistent body text.');
+      } finally {
+        await engineB.stop();
+        await repoB.close();
+      }
+    });
+  });
+
+  describe('Suite 11: Validation Robustness, Non-UTC Round-Trip, and Route Isolation', () => {
+    it('rejects invalid dates, timezones, cursors, and oversized prompt responses', async () => {
+      // Invalid date (Feb 30)
+      await expect(
+        clientA.createJournalEntry(workspaceAId, {
+          entryDate: '2026-02-30',
+          plainText: 'Invalid date entry.',
+        })
+      ).rejects.toThrow();
+
+      // Invalid timezone
+      await expect(
+        clientA.createJournalEntry(workspaceAId, {
+          entryDate: '2026-10-16',
+          timezone: 'Invalid/NonExistent_Zone',
+          plainText: 'Invalid timezone entry.',
+        })
+      ).rejects.toThrow();
+
+      // Oversized prompt response (>5000 characters)
+      await expect(
+        clientA.createJournalEntry(workspaceAId, {
+          entryDate: '2026-10-16',
+          plainText: 'Oversized prompt entry.',
+          prompts: [{ prompt: 'How do you feel?', response: 'X'.repeat(5001) }],
+        })
+      ).rejects.toThrow();
+
+      // Malformed pagination cursor
+      await expect(
+        clientA.listJournalEntries(workspaceAId, { cursor: 'malformed_non_base64_cursor!@#' })
+      ).rejects.toThrow();
+    });
+
+    it('preserves calendar date exactly across non-UTC round-trips without shifting', async () => {
+      const created = await clientA.createJournalEntry(workspaceAId, {
+        entryDate: '2026-12-31',
+        timezone: 'Asia/Dhaka',
+        plainText: 'New year eve musings.',
+      });
+
+      expect(created.data.entryDate).toBe('2026-12-31');
+
+      const fetched = await clientA.getJournalEntry(workspaceAId, created.data.id);
+      expect(fetched.data.entryDate).toBe('2026-12-31');
+
+      const listed = await clientA.listJournalEntries(workspaceAId, { date: '2026-12-31' });
+      expect(listed.data.some((e) => e.id === created.data.id)).toBe(true);
+      expect(listed.data.find((e) => e.id === created.data.id)?.entryDate).toBe('2026-12-31');
+    });
+
+    it('rejects creating journal entries through generic items route', async () => {
+      await expect(
+        clientA.createItem(workspaceAId, {
+          kind: 'journal_entry' as unknown as 'note',
+          securityScope: 'standard',
+        })
+      ).rejects.toThrow();
     });
   });
 });

@@ -1286,9 +1286,12 @@ export class DaynoriApiClient {
     journalId: string,
     baseRevision?: number,
     options?: RequestOptions
-  ): Promise<{ data: { success: boolean; revision: number }; meta: { requestId: string } }> {
+  ): Promise<{
+    data: { success: boolean; revision: number; entry?: unknown };
+    meta: { requestId: string };
+  }> {
     const raw = await this.request<{
-      data: { success: boolean; revision: number };
+      data: { success: boolean; revision: number; entry?: unknown };
       meta: { requestId: string };
     }>(
       `/v1/workspaces/${workspaceId}/journal/${journalId}/restore`,
