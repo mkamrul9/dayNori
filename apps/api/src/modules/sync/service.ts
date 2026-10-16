@@ -1345,8 +1345,7 @@ export class SyncService {
                   typeof cmd.payload['status'] === 'string'
                     ? (cmd.payload['status'] as 'todo' | 'in_progress' | 'completed' | 'cancelled')
                     : 'todo',
-                deadline:
-                  (cmd.payload['deadline'] as TaskDeadline | undefined) ?? { type: 'none' },
+                deadline: (cmd.payload['deadline'] as TaskDeadline | undefined) ?? { type: 'none' },
                 parentId:
                   typeof cmd.payload['parentId'] === 'string' ? cmd.payload['parentId'] : null,
                 subtaskOrder:

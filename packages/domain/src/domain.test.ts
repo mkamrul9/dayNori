@@ -555,5 +555,67 @@ describe('Domain Rules and Invariants', () => {
       expect(reconcileTaskKind('todo')).toBe('task');
       expect(() => reconcileTaskKind('note')).toThrow(/INVALID_ITEM_KIND/);
     });
+
+    it('rejects invalid or malformed timezones explicitly across domain functions', async () => {
+      const { isTaskOverdue, isTaskDueToday, compareTasksUpcoming, getTaskDeadlineSortKey } =
+        await import('./tasks.js');
+
+      const task = {
+        id: 't-1',
+        priority: 'normal' as const,
+        status: 'todo' as const,
+        deadline: { type: 'date' as const, date: '2026-10-16' },
+        createdAt: '2026-10-16T08:00:00.000Z',
+      };
+
+      expect(() => isTaskOverdue(task, new Date(), 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+      expect(() => isTaskDueToday(task, new Date(), 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+      expect(() => compareTasksUpcoming(task, task, 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+      expect(() => getTaskDeadlineSortKey(task.deadline, 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+    });
+
+    it('orders mixed date-only and timed deadlines accurately according to viewing timezone', async () => {
+      const { compareTasksUpcoming, getTaskDeadlineSortKey } = await import('./tasks.js');
+
+      // Date-only deadline on 2026-10-16
+      const dateOnlyTask = {
+        id: 'date-only',
+        priority: 'normal' as const,
+        deadline: { type: 'date' as const, date: '2026-10-16' },
+        createdAt: '2026-10-16T00:00:00.000Z',
+      };
+
+      // Timed task on 2026-10-16 at 20:00:00+06:00 (14:00 UTC)
+      const timedEarlierDhaka = {
+        id: 'timed-earlier',
+        priority: 'normal' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T14:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+        createdAt: '2026-10-16T00:00:00.000Z',
+      };
+
+      // In Asia/Dhaka (+06:00), end of day 2026-10-16 is 23:59:59.999 Dhaka time = 17:59:59.999Z.
+      // Therefore, 14:00Z (8:00 PM Dhaka) is BEFORE 17:59:59.999Z (11:59 PM Dhaka).
+      const dhakaKeyDateOnly = getTaskDeadlineSortKey(dateOnlyTask.deadline, 'Asia/Dhaka');
+      expect(dhakaKeyDateOnly).toBe('2026-10-16T17:59:59.999Z');
+
+      const dhakaComp = compareTasksUpcoming(timedEarlierDhaka, dateOnlyTask, 'Asia/Dhaka');
+      expect(dhakaComp).toBeLessThan(0); // timedEarlier sorts BEFORE dateOnly
+
+      // In America/New_York (-04:00 EDT), end of day 2026-10-16 is 23:59:59.999 NY time = 2026-10-17T03:59:59.999Z.
+      const nyKeyDateOnly = getTaskDeadlineSortKey(dateOnlyTask.deadline, 'America/New_York');
+      expect(nyKeyDateOnly).toBe('2026-10-17T03:59:59.999Z');
+    });
   });
 });

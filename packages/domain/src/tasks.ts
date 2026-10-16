@@ -152,6 +152,9 @@ export function isTaskOverdue(
   now: Date = new Date(),
   userTimezone = 'UTC'
 ): boolean {
+  if (!isValidIanaTimezone(userTimezone)) {
+    throw new Error(`INVALID_TIMEZONE: '${userTimezone}' is not a recognized IANA timezone`);
+  }
   if (task.status === 'completed' || task.status === 'cancelled') {
     return false;
   }
@@ -183,6 +186,9 @@ export function isTaskDueToday(
   now: Date = new Date(),
   userTimezone = 'UTC'
 ): boolean {
+  if (!isValidIanaTimezone(userTimezone)) {
+    throw new Error(`INVALID_TIMEZONE: '${userTimezone}' is not a recognized IANA timezone`);
+  }
   if (!task.deadline || task.deadline.type === 'none') {
     return false;
   }
@@ -202,17 +208,78 @@ export function isTaskDueToday(
 }
 
 /**
- * Produces a stable, comparable sort key for a task deadline.
+ * Calculates the exact UTC ISO instant corresponding to 23:59:59.999 in a specific IANA timezone.
  */
-export function getTaskDeadlineSortKey(deadline: TaskDeadline, _userTimezone = 'UTC'): string {
+export function getEndOfDayInstantInTimezone(dateStr: string, timezone: string): string {
+  if (!isValidIanaTimezone(timezone)) {
+    throw new Error(`INVALID_TIMEZONE: '${timezone}' is not a recognized IANA timezone`);
+  }
+  if (!isValidCalendarDateString(dateStr)) {
+    throw new Error(`INVALID_CALENDAR_DATE: '${dateStr}' is not a valid calendar date`);
+  }
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const y = parseInt(yearStr!, 10);
+  const m = parseInt(monthStr!, 10);
+  const d = parseInt(dayStr!, 10);
+  const targetUtc = Date.UTC(y, m - 1, d, 23, 59, 59, 999);
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  });
+
+  function getLocalTimeForUtc(utcMs: number): number {
+    const parts = dtf.formatToParts(new Date(utcMs));
+    const p: Record<string, string> = {};
+    for (const part of parts) {
+      p[part.type] = part.value;
+    }
+    let hr = parseInt(p.hour || '0', 10);
+    if (hr === 24) hr = 0;
+    return Date.UTC(
+      parseInt(p.year || '0', 10),
+      parseInt(p.month || '1', 10) - 1,
+      parseInt(p.day || '1', 10),
+      hr,
+      parseInt(p.minute || '0', 10),
+      parseInt(p.second || '0', 10),
+      999
+    );
+  }
+
+  let utc = targetUtc;
+  for (let i = 0; i < 3; i++) {
+    const local = getLocalTimeForUtc(utc);
+    const diff = local - targetUtc;
+    if (diff === 0) break;
+    utc -= diff;
+  }
+  return new Date(utc).toISOString();
+}
+
+/**
+ * Produces a stable, comparable sort key for a task deadline in the user's viewing timezone.
+ */
+export function getTaskDeadlineSortKey(deadline: TaskDeadline, userTimezone = 'UTC'): string {
+  if (!isValidIanaTimezone(userTimezone)) {
+    throw new Error(`INVALID_TIMEZONE: '${userTimezone}' is not a recognized IANA timezone`);
+  }
   if (deadline.type === 'none') {
     return '9999-99-99T99:99:99.999Z';
   }
-  if (deadline.type === 'date') {
-    // Date-only deadlines sort at end of that day in the user's timezone
-    return `${deadline.date}T23:59:59.999Z`;
+  if (deadline.type === 'timed') {
+    return new Date(deadline.timestamp).toISOString();
   }
-  return new Date(deadline.timestamp).toISOString();
+  if (deadline.type === 'date') {
+    return getEndOfDayInstantInTimezone(deadline.date, userTimezone);
+  }
+  return '9999-99-99T99:99:99.999Z';
 }
 
 /**
@@ -238,6 +305,9 @@ export function compareTasksUpcoming(
   },
   userTimezone = 'UTC'
 ): number {
+  if (!isValidIanaTimezone(userTimezone)) {
+    throw new Error(`INVALID_TIMEZONE: '${userTimezone}' is not a recognized IANA timezone`);
+  }
   const aHasDeadline = a.deadline && a.deadline.type !== 'none';
   const bHasDeadline = b.deadline && b.deadline.type !== 'none';
 

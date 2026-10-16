@@ -1085,50 +1085,97 @@ export class SyncEngine {
           }
 
           if (kind === 'task' || kind === 'todo' || change.entityType === 'task') {
-            const title = typeof data.title === 'string' ? data.title : name || 'Untitled';
-            const details = typeof data.details === 'string' ? data.details : null;
-            const priority = (data.priority as TaskPriority | undefined) ?? 'normal';
-            const status = (data.status as TaskStatus | undefined) ?? 'todo';
-            const deadline =
-              data.deadline && typeof data.deadline === 'object' && 'type' in data.deadline
-                ? (data.deadline as TaskDeadline)
-                : { type: 'none' as const };
-            const completedAt =
-              typeof data.completedAt === 'string'
-                ? data.completedAt
-                : status === 'completed'
-                  ? updatedAt
-                  : null;
-            const reopenedAt = typeof data.reopenedAt === 'string' ? data.reopenedAt : null;
-            const completionHistory = Array.isArray(data.completionHistory)
-              ? (data.completionHistory as TaskCompletionHistoryItem[])
-              : status === 'completed'
-                ? [{ completedAt: completedAt || updatedAt }]
-                : [];
-            const parentId = typeof data.parentId === 'string' ? data.parentId : null;
-            const subtaskOrder = typeof data.subtaskOrder === 'number' ? data.subtaskOrder : 0;
-            const tags = Array.isArray(data.tags) ? data.tags.map(String) : [];
+            const existingTask = await this.repository.getTask(
+              this.namespace.workspaceId,
+              change.entityId
+            );
 
-            tasksToApply.push({
-              id: change.entityId,
-              workspaceId: this.namespace.workspaceId,
-              folderId: folderId ?? null,
-              title,
-              details,
-              priority,
-              status,
-              deadline,
-              completedAt,
-              reopenedAt,
-              completionHistory,
-              parentId,
-              subtaskOrder,
-              tags,
-              serverRevision: change.revision,
-              createdAt,
-              updatedAt,
-              deletedAt,
-            });
+            if (change.isTombstone && existingTask) {
+              tasksToApply.push({
+                ...existingTask,
+                serverRevision: change.revision,
+                deletedAt: deletedAt || new Date().toISOString(),
+                updatedAt,
+              });
+            } else {
+              const title =
+                'title' in data && typeof data.title === 'string'
+                  ? data.title
+                  : (existingTask?.title ?? (name || 'Untitled'));
+              const details =
+                'details' in data
+                  ? typeof data.details === 'string'
+                    ? data.details
+                    : null
+                  : (existingTask?.details ?? null);
+              const priority =
+                'priority' in data && typeof data.priority === 'string'
+                  ? (data.priority as TaskPriority)
+                  : (existingTask?.priority ?? 'normal');
+              const status =
+                'status' in data && typeof data.status === 'string'
+                  ? (data.status as TaskStatus)
+                  : (existingTask?.status ?? 'todo');
+              const deadline =
+                'deadline' in data &&
+                data.deadline &&
+                typeof data.deadline === 'object' &&
+                'type' in data.deadline
+                  ? (data.deadline as TaskDeadline)
+                  : (existingTask?.deadline ?? { type: 'none' as const });
+              const completedAt =
+                'completedAt' in data
+                  ? typeof data.completedAt === 'string'
+                    ? data.completedAt
+                    : null
+                  : (existingTask?.completedAt ?? (status === 'completed' ? updatedAt : null));
+              const reopenedAt =
+                'reopenedAt' in data
+                  ? typeof data.reopenedAt === 'string'
+                    ? data.reopenedAt
+                    : null
+                  : (existingTask?.reopenedAt ?? null);
+              const completionHistory =
+                'completionHistory' in data && Array.isArray(data.completionHistory)
+                  ? (data.completionHistory as TaskCompletionHistoryItem[])
+                  : (existingTask?.completionHistory ??
+                    (status === 'completed' ? [{ completedAt: completedAt || updatedAt }] : []));
+              const parentId =
+                'parentId' in data
+                  ? typeof data.parentId === 'string'
+                    ? data.parentId
+                    : null
+                  : (existingTask?.parentId ?? null);
+              const subtaskOrder =
+                'subtaskOrder' in data && typeof data.subtaskOrder === 'number'
+                  ? data.subtaskOrder
+                  : (existingTask?.subtaskOrder ?? 0);
+              const tags =
+                'tags' in data && Array.isArray(data.tags)
+                  ? data.tags.map(String)
+                  : (existingTask?.tags ?? []);
+
+              tasksToApply.push({
+                id: change.entityId,
+                workspaceId: this.namespace.workspaceId,
+                folderId: folderId ?? null,
+                title,
+                details,
+                priority,
+                status,
+                deadline,
+                completedAt,
+                reopenedAt,
+                completionHistory,
+                parentId,
+                subtaskOrder,
+                tags,
+                serverRevision: change.revision,
+                createdAt,
+                updatedAt,
+                deletedAt,
+              });
+            }
           }
         }
 

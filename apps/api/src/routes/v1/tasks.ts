@@ -12,6 +12,7 @@ import {
   TaskResponseSchema,
   TaskListResponseSchema,
   WorkspaceParamsSchema,
+  type Task,
 } from '@daynori/contracts';
 import { withTenantContext } from '../../db/index.js';
 import {
@@ -76,7 +77,9 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
               'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
             );
           }
-          const task = await getTask(client, workspaceId, receipt.entityId);
+          const task =
+            (receipt.resultPayload?.task as Task) ||
+            (await getTask(client, workspaceId, receipt.entityId));
           return reply.status(200).send(
             validateResponse(TaskResponseSchema, {
               data: task,
@@ -88,7 +91,9 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
         await lockWorkspaceSyncState(client, workspaceId);
         const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
         if (lockedReceipt) {
-          const task = await getTask(client, workspaceId, lockedReceipt.entityId);
+          const task =
+            (lockedReceipt.resultPayload?.task as Task) ||
+            (await getTask(client, workspaceId, lockedReceipt.entityId));
           return reply.status(200).send(
             validateResponse(TaskResponseSchema, {
               data: task,
@@ -161,11 +166,15 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
         throw new NotFoundError('Workspace not found or unauthorized');
       }
 
-      const tasks = await listTasks(client, workspaceId, query);
+      const { tasks, nextCursor } = await listTasks(client, workspaceId, query);
       return reply.status(200).send(
         validateResponse(TaskListResponseSchema, {
           data: tasks,
-          meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          meta: {
+            requestId: request.id,
+            serverTime: new Date().toISOString(),
+            cursor: nextCursor,
+          },
         })
       );
     });
@@ -244,7 +253,8 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
               'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
             );
           }
-          const task = await getTask(client, workspaceId, taskId);
+          const task =
+            (receipt.resultPayload?.task as Task) || (await getTask(client, workspaceId, taskId));
           return reply.status(200).send(
             validateResponse(TaskResponseSchema, {
               data: task,
@@ -256,7 +266,9 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
         await lockWorkspaceSyncState(client, workspaceId);
         const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
         if (lockedReceipt) {
-          const task = await getTask(client, workspaceId, taskId);
+          const task =
+            (lockedReceipt.resultPayload?.task as Task) ||
+            (await getTask(client, workspaceId, taskId));
           return reply.status(200).send(
             validateResponse(TaskResponseSchema, {
               data: task,
@@ -334,13 +346,95 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
+        if (operationId) {
+          const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'completeTask',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: taskId,
+            baseRevision: parsedBody.baseRevision ?? 0,
+            payload: parsedBody as Record<string, unknown>,
+          });
+
+          const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            const task =
+              (receipt.resultPayload?.task as Task) || (await getTask(client, workspaceId, taskId));
+            return reply.status(200).send(
+              validateResponse(TaskResponseSchema, {
+                data: task,
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+
+          await lockWorkspaceSyncState(client, workspaceId);
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
+          if (lockedReceipt) {
+            const task =
+              (lockedReceipt.resultPayload?.task as Task) ||
+              (await getTask(client, workspaceId, taskId));
+            return reply.status(200).send(
+              validateResponse(TaskResponseSchema, {
+                data: task,
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+
+          const taskWithSeq = await completeTaskService(
+            client,
+            workspaceId,
+            taskId,
+            actorUserId,
+            parsedBody,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'completeTask',
+            entityType: 'item',
+            entityId: taskId,
+            schemaVersion: 1,
+            baseRevision: parsedBody.baseRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: taskWithSeq.revision,
+            appliedChangeSeq: taskWithSeq.seq,
+            resultPayload: { task: taskWithSeq },
+          });
+
+          return reply.status(200).send(
+            validateResponse(TaskResponseSchema, {
+              data: taskWithSeq,
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            })
+          );
+        }
+
         const taskWithSeq = await completeTaskService(
           client,
           workspaceId,
           taskId,
           actorUserId,
-          parsedBody,
-          operationId
+          parsedBody
         );
 
         return reply.status(200).send(
@@ -378,13 +472,95 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
+        if (operationId) {
+          const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'reopenTask',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: taskId,
+            baseRevision: parsedBody.baseRevision ?? 0,
+            payload: parsedBody as Record<string, unknown>,
+          });
+
+          const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            const task =
+              (receipt.resultPayload?.task as Task) || (await getTask(client, workspaceId, taskId));
+            return reply.status(200).send(
+              validateResponse(TaskResponseSchema, {
+                data: task,
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+
+          await lockWorkspaceSyncState(client, workspaceId);
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
+          if (lockedReceipt) {
+            const task =
+              (lockedReceipt.resultPayload?.task as Task) ||
+              (await getTask(client, workspaceId, taskId));
+            return reply.status(200).send(
+              validateResponse(TaskResponseSchema, {
+                data: task,
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+
+          const taskWithSeq = await reopenTaskService(
+            client,
+            workspaceId,
+            taskId,
+            actorUserId,
+            parsedBody,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'reopenTask',
+            entityType: 'item',
+            entityId: taskId,
+            schemaVersion: 1,
+            baseRevision: parsedBody.baseRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: taskWithSeq.revision,
+            appliedChangeSeq: taskWithSeq.seq,
+            resultPayload: { task: taskWithSeq },
+          });
+
+          return reply.status(200).send(
+            validateResponse(TaskResponseSchema, {
+              data: taskWithSeq,
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            })
+          );
+        }
+
         const taskWithSeq = await reopenTaskService(
           client,
           workspaceId,
           taskId,
           actorUserId,
-          parsedBody,
-          operationId
+          parsedBody
         );
 
         return reply.status(200).send(
@@ -422,13 +598,102 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
+        if (operationId) {
+          const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'trashTask',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: taskId,
+            baseRevision: parsedBody.expectedRevision ?? 0,
+            payload: parsedBody as Record<string, unknown>,
+          });
+
+          const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            const resPayload = receipt.resultPayload as {
+              id: string;
+              trashed: boolean;
+              revision: number;
+            };
+            return reply.status(200).send({
+              data: resPayload || {
+                id: taskId,
+                trashed: true,
+                revision: Number(receipt.acceptedRevision || 1),
+              },
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            });
+          }
+
+          await lockWorkspaceSyncState(client, workspaceId);
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
+          if (lockedReceipt) {
+            const resPayload = lockedReceipt.resultPayload as {
+              id: string;
+              trashed: boolean;
+              revision: number;
+            };
+            return reply.status(200).send({
+              data: resPayload || {
+                id: taskId,
+                trashed: true,
+                revision: Number(lockedReceipt.acceptedRevision || 1),
+              },
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            });
+          }
+
+          const result = await trashTask(
+            client,
+            workspaceId,
+            taskId,
+            actorUserId,
+            parsedBody.expectedRevision,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'trashTask',
+            entityType: 'item',
+            entityId: taskId,
+            schemaVersion: 1,
+            baseRevision: parsedBody.expectedRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: result.revision,
+            appliedChangeSeq: result.seq,
+            resultPayload: { id: result.id, trashed: true, revision: result.revision },
+          });
+
+          return reply.status(200).send({
+            data: { id: result.id, trashed: true, revision: result.revision },
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          });
+        }
+
         const result = await trashTask(
           client,
           workspaceId,
           taskId,
           actorUserId,
-          parsedBody.expectedRevision,
-          operationId
+          parsedBody.expectedRevision
         );
 
         return reply.status(200).send({
@@ -464,13 +729,95 @@ export function registerTaskRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
+        if (operationId) {
+          const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'restoreTask',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: taskId,
+            baseRevision: parsedBody.expectedRevision ?? 0,
+            payload: parsedBody as Record<string, unknown>,
+          });
+
+          const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            const task =
+              (receipt.resultPayload?.task as Task) || (await getTask(client, workspaceId, taskId));
+            return reply.status(200).send(
+              validateResponse(TaskResponseSchema, {
+                data: task,
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+
+          await lockWorkspaceSyncState(client, workspaceId);
+          const lockedReceipt = await getMutationReceipt(
+            client,
+            actorUserId,
+            deviceId,
+            operationId
+          );
+          if (lockedReceipt) {
+            const task =
+              (lockedReceipt.resultPayload?.task as Task) ||
+              (await getTask(client, workspaceId, taskId));
+            return reply.status(200).send(
+              validateResponse(TaskResponseSchema, {
+                data: task,
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+
+          const taskWithSeq = await restoreTask(
+            client,
+            workspaceId,
+            taskId,
+            actorUserId,
+            parsedBody.expectedRevision,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'restoreTask',
+            entityType: 'item',
+            entityId: taskId,
+            schemaVersion: 1,
+            baseRevision: parsedBody.expectedRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: taskWithSeq.revision,
+            appliedChangeSeq: taskWithSeq.seq,
+            resultPayload: { task: taskWithSeq },
+          });
+
+          return reply.status(200).send(
+            validateResponse(TaskResponseSchema, {
+              data: taskWithSeq,
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            })
+          );
+        }
+
         const taskWithSeq = await restoreTask(
           client,
           workspaceId,
           taskId,
           actorUserId,
-          parsedBody.expectedRevision,
-          operationId
+          parsedBody.expectedRevision
         );
 
         return reply.status(200).send(

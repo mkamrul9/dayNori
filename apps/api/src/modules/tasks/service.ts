@@ -16,7 +16,6 @@ import {
   isValidIanaTimezone,
   validateSubtaskHierarchy,
   getCalendarDateInTimezone,
-  compareTasksUpcoming,
 } from '@daynori/domain';
 import {
   lockWorkspaceSyncState,
@@ -60,7 +59,6 @@ interface TaskDbRow {
 function mapRowToTask(r: TaskDbRow): Task {
   let deadline: TaskDeadline = { type: 'none' };
   if (r.deadline_type === 'date' && r.deadline_date) {
-    // If returned as Date object or string
     const dStr =
       typeof r.deadline_date === 'string'
         ? r.deadline_date.slice(0, 10)
@@ -173,6 +171,128 @@ function parseDeadlineFields(deadline?: TaskDeadline | null): {
   };
 }
 
+/**
+ * Computes ancestor depth of a task. Root tasks have depth 1.
+ */
+export function getTaskAncestorDepth(
+  taskId: string,
+  parentLookup: (id: string) => string | null | undefined
+): number {
+  let depth = 1;
+  let curr = parentLookup(taskId);
+  const visited = new Set<string>([taskId]);
+  while (curr) {
+    if (visited.has(curr)) break;
+    visited.add(curr);
+    depth++;
+    curr = parentLookup(curr);
+  }
+  return depth;
+}
+
+/**
+ * Computes descendant depth of a task subtree. A leaf task has depth 0.
+ */
+export function getSubtaskSubtreeDepth(
+  taskId: string,
+  parentMap: Map<string, string | null>
+): number {
+  let maxChildDepth = 0;
+  for (const [id, pId] of parentMap.entries()) {
+    if (pId === taskId) {
+      const childDepth = 1 + getSubtaskSubtreeDepth(id, parentMap);
+      if (childDepth > maxChildDepth) {
+        maxChildDepth = childDepth;
+      }
+    }
+  }
+  return maxChildDepth;
+}
+
+/**
+ * Reconciles task tags with canonical workspace app.tags and app.item_tags tables.
+ */
+async function syncItemTags(
+  client: PoolClient,
+  workspaceId: string,
+  itemId: string,
+  actorUserId: string,
+  tagNames: string[]
+): Promise<string[]> {
+  const normalized = Array.from(new Set(tagNames.map((t) => t.trim()).filter(Boolean)));
+  await client.query(`DELETE FROM app.item_tags WHERE workspace_id = $1 AND item_id = $2;`, [
+    workspaceId,
+    itemId,
+  ]);
+  if (normalized.length === 0) {
+    return [];
+  }
+  for (const name of normalized) {
+    const tagRes = await client.query<{ id: string }>(
+      `INSERT INTO app.tags (workspace_id, name, created_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (workspace_id, lower(name))
+       DO UPDATE SET deleted_at = NULL, updated_at = now()
+       RETURNING id;`,
+      [workspaceId, name, actorUserId]
+    );
+    const tagId = tagRes.rows[0]!.id;
+    await client.query(
+      `INSERT INTO app.item_tags (workspace_id, item_id, tag_id, created_by)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (workspace_id, item_id, tag_id) DO NOTHING;`,
+      [workspaceId, itemId, tagId, actorUserId]
+    );
+  }
+  return normalized;
+}
+
+export interface TaskCursorData {
+  workspaceId: string;
+  filter?: string;
+  folderId?: string | null;
+  status?: string;
+  priority?: string;
+  sortBy?: string;
+  sortDirection?: string;
+  userTimezone: string;
+  offset: number;
+}
+
+export function encodeTaskCursor(data: TaskCursorData): string {
+  return Buffer.from(JSON.stringify(data), 'utf8').toString('base64url');
+}
+
+export function decodeTaskCursor(
+  cursorStr: string,
+  workspaceId: string,
+  query: TaskListQuery
+): number {
+  try {
+    const raw = Buffer.from(cursorStr, 'base64url').toString('utf8');
+    const parsed = JSON.parse(raw) as TaskCursorData;
+    if (parsed.workspaceId !== workspaceId) {
+      throw new ValidationError('INVALID_CURSOR: Cursor does not match current workspace');
+    }
+    const expectedTz = query.userTimezone || 'UTC';
+    if (
+      (parsed.filter || 'all') !== (query.filter || 'all') ||
+      (parsed.sortBy || 'deadline') !== (query.sortBy || 'deadline') ||
+      (parsed.sortDirection || 'asc') !== (query.sortDirection || 'asc') ||
+      parsed.userTimezone !== expectedTz
+    ) {
+      throw new ValidationError('INVALID_CURSOR: Cursor parameters do not match query parameters');
+    }
+    if (typeof parsed.offset !== 'number' || parsed.offset < 0) {
+      throw new ValidationError('INVALID_CURSOR: Cursor offset is invalid');
+    }
+    return parsed.offset;
+  } catch (err: unknown) {
+    if (err instanceof ValidationError) throw err;
+    throw new ValidationError('INVALID_CURSOR: Malformed pagination cursor');
+  }
+}
+
 export async function createTask(
   client: PoolClient,
   workspaceId: string,
@@ -180,9 +300,12 @@ export async function createTask(
   input: CreateTaskRequest,
   operationId?: string
 ): Promise<TaskWithSeq> {
+  // Acquire workspace lock first to serialize hierarchy and sync state
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
   const taskId = input.id || crypto.randomUUID();
   const title = validateTaskTitle(input.title);
-  const folderId = input.folderId || null;
+  let folderId = input.folderId || null;
   const rank = input.rank || '00001000';
   const isPinned = Boolean(input.isPinned);
   const securityScope = input.securityScope || 'standard';
@@ -210,7 +333,7 @@ export async function createTask(
     }
   }
 
-  // 2. Validate subtask parent relationship
+  // 2. Validate subtask parent relationship and depth
   if (parentId) {
     if (parentId === taskId) {
       throw new ValidationError('TASK_SELF_PARENTING: A task cannot be its own parent');
@@ -220,8 +343,9 @@ export async function createTask(
       workspace_id: string;
       parent_id: string | null;
       folder_id: string | null;
+      security_scope: 'standard' | 'vault';
     }>(
-      `SELECT t.id, t.workspace_id, t.parent_id, i.folder_id
+      `SELECT t.id, t.workspace_id, t.parent_id, i.folder_id, i.security_scope
        FROM app.tasks t
        JOIN app.items i ON i.workspace_id = t.workspace_id AND i.id = t.id
        WHERE t.workspace_id = $1 AND t.id = $2 AND i.deleted_at IS NULL;`,
@@ -229,6 +353,18 @@ export async function createTask(
     );
     if (pRes.rows.length === 0) {
       throw new ValidationError(`Parent task ${parentId} does not exist in this workspace.`);
+    }
+
+    const parentRow = pRes.rows[0]!;
+    if (parentRow.security_scope !== securityScope) {
+      throw new ValidationError(
+        `Parent task security scope '${parentRow.security_scope}' does not match task scope '${securityScope}'.`
+      );
+    }
+
+    // Documented folder policy: inherit parent's folder placement unless explicitly placed
+    if (!folderId && parentRow.folder_id) {
+      folderId = parentRow.folder_id;
     }
 
     // Build hierarchy lookup to detect cycles and depth
@@ -245,6 +381,11 @@ export async function createTask(
     if (!validation.isValid) {
       throw new ValidationError(validation.error || 'Invalid subtask hierarchy');
     }
+
+    const parentDepth = getTaskAncestorDepth(parentId, (id) => parentMap.get(id));
+    if (parentDepth + 1 > 3) {
+      throw new ValidationError('SUBTASK_DEPTH_EXCEEDED: Subtask hierarchy cannot exceed 3 levels');
+    }
   }
 
   // 3. Parse deadline
@@ -258,10 +399,7 @@ export async function createTask(
   const completedAt = isCompleted ? nowIso : null;
   const completionHistory = isCompleted ? [{ completedAt: nowIso }] : [];
 
-  // 5. Acquire workspace row-lock
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
-
-  // 6. Insert into app.items
+  // 5. Insert into app.items
   await client.query(
     `INSERT INTO app.items (
       id, workspace_id, folder_id, kind, created_by, updated_by,
@@ -269,6 +407,9 @@ export async function createTask(
     ) VALUES ($1, $2, $3, 'task', $4, $4, 1, $5, false, $6, $7);`,
     [taskId, workspaceId, folderId, actorUserId, rank, isPinned, securityScope]
   );
+
+  // 6. Synchronize canonical tags
+  const reconciledTags = await syncItemTags(client, workspaceId, taskId, actorUserId, tags);
 
   // 7. Insert into app.tasks
   await client.query(
@@ -298,7 +439,7 @@ export async function createTask(
       JSON.stringify(completionHistory),
       parentId,
       subtaskOrder,
-      tags,
+      reconciledTags,
     ]
   );
 
@@ -325,7 +466,7 @@ export async function createTask(
       completionHistory,
       parentId,
       subtaskOrder,
-      tags,
+      tags: reconciledTags,
       folderId,
       rank,
       isPinned,
@@ -356,7 +497,7 @@ export async function createTask(
     completionHistory,
     parentId,
     subtaskOrder,
-    tags,
+    tags: reconciledTags,
     rank,
     isArchived: false,
     isPinned,
@@ -406,7 +547,15 @@ export async function listTasks(
   client: PoolClient,
   workspaceId: string,
   query: TaskListQuery
-): Promise<Task[]> {
+): Promise<{ tasks: Task[]; nextCursor?: string }> {
+  if (query.userTimezone && !isValidIanaTimezone(query.userTimezone)) {
+    throw new ValidationError(
+      `INVALID_TIMEZONE: '${query.userTimezone}' is not a recognized IANA timezone`
+    );
+  }
+  const userTz = query.userTimezone || 'UTC';
+  const todayDateStr = getCalendarDateInTimezone(new Date(), userTz);
+
   const conditions: string[] = ['i.workspace_id = $1', "i.kind IN ('task', 'todo')"];
   const params: unknown[] = [workspaceId];
   let paramIdx = 2;
@@ -439,46 +588,141 @@ export async function listTasks(
 
   // Tag filter
   if (query.tag) {
-    conditions.push(`$${paramIdx++} = ANY(t.tags)`);
-    params.push(query.tag);
-  }
-
-  // Status / View filter
-  if (query.status) {
-    if (query.status === 'incomplete') {
-      conditions.push("t.status IN ('todo', 'in_progress')");
-    } else if (query.status !== 'all') {
-      conditions.push(`t.status = $${paramIdx++}`);
-      params.push(query.status);
-    }
-  }
-
-  const userTz = query.userTimezone || 'UTC';
-  const todayDateStr = getCalendarDateInTimezone(new Date(), userTz);
-
-  if (query.filter === 'today') {
     conditions.push(
-      `(t.deadline_type = 'date' AND t.deadline_date = $${paramIdx++}) OR (t.deadline_type = 'timed' AND to_char(t.deadline_time AT TIME ZONE '${userTz}', 'YYYY-MM-DD') = $${paramIdx++})`
+      `($${paramIdx} = ANY(t.tags) OR EXISTS (
+        SELECT 1 FROM app.item_tags it
+        JOIN app.tags tg ON tg.workspace_id = it.workspace_id AND tg.id = it.tag_id
+        WHERE it.workspace_id = i.workspace_id AND it.item_id = i.id AND lower(tg.name) = lower($${paramIdx})
+      ))`
     );
-    params.push(todayDateStr, todayDateStr);
+    params.push(query.tag);
+    paramIdx++;
+  }
+
+  // View / filter rules
+  if (query.filter === 'today') {
+    conditions.push("t.status IN ('todo', 'in_progress')");
+    conditions.push('i.is_archived = false');
+    conditions.push(
+      `((t.deadline_type = 'date' AND t.deadline_date = $${paramIdx++}) OR (t.deadline_type = 'timed' AND to_char(t.deadline_time AT TIME ZONE $${paramIdx++}, 'YYYY-MM-DD') = $${paramIdx++}))`
+    );
+    params.push(todayDateStr, userTz, todayDateStr);
   } else if (query.filter === 'overdue') {
     conditions.push("t.status NOT IN ('completed', 'cancelled')");
+    conditions.push('i.is_archived = false');
+    conditions.push("t.deadline_type <> 'none'");
     conditions.push(
       `((t.deadline_type = 'date' AND t.deadline_date < $${paramIdx++}) OR (t.deadline_type = 'timed' AND t.deadline_time < now()))`
     );
     params.push(todayDateStr);
   } else if (query.filter === 'undated') {
+    conditions.push("t.status IN ('todo', 'in_progress')");
+    conditions.push('i.is_archived = false');
     conditions.push("t.deadline_type = 'none'");
   } else if (query.filter === 'completed') {
     conditions.push("t.status = 'completed'");
   } else if (query.filter === 'upcoming') {
+    conditions.push("t.status IN ('todo', 'in_progress')");
+    conditions.push('i.is_archived = false');
     conditions.push(
       `((t.deadline_type = 'date' AND t.deadline_date >= $${paramIdx++}) OR (t.deadline_type = 'timed' AND t.deadline_time >= now()))`
     );
     params.push(todayDateStr);
+  } else {
+    // Default view: honor status filter if specified
+    if (query.status) {
+      if (query.status === 'incomplete') {
+        conditions.push("t.status IN ('todo', 'in_progress')");
+      } else if (query.status !== 'all') {
+        conditions.push(`t.status = $${paramIdx++}`);
+        params.push(query.status);
+      }
+    }
   }
 
   conditions.push('i.deleted_at IS NULL');
+
+  // Handle pagination offset from cursor
+  let offset = 0;
+  if (query.cursor) {
+    offset = decodeTaskCursor(query.cursor, workspaceId, query);
+  }
+
+  // Deterministic SQL ORDER BY before LIMIT
+  const sortBy = query.sortBy || 'deadline';
+  const sortDirection = query.sortDirection || 'asc';
+  let orderByClause = '';
+
+  if (sortBy === 'deadline') {
+    const tzParamIdx = paramIdx++;
+    params.push(userTz);
+
+    if (sortDirection === 'desc') {
+      orderByClause = `
+        ORDER BY
+          CASE WHEN t.deadline_type = 'none' THEN 1 ELSE 0 END DESC,
+          CASE
+            WHEN t.deadline_type = 'timed' THEN t.deadline_time
+            WHEN t.deadline_date IS NOT NULL THEN (t.deadline_date || ' 23:59:59.999')::timestamp AT TIME ZONE $${tzParamIdx}
+            ELSE NULL
+          END DESC NULLS LAST,
+          CASE t.priority
+            WHEN 'urgent' THEN 4
+            WHEN 'high' THEN 3
+            WHEN 'normal' THEN 2
+            WHEN 'low' THEN 1
+            ELSE 2
+          END DESC,
+          i.created_at ASC,
+          i.id ASC
+      `;
+    } else {
+      orderByClause = `
+        ORDER BY
+          CASE WHEN t.deadline_type = 'none' THEN 1 ELSE 0 END ASC,
+          CASE
+            WHEN t.deadline_type = 'timed' THEN t.deadline_time
+            WHEN t.deadline_date IS NOT NULL THEN (t.deadline_date || ' 23:59:59.999')::timestamp AT TIME ZONE $${tzParamIdx}
+            ELSE NULL
+          END ASC NULLS LAST,
+          CASE t.priority
+            WHEN 'urgent' THEN 4
+            WHEN 'high' THEN 3
+            WHEN 'normal' THEN 2
+            WHEN 'low' THEN 1
+            ELSE 2
+          END DESC,
+          i.created_at ASC,
+          i.id ASC
+      `;
+    }
+  } else if (sortBy === 'priority') {
+    const dir = sortDirection === 'desc' ? 'ASC' : 'DESC';
+    orderByClause = `
+      ORDER BY
+        CASE t.priority
+          WHEN 'urgent' THEN 4
+          WHEN 'high' THEN 3
+          WHEN 'normal' THEN 2
+          WHEN 'low' THEN 1
+          ELSE 2
+        END ${dir},
+        i.created_at ASC,
+        i.id ASC
+    `;
+  } else if (sortBy === 'created') {
+    const dir = sortDirection === 'desc' ? 'DESC' : 'ASC';
+    orderByClause = `ORDER BY i.created_at ${dir}, i.id ASC`;
+  } else if (sortBy === 'rank') {
+    const dir = sortDirection === 'desc' ? 'DESC' : 'ASC';
+    orderByClause = `ORDER BY i.rank ${dir}, i.id ASC`;
+  }
+
+  const limit = query.limit || 50;
+  const limitParamIdx = paramIdx++;
+  params.push(limit + 1);
+  const offsetParamIdx = paramIdx++;
+  params.push(offset);
 
   const sql = `
     SELECT
@@ -492,22 +736,31 @@ export async function listTasks(
     FROM app.items i
     JOIN app.tasks t ON t.workspace_id = i.workspace_id AND t.id = i.id
     WHERE ${conditions.join(' AND ')}
-    LIMIT $${paramIdx};
+    ${orderByClause}
+    LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx};
   `;
-  params.push(query.limit || 50);
 
   const res = await client.query<TaskDbRow>(sql, params);
-  const tasks = res.rows.map(mapRowToTask);
+  const rows = res.rows;
+  let nextCursor: string | undefined;
 
-  // Apply deterministic domain sorting
-  if (query.sortBy === 'deadline' || !query.sortBy) {
-    tasks.sort((a, b) => compareTasksUpcoming(a, b, userTz));
-    if (query.sortDirection === 'desc') {
-      tasks.reverse();
-    }
+  if (rows.length > limit) {
+    rows.pop();
+    nextCursor = encodeTaskCursor({
+      workspaceId,
+      filter: query.filter,
+      folderId: query.folderId,
+      status: typeof query.status === 'string' ? query.status : undefined,
+      priority: query.priority,
+      sortBy: query.sortBy,
+      sortDirection: query.sortDirection,
+      userTimezone: userTz,
+      offset: offset + limit,
+    });
   }
 
-  return tasks;
+  const tasks = rows.map(mapRowToTask);
+  return { tasks, nextCursor };
 }
 
 export async function updateTask(
@@ -518,9 +771,17 @@ export async function updateTask(
   input: UpdateTaskRequest,
   operationId?: string
 ): Promise<TaskWithSeq> {
+  // 1. Acquire workspace lock BEFORE reading authoritative state to eliminate TOCTOU race conditions
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  // 2. Authoritative read under the lock
   const current = await getTask(client, workspaceId, taskId);
 
-  if (current.revision !== input.baseRevision) {
+  if (
+    input.baseRevision === undefined ||
+    input.baseRevision === 0 ||
+    current.revision !== input.baseRevision
+  ) {
     throw new ConflictError(
       `Revision conflict on task ${taskId}: baseRevision ${input.baseRevision} does not match current ${current.revision}`
     );
@@ -532,7 +793,6 @@ export async function updateTask(
   const rank = input.rank !== undefined ? input.rank : current.rank;
   const isPinned = input.isPinned !== undefined ? input.isPinned : current.isPinned;
   const isArchived = input.isArchived !== undefined ? input.isArchived : current.isArchived;
-  const tags = input.tags !== undefined ? input.tags : current.tags;
   const subtaskOrder = input.subtaskOrder !== undefined ? input.subtaskOrder : current.subtaskOrder;
 
   let folderId = current.folderId;
@@ -547,6 +807,11 @@ export async function updateTask(
       if (fRes.rows.length === 0) {
         throw new ValidationError(`Target folder ${folderId} does not exist or has been deleted.`);
       }
+      if (fRes.rows[0]!.security_scope !== current.securityScope) {
+        throw new ValidationError(
+          `Target folder security scope '${fRes.rows[0]!.security_scope}' does not match task scope '${current.securityScope}'.`
+        );
+      }
     }
   }
 
@@ -557,6 +822,34 @@ export async function updateTask(
       if (parentId === taskId) {
         throw new ValidationError('TASK_SELF_PARENTING: A task cannot be its own parent');
       }
+
+      // Check parent exists and active in the same workspace
+      const pRes = await client.query<{
+        id: string;
+        folder_id: string | null;
+        security_scope: 'standard' | 'vault';
+      }>(
+        `SELECT t.id, i.folder_id, i.security_scope
+         FROM app.tasks t
+         JOIN app.items i ON i.workspace_id = t.workspace_id AND i.id = t.id
+         WHERE t.workspace_id = $1 AND t.id = $2 AND i.deleted_at IS NULL;`,
+        [workspaceId, parentId]
+      );
+      if (pRes.rows.length === 0) {
+        throw new ValidationError(`Parent task ${parentId} does not exist or has been deleted.`);
+      }
+      const parentRow = pRes.rows[0]!;
+      if (parentRow.security_scope !== current.securityScope) {
+        throw new ValidationError(
+          `Parent task security scope '${parentRow.security_scope}' does not match task scope '${current.securityScope}'.`
+        );
+      }
+
+      // Documented folder policy: inherit parent folder if not explicitly specified
+      if (input.folderId === undefined && parentRow.folder_id) {
+        folderId = parentRow.folder_id;
+      }
+
       const parentMapRes = await client.query<{ id: string; parent_id: string | null }>(
         `SELECT id, parent_id FROM app.tasks WHERE workspace_id = $1;`,
         [workspaceId]
@@ -565,9 +858,20 @@ export async function updateTask(
       for (const row of parentMapRes.rows) {
         parentMap.set(row.id, row.parent_id);
       }
+
+      // Validate cycle prevention
       const validation = validateSubtaskHierarchy(taskId, parentId, (id) => parentMap.get(id));
       if (!validation.isValid) {
         throw new ValidationError(validation.error || 'Invalid subtask hierarchy');
+      }
+
+      // Validate entire moved subtree depth
+      const descendantDepth = getSubtaskSubtreeDepth(taskId, parentMap);
+      const parentDepth = getTaskAncestorDepth(parentId, (id) => parentMap.get(id));
+      if (parentDepth + 1 + descendantDepth > 3) {
+        throw new ValidationError(
+          'SUBTASK_DEPTH_EXCEEDED: Subtask hierarchy cannot exceed 3 levels'
+        );
       }
     }
   }
@@ -621,14 +925,17 @@ export async function updateTask(
     deadlineZone = parsed.deadlineZone;
   }
 
+  // Synchronize tags
+  let tags = current.tags;
+  if (input.tags !== undefined) {
+    tags = await syncItemTags(client, workspaceId, taskId, actorUserId, input.tags);
+  }
+
   const nextRev = current.revision + 1;
   const nowIso = new Date().toISOString();
 
-  // Lock sync state
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
-
-  // Update app.items
-  await client.query(
+  // Atomic revision predicate on app.items
+  const itemUpdateRes = await client.query(
     `UPDATE app.items SET
       folder_id = $1,
       updated_by = $2,
@@ -637,9 +944,26 @@ export async function updateTask(
       is_archived = $5,
       is_pinned = $6,
       updated_at = $7
-    WHERE workspace_id = $8 AND id = $9;`,
-    [folderId, actorUserId, nextRev, rank, isArchived, isPinned, nowIso, workspaceId, taskId]
+    WHERE workspace_id = $8 AND id = $9 AND revision = $10;`,
+    [
+      folderId,
+      actorUserId,
+      nextRev,
+      rank,
+      isArchived,
+      isPinned,
+      nowIso,
+      workspaceId,
+      taskId,
+      input.baseRevision,
+    ]
   );
+
+  if (itemUpdateRes.rowCount === 0) {
+    throw new ConflictError(
+      `Revision conflict on task ${taskId}: baseRevision ${input.baseRevision} did not match concurrent revision`
+    );
+  }
 
   // Update app.tasks
   await client.query(
@@ -657,9 +981,8 @@ export async function updateTask(
       completion_history = $11,
       parent_id = $12,
       subtask_order = $13,
-      tags = $14,
-      updated_at = $15
-    WHERE workspace_id = $16 AND id = $17;`,
+      tags = $14
+    WHERE workspace_id = $15 AND id = $16;`,
     [
       title,
       details,
@@ -675,7 +998,6 @@ export async function updateTask(
       parentId,
       subtaskOrder,
       tags,
-      nowIso,
       workspaceId,
       taskId,
     ]
@@ -751,9 +1073,11 @@ export async function completeTaskService(
   input: CompleteTaskRequest = {},
   operationId?: string
 ): Promise<TaskWithSeq> {
+  // Acquire lock first to guard against concurrent writes
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const current = await getTask(client, workspaceId, taskId);
 
-  // Idempotent completion retry: if already completed, return existing without rewriting instant
+  // Idempotent retry: if already completed, preserve existing instant and history
   if (current.status === 'completed') {
     return {
       ...current,
@@ -761,17 +1085,89 @@ export async function completeTaskService(
     };
   }
 
-  return updateTask(
-    client,
-    workspaceId,
-    taskId,
-    actorUserId,
-    {
-      baseRevision: input.baseRevision ?? current.revision,
-      status: 'completed',
-    },
-    operationId
+  const expectedRev = input.baseRevision !== undefined ? input.baseRevision : current.revision;
+  if (input.baseRevision === 0 || expectedRev !== current.revision) {
+    throw new ConflictError(
+      `Revision conflict on completing task ${taskId}: baseRevision ${input.baseRevision} does not match current ${current.revision}`
+    );
+  }
+
+  const nowIso = input.completedAt || new Date().toISOString();
+  const nextRev = current.revision + 1;
+  const completionHistory = [...current.completionHistory, { completedAt: nowIso }];
+
+  const itemUpdateRes = await client.query(
+    `UPDATE app.items SET
+      revision = $1,
+      updated_by = $2,
+      updated_at = $3
+    WHERE workspace_id = $4 AND id = $5 AND revision = $6;`,
+    [nextRev, actorUserId, nowIso, workspaceId, taskId, current.revision]
   );
+
+  if (itemUpdateRes.rowCount === 0) {
+    throw new ConflictError(`Revision conflict on completing task ${taskId}`);
+  }
+
+  await client.query(
+    `UPDATE app.tasks SET
+      status = 'completed',
+      completed_at = $1,
+      reopened_at = null,
+      completion_history = $2
+    WHERE workspace_id = $3 AND id = $4;`,
+    [nowIso, JSON.stringify(completionHistory), workspaceId, taskId]
+  );
+
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'item',
+    entityId: taskId,
+    revision: nextRev,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      kind: 'task',
+      title: current.title,
+      details: current.details,
+      priority: current.priority,
+      status: 'completed',
+      deadline: current.deadline,
+      completedAt: nowIso,
+      reopenedAt: null,
+      completionHistory,
+      parentId: current.parentId,
+      subtaskOrder: current.subtaskOrder,
+      tags: current.tags,
+      folderId: current.folderId,
+      rank: current.rank,
+      isPinned: current.isPinned,
+      isArchived: current.isArchived,
+      securityScope: current.securityScope,
+    },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: 'task.completed',
+    payload: { taskId, revision: nextRev, seq },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  return {
+    ...current,
+    status: 'completed',
+    completedAt: nowIso,
+    reopenedAt: null,
+    completionHistory,
+    revision: nextRev,
+    updatedAt: nowIso,
+    seq,
+  };
 }
 
 export async function reopenTaskService(
@@ -782,6 +1178,7 @@ export async function reopenTaskService(
   input: ReopenTaskRequest = {},
   operationId?: string
 ): Promise<TaskWithSeq> {
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const current = await getTask(client, workspaceId, taskId);
 
   if (current.status === 'todo') {
@@ -791,17 +1188,97 @@ export async function reopenTaskService(
     };
   }
 
-  return updateTask(
-    client,
-    workspaceId,
-    taskId,
-    actorUserId,
-    {
-      baseRevision: input.baseRevision ?? current.revision,
-      status: 'todo',
-    },
-    operationId
+  const expectedRev = input.baseRevision !== undefined ? input.baseRevision : current.revision;
+  if (input.baseRevision === 0 || expectedRev !== current.revision) {
+    throw new ConflictError(
+      `Revision conflict on reopening task ${taskId}: baseRevision ${input.baseRevision} does not match current ${current.revision}`
+    );
+  }
+
+  const nowIso = input.reopenedAt || new Date().toISOString();
+  const nextRev = current.revision + 1;
+  const completionHistory = [...current.completionHistory];
+  if (completionHistory.length > 0) {
+    const last = completionHistory[completionHistory.length - 1]!;
+    if (!last.reopenedAt) {
+      completionHistory[completionHistory.length - 1] = { ...last, reopenedAt: nowIso };
+    } else {
+      completionHistory.push({ completedAt: nowIso, reopenedAt: nowIso });
+    }
+  }
+
+  const itemUpdateRes = await client.query(
+    `UPDATE app.items SET
+      revision = $1,
+      updated_by = $2,
+      updated_at = $3
+    WHERE workspace_id = $4 AND id = $5 AND revision = $6;`,
+    [nextRev, actorUserId, nowIso, workspaceId, taskId, current.revision]
   );
+
+  if (itemUpdateRes.rowCount === 0) {
+    throw new ConflictError(`Revision conflict on reopening task ${taskId}`);
+  }
+
+  await client.query(
+    `UPDATE app.tasks SET
+      status = 'todo',
+      completed_at = null,
+      reopened_at = $1,
+      completion_history = $2
+    WHERE workspace_id = $3 AND id = $4;`,
+    [nowIso, JSON.stringify(completionHistory), workspaceId, taskId]
+  );
+
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'item',
+    entityId: taskId,
+    revision: nextRev,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      kind: 'task',
+      title: current.title,
+      details: current.details,
+      priority: current.priority,
+      status: 'todo',
+      deadline: current.deadline,
+      completedAt: null,
+      reopenedAt: nowIso,
+      completionHistory,
+      parentId: current.parentId,
+      subtaskOrder: current.subtaskOrder,
+      tags: current.tags,
+      folderId: current.folderId,
+      rank: current.rank,
+      isPinned: current.isPinned,
+      isArchived: current.isArchived,
+      securityScope: current.securityScope,
+    },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: 'task.reopened',
+    payload: { taskId, revision: nextRev, seq },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  return {
+    ...current,
+    status: 'todo',
+    completedAt: null,
+    reopenedAt: nowIso,
+    completionHistory,
+    revision: nextRev,
+    updatedAt: nowIso,
+    seq,
+  };
 }
 
 export async function trashTask(
@@ -812,6 +1289,7 @@ export async function trashTask(
   expectedRevision?: number,
   operationId?: string
 ): Promise<{ id: string; revision: number; seq: number }> {
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const current = await getTask(client, workspaceId, taskId);
 
   if (expectedRevision !== undefined && current.revision !== expectedRevision) {
@@ -822,17 +1300,20 @@ export async function trashTask(
 
   const nextRev = current.revision + 1;
   const nowIso = new Date().toISOString();
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  await client.query(
+  const itemRes = await client.query(
     `UPDATE app.items SET
       deleted_at = $1,
       updated_by = $2,
       revision = $3,
       updated_at = $1
-    WHERE workspace_id = $4 AND id = $5;`,
-    [nowIso, actorUserId, nextRev, workspaceId, taskId]
+    WHERE workspace_id = $4 AND id = $5 AND revision = $6;`,
+    [nowIso, actorUserId, nextRev, workspaceId, taskId, current.revision]
   );
+
+  if (itemRes.rowCount === 0) {
+    throw new ConflictError(`Revision conflict on trashing task ${taskId}`);
+  }
 
   const seq = syncState.nextChangeSeq;
 
@@ -868,6 +1349,7 @@ export async function restoreTask(
   expectedRevision?: number,
   operationId?: string
 ): Promise<TaskWithSeq> {
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const current = await getTask(client, workspaceId, taskId, true);
 
   if (expectedRevision !== undefined && current.revision !== expectedRevision) {
@@ -885,17 +1367,20 @@ export async function restoreTask(
 
   const nextRev = current.revision + 1;
   const nowIso = new Date().toISOString();
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  await client.query(
+  const itemRes = await client.query(
     `UPDATE app.items SET
       deleted_at = null,
       updated_by = $1,
       revision = $2,
       updated_at = $3
-    WHERE workspace_id = $4 AND id = $5;`,
-    [actorUserId, nextRev, nowIso, workspaceId, taskId]
+    WHERE workspace_id = $4 AND id = $5 AND revision = $6;`,
+    [actorUserId, nextRev, nowIso, workspaceId, taskId, current.revision]
   );
+
+  if (itemRes.rowCount === 0) {
+    throw new ConflictError(`Revision conflict on restoring task ${taskId}`);
+  }
 
   const seq = syncState.nextChangeSeq;
 
@@ -908,10 +1393,7 @@ export async function restoreTask(
     isTombstone: false,
     operationId: operationId || crypto.randomUUID(),
     changeData: {
-      ...current,
-      revision: nextRev,
       deletedAt: null,
-      updatedAt: nowIso,
     },
   });
 
