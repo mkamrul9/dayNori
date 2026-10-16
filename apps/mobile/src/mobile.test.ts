@@ -341,6 +341,65 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       expect(govJobsBtn).toBeDefined();
     });
 
+    it('connects LibraryView to sync engine to persist and reflect live sync status', async () => {
+      const enqueuedMutations: Array<{ command: string; payload: Record<string, unknown> }> = [];
+      const listeners: Array<() => void> = [];
+
+      const mockSyncEngine = {
+        getDiagnostics: () => ({
+          workspaceId: 'ws-mob-test',
+          userId: 'user-mob-test',
+          deviceId: 'dev-1',
+          isLeader: true,
+          networkStatus: 'online' as const,
+          cloudSyncStatus: 'synced' as const,
+          queueLength: 0,
+          inFlightCount: 0,
+          failedCount: 0,
+          lastSyncedAt: null,
+          lastSyncSequence: 0,
+          accessEpoch: null,
+          consecutiveFailures: 0,
+          activeConflictsCount: 0,
+        }),
+        onEvent: (cb: () => void) => {
+          listeners.push(cb);
+          return () => {};
+        },
+        enqueueMutation: async (params: { command: string; payload: Record<string, unknown> }) => {
+          enqueuedMutations.push(params);
+        },
+        pushPending: async () => {},
+      } as unknown as import('@daynori/sync').SyncEngine;
+
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(
+          React.createElement(LibraryView, {
+            themeMode: 'light',
+            workspaceId: 'ws-mob-test',
+            userId: 'user-mob-test',
+            syncEngine: mockSyncEngine,
+            initialFolders: SAMPLE_MOBILE_FOLDERS,
+          })
+        );
+      });
+
+      // Verify status bar renders "Saved locally • ☁️ Synced"
+      const statusBar = renderer.root.findByProps({ accessibilityRole: 'summary' });
+      expect(statusBar.props.accessibilityLabel).toBe('Status: Saved locally, Synced');
+
+      // Click move down button for first folder (Software)
+      const moveDownBtn = renderer.root.findByProps({ accessibilityLabel: 'Move Software down' });
+      await act(async () => {
+        moveDownBtn.props.onPress();
+      });
+
+      // Verify reorderFolder was enqueued to sync engine
+      expect(enqueuedMutations.length).toBeGreaterThan(0);
+      expect(enqueuedMutations[0]?.command).toBe('reorderFolder');
+    });
+
     it('mounts JournalView with protection gate when unauthenticated and unlocks on login', () => {
       let loggedIn = false;
       let renderer: ReactTestRenderer;

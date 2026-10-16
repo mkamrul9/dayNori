@@ -44,7 +44,7 @@ import {
   trashFolder,
   restoreFolder,
 } from '../organization/service.js';
-import { createNote, updateNote, trashNote, restoreNote } from '../notes/service.js';
+import { createNote, getNote, updateNote, trashNote, restoreNote } from '../notes/service.js';
 import {
   type NoteDocument,
   validateNoteDocument,
@@ -710,6 +710,48 @@ export class SyncService {
         };
       }
     }
+    if (cmd.command === 'createNote') {
+      if (cmd.payload['document'] !== undefined) {
+        try {
+          validateNoteDocument(cmd.payload['document']);
+        } catch (err: unknown) {
+          return {
+            code: 'VALIDATION_FAILED',
+            message: `Invalid note document: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+      }
+      if (cmd.payload['title'] !== undefined && typeof cmd.payload['title'] !== 'string') {
+        return {
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid title: must be a string.',
+        };
+      }
+    }
+    if (cmd.command === 'updateNote') {
+      if (typeof cmd.baseRevision !== 'number' || cmd.baseRevision < 0) {
+        return {
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid baseRevision: must be a non-negative integer.',
+        };
+      }
+      if (cmd.payload['document'] !== undefined) {
+        try {
+          validateNoteDocument(cmd.payload['document']);
+        } catch (err: unknown) {
+          return {
+            code: 'VALIDATION_FAILED',
+            message: `Invalid note document: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+      }
+      if (cmd.payload['title'] !== undefined && typeof cmd.payload['title'] !== 'string') {
+        return {
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid title: must be a string.',
+        };
+      }
+    }
     return null;
   }
 
@@ -1012,7 +1054,7 @@ export class SyncService {
     ) {
       try {
         let resultRevision = 1;
-        const appliedSeq: number | null = null;
+        let appliedSeq: number | null = null;
         let resultPayload: Record<string, unknown> = {};
 
         switch (cmd.command) {
@@ -1049,6 +1091,7 @@ export class SyncService {
               cmd.operationId
             );
             resultRevision = note.revision;
+            appliedSeq = note.seq;
             resultPayload = { note };
             break;
           }
@@ -1087,30 +1130,47 @@ export class SyncService {
               cmd.operationId
             );
             resultRevision = note.revision;
+            appliedSeq = note.seq;
             resultPayload = { note };
             break;
           }
           case 'trashNote': {
+            const expectedRev =
+              typeof cmd.payload['expectedRevision'] === 'number'
+                ? cmd.payload['expectedRevision']
+                : cmd.baseRevision > 0
+                  ? cmd.baseRevision
+                  : undefined;
             const res = await trashNote(
               client,
               cmd.workspaceId,
               cmd.entityId,
               actorUserId,
-              cmd.operationId
+              cmd.operationId,
+              expectedRev
             );
             resultRevision = res.revision;
+            appliedSeq = res.seq;
             resultPayload = { ...res };
             break;
           }
           case 'restoreNote': {
+            const expectedRev =
+              typeof cmd.payload['expectedRevision'] === 'number'
+                ? cmd.payload['expectedRevision']
+                : cmd.baseRevision > 0
+                  ? cmd.baseRevision
+                  : undefined;
             const note = await restoreNote(
               client,
               cmd.workspaceId,
               cmd.entityId,
               actorUserId,
-              cmd.operationId
+              cmd.operationId,
+              expectedRev
             );
             resultRevision = note.revision;
+            appliedSeq = note.seq;
             resultPayload = { note };
             break;
           }
@@ -1142,10 +1202,37 @@ export class SyncService {
         };
       } catch (err: unknown) {
         if (err instanceof ConflictError) {
-          const conflictError = {
+          let currentServerRevision: number | undefined;
+          let currentServerState: Record<string, unknown> | undefined;
+          try {
+            const currentNote = await getNote(client, cmd.workspaceId, cmd.entityId);
+            currentServerRevision = currentNote.revision;
+            currentServerState = {
+              title: currentNote.title,
+              document: currentNote.document,
+              plainText: currentNote.plainText,
+              folderId: currentNote.folderId,
+              isPinned: currentNote.isPinned,
+              isArchived: currentNote.isArchived,
+              revision: currentNote.revision,
+              updatedAt: currentNote.updatedAt,
+            };
+          } catch {
+            // Note may not exist or cannot be fetched
+          }
+
+          const conflictError: {
+            code: string;
+            message: string;
+            currentServerRevision?: number;
+            currentServerState?: Record<string, unknown>;
+          } = {
             code: 'REVISION_CONFLICT',
             message: err.message,
+            ...(currentServerRevision !== undefined ? { currentServerRevision } : {}),
+            ...(currentServerState ? { currentServerState } : {}),
           };
+
           await insertMutationReceipt(client, {
             workspaceId: cmd.workspaceId,
             actorUserId,

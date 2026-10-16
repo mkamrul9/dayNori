@@ -3,11 +3,14 @@ import type { Pool } from 'pg';
 import {
   CreateNoteRequestSchema,
   UpdateNoteRequestSchema,
+  TrashNoteRequestSchema,
+  RestoreNoteRequestSchema,
   NoteParamsSchema,
   NoteListQuerySchema,
   NoteResponseSchema,
   NoteListResponseSchema,
   WorkspaceParamsSchema,
+  type Note,
 } from '@daynori/contracts';
 import { withTenantContext } from '../../db/index.js';
 import {
@@ -18,7 +21,11 @@ import {
   trashNote,
   restoreNote,
 } from '../../modules/notes/service.js';
-import { getMutationReceipt, insertMutationReceipt } from '../../modules/sync/repository.js';
+import {
+  getMutationReceipt,
+  insertMutationReceipt,
+  lockWorkspaceSyncState,
+} from '../../modules/sync/repository.js';
 import { computeCanonicalPayloadHash } from '../../modules/sync/types.js';
 import { validateResponse, ConflictError, NotFoundError } from '../../plugins/errorHandler.js';
 
@@ -58,6 +65,7 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           payload: parsedBody as Record<string, unknown>,
         });
 
+        // Optimistic check before lock
         const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
         if (receipt) {
           if (receipt.canonicalPayloadHash !== payloadHash) {
@@ -66,10 +74,32 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
             );
           }
           if (receipt.status === 'accepted') {
-            const note = await getNote(client, workspaceId, receipt.entityId);
+            const durableNote = receipt.resultPayload?.note as Note | undefined;
             return reply.status(200).send(
               validateResponse(NoteResponseSchema, {
-                data: note,
+                data: durableNote || (await getNote(client, workspaceId, receipt.entityId)),
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+        }
+
+        // Lock workspace row to prevent concurrent race conditions
+        await lockWorkspaceSyncState(client, workspaceId);
+
+        // Recheck under row lock
+        const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+        if (lockedReceipt) {
+          if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
+            throw new ConflictError(
+              'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+            );
+          }
+          if (lockedReceipt.status === 'accepted') {
+            const durableNote = lockedReceipt.resultPayload?.note as Note | undefined;
+            return reply.status(200).send(
+              validateResponse(NoteResponseSchema, {
+                data: durableNote || (await getNote(client, workspaceId, lockedReceipt.entityId)),
                 meta: { requestId: request.id, serverTime: new Date().toISOString() },
               })
             );
@@ -91,8 +121,8 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           canonicalPayloadHash: payloadHash,
           status: 'accepted',
           acceptedRevision: note.revision,
-          appliedChangeSeq: null,
-          resultPayload: { noteId: note.id },
+          appliedChangeSeq: note.seq,
+          resultPayload: { note },
         });
 
         return reply.status(201).send(
@@ -113,7 +143,7 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
     });
   });
 
-  // 2. List Notes
+  // 2. List Notes (with cursor keyset pagination)
   app.get('/v1/workspaces/:workspaceId/notes', async (request: FastifyRequest, reply) => {
     const actor = request.actor;
     if (!actor) {
@@ -134,11 +164,15 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
         throw new NotFoundError('Workspace not found or unauthorized');
       }
 
-      const notes = await listNotes(client, workspaceId, query);
+      const { notes, nextCursor } = await listNotes(client, workspaceId, query);
       return reply.status(200).send(
         validateResponse(NoteListResponseSchema, {
           data: notes,
-          meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          meta: {
+            requestId: request.id,
+            serverTime: new Date().toISOString(),
+            cursor: nextCursor,
+          },
         })
       );
     });
@@ -209,6 +243,7 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           payload: parsedBody as Record<string, unknown>,
         });
 
+        // Optimistic check before lock
         const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
         if (receipt) {
           if (receipt.canonicalPayloadHash !== payloadHash) {
@@ -217,10 +252,32 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
             );
           }
           if (receipt.status === 'accepted') {
-            const note = await getNote(client, workspaceId, noteId);
+            const durableNote = receipt.resultPayload?.note as Note | undefined;
             return reply.status(200).send(
               validateResponse(NoteResponseSchema, {
-                data: note,
+                data: durableNote || (await getNote(client, workspaceId, noteId)),
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+        }
+
+        // Lock workspace row to prevent concurrent race conditions
+        await lockWorkspaceSyncState(client, workspaceId);
+
+        // Recheck under lock
+        const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+        if (lockedReceipt) {
+          if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
+            throw new ConflictError(
+              'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+            );
+          }
+          if (lockedReceipt.status === 'accepted') {
+            const durableNote = lockedReceipt.resultPayload?.note as Note | undefined;
+            return reply.status(200).send(
+              validateResponse(NoteResponseSchema, {
+                data: durableNote || (await getNote(client, workspaceId, noteId)),
                 meta: { requestId: request.id, serverTime: new Date().toISOString() },
               })
             );
@@ -249,8 +306,8 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           canonicalPayloadHash: payloadHash,
           status: 'accepted',
           acceptedRevision: note.revision,
-          appliedChangeSeq: null,
-          resultPayload: { noteId: note.id },
+          appliedChangeSeq: note.seq,
+          resultPayload: { note },
         });
 
         return reply.status(200).send(
@@ -271,7 +328,7 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
     });
   });
 
-  // 5. Trash Note
+  // 5. Trash Note (with optional expectedRevision precondition)
   app.post(
     '/v1/workspaces/:workspaceId/notes/:noteId/trash',
     async (request: FastifyRequest, reply) => {
@@ -282,6 +339,8 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           .send({ error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
       }
       const { workspaceId, noteId } = NoteParamsSchema.parse(request.params);
+      const parsedBody = request.body ? TrashNoteRequestSchema.parse(request.body) : undefined;
+      const expectedRevision = parsedBody?.expectedRevision;
       const actorUserId = actor.userId;
       const operationId = request.headers['x-operation-id'] as string | undefined;
 
@@ -294,7 +353,105 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
-        const result = await trashNote(client, workspaceId, noteId, actorUserId, operationId);
+        if (operationId) {
+          const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'trashNote',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: noteId,
+            baseRevision: expectedRevision ?? 0,
+            payload: (parsedBody || {}) as Record<string, unknown>,
+          });
+
+          // Optimistic receipt check
+          const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            if (receipt.status === 'accepted') {
+              const durableResult = receipt.resultPayload?.result as Record<string, unknown> | undefined;
+              return reply.status(200).send({
+                data: durableResult || {
+                  id: noteId,
+                  workspaceId,
+                  revision: receipt.acceptedRevision ?? 0,
+                  deletedAt: new Date().toISOString(),
+                },
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              });
+            }
+          }
+
+          // Lock row and recheck
+          await lockWorkspaceSyncState(client, workspaceId);
+
+          const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (lockedReceipt) {
+            if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            if (lockedReceipt.status === 'accepted') {
+              const durableResult = lockedReceipt.resultPayload?.result as Record<string, unknown> | undefined;
+              return reply.status(200).send({
+                data: durableResult || {
+                  id: noteId,
+                  workspaceId,
+                  revision: lockedReceipt.acceptedRevision ?? 0,
+                  deletedAt: new Date().toISOString(),
+                },
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              });
+            }
+          }
+
+          const result = await trashNote(
+            client,
+            workspaceId,
+            noteId,
+            actorUserId,
+            operationId,
+            expectedRevision
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'trashNote',
+            entityType: 'item',
+            entityId: noteId,
+            schemaVersion: 1,
+            baseRevision: expectedRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: result.revision,
+            appliedChangeSeq: result.seq,
+            resultPayload: { result },
+          });
+
+          return reply.status(200).send({
+            data: result,
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          });
+        }
+
+        const result = await trashNote(
+          client,
+          workspaceId,
+          noteId,
+          actorUserId,
+          undefined,
+          expectedRevision
+        );
         return reply.status(200).send({
           data: result,
           meta: { requestId: request.id, serverTime: new Date().toISOString() },
@@ -303,7 +460,7 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
     }
   );
 
-  // 6. Restore Note
+  // 6. Restore Note (with optional expectedRevision precondition)
   app.post(
     '/v1/workspaces/:workspaceId/notes/:noteId/restore',
     async (request: FastifyRequest, reply) => {
@@ -314,6 +471,8 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           .send({ error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
       }
       const { workspaceId, noteId } = NoteParamsSchema.parse(request.params);
+      const parsedBody = request.body ? RestoreNoteRequestSchema.parse(request.body) : undefined;
+      const expectedRevision = parsedBody?.expectedRevision;
       const actorUserId = actor.userId;
       const operationId = request.headers['x-operation-id'] as string | undefined;
 
@@ -326,7 +485,101 @@ export function registerNoteRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
-        const note = await restoreNote(client, workspaceId, noteId, actorUserId, operationId);
+        if (operationId) {
+          const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'restoreNote',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: noteId,
+            baseRevision: expectedRevision ?? 0,
+            payload: (parsedBody || {}) as Record<string, unknown>,
+          });
+
+          // Optimistic receipt check
+          const receipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            if (receipt.status === 'accepted') {
+              const durableNote = receipt.resultPayload?.note as Note | undefined;
+              return reply.status(200).send(
+                validateResponse(NoteResponseSchema, {
+                  data: durableNote || (await getNote(client, workspaceId, noteId)),
+                  meta: { requestId: request.id, serverTime: new Date().toISOString() },
+                })
+              );
+            }
+          }
+
+          // Lock row and recheck
+          await lockWorkspaceSyncState(client, workspaceId);
+
+          const lockedReceipt = await getMutationReceipt(client, actorUserId, deviceId, operationId);
+          if (lockedReceipt) {
+            if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            if (lockedReceipt.status === 'accepted') {
+              const durableNote = lockedReceipt.resultPayload?.note as Note | undefined;
+              return reply.status(200).send(
+                validateResponse(NoteResponseSchema, {
+                  data: durableNote || (await getNote(client, workspaceId, noteId)),
+                  meta: { requestId: request.id, serverTime: new Date().toISOString() },
+                })
+              );
+            }
+          }
+
+          const note = await restoreNote(
+            client,
+            workspaceId,
+            noteId,
+            actorUserId,
+            operationId,
+            expectedRevision
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId,
+            deviceId,
+            operationId,
+            command: 'restoreNote',
+            entityType: 'item',
+            entityId: note.id,
+            schemaVersion: 1,
+            baseRevision: expectedRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: note.revision,
+            appliedChangeSeq: note.seq,
+            resultPayload: { note },
+          });
+
+          return reply.status(200).send(
+            validateResponse(NoteResponseSchema, {
+              data: note,
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            })
+          );
+        }
+
+        const note = await restoreNote(
+          client,
+          workspaceId,
+          noteId,
+          actorUserId,
+          undefined,
+          expectedRevision
+        );
         return reply.status(200).send(
           validateResponse(NoteResponseSchema, {
             data: note,

@@ -56,6 +56,11 @@ export interface SyncItemRecord {
   name?: string;
   color?: string | null;
   icon?: string | null;
+  title?: string;
+  document?: Record<string, unknown>;
+  plainText?: string;
+  wordCount?: number;
+  charCount?: number;
 }
 
 /**
@@ -506,11 +511,16 @@ export async function listActiveItemsForBootstrap(
     folder_color: string | null;
     folder_icon: string | null;
     note_title: string | null;
+    note_document: Record<string, unknown> | null;
+    note_plain_text: string | null;
+    note_word_count: string | number | null;
+    note_char_count: string | number | null;
   }>(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by, i.created_at, i.updated_at, i.deleted_at,
             i.display_order, i.revision, i.rank, i.is_archived, i.is_pinned, i.security_scope,
             f.name as folder_name, f.color as folder_color, f.icon as folder_icon,
-            n.title as note_title
+            n.title as note_title, n.document as note_document, n.plain_text as note_plain_text,
+            n.word_count as note_word_count, n.char_count as note_char_count
      FROM app.items i
      LEFT JOIN app.folders f ON f.workspace_id = i.workspace_id AND f.id = i.id
      LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
@@ -538,5 +548,10 @@ export async function listActiveItemsForBootstrap(
     name: r.folder_name ?? r.note_title ?? undefined,
     color: r.folder_color,
     icon: r.folder_icon,
+    title: r.note_title ?? r.folder_name ?? undefined,
+    document: r.note_document ?? undefined,
+    plainText: r.note_plain_text ?? undefined,
+    wordCount: r.note_word_count !== null ? Number(r.note_word_count) : undefined,
+    charCount: r.note_char_count !== null ? Number(r.note_char_count) : undefined,
   }));
 }

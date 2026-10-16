@@ -7,6 +7,7 @@ import type {
   AccountNamespace,
   LocalRepositoryPort,
   ConflictRecord,
+  NoteRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -20,11 +21,12 @@ import {
   validateSyncCursorRecord,
   validatePreferenceSnapshotRecord,
   validateConflictRecord,
+  validateNoteRecord,
 } from '@daynori/sync';
 
 export const TRUSTED_DEVICE_CONSENT_KEY = 'daynori_trusted_device_consent';
 export const DB_NAME = 'daynori_web_storage';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const COORDINATION_CHANNEL_NAME = 'daynori_storage_coordination';
 
 function getStorage(): Storage | null {
@@ -229,6 +231,10 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
             conflictStore.createIndex('by_entity', ['workspaceId', 'entityId'], {
               unique: false,
             });
+          }
+
+          if (!db.objectStoreNames.contains('notes')) {
+            db.createObjectStore('notes', { keyPath: ['workspaceId', 'id'] });
           }
         } catch (err: unknown) {
           reject(
@@ -615,28 +621,36 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
   async saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
-    draft?: DraftRecord
+    draft?: DraftRecord,
+    note?: NoteRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
     const validDraft = draft ? validateDraftRecord(draft) : undefined;
+    const validNote = note ? validateNoteRecord(note) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
     if (validDraft) {
       this.ensureNamespace(validDraft.workspaceId, validDraft.userId);
     }
+    if (validNote) {
+      this.ensureNamespace(validNote.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
-      const stores = validDraft
-        ? ['item_headers', 'pending_mutations', 'drafts']
-        : ['item_headers', 'pending_mutations'];
+      const stores = ['item_headers', 'pending_mutations'];
+      if (validDraft) stores.push('drafts');
+      if (validNote) stores.push('notes');
       const tx = db.transaction(stores, 'readwrite');
       tx.objectStore('item_headers').put(validItem);
       tx.objectStore('pending_mutations').put(validMut);
       if (validDraft) {
         tx.objectStore('drafts').put(validDraft);
+      }
+      if (validNote) {
+        tx.objectStore('notes').put(validNote);
       }
 
       tx.oncomplete = () => resolve();
@@ -645,14 +659,26 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  async applyAcknowledgment(header: ItemHeaderRecord, operationId: string): Promise<void> {
+  async applyAcknowledgment(
+    header: ItemHeaderRecord,
+    operationId: string,
+    note?: NoteRecord
+  ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
+    const validNote = note ? validateNoteRecord(note) : undefined;
     this.ensureNamespace(valid.workspaceId);
+    if (validNote) this.ensureNamespace(validNote.workspaceId);
+
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(['item_headers', 'pending_mutations'], 'readwrite');
+      const stores = ['item_headers', 'pending_mutations'];
+      if (validNote) stores.push('notes');
+      const tx = db.transaction(stores, 'readwrite');
       tx.objectStore('item_headers').put(valid);
       tx.objectStore('pending_mutations').delete(operationId);
+      if (validNote) {
+        tx.objectStore('notes').put(validNote);
+      }
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
@@ -660,19 +686,30 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  async applyPullPage(changes: ItemHeaderRecord[], newCursor: SyncCursorRecord): Promise<void> {
+  async applyPullPage(
+    changes: ItemHeaderRecord[],
+    newCursor: SyncCursorRecord,
+    notes?: NoteRecord[]
+  ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
     const validatedChanges = changes.map((c) => validateItemHeaderRecord(c));
     for (const c of validatedChanges) {
       this.ensureNamespace(c.workspaceId);
     }
+    const validatedNotes = (notes || []).map((n) => validateNoteRecord(n));
+    for (const n of validatedNotes) {
+      this.ensureNamespace(n.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(['item_headers', 'sync_cursors'], 'readwrite');
+      const stores = ['item_headers', 'sync_cursors'];
+      if (validatedNotes.length > 0) stores.push('notes');
+      const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
+      const noteStore = validatedNotes.length > 0 ? tx.objectStore('notes') : null;
 
       // 1. Process each item change under protection against stale concurrent overwrites
       for (const change of validatedChanges) {
@@ -698,7 +735,21 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         };
       }
 
-      // 2. Cursor advancement: protect against moving cursor backward
+      // 2. Process notes in the same transaction
+      if (noteStore) {
+        for (const n of validatedNotes) {
+          const getNoteReq = noteStore.get([n.workspaceId, n.id]);
+          getNoteReq.onsuccess = () => {
+            const existing = getNoteReq.result ? validateNoteRecord(getNoteReq.result) : null;
+            if (existing && existing.serverRevision > n.serverRevision) {
+              return;
+            }
+            noteStore.put(n);
+          };
+        }
+      }
+
+      // 3. Cursor advancement: protect against moving cursor backward
       const cursorGetReq = cursorStore.get([validCursor.workspaceId, validCursor.userId]);
       cursorGetReq.onsuccess = () => {
         const existingCursor = cursorGetReq.result
@@ -720,7 +771,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
   async installBootstrapGeneration(
     items: ItemHeaderRecord[],
     watermarkCursor: SyncCursorRecord,
-    preserveLocalItemIds: Set<string>
+    preserveLocalItemIds: Set<string>,
+    notes?: NoteRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -728,12 +780,19 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     for (const item of validItems) {
       this.ensureNamespace(item.workspaceId);
     }
+    const validatedNotes = (notes || []).map((n) => validateNoteRecord(n));
+    for (const n of validatedNotes) {
+      this.ensureNamespace(n.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(['item_headers', 'sync_cursors'], 'readwrite');
+      const stores = ['item_headers', 'sync_cursors'];
+      if (validatedNotes.length > 0) stores.push('notes');
+      const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
+      const noteStore = validatedNotes.length > 0 ? tx.objectStore('notes') : null;
 
       const snapshotIds = new Set(validItems.map((i) => i.id));
 
@@ -761,7 +820,14 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           itemStore.put(item);
         }
 
-        // 3. Update watermark cursor
+        // 3. Upsert snapshot notes
+        if (noteStore) {
+          for (const n of validatedNotes) {
+            noteStore.put(n);
+          }
+        }
+
+        // 4. Update watermark cursor
         cursorStore.put(validCursor);
       };
 
@@ -833,22 +899,30 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
 
   async resolveConflictTransaction(
     conflictId: string,
-    _resolution: 'keep_server' | 'keep_local' | 'custom',
+    _resolution: 'keep_server' | 'keep_local' | 'custom' | 'save_copy',
     updatedHeader?: ItemHeaderRecord,
     newMutation?: PendingMutationRecord,
-    removeOperationId?: string
+    removeOperationId?: string,
+    updatedNote?: NoteRecord,
+    recoveryDraft?: DraftRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
     const validNewMut = newMutation ? validatePendingMutationRecord(newMutation) : undefined;
+    const validNote = updatedNote ? validateNoteRecord(updatedNote) : undefined;
+    const validDraft = recoveryDraft ? validateDraftRecord(recoveryDraft) : undefined;
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
       const stores = ['conflicts', 'item_headers', 'pending_mutations'];
+      if (validNote) stores.push('notes');
+      if (validDraft) stores.push('drafts');
       const tx = db.transaction(stores, 'readwrite');
       const conflictStore = tx.objectStore('conflicts');
       const itemStore = tx.objectStore('item_headers');
       const mutStore = tx.objectStore('pending_mutations');
+      const noteStore = validNote ? tx.objectStore('notes') : null;
+      const draftStore = validDraft ? tx.objectStore('drafts') : null;
 
       // 1. Mark conflict resolved
       const getReq = conflictStore.get([ns.workspaceId, conflictId]);
@@ -865,14 +939,24 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         mutStore.delete(removeOperationId);
       }
 
-      // 3. Enqueue replacement mutation if specified (keep_local or custom)
+      // 3. Enqueue replacement mutation if specified (keep_local, custom, or save_copy)
       if (validNewMut) {
         mutStore.put(validNewMut);
       }
 
-      // 4. Update header if specified (e.g. keep_server or custom)
+      // 4. Update header if specified (e.g. keep_server, custom, or save_copy)
       if (validHeader) {
         itemStore.put(validHeader);
+      }
+
+      // 5. Update note if specified
+      if (validNote && noteStore) {
+        noteStore.put(validNote);
+      }
+
+      // 6. Save recovery draft if specified
+      if (validDraft && draftStore) {
+        draftStore.put(validDraft);
       }
 
       tx.oncomplete = () => resolve();
@@ -881,7 +965,70 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 6. Sync Cursors ---
+  // --- 6. Notes & Documents ---
+
+  async getNote(workspaceId: string, id: string): Promise<NoteRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notes', 'readonly');
+      const store = tx.objectStore('notes');
+      const req = store.get([workspaceId, id]);
+
+      req.onsuccess = () => resolve(req.result ? validateNoteRecord(req.result) : null);
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async listNotes(workspaceId: string): Promise<NoteRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notes', 'readonly');
+      const store = tx.objectStore('notes');
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const raw = (req.result as unknown[]) || [];
+        const results = raw
+          .map((n) => validateNoteRecord(n))
+          .filter((n) => n.workspaceId === workspaceId && n.deletedAt === null);
+        resolve(results);
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async upsertNote(note: NoteRecord): Promise<void> {
+    const valid = validateNoteRecord(note);
+    this.ensureNamespace(valid.workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notes', 'readwrite');
+      const store = tx.objectStore('notes');
+      store.put(valid);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async deleteNote(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notes', 'readwrite');
+      const store = tx.objectStore('notes');
+      store.delete([workspaceId, id]);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  // --- 7. Sync Cursors ---
 
   async getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null> {
     this.ensureNamespace(workspaceId, userId);
@@ -949,7 +1096,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(
-        ['item_headers', 'drafts', 'pending_mutations', 'sync_cursors', 'conflicts'],
+        ['item_headers', 'drafts', 'pending_mutations', 'sync_cursors', 'conflicts', 'notes'],
         'readwrite'
       );
 
@@ -1008,6 +1155,17 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       };
 
+      // 6. Clear notes
+      const noteStore = tx.objectStore('notes');
+      const noteReq = noteStore.getAll();
+      noteReq.onsuccess = () => {
+        for (const n of noteReq.result as NoteRecord[]) {
+          if (n.workspaceId === workspaceId) {
+            noteStore.delete([n.workspaceId, n.id]);
+          }
+        }
+      };
+
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
       tx.onabort = () => reject(this.mapError(tx.error));
@@ -1026,6 +1184,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           'sync_cursors',
           'preference_snapshots',
           'conflicts',
+          'notes',
         ],
         'readwrite'
       );
@@ -1081,6 +1240,10 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           }
         }
       };
+
+      // 7. Clear notes
+      const noteStore = tx.objectStore('notes');
+      noteStore.clear();
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));

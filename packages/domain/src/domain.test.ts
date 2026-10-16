@@ -141,10 +141,19 @@ describe('Domain Rules and Invariants', () => {
       expect(charCount).toBe(Array.from(extracted).length);
     });
 
-    it('sanitizes inert strings without executing or interpreting markup', async () => {
-      const { validateNoteDocument, extractPlainText } = await import('./notes.js');
+    it('preserves literal programming examples, comparison operators, and HTML examples while stripping null bytes', async () => {
+      const { validateNoteDocument, extractPlainText, sanitizeInertString } = await import(
+        './notes.js'
+      );
 
-      const maliciousDoc = {
+      // Verify sanitizeInertString keeps angle brackets and comparison operators
+      expect(sanitizeInertString('List<T> items = new List<T>();')).toBe(
+        'List<T> items = new List<T>();'
+      );
+      expect(sanitizeInertString('if (1 < 2 && 3 > 2)')).toBe('if (1 < 2 && 3 > 2)');
+      expect(sanitizeInertString('Test\0NullByte')).toBe('TestNullByte');
+
+      const codeDoc = {
         version: 1,
         type: 'doc',
         content: [
@@ -153,19 +162,83 @@ describe('Domain Rules and Invariants', () => {
             content: [
               {
                 type: 'text',
-                text: '<script>alert("pwned")</script>\0NullByteTest',
+                text: 'List<T> items = new List<T>(); function test<T>() { return "<script>alert(1)</script>\0"; }',
               },
             ],
           },
         ],
       };
 
-      const validated = validateNoteDocument(maliciousDoc);
-      // Null byte and executable markup are stripped to guarantee inert text
+      const validated = validateNoteDocument(codeDoc);
       const plain = extractPlainText(validated);
-      expect(plain).toBe('NullByteTest');
+      // Literal angle brackets and code syntax are preserved; null byte is removed
+      expect(plain).toBe(
+        'List<T> items = new List<T>(); function test<T>() { return "<script>alert(1)</script>"; }'
+      );
       expect(plain).not.toContain('\0');
-      expect(plain).not.toContain('<script>');
+      expect(plain).toContain('List<T>');
+      expect(plain).toContain('<script>alert(1)</script>');
+    });
+
+    it('rejects unsupported blocks, invalid heading levels, and invalid marks explicitly', async () => {
+      const { validateNoteDocument } = await import('./notes.js');
+
+      expect(() =>
+        validateNoteDocument({
+          version: 1,
+          type: 'doc',
+          content: [{ type: 'unsupported_table', rows: [] }],
+        })
+      ).toThrow(/NOTE_BLOCK_UNSUPPORTED/);
+
+      expect(() =>
+        validateNoteDocument({
+          version: 1,
+          type: 'doc',
+          content: [{ type: 'heading', level: 5, content: [] }],
+        })
+      ).toThrow(/NOTE_HEADING_LEVEL_INVALID/);
+
+      expect(() =>
+        validateNoteDocument({
+          version: 1,
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Hello', marks: ['underline'] }],
+            },
+          ],
+        })
+      ).toThrow(/NOTE_MARK_UNSUPPORTED/);
+    });
+
+    it('preserves blank lines and honest plain text conversion without auto-mutating text', async () => {
+      const { createNoteDocumentFromPlainText, extractPlainText } = await import('./notes.js');
+
+      const multilineText = 'First Paragraph\n\nSecond Paragraph with - hyphen item\n\n';
+      const doc = createNoteDocumentFromPlainText(multilineText);
+      expect(doc.content).toHaveLength(3); // 2 content paras + 1 trailing empty para
+      expect(doc.content[1]!.type).toBe('paragraph'); // NOT converted to a bullet list!
+
+      const extracted = extractPlainText(doc);
+      expect(extracted).toContain('First Paragraph');
+      expect(extracted).toContain('Second Paragraph with - hyphen item');
+    });
+
+    it('recovers unsupported or raw documents gracefully without data loss', async () => {
+      const { createRecoverableNoteDocument } = await import('./notes.js');
+
+      const unsupportedRaw = {
+        version: 99,
+        type: 'future_note',
+        plainText: 'Preserved user notes content from future schema',
+      };
+
+      const recovery = createRecoverableNoteDocument(unsupportedRaw);
+      expect(recovery.doc.version).toBe(1);
+      expect(recovery.doc.content[0]!.type).toBe('paragraph');
+      expect(recovery.rawUnsupported).toBe(unsupportedRaw);
     });
 
     it('rejects oversized documents exceeding 512KB payload limit', async () => {

@@ -67,13 +67,15 @@ function mapRowToNote(r: NoteDbRow): Note {
   };
 }
 
+export type NoteWithSeq = Note & { seq: number };
+
 export async function createNote(
   client: PoolClient,
   workspaceId: string,
   actorUserId: string,
   input: CreateNoteRequest,
   operationId?: string
-): Promise<Note> {
+): Promise<NoteWithSeq> {
   const noteId = input.id || crypto.randomUUID();
   const folderId = input.folderId || null;
   const rank = input.rank || '00001000';
@@ -189,6 +191,7 @@ export async function createNote(
     createdAt: noteRow.created_at.toISOString(),
     updatedAt: noteRow.updated_at.toISOString(),
     deletedAt: null,
+    seq,
   };
 }
 
@@ -220,11 +223,51 @@ export async function getNote(
   return mapRowToNote(row);
 }
 
+export interface NoteListResult {
+  notes: Note[];
+  nextCursor?: string;
+}
+
+export function encodeNoteCursor(data: {
+  isPinned: boolean;
+  rank: string;
+  updatedAt: string;
+  id: string;
+}): string {
+  return Buffer.from(JSON.stringify(data), 'utf8').toString('base64url');
+}
+
+export function decodeNoteCursor(
+  cursorStr?: string
+): { isPinned: boolean; rank: string; updatedAt: string; id: string } | null {
+  if (!cursorStr) return null;
+  try {
+    const raw = Buffer.from(cursorStr, 'base64url').toString('utf8');
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed === 'object' &&
+      parsed &&
+      typeof parsed.id === 'string' &&
+      typeof parsed.updatedAt === 'string'
+    ) {
+      return {
+        isPinned: Boolean(parsed.isPinned),
+        rank: String(parsed.rank || '00001000'),
+        updatedAt: String(parsed.updatedAt),
+        id: String(parsed.id),
+      };
+    }
+  } catch {
+    /* ignore invalid cursor */
+  }
+  return null;
+}
+
 export async function listNotes(
   client: PoolClient,
   workspaceId: string,
   query: Partial<NoteListQuery> = {}
-): Promise<Note[]> {
+): Promise<NoteListResult> {
   const params: unknown[] = [workspaceId];
   let whereClause = `WHERE i.workspace_id = $1 AND i.kind = 'note' AND i.deleted_at IS NULL`;
 
@@ -249,8 +292,25 @@ export async function listNotes(
     whereClause += ` AND (n.title ILIKE $${params.length} OR n.plain_text ILIKE $${params.length})`;
   }
 
+  if (query.cursor) {
+    const decoded = decodeNoteCursor(query.cursor);
+    if (decoded) {
+      params.push(decoded.isPinned, decoded.rank, decoded.updatedAt, decoded.id);
+      const p1 = params.length - 3;
+      const p2 = params.length - 2;
+      const p3 = params.length - 1;
+      const p4 = params.length;
+      whereClause += ` AND (
+        (i.is_pinned < $${p1}) OR
+        (i.is_pinned = $${p1} AND i.rank > $${p2}) OR
+        (i.is_pinned = $${p1} AND i.rank = $${p2} AND i.updated_at < $${p3}) OR
+        (i.is_pinned = $${p1} AND i.rank = $${p2} AND i.updated_at = $${p3} AND i.id > $${p4})
+      )`;
+    }
+  }
+
   const limit = query.limit || 50;
-  params.push(limit);
+  params.push(limit + 1);
 
   const sql = `
     SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
@@ -260,12 +320,29 @@ export async function listNotes(
     FROM app.items i
     JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
     ${whereClause}
-    ORDER BY i.is_pinned DESC, i.rank ASC, i.updated_at DESC
+    ORDER BY i.is_pinned DESC, i.rank ASC, i.updated_at DESC, i.id ASC
     LIMIT $${params.length};
   `;
 
   const res = await client.query<NoteDbRow>(sql, params);
-  return res.rows.map(mapRowToNote);
+  const rows = res.rows;
+  let nextCursor: string | undefined = undefined;
+
+  if (rows.length > limit) {
+    rows.pop();
+    const last = rows[rows.length - 1]!;
+    nextCursor = encodeNoteCursor({
+      isPinned: last.is_pinned,
+      rank: last.rank,
+      updatedAt: last.updated_at.toISOString(),
+      id: last.id,
+    });
+  }
+
+  return {
+    notes: rows.map(mapRowToNote),
+    nextCursor,
+  };
 }
 
 export async function updateNote(
@@ -275,7 +352,7 @@ export async function updateNote(
   actorUserId: string,
   input: UpdateNoteRequest,
   operationId?: string
-): Promise<Note> {
+): Promise<NoteWithSeq> {
   // 1. Acquire workspace sync state row-lock
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
@@ -452,6 +529,7 @@ export async function updateNote(
     createdAt: current.created_at.toISOString(),
     updatedAt,
     deletedAt: null,
+    seq,
   };
 }
 
@@ -460,8 +538,9 @@ export async function trashNote(
   workspaceId: string,
   noteId: string,
   actorUserId: string,
-  operationId?: string
-): Promise<{ id: string; revision: number }> {
+  operationId?: string,
+  expectedRevision?: number
+): Promise<{ id: string; revision: number; seq: number | null }> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
   const res = await client.query<{ revision: string; deleted_at: Date | null }>(
@@ -476,11 +555,19 @@ export async function trashNote(
   }
 
   const current = res.rows[0]!;
-  if (current.deleted_at) {
-    return { id: noteId, revision: Number(current.revision) };
+  const currentRevision = Number(current.revision);
+  if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
+    throw new ConflictError(
+      `REVISION_CONFLICT: Expected revision ${expectedRevision}, but note is at revision ${currentRevision}.`
+    );
   }
 
-  const nextRevision = Number(current.revision) + 1;
+  if (current.deleted_at) {
+    return { id: noteId, revision: currentRevision, seq: null };
+  }
+
+  const nextRevision = currentRevision + 1;
+  const seq = syncState.nextChangeSeq;
 
   await client.query(
     `UPDATE app.items
@@ -491,8 +578,6 @@ export async function trashNote(
      WHERE workspace_id = $1 AND id = $2;`,
     [workspaceId, noteId, nextRevision, actorUserId]
   );
-
-  const seq = syncState.nextChangeSeq;
 
   await insertChange(client, {
     workspaceId,
@@ -513,7 +598,7 @@ export async function trashNote(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
-  return { id: noteId, revision: nextRevision };
+  return { id: noteId, revision: nextRevision, seq };
 }
 
 export async function restoreNote(
@@ -521,8 +606,9 @@ export async function restoreNote(
   workspaceId: string,
   noteId: string,
   actorUserId: string,
-  operationId?: string
-): Promise<Note> {
+  operationId?: string,
+  expectedRevision?: number
+): Promise<NoteWithSeq> {
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
   const res = await client.query<NoteDbRow>(
@@ -542,11 +628,19 @@ export async function restoreNote(
   }
 
   const current = res.rows[0]!;
-  if (!current.deleted_at) {
-    return mapRowToNote(current);
+  const currentRevision = Number(current.revision);
+  if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
+    throw new ConflictError(
+      `REVISION_CONFLICT: Expected revision ${expectedRevision}, but note is at revision ${currentRevision}.`
+    );
   }
 
-  const nextRevision = Number(current.revision) + 1;
+  if (!current.deleted_at) {
+    return { ...mapRowToNote(current), seq: 0 };
+  }
+
+  const nextRevision = currentRevision + 1;
+  const seq = syncState.nextChangeSeq;
 
   await client.query(
     `UPDATE app.items
@@ -557,8 +651,6 @@ export async function restoreNote(
      WHERE workspace_id = $1 AND id = $2;`,
     [workspaceId, noteId, nextRevision, actorUserId]
   );
-
-  const seq = syncState.nextChangeSeq;
 
   await insertChange(client, {
     workspaceId,
@@ -595,5 +687,6 @@ export async function restoreNote(
     ...mapRowToNote(current),
     revision: nextRevision,
     deletedAt: null,
+    seq,
   };
 }

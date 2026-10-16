@@ -7,6 +7,7 @@ import type {
   AccountNamespace,
   LocalRepositoryPort,
   ConflictRecord,
+  NoteRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -20,6 +21,7 @@ import {
   validateSyncCursorRecord,
   validatePreferenceSnapshotRecord,
   validateConflictRecord,
+  validateNoteRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -394,6 +396,28 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           }
           await db.execAsync(`
             INSERT INTO schema_migrations (version, applied_at) VALUES (3, datetime('now'));
+          `);
+        }
+
+        if (currentVersion < 4) {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS notes (
+              id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              folder_id TEXT,
+              title TEXT,
+              document_json TEXT NOT NULL,
+              plain_text TEXT NOT NULL,
+              word_count INTEGER NOT NULL,
+              char_count INTEGER NOT NULL,
+              server_revision INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT,
+              PRIMARY KEY (workspace_id, id)
+            );
+
+            INSERT INTO schema_migrations (version, applied_at) VALUES (4, datetime('now'));
           `);
         }
       });
@@ -961,19 +985,57 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
+  private async upsertNoteDirect(valid: NoteRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO notes (
+        id, workspace_id, folder_id, title, document_json, plain_text,
+        word_count, char_count, server_revision, created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        folder_id = excluded.folder_id,
+        title = excluded.title,
+        document_json = excluded.document_json,
+        plain_text = excluded.plain_text,
+        word_count = excluded.word_count,
+        char_count = excluded.char_count,
+        server_revision = excluded.server_revision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        deleted_at = excluded.deleted_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.folderId ?? null,
+      valid.title ?? null,
+      JSON.stringify(valid.document),
+      valid.plainText,
+      valid.wordCount,
+      valid.charCount,
+      valid.serverRevision,
+      valid.createdAt,
+      valid.updatedAt,
+      valid.deletedAt ?? null
+    );
+  }
+
   async saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
-    draft?: DraftRecord
+    draft?: DraftRecord,
+    note?: NoteRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
     const validDraft = draft ? validateDraftRecord(draft) : undefined;
+    const validNote = note ? validateNoteRecord(note) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
     if (validDraft) {
       this.ensureNamespace(validDraft.workspaceId, validDraft.userId);
+    }
+    if (validNote) {
+      this.ensureNamespace(validNote.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -985,6 +1047,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validDraft) {
             await this.saveDraftDirect(validDraft);
           }
+          if (validNote) {
+            await this.upsertNoteDirect(validNote);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -992,9 +1057,15 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  async applyAcknowledgment(header: ItemHeaderRecord, operationId: string): Promise<void> {
+  async applyAcknowledgment(
+    header: ItemHeaderRecord,
+    operationId: string,
+    note?: NoteRecord
+  ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
+    const validNote = note ? validateNoteRecord(note) : undefined;
     this.ensureNamespace(valid.workspaceId);
+    if (validNote) this.ensureNamespace(validNote.workspaceId);
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1002,6 +1073,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         await db.withTransactionAsync(async () => {
           await this.upsertItemHeaderDirect(valid);
           await db.runAsync(`DELETE FROM pending_mutations WHERE operation_id = ?;`, operationId);
+          if (validNote) {
+            await this.upsertNoteDirect(validNote);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1009,12 +1083,20 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  async applyPullPage(changes: ItemHeaderRecord[], newCursor: SyncCursorRecord): Promise<void> {
+  async applyPullPage(
+    changes: ItemHeaderRecord[],
+    newCursor: SyncCursorRecord,
+    notes?: NoteRecord[]
+  ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
     const validatedChanges = changes.map((c) => validateItemHeaderRecord(c));
     for (const c of validatedChanges) {
       this.ensureNamespace(c.workspaceId);
+    }
+    const validatedNotes = (notes || []).map((n) => validateNoteRecord(n));
+    for (const n of validatedNotes) {
+      this.ensureNamespace(n.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1049,6 +1131,18 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertItemHeaderDirect(change);
           }
 
+          for (const n of validatedNotes) {
+            const existingNote = await db.getFirstAsync<{ server_revision: number }>(
+              `SELECT server_revision FROM notes WHERE workspace_id = ? AND id = ?;`,
+              n.workspaceId,
+              n.id
+            );
+            if (existingNote && existingNote.server_revision > n.serverRevision) {
+              continue;
+            }
+            await this.upsertNoteDirect(n);
+          }
+
           // Cursor advancement check: protect against moving cursor backward
           const existingCursor = await db.getFirstAsync<{ last_server_revision: number }>(
             `SELECT last_server_revision FROM sync_cursors WHERE workspace_id = ? AND user_id = ?;`,
@@ -1072,13 +1166,18 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
   async installBootstrapGeneration(
     items: ItemHeaderRecord[],
     watermarkCursor: SyncCursorRecord,
-    preserveLocalItemIds: Set<string>
+    preserveLocalItemIds: Set<string>,
+    notes?: NoteRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
     const validItems = items.map((i) => validateItemHeaderRecord(i));
     for (const item of validItems) {
       this.ensureNamespace(item.workspaceId);
+    }
+    const validatedNotes = (notes || []).map((n) => validateNoteRecord(n));
+    for (const n of validatedNotes) {
+      this.ensureNamespace(n.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1111,7 +1210,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertItemHeaderDirect(item);
           }
 
-          // 3. Update watermark cursor
+          // 3. Upsert snapshot notes
+          for (const n of validatedNotes) {
+            await this.upsertNoteDirect(n);
+          }
+
+          // 4. Update watermark cursor
           await this.saveCursorDirect(validCursor);
         });
       } catch (err) {
@@ -1258,14 +1362,18 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
 
   async resolveConflictTransaction(
     conflictId: string,
-    _resolution: 'keep_server' | 'keep_local' | 'custom',
+    _resolution: 'keep_server' | 'keep_local' | 'custom' | 'save_copy',
     updatedHeader?: ItemHeaderRecord,
     newMutation?: PendingMutationRecord,
-    removeOperationId?: string
+    removeOperationId?: string,
+    updatedNote?: NoteRecord,
+    recoveryDraft?: DraftRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
     const validNewMut = newMutation ? validatePendingMutationRecord(newMutation) : undefined;
+    const validNote = updatedNote ? validateNoteRecord(updatedNote) : undefined;
+    const validDraft = recoveryDraft ? validateDraftRecord(recoveryDraft) : undefined;
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1291,6 +1399,14 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validHeader) {
             await this.upsertItemHeaderDirect(validHeader);
           }
+
+          if (validNote) {
+            await this.upsertNoteDirect(validNote);
+          }
+
+          if (validDraft) {
+            await this.saveDraftDirect(validDraft);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1298,7 +1414,115 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 6. Sync Cursors ---
+  // --- 6. Notes & Documents ---
+
+  async getNote(workspaceId: string, id: string): Promise<NoteRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string | null;
+        document_json: string;
+        plain_text: string;
+        word_count: number;
+        char_count: number;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(`SELECT * FROM notes WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+
+      if (!row) return null;
+      return validateNoteRecord({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        folderId: row.folder_id ?? undefined,
+        title: row.title ?? undefined,
+        document: JSON.parse(row.document_json),
+        plainText: row.plain_text,
+        wordCount: row.word_count,
+        charCount: row.char_count,
+        serverRevision: row.server_revision,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at ?? null,
+      });
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listNotes(workspaceId: string): Promise<NoteRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const rows = await db.getAllAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string | null;
+        document_json: string;
+        plain_text: string;
+        word_count: number;
+        char_count: number;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(
+        `SELECT * FROM notes WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC;`,
+        workspaceId
+      );
+
+      return rows.map((row) =>
+        validateNoteRecord({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          folderId: row.folder_id ?? undefined,
+          title: row.title ?? undefined,
+          document: JSON.parse(row.document_json),
+          plainText: row.plain_text,
+          wordCount: row.word_count,
+          charCount: row.char_count,
+          serverRevision: row.server_revision,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          deletedAt: null,
+        })
+      );
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async upsertNote(note: NoteRecord): Promise<void> {
+    const valid = validateNoteRecord(note);
+    this.ensureNamespace(valid.workspaceId);
+    return this.runWithLock(async () => {
+      try {
+        await this.upsertNoteDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async deleteNote(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(`DELETE FROM notes WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  // --- 7. Sync Cursors ---
 
   private async saveCursorDirect(valid: SyncCursorRecord): Promise<void> {
     const db = this.ensureOpen();
@@ -1424,6 +1648,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM pending_mutations WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM sync_cursors WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM conflicts WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM notes WHERE workspace_id = ?;`, workspaceId);
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1438,13 +1663,14 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     return this.runWithLock(async () => {
       try {
         await db.withTransactionAsync(async () => {
-          // Erase all account-owned data including item headers
+          // Erase all account-owned data including item headers and notes
           await db.runAsync(`DELETE FROM item_headers;`);
           await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM sync_cursors WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM preference_snapshots WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM conflicts WHERE user_id = ?;`, userId);
+          await db.runAsync(`DELETE FROM notes;`);
         });
 
         // Clear all keys from KeyStore

@@ -28,8 +28,8 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
     - Unicode and South Asian language fidelity:
       - Full preservation of complex scripts including Bangla (বাংলা), Arabic, CJK, and emoji without data loss or corruption.
     - Inert rendering and sanitization (`sanitizeInertString`):
-      - Filters ASCII control characters (< 32, preserving `\t`, `\n`, `\r`).
-      - Strips executable HTML constructs (`<script>`, `<style>`) and raw markup tags (`<[^>]+>`) ensuring zero executable markup can enter note documents or plain-text projections.
+      - Filters ASCII null bytes (`\0`) and non-printable control characters (< 32, preserving `\t`, `\n`, `\r`).
+      - Preserves literal user text containing angle brackets (`List<T>`, `x < y`, `<div>`, `<script>`, etc.), blank lines, whitespace, and Unicode. Content renders inertly via standard React/DOM text node interpolation without destructive regex stripping or silent text mutations.
     - Plain-text extraction & metrics:
       - Plain-text projection (`extractPlainText`) preserving natural block separation with newlines.
       - Accurate character count (`calculateCharCount`) and Unicode-aware word count (`calculateWordCount`).
@@ -89,7 +89,7 @@ Verified against real PostgreSQL (`daynori_test`), Fastify API, SyncEngine, and 
 | Acceptance Condition                               | Verification Method                                                                                                         | Location / Artifact                                                                                 | Result                                                                               |
 | :------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------- |
 | **Typed Note AST Invariants & Unicode Round-Trip** | Unit and integration tests round-tripping complex ASTs with Bengali Unicode (`আমার প্রথম নোট`, `বাংলা লিপির পূর্ণ সমর্থন`)  | `packages/domain/src/domain.test.ts` & `tests/integration/phase16-notes-domain-persistence.test.ts` | **PASS**: All blocks, formatting marks, and Bengali Unicode preserved identically.   |
-| **Malicious Markup & Inert Rendering**             | Unit and integration tests passing `<script>alert(1)</script>` and raw tags through `sanitizeInertString` and API endpoints | `packages/domain/src/domain.test.ts` & `tests/integration/phase16-notes-domain-persistence.test.ts` | **PASS**: Executable tags and scripts stripped cleanly; zero dangerous HTML stored.  |
+| **Malicious Markup & Inert Rendering**             | Unit and integration tests round-tripping literal angle brackets (`List<T>`, `x < y`, `<div>`, `<script>alert(1)</script>`) without destructive stripping | `packages/domain/src/domain.test.ts` & `tests/integration/phase16-notes-domain-persistence.test.ts` | **PASS**: Literal content preserved intact; safe interpolation via React/DOM text nodes. |
 | **Document Size & Node Limits**                    | Unit tests verifying rejection of documents exceeding 512 KB or 5000 nodes                                                  | `packages/domain/src/domain.test.ts`                                                                | **PASS**: `MAX_NOTE_DOCUMENT_BYTES` and `MAX_NOTE_NODES` enforced cleanly.           |
 | **Folder Placement & Moving**                      | Integration tests creating note in subfolder and moving it to root Inbox                                                    | `tests/integration/phase16-notes-domain-persistence.test.ts`                                        | **PASS**: Notes participate in folder hierarchy; folder moves update parent cleanly. |
 | **Revision Precondition Conflict Rejection**       | Integration test issuing `PATCH` with stale `expected_revision`; verify HTTP 409 conflict returned                          | `tests/integration/phase16-notes-domain-persistence.test.ts`                                        | **PASS**: HTTP 409 Conflict returned; stale updates safely rejected.                 |
@@ -110,9 +110,9 @@ Verified against real PostgreSQL (`daynori_test`), Fastify API, SyncEngine, and 
   - Physical Android execution and TalkBack accessibility navigation on real devices remain blocked due to physical hardware unavailability in the test environment (`scripts/test-android-e2e.mjs` logs `ACCEPTANCE BLOCKED`).
   - Unit tests, Node integration tests against real PostgreSQL, and headless Chrome browser journeys provide verification in the interim.
 - **Rollback and Recovery:**
-  - PostgreSQL migration `00014_typed_notes_and_persistence.sql` drops cleanly if needed via `DROP TABLE IF EXISTS app.notes CASCADE;`.
-  - Foreign key cascade `(workspace_id, id) REFERENCES app.items(workspace_id, id) ON DELETE CASCADE` guarantees that deleting an item envelope in `app.items` automatically cleans up note bodies in `app.notes`.
-  - All note mutations emit ordered events into `app.changes` and outbox intents into `app.outbox_intents` ensuring durable recovery and synchronization replay.
+  - Non-destructive rollback: If rollback of migration `00014_typed_notes_and_persistence.sql` is ever required, avoid destructive `DROP TABLE`. Instead, perform a data-preserving migration: back up `app.notes` and corresponding `app.items` to an archive schema (`archive.notes`), deprecate active triggers, and preserve all change receipts and revisions in `app.changes`.
+  - Foreign key cascade `(workspace_id, id) REFERENCES app.items(workspace_id, id) ON DELETE CASCADE` guarantees that soft-deleted items preserve note bodies while hard-deleted envelopes cascade safely.
+  - All note mutations emit ordered events into `app.changes` and outbox intents into `app.outbox_intents`, ensuring durable replay, conflict recovery, and draft restoration without data loss.
 
 ## Documentation and Git review
 

@@ -1,4 +1,4 @@
-import type { SyncCommand, SyncPushRequest, SyncCommandType } from '@daynori/contracts';
+import type { SyncCommand, SyncPushRequest, SyncCommandType, NoteDocument } from '@daynori/contracts';
 import type { LocalRepositoryPort } from './ports.js';
 import type {
   AccountNamespace,
@@ -10,6 +10,7 @@ import type {
   ItemSyncState,
   ConflictRecord,
   SyncDiagnostics,
+  NoteRecord,
 } from './models.js';
 import { type SyncTransportPort, classifySyncError } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
@@ -413,9 +414,47 @@ export class SyncEngine {
       lastError: null,
     };
 
+    let noteRecord: NoteRecord | undefined;
+    if (isNote) {
+      const doc =
+        (draft?.payload?.['document'] as Record<string, unknown> | undefined) ||
+        (options?.payload?.['document'] as Record<string, unknown> | undefined) || {
+          version: 1,
+          type: 'doc',
+          content: [],
+        };
+      const plainText =
+        (draft?.payload?.['plainText'] as string | undefined) ??
+        (options?.payload?.['plainText'] as string | undefined) ??
+        '';
+      const wordCount =
+        (draft?.payload?.['wordCount'] as number | undefined) ??
+        (options?.payload?.['wordCount'] as number | undefined) ??
+        (plainText ? plainText.trim().split(/\s+/).filter(Boolean).length : 0);
+      const charCount =
+        (draft?.payload?.['charCount'] as number | undefined) ??
+        (options?.payload?.['charCount'] as number | undefined) ??
+        plainText.length;
+
+      noteRecord = {
+        id: item.id,
+        workspaceId: item.workspaceId,
+        folderId: item.folderId ?? null,
+        title: item.title || item.name || 'Untitled',
+        document: doc as NoteDocument,
+        plainText,
+        wordCount,
+        charCount,
+        serverRevision: item.serverRevision,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        deletedAt: item.deletedAt,
+      };
+    }
+
     // 2. Perform atomic local storage write via transaction
     try {
-      await this.repository.saveItemTransaction(item, mutationRecord, draft);
+      await this.repository.saveItemTransaction(item, mutationRecord, draft, noteRecord);
     } catch (err) {
       // Local transaction failed: cannot show as saved on device
       this.itemStates.set(item.id, {
@@ -688,9 +727,26 @@ export class SyncEngine {
                   : null,
             };
 
+        let noteToAck: NoteRecord | undefined;
+        if (updatedHeader.kind === 'note' || origMutation.entityType === 'note') {
+          const existingNote = await this.repository.getNote(
+            this.namespace.workspaceId,
+            result.entityId
+          );
+          if (existingNote) {
+            noteToAck = {
+              ...existingNote,
+              serverRevision: result.revision,
+              title: updatedHeader.title || updatedHeader.name || existingNote.title,
+              folderId: updatedHeader.folderId ?? null,
+              deletedAt: updatedHeader.deletedAt,
+            };
+          }
+        }
+
         // B. Retain pending work until the durable result is applied locally
         // and apply acknowledgment atomically in a single transaction
-        await this.repository.applyAcknowledgment(updatedHeader, result.operationId);
+        await this.repository.applyAcknowledgment(updatedHeader, result.operationId, noteToAck);
 
         // C. Update item sync state: do NOT report item synced if other operations for it remain unresolved
         const remainingForEntity = (
@@ -801,6 +857,7 @@ export class SyncEngine {
         }
 
         const changesToApply: ItemHeaderRecord[] = [];
+        const notesToApply: NoteRecord[] = [];
 
         for (const change of pullRes.data.changes) {
           totalChanges++;
@@ -878,6 +935,36 @@ export class SyncEngine {
           };
 
           changesToApply.push(header);
+
+          if (kind === 'note' || change.entityType === 'note') {
+            const doc =
+              (data.document as Record<string, unknown> | undefined) ||
+              (typeof data.documentJson === 'string'
+                ? (JSON.parse(data.documentJson) as Record<string, unknown>)
+                : undefined);
+            if (doc) {
+              const plainText = typeof data.plainText === 'string' ? data.plainText : '';
+              const wordCount = typeof data.wordCount === 'number' ? data.wordCount : 0;
+              const charCount =
+                typeof data.charCount === 'number' ? data.charCount : plainText.length;
+              const title = typeof data.title === 'string' ? data.title : name || undefined;
+
+              notesToApply.push({
+                id: change.entityId,
+                workspaceId: this.namespace.workspaceId,
+                folderId: folderId ?? null,
+                title: title || 'Untitled',
+                document: doc as NoteDocument,
+                plainText,
+                wordCount,
+                charCount,
+                serverRevision: change.revision,
+                createdAt,
+                updatedAt,
+                deletedAt,
+              });
+            }
+          }
         }
 
         const newCursorRecord: SyncCursorRecord = {
@@ -893,7 +980,7 @@ export class SyncEngine {
         };
 
         // Atomically apply changes and advance cursor in single transaction
-        await this.repository.applyPullPage(changesToApply, newCursorRecord);
+        await this.repository.applyPullPage(changesToApply, newCursorRecord, notesToApply);
 
         this.lastSyncedAt = newCursorRecord.lastSyncedAt;
         this.accessEpoch = pullRes.data.accessEpoch;
@@ -970,11 +1057,33 @@ export class SyncEngine {
       ...conflicts.map((c) => c.entityId),
     ]);
 
+    const snapshotNotes: NoteRecord[] = [];
+    for (const item of bootstrapRes.data.items) {
+      const raw = item as Record<string, unknown>;
+      if (item.kind === 'note' && raw.document) {
+        snapshotNotes.push({
+          id: item.id,
+          workspaceId: item.workspaceId,
+          folderId: item.folderId ?? null,
+          title: (raw.title as string) || item.name || 'Untitled',
+          document: raw.document as NoteDocument,
+          plainText: (raw.plainText as string) || '',
+          wordCount: typeof raw.wordCount === 'number' ? raw.wordCount : 0,
+          charCount: typeof raw.charCount === 'number' ? raw.charCount : 0,
+          serverRevision: item.revision,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          deletedAt: item.deletedAt,
+        });
+      }
+    }
+
     // Atomically install snapshot, replacing obsolete projections while preserving local work
     await this.repository.installBootstrapGeneration(
       snapshotItems,
       newCursor,
-      preserveLocalItemIds
+      preserveLocalItemIds,
+      snapshotNotes
     );
 
     this.lastSyncedAt = newCursor.lastSyncedAt;
@@ -989,7 +1098,7 @@ export class SyncEngine {
    */
   async resolveConflict(
     conflictId: string,
-    resolution: 'keep_local' | 'keep_server' | 'custom',
+    resolution: 'keep_local' | 'keep_server' | 'custom' | 'save_copy',
     customPayload?: Record<string, unknown>
   ): Promise<void> {
     const conflict =
@@ -999,7 +1108,103 @@ export class SyncEngine {
       throw new Error(`Conflict ${conflictId} not found`);
     }
 
-    if (resolution === 'keep_local' || resolution === 'custom') {
+    if (resolution === 'save_copy') {
+      const copyEntityId = this.generateId();
+      const copyOpId = this.generateId();
+      const localTitle =
+        (conflict.localPayload['title'] as string | undefined) ??
+        (conflict.localPayload['name'] as string | undefined) ??
+        'Copy';
+      const copyPayload = {
+        ...conflict.localPayload,
+        title: `${localTitle} (Copy)`,
+        name: `${localTitle} (Copy)`,
+      };
+
+      const copyMutation: PendingMutationRecord = {
+        operationId: copyOpId,
+        deviceId: this.deviceId,
+        workspaceId: conflict.workspaceId,
+        userId: conflict.userId,
+        entityType: conflict.entityType,
+        entityId: copyEntityId,
+        action: 'create',
+        command:
+          conflict.entityType === 'folder'
+            ? 'createFolder'
+            : conflict.entityType === 'note'
+              ? 'createNote'
+              : 'createItem',
+        commandVersion: 1,
+        schemaVersion: 1,
+        payload: copyPayload,
+        baseRevision: 0,
+        dependencyOperationIds: [],
+        clientTimestamp: new Date().toISOString(),
+        retryCount: 0,
+        status: 'pending',
+        lastError: null,
+      };
+
+      // Also accept server state for original entity
+      let serverHeader: ItemHeaderRecord | undefined = undefined;
+      let serverNote: NoteRecord | undefined = undefined;
+      if (conflict.serverState) {
+        const s = conflict.serverState;
+        serverHeader = {
+          id: conflict.entityId,
+          workspaceId: conflict.workspaceId,
+          kind: (s['kind'] as string) || 'note',
+          folderId: (s['folderId'] as string | null) ?? null,
+          rank: (s['rank'] as string) || '0',
+          isArchived: Boolean(s['isArchived'] ?? false),
+          isPinned: Boolean(s['isPinned'] ?? false),
+          securityScope: (s['securityScope'] as 'standard' | 'vault') || 'standard',
+          serverRevision: conflict.serverRevision,
+          name: (s['title'] as string) || (s['name'] as string) || undefined,
+          title: (s['title'] as string) || (s['name'] as string) || undefined,
+          createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+          updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+          deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+        };
+        if (s['document']) {
+          serverNote = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            folderId: (s['folderId'] as string | null) ?? null,
+            title: (s['title'] as string | undefined) ?? (s['name'] as string | undefined) ?? 'Untitled',
+            document: s['document'] as NoteDocument,
+            plainText: (s['plainText'] as string) || '',
+            wordCount: (s['wordCount'] as number) || 0,
+            charCount: (s['charCount'] as number) || 0,
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+            deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+          };
+        }
+      }
+
+      await this.repository.resolveConflictTransaction(
+        conflict.id,
+        'save_copy',
+        serverHeader,
+        copyMutation,
+        conflict.operationId,
+        serverNote
+      );
+
+      this.itemStates.set(conflict.entityId, {
+        savedOnDevice: true,
+        cloudSyncStatus: 'synced',
+        lastSyncedRevision: conflict.serverRevision,
+      });
+      this.itemStates.set(copyEntityId, {
+        savedOnDevice: true,
+        cloudSyncStatus: 'saved_locally',
+        pendingOperationId: copyOpId,
+      });
+    } else if (resolution === 'keep_local' || resolution === 'custom') {
       const payload =
         resolution === 'custom' && customPayload ? customPayload : conflict.localPayload;
 
@@ -1048,6 +1253,7 @@ export class SyncEngine {
     } else {
       // keep_server: accept server representation
       let updatedHeader: ItemHeaderRecord | undefined = undefined;
+      let updatedNote: NoteRecord | undefined = undefined;
       if (conflict.serverState) {
         const s = conflict.serverState;
         updatedHeader = {
@@ -1060,18 +1266,55 @@ export class SyncEngine {
           isPinned: Boolean(s['isPinned'] ?? false),
           securityScope: (s['securityScope'] as 'standard' | 'vault') || 'standard',
           serverRevision: conflict.serverRevision,
+          name: (s['title'] as string) || (s['name'] as string) || undefined,
+          title: (s['title'] as string) || (s['name'] as string) || undefined,
           createdAt: (s['createdAt'] as string) || new Date().toISOString(),
           updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
           deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
         };
+        if (s['document']) {
+          updatedNote = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            folderId: (s['folderId'] as string | null) ?? null,
+            title: (s['title'] as string | undefined) ?? (s['name'] as string | undefined) ?? 'Untitled',
+            document: s['document'] as NoteDocument,
+            plainText: (s['plainText'] as string) || '',
+            wordCount: (s['wordCount'] as number) || 0,
+            charCount: (s['charCount'] as number) || 0,
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+            deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+          };
+        }
       }
+
+      // Preserve local intent as recovery draft
+      const recoveryDraft: DraftRecord = {
+        id: this.generateId(),
+        workspaceId: conflict.workspaceId,
+        userId: conflict.userId,
+        entityType: conflict.entityType,
+        entityId: conflict.entityId,
+        title:
+          (conflict.localPayload['title'] as string) ||
+          (conflict.localPayload['name'] as string) ||
+          'Conflicted local version',
+        payload: conflict.localPayload,
+        savedAt: new Date().toISOString(),
+        isQuarantined: false,
+        quarantinedAt: null,
+      };
 
       await this.repository.resolveConflictTransaction(
         conflict.id,
         'keep_server',
         updatedHeader,
         undefined,
-        conflict.operationId
+        conflict.operationId,
+        updatedNote,
+        recoveryDraft
       );
 
       this.itemStates.set(conflict.entityId, {
@@ -1093,6 +1336,10 @@ export class SyncEngine {
         this.coordination.requestSync();
       }
     }
+  }
+
+  async getNote(id: string): Promise<NoteRecord | null> {
+    return this.repository.getNote(this.namespace.workspaceId, id);
   }
 
   // --- Auth & Account Boundary Handlers ---

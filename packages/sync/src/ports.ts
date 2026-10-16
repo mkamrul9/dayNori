@@ -6,6 +6,7 @@ import type {
   PreferenceSnapshotRecord,
   AccountNamespace,
   ConflictRecord,
+  NoteRecord,
 } from './models.js';
 import type { ClientMutation } from './types.js';
 import type { WorkspaceId } from '@daynori/domain';
@@ -54,14 +55,24 @@ export interface LocalRepositoryPort {
   saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
-    draft?: DraftRecord
+    draft?: DraftRecord,
+    note?: NoteRecord
   ): Promise<void>;
-  applyAcknowledgment(header: ItemHeaderRecord, operationId: string): Promise<void>;
-  applyPullPage(changes: ItemHeaderRecord[], newCursor: SyncCursorRecord): Promise<void>;
+  applyAcknowledgment(
+    header: ItemHeaderRecord,
+    operationId: string,
+    note?: NoteRecord
+  ): Promise<void>;
+  applyPullPage(
+    changes: ItemHeaderRecord[],
+    newCursor: SyncCursorRecord,
+    notes?: NoteRecord[]
+  ): Promise<void>;
   installBootstrapGeneration(
     items: ItemHeaderRecord[],
     watermarkCursor: SyncCursorRecord,
-    preserveLocalItemIds: Set<string>
+    preserveLocalItemIds: Set<string>,
+    notes?: NoteRecord[]
   ): Promise<void>;
 
   // --- 5. Conflicts ---
@@ -70,21 +81,29 @@ export interface LocalRepositoryPort {
   saveConflict(conflict: ConflictRecord, updatedMutation?: PendingMutationRecord): Promise<void>;
   resolveConflictTransaction(
     conflictId: string,
-    resolution: 'keep_server' | 'keep_local' | 'custom',
+    resolution: 'keep_server' | 'keep_local' | 'custom' | 'save_copy',
     updatedHeader?: ItemHeaderRecord,
     newMutation?: PendingMutationRecord,
-    removeOperationId?: string
+    removeOperationId?: string,
+    updatedNote?: NoteRecord,
+    recoveryDraft?: DraftRecord
   ): Promise<void>;
 
-  // --- 6. Sync Cursors ---
+  // --- 6. Notes & Documents ---
+  getNote(workspaceId: string, id: string): Promise<NoteRecord | null>;
+  listNotes(workspaceId: string): Promise<NoteRecord[]>;
+  upsertNote(note: NoteRecord): Promise<void>;
+  deleteNote(workspaceId: string, id: string): Promise<void>;
+
+  // --- 7. Sync Cursors ---
   getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null>;
   saveCursor(cursor: SyncCursorRecord): Promise<void>;
 
-  // --- 7. Preference Snapshots ---
+  // --- 8. Preference Snapshots ---
   getPreferenceSnapshot(userId: string): Promise<PreferenceSnapshotRecord | null>;
   savePreferenceSnapshot(snapshot: PreferenceSnapshotRecord): Promise<void>;
 
-  // --- 8. Boundary Lifecycle & Data Erasure ---
+  // --- 9. Boundary Lifecycle & Data Erasure ---
   clearWorkspaceData(workspaceId: string): Promise<void>;
   clearAccountData(userId: string): Promise<void>;
 }

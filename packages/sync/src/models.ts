@@ -5,6 +5,8 @@
  * and preference snapshots as specified in the Phase 11 roadmap.
  */
 
+import { type NoteDocument, validateNoteDocument } from '@daynori/domain';
+
 export const MAX_PAYLOAD_BYTES = 1024 * 1024; // 1 MiB max serialized payload size
 export const MAX_ID_LENGTH = 128;
 export const MAX_TITLE_LENGTH = 500;
@@ -340,5 +342,43 @@ export function validateConflictRecord(input: unknown): ConflictRecord {
     conflictReason: assertNonEmptyString(r.conflictReason, 'conflictReason', 500),
     detectedAt: assertNonEmptyString(r.detectedAt, 'detectedAt', 64),
     resolved: Boolean(r.resolved),
+  };
+}
+
+export interface NoteRecord {
+  id: string;
+  workspaceId: string;
+  folderId: string | null;
+  title: string;
+  document: NoteDocument;
+  plainText: string;
+  wordCount: number;
+  charCount: number;
+  serverRevision: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export function validateNoteRecord(input: unknown): NoteRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: NoteRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+  const doc = validateNoteDocument(r.document);
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    folderId: r.folderId !== null && r.folderId !== undefined ? String(r.folderId) : null,
+    title: typeof r.title === 'string' ? r.title : 'Untitled',
+    document: doc,
+    plainText: typeof r.plainText === 'string' ? r.plainText : '',
+    wordCount: typeof r.wordCount === 'number' ? r.wordCount : 0,
+    charCount: typeof r.charCount === 'number' ? r.charCount : 0,
+    serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
+    createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
+    updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
+    deletedAt: r.deletedAt ? String(r.deletedAt) : null,
   };
 }

@@ -303,8 +303,8 @@ describe('Phase 16: Typed Note Domain and Persistence (Integration & Contracts)'
       ).rejects.toThrow();
     });
 
-    it('sanitizes script tags and malicious attributes in text nodes', async () => {
-      const maliciousDoc: NoteDocument = {
+    it('preserves literal programming examples and code markup as inert text without executing while stripping null bytes', async () => {
+      const codeDoc: NoteDocument = {
         version: 1,
         type: 'doc',
         content: [
@@ -313,7 +313,7 @@ describe('Phase 16: Typed Note Domain and Persistence (Integration & Contracts)'
             content: [
               {
                 type: 'text',
-                text: 'Hello <script>alert("pwned")</script> World <img src=x onerror=alert(1)>',
+                text: 'Hello List<T> <script>alert("pwned")</script> World\0',
               },
             ],
           },
@@ -321,17 +321,17 @@ describe('Phase 16: Typed Note Domain and Persistence (Integration & Contracts)'
       };
 
       const res = await clientA.createNote(workspaceAId, {
-        title: 'Security Sanitization Test',
-        document: maliciousDoc,
+        title: 'Literal Preservation Test',
+        document: codeDoc,
       });
 
-      // The document text should have script tags stripped out
+      // The document text should preserve literal angle brackets and code examples, stripping only null byte
       const plainText = res.data.plainText;
-      expect(plainText).not.toContain('<script>');
-      expect(plainText).not.toContain('</script>');
-      expect(plainText).not.toContain('<img');
+      expect(plainText).toContain('List<T>');
+      expect(plainText).toContain('<script>alert("pwned")</script>');
       expect(plainText).toContain('Hello');
       expect(plainText).toContain('World');
+      expect(plainText).not.toContain('\0');
     });
   });
 

@@ -249,12 +249,12 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
       const version = await repo.getCurrentSchemaVersion();
-      expect(version).toBe(3);
+      expect(version).toBe(4);
 
       // Re-running initialization should not fail or duplicate migrations
       await repo.initialize({ userId: user1, workspaceId: ws1 });
       const versionAfter = await repo.getCurrentSchemaVersion();
-      expect(versionAfter).toBe(3);
+      expect(versionAfter).toBe(4);
 
       await repo.close();
     });
@@ -633,6 +633,54 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
 
       await Promise.all([txPromise, headerPromise]);
       expect(events).toEqual(['tx_completed', 'concurrent_write_completed']);
+
+      await repo.close();
+    });
+
+    it('persists, updates, queries, and deletes typed notes (migration 4)', async () => {
+      const repo = createRepo();
+      await repo.initialize({ userId: user1, workspaceId: ws1 });
+
+      const note = {
+        id: 'note-mob-001',
+        workspaceId: ws1,
+        title: 'Mobile Architecture Note',
+        folderId: null,
+        document: {
+          version: 1,
+          type: 'doc' as const,
+          content: [
+            {
+              type: 'paragraph' as const,
+              content: [{ type: 'text' as const, text: 'Literal List<T> preservation in SQLite' }],
+            },
+          ],
+        },
+        plainText: 'Literal List<T> preservation in SQLite',
+        serverRevision: 1,
+        isPinned: false,
+        isArchived: false,
+        rank: '00001000',
+        createdAt: '2026-10-16T10:00:00.000Z',
+        updatedAt: '2026-10-16T10:00:00.000Z',
+        deletedAt: null,
+      };
+
+      await repo.upsertNote(note);
+
+      const fetched = await repo.getNote(ws1, 'note-mob-001');
+      expect(fetched).not.toBeNull();
+      expect(fetched?.title).toBe('Mobile Architecture Note');
+      expect(fetched?.plainText).toBe('Literal List<T> preservation in SQLite');
+      expect(fetched?.document.content[0]?.type).toBe('paragraph');
+
+      const list = await repo.listNotes(ws1);
+      expect(list.length).toBe(1);
+      expect(list[0]?.id).toBe('note-mob-001');
+
+      await repo.deleteNote(ws1, 'note-mob-001');
+      const afterDelete = await repo.getNote(ws1, 'note-mob-001');
+      expect(afterDelete).toBeNull();
 
       await repo.close();
     });

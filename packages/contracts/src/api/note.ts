@@ -26,12 +26,14 @@ export const NoteInlineNodeSchema = z.discriminatedUnion('type', [
 export type NoteInlineNode = z.infer<typeof NoteInlineNodeSchema>;
 
 export const NoteParagraphBlockSchema = z.object({
+  id: z.string().optional(),
   type: z.literal('paragraph'),
   content: z.array(NoteInlineNodeSchema).optional(),
 });
 export type NoteParagraphBlock = z.infer<typeof NoteParagraphBlockSchema>;
 
 export const NoteHeadingBlockSchema = z.object({
+  id: z.string().optional(),
   type: z.literal('heading'),
   level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   content: z.array(NoteInlineNodeSchema).optional(),
@@ -39,24 +41,28 @@ export const NoteHeadingBlockSchema = z.object({
 export type NoteHeadingBlock = z.infer<typeof NoteHeadingBlockSchema>;
 
 export const NoteListItemNodeSchema = z.object({
+  id: z.string().optional(),
   type: z.literal('list_item'),
   content: z.array(NoteInlineNodeSchema).default([]),
 });
 export type NoteListItemNode = z.infer<typeof NoteListItemNodeSchema>;
 
 export const NoteBulletListBlockSchema = z.object({
+  id: z.string().optional(),
   type: z.literal('bullet_list'),
   items: z.array(NoteListItemNodeSchema).default([]),
 });
 export type NoteBulletListBlock = z.infer<typeof NoteBulletListBlockSchema>;
 
 export const NoteOrderedListBlockSchema = z.object({
+  id: z.string().optional(),
   type: z.literal('ordered_list'),
   items: z.array(NoteListItemNodeSchema).default([]),
 });
 export type NoteOrderedListBlock = z.infer<typeof NoteOrderedListBlockSchema>;
 
 export const NoteChecklistItemNodeSchema = z.object({
+  id: z.string().optional(),
   type: z.literal('checklist_item'),
   checked: z.boolean().default(false),
   content: z.array(NoteInlineNodeSchema).default([]),
@@ -64,6 +70,7 @@ export const NoteChecklistItemNodeSchema = z.object({
 export type NoteChecklistItemNode = z.infer<typeof NoteChecklistItemNodeSchema>;
 
 export const NoteChecklistBlockSchema = z.object({
+  id: z.string().optional(),
   type: z.literal('checklist'),
   items: z.array(NoteChecklistItemNodeSchema).default([]),
 });
@@ -134,6 +141,20 @@ export const UpdateNoteRequestSchema = z
   })
   .strict();
 export type UpdateNoteRequest = z.infer<typeof UpdateNoteRequestSchema>;
+
+export const TrashNoteRequestSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type TrashNoteRequest = z.infer<typeof TrashNoteRequestSchema>;
+
+export const RestoreNoteRequestSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type RestoreNoteRequest = z.infer<typeof RestoreNoteRequestSchema>;
 
 export const NoteParamsSchema = z.object({
   workspaceId: z.string().uuid(),

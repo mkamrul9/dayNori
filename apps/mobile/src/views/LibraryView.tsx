@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { LocalRepositoryPort, SyncEngine } from '@daynori/sync';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   MobileBreadcrumb,
@@ -34,6 +35,9 @@ export interface LibraryViewProps {
   initialItems?: MobileLibraryRecord[];
   workspaceId?: string | null;
   userId?: string | null;
+  repository?: LocalRepositoryPort;
+  syncEngine?: SyncEngine;
+  isOnline?: boolean;
 }
 
 export interface MobileFolderItem {
@@ -232,8 +236,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   testID = 'library-view',
   initialFolders,
   initialItems,
-  workspaceId: _workspaceId,
-  userId: _userId,
+  workspaceId: propWorkspaceId,
+  userId: propUserId,
+  repository,
+  syncEngine,
+  isOnline,
 }) => {
   const palette = colors[themeMode];
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>(initialFilter);
@@ -245,9 +252,154 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [page, setPage] = useState(1);
 
   // Status & Offline/Sync State
-  const [isOffline] = useState(false);
-  const [localStatus] = useState('Saved locally');
-  const [syncStatus] = useState('Synced');
+  const [isOffline, setIsOffline] = useState(
+    isOnline === false || (syncEngine ? syncEngine.getDiagnostics().networkStatus === 'offline' : false)
+  );
+  const [localStatus, setLocalStatus] = useState('Saved locally');
+  const [syncStatus, setSyncStatus] = useState(
+    syncEngine
+      ? syncEngine.getDiagnostics().cloudSyncStatus === 'syncing'
+        ? 'Syncing...'
+        : syncEngine.getDiagnostics().cloudSyncStatus === 'offline'
+          ? 'Offline'
+          : syncEngine.getDiagnostics().cloudSyncStatus === 'error'
+            ? 'Sync error'
+            : 'Synced'
+      : 'Synced'
+  );
+
+  const workspaceId = propWorkspaceId || (syncEngine ? syncEngine.getDiagnostics().workspaceId : null);
+  const _userId = propUserId || (syncEngine ? syncEngine.getDiagnostics().userId : null);
+
+  // 1. Subscribe to SyncEngine lifecycle and events
+  useEffect(() => {
+    if (!syncEngine) return;
+    const updateFromEngine = () => {
+      const diag = syncEngine.getDiagnostics();
+      setIsOffline(diag.networkStatus === 'offline');
+      if (diag.cloudSyncStatus === 'syncing') {
+        setSyncStatus('Syncing...');
+      } else if (diag.cloudSyncStatus === 'offline') {
+        setSyncStatus('Offline');
+      } else if (diag.cloudSyncStatus === 'error') {
+        setSyncStatus('Sync error');
+      } else {
+        setSyncStatus('Synced');
+      }
+    };
+    updateFromEngine();
+    const unsub = syncEngine.onEvent(() => {
+      updateFromEngine();
+    });
+    return unsub;
+  }, [syncEngine]);
+
+  // 2. Load persisted items from repository if provided
+  useEffect(() => {
+    if (!workspaceId) return;
+    const repo = repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+    if (!repo) return;
+
+    let mounted = true;
+    void (async () => {
+      try {
+        const itemRecords = await repo.listItems(workspaceId, {
+          includeArchived: true,
+          includeDeleted: true,
+        });
+        if (!mounted || itemRecords.length === 0) return;
+
+        const loadedFolders: MobileFolderItem[] = [];
+        const loadedItems: MobileLibraryRecord[] = [];
+
+        for (const item of itemRecords) {
+          if (item.kind === 'folder') {
+            loadedFolders.push({
+              id: item.id,
+              name: (item.snapshotPayload?.['name'] as string) || 'Folder',
+              parentId: item.folderId,
+              rank: item.rank,
+              revision: item.revision,
+              archivedAt: item.isArchived ? new Date().toISOString() : null,
+              trashedAt: item.deletedAt,
+            });
+          } else {
+            loadedItems.push({
+              id: item.id,
+              title: (item.snapshotPayload?.['title'] as string) || 'Item',
+              kind: item.kind as MobileLibraryRecord['kind'],
+              folderId: item.folderId,
+              rank: item.rank,
+              revision: item.revision,
+              metadata: `${item.kind.toUpperCase()} • rev ${item.revision}`,
+              archivedAt: item.isArchived ? new Date().toISOString() : null,
+              trashedAt: item.deletedAt,
+            });
+          }
+        }
+
+        setFolders(loadedFolders);
+        setItems(loadedItems);
+      } catch {
+        /* fallback to initial state */
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [workspaceId, repository, syncEngine]);
+
+  // Helper to persist mutations to sync engine or local repository
+  const persistMutation = async (
+    command: string,
+    entityType: 'folder' | 'item',
+    entityId: string,
+    baseRevision: number,
+    payload: Record<string, unknown>
+  ) => {
+    setLocalStatus('Saving locally...');
+    if (syncEngine) {
+      try {
+        await syncEngine.enqueueMutation({
+          command,
+          entityType,
+          entityId,
+          baseRevision,
+          payload,
+        });
+        setLocalStatus('Saved locally');
+        void syncEngine.pushPending().catch(() => {});
+      } catch {
+        setLocalStatus('Save failed');
+      }
+    } else if (repository && workspaceId) {
+      try {
+        if (command === 'createFolder') {
+          await repository.upsertItemHeader({
+            id: entityId,
+            workspaceId,
+            kind: 'folder',
+            folderId: (payload['parentId'] as string) || null,
+            rank: (payload['rank'] as string) || '00001000',
+            isArchived: false,
+            isPinned: false,
+            securityScope: 'standard',
+            serverRevision: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            deletedAt: null,
+            snapshotPayload: payload,
+          });
+        }
+        setLocalStatus('Saved locally');
+      } catch {
+        setLocalStatus('Save failed');
+      }
+    } else {
+      setLocalStatus('Saved locally');
+    }
+  };
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // Modals / Sheets State
@@ -400,6 +552,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setFolders((prev) =>
       prev.map((f) => (f.id === folderId ? { ...f, rank: newRank, revision: f.revision + 1 } : f))
     );
+    void persistMutation('reorderFolder', 'folder', folderId, target.revision, { rank: newRank });
   };
 
   // Create Subfolder
@@ -438,6 +591,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setNewFolderName('');
     setCreateFolderSheetOpen(false);
     setCreateError(null);
+
+    void persistMutation('createFolder', 'folder', newFolder.id, 0, {
+      id: newFolder.id,
+      name: newFolder.name,
+      parentId: newFolder.parentId,
+      rank: newFolder.rank,
+    });
   };
 
   // Rename Folder
@@ -456,6 +616,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     );
     setRenameTargetFolder(null);
 
+    void persistMutation('updateFolder', 'folder', targetId, renameTargetFolder.revision, {
+      name: trimmed,
+    });
+
     // Provide undo toast
     setUndoToast({
       id: `rename-${targetId}`,
@@ -465,6 +629,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           prev.map((f) =>
             f.id === targetId ? { ...f, name: origName, revision: f.revision + 1 } : f
           )
+        );
+        void persistMutation(
+          'updateFolder',
+          'folder',
+          targetId,
+          renameTargetFolder.revision + 1,
+          { name: origName }
         );
         setUndoToast(null);
       },
@@ -519,6 +690,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     );
     setMoveTargetFolder(null);
 
+    void persistMutation('moveFolder', 'folder', folderId, moveTargetFolder.revision, {
+      parentId: moveDestinationId,
+    });
+
     setUndoToast({
       id: `move-${folderId}`,
       message: `Moved folder '${moveTargetFolder.name}'`,
@@ -528,6 +703,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             f.id === folderId ? { ...f, parentId: originalParentId, revision: f.revision + 1 } : f
           )
         );
+        void persistMutation('moveFolder', 'folder', folderId, moveTargetFolder.revision + 1, {
+          parentId: originalParentId,
+        });
         setUndoToast(null);
       },
     });
@@ -586,6 +764,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
     setTrashTargetFolder(null);
 
+    void persistMutation('trashFolder', 'folder', folderId, trashTargetFolder.revision, {
+      trashSubtree,
+    });
+
     // Provide undo toast
     setUndoToast({
       id: `trash-${folderId}`,
@@ -601,6 +783,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             affectedItemIds.includes(i.id) ? { ...i, trashedAt: null, revision: i.revision + 1 } : i
           )
         );
+        void persistMutation('restoreFolder', 'folder', folderId, trashTargetFolder.revision + 1, {
+          restoreSubtree: true,
+        });
         setUndoToast(null);
       },
     });
