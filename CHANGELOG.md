@@ -1,5 +1,34 @@
 # Changelog
 
+## Phase 15 — Folder browsing and organization interfaces — 2026-10-15
+
+- **Web Library Interface (`apps/web`):**
+  - Implemented folder browsing with root/Inbox view (`parentId === null`) and drill-down into nested subfolders.
+  - Added accessible `BreadcrumbNav` component with `<nav aria-label="Breadcrumb">`, `<ol>`/`<li>`, `aria-current="page"`, visible focus ring, and dedicated Up button navigation.
+  - Displayed mixed folder contents containing child folders, notes, tasks, routines, and journals with semantic `ItemTypeBadge` components.
+  - Added non-destructive module view filters (`All Items`, `Notes`, `Knowledge`, `Files`, `Tasks`) projecting content without altering folder hierarchy.
+  - Implemented folder CRUD operations: Create folder dialog with depth enforcement (`MAX_FOLDER_DEPTH = 5`), color, icon, and parent selection; Rename dialog; Move dialog with cycle prevention (`detectCycle`); Delete dialog supporting both `preserve_to_parent` and `trash_subtree` policies; Archive/Unarchive toggle.
+  - Supported accessible reordering via touch/pointer buttons (▲ / ▼) and keyboard shortcuts (`Alt+Up` / `Alt+Down`) with polite `aria-live` screen-reader announcements.
+  - Added floating undo toast with 10-second countdown and optimistic revision check for reversible actions.
+  - Decoupled local persistence indicator (`Saved on device` via `IndexedDbLocalRepository` when trusted-device consent is granted) from cloud sync status (`Synced`, `Syncing`, `Offline`, `Conflict`, `Error`).
+  - Added bounded 10 items/page pagination for large folders and demo journeys seeder for Software and Government Jobs research fixtures.
+  - Ensured full WCAG 1.4.10 mobile reflow compliance at 320px viewport width without horizontal scrollbars.
+- **Mobile Library Interface (`apps/mobile`):**
+  - Implemented mobile folder browsing with root and nested drilldown navigation.
+  - Added `MobileBreadcrumb` with Up button navigation and 48dp touch targets.
+  - Implemented module filter tabs (`all`, `notes`, `knowledge`, `files`) preserving backward-compatible testIDs (`library-filter-${key}`).
+  - Displayed mixed items with semantic `MobileTypeBadge` cards.
+  - Added bottom action sheets for folder creation, renaming, and deletion (with subtree option).
+  - Implemented touch reordering buttons (▲ / ▼) with 48dp minimum touch targets.
+  - Added floating undo notification banner for reversible operations.
+  - Displayed local storage status and cloud synchronization badges.
+  - Integrated sample journey loader for Software and Government Jobs journeys.
+- **Shared UI Components (`packages/ui-web`, `packages/ui-mobile`):**
+  - Added `BreadcrumbNav` and `ItemTypeBadge` to `@daynori/ui-web`.
+  - Added `MobileBreadcrumb` and `MobileTypeBadge` to `@daynori/ui-mobile`.
+- **Decision Record:**
+  - Published [ADR-0021: Folder Browsing and Library Interfaces](docs/decisions/0021-folder-browsing-and-library-interfaces.md).
+
 ## Phase 14 — Collections, folders, and shared item metadata — 2026-10-15
 
 - **Unified Workspace Folder Hierarchy (`infra/supabase`, `packages/contracts`, `apps/api`):**

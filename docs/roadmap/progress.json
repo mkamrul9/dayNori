@@ -92,7 +92,9 @@
     },
     {
       "id": "15",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional folder browsing and organization interfaces delivered and verified across PostgreSQL, Fastify API, production browser CDP with real IndexedDB, and mobile. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-15.md"
     },
     {
       "id": "16",

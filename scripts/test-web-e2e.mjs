@@ -554,6 +554,228 @@ try {
   const errorCleared = await evaluate(`!document.querySelector('#retry-state-btn')`);
   record('Interactive Retry state recovery', errorCleared, 'Content recovered cleanly after retry');
 
+  // ----------------------------------------------------
+  // TEST SUITE 5: Phase 15 Folder Browsing, Mixed Item Lists & Hierarchy Navigation
+  // ----------------------------------------------------
+  console.log('\n[7/7] Testing Phase 15 Library folder browsing, hierarchy, and mixed items...');
+
+  await setViewport(1280, 800, false);
+  await navigateTo('/library');
+
+  // A. Verify Root Breadcrumb & Canonical Folders
+  const rootBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Library root breadcrumbs',
+    rootBreadcrumb?.includes('Workspace'),
+    `Breadcrumb contains Workspace: "${rootBreadcrumb}"`
+  );
+
+  const initialFolders = await evaluate(`(() => {
+    const list = Array.from(document.querySelectorAll('button[title^="Open "]'));
+    return list.map((b) => b.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Canonical root folders present',
+    initialFolders.some((f) => f.includes('Software')) &&
+      initialFolders.some((f) => f.includes('Government jobs')),
+    `Found folders: ${initialFolders.join(', ')}`
+  );
+
+  await captureScreenshot('library-root-desktop.png');
+
+  // B. Drill down into Software folder
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Software'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const softwareBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Drill-down into Software folder',
+    softwareBreadcrumb?.includes('Software'),
+    `Breadcrumb updated to: "${softwareBreadcrumb}"`
+  );
+
+  const softwareSubfolders = await evaluate(`(() => {
+    const list = Array.from(document.querySelectorAll('button[title^="Open "]'));
+    return list.map((b) => b.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Subfolders Guides and Projects in Software',
+    softwareSubfolders.some((f) => f.includes('Guides')) &&
+      softwareSubfolders.some((f) => f.includes('Projects')),
+    `Subfolders: ${softwareSubfolders.join(', ')}`
+  );
+
+  await captureScreenshot('library-software-desktop.png');
+
+  // C. Drill down into Guides folder (contains mixed items: knowledge note, pdf file, task)
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Guides'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const guidesBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Drill-down into Guides subfolder',
+    guidesBreadcrumb?.includes('Guides'),
+    `Breadcrumb updated to: "${guidesBreadcrumb}"`
+  );
+
+  const guidesItems = await evaluate(`(() => {
+    const rows = Array.from(document.querySelectorAll('div[role="listitem"]'));
+    return rows.map((r) => r.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Mixed items in Guides (note, file, task)',
+    guidesItems.some((i) => i.includes('TypeScript reference')) &&
+      guidesItems.some((i) => i.includes('.pdf')) &&
+      guidesItems.some((i) => i.includes('generics')),
+    `Contained mixed items with badges`
+  );
+
+  await captureScreenshot('library-guides-mixed-items.png');
+
+  // D. Type-filtering: Filter by Files without moving content
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'Files');
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 200));
+
+  const filteredItemsFiles = await evaluate(`(() => {
+    const rows = Array.from(document.querySelectorAll('div[role="listitem"]'));
+    return rows.map((r) => r.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Type filter "Files" isolates PDF without altering folderId',
+    filteredItemsFiles.length === 1 && filteredItemsFiles[0].includes('.pdf'),
+    `Filtered items count=${filteredItemsFiles.length}`
+  );
+
+  // Restore All Items
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'All Items');
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 200));
+
+  // E. Up Navigation: Return to Software, then return to Workspace
+  await evaluate(`(() => {
+    const upBtn = document.querySelector('button[aria-label="Navigate to parent folder"]');
+    if (upBtn) upBtn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const afterUpBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Up navigation returns to parent folder',
+    afterUpBreadcrumb?.includes('Software') && !afterUpBreadcrumb?.includes('Guides'),
+    `Current location: "${afterUpBreadcrumb}"`
+  );
+
+  // Up again to root
+  await evaluate(`(() => {
+    const upBtn = document.querySelector('button[aria-label="Navigate to parent folder"]');
+    if (upBtn) upBtn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const backAtRoot = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Up navigation back to Workspace root',
+    backAtRoot?.trim() === 'Workspace',
+    `Root location: "${backAtRoot?.trim()}"`
+  );
+
+  // F. Drill into Government jobs -> Applications
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Government jobs'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Applications'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const govItems = await evaluate(`(() => {
+    const rows = Array.from(document.querySelectorAll('div[role="listitem"]'));
+    return rows.map((r) => r.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Government jobs Applications journey items',
+    govItems.some((i) => i.includes('Application Form.pdf')) &&
+      govItems.some((i) => i.includes('civil service exam')),
+    `Government jobs journey verified`
+  );
+
+  // G. Test Folder Creation Modal
+  await navigateTo('/library');
+  await evaluate(
+    `document.querySelector('button[aria-label="Create new workspace folder"]').click()`
+  );
+  await new Promise((r) => setTimeout(r, 300));
+
+  const createDialogOpen = await evaluate(`(() => {
+    const input = document.querySelector('#create-folder-name');
+    return !!input;
+  })()`);
+  record('Phase 15 Create Folder dialog opens', createDialogOpen, 'Dialog rendered with input');
+
+  await evaluate(`document.querySelector('#create-folder-name').focus()`);
+  await send('Input.insertText', { text: 'E2E Verified Folder' });
+  await new Promise((r) => setTimeout(r, 200));
+
+  await evaluate(`(() => {
+    const submitBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'Create Folder');
+    if (submitBtn) submitBtn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 400));
+
+  const newFolderAppeared = await evaluate(`(() => {
+    const list = Array.from(document.querySelectorAll('button[title^="Open "]'));
+    return list.some(b => b.innerText.includes('E2E Verified Folder'));
+  })()`);
+  record(
+    'Phase 15 Folder created and rendered in workspace',
+    newFolderAppeared,
+    'E2E Verified Folder present in folder list'
+  );
+
+  // H. Responsive 320px mobile reflow on /library
+  await setViewport(320, 600, true);
+  const libraryMobileReflow = await evaluate(`(() => {
+    const scrollWidth = document.documentElement.scrollWidth;
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      scrollWidth,
+      clientWidth,
+      noOverflow: scrollWidth <= clientWidth,
+    };
+  })()`);
+  record(
+    'Phase 15 Library 320px mobile reflow (WCAG 1.4.10)',
+    libraryMobileReflow.noOverflow,
+    `Zero horizontal overflow: scrollWidth=${libraryMobileReflow.scrollWidth} <= clientWidth=${libraryMobileReflow.clientWidth}`
+  );
+  await captureScreenshot('library-mobile-320px.png');
+
+  // Restore desktop viewport
+  await setViewport(1280, 800, false);
+
   // Final summary
   const allPassed = testResults.every((t) => t.pass);
   console.log('\n=== BROWSER E2E TEST SUMMARY ===');

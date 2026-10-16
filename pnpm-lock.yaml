@@ -108,6 +108,9 @@ importers:
       '@daynori/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@daynori/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@daynori/sync':
         specifier: workspace:*
         version: link:../../packages/sync
@@ -166,6 +169,9 @@ importers:
       '@daynori/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@daynori/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@daynori/sync':
         specifier: workspace:*
         version: link:../../packages/sync

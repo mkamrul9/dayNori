@@ -8,3 +8,5 @@ export * from './MobileCard.js';
 export * from './MobileEmptyState.js';
 export * from './MobileNavigationBar.js';
 export * from './MobileHeader.js';
+export * from './MobileBreadcrumb.js';
+export * from './MobileTypeBadge.js';

@@ -235,6 +235,95 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       expect(activeFilter).toBe('files');
     });
 
+    it('navigates into Software folder and displays subfolders and breadcrumbs', () => {
+      let renderer!: ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(LibraryView, {
+            themeMode: 'light',
+          })
+        );
+      });
+
+      const root = renderer.root;
+
+      // Find Software folder button and click
+      const softwareFolderBtn = root.findByProps({
+        accessibilityLabel: 'Open folder Software, contains 0 items',
+      });
+      expect(softwareFolderBtn).toBeDefined();
+
+      act(() => {
+        softwareFolderBtn.props.onPress();
+      });
+
+      // Breadcrumb should now show Software
+      const breadcrumb = renderer.root.findByProps({ testID: 'mobile-breadcrumb' });
+      expect(breadcrumb.props.accessibilityLabel).toContain('Software');
+
+      // Click Go Back to parent
+      const upBtn = renderer.root.findByProps({ accessibilityLabel: 'Go back to parent folder' });
+      expect(upBtn).toBeDefined();
+      act(() => {
+        upBtn.props.onPress();
+      });
+
+      // Breadcrumb should be back to Workspace
+      const breadcrumbRoot = renderer.root.findByProps({ testID: 'mobile-breadcrumb' });
+      expect(breadcrumbRoot.props.accessibilityLabel).toBe('Current location: Workspace');
+    });
+
+    it('supports reordering folders up and down', () => {
+      let renderer!: ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(LibraryView, {
+            themeMode: 'light',
+          })
+        );
+      });
+
+      // Find move down button for first folder (Software)
+      const moveDownBtn = renderer.root.findByProps({ accessibilityLabel: 'Move Software down' });
+      expect(moveDownBtn).toBeDefined();
+
+      act(() => {
+        moveDownBtn.props.onPress();
+      });
+
+      // After moving down, Software can now be moved up
+      const moveUpBtn = renderer.root.findByProps({ accessibilityLabel: 'Move Software up' });
+      expect(moveUpBtn.props.disabled).toBe(false);
+    });
+
+    it('demonstrates Software and Government jobs sample journeys', () => {
+      let renderer!: ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(LibraryView, {
+            themeMode: 'light',
+          })
+        );
+      });
+
+      const root = renderer.root;
+      const demoBtn = root.findByProps({ accessibilityLabel: 'Load sample journeys' });
+      expect(demoBtn).toBeDefined();
+
+      act(() => {
+        demoBtn.props.onPress();
+      });
+
+      // Verify Government jobs folder is present
+      const govJobsBtn = root.findByProps({
+        accessibilityLabel: 'Open folder Government jobs, contains 0 items',
+      });
+      expect(govJobsBtn).toBeDefined();
+    });
+
     it('mounts JournalView with protection gate when unauthenticated and unlocks on login', () => {
       let loggedIn = false;
       let renderer: ReactTestRenderer;
