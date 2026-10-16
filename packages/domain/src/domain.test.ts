@@ -6,6 +6,16 @@ import {
   isValidDateOnly,
   parseDateOnly,
   type NoteTextInline,
+  validateRoutineTitle,
+  getIsoWeekday,
+  validateWeekdays,
+  isRoutineScheduledOnDate,
+  generateOccurrencesForDateRange,
+  completeOccurrence,
+  skipOccurrence,
+  reopenOccurrence,
+  reconcileOccurrencesOnScheduleChange,
+  type RoutineTemplateRule,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -763,6 +773,285 @@ describe('Domain Rules and Invariants', () => {
       expect(() => checkLocalTimeDisambiguation('2026-10-16', 'invalid', 'UTC')).toThrow(
         'INVALID_TIME_STRING'
       );
+    });
+  });
+
+  describe('Phase 20: Daily Routine Schedules and Occurrences', () => {
+    it('validates routine titles with Unicode and Bangla script preservation', () => {
+      expect(validateRoutineTitle('  Morning Exercise  ')).toBe('Morning Exercise');
+      expect(validateRoutineTitle('  সকালের হাঁটা (Morning Walk) 🏃  ')).toBe(
+        'সকালের হাঁটা (Morning Walk) 🏃'
+      );
+      expect(() => validateRoutineTitle('')).toThrow(RangeError);
+      expect(() => validateRoutineTitle('   ')).toThrow(RangeError);
+      expect(() => validateRoutineTitle('a'.repeat(256))).toThrow(RangeError);
+    });
+
+    it('calculates ISO weekdays accurately across leap years and months', () => {
+      // 2024-02-29 was a Thursday (4)
+      expect(getIsoWeekday('2024-02-29')).toBe(4);
+      // 2026-10-12 was a Monday (1)
+      expect(getIsoWeekday('2026-10-12')).toBe(1);
+      // 2026-10-18 was a Sunday (7)
+      expect(getIsoWeekday('2026-10-18')).toBe(7);
+      // 2026-10-17 was a Saturday (6)
+      expect(getIsoWeekday('2026-10-17')).toBe(6);
+      // 2026-10-16 is a Friday (5)
+      expect(getIsoWeekday('2026-10-16')).toBe(5);
+    });
+
+    it('validates selected weekdays array', () => {
+      expect(validateWeekdays([5, 1, 3, 1])).toEqual([1, 3, 5]);
+      expect(() => validateWeekdays([0])).toThrow(RangeError);
+      expect(() => validateWeekdays([8])).toThrow(RangeError);
+    });
+
+    it('evaluates whether a routine is scheduled on a given calendar date', () => {
+      const dailyRoutine: RoutineTemplateRule = {
+        id: 'r-1',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Daily Meditation',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'Asia/Dhaka',
+        scheduledTime: '07:00',
+        activeFrom: '2026-10-01',
+        activeTo: '2026-10-31',
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-01',
+      };
+
+      // In window
+      expect(isRoutineScheduledOnDate(dailyRoutine, '2026-10-15')).toBe(true);
+      // Before activeFrom
+      expect(isRoutineScheduledOnDate(dailyRoutine, '2026-09-30')).toBe(false);
+      // After activeTo
+      expect(isRoutineScheduledOnDate(dailyRoutine, '2026-11-01')).toBe(false);
+
+      // Paused
+      expect(isRoutineScheduledOnDate({ ...dailyRoutine, isPaused: true }, '2026-10-15')).toBe(
+        false
+      );
+      // Archived
+      expect(isRoutineScheduledOnDate({ ...dailyRoutine, isArchived: true }, '2026-10-15')).toBe(
+        false
+      );
+
+      // Weekday routine: Monday (1), Wednesday (3), Friday (5)
+      const mwfRoutine: RoutineTemplateRule = {
+        ...dailyRoutine,
+        frequency: 'weekdays',
+        weekdays: [1, 3, 5],
+      };
+      // 2026-10-16 is Friday (5) -> true
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-16')).toBe(true);
+      // 2026-10-17 is Saturday (6) -> false
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-17')).toBe(false);
+      // 2026-10-18 is Sunday (7) -> false
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-18')).toBe(false);
+      // 2026-10-19 is Monday (1) -> true
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-19')).toBe(true);
+    });
+
+    it('generates date-scoped occurrences idempotently without duplicates', () => {
+      const mwfRoutine: RoutineTemplateRule = {
+        id: 'r-mwf',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Gym Workout',
+        details: 'Strength training',
+        frequency: 'weekdays',
+        weekdays: [1, 3, 5],
+        timezone: 'Asia/Dhaka',
+        scheduledTime: '06:30',
+        activeFrom: '2026-10-12',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-12',
+      };
+
+      // Generate for one week: Mon 2026-10-12 to Sun 2026-10-18
+      const firstGen = generateOccurrencesForDateRange(mwfRoutine, '2026-10-12', '2026-10-18', []);
+      expect(firstGen).toHaveLength(3);
+      expect(firstGen.map((o) => o.scheduledDate)).toEqual([
+        '2026-10-12',
+        '2026-10-14',
+        '2026-10-16',
+      ]);
+      expect(firstGen[0]!.status).toBe('pending');
+      expect(firstGen[0]!.plannedInstant).toBe('2026-10-12T00:30:00.000Z'); // 06:30 Asia/Dhaka (UTC+6)
+
+      // Repeated generation with existing occurrences returns empty array (idempotency!)
+      const secondGen = generateOccurrencesForDateRange(
+        mwfRoutine,
+        '2026-10-12',
+        '2026-10-18',
+        firstGen
+      );
+      expect(secondGen).toHaveLength(0);
+
+      // Expanding range to next week generates only new dates
+      const expandedGen = generateOccurrencesForDateRange(
+        mwfRoutine,
+        '2026-10-12',
+        '2026-10-25',
+        firstGen
+      );
+      expect(expandedGen).toHaveLength(3);
+      expect(expandedGen.map((o) => o.scheduledDate)).toEqual([
+        '2026-10-19',
+        '2026-10-21',
+        '2026-10-23',
+      ]);
+    });
+
+    it('enforces that completing today never completes tomorrow', () => {
+      const routine: RoutineTemplateRule = {
+        id: 'r-today-tomorrow',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Drink 2L Water',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'UTC',
+        scheduledTime: null,
+        activeFrom: '2026-10-16',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-16',
+      };
+
+      const occurrences = generateOccurrencesForDateRange(routine, '2026-10-16', '2026-10-17', []);
+      expect(occurrences).toHaveLength(2);
+      const [todayOcc, tomorrowOcc] = occurrences;
+
+      // Complete today
+      const completedToday = completeOccurrence(todayOcc!, 'usr-1', '2026-10-16T12:00:00.000Z');
+      expect(completedToday.status).toBe('done');
+      expect(completedToday.completedAt).toBe('2026-10-16T12:00:00.000Z');
+      expect(completedToday.history).toHaveLength(1);
+
+      // Tomorrow remains strictly pending and untouched!
+      expect(tomorrowOcc!.status).toBe('pending');
+      expect(tomorrowOcc!.completedAt).toBeNull();
+      expect(tomorrowOcc!.history).toHaveLength(0);
+
+      // Skip tomorrow
+      const skippedTomorrow = skipOccurrence(tomorrowOcc!, 'usr-1', '2026-10-17T09:00:00.000Z');
+      expect(skippedTomorrow.status).toBe('skipped');
+      expect(skippedTomorrow.completedAt).toBeNull();
+      expect(skippedTomorrow.history).toHaveLength(1);
+
+      // Reopening today resets status to pending without touching tomorrow
+      const reopenedToday = reopenOccurrence(completedToday, 'usr-1', '2026-10-16T14:00:00.000Z');
+      expect(reopenedToday.status).toBe('pending');
+      expect(reopenedToday.completedAt).toBeNull();
+      expect(reopenedToday.history).toHaveLength(2);
+      expect(reopenedToday.history[1]!.previousStatus).toBe('done');
+    });
+
+    it('reconciles schedule edits while strictly preserving completed history', () => {
+      const routine: RoutineTemplateRule = {
+        id: 'r-edit',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Daily Reading',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'America/New_York',
+        scheduledTime: '21:00',
+        activeFrom: '2026-10-10',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-10',
+      };
+
+      const occurrences = generateOccurrencesForDateRange(routine, '2026-10-10', '2026-10-18', []);
+      // Mark Oct 10 done, Oct 11 skipped
+      occurrences[0] = completeOccurrence(occurrences[0]!, 'usr-1', '2026-10-10T22:00:00.000Z');
+      occurrences[1] = skipOccurrence(occurrences[1]!, 'usr-1', '2026-10-11T22:00:00.000Z');
+      // Oct 12..18 remain pending
+
+      // On Oct 14, user edits schedule: change from Daily to Weekdays Mon, Wed, Fri only, revision 2
+      const updatedRule: RoutineTemplateRule = {
+        ...routine,
+        frequency: 'weekdays',
+        weekdays: [1, 3, 5],
+        scheduleRevision: 2,
+        effectiveDate: '2026-10-14',
+      };
+
+      const { retained, cancelledOccurrenceIds } = reconcileOccurrencesOnScheduleChange(
+        occurrences,
+        updatedRule,
+        '2026-10-14'
+      );
+
+      // Oct 10 (done) and Oct 11 (skipped) are historical: preserved!
+      const oct10 = retained.find((o) => o.scheduledDate === '2026-10-10');
+      expect(oct10?.status).toBe('done');
+      expect(oct10?.scheduleRevision).toBe(1);
+
+      const oct11 = retained.find((o) => o.scheduledDate === '2026-10-11');
+      expect(oct11?.status).toBe('skipped');
+      expect(oct11?.scheduleRevision).toBe(1);
+
+      // Oct 12 and Oct 13 are prior to effectiveDate Oct 14: preserved with revision 1!
+      const oct12 = retained.find((o) => o.scheduledDate === '2026-10-12');
+      expect(oct12?.scheduleRevision).toBe(1);
+
+      // Oct 15 (Thursday = 4) and Oct 17 (Saturday = 6) are no longer scheduled: cancelled!
+      expect(cancelledOccurrenceIds).toContain(
+        occurrences.find((o) => o.scheduledDate === '2026-10-15')?.id
+      );
+      expect(cancelledOccurrenceIds).toContain(
+        occurrences.find((o) => o.scheduledDate === '2026-10-17')?.id
+      );
+
+      // Oct 14 (Wednesday = 3) and Oct 16 (Friday = 5) are still scheduled: updated to revision 2!
+      const oct14 = retained.find((o) => o.scheduledDate === '2026-10-14');
+      expect(oct14?.scheduleRevision).toBe(2);
+      const oct16 = retained.find((o) => o.scheduledDate === '2026-10-16');
+      expect(oct16?.scheduleRevision).toBe(2);
+    });
+
+    it('pins the scheduling timezone and is not altered by user travel', () => {
+      // User creates routine in Dhaka (UTC+6) scheduled at 08:00
+      const routine: RoutineTemplateRule = {
+        id: 'r-dhaka',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Morning Standup Routine',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'Asia/Dhaka',
+        scheduledTime: '08:00',
+        activeFrom: '2026-10-16',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-16',
+      };
+
+      const occurrences = generateOccurrencesForDateRange(routine, '2026-10-16', '2026-10-16', []);
+      expect(occurrences).toHaveLength(1);
+      // 08:00 Asia/Dhaka is always 02:00:00.000Z
+      expect(occurrences[0]!.plannedInstant).toBe('2026-10-16T02:00:00.000Z');
+      expect(occurrences[0]!.timezone).toBe('Asia/Dhaka');
     });
   });
 });

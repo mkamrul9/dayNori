@@ -84,6 +84,21 @@ import {
   type TaskListQuery,
   type TaskResponse,
   type TaskListResponse,
+  RoutineResponseSchema,
+  RoutineListResponseSchema,
+  RoutineOccurrenceResponseSchema,
+  RoutineOccurrenceListResponseSchema,
+  type CreateRoutineRequest,
+  type UpdateRoutineRequest,
+  type CompleteOccurrenceRequest,
+  type SkipOccurrenceRequest,
+  type ReopenOccurrenceRequest,
+  type RoutineListQuery,
+  type GenerateOccurrencesQuery,
+  type RoutineResponse,
+  type RoutineListResponse,
+  type RoutineOccurrenceResponse,
+  type RoutineOccurrenceListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -993,6 +1008,181 @@ export class DaynoriApiClient {
       options
     );
     return TaskResponseSchema.parse(raw);
+  }
+
+  // --- Routine Module (Phase 20) ---
+
+  async createRoutine(
+    workspaceId: string,
+    request: CreateRoutineRequest,
+    options?: RequestOptions
+  ): Promise<RoutineResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoutineResponseSchema.parse(raw);
+  }
+
+  async getRoutine(
+    workspaceId: string,
+    routineId: string,
+    options?: RequestOptions
+  ): Promise<RoutineResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/${routineId}`,
+      { method: 'GET' },
+      options
+    );
+    return RoutineResponseSchema.parse(raw);
+  }
+
+  async listRoutines(
+    workspaceId: string,
+    query?: RoutineListQuery,
+    options?: RequestOptions
+  ): Promise<RoutineListResponse> {
+    const params = new URLSearchParams();
+    if (query?.folderId !== undefined) {
+      if (query.folderId === null) params.set('folderId', 'null');
+      else params.set('folderId', query.folderId);
+    }
+    if (query?.includeArchived !== undefined) {
+      params.set('includeArchived', String(query.includeArchived));
+    }
+    if (query?.includePaused !== undefined) {
+      params.set('includePaused', String(query.includePaused));
+    }
+    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    if (query?.cursor) params.set('cursor', query.cursor);
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return RoutineListResponseSchema.parse(raw);
+  }
+
+  async updateRoutine(
+    workspaceId: string,
+    routineId: string,
+    request: UpdateRoutineRequest,
+    options?: RequestOptions
+  ): Promise<RoutineResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/${routineId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return RoutineResponseSchema.parse(raw);
+  }
+
+  async trashRoutine(
+    workspaceId: string,
+    routineId: string,
+    baseRevision: number,
+    options?: RequestOptions
+  ): Promise<{ data: { id: string; revision: number; seq: number }; meta: { requestId: string } }> {
+    const raw = await this.request<{
+      data: { id: string; revision: number; seq: number };
+      meta: { requestId: string };
+    }>(
+      `/v1/workspaces/${workspaceId}/routines/${routineId}`,
+      { method: 'DELETE', body: JSON.stringify({ baseRevision }) },
+      options
+    );
+    return raw;
+  }
+
+  async restoreRoutine(
+    workspaceId: string,
+    routineId: string,
+    baseRevision: number,
+    options?: RequestOptions
+  ): Promise<RoutineResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/${routineId}/restore`,
+      { method: 'POST', body: JSON.stringify({ baseRevision }) },
+      options
+    );
+    return RoutineResponseSchema.parse(raw);
+  }
+
+  async generateOccurrences(
+    workspaceId: string,
+    query: GenerateOccurrencesQuery,
+    options?: RequestOptions
+  ): Promise<RoutineOccurrenceListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/generate-occurrences`,
+      { method: 'POST', body: JSON.stringify(query) },
+      options
+    );
+    return RoutineOccurrenceListResponseSchema.parse(raw);
+  }
+
+  async listOccurrences(
+    workspaceId: string,
+    query: GenerateOccurrencesQuery,
+    options?: RequestOptions
+  ): Promise<RoutineOccurrenceListResponse> {
+    const params = new URLSearchParams();
+    params.set('startDate', query.startDate);
+    params.set('endDate', query.endDate);
+    if (query.routineId) params.set('routineId', query.routineId);
+
+    const qs = `?${params.toString()}`;
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/occurrences${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return RoutineOccurrenceListResponseSchema.parse(raw);
+  }
+
+  async completeOccurrence(
+    workspaceId: string,
+    occurrenceId: string,
+    request: CompleteOccurrenceRequest,
+    options?: RequestOptions
+  ): Promise<RoutineOccurrenceResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/occurrences/${occurrenceId}/complete`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoutineOccurrenceResponseSchema.parse(raw);
+  }
+
+  async skipOccurrence(
+    workspaceId: string,
+    occurrenceId: string,
+    request: SkipOccurrenceRequest,
+    options?: RequestOptions
+  ): Promise<RoutineOccurrenceResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/occurrences/${occurrenceId}/skip`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoutineOccurrenceResponseSchema.parse(raw);
+  }
+
+  async reopenOccurrence(
+    workspaceId: string,
+    occurrenceId: string,
+    request: ReopenOccurrenceRequest,
+    options?: RequestOptions
+  ): Promise<RoutineOccurrenceResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/routines/occurrences/${occurrenceId}/reopen`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoutineOccurrenceResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

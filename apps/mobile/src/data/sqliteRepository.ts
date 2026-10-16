@@ -9,6 +9,8 @@ import type {
   ConflictRecord,
   NoteRecord,
   TaskRecord,
+  RoutineRecord,
+  RoutineOccurrenceRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -24,6 +26,8 @@ import {
   validateConflictRecord,
   validateNoteRecord,
   validateTaskRecord,
+  validateRoutineRecord,
+  validateRoutineOccurrenceRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -448,6 +452,58 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             );
 
             INSERT INTO schema_migrations (version, applied_at) VALUES (5, datetime('now'));
+          `);
+        }
+
+        if (currentVersion < 6) {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS routines (
+              id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              folder_id TEXT,
+              title TEXT NOT NULL,
+              details TEXT,
+              frequency TEXT NOT NULL,
+              weekdays_json TEXT NOT NULL,
+              timezone TEXT NOT NULL,
+              scheduled_time TEXT,
+              active_from TEXT NOT NULL,
+              active_to TEXT,
+              is_paused INTEGER NOT NULL DEFAULT 0,
+              is_archived INTEGER NOT NULL DEFAULT 0,
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              schedule_revision INTEGER NOT NULL DEFAULT 1,
+              effective_date TEXT NOT NULL,
+              server_revision INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT,
+              PRIMARY KEY (workspace_id, id)
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_occurrences (
+              id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              routine_id TEXT NOT NULL,
+              scheduled_date TEXT NOT NULL,
+              schedule_revision INTEGER NOT NULL DEFAULT 1,
+              planned_instant TEXT,
+              timezone TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'pending',
+              completed_at TEXT,
+              completed_by TEXT,
+              history_json TEXT NOT NULL,
+              server_revision INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (workspace_id, id),
+              UNIQUE (workspace_id, routine_id, scheduled_date)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_routine_occurrences_lookup
+            ON routine_occurrences (workspace_id, routine_id, scheduled_date);
+
+            INSERT INTO schema_migrations (version, applied_at) VALUES (6, datetime('now'));
           `);
         }
       });
@@ -1094,18 +1150,111 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     );
   }
 
+  private async upsertRoutineDirect(valid: RoutineRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO routines (
+        id, workspace_id, folder_id, title, details, frequency,
+        weekdays_json, timezone, scheduled_time, active_from, active_to,
+        is_paused, is_archived, is_pinned, schedule_revision, effective_date,
+        server_revision, created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        folder_id = excluded.folder_id,
+        title = excluded.title,
+        details = excluded.details,
+        frequency = excluded.frequency,
+        weekdays_json = excluded.weekdays_json,
+        timezone = excluded.timezone,
+        scheduled_time = excluded.scheduled_time,
+        active_from = excluded.active_from,
+        active_to = excluded.active_to,
+        is_paused = excluded.is_paused,
+        is_archived = excluded.is_archived,
+        is_pinned = excluded.is_pinned,
+        schedule_revision = excluded.schedule_revision,
+        effective_date = excluded.effective_date,
+        server_revision = excluded.server_revision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        deleted_at = excluded.deleted_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.folderId ?? null,
+      valid.title,
+      valid.details ?? null,
+      valid.frequency,
+      JSON.stringify(valid.weekdays),
+      valid.timezone,
+      valid.scheduledTime ?? null,
+      valid.activeFrom,
+      valid.activeTo ?? null,
+      valid.isPaused ? 1 : 0,
+      valid.isArchived ? 1 : 0,
+      valid.isPinned ? 1 : 0,
+      valid.scheduleRevision,
+      valid.effectiveDate,
+      valid.serverRevision,
+      valid.createdAt,
+      valid.updatedAt,
+      valid.deletedAt ?? null
+    );
+  }
+
+  private async upsertRoutineOccurrenceDirect(valid: RoutineOccurrenceRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO routine_occurrences (
+        id, workspace_id, routine_id, scheduled_date, schedule_revision,
+        planned_instant, timezone, status, completed_at, completed_by,
+        history_json, server_revision, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        routine_id = excluded.routine_id,
+        scheduled_date = excluded.scheduled_date,
+        schedule_revision = excluded.schedule_revision,
+        planned_instant = excluded.planned_instant,
+        timezone = excluded.timezone,
+        status = excluded.status,
+        completed_at = excluded.completed_at,
+        completed_by = excluded.completed_by,
+        history_json = excluded.history_json,
+        server_revision = excluded.server_revision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.routineId,
+      valid.scheduledDate,
+      valid.scheduleRevision,
+      valid.plannedInstant ?? null,
+      valid.timezone,
+      valid.status,
+      valid.completedAt ?? null,
+      valid.completedBy ?? null,
+      JSON.stringify(valid.history),
+      valid.serverRevision,
+      valid.createdAt,
+      valid.updatedAt
+    );
+  }
+
   async saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
     draft?: DraftRecord,
     note?: NoteRecord,
-    task?: TaskRecord
+    task?: TaskRecord,
+    routine?: RoutineRecord,
+    occurrence?: RoutineOccurrenceRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
     const validDraft = draft ? validateDraftRecord(draft) : undefined;
     const validNote = note ? validateNoteRecord(note) : undefined;
     const validTask = task ? validateTaskRecord(task) : undefined;
+    const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
+    const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
@@ -1117,6 +1266,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     }
     if (validTask) {
       this.ensureNamespace(validTask.workspaceId);
+    }
+    if (validRoutine) {
+      this.ensureNamespace(validRoutine.workspaceId);
+    }
+    if (validOccurrence) {
+      this.ensureNamespace(validOccurrence.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1134,6 +1289,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validTask) {
             await this.upsertTaskDirect(validTask);
           }
+          if (validRoutine) {
+            await this.upsertRoutineDirect(validRoutine);
+          }
+          if (validOccurrence) {
+            await this.upsertRoutineOccurrenceDirect(validOccurrence);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1145,14 +1306,20 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     header: ItemHeaderRecord,
     operationId: string,
     note?: NoteRecord,
-    task?: TaskRecord
+    task?: TaskRecord,
+    routine?: RoutineRecord,
+    occurrence?: RoutineOccurrenceRecord
   ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
     const validNote = note ? validateNoteRecord(note) : undefined;
     const validTask = task ? validateTaskRecord(task) : undefined;
+    const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
+    const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
     this.ensureNamespace(valid.workspaceId);
     if (validNote) this.ensureNamespace(validNote.workspaceId);
     if (validTask) this.ensureNamespace(validTask.workspaceId);
+    if (validRoutine) this.ensureNamespace(validRoutine.workspaceId);
+    if (validOccurrence) this.ensureNamespace(validOccurrence.workspaceId);
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1166,6 +1333,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validTask) {
             await this.upsertTaskDirect(validTask);
           }
+          if (validRoutine) {
+            await this.upsertRoutineDirect(validRoutine);
+          }
+          if (validOccurrence) {
+            await this.upsertRoutineOccurrenceDirect(validOccurrence);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1177,7 +1350,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     changes: ItemHeaderRecord[],
     newCursor: SyncCursorRecord,
     notes?: NoteRecord[],
-    tasks?: TaskRecord[]
+    tasks?: TaskRecord[],
+    routines?: RoutineRecord[],
+    occurrences?: RoutineOccurrenceRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1192,6 +1367,14 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedTasks = (tasks || []).map((t) => validateTaskRecord(t));
     for (const t of validatedTasks) {
       this.ensureNamespace(t.workspaceId);
+    }
+    const validatedRoutines = (routines || []).map((r) => validateRoutineRecord(r));
+    for (const r of validatedRoutines) {
+      this.ensureNamespace(r.workspaceId);
+    }
+    const validatedOccurrences = (occurrences || []).map((o) => validateRoutineOccurrenceRecord(o));
+    for (const o of validatedOccurrences) {
+      this.ensureNamespace(o.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1250,6 +1433,30 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertTaskDirect(t);
           }
 
+          for (const r of validatedRoutines) {
+            const existingRoutine = await db.getFirstAsync<{ server_revision: number }>(
+              `SELECT server_revision FROM routines WHERE workspace_id = ? AND id = ?;`,
+              r.workspaceId,
+              r.id
+            );
+            if (existingRoutine && existingRoutine.server_revision > r.serverRevision) {
+              continue;
+            }
+            await this.upsertRoutineDirect(r);
+          }
+
+          for (const o of validatedOccurrences) {
+            const existingOcc = await db.getFirstAsync<{ server_revision: number }>(
+              `SELECT server_revision FROM routine_occurrences WHERE workspace_id = ? AND id = ?;`,
+              o.workspaceId,
+              o.id
+            );
+            if (existingOcc && existingOcc.server_revision > o.serverRevision) {
+              continue;
+            }
+            await this.upsertRoutineOccurrenceDirect(o);
+          }
+
           // Cursor advancement check: protect against moving cursor backward
           const existingCursor = await db.getFirstAsync<{ last_server_revision: number }>(
             `SELECT last_server_revision FROM sync_cursors WHERE workspace_id = ? AND user_id = ?;`,
@@ -1275,7 +1482,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     watermarkCursor: SyncCursorRecord,
     preserveLocalItemIds: Set<string>,
     notes?: NoteRecord[],
-    tasks?: TaskRecord[]
+    tasks?: TaskRecord[],
+    routines?: RoutineRecord[],
+    occurrences?: RoutineOccurrenceRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1290,6 +1499,14 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedTasks = (tasks || []).map((t) => validateTaskRecord(t));
     for (const t of validatedTasks) {
       this.ensureNamespace(t.workspaceId);
+    }
+    const validatedRoutines = (routines || []).map((r) => validateRoutineRecord(r));
+    for (const r of validatedRoutines) {
+      this.ensureNamespace(r.workspaceId);
+    }
+    const validatedOccurrences = (occurrences || []).map((o) => validateRoutineOccurrenceRecord(o));
+    for (const o of validatedOccurrences) {
+      this.ensureNamespace(o.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1332,7 +1549,17 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertTaskDirect(t);
           }
 
-          // 5. Update watermark cursor
+          // 5. Upsert snapshot routines
+          for (const r of validatedRoutines) {
+            await this.upsertRoutineDirect(r);
+          }
+
+          // 6. Upsert snapshot occurrences
+          for (const o of validatedOccurrences) {
+            await this.upsertRoutineOccurrenceDirect(o);
+          }
+
+          // 7. Update watermark cursor
           await this.saveCursorDirect(validCursor);
         });
       } catch (err) {
@@ -1485,7 +1712,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     removeOperationId?: string,
     updatedNote?: NoteRecord,
     recoveryDraft?: DraftRecord,
-    updatedTask?: TaskRecord
+    updatedTask?: TaskRecord,
+    updatedRoutine?: RoutineRecord,
+    updatedOccurrence?: RoutineOccurrenceRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
@@ -1493,6 +1722,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validNote = updatedNote ? validateNoteRecord(updatedNote) : undefined;
     const validDraft = recoveryDraft ? validateDraftRecord(recoveryDraft) : undefined;
     const validTask = updatedTask ? validateTaskRecord(updatedTask) : undefined;
+    const validRoutine = updatedRoutine ? validateRoutineRecord(updatedRoutine) : undefined;
+    const validOccurrence = updatedOccurrence
+      ? validateRoutineOccurrenceRecord(updatedOccurrence)
+      : undefined;
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1525,6 +1758,14 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
 
           if (validTask) {
             await this.upsertTaskDirect(validTask);
+          }
+
+          if (validRoutine) {
+            await this.upsertRoutineDirect(validRoutine);
+          }
+
+          if (validOccurrence) {
+            await this.upsertRoutineOccurrenceDirect(validOccurrence);
           }
 
           if (validDraft) {
@@ -1777,7 +2018,290 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 8. Sync Cursors ---
+  // --- 8. Routines & Routine Occurrences ---
+
+  async getRoutine(workspaceId: string, id: string): Promise<RoutineRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string;
+        details: string | null;
+        frequency: string;
+        weekdays_json: string;
+        timezone: string;
+        scheduled_time: string | null;
+        active_from: string;
+        active_to: string | null;
+        is_paused: number;
+        is_archived: number;
+        is_pinned: number;
+        schedule_revision: number;
+        effective_date: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(`SELECT * FROM routines WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+
+      if (!row) return null;
+      return validateRoutineRecord({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        folderId: row.folder_id ?? undefined,
+        title: row.title,
+        details: row.details ?? undefined,
+        frequency: row.frequency,
+        weekdays: JSON.parse(row.weekdays_json),
+        timezone: row.timezone,
+        scheduledTime: row.scheduled_time ?? undefined,
+        activeFrom: row.active_from,
+        activeTo: row.active_to ?? undefined,
+        isPaused: Boolean(row.is_paused),
+        isArchived: Boolean(row.is_archived),
+        isPinned: Boolean(row.is_pinned),
+        scheduleRevision: row.schedule_revision,
+        effectiveDate: row.effective_date,
+        serverRevision: row.server_revision,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at ?? null,
+      });
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listRoutines(workspaceId: string): Promise<RoutineRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const rows = await db.getAllAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string;
+        details: string | null;
+        frequency: string;
+        weekdays_json: string;
+        timezone: string;
+        scheduled_time: string | null;
+        active_from: string;
+        active_to: string | null;
+        is_paused: number;
+        is_archived: number;
+        is_pinned: number;
+        schedule_revision: number;
+        effective_date: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(
+        `SELECT * FROM routines WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at ASC;`,
+        workspaceId
+      );
+
+      return rows.map((row) =>
+        validateRoutineRecord({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          folderId: row.folder_id ?? undefined,
+          title: row.title,
+          details: row.details ?? undefined,
+          frequency: row.frequency,
+          weekdays: JSON.parse(row.weekdays_json),
+          timezone: row.timezone,
+          scheduledTime: row.scheduled_time ?? undefined,
+          activeFrom: row.active_from,
+          activeTo: row.active_to ?? undefined,
+          isPaused: Boolean(row.is_paused),
+          isArchived: Boolean(row.is_archived),
+          isPinned: Boolean(row.is_pinned),
+          scheduleRevision: row.schedule_revision,
+          effectiveDate: row.effective_date,
+          serverRevision: row.server_revision,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          deletedAt: null,
+        })
+      );
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async upsertRoutine(routine: RoutineRecord): Promise<void> {
+    const valid = validateRoutineRecord(routine);
+    this.ensureNamespace(valid.workspaceId);
+    return this.runWithLock(async () => {
+      try {
+        await this.upsertRoutineDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async deleteRoutine(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `DELETE FROM routines WHERE workspace_id = ? AND id = ?;`,
+          workspaceId,
+          id
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async getRoutineOccurrence(
+    workspaceId: string,
+    id: string
+  ): Promise<RoutineOccurrenceRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        id: string;
+        workspace_id: string;
+        routine_id: string;
+        scheduled_date: string;
+        schedule_revision: number;
+        planned_instant: string | null;
+        timezone: string;
+        status: string;
+        completed_at: string | null;
+        completed_by: string | null;
+        history_json: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+      }>(`SELECT * FROM routine_occurrences WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+
+      if (!row) return null;
+      return validateRoutineOccurrenceRecord({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        routineId: row.routine_id,
+        scheduledDate: row.scheduled_date,
+        scheduleRevision: row.schedule_revision,
+        plannedInstant: row.planned_instant ?? undefined,
+        timezone: row.timezone,
+        status: row.status,
+        completedAt: row.completed_at ?? undefined,
+        completedBy: row.completed_by ?? undefined,
+        history: JSON.parse(row.history_json),
+        serverRevision: row.server_revision,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      });
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listRoutineOccurrences(
+    workspaceId: string,
+    routineId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<RoutineOccurrenceRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      let sql = `SELECT * FROM routine_occurrences WHERE workspace_id = ?`;
+      const params: unknown[] = [workspaceId];
+      if (routineId) {
+        sql += ` AND routine_id = ?`;
+        params.push(routineId);
+      }
+      if (startDate) {
+        sql += ` AND scheduled_date >= ?`;
+        params.push(startDate);
+      }
+      if (endDate) {
+        sql += ` AND scheduled_date <= ?`;
+        params.push(endDate);
+      }
+      sql += ` ORDER BY scheduled_date ASC;`;
+
+      const rows = await db.getAllAsync<{
+        id: string;
+        workspace_id: string;
+        routine_id: string;
+        scheduled_date: string;
+        schedule_revision: number;
+        planned_instant: string | null;
+        timezone: string;
+        status: string;
+        completed_at: string | null;
+        completed_by: string | null;
+        history_json: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+      }>(sql, ...params);
+
+      return rows.map((row) =>
+        validateRoutineOccurrenceRecord({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          routineId: row.routine_id,
+          scheduledDate: row.scheduled_date,
+          scheduleRevision: row.schedule_revision,
+          plannedInstant: row.planned_instant ?? undefined,
+          timezone: row.timezone,
+          status: row.status,
+          completedAt: row.completed_at ?? undefined,
+          completedBy: row.completed_by ?? undefined,
+          history: JSON.parse(row.history_json),
+          serverRevision: row.server_revision,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        })
+      );
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async upsertRoutineOccurrence(occurrence: RoutineOccurrenceRecord): Promise<void> {
+    const valid = validateRoutineOccurrenceRecord(occurrence);
+    this.ensureNamespace(valid.workspaceId);
+    return this.runWithLock(async () => {
+      try {
+        await this.upsertRoutineOccurrenceDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async deleteRoutineOccurrence(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `DELETE FROM routine_occurrences WHERE workspace_id = ? AND id = ?;`,
+          workspaceId,
+          id
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  // --- 9. Sync Cursors ---
 
   private async saveCursorDirect(valid: SyncCursorRecord): Promise<void> {
     const db = this.ensureOpen();
@@ -1890,7 +2414,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 7. Boundary Lifecycle & Data Erasure ---
+  // --- 11. Boundary Lifecycle & Data Erasure ---
 
   async clearWorkspaceData(workspaceId: string): Promise<void> {
     this.ensureNamespace(workspaceId);
@@ -1905,6 +2429,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM conflicts WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM notes WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM tasks WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM routines WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM routine_occurrences WHERE workspace_id = ?;`, workspaceId);
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1919,7 +2445,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     return this.runWithLock(async () => {
       try {
         await db.withTransactionAsync(async () => {
-          // Erase all account-owned data including item headers, notes, and tasks
+          // Erase all account-owned data including item headers, notes, tasks, routines, and occurrences
           await db.runAsync(`DELETE FROM item_headers;`);
           await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
@@ -1928,6 +2454,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM conflicts WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM notes;`);
           await db.runAsync(`DELETE FROM tasks;`);
+          await db.runAsync(`DELETE FROM routines;`);
+          await db.runAsync(`DELETE FROM routine_occurrences;`);
         });
 
         // Clear all keys from KeyStore

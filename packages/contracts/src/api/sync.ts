@@ -31,6 +31,13 @@ export const SyncCommandTypeSchema = z.enum([
   'restoreTask',
   'completeTask',
   'reopenTask',
+  'createRoutine',
+  'updateRoutine',
+  'trashRoutine',
+  'restoreRoutine',
+  'completeOccurrence',
+  'skipOccurrence',
+  'reopenOccurrence',
 ]);
 
 export type SyncCommandType = z.infer<typeof SyncCommandTypeSchema>;
@@ -46,7 +53,7 @@ export const SyncCommandSchema = z
     commandVersion: z.number().int().min(1).default(1),
     schemaVersion: z.number().int().min(1).default(1),
     command: SyncCommandTypeSchema,
-    entityType: z.enum(['item', 'folder', 'note']),
+    entityType: z.enum(['item', 'folder', 'note', 'task', 'routine', 'routine_occurrence']),
     entityId: z.string().uuid(),
     baseRevision: z.number().int().nonnegative().default(0),
     dependencyOperationIds: z.array(z.string().uuid()).max(50).default([]),

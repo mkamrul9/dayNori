@@ -4,3 +4,4 @@ export * from './repositories.js';
 export * from './organization.js';
 export * from './notes.js';
 export * from './tasks.js';
+export * from './routines.js';

@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 20 — Daily routine schedules and occurrences — 2026-10-16
+
+- **Shared Routine Domain & Date-Scoped Occurrences (`packages/domain`, `packages/contracts`):**
+  - Implemented routine schedule template model: title, optional details, frequency (`daily` or `weekdays`), ISO 8601 weekdays `1` (Monday) through `7` (Sunday), explicit IANA timezone, optional scheduled time `HH:mm`, active period bounds (`activeFrom` <= `activeTo`), and pause/archive flags.
+  - Implemented bounded occurrence generator (`generateOccurrencesForDateRange`) supporting date ranges up to 90 days, producing date-scoped occurrence records without duplicating already existing dates.
+  - Established date-scoped occurrence isolation: completing or skipping today's occurrence never affects tomorrow or any other calendar date.
+  - Resolved local scheduled times to UTC planned instants in explicit timezones, deterministically handling DST fall-back overlap hours and spring-forward gaps.
+  - Implemented occurrence state transitions (`completeOccurrence`, `skipOccurrence`, `reopenOccurrence`) with full audit history tracking (`fromStatus`, `toStatus`, `changedAt`, `actorId`, `reason`).
+  - Implemented schedule forward reconciliation (`reconcileOccurrencesOnScheduleChange`): schedule modifications increment `scheduleRevision` and take effect forward from `effectiveDate`, preserving past completed and skipped occurrences while cancelling or updating future pending occurrences.
+- **PostgreSQL Persistence & Tenant Isolation (`infra/supabase`):**
+  - Applied migration `00017_routines_and_occurrences.sql` creating `app.routines` and `app.routine_occurrences` with foreign keys referencing `app.items`.
+  - Added unique constraint `CONSTRAINT uq_routine_occurrence_date UNIQUE (workspace_id, routine_id, scheduled_date)` preventing duplicate occurrences at the database level.
+  - Configured Row-Level Security (RLS) policies scoped strictly to authorized workspace membership.
+- **Fastify API Routes & Sync Dispatcher (`apps/api`):**
+  - Added 11 transactional REST routes under `/v1/workspaces/:workspaceId/routines` for routine CRUD, pause/resume/archive, bounded occurrence generation, date-range listing, and occurrence state transitions with optimistic concurrency protection (`baseRevision`).
+  - Added `formatDateOnly` helper to ensure calendar dates (`YYYY-MM-DD`) are preserved without host timezone day shifts.
+  - Integrated change feed emission producing `routine` and `routine_occurrence` events on workspace sync streams.
+- **Client Storage Adapters (`apps/web`, `apps/mobile`, `@daynori/sync`):**
+  - Updated Web IndexedDB adapter (`apps/web/src/data/indexedDbRepository.ts`, `DB_VERSION = 5`) with `routines` and `routine_occurrences` object stores, composite index `by_routine_date`, atomic write/sync/purge operations.
+  - Updated Mobile SQLite adapter (`apps/mobile/src/data/sqliteRepository.ts`, migration version 6) with `local_routines` and `local_routine_occurrences` tables and indices.
+  - Extended `DaynoriApiClient` with complete typed routine and occurrence methods.
+  - Added `RoutineRecord` and `RoutineOccurrenceRecord` models and validators to `@daynori/sync`.
+- **Decision Record:**
+  - Published [ADR-0026: Daily Routine Schedules, Date-Scoped Occurrences, and Lifecycle Reconciliation](docs/decisions/0026-routine-schedules-and-occurrences.md).
+
 ## Phase 19 — Upcoming task lists and detail views — 2026-10-16
 
 - **Prerequisite Correctness Repairs (`apps/api`, `packages/domain`, `packages/sync`, commit `41061fc`):**

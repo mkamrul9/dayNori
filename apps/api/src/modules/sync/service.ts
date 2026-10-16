@@ -56,6 +56,17 @@ import {
   reopenTaskService,
 } from '../tasks/service.js';
 import {
+  createRoutine,
+  getRoutine,
+  updateRoutine,
+  trashRoutine,
+  restoreRoutine,
+  getOccurrence,
+  completeOccurrenceService,
+  skipOccurrenceService,
+  reopenOccurrenceService,
+} from '../routines/service.js';
+import {
   type NoteDocument,
   validateNoteDocument,
   extractPlainText,
@@ -1538,6 +1549,423 @@ export class SyncService {
             currentServerState = { ...currentTask };
           } catch {
             // Task may not exist
+          }
+
+          const conflictError = {
+            code: 'REVISION_CONFLICT',
+            message: err.message,
+            ...(currentServerRevision !== undefined ? { currentServerRevision } : {}),
+            ...(currentServerState ? { currentServerState } : {}),
+          };
+
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictError },
+          });
+
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: cmd.baseRevision,
+            seq: null,
+            error: conflictError,
+          };
+        }
+
+        const message = err instanceof Error ? err.message : String(err);
+        const code = err instanceof NotFoundError ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+        const errorPayload = { code, message };
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
+    // --- Unified Routine Commands ---
+    if (
+      cmd.command === 'createRoutine' ||
+      cmd.command === 'updateRoutine' ||
+      cmd.command === 'trashRoutine' ||
+      cmd.command === 'restoreRoutine'
+    ) {
+      try {
+        let resultRevision = 1;
+        let appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'createRoutine': {
+            if (existingItem) {
+              throw new ValidationError(
+                `Entity with ID ${cmd.entityId} already exists in this workspace.`
+              );
+            }
+            const routine = await createRoutine(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              {
+                id: cmd.entityId,
+                title:
+                  typeof cmd.payload['title'] === 'string'
+                    ? cmd.payload['title']
+                    : 'Untitled Routine',
+                details: typeof cmd.payload['details'] === 'string' ? cmd.payload['details'] : null,
+                folderId:
+                  typeof cmd.payload['folderId'] === 'string' ? cmd.payload['folderId'] : null,
+                frequency: cmd.payload['frequency'] === 'weekdays' ? 'weekdays' : 'daily',
+                weekdays: Array.isArray(cmd.payload['weekdays'])
+                  ? (cmd.payload['weekdays'] as number[])
+                  : [],
+                timezone:
+                  typeof cmd.payload['timezone'] === 'string' ? cmd.payload['timezone'] : 'UTC',
+                scheduledTime:
+                  typeof cmd.payload['scheduledTime'] === 'string'
+                    ? cmd.payload['scheduledTime']
+                    : null,
+                activeFrom:
+                  typeof cmd.payload['activeFrom'] === 'string'
+                    ? cmd.payload['activeFrom']
+                    : undefined,
+                activeTo:
+                  typeof cmd.payload['activeTo'] === 'string' ? cmd.payload['activeTo'] : null,
+                isPinned: Boolean(cmd.payload['isPinned']),
+              },
+              cmd.operationId
+            );
+            resultRevision = routine.revision;
+            appliedSeq = routine.seq;
+            resultPayload = { routine };
+            break;
+          }
+          case 'updateRoutine': {
+            const routine = await updateRoutine(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                baseRevision: cmd.baseRevision,
+                title: typeof cmd.payload['title'] === 'string' ? cmd.payload['title'] : undefined,
+                details:
+                  typeof cmd.payload['details'] === 'string'
+                    ? cmd.payload['details']
+                    : cmd.payload['details'] === null
+                      ? null
+                      : undefined,
+                folderId:
+                  typeof cmd.payload['folderId'] === 'string'
+                    ? cmd.payload['folderId']
+                    : cmd.payload['folderId'] === null
+                      ? null
+                      : undefined,
+                frequency:
+                  cmd.payload['frequency'] === 'weekdays' || cmd.payload['frequency'] === 'daily'
+                    ? cmd.payload['frequency']
+                    : undefined,
+                weekdays: Array.isArray(cmd.payload['weekdays'])
+                  ? (cmd.payload['weekdays'] as number[])
+                  : undefined,
+                timezone:
+                  typeof cmd.payload['timezone'] === 'string' ? cmd.payload['timezone'] : undefined,
+                scheduledTime:
+                  typeof cmd.payload['scheduledTime'] === 'string'
+                    ? cmd.payload['scheduledTime']
+                    : cmd.payload['scheduledTime'] === null
+                      ? null
+                      : undefined,
+                activeFrom:
+                  typeof cmd.payload['activeFrom'] === 'string'
+                    ? cmd.payload['activeFrom']
+                    : undefined,
+                activeTo:
+                  typeof cmd.payload['activeTo'] === 'string'
+                    ? cmd.payload['activeTo']
+                    : cmd.payload['activeTo'] === null
+                      ? null
+                      : undefined,
+                isPaused:
+                  typeof cmd.payload['isPaused'] === 'boolean'
+                    ? cmd.payload['isPaused']
+                    : undefined,
+                isArchived:
+                  typeof cmd.payload['isArchived'] === 'boolean'
+                    ? cmd.payload['isArchived']
+                    : undefined,
+                isPinned:
+                  typeof cmd.payload['isPinned'] === 'boolean'
+                    ? cmd.payload['isPinned']
+                    : undefined,
+                effectiveDate:
+                  typeof cmd.payload['effectiveDate'] === 'string'
+                    ? cmd.payload['effectiveDate']
+                    : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = routine.revision;
+            appliedSeq = routine.seq;
+            resultPayload = { routine };
+            break;
+          }
+          case 'trashRoutine': {
+            const res = await trashRoutine(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            appliedSeq = res.seq;
+            resultPayload = { ...res };
+            break;
+          }
+          case 'restoreRoutine': {
+            const routine = await restoreRoutine(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = routine.revision;
+            appliedSeq = routine.seq;
+            resultPayload = { routine };
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          let currentServerRevision: number | undefined;
+          let currentServerState: Record<string, unknown> | undefined;
+          try {
+            const currentRoutine = await getRoutine(client, cmd.workspaceId, cmd.entityId);
+            currentServerRevision = currentRoutine.revision;
+            currentServerState = { ...currentRoutine };
+          } catch {
+            // Routine may not exist
+          }
+
+          const conflictError = {
+            code: 'REVISION_CONFLICT',
+            message: err.message,
+            ...(currentServerRevision !== undefined ? { currentServerRevision } : {}),
+            ...(currentServerState ? { currentServerState } : {}),
+          };
+
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictError },
+          });
+
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: cmd.baseRevision,
+            seq: null,
+            error: conflictError,
+          };
+        }
+
+        const message = err instanceof Error ? err.message : String(err);
+        const code = err instanceof NotFoundError ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+        const errorPayload = { code, message };
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
+    // --- Unified Routine Occurrence Commands ---
+    if (
+      cmd.command === 'completeOccurrence' ||
+      cmd.command === 'skipOccurrence' ||
+      cmd.command === 'reopenOccurrence'
+    ) {
+      try {
+        let resultRevision = 1;
+        let appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'completeOccurrence': {
+            const occ = await completeOccurrenceService(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = occ.serverRevision;
+            appliedSeq = occ.seq;
+            resultPayload = { occurrence: occ };
+            break;
+          }
+          case 'skipOccurrence': {
+            const occ = await skipOccurrenceService(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = occ.serverRevision;
+            appliedSeq = occ.seq;
+            resultPayload = { occurrence: occ };
+            break;
+          }
+          case 'reopenOccurrence': {
+            const occ = await reopenOccurrenceService(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = occ.serverRevision;
+            appliedSeq = occ.seq;
+            resultPayload = { occurrence: occ };
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          let currentServerRevision: number | undefined;
+          let currentServerState: Record<string, unknown> | undefined;
+          try {
+            const currentOcc = await getOccurrence(client, cmd.workspaceId, cmd.entityId);
+            currentServerRevision = currentOcc.serverRevision;
+            currentServerState = { ...currentOcc };
+          } catch {
+            // Occurrence may not exist
           }
 
           const conflictError = {

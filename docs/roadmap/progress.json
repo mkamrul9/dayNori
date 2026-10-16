@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-16",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 18 upcoming task domain and deadlines provisional implementation delivered and verified across PostgreSQL, Fastify API, SyncEngine, Web IndexedDB, and Mobile SQLite repositories. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, and 18 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 18 (Upcoming task domain and deadlines) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 20 daily routine schedules and occurrences provisional implementation delivered and verified across PostgreSQL, Fastify API, SyncEngine, Web IndexedDB, and Mobile SQLite repositories. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, and 20 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 20 (Daily routine schedules and occurrences) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -122,7 +122,9 @@
     },
     {
       "id": "20",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional routine schedules, date-scoped occurrences, occurrence state machine, PostgreSQL unique constraints, change reconciliation, and IndexedDB/SQLite adapters delivered under owner authorization and verified across Vitest integration test suite (21/21 passing, 484/484 monorepo tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-20.md"
     },
     {
       "id": "21",

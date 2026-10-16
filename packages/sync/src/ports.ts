@@ -8,6 +8,8 @@ import type {
   ConflictRecord,
   NoteRecord,
   TaskRecord,
+  RoutineRecord,
+  RoutineOccurrenceRecord,
 } from './models.js';
 import type { ClientMutation } from './types.js';
 import type { WorkspaceId } from '@daynori/domain';
@@ -58,26 +60,34 @@ export interface LocalRepositoryPort {
     mutation: PendingMutationRecord,
     draft?: DraftRecord,
     note?: NoteRecord,
-    task?: TaskRecord
+    task?: TaskRecord,
+    routine?: RoutineRecord,
+    occurrence?: RoutineOccurrenceRecord
   ): Promise<void>;
   applyAcknowledgment(
     header: ItemHeaderRecord,
     operationId: string,
     note?: NoteRecord,
-    task?: TaskRecord
+    task?: TaskRecord,
+    routine?: RoutineRecord,
+    occurrence?: RoutineOccurrenceRecord
   ): Promise<void>;
   applyPullPage(
     changes: ItemHeaderRecord[],
     newCursor: SyncCursorRecord,
     notes?: NoteRecord[],
-    tasks?: TaskRecord[]
+    tasks?: TaskRecord[],
+    routines?: RoutineRecord[],
+    occurrences?: RoutineOccurrenceRecord[]
   ): Promise<void>;
   installBootstrapGeneration(
     items: ItemHeaderRecord[],
     watermarkCursor: SyncCursorRecord,
     preserveLocalItemIds: Set<string>,
     notes?: NoteRecord[],
-    tasks?: TaskRecord[]
+    tasks?: TaskRecord[],
+    routines?: RoutineRecord[],
+    occurrences?: RoutineOccurrenceRecord[]
   ): Promise<void>;
 
   // --- 5. Conflicts ---
@@ -92,7 +102,9 @@ export interface LocalRepositoryPort {
     removeOperationId?: string,
     updatedNote?: NoteRecord,
     recoveryDraft?: DraftRecord,
-    updatedTask?: TaskRecord
+    updatedTask?: TaskRecord,
+    updatedRoutine?: RoutineRecord,
+    updatedOccurrence?: RoutineOccurrenceRecord
   ): Promise<void>;
 
   // --- 6. Notes & Documents ---
@@ -107,15 +119,31 @@ export interface LocalRepositoryPort {
   upsertTask(task: TaskRecord): Promise<void>;
   deleteTask(workspaceId: string, id: string): Promise<void>;
 
-  // --- 7. Sync Cursors ---
+  // --- 8. Routines & Routine Occurrences ---
+  getRoutine(workspaceId: string, id: string): Promise<RoutineRecord | null>;
+  listRoutines(workspaceId: string): Promise<RoutineRecord[]>;
+  upsertRoutine(routine: RoutineRecord): Promise<void>;
+  deleteRoutine(workspaceId: string, id: string): Promise<void>;
+
+  getRoutineOccurrence(workspaceId: string, id: string): Promise<RoutineOccurrenceRecord | null>;
+  listRoutineOccurrences(
+    workspaceId: string,
+    routineId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<RoutineOccurrenceRecord[]>;
+  upsertRoutineOccurrence(occurrence: RoutineOccurrenceRecord): Promise<void>;
+  deleteRoutineOccurrence(workspaceId: string, id: string): Promise<void>;
+
+  // --- 9. Sync Cursors ---
   getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null>;
   saveCursor(cursor: SyncCursorRecord): Promise<void>;
 
-  // --- 8. Preference Snapshots ---
+  // --- 10. Preference Snapshots ---
   getPreferenceSnapshot(userId: string): Promise<PreferenceSnapshotRecord | null>;
   savePreferenceSnapshot(snapshot: PreferenceSnapshotRecord): Promise<void>;
 
-  // --- 9. Boundary Lifecycle & Data Erasure ---
+  // --- 11. Boundary Lifecycle & Data Erasure ---
   clearWorkspaceData(workspaceId: string): Promise<void>;
   clearAccountData(userId: string): Promise<void>;
 }

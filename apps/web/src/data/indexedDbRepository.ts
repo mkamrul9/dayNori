@@ -9,6 +9,8 @@ import type {
   ConflictRecord,
   NoteRecord,
   TaskRecord,
+  RoutineRecord,
+  RoutineOccurrenceRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -24,11 +26,13 @@ import {
   validateConflictRecord,
   validateNoteRecord,
   validateTaskRecord,
+  validateRoutineRecord,
+  validateRoutineOccurrenceRecord,
 } from '@daynori/sync';
 
 export const TRUSTED_DEVICE_CONSENT_KEY = 'daynori_trusted_device_consent';
 export const DB_NAME = 'daynori_web_storage';
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 export const COORDINATION_CHANNEL_NAME = 'daynori_storage_coordination';
 
 function getStorage(): Storage | null {
@@ -241,6 +245,22 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
 
           if (!db.objectStoreNames.contains('tasks')) {
             db.createObjectStore('tasks', { keyPath: ['workspaceId', 'id'] });
+          }
+
+          if (!db.objectStoreNames.contains('routines')) {
+            db.createObjectStore('routines', { keyPath: ['workspaceId', 'id'] });
+          }
+
+          if (!db.objectStoreNames.contains('routine_occurrences')) {
+            const occStore = db.createObjectStore('routine_occurrences', {
+              keyPath: ['workspaceId', 'id'],
+            });
+            occStore.createIndex('by_routine_date', ['workspaceId', 'routineId', 'scheduledDate'], {
+              unique: true,
+            });
+            occStore.createIndex('by_date', ['workspaceId', 'scheduledDate'], {
+              unique: false,
+            });
           }
         } catch (err: unknown) {
           reject(
@@ -629,13 +649,17 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     mutation: PendingMutationRecord,
     draft?: DraftRecord,
     note?: NoteRecord,
-    task?: TaskRecord
+    task?: TaskRecord,
+    routine?: RoutineRecord,
+    occurrence?: RoutineOccurrenceRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
     const validDraft = draft ? validateDraftRecord(draft) : undefined;
     const validNote = note ? validateNoteRecord(note) : undefined;
     const validTask = task ? validateTaskRecord(task) : undefined;
+    const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
+    const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
@@ -648,6 +672,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     if (validTask) {
       this.ensureNamespace(validTask.workspaceId);
     }
+    if (validRoutine) {
+      this.ensureNamespace(validRoutine.workspaceId);
+    }
+    if (validOccurrence) {
+      this.ensureNamespace(validOccurrence.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -655,6 +685,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validDraft) stores.push('drafts');
       if (validNote) stores.push('notes');
       if (validTask) stores.push('tasks');
+      if (validRoutine) stores.push('routines');
+      if (validOccurrence) stores.push('routine_occurrences');
       const tx = db.transaction(stores, 'readwrite');
       tx.objectStore('item_headers').put(validItem);
       tx.objectStore('pending_mutations').put(validMut);
@@ -667,6 +699,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validTask) {
         tx.objectStore('tasks').put(validTask);
       }
+      if (validRoutine) {
+        tx.objectStore('routines').put(validRoutine);
+      }
+      if (validOccurrence) {
+        tx.objectStore('routine_occurrences').put(validOccurrence);
+      }
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
@@ -678,20 +716,28 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     header: ItemHeaderRecord,
     operationId: string,
     note?: NoteRecord,
-    task?: TaskRecord
+    task?: TaskRecord,
+    routine?: RoutineRecord,
+    occurrence?: RoutineOccurrenceRecord
   ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
     const validNote = note ? validateNoteRecord(note) : undefined;
     const validTask = task ? validateTaskRecord(task) : undefined;
+    const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
+    const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
     this.ensureNamespace(valid.workspaceId);
     if (validNote) this.ensureNamespace(validNote.workspaceId);
     if (validTask) this.ensureNamespace(validTask.workspaceId);
+    if (validRoutine) this.ensureNamespace(validRoutine.workspaceId);
+    if (validOccurrence) this.ensureNamespace(validOccurrence.workspaceId);
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
       const stores = ['item_headers', 'pending_mutations'];
       if (validNote) stores.push('notes');
       if (validTask) stores.push('tasks');
+      if (validRoutine) stores.push('routines');
+      if (validOccurrence) stores.push('routine_occurrences');
       const tx = db.transaction(stores, 'readwrite');
       tx.objectStore('item_headers').put(valid);
       tx.objectStore('pending_mutations').delete(operationId);
@@ -700,6 +746,12 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       }
       if (validTask) {
         tx.objectStore('tasks').put(validTask);
+      }
+      if (validRoutine) {
+        tx.objectStore('routines').put(validRoutine);
+      }
+      if (validOccurrence) {
+        tx.objectStore('routine_occurrences').put(validOccurrence);
       }
 
       tx.oncomplete = () => resolve();
@@ -712,7 +764,9 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     changes: ItemHeaderRecord[],
     newCursor: SyncCursorRecord,
     notes?: NoteRecord[],
-    tasks?: TaskRecord[]
+    tasks?: TaskRecord[],
+    routines?: RoutineRecord[],
+    occurrences?: RoutineOccurrenceRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -728,17 +782,30 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     for (const t of validatedTasks) {
       this.ensureNamespace(t.workspaceId);
     }
+    const validatedRoutines = (routines || []).map((r) => validateRoutineRecord(r));
+    for (const r of validatedRoutines) {
+      this.ensureNamespace(r.workspaceId);
+    }
+    const validatedOccurrences = (occurrences || []).map((o) => validateRoutineOccurrenceRecord(o));
+    for (const o of validatedOccurrences) {
+      this.ensureNamespace(o.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
       const stores = ['item_headers', 'sync_cursors'];
       if (validatedNotes.length > 0) stores.push('notes');
       if (validatedTasks.length > 0) stores.push('tasks');
+      if (validatedRoutines.length > 0) stores.push('routines');
+      if (validatedOccurrences.length > 0) stores.push('routine_occurrences');
       const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
       const noteStore = validatedNotes.length > 0 ? tx.objectStore('notes') : null;
       const taskStore = validatedTasks.length > 0 ? tx.objectStore('tasks') : null;
+      const routineStore = validatedRoutines.length > 0 ? tx.objectStore('routines') : null;
+      const occStore =
+        validatedOccurrences.length > 0 ? tx.objectStore('routine_occurrences') : null;
 
       // 1. Process each item change under protection against stale concurrent overwrites
       for (const change of validatedChanges) {
@@ -792,7 +859,39 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       }
 
-      // 4. Cursor advancement: protect against moving cursor backward
+      // 4. Process routines in the same transaction
+      if (routineStore) {
+        for (const r of validatedRoutines) {
+          const getRoutineReq = routineStore.get([r.workspaceId, r.id]);
+          getRoutineReq.onsuccess = () => {
+            const existing = getRoutineReq.result
+              ? validateRoutineRecord(getRoutineReq.result)
+              : null;
+            if (existing && existing.serverRevision > r.serverRevision) {
+              return;
+            }
+            routineStore.put(r);
+          };
+        }
+      }
+
+      // 5. Process occurrences in the same transaction
+      if (occStore) {
+        for (const o of validatedOccurrences) {
+          const getOccReq = occStore.get([o.workspaceId, o.id]);
+          getOccReq.onsuccess = () => {
+            const existing = getOccReq.result
+              ? validateRoutineOccurrenceRecord(getOccReq.result)
+              : null;
+            if (existing && existing.serverRevision > o.serverRevision) {
+              return;
+            }
+            occStore.put(o);
+          };
+        }
+      }
+
+      // 6. Cursor advancement: protect against moving cursor backward
       const cursorGetReq = cursorStore.get([validCursor.workspaceId, validCursor.userId]);
       cursorGetReq.onsuccess = () => {
         const existingCursor = cursorGetReq.result
@@ -816,7 +915,9 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     watermarkCursor: SyncCursorRecord,
     preserveLocalItemIds: Set<string>,
     notes?: NoteRecord[],
-    tasks?: TaskRecord[]
+    tasks?: TaskRecord[],
+    routines?: RoutineRecord[],
+    occurrences?: RoutineOccurrenceRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -832,17 +933,30 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     for (const t of validatedTasks) {
       this.ensureNamespace(t.workspaceId);
     }
+    const validatedRoutines = (routines || []).map((r) => validateRoutineRecord(r));
+    for (const r of validatedRoutines) {
+      this.ensureNamespace(r.workspaceId);
+    }
+    const validatedOccurrences = (occurrences || []).map((o) => validateRoutineOccurrenceRecord(o));
+    for (const o of validatedOccurrences) {
+      this.ensureNamespace(o.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
       const stores = ['item_headers', 'sync_cursors'];
       if (validatedNotes.length > 0) stores.push('notes');
       if (validatedTasks.length > 0) stores.push('tasks');
+      if (validatedRoutines.length > 0) stores.push('routines');
+      if (validatedOccurrences.length > 0) stores.push('routine_occurrences');
       const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
       const noteStore = validatedNotes.length > 0 ? tx.objectStore('notes') : null;
       const taskStore = validatedTasks.length > 0 ? tx.objectStore('tasks') : null;
+      const routineStore = validatedRoutines.length > 0 ? tx.objectStore('routines') : null;
+      const occStore =
+        validatedOccurrences.length > 0 ? tx.objectStore('routine_occurrences') : null;
 
       const snapshotIds = new Set(validItems.map((i) => i.id));
 
@@ -884,7 +998,21 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           }
         }
 
-        // 5. Update watermark cursor
+        // 5. Upsert snapshot routines
+        if (routineStore) {
+          for (const r of validatedRoutines) {
+            routineStore.put(r);
+          }
+        }
+
+        // 6. Upsert snapshot occurrences
+        if (occStore) {
+          for (const o of validatedOccurrences) {
+            occStore.put(o);
+          }
+        }
+
+        // 7. Update watermark cursor
         cursorStore.put(validCursor);
       };
 
@@ -962,7 +1090,9 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     removeOperationId?: string,
     updatedNote?: NoteRecord,
     recoveryDraft?: DraftRecord,
-    updatedTask?: TaskRecord
+    updatedTask?: TaskRecord,
+    updatedRoutine?: RoutineRecord,
+    updatedOccurrence?: RoutineOccurrenceRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
@@ -970,6 +1100,10 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     const validNote = updatedNote ? validateNoteRecord(updatedNote) : undefined;
     const validDraft = recoveryDraft ? validateDraftRecord(recoveryDraft) : undefined;
     const validTask = updatedTask ? validateTaskRecord(updatedTask) : undefined;
+    const validRoutine = updatedRoutine ? validateRoutineRecord(updatedRoutine) : undefined;
+    const validOccurrence = updatedOccurrence
+      ? validateRoutineOccurrenceRecord(updatedOccurrence)
+      : undefined;
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -977,6 +1111,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validNote) stores.push('notes');
       if (validDraft) stores.push('drafts');
       if (validTask) stores.push('tasks');
+      if (validRoutine) stores.push('routines');
+      if (validOccurrence) stores.push('routine_occurrences');
       const tx = db.transaction(stores, 'readwrite');
       const conflictStore = tx.objectStore('conflicts');
       const itemStore = tx.objectStore('item_headers');
@@ -984,6 +1120,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       const noteStore = validNote ? tx.objectStore('notes') : null;
       const draftStore = validDraft ? tx.objectStore('drafts') : null;
       const taskStore = validTask ? tx.objectStore('tasks') : null;
+      const routineStore = validRoutine ? tx.objectStore('routines') : null;
+      const occStore = validOccurrence ? tx.objectStore('routine_occurrences') : null;
 
       // 1. Mark conflict resolved
       const getReq = conflictStore.get([ns.workspaceId, conflictId]);
@@ -1020,7 +1158,17 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         taskStore.put(validTask);
       }
 
-      // 7. Save recovery draft if specified
+      // 7. Update routine if specified
+      if (validRoutine && routineStore) {
+        routineStore.put(validRoutine);
+      }
+
+      // 8. Update occurrence if specified
+      if (validOccurrence && occStore) {
+        occStore.put(validOccurrence);
+      }
+
+      // 9. Save recovery draft if specified
       if (validDraft && draftStore) {
         draftStore.put(validDraft);
       }
@@ -1157,7 +1305,147 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 8. Sync Cursors ---
+  // --- 8. Routines & Routine Occurrences ---
+
+  async getRoutine(workspaceId: string, id: string): Promise<RoutineRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routines', 'readonly');
+      const store = tx.objectStore('routines');
+      const req = store.get([workspaceId, id]);
+
+      req.onsuccess = () => resolve(req.result ? validateRoutineRecord(req.result) : null);
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async listRoutines(workspaceId: string): Promise<RoutineRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routines', 'readonly');
+      const store = tx.objectStore('routines');
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const raw = (req.result as unknown[]) || [];
+        const results = raw
+          .map((r) => validateRoutineRecord(r))
+          .filter((r) => r.workspaceId === workspaceId && r.deletedAt === null);
+        resolve(results);
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async upsertRoutine(routine: RoutineRecord): Promise<void> {
+    const valid = validateRoutineRecord(routine);
+    this.ensureNamespace(valid.workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routines', 'readwrite');
+      const store = tx.objectStore('routines');
+      store.put(valid);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async deleteRoutine(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routines', 'readwrite');
+      const store = tx.objectStore('routines');
+      store.delete([workspaceId, id]);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async getRoutineOccurrence(
+    workspaceId: string,
+    id: string
+  ): Promise<RoutineOccurrenceRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routine_occurrences', 'readonly');
+      const store = tx.objectStore('routine_occurrences');
+      const req = store.get([workspaceId, id]);
+
+      req.onsuccess = () =>
+        resolve(req.result ? validateRoutineOccurrenceRecord(req.result) : null);
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async listRoutineOccurrences(
+    workspaceId: string,
+    routineId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<RoutineOccurrenceRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routine_occurrences', 'readonly');
+      const store = tx.objectStore('routine_occurrences');
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const raw = (req.result as unknown[]) || [];
+        const results = raw
+          .map((o) => validateRoutineOccurrenceRecord(o))
+          .filter((o) => {
+            if (o.workspaceId !== workspaceId) return false;
+            if (routineId && o.routineId !== routineId) return false;
+            if (startDate && o.scheduledDate < startDate) return false;
+            if (endDate && o.scheduledDate > endDate) return false;
+            return true;
+          })
+          .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+        resolve(results);
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async upsertRoutineOccurrence(occurrence: RoutineOccurrenceRecord): Promise<void> {
+    const valid = validateRoutineOccurrenceRecord(occurrence);
+    this.ensureNamespace(valid.workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routine_occurrences', 'readwrite');
+      const store = tx.objectStore('routine_occurrences');
+      store.put(valid);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async deleteRoutineOccurrence(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('routine_occurrences', 'readwrite');
+      const store = tx.objectStore('routine_occurrences');
+      store.delete([workspaceId, id]);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  // --- 9. Sync Cursors ---
 
   async getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null> {
     this.ensureNamespace(workspaceId, userId);
@@ -1218,7 +1506,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
-  // --- 10. Boundary Lifecycle & Data Erasure ---
+  // --- 11. Boundary Lifecycle & Data Erasure ---
 
   async clearWorkspaceData(workspaceId: string): Promise<void> {
     this.ensureNamespace(workspaceId);
@@ -1233,6 +1521,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           'conflicts',
           'notes',
           'tasks',
+          'routines',
+          'routine_occurrences',
         ],
         'readwrite'
       );
@@ -1314,6 +1604,28 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       };
 
+      // 8. Clear routines
+      const routineStore = tx.objectStore('routines');
+      const routineReq = routineStore.getAll();
+      routineReq.onsuccess = () => {
+        for (const r of routineReq.result as RoutineRecord[]) {
+          if (r.workspaceId === workspaceId) {
+            routineStore.delete([r.workspaceId, r.id]);
+          }
+        }
+      };
+
+      // 9. Clear routine occurrences
+      const occStore = tx.objectStore('routine_occurrences');
+      const occReq = occStore.getAll();
+      occReq.onsuccess = () => {
+        for (const o of occReq.result as RoutineOccurrenceRecord[]) {
+          if (o.workspaceId === workspaceId) {
+            occStore.delete([o.workspaceId, o.id]);
+          }
+        }
+      };
+
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
       tx.onabort = () => reject(this.mapError(tx.error));
@@ -1334,6 +1646,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           'conflicts',
           'notes',
           'tasks',
+          'routines',
+          'routine_occurrences',
         ],
         'readwrite'
       );
@@ -1397,6 +1711,14 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       // 8. Clear tasks
       const taskStore = tx.objectStore('tasks');
       taskStore.clear();
+
+      // 9. Clear routines
+      const routineStore = tx.objectStore('routines');
+      routineStore.clear();
+
+      // 10. Clear routine occurrences
+      const occStore = tx.objectStore('routine_occurrences');
+      occStore.clear();
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));

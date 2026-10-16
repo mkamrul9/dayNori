@@ -11,6 +11,10 @@ import type {
   TaskStatus,
   TaskDeadline,
   TaskCompletionHistoryItem,
+  RoutineFrequency,
+  Weekday,
+  RoutineOccurrenceStatus,
+  RoutineOccurrenceTransition,
 } from '@daynori/contracts';
 
 export const MAX_PAYLOAD_BYTES = 1024 * 1024; // 1 MiB max serialized payload size
@@ -454,5 +458,108 @@ export function validateTaskRecord(input: unknown): TaskRecord {
     createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
     updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
     deletedAt: r.deletedAt ? String(r.deletedAt) : null,
+  };
+}
+
+export interface RoutineRecord {
+  id: string;
+  workspaceId: string;
+  folderId: string | null;
+  title: string;
+  details: string | null;
+  frequency: RoutineFrequency;
+  weekdays: Weekday[];
+  timezone: string;
+  scheduledTime: string | null;
+  activeFrom: string;
+  activeTo: string | null;
+  isPaused: boolean;
+  isArchived: boolean;
+  isPinned: boolean;
+  scheduleRevision: number;
+  effectiveDate: string;
+  serverRevision: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export function validateRoutineRecord(input: unknown): RoutineRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: RoutineRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+  const freq: RoutineFrequency = r.frequency === 'weekdays' ? 'weekdays' : 'daily';
+  const weekdays = Array.isArray(r.weekdays) ? (r.weekdays as Weekday[]) : [];
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    folderId: r.folderId !== null && r.folderId !== undefined ? String(r.folderId) : null,
+    title:
+      typeof r.title === 'string' && r.title.trim().length > 0
+        ? r.title.trim()
+        : 'Untitled Routine',
+    details: typeof r.details === 'string' ? r.details : null,
+    frequency: freq,
+    weekdays,
+    timezone: typeof r.timezone === 'string' && r.timezone.length > 0 ? r.timezone : 'UTC',
+    scheduledTime: typeof r.scheduledTime === 'string' ? r.scheduledTime : null,
+    activeFrom: assertNonEmptyString(r.activeFrom, 'activeFrom', 64),
+    activeTo: r.activeTo !== null && r.activeTo !== undefined ? String(r.activeTo) : null,
+    isPaused: Boolean(r.isPaused),
+    isArchived: Boolean(r.isArchived),
+    isPinned: Boolean(r.isPinned),
+    scheduleRevision: typeof r.scheduleRevision === 'number' ? r.scheduleRevision : 1,
+    effectiveDate: assertNonEmptyString(r.effectiveDate, 'effectiveDate', 64),
+    serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
+    createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
+    updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
+    deletedAt: r.deletedAt ? String(r.deletedAt) : null,
+  };
+}
+
+export interface RoutineOccurrenceRecord {
+  id: string;
+  workspaceId: string;
+  routineId: string;
+  scheduledDate: string;
+  scheduleRevision: number;
+  plannedInstant: string | null;
+  timezone: string;
+  status: RoutineOccurrenceStatus;
+  completedAt: string | null;
+  completedBy: string | null;
+  history: RoutineOccurrenceTransition[];
+  serverRevision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function validateRoutineOccurrenceRecord(input: unknown): RoutineOccurrenceRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: RoutineOccurrenceRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+  const status: RoutineOccurrenceStatus =
+    r.status === 'done' || r.status === 'skipped' ? r.status : 'pending';
+
+  const history = Array.isArray(r.history) ? (r.history as RoutineOccurrenceTransition[]) : [];
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    routineId: assertNonEmptyString(r.routineId, 'routineId'),
+    scheduledDate: assertNonEmptyString(r.scheduledDate, 'scheduledDate', 32),
+    scheduleRevision: typeof r.scheduleRevision === 'number' ? r.scheduleRevision : 1,
+    plannedInstant: r.plannedInstant ? String(r.plannedInstant) : null,
+    timezone: typeof r.timezone === 'string' && r.timezone.length > 0 ? r.timezone : 'UTC',
+    status,
+    completedAt: r.completedAt ? String(r.completedAt) : null,
+    completedBy: r.completedBy ? String(r.completedBy) : null,
+    history,
+    serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
+    createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
+    updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
   };
 }
