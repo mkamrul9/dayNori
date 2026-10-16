@@ -7,6 +7,10 @@ import type {
   TaskStatus,
   TaskDeadline,
   TaskCompletionHistoryItem,
+  RoutineFrequency,
+  Weekday,
+  RoutineOccurrenceStatus,
+  RoutineOccurrenceTransition,
 } from '@daynori/contracts';
 import type { LocalRepositoryPort } from './ports.js';
 import type {
@@ -21,6 +25,8 @@ import type {
   SyncDiagnostics,
   NoteRecord,
   TaskRecord,
+  RoutineRecord,
+  RoutineOccurrenceRecord,
 } from './models.js';
 import { type SyncTransportPort, classifySyncError } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
@@ -339,6 +345,9 @@ export class SyncEngine {
       item.kind === 'task' ||
       item.kind === 'todo' ||
       (command !== undefined && command.includes('Task'));
+    const isRoutine =
+      item.kind === 'routine' || (command !== undefined && command.includes('Routine'));
+
     const determinedCommand =
       command ||
       (item.serverRevision === 0
@@ -348,25 +357,31 @@ export class SyncEngine {
             ? 'createNote'
             : isTask
               ? 'createTask'
-              : 'createItem'
+              : isRoutine
+                ? 'createRoutine'
+                : 'createItem'
         : isFolder
           ? 'updateFolder'
           : isNote
             ? 'updateNote'
             : isTask
               ? 'updateTask'
-              : 'updateItem');
+              : isRoutine
+                ? 'updateRoutine'
+                : 'updateItem');
 
     const action: 'create' | 'update' | 'delete' =
       determinedCommand === 'trashItem' ||
       determinedCommand === 'trashFolder' ||
       determinedCommand === 'trashNote' ||
-      determinedCommand === 'trashTask'
+      determinedCommand === 'trashTask' ||
+      determinedCommand === 'trashRoutine'
         ? 'delete'
         : determinedCommand === 'createItem' ||
             determinedCommand === 'createFolder' ||
             determinedCommand === 'createNote' ||
-            determinedCommand === 'createTask'
+            determinedCommand === 'createTask' ||
+            determinedCommand === 'createRoutine'
           ? 'create'
           : 'update';
 
@@ -417,17 +432,45 @@ export class SyncEngine {
               tags: (options?.payload?.['tags'] as string[] | undefined) ?? [],
               ...(options?.payload || {}),
             }
-          : {
-              kind: item.kind,
-              rank: item.rank,
-              folderId: item.folderId,
-              securityScope: item.securityScope,
-              isArchived: item.isArchived,
-              isPinned: item.isPinned,
-              ...(item.name ? { name: item.name } : {}),
-              ...(item.title ? { title: item.title } : {}),
-              ...(options?.payload || {}),
-            };
+          : isRoutine
+            ? {
+                kind: 'routine',
+                title: item.title || item.name || 'Untitled Routine',
+                folderId: item.folderId,
+                rank: item.rank,
+                securityScope: item.securityScope,
+                isArchived: item.isArchived,
+                isPinned: item.isPinned,
+                details: (options?.payload?.['details'] as string | null | undefined) ?? null,
+                frequency:
+                  (options?.payload?.['frequency'] as RoutineFrequency | undefined) ?? 'daily',
+                weekdays: (options?.payload?.['weekdays'] as Weekday[] | undefined) ?? [],
+                timezone: (options?.payload?.['timezone'] as string | undefined) ?? 'UTC',
+                scheduledTime:
+                  (options?.payload?.['scheduledTime'] as string | null | undefined) ?? null,
+                activeFrom:
+                  (options?.payload?.['activeFrom'] as string | undefined) ??
+                  clientTimestamp.slice(0, 10),
+                activeTo: (options?.payload?.['activeTo'] as string | null | undefined) ?? null,
+                isPaused: (options?.payload?.['isPaused'] as boolean | undefined) ?? false,
+                scheduleRevision:
+                  (options?.payload?.['scheduleRevision'] as number | undefined) ?? 1,
+                effectiveDate:
+                  (options?.payload?.['effectiveDate'] as string | undefined) ??
+                  clientTimestamp.slice(0, 10),
+                ...(options?.payload || {}),
+              }
+            : {
+                kind: item.kind,
+                rank: item.rank,
+                folderId: item.folderId,
+                securityScope: item.securityScope,
+                isArchived: item.isArchived,
+                isPinned: item.isPinned,
+                ...(item.name ? { name: item.name } : {}),
+                ...(item.title ? { title: item.title } : {}),
+                ...(options?.payload || {}),
+              };
 
     // Calculate baseRevision for unsent intents:
     // If there are pending operations for this entity, chain expected base revision
@@ -444,7 +487,15 @@ export class SyncEngine {
       deviceId: this.deviceId,
       workspaceId: item.workspaceId,
       userId: this.namespace.userId,
-      entityType: isFolder ? 'folder' : isNote ? 'note' : isTask ? 'task' : 'item',
+      entityType: isFolder
+        ? 'folder'
+        : isNote
+          ? 'note'
+          : isTask
+            ? 'task'
+            : isRoutine
+              ? 'routine'
+              : 'item',
       entityId: item.id,
       action,
       command: determinedCommand,
@@ -537,6 +588,33 @@ export class SyncEngine {
       };
     }
 
+    let routineRecord: RoutineRecord | undefined;
+    if (isRoutine) {
+      const p = options?.payload || {};
+      routineRecord = {
+        id: item.id,
+        workspaceId: item.workspaceId,
+        folderId: item.folderId ?? null,
+        title: (p['title'] as string) || item.title || item.name || 'Untitled Routine',
+        details: (p['details'] as string | null) ?? null,
+        frequency: (p['frequency'] as RoutineFrequency) ?? 'daily',
+        weekdays: (p['weekdays'] as Weekday[]) ?? [],
+        timezone: (p['timezone'] as string) || 'UTC',
+        scheduledTime: (p['scheduledTime'] as string | null) ?? null,
+        activeFrom: (p['activeFrom'] as string) || clientTimestamp.slice(0, 10),
+        activeTo: (p['activeTo'] as string | null) ?? null,
+        isPaused: Boolean(p['isPaused'] ?? false),
+        isArchived: Boolean(p['isArchived'] ?? item.isArchived ?? false),
+        isPinned: Boolean(p['isPinned'] ?? item.isPinned ?? false),
+        scheduleRevision: (p['scheduleRevision'] as number) ?? 1,
+        effectiveDate: (p['effectiveDate'] as string) || clientTimestamp.slice(0, 10),
+        serverRevision: item.serverRevision,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        deletedAt: item.deletedAt,
+      };
+    }
+
     // 2. Perform atomic local storage write via transaction
     try {
       await this.repository.saveItemTransaction(
@@ -544,7 +622,8 @@ export class SyncEngine {
         mutationRecord,
         draft,
         noteRecord,
-        taskRecord
+        taskRecord,
+        routineRecord
       );
     } catch (err) {
       // Local transaction failed: cannot show as saved on device
@@ -566,6 +645,171 @@ export class SyncEngine {
     this.setOverallStatus('saved_locally');
 
     // 4. Request sync if online and autoSync is not false
+    if (options?.autoSync !== false && this.networkStatus === 'online') {
+      if (this.coordination.isLeader) {
+        this.syncNow().catch(() => {});
+      } else {
+        this.coordination.requestSync();
+      }
+    }
+
+    return mutationRecord;
+  }
+
+  async saveRoutine(
+    routine: RoutineRecord,
+    command?: SyncCommandType,
+    options?: SaveItemOptions
+  ): Promise<PendingMutationRecord> {
+    const itemHeader: ItemHeaderRecord = {
+      id: routine.id,
+      workspaceId: routine.workspaceId,
+      kind: 'routine',
+      folderId: routine.folderId,
+      rank: '00001000',
+      isArchived: routine.isArchived,
+      isPinned: routine.isPinned,
+      securityScope: 'standard',
+      serverRevision: routine.serverRevision,
+      title: routine.title,
+      name: routine.title,
+      createdAt: routine.createdAt,
+      updatedAt: routine.updatedAt,
+      deletedAt: routine.deletedAt,
+    };
+    const payload = {
+      id: routine.id,
+      folderId: routine.folderId,
+      title: routine.title,
+      details: routine.details,
+      frequency: routine.frequency,
+      weekdays: routine.weekdays,
+      timezone: routine.timezone,
+      scheduledTime: routine.scheduledTime,
+      activeFrom: routine.activeFrom,
+      activeTo: routine.activeTo,
+      isPaused: routine.isPaused,
+      isArchived: routine.isArchived,
+      isPinned: routine.isPinned,
+      scheduleRevision: routine.scheduleRevision,
+      effectiveDate: routine.effectiveDate,
+      ...(options?.payload || {}),
+    };
+    return this.saveItem(itemHeader, undefined, command || 'createRoutine', {
+      ...options,
+      payload,
+    });
+  }
+
+  async saveRoutineOccurrence(
+    occurrence: RoutineOccurrenceRecord,
+    command?: SyncCommandType,
+    options?: SaveItemOptions
+  ): Promise<PendingMutationRecord> {
+    const operationId = this.generateId();
+    const clientTimestamp = new Date().toISOString();
+
+    const pendingForEntity = await this.getPendingForEntity(occurrence.id);
+    const pendingForRoutine = await this.getPendingForEntity(occurrence.routineId);
+
+    const resolvedDeps = Array.from(
+      new Set([
+        ...(options?.dependencyOperationIds || []),
+        ...pendingForRoutine.map((p) => p.operationId),
+        ...pendingForEntity.map((p) => p.operationId),
+      ])
+    );
+
+    let baseRevision = occurrence.serverRevision;
+    if (pendingForEntity.length > 0) {
+      const lastPending = pendingForEntity[pendingForEntity.length - 1];
+      if (lastPending) {
+        baseRevision = lastPending.baseRevision + 1;
+      }
+    }
+
+    const determinedCommand: SyncCommandType =
+      command ||
+      (occurrence.status === 'done'
+        ? 'completeOccurrence'
+        : occurrence.status === 'skipped'
+          ? 'skipOccurrence'
+          : 'reopenOccurrence');
+
+    const mutationPayload = {
+      id: occurrence.id,
+      routineId: occurrence.routineId,
+      scheduledDate: occurrence.scheduledDate,
+      status: occurrence.status,
+      completedAt: occurrence.completedAt,
+      completedBy: occurrence.completedBy,
+      history: occurrence.history,
+      baseRevision,
+      ...(options?.payload || {}),
+    };
+
+    const mutationRecord: PendingMutationRecord = {
+      operationId,
+      deviceId: this.deviceId,
+      workspaceId: occurrence.workspaceId,
+      userId: this.namespace.userId,
+      entityType: 'routine_occurrence',
+      entityId: occurrence.id,
+      action: 'update',
+      command: determinedCommand,
+      commandVersion: options?.commandVersion ?? 1,
+      schemaVersion: options?.schemaVersion ?? 1,
+      payload: mutationPayload,
+      baseRevision,
+      dependencyOperationIds: resolvedDeps,
+      clientTimestamp,
+      retryCount: 0,
+      status: 'pending',
+      lastError: null,
+    };
+
+    const dummyHeader: ItemHeaderRecord = {
+      id: occurrence.id,
+      workspaceId: occurrence.workspaceId,
+      kind: 'routine_occurrence',
+      folderId: null,
+      rank: '0',
+      isArchived: false,
+      isPinned: false,
+      securityScope: 'standard',
+      serverRevision: occurrence.serverRevision,
+      createdAt: occurrence.createdAt,
+      updatedAt: occurrence.updatedAt,
+      deletedAt: null,
+    };
+
+    try {
+      await this.repository.saveItemTransaction(
+        dummyHeader,
+        mutationRecord,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        occurrence
+      );
+    } catch (err) {
+      this.itemStates.set(occurrence.id, {
+        savedOnDevice: false,
+        cloudSyncStatus: 'error',
+        lastError: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+
+    this.itemStates.set(occurrence.id, {
+      savedOnDevice: true,
+      cloudSyncStatus: 'saved_locally',
+      pendingOperationId: operationId,
+      lastSyncedRevision: occurrence.serverRevision,
+    });
+    this.setOverallStatus('saved_locally');
+
     if (options?.autoSync !== false && this.networkStatus === 'online') {
       if (this.coordination.isLeader) {
         this.syncNow().catch(() => {});
@@ -812,7 +1056,9 @@ export class SyncEngine {
                   ? 'folder'
                   : origMutation.entityType === 'task'
                     ? 'task'
-                    : 'note'),
+                    : origMutation.entityType === 'routine'
+                      ? 'routine'
+                      : 'note'),
               folderId: (origMutation.payload['folderId'] as string | null) ?? null,
               rank: (origMutation.payload['rank'] as string) || '0',
               isArchived: Boolean(origMutation.payload['isArchived'] ?? false),
@@ -834,7 +1080,9 @@ export class SyncEngine {
               deletedAt:
                 origMutation.command === 'trashItem' ||
                 origMutation.command === 'trashFolder' ||
-                origMutation.command === 'trashNote'
+                origMutation.command === 'trashNote' ||
+                origMutation.command === 'trashTask' ||
+                origMutation.command === 'trashRoutine'
                   ? new Date().toISOString()
                   : null,
             };
@@ -877,13 +1125,46 @@ export class SyncEngine {
           }
         }
 
+        let routineToAck: RoutineRecord | undefined;
+        if (updatedHeader.kind === 'routine' || origMutation.entityType === 'routine') {
+          const existingRoutine = await this.repository.getRoutine(
+            this.namespace.workspaceId,
+            result.entityId
+          );
+          if (existingRoutine) {
+            routineToAck = {
+              ...existingRoutine,
+              serverRevision: result.revision,
+              title: updatedHeader.title || updatedHeader.name || existingRoutine.title,
+              folderId: updatedHeader.folderId ?? null,
+              deletedAt: updatedHeader.deletedAt,
+            };
+          }
+        }
+
+        let occurrenceToAck: RoutineOccurrenceRecord | undefined;
+        if (origMutation.entityType === 'routine_occurrence') {
+          const existingOcc = await this.repository.getRoutineOccurrence(
+            this.namespace.workspaceId,
+            result.entityId
+          );
+          if (existingOcc) {
+            occurrenceToAck = {
+              ...existingOcc,
+              serverRevision: result.revision,
+            };
+          }
+        }
+
         // B. Retain pending work until the durable result is applied locally
         // and apply acknowledgment atomically in a single transaction
         await this.repository.applyAcknowledgment(
           updatedHeader,
           result.operationId,
           noteToAck,
-          taskToAck
+          taskToAck,
+          routineToAck,
+          occurrenceToAck
         );
 
         // C. Update item sync state: do NOT report item synced if other operations for it remain unresolved
@@ -997,10 +1278,80 @@ export class SyncEngine {
         const changesToApply: ItemHeaderRecord[] = [];
         const notesToApply: NoteRecord[] = [];
         const tasksToApply: TaskRecord[] = [];
+        const routinesToApply: RoutineRecord[] = [];
+        const occurrencesToApply: RoutineOccurrenceRecord[] = [];
 
         for (const change of pullRes.data.changes) {
           totalChanges++;
           const data = (change.data || {}) as Record<string, unknown>;
+
+          if (change.entityType === 'routine_occurrence') {
+            if (change.isTombstone) {
+              await this.repository.deleteRoutineOccurrence(
+                this.namespace.workspaceId,
+                change.entityId
+              );
+              continue;
+            }
+
+            const routineId = String(data.routineId || data.routine_id || '');
+            const scheduledDate = String(data.scheduledDate || data.scheduled_date || '');
+            if (routineId && scheduledDate) {
+              const localOccs = await this.repository.listRoutineOccurrences(
+                this.namespace.workspaceId,
+                routineId,
+                scheduledDate,
+                scheduledDate
+              );
+              for (const localOcc of localOccs) {
+                if (localOcc.id !== change.entityId) {
+                  const pending = await this.repository.getPendingMutations(
+                    this.namespace.workspaceId,
+                    this.namespace.userId
+                  );
+                  for (const p of pending) {
+                    if (p.entityId === localOcc.id) {
+                      p.entityId = change.entityId;
+                      await this.repository.enqueueMutation(p);
+                    }
+                  }
+                  await this.repository.deleteRoutineOccurrence(
+                    this.namespace.workspaceId,
+                    localOcc.id
+                  );
+                }
+              }
+            }
+
+            const rawStatus = (data.status as string) || 'pending';
+            const occStatus: RoutineOccurrenceStatus =
+              rawStatus === 'done' || rawStatus === 'skipped' || rawStatus === 'cancelled'
+                ? rawStatus
+                : 'pending';
+
+            occurrencesToApply.push({
+              id: change.entityId,
+              workspaceId: this.namespace.workspaceId,
+              routineId,
+              scheduledDate,
+              scheduleRevision: Number(data.scheduleRevision || data.schedule_revision) || 1,
+              plannedInstant: data.plannedInstant ? String(data.plannedInstant) : null,
+              timezone: String(data.timezone || 'UTC'),
+              status: occStatus,
+              completedAt: data.completedAt ? String(data.completedAt) : null,
+              completedBy: data.completedBy ? String(data.completedBy) : null,
+              history: Array.isArray(data.history)
+                ? (data.history as RoutineOccurrenceTransition[])
+                : [],
+              serverRevision: change.revision,
+              createdAt:
+                typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+              updatedAt:
+                typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+            });
+            continue;
+          }
+
           const existing = await this.repository.getItemHeader(
             this.namespace.workspaceId,
             change.entityId
@@ -1011,7 +1362,9 @@ export class SyncEngine {
               ? 'folder'
               : change.entityType === 'task'
                 ? 'task'
-                : 'note';
+                : change.entityType === 'routine'
+                  ? 'routine'
+                  : 'note';
           const kind = typeof data.kind === 'string' ? data.kind : existing?.kind || defaultKind;
 
           // Distinguish an omitted field from an explicit null
@@ -1203,6 +1556,33 @@ export class SyncEngine {
               });
             }
           }
+
+          if (kind === 'routine' || change.entityType === 'routine') {
+            const freq: RoutineFrequency = data.frequency === 'weekdays' ? 'weekdays' : 'daily';
+            const weekdays = Array.isArray(data.weekdays) ? (data.weekdays as Weekday[]) : [];
+            routinesToApply.push({
+              id: change.entityId,
+              workspaceId: this.namespace.workspaceId,
+              folderId: folderId ?? null,
+              title: (data.title as string) || name || 'Untitled Routine',
+              details: typeof data.details === 'string' ? data.details : null,
+              frequency: freq,
+              weekdays,
+              timezone: typeof data.timezone === 'string' ? data.timezone : 'UTC',
+              scheduledTime: typeof data.scheduledTime === 'string' ? data.scheduledTime : null,
+              activeFrom: (data.activeFrom as string) || createdAt.slice(0, 10),
+              activeTo: data.activeTo ? String(data.activeTo) : null,
+              isPaused: Boolean(data.isPaused),
+              isArchived,
+              isPinned,
+              scheduleRevision: Number(data.scheduleRevision) || 1,
+              effectiveDate: (data.effectiveDate as string) || createdAt.slice(0, 10),
+              serverRevision: change.revision,
+              createdAt,
+              updatedAt,
+              deletedAt,
+            });
+          }
         }
 
         const newCursorRecord: SyncCursorRecord = {
@@ -1222,7 +1602,9 @@ export class SyncEngine {
           changesToApply,
           newCursorRecord,
           notesToApply,
-          tasksToApply
+          tasksToApply,
+          routinesToApply,
+          occurrencesToApply
         );
 
         this.lastSyncedAt = newCursorRecord.lastSyncedAt;
@@ -1302,6 +1684,9 @@ export class SyncEngine {
 
     const snapshotNotes: NoteRecord[] = [];
     const snapshotTasks: TaskRecord[] = [];
+    const snapshotRoutines: RoutineRecord[] = [];
+    const snapshotOccurrences: RoutineOccurrenceRecord[] = [];
+
     for (const item of bootstrapRes.data.items) {
       const raw = item as Record<string, unknown>;
       if (item.kind === 'note' && raw.document) {
@@ -1359,6 +1744,82 @@ export class SyncEngine {
           deletedAt: item.deletedAt,
         });
       }
+
+      if (item.kind === 'routine') {
+        const freq: RoutineFrequency = raw.frequency === 'weekdays' ? 'weekdays' : 'daily';
+        const weekdays = Array.isArray(raw.weekdays) ? (raw.weekdays as Weekday[]) : [];
+        snapshotRoutines.push({
+          id: item.id,
+          workspaceId: item.workspaceId,
+          folderId: item.folderId ?? null,
+          title: (raw.title as string) || item.name || 'Untitled Routine',
+          details: typeof raw.details === 'string' ? raw.details : null,
+          frequency: freq,
+          weekdays,
+          timezone: typeof raw.timezone === 'string' ? raw.timezone : 'UTC',
+          scheduledTime: typeof raw.scheduledTime === 'string' ? raw.scheduledTime : null,
+          activeFrom: (raw.activeFrom as string) || item.createdAt.slice(0, 10),
+          activeTo: raw.activeTo ? String(raw.activeTo) : null,
+          isPaused: Boolean(raw.isPaused),
+          isArchived: item.isArchived,
+          isPinned: item.isPinned,
+          scheduleRevision: Number(raw.scheduleRevision) || 1,
+          effectiveDate: (raw.effectiveDate as string) || item.createdAt.slice(0, 10),
+          serverRevision: item.revision,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          deletedAt: item.deletedAt,
+        });
+      }
+    }
+
+    const bData = bootstrapRes.data as Record<string, unknown>;
+    if (Array.isArray(bData['routines'])) {
+      for (const r of bData['routines'] as RoutineRecord[]) {
+        snapshotRoutines.push({
+          id: r.id,
+          workspaceId: r.workspaceId,
+          folderId: r.folderId ?? null,
+          title: r.title,
+          details: r.details,
+          frequency: r.frequency,
+          weekdays: r.weekdays,
+          timezone: r.timezone,
+          scheduledTime: r.scheduledTime,
+          activeFrom: r.activeFrom,
+          activeTo: r.activeTo,
+          isPaused: r.isPaused,
+          isArchived: r.isArchived,
+          isPinned: r.isPinned,
+          scheduleRevision: r.scheduleRevision,
+          effectiveDate: r.effectiveDate,
+          serverRevision: (r as { revision?: number }).revision || r.serverRevision || 1,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+          deletedAt: r.deletedAt,
+        });
+      }
+    }
+
+    if (Array.isArray(bData['routineOccurrences'])) {
+      for (const occ of bData['routineOccurrences'] as RoutineOccurrenceRecord[]) {
+        snapshotOccurrences.push({
+          id: occ.id,
+          workspaceId: occ.workspaceId,
+          routineId: occ.routineId,
+          scheduledDate: occ.scheduledDate,
+          scheduleRevision: occ.scheduleRevision,
+          plannedInstant: occ.plannedInstant,
+          timezone: occ.timezone,
+          status: occ.status,
+          completedAt: occ.completedAt,
+          completedBy: occ.completedBy,
+          history: occ.history || [],
+          serverRevision: (occ as { revision?: number }).revision || occ.serverRevision || 1,
+          createdAt: occ.createdAt,
+          updatedAt: occ.updatedAt,
+        });
+      }
     }
 
     // Atomically install snapshot, replacing obsolete projections while preserving local work
@@ -1367,7 +1828,9 @@ export class SyncEngine {
       newCursor,
       preserveLocalItemIds,
       snapshotNotes,
-      snapshotTasks
+      snapshotTasks,
+      snapshotRoutines,
+      snapshotOccurrences
     );
 
     this.lastSyncedAt = newCursor.lastSyncedAt;
@@ -1574,12 +2037,20 @@ export class SyncEngine {
       let updatedHeader: ItemHeaderRecord | undefined = undefined;
       let updatedNote: NoteRecord | undefined = undefined;
       let updatedTask: TaskRecord | undefined = undefined;
+      let updatedRoutine: RoutineRecord | undefined = undefined;
+      let updatedOccurrence: RoutineOccurrenceRecord | undefined = undefined;
       if (conflict.serverState) {
         const s = conflict.serverState;
         updatedHeader = {
           id: conflict.entityId,
           workspaceId: conflict.workspaceId,
-          kind: (s['kind'] as string) || (conflict.entityType === 'task' ? 'task' : 'note'),
+          kind:
+            (s['kind'] as string) ||
+            (conflict.entityType === 'task'
+              ? 'task'
+              : conflict.entityType === 'routine'
+                ? 'routine'
+                : 'note'),
           folderId: (s['folderId'] as string | null) ?? null,
           rank: (s['rank'] as string) || '0',
           isArchived: Boolean(s['isArchived'] ?? false),
@@ -1636,6 +2107,51 @@ export class SyncEngine {
             deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
           };
         }
+        if (conflict.entityType === 'routine' || s['kind'] === 'routine') {
+          updatedRoutine = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            folderId: (s['folderId'] as string | null) ?? null,
+            title: (s['title'] as string) || (s['name'] as string) || 'Untitled Routine',
+            details: typeof s['details'] === 'string' ? s['details'] : null,
+            frequency: s['frequency'] === 'weekdays' ? 'weekdays' : 'daily',
+            weekdays: Array.isArray(s['weekdays']) ? (s['weekdays'] as Weekday[]) : [],
+            timezone: typeof s['timezone'] === 'string' ? s['timezone'] : 'UTC',
+            scheduledTime: typeof s['scheduledTime'] === 'string' ? s['scheduledTime'] : null,
+            activeFrom: (s['activeFrom'] as string) || new Date().toISOString().slice(0, 10),
+            activeTo: s['activeTo'] ? String(s['activeTo']) : null,
+            isPaused: Boolean(s['isPaused']),
+            isArchived: Boolean(s['isArchived']),
+            isPinned: Boolean(s['isPinned']),
+            scheduleRevision: Number(s['scheduleRevision']) || 1,
+            effectiveDate: (s['effectiveDate'] as string) || new Date().toISOString().slice(0, 10),
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+            deletedAt: s['deletedAt'] ? String(s['deletedAt']) : null,
+          };
+        }
+
+        if (conflict.entityType === 'routine_occurrence') {
+          updatedOccurrence = {
+            id: conflict.entityId,
+            workspaceId: conflict.workspaceId,
+            routineId: String(s['routineId'] || s['routine_id'] || ''),
+            scheduledDate: String(s['scheduledDate'] || s['scheduled_date'] || ''),
+            scheduleRevision: Number(s['scheduleRevision'] || s['schedule_revision']) || 1,
+            plannedInstant: s['plannedInstant'] ? String(s['plannedInstant']) : null,
+            timezone: String(s['timezone'] || 'UTC'),
+            status: (s['status'] as RoutineOccurrenceStatus) || 'pending',
+            completedAt: s['completedAt'] ? String(s['completedAt']) : null,
+            completedBy: s['completedBy'] ? String(s['completedBy']) : null,
+            history: Array.isArray(s['history'])
+              ? (s['history'] as RoutineOccurrenceTransition[])
+              : [],
+            serverRevision: conflict.serverRevision,
+            createdAt: (s['createdAt'] as string) || new Date().toISOString(),
+            updatedAt: (s['updatedAt'] as string) || new Date().toISOString(),
+          };
+        }
       }
 
       // Preserve local intent as recovery draft
@@ -1663,7 +2179,9 @@ export class SyncEngine {
         conflict.operationId,
         updatedNote,
         recoveryDraft,
-        updatedTask
+        updatedTask,
+        updatedRoutine,
+        updatedOccurrence
       );
 
       this.itemStates.set(conflict.entityId, {
@@ -1697,6 +2215,31 @@ export class SyncEngine {
 
   async listTasks(): Promise<TaskRecord[]> {
     return this.repository.listTasks(this.namespace.workspaceId);
+  }
+
+  async getRoutine(id: string): Promise<RoutineRecord | null> {
+    return this.repository.getRoutine(this.namespace.workspaceId, id);
+  }
+
+  async listRoutines(): Promise<RoutineRecord[]> {
+    return this.repository.listRoutines(this.namespace.workspaceId);
+  }
+
+  async getRoutineOccurrence(id: string): Promise<RoutineOccurrenceRecord | null> {
+    return this.repository.getRoutineOccurrence(this.namespace.workspaceId, id);
+  }
+
+  async listRoutineOccurrences(
+    routineId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<RoutineOccurrenceRecord[]> {
+    return this.repository.listRoutineOccurrences(
+      this.namespace.workspaceId,
+      routineId,
+      startDate,
+      endDate
+    );
   }
 
   // --- Auth & Account Boundary Handlers ---

@@ -542,7 +542,9 @@ export function validateRoutineOccurrenceRecord(input: unknown): RoutineOccurren
   }
   const r = input as Record<string, unknown>;
   const status: RoutineOccurrenceStatus =
-    r.status === 'done' || r.status === 'skipped' ? r.status : 'pending';
+    r.status === 'done' || r.status === 'skipped' || r.status === 'cancelled'
+      ? r.status
+      : 'pending';
 
   const history = Array.isArray(r.history) ? (r.history as RoutineOccurrenceTransition[]) : [];
 

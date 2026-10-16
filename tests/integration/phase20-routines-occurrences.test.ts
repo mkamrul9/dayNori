@@ -10,7 +10,7 @@ import {
   withTenantContext,
 } from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
-import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
+import { createApiClient, DaynoriApiClient, ApiConflictError } from '@daynori/api-client';
 import {
   getIsoWeekday,
   validateRoutineTitle,
@@ -18,12 +18,14 @@ import {
   calculatePlannedInstant,
   isRoutineScheduledOnDate,
   generateOccurrencesForDateRange,
+  computeDeterministicOccurrenceId,
   completeOccurrence,
   skipOccurrence,
   reopenOccurrence,
   reconcileOccurrencesOnScheduleChange,
   type RoutineTemplateRule,
 } from '@daynori/domain';
+import { SyncEngine, ApiClientSyncTransport } from '@daynori/sync';
 import {
   IndexedDbLocalRepository,
   clearAllLocalData,
@@ -679,6 +681,245 @@ describe('Phase 20: Daily Routine Schedules, Occurrences and Persistence', () =>
       expect(routines.length).toBe(0);
       const occurrences = await localRepo.listRoutineOccurrences(workspaceAId);
       expect(occurrences.length).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  // 4. Concurrency, Synchronization, and Conflict Handling
+  // =========================================================================
+  describe('Concurrency, Synchronization, and Conflict Handling', () => {
+    it('conflicting template edits reject with revision conflict', async () => {
+      const routine = await clientA.createRoutine(workspaceAId, {
+        title: 'Concurrent Edit Test Routine',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        activeFrom: '2026-11-01',
+      });
+      const routineId = routine.data.id;
+      expect(routine.data.revision).toBe(1);
+
+      // Client 1 updates routine title
+      const update1 = await clientA.updateRoutine(workspaceAId, routineId, {
+        baseRevision: 1,
+        title: 'Updated Title by Device 1',
+      });
+      expect(update1.data.revision).toBe(2);
+      expect(update1.data.title).toBe('Updated Title by Device 1');
+
+      // Client 2 attempts update with stale baseRevision: 1
+      await expect(
+        clientA.updateRoutine(workspaceAId, routineId, {
+          baseRevision: 1,
+          title: 'Stale Title by Device 2',
+        })
+      ).rejects.toThrow(ApiConflictError);
+    });
+
+    it('concurrent occurrence generation requests converge on identical occurrences without duplicates', async () => {
+      const routine = await clientA.createRoutine(workspaceAId, {
+        title: 'Concurrent Generation Routine',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        activeFrom: '2026-11-01',
+      });
+      const routineId = routine.data.id;
+
+      // Launch 5 concurrent generation requests for the exact same date range
+      const generationPromises = Array.from({ length: 5 }, () =>
+        clientA.generateOccurrences(workspaceAId, {
+          routineId,
+          startDate: '2026-11-01',
+          endDate: '2026-11-07',
+        })
+      );
+
+      const results = await Promise.all(generationPromises);
+      for (const res of results) {
+        expect(res.data.length).toBe(7);
+      }
+
+      // Verify in DB that exactly 7 occurrences exist for this routine
+      const listRes = await clientA.listOccurrences(workspaceAId, {
+        routineId,
+        startDate: '2026-11-01',
+        endDate: '2026-11-07',
+      });
+      expect(listRes.data.length).toBe(7);
+    });
+
+    it('identical completion outcomes return idempotent receipts without duplicate history', async () => {
+      const routine = await clientA.createRoutine(workspaceAId, {
+        title: 'Idempotent Complete Routine',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        activeFrom: '2026-11-01',
+      });
+      const gen = await clientA.generateOccurrences(workspaceAId, {
+        routineId: routine.data.id,
+        startDate: '2026-11-01',
+        endDate: '2026-11-01',
+      });
+      const occId = gen.data[0]!.id;
+
+      const opId = crypto.randomUUID();
+      const comp1 = await clientA.completeOccurrence(
+        workspaceAId,
+        occId,
+        { baseRevision: 1 },
+        { headers: { 'x-operation-id': opId } }
+      );
+      expect(comp1.data.status).toBe('done');
+      expect(comp1.data.history.length).toBe(1);
+
+      // Replay identical operation ID
+      const comp2 = await clientA.completeOccurrence(
+        workspaceAId,
+        occId,
+        { baseRevision: 1 },
+        { headers: { 'x-operation-id': opId } }
+      );
+      expect(comp2.data.status).toBe('done');
+      expect(comp2.data.history.length).toBe(1);
+
+      // Calling complete directly on already done occurrence is idempotent and does not add duplicate history
+      const comp3 = await clientA.completeOccurrence(workspaceAId, occId, {
+        baseRevision: comp1.data.serverRevision,
+      });
+      expect(comp3.data.status).toBe('done');
+      expect(comp3.data.history.length).toBe(1);
+    });
+
+    it('contradictory Done/Skip changes preserve explicit conflicts', async () => {
+      const routine = await clientA.createRoutine(workspaceAId, {
+        title: 'Conflict Done/Skip Routine',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        activeFrom: '2026-11-01',
+      });
+      const gen = await clientA.generateOccurrences(workspaceAId, {
+        routineId: routine.data.id,
+        startDate: '2026-11-01',
+        endDate: '2026-11-01',
+      });
+      const occId = gen.data[0]!.id;
+      const initialRev = gen.data[0]!.serverRevision;
+
+      // Device 1 completes occurrence
+      const completed = await clientA.completeOccurrence(workspaceAId, occId, {
+        baseRevision: initialRev,
+      });
+      expect(completed.data.status).toBe('done');
+
+      // Device 2 tries to skip using stale initialRev
+      await expect(
+        clientA.skipOccurrence(workspaceAId, occId, {
+          baseRevision: initialRev,
+        })
+      ).rejects.toThrow(ApiConflictError);
+    });
+
+    it('two devices generating and completing the same routine/date offline sync without duplicate occurrence rows', async () => {
+      // Create routine on server
+      const routine = await clientA.createRoutine(workspaceAId, {
+        title: 'Multi-Device Offline Sync Routine',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        activeFrom: '2026-11-05',
+      });
+      const routineId = routine.data.id;
+      const targetDate = '2026-11-05';
+
+      // Both devices compute the deterministic occurrence ID offline
+      const deterministicOccId = computeDeterministicOccurrenceId(
+        workspaceAId,
+        routineId,
+        targetDate
+      );
+
+      // Device 1 sets up local repository and sync engine in offline state
+      setTrustedDeviceConsent(true);
+      const repo1 = new IndexedDbLocalRepository();
+      await repo1.initialize({ userId: userAId, workspaceId: workspaceAId });
+      const transport1 = new ApiClientSyncTransport(clientA);
+      const engine1 = new SyncEngine({
+        repository: repo1,
+        transport: transport1,
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: 'device-sync-routine-1',
+        initialNetworkStatus: 'offline',
+      });
+      await engine1.start();
+
+      // Device 1 creates and completes the occurrence locally while offline
+      const occ1 = {
+        id: deterministicOccId,
+        workspaceId: workspaceAId,
+        routineId,
+        scheduledDate: targetDate,
+        scheduleRevision: 1,
+        plannedInstant: '2026-11-05T00:00:00.000Z',
+        timezone: 'UTC',
+        status: 'done' as const,
+        completedAt: new Date().toISOString(),
+        completedBy: userAId,
+        history: [
+          {
+            fromStatus: 'pending' as const,
+            toStatus: 'done' as const,
+            changedAt: new Date().toISOString(),
+            changedBy: userAId,
+          },
+        ],
+        serverRevision: 1,
+        revision: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await engine1.saveRoutineOccurrence(occ1, 'completeOccurrence');
+
+      // Device 1 reconnects and syncs
+      engine1.setNetworkStatus('online');
+      await engine1.syncNow();
+      await engine1.stop();
+
+      // Verify on server that exactly 1 occurrence exists and is done
+      const serverOccs = await clientA.listOccurrences(workspaceAId, {
+        routineId,
+        startDate: targetDate,
+        endDate: targetDate,
+      });
+      expect(serverOccs.data.length).toBe(1);
+      expect(serverOccs.data[0]!.id).toBe(deterministicOccId);
+      expect(serverOccs.data[0]!.status).toBe('done');
+
+      // Device 2 sets up, starts, syncs and verifies convergence
+      const repo2 = new IndexedDbLocalRepository();
+      await repo2.initialize({ userId: userAId, workspaceId: workspaceAId });
+      const transport2 = new ApiClientSyncTransport(clientA);
+      const engine2 = new SyncEngine({
+        repository: repo2,
+        transport: transport2,
+        namespace: { userId: userAId, workspaceId: workspaceAId },
+        deviceId: 'device-sync-routine-2',
+      });
+      await engine2.start();
+      await engine2.syncNow();
+      await engine2.stop();
+
+      const dev2Occs = await repo2.listRoutineOccurrences(
+        workspaceAId,
+        routineId,
+        targetDate,
+        targetDate
+      );
+      expect(dev2Occs.length).toBe(1);
+      expect(dev2Occs[0]!.id).toBe(deterministicOccId);
+      expect(dev2Occs[0]!.status).toBe('done');
     });
   });
 });

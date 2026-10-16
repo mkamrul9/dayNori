@@ -9,7 +9,7 @@ export type RoutineFrequency = z.infer<typeof RoutineFrequencySchema>;
 export const WeekdaySchema = z.number().int().min(1).max(7);
 export type Weekday = z.infer<typeof WeekdaySchema>;
 
-export const RoutineOccurrenceStatusSchema = z.enum(['pending', 'done', 'skipped']);
+export const RoutineOccurrenceStatusSchema = z.enum(['pending', 'done', 'skipped', 'cancelled']);
 export type RoutineOccurrenceStatus = z.infer<typeof RoutineOccurrenceStatusSchema>;
 
 export const RoutineOccurrenceTransitionSchema = z.object({
@@ -146,6 +146,11 @@ export type UpdateRoutineRequest = z.infer<typeof UpdateRoutineRequestSchema>;
 export const CompleteOccurrenceRequestSchema = z
   .object({
     baseRevision: z.number().int().nonnegative(),
+    routineId: z.string().uuid().optional(),
+    scheduledDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
   })
   .strict();
 export type CompleteOccurrenceRequest = z.infer<typeof CompleteOccurrenceRequestSchema>;
@@ -153,6 +158,11 @@ export type CompleteOccurrenceRequest = z.infer<typeof CompleteOccurrenceRequest
 export const SkipOccurrenceRequestSchema = z
   .object({
     baseRevision: z.number().int().nonnegative(),
+    routineId: z.string().uuid().optional(),
+    scheduledDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
   })
   .strict();
 export type SkipOccurrenceRequest = z.infer<typeof SkipOccurrenceRequestSchema>;

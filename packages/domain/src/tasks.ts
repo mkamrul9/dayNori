@@ -793,6 +793,7 @@ export function checkLocalTimeDisambiguation(
     return {
       type: 'nonexistent',
       explanation: `The time ${timeStr} does not exist on ${dateStr} in ${timezone} due to a daylight saving time transition.`,
+      suggestedUtcTimestamp: new Date(candidateUtc).toISOString(),
     };
   }
 

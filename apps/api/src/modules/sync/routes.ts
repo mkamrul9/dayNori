@@ -69,8 +69,17 @@ export function registerSyncRoutes(app: FastifyInstance, runtimePool: Pool): voi
     const actor = request.actor!;
     const query = SyncBootstrapQuerySchema.parse(request.query);
 
-    const { items, folders, tags, itemTags, itemLinks, watermarkCursor, accessEpoch } =
-      await syncService.bootstrap(actor.userId, query.workspaceId);
+    const {
+      items,
+      folders,
+      tags,
+      itemTags,
+      itemLinks,
+      routines,
+      routineOccurrences,
+      watermarkCursor,
+      accessEpoch,
+    } = await syncService.bootstrap(actor.userId, query.workspaceId);
 
     const payload: SyncBootstrapResponse = {
       data: {
@@ -79,6 +88,8 @@ export function registerSyncRoutes(app: FastifyInstance, runtimePool: Pool): voi
         tags,
         itemTags,
         itemLinks,
+        routines,
+        routineOccurrences,
         watermarkCursor,
         accessEpoch,
       },

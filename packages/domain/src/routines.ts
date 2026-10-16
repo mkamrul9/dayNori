@@ -10,7 +10,7 @@ export const MAX_GENERATION_RANGE_DAYS = 90;
 
 export type RoutineFrequency = 'daily' | 'weekdays';
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
-export type RoutineOccurrenceStatus = 'pending' | 'done' | 'skipped';
+export type RoutineOccurrenceStatus = 'pending' | 'done' | 'skipped' | 'cancelled';
 
 export interface RoutineOccurrenceTransition {
   status?: RoutineOccurrenceStatus;
@@ -185,7 +185,183 @@ export function isRoutineScheduledOnDate(
 }
 
 /**
+ * Computes calendar difference in days between two YYYY-MM-DD date strings.
+ */
+export function getCalendarDateDifferenceDays(startDate: string, endDate: string): number {
+  if (!isValidCalendarDateString(startDate) || !isValidCalendarDateString(endDate)) {
+    throw new RangeError('startDate and endDate must be valid YYYY-MM-DD calendar date strings.');
+  }
+  const [y1Str, m1Str, d1Str] = startDate.split('-');
+  const [y2Str, m2Str, d2Str] = endDate.split('-');
+  const t1 = Date.UTC(parseInt(y1Str!, 10), parseInt(m1Str!, 10) - 1, parseInt(d1Str!, 10));
+  const t2 = Date.UTC(parseInt(y2Str!, 10), parseInt(m2Str!, 10) - 1, parseInt(d2Str!, 10));
+  return Math.round((t2 - t1) / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * Standard SHA-1 implementation for deterministic RFC 4122 UUID v5 generation.
+ * Pure TypeScript, synchronous, and cross-platform (Web, Node, Mobile).
+ */
+function sha1(bytes: Uint8Array): Uint8Array {
+  let h0 = 0x67452301;
+  let h1 = 0xefcdab89;
+  let h2 = 0x98badcfe;
+  let h3 = 0x10325476;
+  let h4 = 0xc3d2e1f0;
+
+  const msgLen = bytes.length;
+  const bitLen = msgLen * 8;
+  const padLen = (msgLen + 9 + 63) & ~63;
+  const padded = new Uint8Array(padLen);
+  padded.set(bytes);
+  padded[msgLen] = 0x80;
+
+  const view = new DataView(padded.buffer);
+  view.setUint32(padLen - 4, bitLen & 0xffffffff);
+  view.setUint32(padLen - 8, Math.floor(bitLen / 0x100000000));
+
+  const w = new Uint32Array(80);
+
+  for (let offset = 0; offset < padLen; offset += 64) {
+    for (let i = 0; i < 16; i++) {
+      w[i] = view.getUint32(offset + i * 4);
+    }
+    for (let i = 16; i < 80; i++) {
+      const v = w[i - 3]! ^ w[i - 8]! ^ w[i - 14]! ^ w[i - 16]!;
+      w[i] = (v << 1) | (v >>> 31);
+    }
+
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+
+    for (let i = 0; i < 80; i++) {
+      let f: number;
+      let k: number;
+      if (i < 20) {
+        f = (b & c) | (~b & d);
+        k = 0x5a827999;
+      } else if (i < 40) {
+        f = b ^ c ^ d;
+        k = 0x6ed9eba1;
+      } else if (i < 60) {
+        f = (b & c) | (b & d) | (c & d);
+        k = 0x8f1bbcdc;
+      } else {
+        f = b ^ c ^ d;
+        k = 0xca62c1d6;
+      }
+
+      const temp = (((a << 5) | (a >>> 27)) + f + e + k + w[i]!) | 0;
+      e = d;
+      d = c;
+      c = (b << 30) | (b >>> 2);
+      b = a;
+      a = temp;
+    }
+
+    h0 = (h0 + a) | 0;
+    h1 = (h1 + b) | 0;
+    h2 = (h2 + c) | 0;
+    h3 = (h3 + d) | 0;
+    h4 = (h4 + e) | 0;
+  }
+
+  const result = new Uint8Array(20);
+  const outView = new DataView(result.buffer);
+  outView.setUint32(0, h0);
+  outView.setUint32(4, h1);
+  outView.setUint32(8, h2);
+  outView.setUint32(12, h3);
+  outView.setUint32(16, h4);
+  return result;
+}
+
+/**
+ * Computes a deterministic, collision-resistant RFC 4122 v5 UUID for an occurrence
+ * based on workspaceId, routineId, and scheduledDate.
+ * Guaranteed to produce the exact identical UUID on any client or server.
+ */
+export function computeDeterministicOccurrenceId(
+  workspaceId: string,
+  routineId: string,
+  scheduledDate: string
+): string {
+  const name = `daynori:routine_occurrence:${workspaceId}:${routineId}:${scheduledDate}`;
+  const enc = new TextEncoder();
+  const bytes = enc.encode(name);
+  const hash = sha1(bytes);
+
+  // Set RFC 4122 version 5 and variant 1
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+
+  const hex: string[] = [];
+  for (let i = 0; i < 16; i++) {
+    hex.push(hash[i]!.toString(16).padStart(2, '0'));
+  }
+
+  return [
+    hex.slice(0, 4).join(''),
+    hex.slice(4, 6).join(''),
+    hex.slice(6, 8).join(''),
+    hex.slice(8, 10).join(''),
+    hex.slice(10, 16).join(''),
+  ].join('-');
+}
+
+export interface RoutineScheduleRevisionRule {
+  id?: string;
+  workspaceId: string;
+  routineId: string;
+  scheduleRevision: number;
+  frequency: RoutineFrequency;
+  weekdays: Weekday[];
+  timezone: string;
+  scheduledTime: string | null;
+  activeFrom: string;
+  activeTo: string | null;
+  effectiveDate: string;
+  createdAt?: string;
+}
+
+/**
+ * Selects the schedule rule applicable to a specific calendar date:
+ * - Selects the latest revision with effectiveDate <= dateStr.
+ * - If dateStr is before all revisions' effective dates, selects the earliest revision.
+ */
+export function selectApplicableScheduleRule(
+  revisions: RoutineScheduleRevisionRule[],
+  currentRule: RoutineTemplateRule,
+  dateStr: string
+): RoutineScheduleRevisionRule | RoutineTemplateRule {
+  if (!revisions || revisions.length === 0) {
+    return currentRule;
+  }
+  const sorted = [...revisions].sort((a, b) => {
+    if (a.effectiveDate !== b.effectiveDate) {
+      return a.effectiveDate.localeCompare(b.effectiveDate);
+    }
+    return a.scheduleRevision - b.scheduleRevision;
+  });
+
+  let applicable: RoutineScheduleRevisionRule | null = null;
+  for (const rev of sorted) {
+    if (rev.effectiveDate <= dateStr) {
+      applicable = rev;
+    } else {
+      break;
+    }
+  }
+
+  return applicable ?? sorted[0] ?? currentRule;
+}
+
+/**
  * Pure generator producing planned occurrences for a date range without duplicate dates.
+ * Defaults to deterministic occurrence identity so multiple devices converge on the same ID.
  * Enforces bounded ranges to protect memory and execution time.
  */
 export function generateOccurrencesForDateRange(
@@ -193,13 +369,19 @@ export function generateOccurrencesForDateRange(
   startDate: string,
   endDate: string,
   existingOccurrences: RoutineOccurrence[] = [],
-  idGenerator?: () => string
+  idGenerator?: (date: string) => string
 ): RoutineOccurrence[] {
   if (!isValidCalendarDateString(startDate) || !isValidCalendarDateString(endDate)) {
     throw new RangeError('startDate and endDate must be valid YYYY-MM-DD calendar date strings.');
   }
   if (startDate > endDate) {
     throw new RangeError(`startDate "${startDate}" cannot be after endDate "${endDate}".`);
+  }
+  const diffDays = getCalendarDateDifferenceDays(startDate, endDate);
+  if (diffDays > MAX_GENERATION_RANGE_DAYS) {
+    throw new RangeError(
+      `Occurrence generation range exceeds maximum of ${MAX_GENERATION_RANGE_DAYS} days (requested ${diffDays} days).`
+    );
   }
 
   // Existing occurrences mapped by scheduled date
@@ -212,16 +394,8 @@ export function generateOccurrencesForDateRange(
 
   const generated: RoutineOccurrence[] = [];
   let currentDate = startDate;
-  let dayCount = 0;
 
   while (currentDate <= endDate) {
-    dayCount++;
-    if (dayCount > MAX_GENERATION_RANGE_DAYS) {
-      throw new RangeError(
-        `Occurrence generation range exceeds maximum of ${MAX_GENERATION_RANGE_DAYS} days.`
-      );
-    }
-
     if (!existingByDate.has(currentDate) && isRoutineScheduledOnDate(routine, currentDate)) {
       const plannedInstant = calculatePlannedInstant(
         currentDate,
@@ -229,7 +403,9 @@ export function generateOccurrencesForDateRange(
         routine.timezone
       );
       const nowIso = new Date().toISOString();
-      const id = idGenerator ? idGenerator() : defaultId();
+      const id = idGenerator
+        ? idGenerator(currentDate)
+        : computeDeterministicOccurrenceId(routine.workspaceId, routine.id, currentDate);
 
       generated.push({
         id,
@@ -256,15 +432,91 @@ export function generateOccurrencesForDateRange(
   return generated;
 }
 
-function defaultId(): string {
-  if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
+/**
+ * Generator supporting historical schedule versions for backfill:
+ * Selects the schedule rule applicable to each date rather than applying today's rule to historical dates.
+ */
+export function generateOccurrencesForDateRangeWithHistory(
+  routine: RoutineTemplateRule,
+  revisions: RoutineScheduleRevisionRule[],
+  startDate: string,
+  endDate: string,
+  existingOccurrences: RoutineOccurrence[] = [],
+  idGenerator?: (date: string) => string
+): RoutineOccurrence[] {
+  if (!isValidCalendarDateString(startDate) || !isValidCalendarDateString(endDate)) {
+    throw new RangeError('startDate and endDate must be valid YYYY-MM-DD calendar date strings.');
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  if (startDate > endDate) {
+    throw new RangeError(`startDate "${startDate}" cannot be after endDate "${endDate}".`);
+  }
+  const diffDays = getCalendarDateDifferenceDays(startDate, endDate);
+  if (diffDays > MAX_GENERATION_RANGE_DAYS) {
+    throw new RangeError(
+      `Occurrence generation range exceeds maximum of ${MAX_GENERATION_RANGE_DAYS} days (requested ${diffDays} days).`
+    );
+  }
+
+  const existingByDate = new Map<string, RoutineOccurrence>();
+  for (const occ of existingOccurrences) {
+    if (occ.routineId === routine.id) {
+      existingByDate.set(occ.scheduledDate, occ);
+    }
+  }
+
+  const generated: RoutineOccurrence[] = [];
+  let currentDate = startDate;
+
+  while (currentDate <= endDate) {
+    if (!existingByDate.has(currentDate)) {
+      const applicable = selectApplicableScheduleRule(revisions, routine, currentDate);
+      const isScheduled = isRoutineScheduledOnDate(
+        {
+          frequency: applicable.frequency,
+          weekdays: applicable.weekdays,
+          activeFrom: applicable.activeFrom,
+          activeTo: applicable.activeTo,
+          isPaused: routine.isPaused,
+          isArchived: routine.isArchived,
+        },
+        currentDate
+      );
+
+      if (isScheduled) {
+        const plannedInstant = calculatePlannedInstant(
+          currentDate,
+          applicable.scheduledTime,
+          applicable.timezone
+        );
+        const nowIso = new Date().toISOString();
+        const id = idGenerator
+          ? idGenerator(currentDate)
+          : computeDeterministicOccurrenceId(routine.workspaceId, routine.id, currentDate);
+
+        generated.push({
+          id,
+          workspaceId: routine.workspaceId,
+          routineId: routine.id,
+          scheduledDate: currentDate,
+          scheduleRevision: applicable.scheduleRevision,
+          plannedInstant,
+          timezone: applicable.timezone,
+          status: 'pending',
+          completedAt: null,
+          completedBy: null,
+          history: [],
+          serverRevision: 1,
+          revision: 1,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
+      }
+    }
+
+    currentDate = addCalendarDays(currentDate, 1);
+  }
+
+  return generated;
 }
 
 function parseActorAndTimestamp(
@@ -400,24 +652,31 @@ export function reopenOccurrence(
   };
 }
 
+export interface ReconcileScheduleOccurrencesResult {
+  retained: RoutineOccurrence[];
+  modifiedOccurrences: RoutineOccurrence[];
+  cancelledOccurrences: RoutineOccurrence[];
+  cancelledOccurrenceIds: string[];
+}
+
 /**
  * Reconciles existing occurrences when a routine schedule is modified:
  * - Dates prior to effectiveDate: strictly retained and unchanged.
  * - Completed / skipped occurrences on or after effectiveDate: strictly retained and unchanged.
  * - Pending occurrences on or after effectiveDate:
- *     - If no longer scheduled under newRule -> cancelled (omitted).
- *     - If still scheduled -> updated with new scheduleRevision, timezone, and plannedInstant.
+ *     - If no longer scheduled under newRule -> marked cancelled, revision advanced, history retained.
+ *     - If still scheduled -> updated with new scheduleRevision, timezone, plannedInstant, and advanced revision.
  */
 export function reconcileOccurrencesOnScheduleChange(
   occurrences: RoutineOccurrence[],
   newRule: RoutineTemplateRule,
   effectiveDate: string
-): {
-  retained: RoutineOccurrence[];
-  cancelledOccurrenceIds: string[];
-} {
+): ReconcileScheduleOccurrencesResult {
   const retained: RoutineOccurrence[] = [];
+  const modifiedOccurrences: RoutineOccurrence[] = [];
+  const cancelledOccurrences: RoutineOccurrence[] = [];
   const cancelledOccurrenceIds: string[] = [];
+  const nowIso = new Date().toISOString();
 
   for (const occ of occurrences) {
     if (occ.routineId !== newRule.id) {
@@ -444,17 +703,51 @@ export function reconcileOccurrencesOnScheduleChange(
         newRule.scheduledTime,
         newRule.timezone
       );
-      retained.push({
+      const isModified =
+        occ.scheduleRevision !== newRule.scheduleRevision ||
+        occ.timezone !== newRule.timezone ||
+        occ.plannedInstant !== plannedInstant;
+
+      const updatedOcc: RoutineOccurrence = {
         ...occ,
         scheduleRevision: newRule.scheduleRevision,
         timezone: newRule.timezone,
         plannedInstant,
-        updatedAt: new Date().toISOString(),
-      });
+        serverRevision: isModified ? occ.serverRevision + 1 : occ.serverRevision,
+        revision: isModified ? occ.revision + 1 : occ.revision,
+        updatedAt: nowIso,
+      };
+
+      retained.push(updatedOcc);
+      if (isModified) {
+        modifiedOccurrences.push(updatedOcc);
+      }
     } else {
       cancelledOccurrenceIds.push(occ.id);
+      const nextRev = occ.serverRevision + 1;
+      const cancelledOcc: RoutineOccurrence = {
+        ...occ,
+        status: 'cancelled',
+        serverRevision: nextRev,
+        revision: nextRev,
+        updatedAt: nowIso,
+        history: [
+          ...occ.history,
+          {
+            status: 'cancelled',
+            toStatus: 'cancelled',
+            previousStatus: occ.status,
+            fromStatus: occ.status,
+            changedAt: nowIso,
+            transitionedAt: nowIso,
+            actorId: null,
+            reason: 'schedule_reconciliation',
+          },
+        ],
+      };
+      cancelledOccurrences.push(cancelledOcc);
     }
   }
 
-  return { retained, cancelledOccurrenceIds };
+  return { retained, modifiedOccurrences, cancelledOccurrences, cancelledOccurrenceIds };
 }

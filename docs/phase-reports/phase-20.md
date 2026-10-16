@@ -171,5 +171,5 @@ pnpm format:check
 
 ## Next phase handoff
 
-- **Next Phase:** [Phase 21 — Today view and daily routine execution](../roadmap/phases/21-today-view-and-daily-routine-execution.md).
+- **Next Phase:** [Phase 21 — Daily routine experience and history](../roadmap/phases/21-daily-routine-experience-and-history.md).
 - Per project instructions, stop work before implementing Phase 21.

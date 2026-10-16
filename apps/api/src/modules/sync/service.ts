@@ -10,6 +10,9 @@ import type {
   ItemTag,
   ItemLink,
   TaskDeadline,
+  Routine,
+  RoutineOccurrence,
+  RoutineOccurrenceTransition,
 } from '@daynori/contracts';
 import {
   lockWorkspaceSyncState,
@@ -61,6 +64,10 @@ import {
   updateRoutine,
   trashRoutine,
   restoreRoutine,
+  pauseRoutine,
+  resumeRoutine,
+  archiveRoutine,
+  unarchiveRoutine,
   getOccurrence,
   completeOccurrenceService,
   skipOccurrenceService,
@@ -1621,6 +1628,10 @@ export class SyncService {
     if (
       cmd.command === 'createRoutine' ||
       cmd.command === 'updateRoutine' ||
+      cmd.command === 'pauseRoutine' ||
+      cmd.command === 'resumeRoutine' ||
+      cmd.command === 'archiveRoutine' ||
+      cmd.command === 'unarchiveRoutine' ||
       cmd.command === 'trashRoutine' ||
       cmd.command === 'restoreRoutine'
     ) {
@@ -1737,6 +1748,62 @@ export class SyncService {
                     ? cmd.payload['effectiveDate']
                     : undefined,
               },
+              cmd.operationId
+            );
+            resultRevision = routine.revision;
+            appliedSeq = routine.seq;
+            resultPayload = { routine };
+            break;
+          }
+          case 'pauseRoutine': {
+            const routine = await pauseRoutine(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = routine.revision;
+            appliedSeq = routine.seq;
+            resultPayload = { routine };
+            break;
+          }
+          case 'resumeRoutine': {
+            const routine = await resumeRoutine(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = routine.revision;
+            appliedSeq = routine.seq;
+            resultPayload = { routine };
+            break;
+          }
+          case 'archiveRoutine': {
+            const routine = await archiveRoutine(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = routine.revision;
+            appliedSeq = routine.seq;
+            resultPayload = { routine };
+            break;
+          }
+          case 'unarchiveRoutine': {
+            const routine = await unarchiveRoutine(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
               cmd.operationId
             );
             resultRevision = routine.revision;
@@ -1879,8 +1946,11 @@ export class SyncService {
     // --- Unified Routine Occurrence Commands ---
     if (
       cmd.command === 'completeOccurrence' ||
+      cmd.command === 'completeRoutineOccurrence' ||
       cmd.command === 'skipOccurrence' ||
-      cmd.command === 'reopenOccurrence'
+      cmd.command === 'skipRoutineOccurrence' ||
+      cmd.command === 'reopenOccurrence' ||
+      cmd.command === 'reopenRoutineOccurrence'
     ) {
       try {
         let resultRevision = 1;
@@ -1888,35 +1958,66 @@ export class SyncService {
         let resultPayload: Record<string, unknown> = {};
 
         switch (cmd.command) {
-          case 'completeOccurrence': {
+          case 'completeOccurrence':
+          case 'completeRoutineOccurrence': {
+            const occPayload = cmd.payload as Record<string, unknown> | undefined;
             const occ = await completeOccurrenceService(
               client,
               cmd.workspaceId,
               cmd.entityId,
               actorUserId,
               cmd.baseRevision,
-              cmd.operationId
+              cmd.operationId,
+              {
+                routineId:
+                  typeof occPayload?.routineId === 'string' ? occPayload.routineId : undefined,
+                scheduledDate:
+                  typeof occPayload?.scheduledDate === 'string'
+                    ? occPayload.scheduledDate
+                    : undefined,
+                completedAt:
+                  typeof occPayload?.completedAt === 'string' ? occPayload.completedAt : undefined,
+                completedBy:
+                  typeof occPayload?.completedBy === 'string' ? occPayload.completedBy : undefined,
+                history: Array.isArray(occPayload?.history)
+                  ? (occPayload.history as RoutineOccurrenceTransition[])
+                  : undefined,
+              }
             );
             resultRevision = occ.serverRevision;
             appliedSeq = occ.seq;
             resultPayload = { occurrence: occ };
             break;
           }
-          case 'skipOccurrence': {
+          case 'skipOccurrence':
+          case 'skipRoutineOccurrence': {
+            const occPayload = cmd.payload as Record<string, unknown> | undefined;
             const occ = await skipOccurrenceService(
               client,
               cmd.workspaceId,
               cmd.entityId,
               actorUserId,
               cmd.baseRevision,
-              cmd.operationId
+              cmd.operationId,
+              {
+                routineId:
+                  typeof occPayload?.routineId === 'string' ? occPayload.routineId : undefined,
+                scheduledDate:
+                  typeof occPayload?.scheduledDate === 'string'
+                    ? occPayload.scheduledDate
+                    : undefined,
+                history: Array.isArray(occPayload?.history)
+                  ? (occPayload.history as RoutineOccurrenceTransition[])
+                  : undefined,
+              }
             );
             resultRevision = occ.serverRevision;
             appliedSeq = occ.seq;
             resultPayload = { occurrence: occ };
             break;
           }
-          case 'reopenOccurrence': {
+          case 'reopenOccurrence':
+          case 'reopenRoutineOccurrence': {
             const occ = await reopenOccurrenceService(
               client,
               cmd.workspaceId,
@@ -2898,6 +2999,8 @@ export class SyncService {
     tags: Tag[];
     itemTags: ItemTag[];
     itemLinks: ItemLink[];
+    routines: Routine[];
+    routineOccurrences: RoutineOccurrence[];
     watermarkCursor: string;
     accessEpoch: string;
   }> {
@@ -3095,12 +3198,138 @@ export class SyncService {
           parentId: item.folderId,
         }));
 
+        const formatDateOnly = (d: string | Date | null | undefined): string | null => {
+          if (!d) return null;
+          if (typeof d === 'string') return d.slice(0, 10);
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
+        // Fetch active routines
+        const routinesRes = await client.query<{
+          id: string;
+          workspace_id: string;
+          folder_id: string | null;
+          kind: string;
+          created_by: string;
+          updated_by: string;
+          created_at: Date;
+          updated_at: Date;
+          deleted_at: Date | null;
+          revision: string | number;
+          rank: string;
+          is_archived: boolean;
+          is_pinned: boolean;
+          security_scope: 'standard' | 'vault';
+          title: string;
+          details: string | null;
+          frequency: Routine['frequency'];
+          weekdays: number[];
+          timezone: string;
+          scheduled_time: string | null;
+          active_from: string | Date;
+          active_to: string | Date | null;
+          is_paused: boolean;
+          schedule_revision: number;
+          effective_date: string | Date;
+        }>(
+          `SELECT
+             r.id, r.workspace_id, r.folder_id, r.title, r.details, r.frequency,
+             r.weekdays, r.timezone, r.scheduled_time, r.active_from, r.active_to,
+             r.is_paused, r.is_archived, r.is_pinned, r.schedule_revision, r.effective_date,
+             r.created_at, r.updated_at,
+             i.kind, i.created_by, i.updated_by, i.deleted_at, i.revision, i.rank, i.security_scope
+           FROM app.routines r
+           JOIN app.items i ON i.workspace_id = r.workspace_id AND i.id = r.id
+           WHERE r.workspace_id = $1 AND i.deleted_at IS NULL;`,
+          [workspaceId]
+        );
+
+        const formattedRoutines: Routine[] = routinesRes.rows.map((r) => ({
+          id: r.id,
+          workspaceId: r.workspace_id,
+          folderId: r.folder_id,
+          title: r.title,
+          details: r.details,
+          frequency: r.frequency,
+          weekdays: (r.weekdays || []) as Routine['weekdays'],
+          timezone: r.timezone,
+          scheduledTime: r.scheduled_time,
+          activeFrom: formatDateOnly(r.active_from)!,
+          activeTo: formatDateOnly(r.active_to),
+          isPaused: r.is_paused,
+          isArchived: r.is_archived,
+          isPinned: r.is_pinned,
+          scheduleRevision: Number(r.schedule_revision) || 1,
+          effectiveDate: formatDateOnly(r.effective_date)!,
+          revision: Number(r.revision) || 1,
+          createdAt: new Date(r.created_at).toISOString(),
+          updatedAt: new Date(r.updated_at).toISOString(),
+          deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
+        }));
+
+        // Fetch active occurrences
+        const occRes = await client.query<{
+          id: string;
+          workspace_id: string;
+          routine_id: string;
+          scheduled_date: string | Date;
+          schedule_revision: number;
+          planned_instant: Date | null;
+          timezone: string;
+          status: 'pending' | 'done' | 'skipped' | 'cancelled';
+          completed_at: Date | null;
+          completed_by: string | null;
+          history: unknown;
+          server_revision: string | number;
+          created_at: Date;
+          updated_at: Date;
+        }>(
+          `SELECT * FROM app.routine_occurrences
+           WHERE workspace_id = $1 AND status != 'cancelled';`,
+          [workspaceId]
+        );
+
+        const formattedOccurrences: RoutineOccurrence[] = occRes.rows.map((r) => {
+          let history = [];
+          if (Array.isArray(r.history)) {
+            history = r.history;
+          } else if (typeof r.history === 'string') {
+            try {
+              history = JSON.parse(r.history);
+            } catch {
+              history = [];
+            }
+          }
+          return {
+            id: r.id,
+            workspaceId: r.workspace_id,
+            routineId: r.routine_id,
+            scheduledDate: formatDateOnly(r.scheduled_date)!,
+            scheduleRevision: Number(r.schedule_revision) || 1,
+            plannedInstant: r.planned_instant ? new Date(r.planned_instant).toISOString() : null,
+            timezone: r.timezone,
+            status: r.status as 'pending' | 'done' | 'skipped',
+            completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : null,
+            completedBy: r.completed_by,
+            history,
+            serverRevision: Number(r.server_revision) || 1,
+            revision: Number(r.server_revision) || 1,
+            createdAt: new Date(r.created_at).toISOString(),
+            updatedAt: new Date(r.updated_at).toISOString(),
+          };
+        });
+
         return {
           items: formattedItems,
           folders: formattedFolders,
           tags: formattedTags,
           itemTags: formattedItemTags,
           itemLinks: formattedItemLinks,
+          routines: formattedRoutines,
+          routineOccurrences: formattedOccurrences,
           watermarkCursor,
           accessEpoch: syncState.accessEpoch,
         };

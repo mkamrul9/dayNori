@@ -16,12 +16,18 @@ import {
   validateWeekdays,
   isValidCalendarDateString,
   isValidIanaTimezone,
-  generateOccurrencesForDateRange,
+  getCalendarDateInTimezone,
+  getCalendarDateDifferenceDays,
+  generateOccurrencesForDateRangeWithHistory,
   reconcileOccurrencesOnScheduleChange,
   completeOccurrence as pureCompleteOccurrence,
   skipOccurrence as pureSkipOccurrence,
   reopenOccurrence as pureReopenOccurrence,
+  computeDeterministicOccurrenceId,
+  selectApplicableScheduleRule,
+  calculatePlannedInstant,
   type RoutineTemplateRule,
+  type RoutineScheduleRevisionRule,
   type Weekday as DomainWeekday,
 } from '@daynori/domain';
 import {
@@ -58,6 +64,21 @@ interface RoutineDbRow {
   is_paused: boolean;
   schedule_revision: number;
   effective_date: string | Date;
+}
+
+interface RoutineScheduleRevisionDbRow {
+  workspace_id: string;
+  routine_id: string;
+  schedule_revision: number;
+  effective_date: string | Date;
+  frequency: RoutineFrequency;
+  weekdays: number[];
+  timezone: string;
+  scheduled_time: string | null;
+  active_from: string | Date;
+  active_to: string | Date | null;
+  is_paused: boolean;
+  created_at: Date;
 }
 
 function formatDateOnly(d: string | Date | null | undefined): string | null {
@@ -108,7 +129,7 @@ interface OccurrenceDbRow {
   schedule_revision: number;
   planned_instant: Date | null;
   timezone: string;
-  status: 'pending' | 'done' | 'skipped';
+  status: 'pending' | 'done' | 'skipped' | 'cancelled';
   completed_at: Date | null;
   completed_by: string | null;
   history: RoutineOccurrenceTransition[] | string;
@@ -180,10 +201,8 @@ export async function createRoutine(
     weekdays = validateWeekdays(input.weekdays);
   }
 
-  // Validate active period dates
-  const nowUtc = new Date();
-  const todayStr = nowUtc.toISOString().slice(0, 10);
-  const activeFrom = input.activeFrom || todayStr;
+  // Validate active period dates (default activeFrom in routine's timezone)
+  const activeFrom = input.activeFrom || getCalendarDateInTimezone(new Date(), input.timezone);
   if (!isValidCalendarDateString(activeFrom)) {
     throw new ValidationError(`Invalid activeFrom date: "${activeFrom}". Expected YYYY-MM-DD.`);
   }
@@ -209,6 +228,10 @@ export async function createRoutine(
       throw new ValidationError(`Target folder ${folderId} does not exist or has been deleted.`);
     }
   }
+
+  // Allocate monotonic sync sequence under workspace lock
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  const nextSeq = syncState.nextChangeSeq;
 
   // Insert into app.items
   await client.query(
@@ -251,9 +274,27 @@ export async function createRoutine(
     ]
   );
 
-  // Allocate monotonic sync sequence
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
-  const nextSeq = syncState.nextChangeSeq;
+  // Insert initial revision 1 into app.routine_schedule_revisions
+  await client.query(
+    `INSERT INTO app.routine_schedule_revisions (
+      workspace_id, routine_id, schedule_revision, effective_date,
+      frequency, weekdays, timezone, scheduled_time, active_from, active_to, is_paused
+    ) VALUES (
+      $1, $2, 1, $3,
+      $4, $5, $6, $7, $8, $9, false
+    );`,
+    [
+      workspaceId,
+      routineId,
+      activeFrom,
+      frequency,
+      weekdays,
+      input.timezone,
+      input.scheduledTime || null,
+      activeFrom,
+      activeTo,
+    ]
+  );
 
   const fullRow: RoutineDbRow = {
     ...routineRes.rows[0]!,
@@ -293,20 +334,22 @@ export async function createRoutine(
 export async function getRoutine(
   client: PoolClient,
   workspaceId: string,
-  routineId: string
+  routineId: string,
+  forUpdate = false
 ): Promise<Routine> {
-  const res = await client.query<RoutineDbRow>(
-    `SELECT
-       r.id, r.workspace_id, r.folder_id, r.title, r.details, r.frequency,
-       r.weekdays, r.timezone, r.scheduled_time, r.active_from, r.active_to,
-       r.is_paused, r.is_archived, r.is_pinned, r.schedule_revision, r.effective_date,
-       r.created_at, r.updated_at,
-       i.kind, i.created_by, i.updated_by, i.deleted_at, i.revision, i.rank, i.security_scope
-     FROM app.routines r
-     JOIN app.items i ON i.workspace_id = r.workspace_id AND i.id = r.id
-     WHERE r.workspace_id = $1 AND r.id = $2;`,
-    [workspaceId, routineId]
-  );
+  const sql = `
+    SELECT
+      r.id, r.workspace_id, r.folder_id, r.title, r.details, r.frequency,
+      r.weekdays, r.timezone, r.scheduled_time, r.active_from, r.active_to,
+      r.is_paused, r.is_archived, r.is_pinned, r.schedule_revision, r.effective_date,
+      r.created_at, r.updated_at,
+      i.kind, i.created_by, i.updated_by, i.deleted_at, i.revision, i.rank, i.security_scope
+    FROM app.routines r
+    JOIN app.items i ON i.workspace_id = r.workspace_id AND i.id = r.id
+    WHERE r.workspace_id = $1 AND r.id = $2
+    ${forUpdate ? 'FOR UPDATE' : ''};
+  `;
+  const res = await client.query<RoutineDbRow>(sql, [workspaceId, routineId]);
 
   if (res.rows.length === 0) {
     throw new NotFoundError(`Routine ${routineId} not found in workspace ${workspaceId}.`);
@@ -389,8 +432,12 @@ export async function updateRoutine(
 ): Promise<Routine & { seq: number }> {
   const opId = operationId || crypto.randomUUID();
 
-  // 1. Fetch current routine
-  const current = await getRoutine(client, workspaceId, routineId);
+  // Acquire workspace lock first to serialize schedule updates and sync sequence allocation
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  let currentSeq = syncState.nextChangeSeq;
+
+  // 1. Fetch current routine with row lock
+  const current = await getRoutine(client, workspaceId, routineId, true);
 
   // 2. Concurrency check
   if (input.baseRevision !== current.revision) {
@@ -470,7 +517,7 @@ export async function updateRoutine(
     ? current.scheduleRevision + 1
     : current.scheduleRevision;
 
-  const effectiveDate = input.effectiveDate || new Date().toISOString().slice(0, 10);
+  const effectiveDate = input.effectiveDate || getCalendarDateInTimezone(new Date(), timezone);
   if (!isValidCalendarDateString(effectiveDate)) {
     throw new ValidationError(`Invalid effectiveDate: "${effectiveDate}". Expected YYYY-MM-DD.`);
   }
@@ -530,11 +577,34 @@ export async function updateRoutine(
     security_scope: 'standard',
   });
 
-  // 11. If schedule changed, reconcile already-generated future pending occurrences
+  // 11. If schedule changed, insert into routine_schedule_revisions and reconcile occurrences
   if (isScheduleChanged) {
+    await client.query(
+      `INSERT INTO app.routine_schedule_revisions (
+        workspace_id, routine_id, schedule_revision, effective_date,
+        frequency, weekdays, timezone, scheduled_time, active_from, active_to, is_paused
+      ) VALUES (
+        $1, $2, $3, $4,
+        $5, $6, $7, $8, $9, $10, $11
+      );`,
+      [
+        workspaceId,
+        routineId,
+        newScheduleRevision,
+        effectiveDate,
+        frequency,
+        weekdays,
+        timezone,
+        scheduledTime,
+        activeFrom,
+        activeTo,
+        isPaused,
+      ]
+    );
+
     const occRes = await client.query<OccurrenceDbRow>(
       `SELECT * FROM app.routine_occurrences
-       WHERE workspace_id = $1 AND routine_id = $2 AND scheduled_date >= $3;`,
+       WHERE workspace_id = $1 AND routine_id = $2 AND scheduled_date >= $3 AND status != 'cancelled';`,
       [workspaceId, routineId, effectiveDate]
     );
     const existingOccurrences = occRes.rows.map(mapRowToOccurrence);
@@ -546,42 +616,69 @@ export async function updateRoutine(
       effectiveDate,
     };
 
-    const { retained, cancelledOccurrenceIds } = reconcileOccurrencesOnScheduleChange(
+    const { cancelledOccurrences, modifiedOccurrences } = reconcileOccurrencesOnScheduleChange(
       existingOccurrences,
       rule,
       effectiveDate
     );
 
-    // Cancel / remove occurrences that are no longer scheduled
-    if (cancelledOccurrenceIds.length > 0) {
+    // Cancel occurrences that are no longer scheduled
+    for (const occ of cancelledOccurrences) {
+      const nextOccRev = occ.serverRevision + 1;
       await client.query(
-        `DELETE FROM app.routine_occurrences
-         WHERE workspace_id = $1 AND id = ANY($2::uuid[]) AND status = 'pending';`,
-        [workspaceId, cancelledOccurrenceIds]
+        `UPDATE app.routine_occurrences
+         SET status = 'cancelled', server_revision = $1, history = $2::jsonb, updated_at = now()
+         WHERE workspace_id = $3 AND id = $4;`,
+        [nextOccRev, JSON.stringify(occ.history), workspaceId, occ.id]
       );
+
+      await insertChange(client, {
+        workspaceId,
+        seq: currentSeq,
+        entityType: 'routine_occurrence',
+        entityId: occ.id,
+        revision: nextOccRev,
+        isTombstone: false,
+        operationId: crypto.randomUUID(),
+        changeData: {
+          ...occ,
+          status: 'cancelled',
+          serverRevision: nextOccRev,
+          revision: nextOccRev,
+        },
+      });
+      currentSeq++;
     }
 
     // Update retained pending occurrences with new rule version, timezone, and planned instant
-    for (const occ of retained) {
-      if (occ.status === 'pending') {
-        await client.query(
-          `UPDATE app.routine_occurrences
-           SET schedule_revision = $1, timezone = $2, planned_instant = $3,
-               updated_at = now()
-           WHERE workspace_id = $4 AND id = $5;`,
-          [newScheduleRevision, timezone, occ.plannedInstant, workspaceId, occ.id]
-        );
-      }
+    for (const occ of modifiedOccurrences) {
+      const nextOccRev = occ.serverRevision + 1;
+      await client.query(
+        `UPDATE app.routine_occurrences
+         SET schedule_revision = $1, timezone = $2, planned_instant = $3,
+             server_revision = $4, updated_at = now()
+         WHERE workspace_id = $5 AND id = $6;`,
+        [occ.scheduleRevision, occ.timezone, occ.plannedInstant, nextOccRev, workspaceId, occ.id]
+      );
+
+      await insertChange(client, {
+        workspaceId,
+        seq: currentSeq,
+        entityType: 'routine_occurrence',
+        entityId: occ.id,
+        revision: nextOccRev,
+        isTombstone: false,
+        operationId: crypto.randomUUID(),
+        changeData: { ...occ, serverRevision: nextOccRev, revision: nextOccRev },
+      });
+      currentSeq++;
     }
   }
 
-  // 12. Monotonic change feed sequence
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
-  const nextSeq = syncState.nextChangeSeq;
-
+  // 12. Monotonic change feed sequence for routine
   await insertChange(client, {
     workspaceId,
-    seq: nextSeq,
+    seq: currentSeq,
     entityType: 'routine',
     entityId: routineId,
     revision: nextRevision,
@@ -596,9 +693,82 @@ export async function updateRoutine(
     payload: { routineId, title: updatedRoutine.title, revision: nextRevision },
   });
 
-  await updateWorkspaceSyncSeq(client, workspaceId, nextSeq + 1);
+  currentSeq++;
+  await updateWorkspaceSyncSeq(client, workspaceId, currentSeq);
 
-  return { ...updatedRoutine, seq: nextSeq };
+  return { ...updatedRoutine, seq: currentSeq - 1 };
+}
+
+export async function pauseRoutine(
+  client: PoolClient,
+  workspaceId: string,
+  routineId: string,
+  actorUserId: string,
+  baseRevision: number,
+  operationId?: string
+): Promise<Routine & { seq: number }> {
+  return updateRoutine(
+    client,
+    workspaceId,
+    routineId,
+    actorUserId,
+    { baseRevision, isPaused: true },
+    operationId
+  );
+}
+
+export async function resumeRoutine(
+  client: PoolClient,
+  workspaceId: string,
+  routineId: string,
+  actorUserId: string,
+  baseRevision: number,
+  operationId?: string
+): Promise<Routine & { seq: number }> {
+  return updateRoutine(
+    client,
+    workspaceId,
+    routineId,
+    actorUserId,
+    { baseRevision, isPaused: false },
+    operationId
+  );
+}
+
+export async function archiveRoutine(
+  client: PoolClient,
+  workspaceId: string,
+  routineId: string,
+  actorUserId: string,
+  baseRevision: number,
+  operationId?: string
+): Promise<Routine & { seq: number }> {
+  return updateRoutine(
+    client,
+    workspaceId,
+    routineId,
+    actorUserId,
+    { baseRevision, isArchived: true },
+    operationId
+  );
+}
+
+export async function unarchiveRoutine(
+  client: PoolClient,
+  workspaceId: string,
+  routineId: string,
+  actorUserId: string,
+  baseRevision: number,
+  operationId?: string
+): Promise<Routine & { seq: number }> {
+  return updateRoutine(
+    client,
+    workspaceId,
+    routineId,
+    actorUserId,
+    { baseRevision, isArchived: false },
+    operationId
+  );
 }
 
 export async function trashRoutine(
@@ -609,7 +779,8 @@ export async function trashRoutine(
   baseRevision: number,
   operationId?: string
 ): Promise<{ id: string; revision: number; seq: number }> {
-  const current = await getRoutine(client, workspaceId, routineId);
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  const current = await getRoutine(client, workspaceId, routineId, true);
   if (current.revision !== baseRevision) {
     throw new ConflictError(
       `REVISION_CONFLICT: Routine revision is ${current.revision}, but trash requested baseRevision ${baseRevision}.`
@@ -626,7 +797,6 @@ export async function trashRoutine(
     [nextRevision, actorUserId, workspaceId, routineId]
   );
 
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const nextSeq = syncState.nextChangeSeq;
 
   await insertChange(client, {
@@ -653,24 +823,8 @@ export async function restoreRoutine(
   baseRevision: number,
   operationId?: string
 ): Promise<Routine & { seq: number }> {
-  const res = await client.query<RoutineDbRow>(
-    `SELECT
-       r.id, r.workspace_id, r.folder_id, r.title, r.details, r.frequency,
-       r.weekdays, r.timezone, r.scheduled_time, r.active_from, r.active_to,
-       r.is_paused, r.is_archived, r.is_pinned, r.schedule_revision, r.effective_date,
-       r.created_at, r.updated_at,
-       i.kind, i.created_by, i.updated_by, i.deleted_at, i.revision, i.rank, i.security_scope
-     FROM app.routines r
-     JOIN app.items i ON i.workspace_id = r.workspace_id AND i.id = r.id
-     WHERE r.workspace_id = $1 AND r.id = $2;`,
-    [workspaceId, routineId]
-  );
-
-  if (res.rows.length === 0) {
-    throw new NotFoundError(`Routine ${routineId} not found.`);
-  }
-
-  const current = mapRowToRoutine(res.rows[0]!);
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  const current = await getRoutine(client, workspaceId, routineId, true);
   if (current.revision !== baseRevision) {
     throw new ConflictError(
       `REVISION_CONFLICT: Routine revision is ${current.revision}, but restore requested baseRevision ${baseRevision}.`
@@ -687,9 +841,7 @@ export async function restoreRoutine(
     [nextRevision, actorUserId, workspaceId, routineId]
   );
 
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const nextSeq = syncState.nextChangeSeq;
-
   const restored = { ...current, revision: nextRevision, deletedAt: null };
 
   await insertChange(client, {
@@ -724,6 +876,16 @@ export async function generateOccurrences(
   if (startDate > endDate) {
     throw new ValidationError(`startDate "${startDate}" cannot be after endDate "${endDate}".`);
   }
+  const diffDays = getCalendarDateDifferenceDays(startDate, endDate);
+  if (diffDays > 90) {
+    throw new ValidationError(
+      `Requested date range spans ${diffDays} days, which exceeds the maximum allowed range of 90 days.`
+    );
+  }
+
+  // Acquire workspace lock first to serialize concurrent generation and ensure unique monotonic changes
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  let nextSeq = syncState.nextChangeSeq;
 
   // 1. Fetch matching active routines in workspace
   let routineSql = `
@@ -763,10 +925,32 @@ export async function generateOccurrences(
   const existingOccRes = await client.query<OccurrenceDbRow>(occSql, occParams);
   const existingOccurrences = existingOccRes.rows.map(mapRowToOccurrence);
 
-  // 3. Generate planned occurrences for each routine
+  // 3. Generate planned occurrences for each routine using historical schedule revisions
   const newlyCreated: RoutineOccurrence[] = [];
 
   for (const routine of routines) {
+    const revRes = await client.query<RoutineScheduleRevisionDbRow>(
+      `SELECT schedule_revision, effective_date, frequency, weekdays, timezone, scheduled_time, active_from, active_to, is_paused
+       FROM app.routine_schedule_revisions
+       WHERE workspace_id = $1 AND routine_id = $2
+       ORDER BY schedule_revision ASC;`,
+      [workspaceId, routine.id]
+    );
+
+    const revisions: RoutineScheduleRevisionRule[] = revRes.rows.map((r) => ({
+      workspaceId,
+      routineId: routine.id,
+      scheduleRevision: Number(r.schedule_revision),
+      effectiveDate: formatDateOnly(r.effective_date)!,
+      frequency: r.frequency,
+      weekdays: (r.weekdays || []) as DomainWeekday[],
+      timezone: r.timezone,
+      scheduledTime: r.scheduled_time,
+      activeFrom: formatDateOnly(r.active_from)!,
+      activeTo: formatDateOnly(r.active_to),
+      isPaused: r.is_paused,
+    }));
+
     const rule: RoutineTemplateRule = {
       id: routine.id,
       workspaceId: routine.workspaceId,
@@ -785,8 +969,9 @@ export async function generateOccurrences(
       effectiveDate: routine.effectiveDate,
     };
 
-    const plannedOccs = generateOccurrencesForDateRange(
+    const plannedOccs = generateOccurrencesForDateRangeWithHistory(
       rule,
+      revisions,
       startDate,
       endDate,
       existingOccurrences
@@ -822,34 +1007,31 @@ export async function generateOccurrences(
         const created = mapRowToOccurrence(insRes.rows[0]!);
         newlyCreated.push(created);
         existingOccurrences.push(created);
+
+        await insertChange(client, {
+          workspaceId,
+          seq: nextSeq,
+          entityType: 'routine_occurrence',
+          entityId: created.id,
+          revision: created.serverRevision,
+          isTombstone: false,
+          operationId: crypto.randomUUID(),
+          changeData: created,
+        });
+        nextSeq++;
       }
     }
   }
 
-  // If any new occurrences were created, record in change feed
-  if (newlyCreated.length > 0) {
-    const syncState = await lockWorkspaceSyncState(client, workspaceId);
-    let seq = syncState.nextChangeSeq;
-
-    for (const occ of newlyCreated) {
-      await insertChange(client, {
-        workspaceId,
-        seq,
-        entityType: 'routine_occurrence',
-        entityId: occ.id,
-        revision: occ.serverRevision,
-        isTombstone: false,
-        operationId: crypto.randomUUID(),
-        changeData: occ,
-      });
-      seq++;
-    }
-
-    await updateWorkspaceSyncSeq(client, workspaceId, seq);
+  // Update sync seq if any new occurrences were recorded
+  if (nextSeq > syncState.nextChangeSeq) {
+    await updateWorkspaceSyncSeq(client, workspaceId, nextSeq);
   }
 
-  // Return all occurrences in range, sorted by date
-  return existingOccurrences.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+  // Return all non-cancelled occurrences in range, sorted by date
+  return existingOccurrences
+    .filter((o) => o.status !== 'cancelled')
+    .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
 }
 
 export async function listOccurrences(
@@ -861,7 +1043,7 @@ export async function listOccurrences(
 ): Promise<RoutineOccurrence[]> {
   let sql = `
     SELECT * FROM app.routine_occurrences
-    WHERE workspace_id = $1 AND scheduled_date >= $2 AND scheduled_date <= $3
+    WHERE workspace_id = $1 AND scheduled_date >= $2 AND scheduled_date <= $3 AND status != 'cancelled'
   `;
   const params: unknown[] = [workspaceId, startDate, endDate];
   if (routineId) {
@@ -877,11 +1059,13 @@ export async function listOccurrences(
 export async function getOccurrence(
   client: PoolClient,
   workspaceId: string,
-  occurrenceId: string
+  occurrenceId: string,
+  forUpdate = false
 ): Promise<RoutineOccurrence> {
   const res = await client.query<OccurrenceDbRow>(
     `SELECT * FROM app.routine_occurrences
-     WHERE workspace_id = $1 AND id = $2;`,
+     WHERE workspace_id = $1 AND id = $2
+     ${forUpdate ? 'FOR UPDATE' : ''};`,
     [workspaceId, occurrenceId]
   );
   if (res.rows.length === 0) {
@@ -896,13 +1080,164 @@ export async function completeOccurrenceService(
   occurrenceId: string,
   actorUserId: string,
   baseRevision: number,
-  operationId?: string
+  operationId?: string,
+  offlineMeta?: {
+    routineId?: string;
+    scheduledDate?: string;
+    completedAt?: string;
+    completedBy?: string;
+    history?: RoutineOccurrenceTransition[];
+  }
 ): Promise<RoutineOccurrence & { seq: number }> {
-  const current = await getOccurrence(client, workspaceId, occurrenceId);
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const occRes = await client.query<OccurrenceDbRow>(
+    `SELECT * FROM app.routine_occurrences
+     WHERE workspace_id = $1 AND id = $2
+     FOR UPDATE;`,
+    [workspaceId, occurrenceId]
+  );
+
+  if (occRes.rows.length === 0) {
+    if (offlineMeta?.routineId && offlineMeta?.scheduledDate) {
+      const routineRes = await client.query<RoutineDbRow>(
+        `SELECT * FROM app.routines WHERE workspace_id = $1 AND id = $2;`,
+        [workspaceId, offlineMeta.routineId]
+      );
+      if (routineRes.rows.length === 0) {
+        throw new NotFoundError(`Routine ${offlineMeta.routineId} not found.`);
+      }
+      const routine = mapRowToRoutine(routineRes.rows[0]!);
+
+      const expectedId = computeDeterministicOccurrenceId(
+        workspaceId,
+        offlineMeta.routineId,
+        offlineMeta.scheduledDate
+      );
+      if (occurrenceId !== expectedId) {
+        throw new NotFoundError(
+          `Occurrence ${occurrenceId} not found and does not match deterministic ID.`
+        );
+      }
+
+      const revsRes = await client.query<RoutineScheduleRevisionDbRow>(
+        `SELECT * FROM app.routine_schedule_revisions
+         WHERE workspace_id = $1 AND routine_id = $2
+         ORDER BY schedule_revision ASC;`,
+        [workspaceId, offlineMeta.routineId]
+      );
+      const revisions: RoutineScheduleRevisionRule[] = revsRes.rows.map((r) => ({
+        workspaceId,
+        routineId: routine.id,
+        scheduleRevision: Number(r.schedule_revision),
+        effectiveDate: formatDateOnly(r.effective_date)!,
+        frequency: r.frequency,
+        weekdays: (r.weekdays || []) as DomainWeekday[],
+        timezone: r.timezone,
+        scheduledTime: r.scheduled_time,
+        activeFrom: formatDateOnly(r.active_from)!,
+        activeTo: formatDateOnly(r.active_to),
+        isPaused: r.is_paused,
+      }));
+
+      const rule: RoutineTemplateRule = {
+        id: routine.id,
+        workspaceId: routine.workspaceId,
+        folderId: routine.folderId,
+        title: routine.title,
+        details: routine.details,
+        frequency: routine.frequency,
+        weekdays: routine.weekdays as DomainWeekday[],
+        timezone: routine.timezone,
+        scheduledTime: routine.scheduledTime,
+        activeFrom: routine.activeFrom,
+        activeTo: routine.activeTo,
+        isPaused: routine.isPaused,
+        isArchived: routine.isArchived,
+        scheduleRevision: routine.scheduleRevision,
+        effectiveDate: routine.effectiveDate,
+      };
+
+      const applicable = selectApplicableScheduleRule(revisions, rule, offlineMeta.scheduledDate);
+      const plannedInstant = calculatePlannedInstant(
+        offlineMeta.scheduledDate,
+        applicable.scheduledTime,
+        applicable.timezone
+      );
+
+      const opId = operationId || crypto.randomUUID();
+      const completedAt = offlineMeta.completedAt || new Date().toISOString();
+      const history: RoutineOccurrenceTransition[] =
+        offlineMeta.history && offlineMeta.history.length > 0
+          ? offlineMeta.history
+          : [
+              {
+                fromStatus: 'pending' as const,
+                toStatus: 'done' as const,
+                status: 'done' as const,
+                transitionedAt: completedAt,
+                changedAt: completedAt,
+                actorId: actorUserId,
+              },
+            ];
+
+      const insertRes = await client.query<OccurrenceDbRow>(
+        `INSERT INTO app.routine_occurrences (
+           id, workspace_id, routine_id, scheduled_date, schedule_revision,
+           planned_instant, timezone, status, completed_at, completed_by,
+           history, server_revision, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'done', $8, $9, $10::jsonb, 1, now(), now())
+         ON CONFLICT (workspace_id, routine_id, scheduled_date) DO UPDATE
+         SET status = 'done', completed_at = EXCLUDED.completed_at, completed_by = EXCLUDED.completed_by,
+             history = EXCLUDED.history, server_revision = app.routine_occurrences.server_revision + 1, updated_at = now()
+         RETURNING *;`,
+        [
+          occurrenceId,
+          workspaceId,
+          offlineMeta.routineId,
+          offlineMeta.scheduledDate,
+          applicable.scheduleRevision,
+          plannedInstant ? new Date(plannedInstant) : null,
+          applicable.timezone,
+          new Date(completedAt),
+          actorUserId,
+          JSON.stringify(history),
+        ]
+      );
+
+      const createdOcc = mapRowToOccurrence(insertRes.rows[0]!);
+      const nextSeq = syncState.nextChangeSeq;
+
+      await insertChange(client, {
+        workspaceId,
+        seq: nextSeq,
+        entityType: 'routine_occurrence',
+        entityId: occurrenceId,
+        revision: createdOcc.serverRevision,
+        isTombstone: false,
+        operationId: opId,
+        changeData: createdOcc,
+      });
+
+      await updateWorkspaceSyncSeq(client, workspaceId, nextSeq + 1);
+
+      return { ...createdOcc, seq: nextSeq };
+    }
+
+    throw new NotFoundError(`Routine occurrence ${occurrenceId} not found.`);
+  }
+
+  const current = mapRowToOccurrence(occRes.rows[0]!);
+
   if (current.serverRevision !== baseRevision) {
     throw new ConflictError(
       `REVISION_CONFLICT: Occurrence revision is ${current.serverRevision}, but complete requested baseRevision ${baseRevision}.`
     );
+  }
+
+  // Idempotency: if already done, return existing without duplicating history
+  if (current.status === 'done') {
+    return { ...current, seq: syncState.nextChangeSeq };
   }
 
   const opId = operationId || crypto.randomUUID();
@@ -930,7 +1265,6 @@ export async function completeOccurrenceService(
     revision: nextRevision,
   };
 
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const nextSeq = syncState.nextChangeSeq;
 
   await insertChange(client, {
@@ -955,13 +1289,159 @@ export async function skipOccurrenceService(
   occurrenceId: string,
   actorUserId: string,
   baseRevision: number,
-  operationId?: string
+  operationId?: string,
+  offlineMeta?: {
+    routineId?: string;
+    scheduledDate?: string;
+    history?: RoutineOccurrenceTransition[];
+  }
 ): Promise<RoutineOccurrence & { seq: number }> {
-  const current = await getOccurrence(client, workspaceId, occurrenceId);
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const occRes = await client.query<OccurrenceDbRow>(
+    `SELECT * FROM app.routine_occurrences
+     WHERE workspace_id = $1 AND id = $2
+     FOR UPDATE;`,
+    [workspaceId, occurrenceId]
+  );
+
+  if (occRes.rows.length === 0) {
+    if (offlineMeta?.routineId && offlineMeta?.scheduledDate) {
+      const routineRes = await client.query<RoutineDbRow>(
+        `SELECT * FROM app.routines WHERE workspace_id = $1 AND id = $2;`,
+        [workspaceId, offlineMeta.routineId]
+      );
+      if (routineRes.rows.length === 0) {
+        throw new NotFoundError(`Routine ${offlineMeta.routineId} not found.`);
+      }
+      const routine = mapRowToRoutine(routineRes.rows[0]!);
+
+      const expectedId = computeDeterministicOccurrenceId(
+        workspaceId,
+        offlineMeta.routineId,
+        offlineMeta.scheduledDate
+      );
+      if (occurrenceId !== expectedId) {
+        throw new NotFoundError(
+          `Occurrence ${occurrenceId} not found and does not match deterministic ID.`
+        );
+      }
+
+      const revsRes = await client.query<RoutineScheduleRevisionDbRow>(
+        `SELECT * FROM app.routine_schedule_revisions
+         WHERE workspace_id = $1 AND routine_id = $2
+         ORDER BY schedule_revision ASC;`,
+        [workspaceId, offlineMeta.routineId]
+      );
+      const revisions: RoutineScheduleRevisionRule[] = revsRes.rows.map((r) => ({
+        workspaceId,
+        routineId: routine.id,
+        scheduleRevision: Number(r.schedule_revision),
+        effectiveDate: formatDateOnly(r.effective_date)!,
+        frequency: r.frequency,
+        weekdays: (r.weekdays || []) as DomainWeekday[],
+        timezone: r.timezone,
+        scheduledTime: r.scheduled_time,
+        activeFrom: formatDateOnly(r.active_from)!,
+        activeTo: formatDateOnly(r.active_to),
+        isPaused: r.is_paused,
+      }));
+
+      const rule: RoutineTemplateRule = {
+        id: routine.id,
+        workspaceId: routine.workspaceId,
+        folderId: routine.folderId,
+        title: routine.title,
+        details: routine.details,
+        frequency: routine.frequency,
+        weekdays: routine.weekdays as DomainWeekday[],
+        timezone: routine.timezone,
+        scheduledTime: routine.scheduledTime,
+        activeFrom: routine.activeFrom,
+        activeTo: routine.activeTo,
+        isPaused: routine.isPaused,
+        isArchived: routine.isArchived,
+        scheduleRevision: routine.scheduleRevision,
+        effectiveDate: routine.effectiveDate,
+      };
+
+      const applicable = selectApplicableScheduleRule(revisions, rule, offlineMeta.scheduledDate);
+      const plannedInstant = calculatePlannedInstant(
+        offlineMeta.scheduledDate,
+        applicable.scheduledTime,
+        applicable.timezone
+      );
+
+      const opId = operationId || crypto.randomUUID();
+      const history: RoutineOccurrenceTransition[] =
+        offlineMeta.history && offlineMeta.history.length > 0
+          ? offlineMeta.history
+          : [
+              {
+                fromStatus: 'pending' as const,
+                toStatus: 'skipped' as const,
+                status: 'skipped' as const,
+                transitionedAt: new Date().toISOString(),
+                changedAt: new Date().toISOString(),
+                actorId: actorUserId,
+              },
+            ];
+
+      const insertRes = await client.query<OccurrenceDbRow>(
+        `INSERT INTO app.routine_occurrences (
+           id, workspace_id, routine_id, scheduled_date, schedule_revision,
+           planned_instant, timezone, status, completed_at, completed_by,
+           history, server_revision, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'skipped', null, null, $8::jsonb, 1, now(), now())
+         ON CONFLICT (workspace_id, routine_id, scheduled_date) DO UPDATE
+         SET status = 'skipped', completed_at = null, completed_by = null,
+             history = EXCLUDED.history, server_revision = app.routine_occurrences.server_revision + 1, updated_at = now()
+         RETURNING *;`,
+        [
+          occurrenceId,
+          workspaceId,
+          offlineMeta.routineId,
+          offlineMeta.scheduledDate,
+          applicable.scheduleRevision,
+          plannedInstant ? new Date(plannedInstant) : null,
+          applicable.timezone,
+          JSON.stringify(history),
+        ]
+      );
+
+      const createdOcc = mapRowToOccurrence(insertRes.rows[0]!);
+      const nextSeq = syncState.nextChangeSeq;
+
+      await insertChange(client, {
+        workspaceId,
+        seq: nextSeq,
+        entityType: 'routine_occurrence',
+        entityId: occurrenceId,
+        revision: createdOcc.serverRevision,
+        isTombstone: false,
+        operationId: opId,
+        changeData: createdOcc,
+      });
+
+      await updateWorkspaceSyncSeq(client, workspaceId, nextSeq + 1);
+
+      return { ...createdOcc, seq: nextSeq };
+    }
+
+    throw new NotFoundError(`Routine occurrence ${occurrenceId} not found.`);
+  }
+
+  const current = mapRowToOccurrence(occRes.rows[0]!);
+
   if (current.serverRevision !== baseRevision) {
     throw new ConflictError(
       `REVISION_CONFLICT: Occurrence revision is ${current.serverRevision}, but skip requested baseRevision ${baseRevision}.`
     );
+  }
+
+  // Idempotency: if already skipped, return existing without duplicating history
+  if (current.status === 'skipped') {
+    return { ...current, seq: syncState.nextChangeSeq };
   }
 
   const opId = operationId || crypto.randomUUID();
@@ -982,7 +1462,6 @@ export async function skipOccurrenceService(
     revision: nextRevision,
   };
 
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const nextSeq = syncState.nextChangeSeq;
 
   await insertChange(client, {
@@ -1009,11 +1488,18 @@ export async function reopenOccurrenceService(
   baseRevision: number,
   operationId?: string
 ): Promise<RoutineOccurrence & { seq: number }> {
-  const current = await getOccurrence(client, workspaceId, occurrenceId);
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const current = await getOccurrence(client, workspaceId, occurrenceId, true);
   if (current.serverRevision !== baseRevision) {
     throw new ConflictError(
       `REVISION_CONFLICT: Occurrence revision is ${current.serverRevision}, but reopen requested baseRevision ${baseRevision}.`
     );
+  }
+
+  // Idempotency: if already pending, return existing without duplicating history
+  if (current.status === 'pending') {
+    return { ...current, seq: syncState.nextChangeSeq };
   }
 
   const opId = operationId || crypto.randomUUID();
@@ -1034,7 +1520,6 @@ export async function reopenOccurrenceService(
     revision: nextRevision,
   };
 
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const nextSeq = syncState.nextChangeSeq;
 
   await insertChange(client, {

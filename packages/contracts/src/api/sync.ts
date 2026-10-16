@@ -33,11 +33,18 @@ export const SyncCommandTypeSchema = z.enum([
   'reopenTask',
   'createRoutine',
   'updateRoutine',
+  'pauseRoutine',
+  'resumeRoutine',
+  'archiveRoutine',
+  'unarchiveRoutine',
   'trashRoutine',
   'restoreRoutine',
   'completeOccurrence',
   'skipOccurrence',
   'reopenOccurrence',
+  'completeRoutineOccurrence',
+  'skipRoutineOccurrence',
+  'reopenRoutineOccurrence',
 ]);
 
 export type SyncCommandType = z.infer<typeof SyncCommandTypeSchema>;
@@ -144,6 +151,7 @@ export const SyncPullResponseSchema = z.object({
 export type SyncPullResponse = z.infer<typeof SyncPullResponseSchema>;
 
 import { FolderSchema, TagSchema, ItemTagSchema, ItemLinkSchema } from './organization.js';
+import { RoutineSchema, RoutineOccurrenceSchema } from './routine.js';
 
 export const SyncBootstrapQuerySchema = z.object({
   workspaceId: z.string().uuid(),
@@ -158,6 +166,8 @@ export const SyncBootstrapResponseSchema = z.object({
     tags: z.array(TagSchema).optional().default([]),
     itemTags: z.array(ItemTagSchema).optional().default([]),
     itemLinks: z.array(ItemLinkSchema).optional().default([]),
+    routines: z.array(RoutineSchema).optional().default([]),
+    routineOccurrences: z.array(RoutineOccurrenceSchema).optional().default([]),
     watermarkCursor: z.string(),
     accessEpoch: z.string(),
   }),
