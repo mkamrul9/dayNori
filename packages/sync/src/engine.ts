@@ -17,6 +17,9 @@ import { type TabCoordinationPort, SingleProcessCoordinator } from './coordinati
 export interface SaveItemOptions {
   dependencyOperationIds?: string[];
   autoSync?: boolean;
+  payload?: Record<string, unknown>;
+  commandVersion?: number;
+  schemaVersion?: number;
 }
 
 export interface SyncEngineOptions {
@@ -313,23 +316,49 @@ export class SyncEngine {
       new Set([...(options?.dependencyOperationIds || []), ...inferredDeps])
     );
 
-    const determinedCommand = command || (item.serverRevision === 0 ? 'createItem' : 'updateItem');
+    const isFolder =
+      item.kind === 'folder' || (command !== undefined && command.includes('Folder'));
+    const determinedCommand =
+      command ||
+      (item.serverRevision === 0
+        ? isFolder
+          ? 'createFolder'
+          : 'createItem'
+        : isFolder
+          ? 'updateFolder'
+          : 'updateItem');
+
     const action: 'create' | 'update' | 'delete' =
-      determinedCommand === 'trashItem'
+      determinedCommand === 'trashItem' || determinedCommand === 'trashFolder'
         ? 'delete'
-        : determinedCommand === 'createItem'
+        : determinedCommand === 'createItem' || determinedCommand === 'createFolder'
           ? 'create'
           : 'update';
 
     // Typed metadata only - do NOT leak unpersisted feature bodies into server metadata sync payload
-    const mutationPayload: Record<string, unknown> = {
-      kind: item.kind,
-      rank: item.rank,
-      folderId: item.folderId,
-      securityScope: item.securityScope,
-      isArchived: item.isArchived,
-      isPinned: item.isPinned,
-    };
+    const mutationPayload: Record<string, unknown> = isFolder
+      ? {
+          kind: 'folder',
+          name: item.name || item.title || 'Untitled Folder',
+          parentId: item.parentId !== undefined ? item.parentId : item.folderId,
+          color: item.color,
+          icon: item.icon,
+          rank: item.rank,
+          securityScope: item.securityScope,
+          isArchived: item.isArchived,
+          isPinned: item.isPinned,
+          ...(options?.payload || {}),
+        }
+      : {
+          kind: item.kind,
+          rank: item.rank,
+          folderId: item.folderId,
+          securityScope: item.securityScope,
+          isArchived: item.isArchived,
+          isPinned: item.isPinned,
+          ...(item.name ? { name: item.name } : {}),
+          ...(options?.payload || {}),
+        };
 
     // Calculate baseRevision for unsent intents:
     // If there are pending operations for this entity, chain expected base revision
@@ -346,12 +375,12 @@ export class SyncEngine {
       deviceId: this.deviceId,
       workspaceId: item.workspaceId,
       userId: this.namespace.userId,
-      entityType: 'item',
+      entityType: isFolder ? 'folder' : 'item',
       entityId: item.id,
       action,
       command: determinedCommand,
-      commandVersion: 1,
-      schemaVersion: 1,
+      commandVersion: options?.commandVersion ?? 1,
+      schemaVersion: options?.schemaVersion ?? 1,
       payload: mutationPayload,
       baseRevision,
       dependencyOperationIds: resolvedDeps,
@@ -572,17 +601,37 @@ export class SyncEngine {
           ? {
               ...header,
               serverRevision: result.revision,
+              name: (origMutation.payload['name'] as string) || header.name,
+              color:
+                'color' in origMutation.payload
+                  ? (origMutation.payload['color'] as string | null)
+                  : header.color,
+              icon:
+                'icon' in origMutation.payload
+                  ? (origMutation.payload['icon'] as string | null)
+                  : header.icon,
+              parentId:
+                'parentId' in origMutation.payload
+                  ? (origMutation.payload['parentId'] as string | null)
+                  : header.parentId,
+              folderId:
+                'folderId' in origMutation.payload
+                  ? (origMutation.payload['folderId'] as string | null)
+                  : header.folderId,
               deletedAt:
-                origMutation.command === 'trashItem'
+                origMutation.command === 'trashItem' || origMutation.command === 'trashFolder'
                   ? new Date().toISOString()
-                  : origMutation.command === 'restoreItem'
+                  : origMutation.command === 'restoreItem' ||
+                      origMutation.command === 'restoreFolder'
                     ? null
                     : header.deletedAt,
             }
           : {
               id: result.entityId,
               workspaceId: this.namespace.workspaceId,
-              kind: (origMutation.payload['kind'] as string) || 'note',
+              kind:
+                (origMutation.payload['kind'] as string) ||
+                (origMutation.entityType === 'folder' ? 'folder' : 'note'),
               folderId: (origMutation.payload['folderId'] as string | null) ?? null,
               rank: (origMutation.payload['rank'] as string) || '0',
               isArchived: Boolean(origMutation.payload['isArchived'] ?? false),
@@ -590,9 +639,16 @@ export class SyncEngine {
               securityScope:
                 (origMutation.payload['securityScope'] as 'standard' | 'vault') || 'standard',
               serverRevision: result.revision,
+              name: origMutation.payload['name'] as string | undefined,
+              color: origMutation.payload['color'] as string | null | undefined,
+              icon: origMutation.payload['icon'] as string | null | undefined,
+              parentId: (origMutation.payload['parentId'] as string | null) ?? null,
               createdAt: origMutation.clientTimestamp,
               updatedAt: new Date().toISOString(),
-              deletedAt: origMutation.command === 'trashItem' ? new Date().toISOString() : null,
+              deletedAt:
+                origMutation.command === 'trashItem' || origMutation.command === 'trashFolder'
+                  ? new Date().toISOString()
+                  : null,
             };
 
         // B. Retain pending work until the durable result is applied locally
@@ -625,7 +681,7 @@ export class SyncEngine {
         const conflictRecord: ConflictRecord = {
           id: this.generateId(),
           entityId: result.entityId,
-          entityType: 'item',
+          entityType: origMutation.entityType || 'item',
           operationId: result.operationId,
           workspaceId: this.namespace.workspaceId,
           userId: this.namespace.userId,
@@ -921,7 +977,7 @@ export class SyncEngine {
         entityType: conflict.entityType,
         entityId: conflict.entityId,
         action: 'update',
-        command: 'updateItem',
+        command: conflict.entityType === 'folder' ? 'updateFolder' : 'updateItem',
         commandVersion: 1,
         schemaVersion: 1,
         payload,

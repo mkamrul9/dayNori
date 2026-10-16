@@ -19,6 +19,7 @@ export interface ItemHeaderRecord {
   isPinned: boolean;
   securityScope: 'standard' | 'vault';
   serverRevision: number;
+  title?: string;
   name?: string;
   color?: string | null;
   icon?: string | null;
@@ -196,6 +197,9 @@ export function validateItemHeaderRecord(input: unknown): ItemHeaderRecord {
         : assertNonEmptyString(r.deletedAt, 'deletedAt', 64),
   };
 
+  if (typeof r.title === 'string') {
+    res.title = r.title;
+  }
   if (typeof r.name === 'string') {
     res.name = r.name;
   }

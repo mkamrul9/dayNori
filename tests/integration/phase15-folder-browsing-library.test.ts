@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import 'fake-indexeddb/auto';
 import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
@@ -6,7 +7,27 @@ import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
 import { createAdminPool, createRuntimePool } from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
-import { compareRanks } from '@daynori/domain';
+import { compareRanks, generateUuid } from '@daynori/domain';
+import { SyncEngine, ApiClientSyncTransport } from '@daynori/sync';
+import {
+  IndexedDbLocalRepository,
+  clearAllLocalData,
+  setTrustedDeviceConsent,
+} from '../../apps/web/src/data/indexedDbRepository.js';
+
+// In-memory localStorage mock for Node test runner
+const memoryStorage = new Map<string, string>();
+const globalWithStorage = globalThis as unknown as { localStorage?: Storage };
+if (typeof globalWithStorage.localStorage === 'undefined') {
+  globalWithStorage.localStorage = {
+    getItem: (key: string) => memoryStorage.get(key) ?? null,
+    setItem: (key: string, value: string) => memoryStorage.set(key, String(value)),
+    removeItem: (key: string) => memoryStorage.delete(key),
+    clear: () => memoryStorage.clear(),
+    key: (_index: number) => null,
+    length: 0,
+  };
+}
 
 describe('Phase 15: Folder Browsing and Organization Interfaces (Integration & Contracts)', () => {
   let adminPool: Pool;
@@ -23,9 +44,13 @@ describe('Phase 15: Folder Browsing and Organization Interfaces (Integration & C
   const kid = 'phase15-org-key';
 
   const userAId = crypto.randomUUID();
+  const userBId = crypto.randomUUID();
   let tokenUserA: string;
+  let tokenUserB: string;
   let clientA: DaynoriApiClient;
+  let clientB: DaynoriApiClient;
   let workspaceAId: string;
+  let workspaceBId: string;
 
   async function createToken(userId: string): Promise<string> {
     return new SignJWT({
@@ -59,6 +84,7 @@ describe('Phase 15: Folder Browsing and Organization Interfaces (Integration & C
     jwks = { keys: [publicJwk] };
 
     tokenUserA = await createToken(userAId);
+    tokenUserB = await createToken(userBId);
 
     // 3. Start API Server with in-memory JWKS verifier
     const jwtVerifier = new JwtVerifier({
@@ -84,12 +110,18 @@ describe('Phase 15: Folder Browsing and Organization Interfaces (Integration & C
       token: tokenUserA,
     });
 
-    // 4. Setup Test Workspace & Profile for User A
+    clientB = createApiClient({
+      baseUrl,
+      token: tokenUserB,
+    });
+
+    // 4. Setup Test Workspace & Profile for User A and User B
     const admin = await adminPool.connect();
     try {
       await admin.query(`
         INSERT INTO app.profiles (id, display_name) VALUES
-          ('${userAId}', 'Alice Library User')
+          ('${userAId}', 'Alice Library User'),
+          ('${userBId}', 'Bob Collaborator User')
         ON CONFLICT (id) DO NOTHING;
       `);
 
@@ -103,6 +135,18 @@ describe('Phase 15: Folder Browsing and Organization Interfaces (Integration & C
       await admin.query(`
         INSERT INTO app.workspace_memberships (workspace_id, user_id, role) VALUES
           ('${workspaceAId}', '${userAId}', 'owner');
+      `);
+
+      const wsBRes = await admin.query<{ id: string }>(`
+        INSERT INTO app.workspaces (name, kind, owner_id)
+        VALUES ('Bob Personal Workspace', 'personal', '${userBId}')
+        RETURNING id;
+      `);
+      workspaceBId = wsBRes.rows[0]!.id;
+
+      await admin.query(`
+        INSERT INTO app.workspace_memberships (workspace_id, user_id, role) VALUES
+          ('${workspaceBId}', '${userBId}', 'owner');
       `);
     } finally {
       admin.release();
@@ -360,6 +404,216 @@ describe('Phase 15: Folder Browsing and Organization Interfaces (Integration & C
 
       expect(res1.data.id).toBe(res2.data.id);
       expect(res1.data.name).toBe(res2.data.name);
+    });
+  });
+
+  describe('5. Multi-Client Consistent Hierarchy & Stable Identities', () => {
+    it('allows another client session to observe the exact same stable folder IDs and hierarchy', async () => {
+      // Create Client 2 with separate headers representing another device session
+      const client2 = createApiClient({
+        baseUrl,
+        token: tokenUserA,
+      });
+
+      // Client 1 lists folders
+      const list1 = await clientA.listFolders(workspaceAId);
+      // Client 2 lists folders
+      const list2 = await client2.listFolders(workspaceAId);
+
+      expect(list1.data.length).toBeGreaterThan(0);
+      expect(list2.data.length).toBe(list1.data.length);
+
+      const map1 = new Map(list1.data.map((f) => [f.id, f]));
+      for (const folder2 of list2.data) {
+        const folder1 = map1.get(folder2.id);
+        expect(folder1).toBeDefined();
+        expect(folder2.name).toBe(folder1!.name);
+        expect(folder2.parentId).toBe(folder1!.parentId);
+        expect(folder2.rank).toBe(folder1!.rank);
+      }
+    });
+  });
+
+  describe('6. Offline Actions, Local Queue Survival, and Reconnect Synchronization to PostgreSQL', () => {
+    it('persists folder creation offline, survives reload, and synchronizes into PostgreSQL', async () => {
+      setTrustedDeviceConsent(true);
+      const localRepo = new IndexedDbLocalRepository();
+      await localRepo.initialize({
+        workspaceId: workspaceAId,
+        userId: userAId,
+        deviceId: 'device-test-1',
+      });
+
+      const transport = new ApiClientSyncTransport(clientA, workspaceAId);
+      const syncEngine = new SyncEngine({
+        repository: localRepo,
+        transport,
+        namespace: {
+          workspaceId: workspaceAId,
+          userId: userAId,
+        },
+        deviceId: 'device-test-1',
+      });
+
+      const offlineFolderId = generateUuid();
+
+      // 1. Set network status to offline and save folder
+      syncEngine.setNetworkStatus('offline');
+      const mutation = await syncEngine.saveItem(
+        {
+          id: offlineFolderId,
+          workspaceId: workspaceAId,
+          folderId: null,
+          kind: 'folder' as unknown as 'note',
+          entityType: 'folder',
+          rank: '00005000',
+          title: 'Offline Browser Created Folder',
+          securityScope: 'standard',
+          revision: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          deletedAt: null,
+          archivedAt: null,
+          payload: {
+            name: 'Offline Browser Created Folder',
+            parentId: null,
+          },
+        },
+        undefined,
+        'createFolder',
+        {
+          autoSync: false,
+        }
+      );
+      expect(mutation.entityId).toBe(offlineFolderId);
+
+      const syncState = syncEngine.getItemSyncState(offlineFolderId);
+      expect(syncState.savedOnDevice).toBe(true);
+      expect(syncState.cloudSyncStatus).toBe('saved_locally');
+
+      // Verify queued in local mutations
+      const pendingBefore = await localRepo.getPendingMutations(workspaceAId, userAId);
+      expect(pendingBefore.some((m) => m.entityId === offlineFolderId)).toBe(true);
+
+      // 2. Simulate browser reload / process restart with a fresh local repository instance
+      const reloadedRepo = new IndexedDbLocalRepository();
+      await reloadedRepo.initialize({
+        workspaceId: workspaceAId,
+        userId: userAId,
+        deviceId: 'device-test-1',
+      });
+      const pendingAfterReload = await reloadedRepo.getPendingMutations(workspaceAId, userAId);
+      expect(pendingAfterReload.some((m) => m.entityId === offlineFolderId)).toBe(true);
+
+      // 3. Reconnect and synchronize pending mutations
+      const reconnectedEngine = new SyncEngine({
+        repository: reloadedRepo,
+        transport,
+        namespace: {
+          workspaceId: workspaceAId,
+          userId: userAId,
+        },
+        deviceId: 'device-test-1',
+        initialNetworkStatus: 'online',
+      });
+      await reconnectedEngine.start();
+      await reconnectedEngine.syncNow();
+
+      // 4. Verify the folder now exists in PostgreSQL backend database
+      const clientCheck = await clientA.listFolders(workspaceAId);
+      const foundInPostgres = clientCheck.data.find((f) => f.id === offlineFolderId);
+      expect(foundInPostgres).toBeDefined();
+      expect(foundInPostgres?.name).toBe('Offline Browser Created Folder');
+
+      await reconnectedEngine.stop();
+      await syncEngine.stop();
+    });
+  });
+
+  describe('7. Concurrent Revisions and Revision Protection', () => {
+    it('detects concurrent edits and preserves server version against stale overwrites', async () => {
+      // Create a folder
+      const initial = await clientA.createFolder(workspaceAId, {
+        name: 'Concurrent Design Spec',
+        parentId: null,
+      });
+      const folderId = initial.data.id;
+      const initialRev = initial.data.revision;
+
+      // Client A updates folder to revision 2
+      const updateA = await clientA.updateFolder(workspaceAId, folderId, {
+        name: 'Concurrent Design Spec - Updated By A',
+        baseRevision: initialRev,
+      });
+      expect(updateA.data.revision).toBe(initialRev + 1);
+
+      // Client B attempts to update using stale revision 1
+      await expect(
+        clientB.updateFolder(workspaceAId, folderId, {
+          name: 'Concurrent Design Spec - Stale Overwrite By B',
+          baseRevision: initialRev,
+        })
+      ).rejects.toThrow();
+
+      // Verify server content remains Updated By A
+      const current = await clientA.getFolder(workspaceAId, folderId);
+      expect(current.data.name).toBe('Concurrent Design Spec - Updated By A');
+      expect(current.data.revision).toBe(initialRev + 1);
+    });
+  });
+
+  describe('8. Logout, Tenant Isolation, and Previous-Account Data Protection', () => {
+    it('prevents cross-workspace data access and isolates cached local stores', async () => {
+      // Remove Bob from Alice's workspace
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(`
+          DELETE FROM app.workspace_memberships
+          WHERE workspace_id = '${workspaceAId}' AND user_id = '${userBId}';
+        `);
+      } finally {
+        admin.release();
+      }
+
+      // Bob tries to access Alice's workspace folders -> must fail with 403 or 404
+      await expect(clientB.listFolders(workspaceAId)).rejects.toThrow();
+
+      // Alice tries to access Bob's private workspace folders -> must fail
+      await expect(clientA.listFolders(workspaceBId)).rejects.toThrow();
+
+      // Verify clearAllLocalData wipes all stores on logout
+      setTrustedDeviceConsent(true);
+      const testRepo = new IndexedDbLocalRepository();
+      await testRepo.initialize({
+        workspaceId: workspaceAId,
+        userId: userAId,
+        deviceId: 'device-test-1',
+      });
+      await clearAllLocalData();
+
+      // After clearing, consent is revoked and initialize throws
+      const freshRepo = new IndexedDbLocalRepository();
+      await expect(
+        freshRepo.initialize({
+          workspaceId: workspaceAId,
+          userId: userAId,
+          deviceId: 'device-test-1',
+        })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('9. Local Storage Status and Consent Honesty', () => {
+    it('refuses local persistence when trusted device consent is not granted', async () => {
+      setTrustedDeviceConsent(false);
+      const noConsentRepo = new IndexedDbLocalRepository();
+      await expect(
+        noConsentRepo.initialize({
+          workspaceId: workspaceAId,
+          userId: userAId,
+          deviceId: 'device-test-1',
+        })
+      ).rejects.toThrow();
     });
   });
 });

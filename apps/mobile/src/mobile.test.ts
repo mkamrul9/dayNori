@@ -5,7 +5,7 @@ import App from '../App.js';
 import { MobileAuthAdapter, defaultAuthAdapter } from './auth/authAdapter.js';
 import { TodayView } from './views/TodayView.js';
 import { PlanView } from './views/PlanView.js';
-import { LibraryView } from './views/LibraryView.js';
+import { LibraryView, SAMPLE_MOBILE_FOLDERS, SAMPLE_MOBILE_ITEMS } from './views/LibraryView.js';
 import { JournalView } from './views/JournalView.js';
 import { SettingsView } from './views/SettingsView.js';
 import { CreateSheet } from './views/CreateSheet.js';
@@ -235,7 +235,7 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       expect(activeFilter).toBe('files');
     });
 
-    it('navigates into Software folder and displays subfolders and breadcrumbs', () => {
+    it('defaults to an empty workspace without hardcoded sample folders', () => {
       let renderer!: ReactTestRenderer;
 
       act(() => {
@@ -246,10 +246,26 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
         );
       });
 
-      const root = renderer.root;
+      // Should show empty state
+      const emptyState = renderer.root.findByProps({ testID: 'mobile-empty-state' });
+      expect(emptyState).toBeDefined();
+    });
+
+    it('navigates into Software folder and displays subfolders and breadcrumbs', () => {
+      let renderer!: ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(LibraryView, {
+            themeMode: 'light',
+            initialFolders: SAMPLE_MOBILE_FOLDERS,
+            initialItems: SAMPLE_MOBILE_ITEMS,
+          })
+        );
+      });
 
       // Find Software folder button and click
-      const softwareFolderBtn = root.findByProps({
+      const softwareFolderBtn = renderer.root.findByProps({
         accessibilityLabel: 'Open folder Software, contains 0 items',
       });
       expect(softwareFolderBtn).toBeDefined();
@@ -281,6 +297,8 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
         renderer = TestRenderer.create(
           React.createElement(LibraryView, {
             themeMode: 'light',
+            initialFolders: SAMPLE_MOBILE_FOLDERS,
+            initialItems: SAMPLE_MOBILE_ITEMS,
           })
         );
       });
@@ -309,16 +327,15 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
         );
       });
 
-      const root = renderer.root;
-      const demoBtn = root.findByProps({ accessibilityLabel: 'Load sample journeys' });
+      const demoBtn = renderer.root.findByProps({ accessibilityLabel: 'Load sample journeys' });
       expect(demoBtn).toBeDefined();
 
       act(() => {
         demoBtn.props.onPress();
       });
 
-      // Verify Government jobs folder is present
-      const govJobsBtn = root.findByProps({
+      // Verify Government jobs folder is present on updated root
+      const govJobsBtn = renderer.root.findByProps({
         accessibilityLabel: 'Open folder Government jobs, contains 0 items',
       });
       expect(govJobsBtn).toBeDefined();

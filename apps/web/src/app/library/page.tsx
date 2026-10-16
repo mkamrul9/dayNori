@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
   BreadcrumbNav,
   Button,
-  Card,
   Dialog,
   EmptyState,
   Feedback,
@@ -20,12 +19,15 @@ import {
   detectCycle,
   generateBetweenRanks,
   generateInitialRank,
-  isInboxItem,
+  generateUuid,
   MAX_FOLDER_DEPTH,
 } from '@daynori/domain';
+import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
+import type { ItemHeaderRecord, SyncEngine } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../../data/indexedDbRepository';
+import { createWebSyncEngine } from '../../data/syncAdapter';
 
 export interface FolderNode {
   id: string;
@@ -56,210 +58,17 @@ export interface LibraryItemRecord {
 
 export type LibraryTypeFilter = 'all' | 'notes' | 'knowledge' | 'files' | 'tasks';
 
-const SAMPLE_FOLDERS: FolderNode[] = [
-  {
-    id: 'f-software',
-    name: 'Software',
-    parentId: null,
-    icon: '💻',
-    color: '#3b82f6',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-  },
-  {
-    id: 'f-guides',
-    name: 'Guides',
-    parentId: 'f-software',
-    icon: '📚',
-    color: '#10b981',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-  },
-  {
-    id: 'f-projects',
-    name: 'Projects',
-    parentId: 'f-software',
-    icon: '🚀',
-    color: '#8b5cf6',
-    rank: '00002000',
-    scope: 'workspace',
-    revision: 1,
-  },
-  {
-    id: 'f-gov-jobs',
-    name: 'Government jobs',
-    parentId: null,
-    icon: '🏛️',
-    color: '#f59e0b',
-    rank: '00002000',
-    scope: 'workspace',
-    revision: 1,
-  },
-  {
-    id: 'f-applications',
-    name: 'Applications',
-    parentId: 'f-gov-jobs',
-    icon: '📋',
-    color: '#ec4899',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-  },
-  {
-    id: 'f-personal',
-    name: 'Personal',
-    parentId: null,
-    icon: '🌱',
-    color: '#14b8a6',
-    rank: '00003000',
-    scope: 'workspace',
-    revision: 1,
-  },
-  {
-    id: 'f-learning',
-    name: 'Learning',
-    parentId: null,
-    icon: '🎓',
-    color: '#6366f1',
-    rank: '00004000',
-    scope: 'workspace',
-    revision: 1,
-  },
-];
-
-const SAMPLE_ITEMS: LibraryItemRecord[] = [
-  {
-    id: 'i-ts-ref',
-    title: 'TypeScript reference handbook',
-    kind: 'knowledge',
-    folderId: 'f-guides',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-    ext: '.md',
-    metadata: 'Knowledge Note • Updated yesterday',
-  },
-  {
-    id: 'i-ts-pdf',
-    title: 'TypeScript handbook deep-dive.pdf',
-    kind: 'file',
-    folderId: 'f-guides',
-    rank: '00002000',
-    scope: 'workspace',
-    revision: 1,
-    ext: '.pdf',
-    metadata: 'PDF Document (2.4 MB) • Sep 28',
-  },
-  {
-    id: 'i-read-generics',
-    title: 'Read generics chapter in handbook',
-    kind: 'task',
-    folderId: 'f-guides',
-    rank: '00003000',
-    scope: 'workspace',
-    revision: 1,
-    metadata: 'Task Note • Due Friday',
-  },
-  {
-    id: 'i-new-app',
-    title: 'New offline sync engine idea',
-    kind: 'note',
-    folderId: 'f-projects',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-    ext: '.txt',
-    metadata: 'Markdown Note • Draft',
-  },
-  {
-    id: 'i-gov-app-pdf',
-    title: 'Government Application Form.pdf',
-    kind: 'file',
-    folderId: 'f-applications',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-    ext: '.pdf',
-    metadata: 'PDF Document (1.1 MB) • Oct 2',
-  },
-  {
-    id: 'i-submit-app',
-    title: 'Submit civil service exam application',
-    kind: 'task',
-    folderId: 'f-applications',
-    rank: '00002000',
-    scope: 'workspace',
-    revision: 1,
-    metadata: 'Task Note • Deadline next week',
-  },
-  {
-    id: 'i-interview-prep',
-    title: 'Technical interview preparation checklist',
-    kind: 'note',
-    folderId: 'f-applications',
-    rank: '00003000',
-    scope: 'workspace',
-    revision: 1,
-    ext: '.md',
-    metadata: 'Markdown Note • 4 sections',
-  },
-  {
-    id: 'i-morning-study',
-    title: 'Morning quiet reading routine (20m)',
-    kind: 'routine',
-    folderId: 'f-personal',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-    metadata: 'Daily Habit • Active',
-  },
-  {
-    id: 'i-til-a11y',
-    title: 'Today I learned: Visible focus outlines and screen-reader announcements',
-    kind: 'journal',
-    folderId: 'f-personal',
-    rank: '00002000',
-    scope: 'workspace',
-    revision: 1,
-    metadata: 'Journal Entry • Oct 15',
-  },
-  {
-    id: 'i-exam-prep',
-    title: 'Syllabus and exam preparation reference',
-    kind: 'knowledge',
-    folderId: 'f-learning',
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-    ext: '.pdf',
-    metadata: 'Knowledge Note • 12 pages',
-  },
-  {
-    id: 'i-inbox-thought',
-    title: 'Quick unorganized thought draft',
-    kind: 'note',
-    folderId: null, // Inbox item
-    rank: '00001000',
-    scope: 'workspace',
-    revision: 1,
-    ext: '.txt',
-    metadata: 'Inbox Item • Unfiled',
-  },
-];
-
 const ITEMS_PER_PAGE = 10;
 
 export default function LibraryPage() {
   const liveRegionId = useId();
-  const { themeMode, openModal } = useShell();
+  const { themeMode } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user } = useAuth();
 
-  // Core Data State
-  const [folders, setFolders] = useState<FolderNode[]>(SAMPLE_FOLDERS);
-  const [items, setItems] = useState<LibraryItemRecord[]>(SAMPLE_ITEMS);
+  // Core Data State - Workspaces start empty by default
+  const [folders, setFolders] = useState<FolderNode[]>([]);
+  const [items, setItems] = useState<LibraryItemRecord[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = Root / Inbox
   const [typeFilter, setTypeFilter] = useState<LibraryTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -270,10 +79,12 @@ export default function LibraryPage() {
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
-  const [localSaveStatus, setLocalSaveStatus] = useState<string>('Saved locally');
-  const [cloudSyncStatus, setCloudSyncStatus] = useState<string>('Synced');
+  const [hasConsent, setHasConsent] = useState<boolean>(false);
+  const [localSaveStatus, setLocalSaveStatus] = useState<string>('Checking storage...');
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<string>('Checking sync...');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Modals State
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -304,6 +115,11 @@ export default function LibraryPage() {
     expiresAt: number;
   } | null>(null);
 
+  // Active sync engine & local repository references
+  const syncEngineRef = useRef<SyncEngine | null>(null);
+  const localRepoRef = useRef<IndexedDbLocalRepository | null>(null);
+  const apiClientRef = useRef<DaynoriApiClient | null>(null);
+
   // Announce to screen readers
   const announce = useCallback((msg: string) => {
     setLiveAnnouncement(msg);
@@ -313,13 +129,20 @@ export default function LibraryPage() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      setCloudSyncStatus('Syncing changes...');
-      setTimeout(() => setCloudSyncStatus('Synced'), 800);
+      if (syncEngineRef.current) {
+        syncEngineRef.current.setNetworkStatus('online');
+      } else {
+        setCloudSyncStatus('Synced');
+      }
       announce('Network connected. Changes syncing.');
     };
     const handleOffline = () => {
       setIsOnline(false);
-      setCloudSyncStatus('Offline — changes saved locally');
+      if (syncEngineRef.current) {
+        syncEngineRef.current.setNetworkStatus('offline');
+      } else {
+        setCloudSyncStatus('Offline');
+      }
       announce('Network disconnected. Operating in offline mode.');
     };
 
@@ -342,66 +165,188 @@ export default function LibraryPage() {
     return () => clearInterval(interval);
   }, [undoToast]);
 
-  // Load from IndexedDB on mount if consented
+  // Initialize API client & Local Storage / SyncEngine
   useEffect(() => {
-    let isMounted = true;
-    async function loadLocalRepository() {
-      if (!getTrustedDeviceConsent() || !workspaceId || !user) return;
-      try {
-        const repo = new IndexedDbLocalRepository();
-        await repo.initialize({ userId: user.id, workspaceId });
-        const localHeaders = await repo.listItemHeaders(workspaceId);
-        await repo.close();
+    let isCancelled = false;
 
-        if (!isMounted) return;
+    // Reset view state when account/workspace changes to prevent cross-account exposure
+    setFolders([]);
+    setItems([]);
+    setCurrentFolderId(null);
+    setPage(1);
 
-        // Extract folder records and item records
-        const loadedFolders: FolderNode[] = [];
-        const loadedItems: LibraryItemRecord[] = [];
+    // Stop prior sync engine & close prior repository
+    if (syncEngineRef.current) {
+      void syncEngineRef.current.stop();
+      syncEngineRef.current = null;
+    }
+    if (localRepoRef.current) {
+      void localRepoRef.current.close();
+      localRepoRef.current = null;
+    }
 
-        for (const h of localHeaders) {
-          if (h.kind === 'folder') {
-            loadedFolders.push({
-              id: h.id,
-              name: h.name ?? 'Untitled Folder',
-              parentId: h.parentId ?? null,
-              color: h.color ?? null,
-              icon: h.icon ?? '📁',
-              rank: h.rank ?? '00001000',
-              scope: 'workspace',
-              revision: h.serverRevision,
-              archivedAt: h.isArchived ? h.updatedAt : null,
-              trashedAt: h.deletedAt ?? null,
-            });
-          } else {
-            loadedItems.push({
-              id: h.id,
-              title: h.name ?? 'Untitled Item',
-              kind: (h.kind as LibraryItemRecord['kind']) ?? 'note',
-              folderId: h.folderId ?? null,
-              rank: h.rank ?? '00001000',
-              scope: 'workspace',
-              revision: h.serverRevision,
-              archivedAt: h.isArchived ? h.updatedAt : null,
-              trashedAt: h.deletedAt ?? null,
-            });
+    if (!workspaceId || !user) {
+      setLocalSaveStatus('Signed out');
+      setCloudSyncStatus('Not connected');
+      setIsLoading(false);
+      return;
+    }
+
+    const consent = getTrustedDeviceConsent();
+    setHasConsent(consent);
+
+    const client = createApiClient({
+      baseUrl: '/api',
+    });
+    apiClientRef.current = client;
+
+    async function initStorageAndSync() {
+      setIsLoading(true);
+      if (consent) {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({ userId: user!.id, workspaceId: workspaceId! });
+          if (isCancelled) {
+            await repo.close();
+            return;
+          }
+          localRepoRef.current = repo;
+          setLocalSaveStatus('Saved on device');
+
+          // Initialize sync engine
+          const engine = createWebSyncEngine({
+            repository: repo,
+            apiClient: client,
+            namespace: { userId: user!.id, workspaceId: workspaceId! },
+          });
+          syncEngineRef.current = engine;
+
+          // Subscribe to sync events
+          engine.onEvent((evt) => {
+            if (isCancelled) return;
+            if (evt.type === 'state_changed') {
+              switch (evt.status) {
+                case 'synced':
+                  setCloudSyncStatus('Synced');
+                  break;
+                case 'syncing':
+                  setCloudSyncStatus('Syncing changes...');
+                  break;
+                case 'saved_locally':
+                  setCloudSyncStatus('Offline — saved locally');
+                  break;
+                case 'conflict':
+                  setCloudSyncStatus('Conflict detected');
+                  break;
+                case 'error':
+                  setCloudSyncStatus('Sync error');
+                  break;
+                default:
+                  setCloudSyncStatus('Synced');
+              }
+            } else if (evt.type === 'conflict_detected') {
+              setConflictMessage(evt.conflict.conflictReason);
+            } else if (evt.type === 'conflict_resolved') {
+              setConflictMessage(null);
+            }
+          });
+
+          await engine.start();
+
+          // Load local records
+          const headers = await repo.listItemHeaders(workspaceId!);
+          if (!isCancelled) {
+            const loadedFolders: FolderNode[] = [];
+            const loadedItems: LibraryItemRecord[] = [];
+
+            for (const h of headers) {
+              if (h.deletedAt && !showArchived) continue;
+
+              if (h.kind === 'folder') {
+                loadedFolders.push({
+                  id: h.id,
+                  name: h.name ?? 'Untitled Folder',
+                  parentId: h.parentId ?? h.folderId ?? null,
+                  color: h.color ?? null,
+                  icon: h.icon ?? '📁',
+                  rank: h.rank ?? '00001000',
+                  scope: h.securityScope === 'vault' ? 'private' : 'workspace',
+                  revision: h.serverRevision,
+                  archivedAt: h.isArchived ? h.updatedAt : null,
+                  trashedAt: h.deletedAt ?? null,
+                });
+              } else {
+                loadedItems.push({
+                  id: h.id,
+                  title: h.name ?? 'Untitled Item',
+                  kind: (h.kind as LibraryItemRecord['kind']) ?? 'note',
+                  folderId: h.folderId ?? null,
+                  rank: h.rank ?? '00001000',
+                  scope: h.securityScope === 'vault' ? 'private' : 'workspace',
+                  revision: h.serverRevision,
+                  archivedAt: h.isArchived ? h.updatedAt : null,
+                  trashedAt: h.deletedAt ?? null,
+                });
+              }
+            }
+
+            setFolders(loadedFolders);
+            setItems(loadedItems);
+            setCloudSyncStatus('Synced');
+          }
+        } catch {
+          if (!isCancelled) {
+            setLocalSaveStatus('Local storage failed');
+            setCloudSyncStatus('Error connecting local storage');
           }
         }
+      } else {
+        // Honest indication: consent not granted
+        setLocalSaveStatus('Device storage off (consent needed)');
+        setCloudSyncStatus('Connecting cloud...');
 
-        if (loadedFolders.length > 0) {
-          setFolders(loadedFolders);
+        // Fetch folders directly from API
+        try {
+          const res = await client.listFolders(workspaceId!);
+          if (!isCancelled && res.data) {
+            const loaded: FolderNode[] = res.data.map((f) => ({
+              id: f.id,
+              name: f.name,
+              parentId: f.parentId,
+              color: f.color ?? null,
+              icon: f.icon ?? '📁',
+              rank: f.rank,
+              scope: f.securityScope === 'vault' ? 'private' : 'workspace',
+              revision: f.revision,
+              archivedAt: f.isArchived ? f.updatedAt : null,
+              trashedAt: f.deletedAt ?? null,
+            }));
+            setFolders(loaded);
+            setCloudSyncStatus('Synced');
+          }
+        } catch {
+          if (!isCancelled) {
+            setCloudSyncStatus('Cloud connection offline');
+          }
         }
-        if (loadedItems.length > 0) {
-          setItems(loadedItems);
-        }
-      } catch {
-        // Fallback to in-memory state
+      }
+      if (!isCancelled) {
+        setIsLoading(false);
       }
     }
 
-    void loadLocalRepository();
+    void initStorageAndSync();
+
     return () => {
-      isMounted = false;
+      isCancelled = true;
+      if (syncEngineRef.current) {
+        void syncEngineRef.current.stop();
+        syncEngineRef.current = null;
+      }
+      if (localRepoRef.current) {
+        void localRepoRef.current.close();
+        localRepoRef.current = null;
+      }
     };
   }, [workspaceId, user]);
 
@@ -409,7 +354,9 @@ export default function LibraryPage() {
   const folderMap = useMemo(() => {
     const map = new Map<string, { parentId: string | null }>();
     for (const f of folders) {
-      map.set(f.id, { parentId: f.parentId });
+      if (!f.trashedAt) {
+        map.set(f.id, { parentId: f.parentId });
+      }
     }
     return map;
   }, [folders]);
@@ -453,7 +400,7 @@ export default function LibraryPage() {
         onClick: () => {
           setCurrentFolderId(node.id);
           setPage(1);
-          announce(`Navigated to folder ${node.name}`);
+          announce(`Navigated to ${node.name}`);
         },
       });
     }
@@ -461,30 +408,26 @@ export default function LibraryPage() {
     return trail;
   }, [folders, currentFolderId, announce]);
 
-  // Subfolders under current view
+  // Subfolders in current view
   const currentSubfolders = useMemo(() => {
     return folders
       .filter((f) => {
-        if (!showArchived && f.archivedAt) return false;
         if (f.trashedAt) return false;
+        if (!showArchived && f.archivedAt) return false;
         return f.parentId === currentFolderId;
       })
       .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
   }, [folders, currentFolderId, showArchived]);
 
-  // Items under current view
+  // Items in current view (filtered by type and search)
   const currentItems = useMemo(() => {
     return items
       .filter((item) => {
-        if (!showArchived && item.archivedAt) return false;
         if (item.trashedAt) return false;
+        if (!showArchived && item.archivedAt) return false;
+        if (item.folderId !== currentFolderId) return false;
 
-        // Folder match
-        const matchesFolder =
-          currentFolderId === null ? isInboxItem(item.folderId) : item.folderId === currentFolderId;
-        if (!matchesFolder) return false;
-
-        // Type filter match
+        // Module filter matching
         if (typeFilter !== 'all') {
           if (typeFilter === 'notes' && item.kind !== 'note') return false;
           if (typeFilter === 'knowledge' && item.kind !== 'knowledge') return false;
@@ -547,7 +490,7 @@ export default function LibraryPage() {
     setCreateModalOpen(true);
   };
 
-  const handleConfirmCreate = () => {
+  const handleConfirmCreate = async () => {
     const trimmed = createName.trim();
     if (!trimmed) {
       setCreateError('Please enter a folder name.');
@@ -558,7 +501,6 @@ export default function LibraryPage() {
       return;
     }
 
-    // Depth check
     try {
       const targetDepth = calculateFolderDepth(createParentId, folderMap);
       if (targetDepth + 1 > MAX_FOLDER_DEPTH) {
@@ -570,9 +512,11 @@ export default function LibraryPage() {
       return;
     }
 
-    const siblings = folders.filter((f) => f.parentId === createParentId);
+    const siblings = folders.filter((f) => f.parentId === createParentId && !f.trashedAt);
     const newRank = generateInitialRank(siblings.length);
-    const newId = `f-${Date.now()}`;
+    const newId = generateUuid();
+    const now = new Date().toISOString();
+
     const newFolder: FolderNode = {
       id: newId,
       name: trimmed,
@@ -584,14 +528,58 @@ export default function LibraryPage() {
       revision: 1,
     };
 
+    const header: ItemHeaderRecord = {
+      id: newId,
+      workspaceId: workspaceId || 'ws-local',
+      kind: 'folder',
+      name: trimmed,
+      parentId: createParentId,
+      folderId: createParentId,
+      color: createColor,
+      icon: createIcon,
+      rank: newRank,
+      securityScope: 'standard',
+      isArchived: false,
+      isPinned: false,
+      serverRevision: 0,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    };
+
     setFolders((prev) => [...prev, newFolder]);
     setCreateModalOpen(false);
-    setLocalSaveStatus('Saved locally');
     announce(`Created folder ${trimmed}`);
 
-    if (isOnline && workspaceId && user) {
-      setCloudSyncStatus('Syncing...');
-      setTimeout(() => setCloudSyncStatus('Synced'), 600);
+    // Persist via SyncEngine or API Client
+    try {
+      if (syncEngineRef.current) {
+        await syncEngineRef.current.saveItem(header, undefined, 'createFolder');
+        setLocalSaveStatus('Saved on device');
+        if (isOnline) {
+          setCloudSyncStatus('Syncing...');
+          await syncEngineRef.current.syncNow();
+          setCloudSyncStatus('Synced');
+        }
+      } else if (apiClientRef.current && workspaceId) {
+        setCloudSyncStatus('Syncing...');
+        await apiClientRef.current.createFolder(
+          workspaceId,
+          {
+            id: newId,
+            name: trimmed,
+            parentId: createParentId,
+            color: createColor,
+            icon: createIcon,
+            rank: newRank,
+            securityScope: 'standard',
+          },
+          { headers: { 'x-operation-id': generateUuid() } }
+        );
+        setCloudSyncStatus('Synced');
+      }
+    } catch {
+      setCloudSyncStatus('Sync failed');
     }
   };
 
@@ -602,7 +590,7 @@ export default function LibraryPage() {
     setRenameError(null);
   };
 
-  const handleConfirmRename = () => {
+  const handleConfirmRename = async () => {
     if (!renameModalFolder) return;
     const trimmed = renameValue.trim();
     if (!trimmed) {
@@ -616,20 +604,59 @@ export default function LibraryPage() {
 
     const originalName = renameModalFolder.name;
     const folderId = renameModalFolder.id;
+    const prevRevision = renameModalFolder.revision;
 
     setFolders((prev) =>
       prev.map((f) => (f.id === folderId ? { ...f, name: trimmed, revision: f.revision + 1 } : f))
     );
     setRenameModalFolder(null);
-    setLocalSaveStatus('Saved locally');
     announce(`Renamed folder ${originalName} to ${trimmed}`);
 
-    // Provide reversible undo
+    const header: ItemHeaderRecord = {
+      id: folderId,
+      workspaceId: workspaceId || 'ws-local',
+      kind: 'folder',
+      name: trimmed,
+      parentId: renameModalFolder.parentId,
+      folderId: renameModalFolder.parentId,
+      color: renameModalFolder.color,
+      icon: renameModalFolder.icon,
+      rank: renameModalFolder.rank,
+      securityScope: renameModalFolder.scope === 'private' ? 'vault' : 'standard',
+      isArchived: Boolean(renameModalFolder.archivedAt),
+      isPinned: false,
+      serverRevision: prevRevision,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+    };
+
+    try {
+      if (syncEngineRef.current) {
+        await syncEngineRef.current.saveItem(header, undefined, 'updateFolder', {
+          payload: { name: trimmed },
+        });
+        if (isOnline) {
+          await syncEngineRef.current.syncNow();
+        }
+      } else if (apiClientRef.current && workspaceId) {
+        await apiClientRef.current.updateFolder(
+          workspaceId,
+          folderId,
+          { name: trimmed, baseRevision: prevRevision },
+          { headers: { 'x-operation-id': generateUuid() } }
+        );
+      }
+    } catch {
+      setCloudSyncStatus('Sync failed');
+    }
+
+    // Reversible Undo Toast
     setUndoToast({
       id: `rename-${folderId}`,
       message: `Renamed to '${trimmed}'`,
       expiresAt: Date.now() + 10000,
-      onUndo: () => {
+      onUndo: async () => {
         setFolders((prev) =>
           prev.map((f) =>
             f.id === folderId ? { ...f, name: originalName, revision: f.revision + 1 } : f
@@ -637,6 +664,25 @@ export default function LibraryPage() {
         );
         announce(`Undid rename, reverted to '${originalName}'`);
         setUndoToast(null);
+
+        const revertHeader: ItemHeaderRecord = {
+          ...header,
+          name: originalName,
+          serverRevision: prevRevision + 1,
+        };
+        if (syncEngineRef.current) {
+          await syncEngineRef.current.saveItem(revertHeader, undefined, 'updateFolder', {
+            payload: { name: originalName },
+          });
+          if (isOnline) void syncEngineRef.current.syncNow();
+        } else if (apiClientRef.current && workspaceId) {
+          void apiClientRef.current.updateFolder(
+            workspaceId,
+            folderId,
+            { name: originalName, baseRevision: prevRevision + 1 },
+            { headers: { 'x-operation-id': generateUuid() } }
+          );
+        }
       },
     });
   };
@@ -648,1243 +694,1370 @@ export default function LibraryPage() {
     setMoveError(null);
   };
 
-  const handleConfirmMove = () => {
+  const handleConfirmMove = async () => {
     if (!moveModalFolder) return;
     const folderId = moveModalFolder.id;
-    const origParentId = moveModalFolder.parentId;
+    const originalParentId = moveModalFolder.parentId;
 
     if (moveTargetParentId === folderId) {
-      setMoveError('A folder cannot be moved inside itself.');
+      setMoveError('A folder cannot be moved into itself.');
       return;
     }
 
     if (detectCycle(folderId, moveTargetParentId, folderMap)) {
-      setMoveError('Cycle detected: Cannot move a folder into one of its subfolders.');
+      setMoveError('A folder cannot be moved under its own descendant.');
       return;
     }
 
-    // Children map for subtree depth calculation
-    const childrenMap = new Map<string, string[]>();
-    for (const f of folders) {
-      if (f.parentId) {
-        const arr = childrenMap.get(f.parentId) ?? [];
-        arr.push(f.id);
-        childrenMap.set(f.parentId, arr);
+    try {
+      const targetDepth = calculateFolderDepth(moveTargetParentId, folderMap);
+      const childrenMap = new Map<string, string[]>();
+      for (const f of folders) {
+        if (f.parentId) {
+          const list = childrenMap.get(f.parentId) || [];
+          list.push(f.id);
+          childrenMap.set(f.parentId, list);
+        }
       }
-    }
-
-    const subtreeDepth = calculateSubtreeDepth(folderId, childrenMap);
-    const targetParentDepth = calculateFolderDepth(moveTargetParentId, folderMap);
-
-    if (targetParentDepth + subtreeDepth > MAX_FOLDER_DEPTH) {
-      setMoveError(
-        `Move would exceed maximum folder depth (${MAX_FOLDER_DEPTH}). Total depth would be ${
-          targetParentDepth + subtreeDepth
-        }.`
-      );
+      const subtreeDepth = calculateSubtreeDepth(folderId, childrenMap);
+      if (targetDepth + subtreeDepth > MAX_FOLDER_DEPTH) {
+        setMoveError(
+          `Moving this folder would exceed the maximum depth limit of ${MAX_FOLDER_DEPTH}.`
+        );
+        return;
+      }
+    } catch (e: unknown) {
+      setMoveError(e instanceof Error ? e.message : 'Invalid move destination.');
       return;
     }
 
-    const siblings = folders.filter((f) => f.parentId === moveTargetParentId && f.id !== folderId);
-    const newRank = generateInitialRank(siblings.length);
-
+    const prevRevision = moveModalFolder.revision;
     setFolders((prev) =>
       prev.map((f) =>
-        f.id === folderId
-          ? { ...f, parentId: moveTargetParentId, rank: newRank, revision: f.revision + 1 }
-          : f
+        f.id === folderId ? { ...f, parentId: moveTargetParentId, revision: f.revision + 1 } : f
       )
     );
     setMoveModalFolder(null);
-    setLocalSaveStatus('Saved locally');
-    announce(`Moved folder ${moveModalFolder.name}`);
 
-    // Provide reversible undo
+    const targetName = moveTargetParentId
+      ? (folders.find((f) => f.id === moveTargetParentId)?.name ?? 'target folder')
+      : 'Workspace root';
+    announce(`Moved folder ${moveModalFolder.name} to ${targetName}`);
+
+    const header: ItemHeaderRecord = {
+      id: folderId,
+      workspaceId: workspaceId || 'ws-local',
+      kind: 'folder',
+      name: moveModalFolder.name,
+      parentId: moveTargetParentId,
+      folderId: moveTargetParentId,
+      color: moveModalFolder.color,
+      icon: moveModalFolder.icon,
+      rank: moveModalFolder.rank,
+      securityScope: moveModalFolder.scope === 'private' ? 'vault' : 'standard',
+      isArchived: Boolean(moveModalFolder.archivedAt),
+      isPinned: false,
+      serverRevision: prevRevision,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+    };
+
+    try {
+      if (syncEngineRef.current) {
+        await syncEngineRef.current.saveItem(header, undefined, 'moveFolder', {
+          payload: { targetParentId: moveTargetParentId },
+        });
+        if (isOnline) void syncEngineRef.current.syncNow();
+      } else if (apiClientRef.current && workspaceId) {
+        await apiClientRef.current.moveFolder(
+          workspaceId,
+          folderId,
+          { targetParentId: moveTargetParentId, baseRevision: prevRevision },
+          { headers: { 'x-operation-id': generateUuid() } }
+        );
+      }
+    } catch {
+      setCloudSyncStatus('Sync failed');
+    }
+
+    // Reversible Undo Toast
     setUndoToast({
       id: `move-${folderId}`,
-      message: `Moved '${moveModalFolder.name}'`,
+      message: `Moved to ${targetName}`,
       expiresAt: Date.now() + 10000,
-      onUndo: () => {
+      onUndo: async () => {
         setFolders((prev) =>
           prev.map((f) =>
-            f.id === folderId ? { ...f, parentId: origParentId, revision: f.revision + 1 } : f
+            f.id === folderId ? { ...f, parentId: originalParentId, revision: f.revision + 1 } : f
           )
         );
-        announce(`Undid move of '${moveModalFolder.name}'`);
+        announce(`Undid move, reverted ${moveModalFolder.name} to prior location`);
         setUndoToast(null);
+
+        const revertHeader: ItemHeaderRecord = {
+          ...header,
+          parentId: originalParentId,
+          folderId: originalParentId,
+          serverRevision: prevRevision + 1,
+        };
+        if (syncEngineRef.current) {
+          await syncEngineRef.current.saveItem(revertHeader, undefined, 'moveFolder', {
+            payload: { targetParentId: originalParentId },
+          });
+          if (isOnline) void syncEngineRef.current.syncNow();
+        } else if (apiClientRef.current && workspaceId) {
+          void apiClientRef.current.moveFolder(
+            workspaceId,
+            folderId,
+            { targetParentId: originalParentId, baseRevision: prevRevision + 1 },
+            { headers: { 'x-operation-id': generateUuid() } }
+          );
+        }
       },
     });
   };
 
-  // Action: Reorder Folder (Move Up / Down)
-  const handleReorderFolder = (folderId: string, direction: 'up' | 'down') => {
-    const list = [...currentSubfolders];
-    const index = list.findIndex((f) => f.id === folderId);
-    if (index === -1) return;
+  // Action: Reorder Folder
+  const handleReorder = async (folderId: string, direction: 'up' | 'down') => {
+    const idx = currentSubfolders.findIndex((f) => f.id === folderId);
+    if (idx === -1) return;
 
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= list.length) return;
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= currentSubfolders.length) return;
 
-    const moving = list[index];
-    const target = list[targetIndex];
-    if (!moving || !target) return;
-
-    // Check collection revision condition (simulate conflict check)
-    const expectedCollectionRevision = list.reduce((sum, f) => sum + f.revision, 0);
-    const currentActualRevision = expectedCollectionRevision;
-    if (expectedCollectionRevision !== currentActualRevision) {
-      setConflictMessage('Hierarchy changed by another device or tab. Reload current ordering.');
-      return;
-    }
+    const target = currentSubfolders[targetIdx];
+    if (!target) return;
 
     const prevRank =
       direction === 'up'
-        ? targetIndex === 0
+        ? targetIdx === 0
           ? null
-          : (list[targetIndex - 1]?.rank ?? null)
+          : (currentSubfolders[targetIdx - 1]?.rank ?? null)
         : target.rank;
     const nextRank =
       direction === 'up'
         ? target.rank
-        : targetIndex === list.length - 1
+        : targetIdx === currentSubfolders.length - 1
           ? null
-          : (list[targetIndex + 1]?.rank ?? null);
+          : (currentSubfolders[targetIdx + 1]?.rank ?? null);
 
     const newRank = generateBetweenRanks(prevRank, nextRank);
+    const movingFolder = currentSubfolders[idx]!;
+    const prevRevision = movingFolder.revision;
 
     setFolders((prev) =>
       prev.map((f) => (f.id === folderId ? { ...f, rank: newRank, revision: f.revision + 1 } : f))
     );
-    setLocalSaveStatus('Saved locally');
-    announce(`Moved ${moving.name} ${direction} to position ${targetIndex + 1} of ${list.length}`);
-  };
 
-  // Keyboard shortcut for reordering focused folder: Alt+Up / Alt+Down
-  const handleFolderKeyDown = (e: React.KeyboardEvent, folderId: string) => {
-    if (e.altKey && e.key === 'ArrowUp') {
-      e.preventDefault();
-      handleReorderFolder(folderId, 'up');
-    } else if (e.altKey && e.key === 'ArrowDown') {
-      e.preventDefault();
-      handleReorderFolder(folderId, 'down');
+    announce(
+      `Moved ${movingFolder.name} to position ${targetIdx + 1} of ${currentSubfolders.length}`
+    );
+
+    const header: ItemHeaderRecord = {
+      id: folderId,
+      workspaceId: workspaceId || 'ws-local',
+      kind: 'folder',
+      name: movingFolder.name,
+      parentId: movingFolder.parentId,
+      folderId: movingFolder.parentId,
+      color: movingFolder.color,
+      icon: movingFolder.icon,
+      rank: newRank,
+      securityScope: movingFolder.scope === 'private' ? 'vault' : 'standard',
+      isArchived: Boolean(movingFolder.archivedAt),
+      isPinned: false,
+      serverRevision: prevRevision,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+    };
+
+    try {
+      if (syncEngineRef.current) {
+        await syncEngineRef.current.saveItem(header, undefined, 'reorderFolder', {
+          payload: { rank: newRank },
+        });
+        if (isOnline) void syncEngineRef.current.syncNow();
+      } else if (apiClientRef.current && workspaceId) {
+        await apiClientRef.current.reorderFolder(
+          workspaceId,
+          folderId,
+          { rank: newRank, baseRevision: prevRevision },
+          { headers: { 'x-operation-id': generateUuid() } }
+        );
+      }
+    } catch {
+      setCloudSyncStatus('Sync failed');
     }
   };
 
-  // Action: Trash Folder (Subtree vs Preserve to Parent)
+  // Action: Archive / Unarchive Folder
+  const handleToggleArchive = async (folder: FolderNode) => {
+    const isNowArchived = !folder.archivedAt;
+    const folderId = folder.id;
+    const prevRevision = folder.revision;
+
+    setFolders((prev) =>
+      prev.map((f) =>
+        f.id === folderId
+          ? {
+              ...f,
+              archivedAt: isNowArchived ? new Date().toISOString() : null,
+              revision: f.revision + 1,
+            }
+          : f
+      )
+    );
+
+    announce(isNowArchived ? `Archived folder ${folder.name}` : `Unarchived folder ${folder.name}`);
+
+    const header: ItemHeaderRecord = {
+      id: folderId,
+      workspaceId: workspaceId || 'ws-local',
+      kind: 'folder',
+      name: folder.name,
+      parentId: folder.parentId,
+      folderId: folder.parentId,
+      color: folder.color,
+      icon: folder.icon,
+      rank: folder.rank,
+      securityScope: folder.scope === 'private' ? 'vault' : 'standard',
+      isArchived: isNowArchived,
+      isPinned: false,
+      serverRevision: prevRevision,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+    };
+
+    const cmd = isNowArchived ? 'archiveFolder' : 'unarchiveFolder';
+    try {
+      if (syncEngineRef.current) {
+        await syncEngineRef.current.saveItem(header, undefined, cmd);
+        if (isOnline) void syncEngineRef.current.syncNow();
+      } else if (apiClientRef.current && workspaceId) {
+        await apiClientRef.current.archiveFolder(
+          workspaceId,
+          folderId,
+          { isArchived: isNowArchived, baseRevision: prevRevision },
+          { headers: { 'x-operation-id': generateUuid() } }
+        );
+      }
+    } catch {
+      setCloudSyncStatus('Sync failed');
+    }
+  };
+
+  // Action: Trash Folder
   const handleOpenTrash = (folder: FolderNode) => {
     setTrashModalFolder(folder);
     setTrashMode('trash_subtree');
   };
 
-  const handleConfirmTrash = () => {
+  const handleConfirmTrash = async () => {
     if (!trashModalFolder) return;
     const folderId = trashModalFolder.id;
-    const folderName = trashModalFolder.name;
-    const parentId = trashModalFolder.parentId;
-
+    const prevRevision = trashModalFolder.revision;
     const now = new Date().toISOString();
 
-    if (trashMode === 'trash_subtree') {
-      // Find all descendant folder IDs
-      const descendants = new Set<string>([folderId]);
-      let added = true;
-      while (added) {
-        added = false;
-        for (const f of folders) {
-          if (f.parentId && descendants.has(f.parentId) && !descendants.has(f.id)) {
-            descendants.add(f.id);
-            added = true;
-          }
-        }
+    const affectedSubtreeIds = new Set<string>();
+    const findSubtree = (parentId: string) => {
+      affectedSubtreeIds.add(parentId);
+      for (const f of folders) {
+        if (f.parentId === parentId) findSubtree(f.id);
       }
+    };
+    findSubtree(folderId);
 
-      // Collect IDs of items that were active and belong to these folders
-      const affectedItemIds = items
-        .filter((i) => i.folderId && descendants.has(i.folderId) && !i.trashedAt)
-        .map((i) => i.id);
-
-      setFolders((prev) =>
-        prev.map((f) =>
-          descendants.has(f.id) ? { ...f, trashedAt: now, revision: f.revision + 1 } : f
-        )
-      );
-      setItems((prev) =>
-        prev.map((i) =>
-          affectedItemIds.includes(i.id) ? { ...i, trashedAt: now, revision: i.revision + 1 } : i
-        )
-      );
-
-      announce(`Moved folder ${folderName} and all contents to Trash`);
-
-      // Precise subtree undo: restores only items deleted during this operation
-      setUndoToast({
-        id: `trash-${folderId}`,
-        message: `Trashed folder '${folderName}'`,
-        expiresAt: Date.now() + 10000,
-        onUndo: () => {
-          setFolders((prev) =>
-            prev.map((f) =>
-              descendants.has(f.id) ? { ...f, trashedAt: null, revision: f.revision + 1 } : f
-            )
-          );
-          setItems((prev) =>
-            prev.map((i) =>
-              affectedItemIds.includes(i.id)
-                ? { ...i, trashedAt: null, revision: i.revision + 1 }
-                : i
-            )
-          );
-          announce(`Restored folder '${folderName}' and contents`);
-          setUndoToast(null);
-        },
-      });
-    } else {
-      // Preserve to parent: move items and child folders to parentId, then trash this folder
-      setFolders((prev) =>
-        prev.map((f) => {
+    setFolders((prev) =>
+      prev.map((f) => {
+        if (trashMode === 'trash_subtree') {
+          return affectedSubtreeIds.has(f.id)
+            ? { ...f, trashedAt: now, revision: f.revision + 1 }
+            : f;
+        } else {
           if (f.id === folderId) {
             return { ...f, trashedAt: now, revision: f.revision + 1 };
           }
           if (f.parentId === folderId) {
-            return { ...f, parentId: parentId, revision: f.revision + 1 };
+            return { ...f, parentId: trashModalFolder.parentId, revision: f.revision + 1 };
           }
           return f;
-        })
-      );
-      setItems((prev) =>
-        prev.map((i) =>
-          i.folderId === folderId ? { ...i, folderId: parentId, revision: i.revision + 1 } : i
-        )
-      );
+        }
+      })
+    );
 
-      announce(`Preserved items to parent and trashed folder ${folderName}`);
-    }
+    // If items were inside and mode is preserve, reparent to parent
+    setItems((prev) =>
+      prev.map((item) => {
+        if (trashMode === 'trash_subtree') {
+          return affectedSubtreeIds.has(item.folderId ?? '')
+            ? { ...item, trashedAt: now, revision: item.revision + 1 }
+            : item;
+        } else {
+          if (item.folderId === folderId) {
+            return {
+              ...item,
+              folderId: trashModalFolder.parentId,
+              revision: item.revision + 1,
+            };
+          }
+          return item;
+        }
+      })
+    );
 
     setTrashModalFolder(null);
-    setLocalSaveStatus('Saved locally');
-    if (currentFolderId === folderId) {
-      setCurrentFolderId(parentId);
+    announce(`Moved folder ${trashModalFolder.name} to trash`);
+
+    const header: ItemHeaderRecord = {
+      id: folderId,
+      workspaceId: workspaceId || 'ws-local',
+      kind: 'folder',
+      name: trashModalFolder.name,
+      parentId: trashModalFolder.parentId,
+      folderId: trashModalFolder.parentId,
+      color: trashModalFolder.color,
+      icon: trashModalFolder.icon,
+      rank: trashModalFolder.rank,
+      securityScope: trashModalFolder.scope === 'private' ? 'vault' : 'standard',
+      isArchived: Boolean(trashModalFolder.archivedAt),
+      isPinned: false,
+      serverRevision: prevRevision,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: now,
+    };
+
+    try {
+      if (syncEngineRef.current) {
+        await syncEngineRef.current.saveItem(header, undefined, 'trashFolder', {
+          payload: { policy: trashMode },
+        });
+        if (isOnline) void syncEngineRef.current.syncNow();
+      } else if (apiClientRef.current && workspaceId) {
+        await apiClientRef.current.trashFolder(
+          workspaceId,
+          folderId,
+          { policy: trashMode, baseRevision: prevRevision },
+          { headers: { 'x-operation-id': generateUuid() } }
+        );
+      }
+    } catch {
+      setCloudSyncStatus('Sync failed');
     }
-  };
 
-  // Action: Archive / Unarchive Folder
-  const handleToggleArchiveFolder = (folder: FolderNode) => {
-    const isArchiving = !folder.archivedAt;
-    const now = isArchiving ? new Date().toISOString() : null;
-
-    setFolders((prev) =>
-      prev.map((f) =>
-        f.id === folder.id ? { ...f, archivedAt: now, revision: f.revision + 1 } : f
-      )
-    );
-    setLocalSaveStatus('Saved locally');
-    announce(`${isArchiving ? 'Archived' : 'Unarchived'} folder ${folder.name}`);
-
+    // Reversible Undo Toast
     setUndoToast({
-      id: `archive-${folder.id}`,
-      message: `${isArchiving ? 'Archived' : 'Unarchived'} '${folder.name}'`,
+      id: `trash-${folderId}`,
+      message: `Deleted folder '${trashModalFolder.name}'`,
       expiresAt: Date.now() + 10000,
-      onUndo: () => {
+      onUndo: async () => {
         setFolders((prev) =>
           prev.map((f) =>
-            f.id === folder.id
-              ? { ...f, archivedAt: folder.archivedAt, revision: f.revision + 1 }
-              : f
+            affectedSubtreeIds.has(f.id) ? { ...f, trashedAt: null, revision: f.revision + 1 } : f
           )
         );
-        announce(`Undid archive change for '${folder.name}'`);
+        setItems((prev) =>
+          prev.map((i) =>
+            affectedSubtreeIds.has(i.folderId ?? '')
+              ? { ...i, trashedAt: null, revision: i.revision + 1 }
+              : i
+          )
+        );
+        announce(`Restored folder ${trashModalFolder.name} from trash`);
         setUndoToast(null);
+
+        const restoreHeader: ItemHeaderRecord = {
+          ...header,
+          serverRevision: prevRevision + 1,
+          deletedAt: null,
+        };
+
+        if (syncEngineRef.current) {
+          await syncEngineRef.current.saveItem(restoreHeader, undefined, 'restoreFolder');
+          if (isOnline) void syncEngineRef.current.syncNow();
+        } else if (apiClientRef.current && workspaceId) {
+          void apiClientRef.current.restoreFolder(
+            workspaceId,
+            folderId,
+            { baseRevision: prevRevision + 1 },
+            { headers: { 'x-operation-id': generateUuid() } }
+          );
+        }
       },
     });
   };
 
-  // Sample Journeys Loader
-  const handleLoadSampleJourneys = () => {
-    setFolders(SAMPLE_FOLDERS);
-    setItems(SAMPLE_ITEMS);
-    setCurrentFolderId(null);
-    setPage(1);
-    announce('Loaded Software and Government Jobs sample organization journeys.');
+  // Seeder for Canonical Demo Journeys (Software & Government Jobs)
+  const handleLoadSampleJourneys = async () => {
+    const ws = workspaceId || 'ws-canonical';
+    const now = new Date().toISOString();
+
+    const swId = generateUuid();
+    const guidesId = generateUuid();
+    const projectsId = generateUuid();
+    const govId = generateUuid();
+    const appsId = generateUuid();
+
+    const sampleFolders: FolderNode[] = [
+      {
+        id: swId,
+        name: 'Software',
+        parentId: null,
+        icon: '💻',
+        color: '#3b82f6',
+        rank: '00001000',
+        scope: 'workspace',
+        revision: 1,
+      },
+      {
+        id: guidesId,
+        name: 'Guides',
+        parentId: swId,
+        icon: '📚',
+        color: '#10b981',
+        rank: '00001000',
+        scope: 'workspace',
+        revision: 1,
+      },
+      {
+        id: projectsId,
+        name: 'Projects',
+        parentId: swId,
+        icon: '🚀',
+        color: '#8b5cf6',
+        rank: '00002000',
+        scope: 'workspace',
+        revision: 1,
+      },
+      {
+        id: govId,
+        name: 'Government jobs',
+        parentId: null,
+        icon: '🏛️',
+        color: '#f59e0b',
+        rank: '00002000',
+        scope: 'workspace',
+        revision: 1,
+      },
+      {
+        id: appsId,
+        name: 'Applications',
+        parentId: govId,
+        icon: '📋',
+        color: '#ef4444',
+        rank: '00001000',
+        scope: 'workspace',
+        revision: 1,
+      },
+    ];
+
+    const sampleItems: LibraryItemRecord[] = [
+      {
+        id: generateUuid(),
+        title: 'TypeScript reference handbook',
+        kind: 'knowledge',
+        folderId: guidesId,
+        rank: '00001000',
+        scope: 'workspace',
+        revision: 1,
+        ext: '.pdf',
+        metadata: 'Knowledge Note • Updated yesterday',
+      },
+      {
+        id: generateUuid(),
+        title: 'TypeScript handbook deep-dive.pdf',
+        kind: 'file',
+        folderId: guidesId,
+        rank: '00002000',
+        scope: 'workspace',
+        revision: 1,
+        ext: '.pdf',
+        metadata: 'PDF Document (2.4 MB) • Sep 28',
+      },
+      {
+        id: generateUuid(),
+        title: 'Read generics chapter in handbook',
+        kind: 'task',
+        folderId: guidesId,
+        rank: '00003000',
+        scope: 'workspace',
+        revision: 1,
+        metadata: 'Task Note • Due Friday',
+      },
+      {
+        id: generateUuid(),
+        title: 'New offline sync engine idea',
+        kind: 'note',
+        folderId: projectsId,
+        rank: '00001000',
+        scope: 'workspace',
+        revision: 1,
+        ext: '.txt',
+        metadata: 'Markdown Note • Draft',
+      },
+      {
+        id: generateUuid(),
+        title: 'Government Application Form.pdf',
+        kind: 'file',
+        folderId: appsId,
+        rank: '00001000',
+        scope: 'workspace',
+        revision: 1,
+        ext: '.pdf',
+        metadata: 'PDF Document (1.1 MB) • Oct 2',
+      },
+      {
+        id: generateUuid(),
+        title: 'Submit civil service exam application',
+        kind: 'task',
+        folderId: appsId,
+        rank: '00002000',
+        scope: 'workspace',
+        revision: 1,
+        metadata: 'Task Note • Deadline next week',
+      },
+    ];
+
+    setFolders((prev) => [...prev, ...sampleFolders]);
+    setItems((prev) => [...prev, ...sampleItems]);
+    announce('Loaded Software and Government jobs sample journeys');
+
+    // Persist folders to local storage if available
+    if (syncEngineRef.current) {
+      for (const f of sampleFolders) {
+        const header: ItemHeaderRecord = {
+          id: f.id,
+          workspaceId: ws,
+          kind: 'folder',
+          name: f.name,
+          parentId: f.parentId,
+          folderId: f.parentId,
+          color: f.color,
+          icon: f.icon,
+          rank: f.rank,
+          securityScope: 'standard',
+          isArchived: false,
+          isPinned: false,
+          serverRevision: 0,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        };
+        await syncEngineRef.current.saveItem(header, undefined, 'createFolder');
+      }
+      if (isOnline) {
+        void syncEngineRef.current.syncNow();
+      }
+    }
   };
 
-  const handleClearSampleData = () => {
+  const handleClearDemoJourneys = () => {
     setFolders([]);
     setItems([]);
     setCurrentFolderId(null);
-    setPage(1);
-    announce('Cleared sample library data. Workspace is clean.');
+    announce('Cleared sample journeys. Library is now empty.');
   };
 
   return (
     <div
+      aria-busy={isLoading}
       style={{
-        maxWidth: '920px',
+        padding: spacing.md,
+        maxWidth: 1200,
         margin: '0 auto',
-        padding: `${spacing.lg}px ${spacing.base}px`,
-        width: '100%',
-        boxSizing: 'border-box',
+        minHeight: '100%',
+        color: palette.text.primary,
+        fontFamily: typography.fontFamily.sans,
       }}
     >
-      {/* Hidden live region for screen-reader announcements */}
+      {/* Live Region for Screen-Reader Announcements */}
       <div
         id={liveRegionId}
-        role="status"
         aria-live="polite"
         aria-atomic="true"
         style={{
           position: 'absolute',
-          width: '1px',
-          height: '1px',
+          width: 1,
+          height: 1,
+          margin: -1,
           padding: 0,
-          margin: '-1px',
           overflow: 'hidden',
           clip: 'rect(0, 0, 0, 0)',
-          whiteSpace: 'nowrap',
           border: 0,
         }}
       >
         {liveAnnouncement}
       </div>
 
-      {/* Header and Controls */}
+      {/* Header with Title and Sync Badges */}
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
           flexWrap: 'wrap',
-          gap: `${spacing.md}px`,
-          marginBottom: `${spacing.base}px`,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.sm,
+          marginBottom: spacing.md,
         }}
       >
         <div>
           <h1
             style={{
+              fontSize: typography.webScale.pageTitle,
+              fontWeight: 700,
               margin: 0,
-              fontSize: `${typography.webScale.welcomeTitle}px`,
-              fontWeight: 800,
               color: palette.text.primary,
             }}
           >
-            Library
+            Library & Folders
           </h1>
           <p
             style={{
-              margin: '4px 0 0 0',
+              fontSize: typography.webScale.supporting,
               color: palette.text.secondary,
-              fontSize: `${typography.webScale.body}px`,
+              margin: '4px 0 0 0',
             }}
           >
-            One canonical workspace folder hierarchy for notes, knowledge guides, tasks, and files.
+            Canonical folder hierarchy with cross-module mixed items
           </p>
         </div>
 
-        {/* Global Action Buttons */}
-        <div style={{ display: 'flex', gap: `${spacing.xs}px`, flexWrap: 'wrap' }}>
+        {/* Sync & Device Storage Badges */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: typography.webScale.metadata,
+              padding: '4px 8px',
+              borderRadius: radii.pill,
+              backgroundColor: hasConsent ? palette.status.successBg : palette.surface,
+              color: hasConsent ? palette.status.success : palette.text.secondary,
+              border: `1px solid ${hasConsent ? palette.status.successBorder : palette.border.subtle}`,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: hasConsent ? palette.status.success : palette.text.muted,
+              }}
+            />
+            {localSaveStatus}
+          </span>
+
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: typography.webScale.metadata,
+              padding: '4px 8px',
+              borderRadius: radii.pill,
+              backgroundColor: isOnline ? palette.status.successBg : palette.status.warningBg,
+              color: isOnline ? palette.status.success : palette.status.warning,
+              border: `1px solid ${isOnline ? palette.status.successBorder : palette.status.warningBorder}`,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: isOnline ? palette.status.success : palette.status.warning,
+              }}
+            />
+            {cloudSyncStatus}
+          </span>
+        </div>
+      </div>
+
+      {/* Conflict Notice if present */}
+      {conflictMessage && (
+        <div style={{ marginBottom: spacing.md }}>
+          <Feedback
+            severity="warning"
+            message={`Conflict detected: ${conflictMessage}. Local intent preserved until resolved.`}
+            onDismiss={() => setConflictMessage(null)}
+          />
+        </div>
+      )}
+
+      {/* Accessible Breadcrumbs */}
+      <div style={{ marginBottom: spacing.md }}>
+        <BreadcrumbNav items={breadcrumbItems} onNavigateBack={handleNavigateUp} />
+      </div>
+
+      {/* Toolbar: Search, Filters, and Actions */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.sm,
+          marginBottom: spacing.md,
+        }}
+      >
+        {/* Module Filter Tabs */}
+        <div
+          role="tablist"
+          aria-label="Filter library content by type"
+          style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
+        >
+          {(
+            [
+              { key: 'all', label: 'All Items' },
+              { key: 'notes', label: 'Notes' },
+              { key: 'knowledge', label: 'Knowledge' },
+              { key: 'files', label: 'Files' },
+              { key: 'tasks', label: 'Tasks' },
+            ] as const
+          ).map((tab) => {
+            const isSelected = typeFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => {
+                  setTypeFilter(tab.key);
+                  setPage(1);
+                  announce(`Filtered view by ${tab.label}`);
+                }}
+                style={{
+                  minHeight: touchTargets.webMin,
+                  padding: '6px 12px',
+                  borderRadius: radii.sm,
+                  fontSize: typography.webScale.supporting,
+                  fontWeight: isSelected ? '600' : '400',
+                  border: isSelected
+                    ? `1px solid ${palette.action.primary}`
+                    : `1px solid ${palette.border.subtle}`,
+                  backgroundColor: isSelected ? palette.action.subtle : palette.surface,
+                  color: isSelected ? palette.action.primary : palette.text.secondary,
+                  cursor: 'pointer',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="search"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Search items"
+            style={{
+              padding: '6px 12px',
+              borderRadius: radii.sm,
+              border: `1px solid ${palette.border.subtle}`,
+              backgroundColor: palette.surface,
+              color: palette.text.primary,
+              fontSize: typography.webScale.supporting,
+              minHeight: touchTargets.webMin,
+            }}
+          />
+
           <Button
-            size="compact"
-            variant="secondary"
-            themeMode={themeMode}
+            variant="primary"
             onClick={() => handleOpenCreateModal(currentFolderId)}
             aria-label="Create new workspace folder"
           >
-            📁 New Folder
+            + New Folder
           </Button>
-          <Button
-            size="compact"
-            variant="primary"
-            themeMode={themeMode}
-            onClick={() => openModal('create')}
-            aria-label="Add new item to workspace"
+
+          {folders.length === 0 && (
+            <Button
+              id="load-demo-journeys-btn"
+              variant="secondary"
+              onClick={handleLoadSampleJourneys}
+              aria-label="Load demo journeys"
+            >
+              Demo Journeys
+            </Button>
+          )}
+
+          {folders.length > 0 && (
+            <Button
+              id="clear-demo-journeys-btn"
+              variant="subtle"
+              onClick={handleClearDemoJourneys}
+              aria-label="Clear demo journeys"
+            >
+              Clear Demo
+            </Button>
+          )}
+
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: typography.webScale.metadata,
+              color: palette.text.secondary,
+              cursor: 'pointer',
+              marginLeft: spacing.xs,
+            }}
           >
-            ＋ Add Item
-          </Button>
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              aria-label="Show archived items and folders"
+            />
+            Show Archived
+          </label>
         </div>
       </div>
 
-      {/* Status & Offline / Cloud Indicator Bar */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: `${spacing.sm}px`,
-          padding: `${spacing.xs}px ${spacing.sm}px`,
-          backgroundColor: palette.surfaceRaised,
-          borderRadius: `${radii.sm}px`,
-          marginBottom: `${spacing.base}px`,
-          fontSize: `${typography.webScale.metadata}px`,
-          color: palette.text.secondary,
-          border: `1px solid ${palette.border.subtle}`,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
-          <span>
-            💾 <strong>Local Storage:</strong> {localSaveStatus}
-          </span>
-          <span aria-hidden="true">•</span>
-          <span>
-            {isOnline ? '☁️' : '📡'} <strong>Cloud Sync:</strong>{' '}
-            <span style={{ color: isOnline ? palette.action.primary : palette.status.warning }}>
-              {isOnline ? cloudSyncStatus : 'Offline — queueing mutations'}
-            </span>
-          </span>
-        </div>
-
-        {/* Sample Journeys Demonstration Controls */}
-        <div style={{ display: 'flex', gap: `${spacing.xs}px`, alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={handleLoadSampleJourneys}
+      {/* Subfolders Section */}
+      {currentSubfolders.length > 0 && (
+        <section aria-labelledby="subfolders-heading" style={{ marginBottom: spacing.lg }}>
+          <h2
+            id="subfolders-heading"
             style={{
-              background: 'none',
-              border: 'none',
-              color: palette.action.primary,
-              fontSize: `${typography.webScale.metadata}px`,
-              fontWeight: 600,
-              cursor: 'pointer',
-              padding: '2px 6px',
+              fontSize: typography.webScale.body,
+              fontWeight: '600',
+              marginBottom: spacing.xs,
+              color: palette.text.primary,
             }}
-            title="Load Software and Government Jobs research fixtures"
           >
-            Demo Journeys
-          </button>
-          <span aria-hidden="true">•</span>
-          <button
-            type="button"
-            onClick={handleClearSampleData}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: palette.text.muted,
-              fontSize: `${typography.webScale.metadata}px`,
-              cursor: 'pointer',
-              padding: '2px 6px',
-            }}
-            title="Clear all sample data"
-          >
-            Clear Demo
-          </button>
-        </div>
-      </div>
+            {currentFolder ? 'Subfolders' : 'Workspace Folders'} ({currentSubfolders.length})
+          </h2>
 
-      {conflictMessage && (
-        <div style={{ marginBottom: `${spacing.base}px` }}>
-          <Feedback severity="warning" message={conflictMessage} themeMode={themeMode} />
-        </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: spacing.sm,
+            }}
+          >
+            {currentSubfolders.map((f, index) => {
+              const count = folderCounts[f.id] ?? 0;
+              return (
+                <div
+                  key={f.id}
+                  style={{
+                    backgroundColor: palette.surface,
+                    borderRadius: radii.card,
+                    border: `1px solid ${palette.border.subtle}`,
+                    padding: spacing.sm,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: spacing.xs,
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setCurrentFolderId(f.id);
+                      setPage(1);
+                      announce(`Opened folder ${f.name}`);
+                    }}
+                    title={`Open ${f.name}`}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      flex: 1,
+                      minHeight: touchTargets.webMin,
+                    }}
+                  >
+                    <span style={{ fontSize: typography.webScale.sectionHeading }}>
+                      {f.icon ?? '📁'}
+                    </span>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: typography.webScale.supporting,
+                          fontWeight: '600',
+                          color: palette.text.primary,
+                        }}
+                      >
+                        {f.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: typography.webScale.metadata,
+                          color: palette.text.muted,
+                        }}
+                      >
+                        {count} {count === 1 ? 'item' : 'items'}
+                        {f.archivedAt && ' • Archived'}
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Folder Actions Menu */}
+                  <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <button
+                      onClick={() => handleReorder(f.id, 'up')}
+                      disabled={index === 0}
+                      title="Move Up"
+                      aria-label={`Move ${f.name} up`}
+                      style={{
+                        padding: '4px 6px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: index === 0 ? 'not-allowed' : 'pointer',
+                        opacity: index === 0 ? 0.3 : 1,
+                      }}
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => handleReorder(f.id, 'down')}
+                      disabled={index === currentSubfolders.length - 1}
+                      title="Move Down"
+                      aria-label={`Move ${f.name} down`}
+                      style={{
+                        padding: '4px 6px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: index === currentSubfolders.length - 1 ? 'not-allowed' : 'pointer',
+                        opacity: index === currentSubfolders.length - 1 ? 0.3 : 1,
+                      }}
+                    >
+                      ▼
+                    </button>
+                    <button
+                      onClick={() => handleOpenRename(f)}
+                      title="Rename"
+                      aria-label={`Rename ${f.name}`}
+                      style={{
+                        padding: '4px 6px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleOpenMove(f)}
+                      title="Move"
+                      aria-label={`Move ${f.name}`}
+                      style={{
+                        padding: '4px 6px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ➡️
+                    </button>
+                    <button
+                      onClick={() => handleToggleArchive(f)}
+                      title={f.archivedAt ? 'Unarchive' : 'Archive'}
+                      aria-label={`${f.archivedAt ? 'Unarchive' : 'Archive'} ${f.name}`}
+                      style={{
+                        padding: '4px 6px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📦
+                    </button>
+                    <button
+                      onClick={() => handleOpenTrash(f)}
+                      title="Delete"
+                      aria-label={`Delete ${f.name}`}
+                      style={{
+                        padding: '4px 6px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
-      {/* Canonical Hierarchy Invariant Notice */}
-      <div style={{ marginBottom: `${spacing.base}px` }}>
-        <Feedback
-          severity="info"
-          message="One canonical folder hierarchy is the source of truth. Software can contain notes, files, and tasks together. Filtering by Notes or Files displays matching records within the same canonical folders without moving content."
-          themeMode={themeMode}
-        />
-      </div>
+      {/* Items Section */}
+      <section aria-labelledby="items-heading">
+        <h2
+          id="items-heading"
+          style={{
+            fontSize: typography.webScale.body,
+            fontWeight: '600',
+            marginBottom: spacing.xs,
+            color: palette.text.primary,
+          }}
+        >
+          {currentFolder ? `${currentFolder.name} Items` : 'Inbox & Unfiled Items'} ({totalItems})
+        </h2>
 
-      {/* Breadcrumb Navigation Bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: `${spacing.sm}px`,
-          backgroundColor: palette.surface,
-          padding: `${spacing.xs}px ${spacing.sm}px`,
-          borderRadius: `${radii.sm}px`,
-          border: `1px solid ${palette.border.subtle}`,
-          marginBottom: `${spacing.base}px`,
-        }}
-      >
-        <BreadcrumbNav
-          items={breadcrumbItems}
-          themeMode={themeMode}
-          onNavigateBack={currentFolder ? handleNavigateUp : undefined}
-        />
+        {paginatedItems.length === 0 ? (
+          <EmptyState
+            id="library-empty-state"
+            title={folders.length === 0 ? 'Your library is empty' : 'No items found'}
+            description={
+              currentSubfolders.length === 0
+                ? 'Your library is empty. Create a folder or load demo journeys.'
+                : 'No items in this folder matching your active filters.'
+            }
+            actionLabel={folders.length === 0 ? 'Load Demo Journeys' : 'New Folder'}
+            onAction={
+              folders.length === 0
+                ? handleLoadSampleJourneys
+                : () => handleOpenCreateModal(currentFolderId)
+            }
+          />
+        ) : (
+          <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+            {paginatedItems.map((item) => (
+              <div
+                key={item.id}
+                role="listitem"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: `${spacing.sm} ${spacing.md}`,
+                  backgroundColor: palette.surface,
+                  border: `1px solid ${palette.border.subtle}`,
+                  borderRadius: radii.card,
+                  gap: spacing.sm,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                  <ItemTypeBadge kind={item.kind} />
+                  <div>
+                    <div
+                      style={{
+                        fontSize: typography.webScale.supporting,
+                        fontWeight: '500',
+                        color: palette.text.primary,
+                      }}
+                    >
+                      {item.title}
+                    </div>
+                    {item.metadata && (
+                      <div
+                        style={{
+                          fontSize: typography.webScale.metadata,
+                          color: palette.text.muted,
+                        }}
+                      >
+                        {item.metadata}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-        {/* Current Folder Action Menu */}
-        {currentFolder && (
-          <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+        {/* Accessible Pagination */}
+        {totalPages > 1 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              marginTop: spacing.md,
+            }}
+          >
             <Button
-              size="compact"
               variant="secondary"
-              themeMode={themeMode}
-              onClick={() => handleToggleArchiveFolder(currentFolder)}
-              aria-label={`${currentFolder.archivedAt ? 'Unarchive' : 'Archive'} ${currentFolder.name}`}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              aria-label="Previous page"
             >
-              {currentFolder.archivedAt ? '📂 Unarchive' : '📦 Archive'}
+              Previous
             </Button>
-            <Button
-              size="compact"
-              variant="secondary"
-              themeMode={themeMode}
-              onClick={() => handleOpenRename(currentFolder)}
-              aria-label={`Rename ${currentFolder.name}`}
+            <span
+              style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary }}
             >
-              ✏️ Rename
-            </Button>
+              Page {page} of {totalPages}
+            </span>
             <Button
-              size="compact"
               variant="secondary"
-              themeMode={themeMode}
-              onClick={() => handleOpenMove(currentFolder)}
-              aria-label={`Move ${currentFolder.name}`}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              aria-label="Next page"
             >
-              🚚 Move
-            </Button>
-            <Button
-              size="compact"
-              variant="secondary"
-              themeMode={themeMode}
-              onClick={() => handleOpenTrash(currentFolder)}
-              aria-label={`Trash ${currentFolder.name}`}
-            >
-              🗑️ Trash
+              Next
             </Button>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Module Type Filters Bar */}
-      <div
-        role="toolbar"
-        aria-label="Filter library records by type"
-        style={{
-          display: 'flex',
-          gap: `${spacing.xs}px`,
-          marginBottom: `${spacing.base}px`,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}
-      >
-        <span
-          style={{
-            fontSize: `${typography.webScale.metadata}px`,
-            fontWeight: 600,
-            color: palette.text.secondary,
-            marginRight: `${spacing.xs}px`,
-          }}
-        >
-          View Filter:
-        </span>
-
-        {(
-          [
-            { key: 'all', label: 'All Items' },
-            { key: 'notes', label: 'Notes' },
-            { key: 'knowledge', label: 'Knowledge' },
-            { key: 'files', label: 'Files' },
-            { key: 'tasks', label: 'Tasks' },
-          ] as const
-        ).map((filter) => (
-          <button
-            key={filter.key}
-            type="button"
-            aria-pressed={typeFilter === filter.key}
-            onClick={() => {
-              setTypeFilter(filter.key);
-              setPage(1);
-              announce(`Filtered view by ${filter.label}`);
-            }}
-            style={{
-              padding: '6px 14px',
-              borderRadius: `${radii.pill}px`,
-              border: `1px solid ${
-                typeFilter === filter.key ? palette.action.primary : palette.border.subtle
-              }`,
-              backgroundColor: typeFilter === filter.key ? palette.surfaceRaised : palette.surface,
-              color: typeFilter === filter.key ? palette.action.primary : palette.text.primary,
-              fontWeight: typeFilter === filter.key ? 700 : 500,
-              fontSize: '13px',
-              cursor: 'pointer',
-              minHeight: `${touchTargets.webMin}px`,
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
-            {filter.label}
-          </button>
-        ))}
-
-        {/* Toggle Archive */}
-        <label
-          style={{
-            marginLeft: 'auto',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: `${spacing.xs}px`,
-            fontSize: `${typography.webScale.metadata}px`,
-            color: palette.text.secondary,
-            cursor: 'pointer',
-            userSelect: 'none',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => {
-              setShowArchived(e.target.checked);
-              announce(e.target.checked ? 'Showing archived records' : 'Hiding archived records');
-            }}
-          />
-          Show Archived
-        </label>
-      </div>
-
-      {/* Main Grid: Subfolders and Mixed Items */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: `${spacing.base}px`,
-        }}
-      >
-        {/* Left Column: Folders in current context */}
-        <Card themeMode={themeMode}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: `${spacing.sm}px`,
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                fontSize: `${typography.webScale.sectionHeading}px`,
-                color: palette.text.primary,
-              }}
-            >
-              {currentFolder ? `Subfolders in ${currentFolder.name}` : 'Workspace Folders'}
-            </h2>
-            <Button
-              size="compact"
-              variant="secondary"
-              themeMode={themeMode}
-              onClick={() => handleOpenCreateModal(currentFolderId)}
-              aria-label="Add folder to current level"
-            >
-              ＋ New
-            </Button>
-          </div>
-
-          {currentSubfolders.length === 0 ? (
-            <div
-              style={{
-                padding: `${spacing.base}px`,
-                textAlign: 'center',
-                color: palette.text.secondary,
-                fontSize: `${typography.webScale.metadata}px`,
-              }}
-            >
-              No subfolders in this location.
-            </div>
-          ) : (
-            <div
-              role="list"
-              aria-label="Subfolder list"
-              style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}
-            >
-              {currentSubfolders.map((folder, index) => {
-                const count = folderCounts[folder.id] ?? 0;
-                return (
-                  <div
-                    key={folder.id}
-                    tabIndex={0}
-                    role="listitem"
-                    onKeyDown={(e) => handleFolderKeyDown(e, folder.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: `${spacing.xs}px ${spacing.sm}px`,
-                      borderRadius: `${radii.sm}px`,
-                      backgroundColor: palette.surfaceRaised,
-                      border: `1px solid ${palette.border.subtle}`,
-                      minHeight: `${touchTargets.webMin}px`,
-                      gap: `${spacing.xs}px`,
-                      transition: 'background-color 0.15s ease',
-                    }}
-                  >
-                    {/* Clickable folder name & icon */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCurrentFolderId(folder.id);
-                        setPage(1);
-                        announce(`Opened folder ${folder.name}`);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: `${spacing.xs}px`,
-                        flex: 1,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        padding: 0,
-                        color: palette.text.primary,
-                        fontWeight: 600,
-                        fontSize: `${typography.webScale.body}px`,
-                        maxWidth: 'calc(100% - 130px)',
-                        overflow: 'hidden',
-                      }}
-                      title={`Open ${folder.name}`}
-                    >
-                      <span aria-hidden="true">{folder.icon ?? '📁'}</span>
-                      <span
-                        style={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {folder.name}
-                      </span>
-                    </button>
-
-                    {/* Count badge */}
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        color: palette.text.secondary,
-                        backgroundColor: palette.surface,
-                        padding: '2px 6px',
-                        borderRadius: `${radii.pill}px`,
-                        border: `1px solid ${palette.border.subtle}`,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {count} items
-                    </span>
-
-                    {/* Accessible Reorder & Actions */}
-                    <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        disabled={index === 0}
-                        onClick={() => handleReorderFolder(folder.id, 'up')}
-                        aria-label={`Move ${folder.name} up (or press Alt+Up)`}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: index === 0 ? palette.text.muted : palette.action.primary,
-                          cursor: index === 0 ? 'default' : 'pointer',
-                          padding: '4px',
-                          fontSize: '12px',
-                          borderRadius: radii.sm,
-                        }}
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        disabled={index === currentSubfolders.length - 1}
-                        onClick={() => handleReorderFolder(folder.id, 'down')}
-                        aria-label={`Move ${folder.name} down (or press Alt+Down)`}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color:
-                            index === currentSubfolders.length - 1
-                              ? palette.text.muted
-                              : palette.action.primary,
-                          cursor: index === currentSubfolders.length - 1 ? 'default' : 'pointer',
-                          padding: '4px',
-                          fontSize: '12px',
-                          borderRadius: radii.sm,
-                        }}
-                      >
-                        ▼
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenRename(folder)}
-                        aria-label={`Rename ${folder.name}`}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: palette.text.secondary,
-                          cursor: 'pointer',
-                          padding: '4px',
-                          fontSize: '13px',
-                        }}
-                      >
-                        ✏️
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* Right Column: Mixed Items in current folder */}
-        <Card themeMode={themeMode}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: `${spacing.sm}px`,
-            }}
-          >
-            <div>
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: `${typography.webScale.sectionHeading}px`,
-                  color: palette.text.primary,
-                }}
-              >
-                {currentFolder ? currentFolder.name : 'Inbox / Top-level Records'}
-              </h2>
-              <span style={{ fontSize: '12px', color: palette.text.secondary }}>
-                {totalItems} matching {typeFilter !== 'all' ? typeFilter : ''} records
-              </span>
-            </div>
-
-            {/* Item search */}
-            <input
-              type="search"
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
-              aria-label="Search items in current folder"
-              style={{
-                padding: '4px 8px',
-                borderRadius: `${radii.sm}px`,
-                border: `1px solid ${palette.border.subtle}`,
-                backgroundColor: palette.surface,
-                color: palette.text.primary,
-                fontSize: '13px',
-                maxWidth: '140px',
-              }}
-            />
-          </div>
-
-          {currentItems.length === 0 ? (
-            <EmptyState
-              title={`No ${typeFilter !== 'all' ? typeFilter : ''} records found`}
-              description={
-                currentFolder
-                  ? `This folder has no matching items. Add notes, tasks, or documents to organize them.`
-                  : `Your Inbox is clear. Unfiled items and top-level records will appear here.`
-              }
-              actionLabel="＋ Add Record"
-              onAction={() => openModal('create')}
-              themeMode={themeMode}
-            />
-          ) : (
-            <>
-              <div
-                role="list"
-                aria-label={`Items in ${currentFolder ? currentFolder.name : 'Inbox'}`}
-                style={{ display: 'flex', flexDirection: 'column' }}
-              >
-                {paginatedItems.map((item) => (
-                  <div
-                    key={item.id}
-                    role="listitem"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      minHeight: `${touchTargets.webMin}px`,
-                      padding: `${spacing.sm}px 0`,
-                      borderBottom: `1px solid ${palette.border.subtle}`,
-                      gap: `${spacing.sm}px`,
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: `${typography.webScale.body}px`,
-                          fontWeight: 600,
-                          color: palette.text.primary,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title={item.title}
-                      >
-                        {item.title}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: `${typography.webScale.metadata}px`,
-                          color: palette.text.secondary,
-                          marginTop: '2px',
-                        }}
-                      >
-                        {item.metadata ?? (item.ext ? `File (${item.ext})` : 'Note')}
-                      </div>
-                    </div>
-
-                    {/* Semantic Type Badge */}
-                    <ItemTypeBadge kind={item.kind} themeMode={themeMode} />
-                  </div>
-                ))}
-              </div>
-
-              {/* Bounded Pagination Controls */}
-              {totalPages > 1 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginTop: `${spacing.base}px`,
-                    paddingTop: `${spacing.xs}px`,
-                    borderTop: `1px solid ${palette.border.subtle}`,
-                  }}
-                >
-                  <span style={{ fontSize: '12px', color: palette.text.secondary }}>
-                    Showing {(page - 1) * ITEMS_PER_PAGE + 1}–
-                    {Math.min(page * ITEMS_PER_PAGE, totalItems)} of {totalItems}
-                  </span>
-                  <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
-                    <Button
-                      size="compact"
-                      variant="secondary"
-                      themeMode={themeMode}
-                      disabled={page === 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      aria-label="Previous page of items"
-                    >
-                      &larr; Prev
-                    </Button>
-                    <Button
-                      size="compact"
-                      variant="secondary"
-                      themeMode={themeMode}
-                      disabled={page === totalPages}
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      aria-label="Next page of items"
-                    >
-                      Next &rarr;
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </Card>
-      </div>
-
-      {/* Reversible Undo Toast Floating Bar */}
+      {/* Floating Reversible Undo Toast */}
       {undoToast && (
         <div
-          role="alert"
+          role="status"
           style={{
             position: 'fixed',
-            bottom: `${spacing.xl}px`,
-            right: `${spacing.xl}px`,
-            backgroundColor: palette.text.primary,
-            color: palette.surface,
-            padding: `${spacing.sm}px ${spacing.base}px`,
-            borderRadius: `${radii.sm}px`,
+            bottom: 24,
+            right: 24,
+            backgroundColor: palette.surfaceRaised,
+            border: `1px solid ${palette.border.subtle}`,
+            padding: `${spacing.sm} ${spacing.md}`,
+            borderRadius: radii.card,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             display: 'flex',
             alignItems: 'center',
-            gap: `${spacing.base}px`,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            gap: spacing.md,
             zIndex: 1000,
           }}
         >
-          <span>{undoToast.message}</span>
-          <button
-            type="button"
-            onClick={undoToast.onUndo}
-            style={{
-              background: palette.action.primary,
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: `${radii.sm}px`,
-              padding: '4px 12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontSize: '13px',
-            }}
-          >
+          <span style={{ fontSize: typography.webScale.supporting }}>{undoToast.message}</span>
+          <Button variant="primary" onClick={undoToast.onUndo}>
             Undo
-          </button>
+          </Button>
         </div>
       )}
 
-      {/* Modal: Create Folder */}
+      {/* Create Folder Dialog */}
       <Dialog
         isOpen={isCreateModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        title="Create Workspace Folder"
-        description="Folders can contain notes, guides, and files together in one canonical hierarchy."
-        themeMode={themeMode}
+        title="Create New Folder"
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-          {createError && (
-            <Feedback severity="danger" message={createError} themeMode={themeMode} />
-          )}
-
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
           <TextField
             id="create-folder-name"
             label="Folder Name"
-            placeholder="e.g. Finance or Personal Projects"
             value={createName}
             onChange={(e) => setCreateName(e.target.value)}
-            themeMode={themeMode}
+            errorMessage={createError ?? undefined}
             autoFocus
           />
 
-          {/* Parent selection */}
-          <div>
-            <label
-              htmlFor="create-parent-select"
-              style={{
-                display: 'block',
-                fontSize: `${typography.webScale.metadata}px`,
-                fontWeight: 600,
-                color: palette.text.secondary,
-                marginBottom: '4px',
-              }}
-            >
-              Parent Folder
-            </label>
-            <select
-              id="create-parent-select"
-              value={createParentId ?? ''}
-              onChange={(e) => setCreateParentId(e.target.value ? e.target.value : null)}
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: `${radii.sm}px`,
-                border: `1px solid ${palette.border.subtle}`,
-                backgroundColor: palette.surface,
-                color: palette.text.primary,
-                fontSize: '14px',
-              }}
-            >
-              <option value="">(Workspace Root)</option>
-              {folders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.icon ?? '📁'} {f.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div style={{ display: 'flex', gap: spacing.sm }}>
+            <div style={{ flex: 1 }}>
+              <label
+                htmlFor="create-folder-icon"
+                style={{
+                  display: 'block',
+                  fontSize: typography.webScale.metadata,
+                  fontWeight: '500',
+                  marginBottom: 4,
+                }}
+              >
+                Icon
+              </label>
+              <select
+                id="create-folder-icon"
+                value={createIcon}
+                onChange={(e) => setCreateIcon(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: radii.card,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                }}
+              >
+                <option value="📁">📁 Folder</option>
+                <option value="💻">💻 Code / Tech</option>
+                <option value="📚">📚 Guides</option>
+                <option value="🚀">🚀 Projects</option>
+                <option value="🏛️">🏛️ Government</option>
+                <option value="🌱">🌱 Personal</option>
+                <option value="🎓">🎓 Learning</option>
+              </select>
+            </div>
 
-          {/* Icon picker */}
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: `${typography.webScale.metadata}px`,
-                fontWeight: 600,
-                color: palette.text.secondary,
-                marginBottom: '4px',
-              }}
-            >
-              Folder Icon
-            </label>
-            <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
-              {['📁', '💼', '🔬', '📚', '🏛️', '📝', '🌱', '🎓'].map((icon) => (
-                <button
-                  key={icon}
-                  type="button"
-                  onClick={() => setCreateIcon(icon)}
-                  style={{
-                    fontSize: '18px',
-                    padding: '6px 10px',
-                    borderRadius: `${radii.sm}px`,
-                    border: `1px solid ${createIcon === icon ? palette.action.primary : palette.border.subtle}`,
-                    background: createIcon === icon ? palette.surfaceRaised : palette.surface,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {icon}
-                </button>
-              ))}
+            <div style={{ flex: 1 }}>
+              <label
+                htmlFor="create-folder-color"
+                style={{
+                  display: 'block',
+                  fontSize: typography.webScale.metadata,
+                  fontWeight: '500',
+                  marginBottom: 4,
+                }}
+              >
+                Color Tag
+              </label>
+              <select
+                id="create-folder-color"
+                value={createColor}
+                onChange={(e) => setCreateColor(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: radii.card,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                }}
+              >
+                <option value="#3b82f6">Blue</option>
+                <option value="#10b981">Green</option>
+                <option value="#8b5cf6">Purple</option>
+                <option value="#f59e0b">Amber</option>
+                <option value="#ef4444">Red</option>
+              </select>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: `${spacing.sm}px` }}>
-            <Button
-              variant="secondary"
-              themeMode={themeMode}
-              onClick={() => setCreateModalOpen(false)}
-            >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.xs }}>
+            <Button variant="subtle" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" themeMode={themeMode} onClick={handleConfirmCreate}>
+            <Button variant="primary" onClick={handleConfirmCreate}>
               Create Folder
             </Button>
           </div>
         </div>
       </Dialog>
 
-      {/* Modal: Rename Folder */}
+      {/* Rename Dialog */}
       <Dialog
         isOpen={Boolean(renameModalFolder)}
         onClose={() => setRenameModalFolder(null)}
         title="Rename Folder"
-        description="Preserves all contained items, rankings, and subfolder hierarchies."
-        themeMode={themeMode}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-          {renameError && (
-            <Feedback severity="danger" message={renameError} themeMode={themeMode} />
-          )}
-
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
           <TextField
-            id="rename-folder-input"
+            id="rename-folder-name"
             label="Folder Name"
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
-            themeMode={themeMode}
+            errorMessage={renameError ?? undefined}
             autoFocus
           />
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: `${spacing.sm}px` }}>
-            <Button
-              variant="secondary"
-              themeMode={themeMode}
-              onClick={() => setRenameModalFolder(null)}
-            >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.xs }}>
+            <Button variant="subtle" onClick={() => setRenameModalFolder(null)}>
               Cancel
             </Button>
-            <Button variant="primary" themeMode={themeMode} onClick={handleConfirmRename}>
-              Save Rename
+            <Button variant="primary" onClick={handleConfirmRename}>
+              Save Name
             </Button>
           </div>
         </div>
       </Dialog>
 
-      {/* Modal: Move Folder */}
+      {/* Move Folder Dialog */}
       <Dialog
         isOpen={Boolean(moveModalFolder)}
         onClose={() => setMoveModalFolder(null)}
-        title="Move Folder"
-        description="Reparent folder hierarchy. Validates cycle prevention and depth bounds."
-        themeMode={themeMode}
+        title={`Move Folder: ${moveModalFolder?.name}`}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-          {moveError && <Feedback severity="danger" message={moveError} themeMode={themeMode} />}
-
-          <p style={{ margin: 0, fontSize: '14px', color: palette.text.primary }}>
-            Moving <strong>{moveModalFolder?.name}</strong> to:
-          </p>
-
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+          <label
+            htmlFor="move-target-select"
+            style={{ fontSize: typography.webScale.supporting, fontWeight: '500' }}
+          >
+            Select Target Destination:
+          </label>
           <select
-            value={moveTargetParentId ?? ''}
-            onChange={(e) => setMoveTargetParentId(e.target.value ? e.target.value : null)}
+            id="move-target-select"
+            value={moveTargetParentId ?? 'root'}
+            onChange={(e) =>
+              setMoveTargetParentId(e.target.value === 'root' ? null : e.target.value)
+            }
             style={{
-              width: '100%',
               padding: '8px',
-              borderRadius: `${radii.sm}px`,
+              borderRadius: radii.card,
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.surface,
               color: palette.text.primary,
-              fontSize: '14px',
             }}
           >
-            <option value="">(Workspace Root)</option>
+            <option value="root">Workspace Root (Top Level)</option>
             {folders
-              .filter((f) => f.id !== moveModalFolder?.id)
-              .map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.icon ?? '📁'} {f.name}
-                </option>
-              ))}
+              .filter((f) => f.id !== moveModalFolder?.id && !f.trashedAt)
+              .map((f) => {
+                const isCycle = moveModalFolder && detectCycle(moveModalFolder.id, f.id, folderMap);
+                return (
+                  <option key={f.id} value={f.id} disabled={Boolean(isCycle)}>
+                    {f.name} {isCycle ? '(Cannot move inside descendant)' : ''}
+                  </option>
+                );
+              })}
           </select>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: `${spacing.sm}px` }}>
-            <Button
-              variant="secondary"
-              themeMode={themeMode}
-              onClick={() => setMoveModalFolder(null)}
-            >
+          {moveError && <Feedback severity="danger" message={moveError} />}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.xs }}>
+            <Button variant="subtle" onClick={() => setMoveModalFolder(null)}>
               Cancel
             </Button>
-            <Button variant="primary" themeMode={themeMode} onClick={handleConfirmMove}>
+            <Button variant="primary" onClick={handleConfirmMove}>
               Confirm Move
             </Button>
           </div>
         </div>
       </Dialog>
 
-      {/* Modal: Trash Folder */}
+      {/* Trash Folder Dialog */}
       <Dialog
         isOpen={Boolean(trashModalFolder)}
         onClose={() => setTrashModalFolder(null)}
-        title={`Trash Folder "${trashModalFolder?.name}"`}
-        description="Choose how to handle contained subfolders and items."
-        themeMode={themeMode}
+        title={`Delete Folder: ${trashModalFolder?.name}`}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: `${spacing.xs}px`,
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: palette.text.primary,
-              }}
-            >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+          <p style={{ fontSize: typography.webScale.supporting, margin: 0 }}>
+            Choose how to handle contents inside this folder:
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input
                 type="radio"
                 name="trash-mode"
                 checked={trashMode === 'trash_subtree'}
                 onChange={() => setTrashMode('trash_subtree')}
-                style={{ marginTop: '2px' }}
               />
-              <div>
-                <strong>Trash Subtree:</strong> Trash this folder and all its contents together.
-              </div>
+              <span style={{ fontSize: typography.webScale.supporting }}>
+                <strong>Delete entire subtree:</strong> Move this folder and all subfolders and
+                items to trash.
+              </span>
             </label>
 
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: `${spacing.xs}px`,
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: palette.text.primary,
-              }}
-            >
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input
                 type="radio"
                 name="trash-mode"
                 checked={trashMode === 'preserve_to_parent'}
                 onChange={() => setTrashMode('preserve_to_parent')}
-                style={{ marginTop: '2px' }}
               />
-              <div>
-                <strong>Preserve to Parent:</strong> Move all subfolders and items to parent before
-                trashing this folder.
-              </div>
+              <span style={{ fontSize: typography.webScale.supporting }}>
+                <strong>Preserve contents:</strong> Move contained subfolders and items up to the
+                parent folder.
+              </span>
             </label>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: `${spacing.sm}px` }}>
-            <Button
-              variant="secondary"
-              themeMode={themeMode}
-              onClick={() => setTrashModalFolder(null)}
-            >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.xs }}>
+            <Button variant="subtle" onClick={() => setTrashModalFolder(null)}>
               Cancel
             </Button>
-            <Button variant="primary" themeMode={themeMode} onClick={handleConfirmTrash}>
-              Trash Folder
+            <Button variant="primary" onClick={handleConfirmTrash}>
+              Delete Folder
             </Button>
           </div>
         </div>

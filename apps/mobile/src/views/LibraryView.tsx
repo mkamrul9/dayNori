@@ -14,10 +14,12 @@ import {
 } from '@daynori/ui-mobile';
 import {
   calculateFolderDepth,
+  calculateSubtreeDepth,
   compareRanks,
+  detectCycle,
   generateBetweenRanks,
   generateInitialRank,
-  isInboxItem,
+  generateUuid,
   MAX_FOLDER_DEPTH,
 } from '@daynori/domain';
 import type { LibraryFilter } from '../navigation/types';
@@ -28,6 +30,10 @@ export interface LibraryViewProps {
   onFilterChange?: (filter: LibraryFilter) => void;
   onOpenCreate?: () => void;
   testID?: string;
+  initialFolders?: MobileFolderItem[];
+  initialItems?: MobileLibraryRecord[];
+  workspaceId?: string | null;
+  userId?: string | null;
 }
 
 export interface MobileFolderItem {
@@ -54,9 +60,10 @@ export interface MobileLibraryRecord {
   trashedAt?: string | null;
 }
 
-const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
+// Canonical UUID-backed demo journeys fixtures
+export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
   {
-    id: 'f-software',
+    id: '11111111-1111-4111-8111-111111111111',
     name: 'Software',
     parentId: null,
     icon: '💻',
@@ -64,23 +71,23 @@ const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     revision: 1,
   },
   {
-    id: 'f-guides',
+    id: '22222222-2222-4222-8222-222222222222',
     name: 'Guides',
-    parentId: 'f-software',
+    parentId: '11111111-1111-4111-8111-111111111111',
     icon: '📚',
     rank: '00001000',
     revision: 1,
   },
   {
-    id: 'f-projects',
+    id: '33333333-3333-4333-8333-333333333333',
     name: 'Projects',
-    parentId: 'f-software',
+    parentId: '11111111-1111-4111-8111-111111111111',
     icon: '🚀',
     rank: '00002000',
     revision: 1,
   },
   {
-    id: 'f-gov-jobs',
+    id: '44444444-4444-4444-8444-444444444444',
     name: 'Government jobs',
     parentId: null,
     icon: '🏛️',
@@ -88,15 +95,15 @@ const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     revision: 1,
   },
   {
-    id: 'f-applications',
+    id: '55555555-5555-4555-8555-555555555555',
     name: 'Applications',
-    parentId: 'f-gov-jobs',
+    parentId: '44444444-4444-4444-8444-444444444444',
     icon: '📋',
     rank: '00001000',
     revision: 1,
   },
   {
-    id: 'f-personal',
+    id: '66666666-6666-4666-8666-666666666666',
     name: 'Personal',
     parentId: null,
     icon: '🌱',
@@ -104,7 +111,7 @@ const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     revision: 1,
   },
   {
-    id: 'f-learning',
+    id: '77777777-7777-4777-8777-777777777777',
     name: 'Learning',
     parentId: null,
     icon: '🎓',
@@ -113,99 +120,99 @@ const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
   },
 ];
 
-const SAMPLE_MOBILE_ITEMS: MobileLibraryRecord[] = [
+export const SAMPLE_MOBILE_ITEMS: MobileLibraryRecord[] = [
   {
-    id: 'i-ts-ref',
+    id: '88888888-8888-4888-8888-888888888888',
     title: 'TypeScript reference handbook',
     kind: 'knowledge',
-    folderId: 'f-guides',
+    folderId: '22222222-2222-4222-8222-222222222222',
     rank: '00001000',
     revision: 1,
     metadata: 'Knowledge Note • Updated yesterday',
   },
   {
-    id: 'i-ts-pdf',
+    id: '99999999-9999-4999-8999-999999999999',
     title: 'TypeScript handbook deep-dive.pdf',
     kind: 'file',
-    folderId: 'f-guides',
+    folderId: '22222222-2222-4222-8222-222222222222',
     rank: '00002000',
     revision: 1,
     metadata: 'PDF Document (2.4 MB) • Sep 28',
   },
   {
-    id: 'i-read-generics',
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     title: 'Read generics chapter in handbook',
     kind: 'task',
-    folderId: 'f-guides',
+    folderId: '22222222-2222-4222-8222-222222222222',
     rank: '00003000',
     revision: 1,
     metadata: 'Task Note • Due Friday',
   },
   {
-    id: 'i-new-app',
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     title: 'New offline sync engine idea',
     kind: 'note',
-    folderId: 'f-projects',
+    folderId: '33333333-3333-4333-8333-333333333333',
     rank: '00001000',
     revision: 1,
     metadata: 'Markdown Note • Draft',
   },
   {
-    id: 'i-gov-app-pdf',
+    id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     title: 'Government Application Form.pdf',
     kind: 'file',
-    folderId: 'f-applications',
+    folderId: '55555555-5555-4555-8555-555555555555',
     rank: '00001000',
     revision: 1,
     metadata: 'PDF Document (1.1 MB) • Oct 2',
   },
   {
-    id: 'i-submit-app',
+    id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     title: 'Submit civil service exam application',
     kind: 'task',
-    folderId: 'f-applications',
+    folderId: '55555555-5555-4555-8555-555555555555',
     rank: '00002000',
     revision: 1,
-    metadata: 'Task Note • Due next week',
+    metadata: 'Task Note • Deadline next week',
   },
   {
-    id: 'i-interview-prep',
+    id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     title: 'Technical interview preparation checklist',
     kind: 'note',
-    folderId: 'f-applications',
+    folderId: '55555555-5555-4555-8555-555555555555',
     rank: '00003000',
     revision: 1,
     metadata: 'Markdown Note • 4 sections',
   },
   {
-    id: 'i-morning-study',
-    title: 'Morning study routine (20m)',
+    id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    title: 'Morning quiet reading routine (20m)',
     kind: 'routine',
-    folderId: 'f-personal',
+    folderId: '66666666-6666-4666-8666-666666666666',
     rank: '00001000',
     revision: 1,
     metadata: 'Daily Habit • Active',
   },
   {
-    id: 'i-til-a11y',
-    title: 'Today I learned: Visible focus outlines',
+    id: '12121212-1212-4212-8212-121212121212',
+    title: 'Today I learned: Visible focus outlines and screen-reader announcements',
     kind: 'journal',
-    folderId: 'f-personal',
+    folderId: '66666666-6666-4666-8666-666666666666',
     rank: '00002000',
     revision: 1,
     metadata: 'Journal Entry • Oct 15',
   },
   {
-    id: 'i-exam-prep',
+    id: '34343434-3434-4434-8434-343434343434',
     title: 'Syllabus and exam preparation reference',
     kind: 'knowledge',
-    folderId: 'f-learning',
+    folderId: '77777777-7777-4777-8777-777777777777',
     rank: '00001000',
     revision: 1,
     metadata: 'Knowledge Note • 12 pages',
   },
   {
-    id: 'i-inbox-item',
+    id: '56565656-5656-4656-8656-565656565656',
     title: 'Quick unorganized thought draft',
     kind: 'note',
     folderId: null,
@@ -221,13 +228,19 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   themeMode,
   initialFilter = 'all',
   onFilterChange,
-  onOpenCreate,
+  onOpenCreate: _onOpenCreate,
   testID = 'library-view',
+  initialFolders,
+  initialItems,
+  workspaceId: _workspaceId,
+  userId: _userId,
 }) => {
   const palette = colors[themeMode];
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>(initialFilter);
-  const [folders, setFolders] = useState<MobileFolderItem[]>(SAMPLE_MOBILE_FOLDERS);
-  const [items, setItems] = useState<MobileLibraryRecord[]>(SAMPLE_MOBILE_ITEMS);
+
+  // Workspaces start empty by default unless initial data is injected
+  const [folders, setFolders] = useState<MobileFolderItem[]>(initialFolders ?? []);
+  const [items, setItems] = useState<MobileLibraryRecord[]>(initialItems ?? []);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = Root / Workspace
   const [page, setPage] = useState(1);
 
@@ -246,7 +259,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
 
+  const [moveTargetFolder, setMoveTargetFolder] = useState<MobileFolderItem | null>(null);
+  const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
   const [trashTargetFolder, setTrashTargetFolder] = useState<MobileFolderItem | null>(null);
+  const [trashSubtree, setTrashSubtree] = useState(true);
 
   // Undo Toast State
   const [undoToast, setUndoToast] = useState<{
@@ -265,7 +283,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const folderMap = useMemo(() => {
     const map = new Map<string, { parentId: string | null }>();
     for (const f of folders) {
-      map.set(f.id, { parentId: f.parentId });
+      if (!f.trashedAt) {
+        map.set(f.id, { parentId: f.parentId });
+      }
     }
     return map;
   }, [folders]);
@@ -301,22 +321,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     return segs;
   }, [folders, currentFolderId]);
 
-  // Subfolders in current level
+  // Subfolders of current folder
   const subfolders = useMemo(() => {
     return folders
       .filter((f) => !f.trashedAt && f.parentId === currentFolderId)
       .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
   }, [folders, currentFolderId]);
 
-  // Items in current level
+  // Filtered items in current folder
   const currentItems = useMemo(() => {
     return items
       .filter((item) => {
         if (item.trashedAt) return false;
-        const matchesFolder =
-          currentFolderId === null ? isInboxItem(item.folderId) : item.folderId === currentFolderId;
-        if (!matchesFolder) return false;
+        if (item.folderId !== currentFolderId) return false;
 
+        // Apply module filters
         if (activeFilter === 'notes' && item.kind !== 'note') return false;
         if (activeFilter === 'knowledge' && item.kind !== 'knowledge') return false;
         if (activeFilter === 'files' && item.kind !== 'file') return false;
@@ -326,7 +345,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
   }, [items, currentFolderId, activeFilter]);
 
-  // Item counts per folder
+  // Counts of items per folder
   const folderCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const i of items) {
@@ -407,7 +426,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     }
 
     const newFolder: MobileFolderItem = {
-      id: `f-${Date.now()}`,
+      id: generateUuid(),
       name: trimmed,
       parentId: currentFolderId,
       icon: '📁',
@@ -452,51 +471,124 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     });
   };
 
-  // Trash Folder
-  const handleConfirmTrash = () => {
-    if (!trashTargetFolder) return;
-    const targetId = trashTargetFolder.id;
-    const targetName = trashTargetFolder.name;
-    const parentId = trashTargetFolder.parentId;
+  // Move Folder
+  const handleOpenMove = (folder: MobileFolderItem) => {
+    setMoveTargetFolder(folder);
+    setMoveDestinationId(folder.parentId);
+    setMoveError(null);
+  };
 
-    const now = new Date().toISOString();
+  const handleConfirmMove = () => {
+    if (!moveTargetFolder) return;
+    const folderId = moveTargetFolder.id;
+    const originalParentId = moveTargetFolder.parentId;
 
-    // Descendants
-    const descendants = new Set<string>([targetId]);
-    let added = true;
-    while (added) {
-      added = false;
-      for (const f of folders) {
-        if (f.parentId && descendants.has(f.parentId) && !descendants.has(f.id)) {
-          descendants.add(f.id);
-          added = true;
-        }
-      }
+    if (moveDestinationId === folderId) {
+      setMoveError('Cannot move folder into itself.');
+      return;
     }
 
-    const affectedItemIds = items
-      .filter((i) => i.folderId && descendants.has(i.folderId) && !i.trashedAt)
-      .map((i) => i.id);
+    if (detectCycle(folderId, moveDestinationId, folderMap)) {
+      setMoveError('Cannot move folder inside its own descendant.');
+      return;
+    }
+
+    try {
+      const targetDepth = calculateFolderDepth(moveDestinationId, folderMap);
+      const childrenMap = new Map<string, string[]>();
+      for (const f of folders) {
+        if (!f.parentId || f.trashedAt) continue;
+        const list = childrenMap.get(f.parentId) || [];
+        list.push(f.id);
+        childrenMap.set(f.parentId, list);
+      }
+      const subtreeDepth = calculateSubtreeDepth(folderId, childrenMap);
+      if (targetDepth + subtreeDepth > MAX_FOLDER_DEPTH) {
+        setMoveError(`Move exceeds maximum depth limit of ${MAX_FOLDER_DEPTH}.`);
+        return;
+      }
+    } catch (e: unknown) {
+      setMoveError(e instanceof Error ? e.message : 'Invalid destination.');
+      return;
+    }
 
     setFolders((prev) =>
       prev.map((f) =>
-        descendants.has(f.id) ? { ...f, trashedAt: now, revision: f.revision + 1 } : f
+        f.id === folderId ? { ...f, parentId: moveDestinationId, revision: f.revision + 1 } : f
       )
     );
+    setMoveTargetFolder(null);
+
+    setUndoToast({
+      id: `move-${folderId}`,
+      message: `Moved folder '${moveTargetFolder.name}'`,
+      onUndo: () => {
+        setFolders((prev) =>
+          prev.map((f) =>
+            f.id === folderId ? { ...f, parentId: originalParentId, revision: f.revision + 1 } : f
+          )
+        );
+        setUndoToast(null);
+      },
+    });
+  };
+
+  // Trash Folder
+  const handleConfirmTrash = () => {
+    if (!trashTargetFolder) return;
+    const folderId = trashTargetFolder.id;
+    const targetName = trashTargetFolder.name;
+    const now = new Date().toISOString();
+
+    const descendants = new Set<string>();
+    const findSubtree = (parentId: string) => {
+      descendants.add(parentId);
+      for (const f of folders) {
+        if (f.parentId === parentId) findSubtree(f.id);
+      }
+    };
+    findSubtree(folderId);
+
+    const affectedItemIds: string[] = [];
+
+    setFolders((prev) =>
+      prev.map((f) => {
+        if (trashSubtree) {
+          return descendants.has(f.id) ? { ...f, trashedAt: now, revision: f.revision + 1 } : f;
+        } else {
+          if (f.id === folderId) {
+            return { ...f, trashedAt: now, revision: f.revision + 1 };
+          }
+          if (f.parentId === folderId) {
+            return { ...f, parentId: trashTargetFolder.parentId, revision: f.revision + 1 };
+          }
+          return f;
+        }
+      })
+    );
+
     setItems((prev) =>
-      prev.map((i) =>
-        affectedItemIds.includes(i.id) ? { ...i, trashedAt: now, revision: i.revision + 1 } : i
-      )
+      prev.map((i) => {
+        if (trashSubtree) {
+          if (descendants.has(i.folderId ?? '')) {
+            affectedItemIds.push(i.id);
+            return { ...i, trashedAt: now, revision: i.revision + 1 };
+          }
+          return i;
+        } else {
+          if (i.folderId === folderId) {
+            return { ...i, folderId: trashTargetFolder.parentId, revision: i.revision + 1 };
+          }
+          return i;
+        }
+      })
     );
 
     setTrashTargetFolder(null);
-    if (currentFolderId === targetId) {
-      setCurrentFolderId(parentId);
-    }
 
-    // Explicit undo
+    // Provide undo toast
     setUndoToast({
-      id: `trash-${targetId}`,
+      id: `trash-${folderId}`,
       message: `Trashed '${targetName}'`,
       onUndo: () => {
         setFolders((prev) =>
@@ -524,6 +616,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setTimeout(() => setFeedbackMessage(null), 3000);
   };
 
+  const handleClearJourneys = () => {
+    setFolders([]);
+    setItems([]);
+    setCurrentFolderId(null);
+    setPage(1);
+    setFeedbackMessage('Cleared library. Workspace is now empty.');
+    setTimeout(() => setFeedbackMessage(null), 3000);
+  };
+
   return (
     <ScrollView
       testID={testID}
@@ -542,16 +643,30 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         <Text style={[styles.statusText, { color: palette.text.secondary }]}>
           💾 {localStatus} • ☁️ {isOffline ? 'Offline' : syncStatus}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Load sample journeys"
-          onPress={handleLoadSampleJourneys}
-          style={styles.sampleJourneysBtn}
-        >
-          <Text style={[styles.sampleJourneysText, { color: palette.action.primary }]}>
-            Demo Journeys
-          </Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Load sample journeys"
+            onPress={handleLoadSampleJourneys}
+            style={styles.sampleJourneysBtn}
+          >
+            <Text style={[styles.sampleJourneysText, { color: palette.action.primary }]}>
+              Demo Journeys
+            </Text>
+          </Pressable>
+          {folders.length > 0 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear sample journeys"
+              onPress={handleClearJourneys}
+              style={styles.sampleJourneysBtn}
+            >
+              <Text style={[styles.sampleJourneysText, { color: palette.status.warning }]}>
+                Clear
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Temporary Feedback Message */}
@@ -599,7 +714,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               style={[
                 styles.filterPill,
                 {
-                  backgroundColor: isSelected ? palette.action.subtle : palette.surface,
+                  backgroundColor: isSelected ? palette.action.subtle : palette.surfaceRaised,
                   borderColor: isSelected ? palette.action.primary : palette.border.subtle,
                 },
               ]}
@@ -621,182 +736,137 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       </View>
 
       {/* Subfolders Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeaderRow}>
+      <View style={{ marginBottom: spacing.md }}>
+        <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            {currentFolder ? `Subfolders in ${currentFolder.name}` : 'Workspace Folders'}
+            {currentFolder ? 'Subfolders' : 'Workspace Folders'} ({subfolders.length})
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Create subfolder"
-            onPress={() => {
-              setNewFolderName('');
-              setCreateError(null);
-              setCreateFolderSheetOpen(true);
-            }}
-            style={[styles.smallActionBtn, { borderColor: palette.border.subtle }]}
+          <MobileButton
+            variant="secondary"
+            accessibilityLabel="Create new folder"
+            onPress={() => setCreateFolderSheetOpen(true)}
           >
-            <Text style={[styles.smallActionBtnText, { color: palette.action.primary }]}>
-              ＋ New Folder
-            </Text>
-          </Pressable>
+            + Folder
+          </MobileButton>
         </View>
 
-        {subfolders.length === 0 ? (
-          <View
-            style={[
-              styles.emptySubfolders,
-              { backgroundColor: palette.surface, borderColor: palette.border.subtle },
-            ]}
-          >
-            <Text style={[styles.emptyText, { color: palette.text.secondary }]}>
-              No subfolders in this location.
-            </Text>
-          </View>
-        ) : (
-          <MobileCard themeMode={themeMode}>
-            {subfolders.map((folder, idx) => {
-              const count = folderCounts[folder.id] ?? 0;
-              return (
-                <View
-                  key={folder.id}
-                  style={[
-                    styles.folderRow,
-                    {
-                      borderBottomColor:
-                        idx < subfolders.length - 1 ? palette.border.subtle : 'transparent',
-                    },
-                  ]}
+        {subfolders.length === 0 && currentFolderId !== null && (
+          <Text style={[styles.emptySubfoldersText, { color: palette.text.muted }]}>
+            No subfolders inside {currentFolder?.name}.
+          </Text>
+        )}
+
+        {subfolders.map((folder, index) => {
+          const count = folderCounts[folder.id] ?? 0;
+          return (
+            <MobileCard key={folder.id} themeMode={themeMode} style={styles.folderCard}>
+              <View style={styles.folderRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open folder ${folder.name}, contains ${count} items`}
+                  onPress={() => {
+                    setCurrentFolderId(folder.id);
+                    setPage(1);
+                  }}
+                  style={styles.folderTouchableArea}
                 >
+                  <Text style={styles.folderIcon}>{folder.icon ?? '📁'}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.folderName, { color: palette.text.primary }]}>
+                      {folder.name}
+                    </Text>
+                    <Text style={[styles.folderMeta, { color: palette.text.secondary }]}>
+                      {count} {count === 1 ? 'item' : 'items'}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {/* Sibling Reorder buttons */}
+                <View style={styles.reorderButtons}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Open folder ${folder.name}, contains ${count} items`}
-                    onPress={() => {
-                      setCurrentFolderId(folder.id);
-                      setPage(1);
-                    }}
-                    style={styles.folderRowMain}
+                    accessibilityLabel={`Move ${folder.name} up`}
+                    disabled={index === 0}
+                    onPress={() => handleReorder(folder.id, 'up')}
+                    style={[styles.reorderBtn, index === 0 && { opacity: 0.3 }]}
                   >
-                    <Text style={styles.folderIcon}>{folder.icon ?? '📁'}</Text>
-                    <View style={styles.folderInfo}>
-                      <Text
-                        style={[styles.folderName, { color: palette.text.primary }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {folder.name}
-                      </Text>
-                      <Text style={[styles.folderCount, { color: palette.text.secondary }]}>
-                        {count} items
-                      </Text>
-                    </View>
+                    <Text style={{ color: palette.text.primary, fontSize: 16 }}>▲</Text>
                   </Pressable>
-
-                  {/* Reorder and Action controls (>= 48dp touch targets) */}
-                  <View style={styles.folderRowActions}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Move ${folder.name} up`}
-                      disabled={idx === 0}
-                      onPress={() => handleReorder(folder.id, 'up')}
-                      style={[styles.reorderBtn, { opacity: idx === 0 ? 0.3 : 1 }]}
-                    >
-                      <Text style={[styles.reorderText, { color: palette.action.primary }]}>▲</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Move ${folder.name} down`}
-                      disabled={idx === subfolders.length - 1}
-                      onPress={() => handleReorder(folder.id, 'down')}
-                      style={[
-                        styles.reorderBtn,
-                        { opacity: idx === subfolders.length - 1 ? 0.3 : 1 },
-                      ]}
-                    >
-                      <Text style={[styles.reorderText, { color: palette.action.primary }]}>▼</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Rename ${folder.name}`}
-                      onPress={() => {
-                        setRenameTargetFolder(folder);
-                        setRenameValue(folder.name);
-                        setRenameError(null);
-                      }}
-                      style={styles.reorderBtn}
-                    >
-                      <Text style={{ fontSize: 14 }}>✏️</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Trash ${folder.name}`}
-                      onPress={() => setTrashTargetFolder(folder)}
-                      style={styles.reorderBtn}
-                    >
-                      <Text style={{ fontSize: 14 }}>🗑️</Text>
-                    </Pressable>
-                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Move ${folder.name} down`}
+                    disabled={index === subfolders.length - 1}
+                    onPress={() => handleReorder(folder.id, 'down')}
+                    style={[styles.reorderBtn, index === subfolders.length - 1 && { opacity: 0.3 }]}
+                  >
+                    <Text style={{ color: palette.text.primary, fontSize: 16 }}>▼</Text>
+                  </Pressable>
                 </View>
-              );
-            })}
-          </MobileCard>
-        )}
+
+                {/* Actions: Move, Rename, Delete */}
+                <View style={styles.actionRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Move ${folder.name}`}
+                    onPress={() => handleOpenMove(folder)}
+                    style={styles.actionIconBtn}
+                  >
+                    <Text style={{ fontSize: 16 }}>➡️</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rename ${folder.name}`}
+                    onPress={() => {
+                      setRenameTargetFolder(folder);
+                      setRenameValue(folder.name);
+                      setRenameError(null);
+                    }}
+                    style={styles.actionIconBtn}
+                  >
+                    <Text style={{ fontSize: 16 }}>✏️</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${folder.name}`}
+                    onPress={() => setTrashTargetFolder(folder)}
+                    style={styles.actionIconBtn}
+                  >
+                    <Text style={{ fontSize: 16 }}>🗑️</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </MobileCard>
+          );
+        })}
       </View>
 
-      {/* Items in Current Folder Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            {currentFolder ? currentFolder.name : 'Inbox / Top-level Records'} ({totalItems})
-          </Text>
-          {onOpenCreate && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add item to current folder"
-              onPress={onOpenCreate}
-              style={[styles.smallActionBtn, { borderColor: palette.border.subtle }]}
-            >
-              <Text style={[styles.smallActionBtnText, { color: palette.action.primary }]}>
-                ＋ Add Item
-              </Text>
-            </Pressable>
-          )}
-        </View>
+      {/* Items Section */}
+      <View style={{ marginBottom: spacing.xl }}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          {currentFolder ? `${currentFolder.name} Items` : 'Items & Notes'} ({totalItems})
+        </Text>
 
-        {currentItems.length === 0 ? (
+        {paginatedItems.length === 0 ? (
           <MobileEmptyState
-            title={`No ${activeFilter !== 'all' ? activeFilter : ''} records`}
+            title="No items found"
             description={
-              currentFolder
-                ? 'This folder has no matching items. Add notes, tasks, or documents to organize them.'
-                : 'Your Inbox is empty. Unfiled items appear here.'
+              subfolders.length === 0
+                ? 'Your library is empty. Create a folder or load demo journeys.'
+                : 'No items in this folder matching your active filters.'
             }
-            actionLabel="＋ Add Item"
-            onAction={onOpenCreate}
+            actionLabel={folders.length === 0 ? 'Load Demo Journeys' : 'New Folder'}
+            onAction={
+              folders.length === 0 ? handleLoadSampleJourneys : () => setCreateFolderSheetOpen(true)
+            }
             themeMode={themeMode}
           />
         ) : (
-          <MobileCard themeMode={themeMode}>
-            {paginatedItems.map((item, idx) => (
-              <View
-                key={item.id}
-                accessible={true}
-                accessibilityRole="text"
-                accessibilityLabel={`${item.title}, ${item.kind}, ${item.metadata ?? ''}`}
-                style={[
-                  styles.itemRow,
-                  {
-                    borderBottomColor:
-                      idx < paginatedItems.length - 1 ? palette.border.subtle : 'transparent',
-                  },
-                ]}
-              >
-                <View style={styles.itemRowContent}>
-                  <Text
-                    style={[styles.itemTitle, { color: palette.text.primary }]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
+          paginatedItems.map((item) => (
+            <MobileCard key={item.id} themeMode={themeMode} style={styles.itemCard}>
+              <View style={styles.itemRow}>
+                <MobileTypeBadge kind={item.kind} themeMode={themeMode} />
+                <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                  <Text style={[styles.itemTitle, { color: palette.text.primary }]}>
                     {item.title}
                   </Text>
                   {item.metadata && (
@@ -805,179 +875,241 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     </Text>
                   )}
                 </View>
-
-                {/* Mobile Type Badge */}
-                <MobileTypeBadge kind={item.kind} themeMode={themeMode} />
               </View>
-            ))}
+            </MobileCard>
+          ))
+        )}
 
-            {/* Bounded Pagination Controls */}
-            {totalPages > 1 && (
-              <View style={[styles.paginationRow, { borderTopColor: palette.border.subtle }]}>
-                <Text style={[styles.paginationText, { color: palette.text.secondary }]}>
-                  Page {page} of {totalPages}
-                </Text>
-                <View style={styles.paginationButtons}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Previous page of items"
-                    disabled={page === 1}
-                    onPress={() => setPage((p) => Math.max(1, p - 1))}
-                    style={[styles.pageBtn, { opacity: page === 1 ? 0.3 : 1 }]}
-                  >
-                    <Text style={[styles.pageBtnText, { color: palette.action.primary }]}>
-                      &larr; Prev
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Next page of items"
-                    disabled={page === totalPages}
-                    onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    style={[styles.pageBtn, { opacity: page === totalPages ? 0.3 : 1 }]}
-                  >
-                    <Text style={[styles.pageBtnText, { color: palette.action.primary }]}>
-                      Next &rarr;
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </MobileCard>
+        {/* Mobile Pagination */}
+        {totalPages > 1 && (
+          <View style={styles.paginationBar}>
+            <MobileButton
+              variant="secondary"
+              accessibilityLabel="Previous page"
+              disabled={page <= 1}
+              onPress={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </MobileButton>
+            <Text style={[styles.pageIndicator, { color: palette.text.secondary }]}>
+              {page} / {totalPages}
+            </Text>
+            <MobileButton
+              variant="secondary"
+              accessibilityLabel="Next page"
+              disabled={page >= totalPages}
+              onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </MobileButton>
+          </View>
         )}
       </View>
 
-      {/* Invariant Note */}
-      <View style={styles.libraryNote}>
-        <Text style={[styles.libraryNoteText, { color: palette.text.muted }]}>
-          One workspace folder hierarchy is the canonical source of truth. Opening a folder in All
-          shows mixed records with type labels; module filters reveal matching records without
-          moving content.
-        </Text>
-      </View>
-
-      {/* Undo Toast */}
+      {/* Floating Reversible Undo Toast */}
       {undoToast && (
         <View
           accessibilityRole="alert"
-          style={[styles.undoToast, { backgroundColor: palette.text.primary }]}
+          accessibilityLabel={undoToast.message}
+          style={[
+            styles.undoToast,
+            { backgroundColor: palette.surfaceRaised, borderColor: palette.border.subtle },
+          ]}
         >
-          <Text style={[styles.undoText, { color: palette.surface }]}>{undoToast.message}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Undo previous action"
-            onPress={undoToast.onUndo}
-            style={[styles.undoButton, { backgroundColor: palette.action.primary }]}
-          >
-            <Text style={styles.undoBtnText}>Undo</Text>
-          </Pressable>
+          <Text style={[styles.undoText, { color: palette.text.primary }]}>
+            {undoToast.message}
+          </Text>
+          <MobileButton variant="primary" onPress={undoToast.onUndo}>
+            Undo
+          </MobileButton>
         </View>
       )}
 
-      {/* Create Subfolder Modal Sheet */}
+      {/* Create Folder Modal Sheet */}
       <MobileModalSheet
         visible={isCreateFolderSheetOpen}
         onClose={() => setCreateFolderSheetOpen(false)}
         title="Create Subfolder"
         themeMode={themeMode}
       >
-        <View style={styles.sheetContent}>
-          {createError && (
-            <View style={{ marginBottom: spacing.sm }}>
-              <MobileFeedback severity="danger" message={createError} themeMode={themeMode} />
-            </View>
-          )}
-
+        <View style={{ gap: spacing.md }}>
           <MobileTextField
             label="Folder Name"
-            placeholder="e.g. Applications or Projects"
+            placeholder="e.g. Documentation, Projects"
             value={newFolderName}
-            onChangeText={(t) => {
-              setNewFolderName(t);
-              if (createError) setCreateError(null);
-            }}
+            onChangeText={setNewFolderName}
+            errorMessage={createError ?? undefined}
             themeMode={themeMode}
             autoFocus
           />
 
-          <View style={styles.sheetActions}>
-            <MobileButton
-              variant="secondary"
-              themeMode={themeMode}
-              onPress={() => setCreateFolderSheetOpen(false)}
-            >
+          <View style={styles.modalActionRow}>
+            <MobileButton variant="subtle" onPress={() => setCreateFolderSheetOpen(false)}>
               Cancel
             </MobileButton>
-            <MobileButton variant="primary" themeMode={themeMode} onPress={handleCreateFolder}>
-              Create Folder
+            <MobileButton variant="primary" onPress={handleCreateFolder}>
+              Create
             </MobileButton>
           </View>
         </View>
       </MobileModalSheet>
 
-      {/* Rename Modal Sheet */}
+      {/* Rename Folder Modal Sheet */}
       <MobileModalSheet
         visible={Boolean(renameTargetFolder)}
         onClose={() => setRenameTargetFolder(null)}
         title="Rename Folder"
         themeMode={themeMode}
       >
-        <View style={styles.sheetContent}>
-          {renameError && (
-            <View style={{ marginBottom: spacing.sm }}>
-              <MobileFeedback severity="danger" message={renameError} themeMode={themeMode} />
-            </View>
-          )}
-
+        <View style={{ gap: spacing.md }}>
           <MobileTextField
             label="Folder Name"
             value={renameValue}
-            onChangeText={(t) => {
-              setRenameValue(t);
-              if (renameError) setRenameError(null);
-            }}
+            onChangeText={setRenameValue}
+            errorMessage={renameError ?? undefined}
             themeMode={themeMode}
             autoFocus
           />
 
-          <View style={styles.sheetActions}>
-            <MobileButton
-              variant="secondary"
-              themeMode={themeMode}
-              onPress={() => setRenameTargetFolder(null)}
-            >
+          <View style={styles.modalActionRow}>
+            <MobileButton variant="subtle" onPress={() => setRenameTargetFolder(null)}>
               Cancel
             </MobileButton>
-            <MobileButton variant="primary" themeMode={themeMode} onPress={handleConfirmRename}>
-              Save Rename
+            <MobileButton variant="primary" onPress={handleConfirmRename}>
+              Save Name
             </MobileButton>
           </View>
         </View>
       </MobileModalSheet>
 
-      {/* Trash Confirmation Modal Sheet */}
+      {/* Move Folder Modal Sheet */}
+      <MobileModalSheet
+        visible={Boolean(moveTargetFolder)}
+        onClose={() => setMoveTargetFolder(null)}
+        title={`Move Folder: ${moveTargetFolder?.name}`}
+        themeMode={themeMode}
+      >
+        <View style={{ gap: spacing.md }}>
+          <Text style={[styles.modalSubtitle, { color: palette.text.secondary }]}>
+            Select Destination:
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Move to Workspace Root"
+            onPress={() => setMoveDestinationId(null)}
+            style={[
+              styles.destOption,
+              {
+                backgroundColor:
+                  moveDestinationId === null ? palette.action.subtle : palette.surfaceRaised,
+                borderColor:
+                  moveDestinationId === null ? palette.action.primary : palette.border.subtle,
+              },
+            ]}
+          >
+            <Text style={{ color: palette.text.primary, fontWeight: '600' }}>
+              📁 Workspace Root (Top Level)
+            </Text>
+          </Pressable>
+
+          {folders
+            .filter((f) => f.id !== moveTargetFolder?.id && !f.trashedAt)
+            .map((f) => {
+              const isCycle = moveTargetFolder && detectCycle(moveTargetFolder.id, f.id, folderMap);
+              const isSelected = moveDestinationId === f.id;
+              return (
+                <Pressable
+                  key={f.id}
+                  disabled={Boolean(isCycle)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move into ${f.name}`}
+                  onPress={() => setMoveDestinationId(f.id)}
+                  style={[
+                    styles.destOption,
+                    {
+                      backgroundColor: isSelected ? palette.action.subtle : palette.surfaceRaised,
+                      borderColor: isSelected ? palette.action.primary : palette.border.subtle,
+                      opacity: isCycle ? 0.35 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: palette.text.primary, fontWeight: '500' }}>
+                    {f.icon ?? '📁'} {f.name} {isCycle ? '(Descendant)' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+          {moveError && (
+            <MobileFeedback severity="danger" message={moveError} themeMode={themeMode} />
+          )}
+
+          <View style={styles.modalActionRow}>
+            <MobileButton variant="subtle" onPress={() => setMoveTargetFolder(null)}>
+              Cancel
+            </MobileButton>
+            <MobileButton variant="primary" onPress={handleConfirmMove}>
+              Confirm Move
+            </MobileButton>
+          </View>
+        </View>
+      </MobileModalSheet>
+
+      {/* Trash Folder Confirmation Sheet */}
       <MobileModalSheet
         visible={Boolean(trashTargetFolder)}
         onClose={() => setTrashTargetFolder(null)}
-        title={`Trash "${trashTargetFolder?.name}"?`}
+        title={`Delete '${trashTargetFolder?.name}'`}
         themeMode={themeMode}
       >
-        <View style={styles.sheetContent}>
-          <Text style={[styles.trashConfirmText, { color: palette.text.primary }]}>
-            This will move "{trashTargetFolder?.name}" and all its contained subfolders and items to
-            Trash. You can undo this action immediately.
+        <View style={{ gap: spacing.md }}>
+          <Text style={[styles.modalSubtitle, { color: palette.text.secondary }]}>
+            Choose what to do with subfolders and items inside:
           </Text>
 
-          <View style={styles.sheetActions}>
-            <MobileButton
-              variant="secondary"
-              themeMode={themeMode}
-              onPress={() => setTrashTargetFolder(null)}
-            >
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityLabel="Delete entire subtree"
+            accessibilityState={{ checked: trashSubtree }}
+            onPress={() => setTrashSubtree(true)}
+            style={[
+              styles.policyOption,
+              {
+                backgroundColor: trashSubtree ? palette.action.subtle : palette.surfaceRaised,
+                borderColor: trashSubtree ? palette.action.primary : palette.border.subtle,
+              },
+            ]}
+          >
+            <Text style={[styles.policyText, { color: palette.text.primary }]}>
+              🗑️ Delete entire subtree (folder and all contents)
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityLabel="Preserve contents to parent"
+            accessibilityState={{ checked: !trashSubtree }}
+            onPress={() => setTrashSubtree(false)}
+            style={[
+              styles.policyOption,
+              {
+                backgroundColor: !trashSubtree ? palette.action.subtle : palette.surfaceRaised,
+                borderColor: !trashSubtree ? palette.action.primary : palette.border.subtle,
+              },
+            ]}
+          >
+            <Text style={[styles.policyText, { color: palette.text.primary }]}>
+              📦 Preserve contents (move items to parent folder)
+            </Text>
+          </Pressable>
+
+          <View style={styles.modalActionRow}>
+            <MobileButton variant="subtle" onPress={() => setTrashTargetFolder(null)}>
               Cancel
             </MobileButton>
-            <MobileButton variant="primary" themeMode={themeMode} onPress={handleConfirmTrash}>
-              Trash Folder
+            <MobileButton variant="danger" onPress={handleConfirmTrash}>
+              Delete Folder
             </MobileButton>
           </View>
         </View>
@@ -989,26 +1121,26 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 80,
   },
   statusBar: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.sm,
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.card,
     borderWidth: 1,
     marginBottom: spacing.md,
   },
   statusText: {
     fontSize: 12,
+    fontWeight: '500',
   },
   sampleJourneysBtn: {
-    minHeight: 36,
-    paddingHorizontal: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: radii.sm,
   },
   sampleJourneysText: {
     fontSize: 12,
@@ -1016,112 +1148,90 @@ const styles = StyleSheet.create({
   },
   filterBar: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.xs,
     marginBottom: spacing.md,
   },
   filterPill: {
-    minHeight: touchTargets.mobileMin, // 48dp minimum
+    minHeight: touchTargets.mobileMin,
     paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: radii.pill,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   filterPillText: {
-    fontSize: 13,
+    fontSize: 14,
   },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  sectionHeaderRow: {
+  sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: spacing.sm,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    flex: 1,
   },
-  smallActionBtn: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+  emptySubfoldersText: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginBottom: spacing.sm,
   },
-  smallActionBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  emptySubfolders: {
-    padding: spacing.md,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 13,
+  folderCard: {
+    marginBottom: spacing.sm,
   },
   folderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    minHeight: touchTargets.mobileMin,
   },
-  folderRowMain: {
+  folderTouchableArea: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: touchTargets.mobileMin,
   },
   folderIcon: {
-    fontSize: 18,
+    fontSize: 22,
     marginRight: spacing.sm,
-  },
-  folderInfo: {
-    flex: 1,
   },
   folderName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  folderCount: {
+  folderMeta: {
     fontSize: 12,
     marginTop: 2,
   },
-  folderRowActions: {
+  reorderButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
   },
   reorderBtn: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
+    minWidth: touchTargets.mobileMin,
+    minHeight: touchTargets.mobileMin,
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  reorderText: {
-    fontSize: 14,
-    fontWeight: '700',
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  actionIconBtn: {
+    minWidth: touchTargets.mobileMin,
+    minHeight: touchTargets.mobileMin,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemCard: {
+    marginBottom: spacing.xs,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
     minHeight: touchTargets.mobileMin,
-    gap: spacing.sm,
-  },
-  itemRowContent: {
-    flex: 1,
   },
   itemTitle: {
     fontSize: 14,
@@ -1131,83 +1241,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  paginationRow: {
+  paginationBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: spacing.sm,
-    marginTop: spacing.xs,
-    borderTopWidth: 1,
-  },
-  paginationText: {
-    fontSize: 12,
-  },
-  paginationButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  pageBtn: {
-    minHeight: 36,
-    paddingHorizontal: spacing.sm,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.md,
   },
-  pageBtnText: {
+  pageIndicator: {
     fontSize: 13,
     fontWeight: '600',
   },
-  libraryNote: {
-    marginTop: spacing.md,
-    padding: spacing.sm,
-  },
-  libraryNoteText: {
-    fontSize: 12,
-    lineHeight: 17,
-  },
   undoToast: {
     position: 'absolute',
-    bottom: spacing.lg,
+    bottom: 20,
     left: spacing.md,
     right: spacing.md,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.sm,
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: radii.card,
+    borderWidth: 1,
     elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
   },
   undoText: {
     fontSize: 13,
+    fontWeight: '600',
     flex: 1,
   },
-  undoButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.sm,
-    marginLeft: spacing.sm,
+  modalSubtitle: {
+    fontSize: 14,
   },
-  undoBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  sheetContent: {
-    paddingVertical: spacing.sm,
-  },
-  sheetActions: {
+  modalActionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.sm,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
-  trashConfirmText: {
+  destOption: {
+    padding: spacing.md,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    minHeight: touchTargets.mobileMin,
+    justifyContent: 'center',
+  },
+  policyOption: {
+    padding: spacing.md,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    minHeight: touchTargets.mobileMin,
+    justifyContent: 'center',
+  },
+  policyText: {
     fontSize: 14,
-    lineHeight: 20,
-    marginBottom: spacing.sm,
+    fontWeight: '600',
   },
 });

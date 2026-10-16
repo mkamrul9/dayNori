@@ -562,7 +562,7 @@ try {
   await setViewport(1280, 800, false);
   await navigateTo('/library');
 
-  // A. Verify Root Breadcrumb & Canonical Folders
+  // A. Verify Root Breadcrumb & Empty Workspace by Default
   const rootBreadcrumb = await evaluate(
     `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
   );
@@ -571,6 +571,22 @@ try {
     rootBreadcrumb?.includes('Workspace'),
     `Breadcrumb contains Workspace: "${rootBreadcrumb}"`
   );
+
+  const emptyTitle = await evaluate(
+    `document.querySelector('#library-empty-state')?.innerText || document.querySelector('section[aria-label="Your library is empty"]')?.innerText`
+  );
+  record(
+    'Phase 15 Library empty workspace by default',
+    emptyTitle?.includes('Your library is empty'),
+    `Empty workspace title: "${emptyTitle}"`
+  );
+
+  // Explicit user action to load sample journeys
+  await evaluate(`(() => {
+    const btn = document.querySelector('#load-demo-journeys-btn');
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 400));
 
   const initialFolders = await evaluate(`(() => {
     const list = Array.from(document.querySelectorAll('button[title^="Open "]'));
