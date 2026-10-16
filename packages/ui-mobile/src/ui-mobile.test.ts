@@ -13,6 +13,7 @@ import {
   MobileNavigationBar,
   MobileHeader,
   MobileNoteEditor,
+  MobileRoutineRow,
 } from './index.js';
 
 describe('UI Mobile Primitives', () => {
@@ -103,5 +104,30 @@ describe('UI Mobile Primitives', () => {
     expect(editor.props.initialTitle).toBe('Mobile Meeting Notes');
     expect(editor.props.initialFolderId).toBe('folder-123');
     expect(editor.props.conflict?.serverRevision).toBe(4);
+  });
+
+  it('instantiates MobileRoutineRow with checklist props and accessible states', () => {
+    const row = React.createElement(MobileRoutineRow, {
+      routine: {
+        id: 'r-1',
+        title: 'Morning stretch',
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'Asia/Dhaka',
+        scheduledTime: '07:00',
+      },
+      occurrence: {
+        id: 'occ-1',
+        routineId: 'r-1',
+        scheduledDate: '2026-10-16',
+        status: 'pending',
+      },
+      viewingDate: '2026-10-16',
+      themeMode: 'light',
+    });
+
+    expect(row.type).toBe(MobileRoutineRow);
+    expect(row.props.routine.title).toBe('Morning stretch');
+    expect(row.props.occurrence?.status).toBe('pending');
   });
 });

@@ -751,3 +751,122 @@ export function reconcileOccurrencesOnScheduleChange(
 
   return { retained, modifiedOccurrences, cancelledOccurrences, cancelledOccurrenceIds };
 }
+
+export interface RoutineDueExplanation {
+  isDue: boolean;
+  reason: string;
+  cadenceDescription: string;
+}
+
+/**
+ * Returns an accessible explanation of why a routine is or is not due on a specific calendar date.
+ */
+export function explainWhyDueToday(
+  routine: Pick<
+    RoutineTemplateRule,
+    | 'frequency'
+    | 'weekdays'
+    | 'scheduledTime'
+    | 'timezone'
+    | 'activeFrom'
+    | 'activeTo'
+    | 'isPaused'
+    | 'isArchived'
+  >,
+  dateStr: string
+): RoutineDueExplanation {
+  const isDue = isRoutineScheduledOnDate(routine, dateStr);
+  const timeSuffix = routine.scheduledTime ? ` at ${routine.scheduledTime}` : '';
+
+  let cadenceDescription = '';
+  if (routine.frequency === 'daily') {
+    cadenceDescription = `Repeats every day${timeSuffix}`;
+  } else if (
+    routine.weekdays.length === 5 &&
+    [1, 2, 3, 4, 5].every((d) => routine.weekdays.includes(d as Weekday))
+  ) {
+    cadenceDescription = `Repeats weekdays (Mon–Fri)${timeSuffix}`;
+  } else {
+    const dayNames = routine.weekdays
+      .map((d) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d - 1])
+      .join(', ');
+    cadenceDescription = `Repeats on ${dayNames}${timeSuffix}`;
+  }
+
+  let reason = '';
+  if (routine.isArchived) {
+    reason = 'Archived routine';
+  } else if (routine.isPaused) {
+    reason = 'Paused — not currently scheduled';
+  } else if (dateStr < routine.activeFrom) {
+    reason = `Starts on ${routine.activeFrom}`;
+  } else if (routine.activeTo !== null && dateStr > routine.activeTo) {
+    reason = `Ended on ${routine.activeTo}`;
+  } else if (isDue) {
+    reason = `Due today (${cadenceDescription})`;
+  } else {
+    reason = `Not scheduled for today (${cadenceDescription})`;
+  }
+
+  return { isDue, reason, cadenceDescription };
+}
+
+export interface GentleProgressSummary {
+  completedCount: number;
+  skippedCount: number;
+  pendingCount: number;
+  totalScheduled: number;
+  completionRate: number;
+  message: string;
+  isAllCompleted: boolean;
+}
+
+/**
+ * Calculates gentle, non-punitive daily routine progress without streak pressure or guilt.
+ */
+export function calculateGentleProgress(
+  occurrences: Array<Pick<RoutineOccurrence, 'status'>>
+): GentleProgressSummary {
+  const activeOccs = occurrences.filter((o) => o.status !== 'cancelled');
+  const completedCount = activeOccs.filter((o) => o.status === 'done').length;
+  const skippedCount = activeOccs.filter((o) => o.status === 'skipped').length;
+  const pendingCount = activeOccs.filter((o) => o.status === 'pending').length;
+  const totalScheduled = activeOccs.length;
+
+  const completionRate =
+    totalScheduled > 0 ? Math.round((completedCount / totalScheduled) * 100) : 0;
+  const isAllCompleted = totalScheduled > 0 && completedCount === totalScheduled;
+
+  let message = '';
+  if (totalScheduled === 0) {
+    message = 'No routines scheduled for today.';
+  } else if (isAllCompleted) {
+    message = 'All routines completed for today. Well done!';
+  } else if (completedCount + skippedCount === totalScheduled) {
+    message = `${completedCount} completed, ${skippedCount} skipped today.`;
+  } else if (completedCount === 0) {
+    message = `${totalScheduled} routine${totalScheduled > 1 ? 's' : ''} ready for today.`;
+  } else {
+    message = `${completedCount} of ${totalScheduled} routine${totalScheduled > 1 ? 's' : ''} completed today.`;
+  }
+
+  return {
+    completedCount,
+    skippedCount,
+    pendingCount,
+    totalScheduled,
+    completionRate,
+    message,
+    isAllCompleted,
+  };
+}
+
+/**
+ * Returns an accessible explanation of how a routine schedule modification affects future dates.
+ */
+export function explainScheduleChangeImpact(effectiveDate: string, todayStr: string): string {
+  if (effectiveDate <= todayStr) {
+    return `Changes take effect immediately from ${effectiveDate}. Past completed and skipped records remain intact in your history.`;
+  }
+  return `Changes take effect on ${effectiveDate}. Past completed and skipped history is preserved, and current occurrences up to ${effectiveDate} remain unchanged.`;
+}

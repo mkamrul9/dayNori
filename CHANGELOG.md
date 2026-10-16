@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 21 — Daily routine experience and history — 2026-10-16
+
+- **Shared Domain Logic & Gentle Progress (`packages/domain`):**
+  - Implemented `explainWhyDueToday` returning structured human-readable explanations of routine recurrence and due status for any target calendar date.
+  - Implemented `calculateGentleProgress` computing non-punitive daily routine metrics (`completedCount`, `skippedCount`, `completionRate`, encouraging message) without streak shaming or forced notifications.
+  - Implemented `explainScheduleChangeImpact` explaining immediate vs forward-effective schedule modifications with history preservation guarantees.
+- **Accessible Web Components (`packages/ui-web`):**
+  - Added `RoutineRow` accessible checklist item with `role="checkbox"`, Done/Skip/Undo/History controls, due explanation notes, and text status badges.
+  - Added `RoutineDetailEditor` modal dialog for creating and editing routine schedules, weekdays, scheduled times, IANA timezones, active date ranges, and live schedule impact previews.
+  - Added `RoutineHistoryViewer` modal dialog displaying chronological past occurrences, gentle routine overview stats, audit logs, and occurrence reopen controls.
+- **Accessible Mobile Components (`packages/ui-mobile`):**
+  - Added `MobileRoutineRow` with touch targets >= 48dp, TalkBack accessibility labels, Done/Skip/Reopen pills, and history inspection.
+- **Web Application Today Experience (`apps/web`):**
+  - Implemented interactive Today view connected to `IndexedDbLocalRepository`, `useAuth()`, and `SyncEngine`.
+  - Auto-generates today's occurrences deterministically on page load.
+  - Added 5-second floating reversible undo toast for routine completions and skips.
+  - Kept daily routine checklists strictly partitioned from one-off tasks due today.
+  - Integrated `RoutineDetailEditor` and `RoutineHistoryViewer` modals.
+- **Mobile Application Today Experience (`apps/mobile`):**
+  - Enhanced React Native `TodayView` with `MobileRoutineRow` checklist and gentle progress message banner.
+  - Added floating reversible undo toast with accessible button.
+  - Added `MobileModalSheet` routine history viewer showing yesterday's completion and gentle progress stats.
+- **Integration Testing & Contracts Alignment (`tests/integration`, `packages/contracts`):**
+  - Added `tests/integration/phase21-daily-routines-experience.test.ts` verifying multi-day journeys, occurrence completion/skip transitions, reversible undo, yesterday's completion preservation, forward schedule changes, gentle progress evaluation, and tenant isolation.
+  - Aligned `WeekdaySchema` in `@daynori/contracts` to infer union literals `1 | 2 | 3 | 4 | 5 | 6 | 7` for strict type safety across the monorepo.
+- **Decision Record:**
+  - Published [ADR-0027: Daily Routine Checklists, Non-Punitive Progress, and Completion History](docs/decisions/0027-daily-routine-checklist-and-history.md).
+
 ## Phase 20 — Daily routine schedules and occurrences — 2026-10-16
 
 - **Shared Routine Domain & Date-Scoped Occurrences (`packages/domain`, `packages/contracts`):**

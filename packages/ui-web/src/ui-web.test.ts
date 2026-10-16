@@ -15,6 +15,9 @@ import {
   NoteEditor,
   TaskRow,
   TaskDetailEditor,
+  RoutineRow,
+  RoutineDetailEditor,
+  RoutineHistoryViewer,
 } from './index.js';
 
 describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
@@ -479,6 +482,108 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('Detailed Task Specification');
       expect(html).toContain('High');
       expect(html).toContain('Save Task');
+    });
+  });
+
+  describe('RoutineRow, RoutineDetailEditor & RoutineHistoryViewer Accessibility', () => {
+    it('renders RoutineRow with checkbox role, cadence note, and why-due description', () => {
+      const html = renderToString(
+        React.createElement(RoutineRow, {
+          routine: {
+            id: 'routine-test-1',
+            title: 'Morning Meditation (15 min)',
+            frequency: 'daily',
+            weekdays: [1, 2, 3, 4, 5, 6, 7],
+            timezone: 'Asia/Dhaka',
+            scheduledTime: '06:30',
+            isPaused: false,
+          },
+          occurrence: {
+            id: 'occ-test-1',
+            routineId: 'routine-test-1',
+            scheduledDate: '2026-10-16',
+            status: 'pending',
+          },
+          viewingDate: '2026-10-16',
+          themeMode: 'light',
+        })
+      );
+
+      expect(html).toContain('role="listitem"');
+      expect(html).toContain('role="checkbox"');
+      expect(html).toContain('Morning Meditation (15 min)');
+      expect(html).toContain('Repeats every day at 06:30');
+      expect(html).toContain('Due today');
+      expect(html).toContain('Pending');
+      expect(html).toContain('Skip');
+      expect(html).toContain('data-routine-id="routine-test-1"');
+    });
+
+    it('renders RoutineDetailEditor with modal dialog role and weekday selector', () => {
+      const html = renderToString(
+        React.createElement(RoutineDetailEditor, {
+          isOpen: true,
+          onClose: () => {},
+          onSave: () => {},
+          todayDate: '2026-10-16',
+          defaultTimezone: 'Asia/Dhaka',
+          themeMode: 'light',
+        })
+      );
+
+      expect(html).toContain('role="dialog"');
+      expect(html).toContain('aria-modal="true"');
+      expect(html).toContain('New Daily Routine');
+      expect(html).toContain('Every Day');
+      expect(html).toContain('Custom Weekdays');
+      expect(html).toContain('Scheduled Time');
+      expect(html).toContain('Create Routine');
+    });
+
+    it('renders RoutineHistoryViewer with past occurrences and gentle progress without streak shaming', () => {
+      const html = renderToString(
+        React.createElement(RoutineHistoryViewer, {
+          isOpen: true,
+          onClose: () => {},
+          routineTitle: 'Evening Journal Reflection',
+          occurrences: [
+            {
+              id: 'occ-1',
+              routineId: 'r-1',
+              scheduledDate: '2026-10-15',
+              scheduleRevision: 1,
+              plannedInstant: null,
+              timezone: 'UTC',
+              status: 'done',
+              completedAt: '2026-10-15T21:30:00.000Z',
+              completedBy: 'user-1',
+              history: [],
+            },
+            {
+              id: 'occ-2',
+              routineId: 'r-1',
+              scheduledDate: '2026-10-14',
+              scheduleRevision: 1,
+              plannedInstant: null,
+              timezone: 'UTC',
+              status: 'skipped',
+              completedAt: null,
+              completedBy: null,
+              history: [],
+            },
+          ],
+          themeMode: 'light',
+        })
+      );
+
+      expect(html).toContain('role="dialog"');
+      expect(html).toContain('Completion History');
+      expect(html).toContain('Evening Journal Reflection');
+      expect(html).toContain('Gentle tracking · No broken streaks or penalties');
+      expect(html).toContain('2026-10-15');
+      expect(html).toContain('Completed');
+      expect(html).toContain('2026-10-14');
+      expect(html).toContain('Skipped');
     });
   });
 });

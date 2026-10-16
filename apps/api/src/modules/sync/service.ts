@@ -11,6 +11,7 @@ import type {
   ItemLink,
   TaskDeadline,
   Routine,
+  Weekday,
   RoutineOccurrence,
   RoutineOccurrenceTransition,
 } from '@daynori/contracts';
@@ -1662,7 +1663,7 @@ export class SyncService {
                   typeof cmd.payload['folderId'] === 'string' ? cmd.payload['folderId'] : null,
                 frequency: cmd.payload['frequency'] === 'weekdays' ? 'weekdays' : 'daily',
                 weekdays: Array.isArray(cmd.payload['weekdays'])
-                  ? (cmd.payload['weekdays'] as number[])
+                  ? (cmd.payload['weekdays'] as Weekday[])
                   : [],
                 timezone:
                   typeof cmd.payload['timezone'] === 'string' ? cmd.payload['timezone'] : 'UTC',
@@ -1711,7 +1712,7 @@ export class SyncService {
                     ? cmd.payload['frequency']
                     : undefined,
                 weekdays: Array.isArray(cmd.payload['weekdays'])
-                  ? (cmd.payload['weekdays'] as number[])
+                  ? (cmd.payload['weekdays'] as Weekday[])
                   : undefined,
                 timezone:
                   typeof cmd.payload['timezone'] === 'string' ? cmd.payload['timezone'] : undefined,

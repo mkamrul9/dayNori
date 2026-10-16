@@ -6,7 +6,15 @@ import { ResponseMetaSchema } from './common.js';
 export const RoutineFrequencySchema = z.enum(['daily', 'weekdays']);
 export type RoutineFrequency = z.infer<typeof RoutineFrequencySchema>;
 
-export const WeekdaySchema = z.number().int().min(1).max(7);
+export const WeekdaySchema = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+  z.literal(6),
+  z.literal(7),
+]);
 export type Weekday = z.infer<typeof WeekdaySchema>;
 
 export const RoutineOccurrenceStatusSchema = z.enum(['pending', 'done', 'skipped', 'cancelled']);

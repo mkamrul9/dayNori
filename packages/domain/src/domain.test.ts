@@ -15,6 +15,9 @@ import {
   skipOccurrence,
   reopenOccurrence,
   reconcileOccurrencesOnScheduleChange,
+  explainWhyDueToday,
+  calculateGentleProgress,
+  explainScheduleChangeImpact,
   type RoutineTemplateRule,
 } from './index.js';
 
@@ -1052,6 +1055,77 @@ describe('Domain Rules and Invariants', () => {
       // 08:00 Asia/Dhaka is always 02:00:00.000Z
       expect(occurrences[0]!.plannedInstant).toBe('2026-10-16T02:00:00.000Z');
       expect(occurrences[0]!.timezone).toBe('Asia/Dhaka');
+    });
+
+    it('explains why a routine is or is not due on a specific calendar date', () => {
+      const dailyRoutine: RoutineTemplateRule = {
+        id: '123e4567-e89b-12d3-a456-426614174001',
+        workspaceId: '123e4567-e89b-12d3-a456-426614174000',
+        folderId: null,
+        title: 'Morning Yoga',
+        details: null,
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        scheduledTime: '07:00',
+        activeFrom: '2026-10-01',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-01',
+      };
+
+      const explanation = explainWhyDueToday(dailyRoutine, '2026-10-16');
+      expect(explanation.isDue).toBe(true);
+      expect(explanation.reason).toContain('Due today');
+      expect(explanation.cadenceDescription).toBe('Repeats every day at 07:00');
+
+      const pausedExplanation = explainWhyDueToday(
+        { ...dailyRoutine, isPaused: true },
+        '2026-10-16'
+      );
+      expect(pausedExplanation.isDue).toBe(false);
+      expect(pausedExplanation.reason).toContain('Paused');
+    });
+
+    it('calculates gentle, non-punitive progress with encouraging messages and no streak pressure', () => {
+      // 0 completed, 3 total
+      const p1 = calculateGentleProgress([
+        { status: 'pending' },
+        { status: 'pending' },
+        { status: 'pending' },
+      ]);
+      expect(p1.totalScheduled).toBe(3);
+      expect(p1.completedCount).toBe(0);
+      expect(p1.completionRate).toBe(0);
+      expect(p1.message).toBe('3 routines ready for today.');
+
+      // 2 completed, 1 skipped, 3 total
+      const p2 = calculateGentleProgress([
+        { status: 'done' },
+        { status: 'done' },
+        { status: 'skipped' },
+      ]);
+      expect(p2.completedCount).toBe(2);
+      expect(p2.skippedCount).toBe(1);
+      expect(p2.message).toBe('2 completed, 1 skipped today.');
+
+      // All completed
+      const p3 = calculateGentleProgress([{ status: 'done' }, { status: 'done' }]);
+      expect(p3.isAllCompleted).toBe(true);
+      expect(p3.completionRate).toBe(100);
+      expect(p3.message).toContain('All routines completed');
+    });
+
+    it('explains schedule change impact cleanly distinguishing immediate vs future effective dates', () => {
+      const immediate = explainScheduleChangeImpact('2026-10-16', '2026-10-16');
+      expect(immediate).toContain('take effect immediately');
+      expect(immediate).toContain('Past completed and skipped records remain intact');
+
+      const future = explainScheduleChangeImpact('2026-10-20', '2026-10-16');
+      expect(future).toContain('take effect on 2026-10-20');
+      expect(future).toContain('Past completed and skipped history is preserved');
     });
   });
 });

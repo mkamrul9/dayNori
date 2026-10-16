@@ -11,3 +11,4 @@ export * from './MobileHeader.js';
 export * from './MobileBreadcrumb.js';
 export * from './MobileTypeBadge.js';
 export * from './MobileNoteEditor.js';
+export * from './MobileRoutineRow.js';

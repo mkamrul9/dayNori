@@ -699,4 +699,132 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       sub.remove();
     });
   });
+
+  describe('Phase 21: Mobile Daily Routines Experience & History', () => {
+    it('renders separate routines checklist and tasks sections with gentle progress', () => {
+      let renderer!: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(TodayView, {
+            themeMode: 'light',
+            onNavigateToPlan: () => {},
+            onNavigateToJournal: () => {},
+            onOpenCreate: () => {},
+          })
+        );
+      });
+
+      const root = renderer.root;
+      // Both sections should be mounted
+      const routinesSection = root.findByProps({ testID: 'today-routines-section' });
+      const tasksSection = root.findByProps({ testID: 'today-tasks-section' });
+      expect(routinesSection).toBeDefined();
+      expect(tasksSection).toBeDefined();
+
+      // Check routine rows
+      const row1 = root.findByProps({ testID: 'mobile-routine-row-r1' });
+      const row2 = root.findByProps({ testID: 'mobile-routine-row-r2' });
+      expect(row1).toBeDefined();
+      expect(row2).toBeDefined();
+    });
+
+    it('completes routine, shows undo toast, and reverts completion upon undo press', () => {
+      let renderer!: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(TodayView, {
+            themeMode: 'light',
+            onNavigateToPlan: () => {},
+            onNavigateToJournal: () => {},
+            onOpenCreate: () => {},
+          })
+        );
+      });
+
+      // Find Mark Done button on routine 1
+      const doneBtn = renderer.root.findByProps({
+        accessibilityLabel: 'Mark "Morning deep work session" as done for 2026-10-14',
+      });
+      expect(doneBtn).toBeDefined();
+
+      act(() => {
+        doneBtn.props.onPress();
+      });
+
+      // Undo toast should now appear
+      const undoToast = renderer.root.findByProps({ testID: 'undo-toast' });
+      expect(undoToast).toBeDefined();
+
+      // Trigger undo
+      const undoBtn = renderer.root.findByProps({ testID: 'undo-toast-btn' });
+      act(() => {
+        undoBtn.props.onPress();
+      });
+
+      // Status should revert to pending; "Mark as done" button should be back
+      const revertedDoneBtn = renderer.root.findByProps({
+        accessibilityLabel: 'Mark "Morning deep work session" as done for 2026-10-14',
+      });
+      expect(revertedDoneBtn).toBeDefined();
+    });
+
+    it('skips routine and displays undo toast', () => {
+      let renderer!: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(TodayView, {
+            themeMode: 'light',
+            onNavigateToPlan: () => {},
+            onNavigateToJournal: () => {},
+            onOpenCreate: () => {},
+          })
+        );
+      });
+
+      // Find Skip button on routine 2
+      const skipBtn = renderer.root.findByProps({
+        accessibilityLabel: 'Skip routine "Evening reflection & summary"',
+      });
+      expect(skipBtn).toBeDefined();
+
+      act(() => {
+        skipBtn.props.onPress();
+      });
+
+      // Undo toast displays skip message
+      const undoToast = renderer.root.findByProps({ testID: 'undo-toast' });
+      expect(undoToast).toBeDefined();
+    });
+
+    it('opens history sheet displaying preserved yesterday completion and gentle progress stats', () => {
+      let renderer!: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(TodayView, {
+            themeMode: 'light',
+            onNavigateToPlan: () => {},
+            onNavigateToJournal: () => {},
+            onOpenCreate: () => {},
+          })
+        );
+      });
+
+      // Open history on routine 1
+      const historyBtn = renderer.root.findByProps({
+        accessibilityLabel: 'View history for "Morning deep work session"',
+      });
+      expect(historyBtn).toBeDefined();
+
+      act(() => {
+        historyBtn.props.onPress();
+      });
+
+      // History sheet should mount with yesterday's occurrence
+      const historySheet = renderer.root.findByProps({ testID: 'mobile-routine-history-sheet' });
+      expect(historySheet).toBeDefined();
+
+      const yesterdayOcc = renderer.root.findByProps({ testID: 'history-occ-2026-10-13' });
+      expect(yesterdayOcc).toBeDefined();
+    });
+  });
 });

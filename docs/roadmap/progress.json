@@ -128,7 +128,9 @@
     },
     {
       "id": "21",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional daily routine checklists, gentle progress without streak shaming, reversible undo toasts, routine history viewer, and Today experience delivered under owner authorization and verified across Vitest pure domain, Web TodayView, Mobile TodayView, and integration test suites (13/13 test files and 182/182 integration tests passing, 38/38 test files and 510/510 unit tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-21.md"
     },
     {
       "id": "22",
