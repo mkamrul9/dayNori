@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-17",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 27 reminder scheduling and durable delivery jobs provisional implementation delivered and verified across pure domain, API contracts and routes, DaynoriApiClient, background worker leased delivery handlers, and comprehensive integration journeys. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, and 27 remains blocked pending physical Android TalkBack and hardware KeyStore release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware gates; Phase 28 is provisionally selected under explicit owner authorization.",
-  "note": "Phase 27 (Reminder scheduling and durable delivery jobs) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked. Owner authorized provisional Phase 26/27 repairs and Phase 28 continuation.",
+  "schedulingDecision": "Phase 28 Android notifications and local reminders provisional implementation delivered and verified across native adapter, notification channels, capability detection, device registration, local reminder scheduling with lock-screen privacy redaction, server push fallback suppression, and deep linking. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, and 28 remains blocked pending physical Android TalkBack and hardware KeyStore release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware gates; Phase 29 is the next eligible phase under owner authorization.",
+  "note": "Phase 28 (Android notifications and local reminders) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -170,7 +170,9 @@
     },
     {
       "id": "28",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional Android notifications and local reminders implementation delivered under owner authorization and verified across native adapter, notification channels, capability detection, device registration, local reminder scheduling with lock-screen redaction, deep linking with tap deduplication, and push fallback suppression (15/15 integration tests, 48/48 test files, 676/676 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-28.md"
     },
     {
       "id": "29",

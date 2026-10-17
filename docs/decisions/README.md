@@ -33,5 +33,8 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0029: Journal Writing and Reflection Interfaces](0029-journal-writing-and-reflection-interfaces.md)
 - [ADR-0030: Private Binary Upload Lifecycle, Storage Quotas, and Quarantine Verification](0030-private-binary-upload-lifecycle.md)
 - [ADR-0031: Safe Document Previews, Storage Usage Visibility, and Offline Availability](0031-safe-document-previews-and-offline-storage.md)
+- [ADR-0032: Calendar Views, Interval Validation, and Unified Deadline Projections](0032-calendar-views-and-deadline-projections.md)
+- [ADR-0033: Reminder Scheduling, Recurrence Instances, and Durable Delivery Jobs](0033-reminder-scheduling-and-durable-delivery-jobs.md)
+- [ADR-0034: Android Notifications, Device Registration, and Local Reminders Coordination](0034-android-notifications-and-device-schedules.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

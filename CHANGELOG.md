@@ -1,5 +1,35 @@
 # Changelog
 
+## Phase 28 — Android notifications and local reminders — 2026-10-17
+
+- **Native Android Notification Adapter (`apps/mobile`):**
+  - Integrated `expo-notifications` (`~0.29.13`) and `expo-device` (`~7.0.2`) behind platform-isolated TypeScript adapter (`apps/mobile/src/notifications/adapter.ts`).
+  - Configured Android notification channels: `reminders` (high importance, vibration pattern `[0, 250, 250, 250]`, lock-screen visibility `PRIVATE`) and `updates` (default importance).
+  - Implemented capability querying distinguishing `undetermined`, `granted`, `denied`, and `channel_disabled`.
+  - Added accessible deep-link to Android system app settings via `openSystemSettingsAsync()` when notification permissions are revoked or channels disabled.
+- **Contextual Permission Flow & Settings (`apps/mobile`):**
+  - Added in-context notification permission request flow triggered by reminder creation and settings toggle.
+  - Updated `apps/mobile/src/views/SettingsView.tsx` with live channel preference controls and truthful capability state display without permanent optimistic defaults.
+- **Device Registration & Management (`apps/api`, `packages/contracts`, `packages/api-client`, `infra/supabase`):**
+  - Added database table `app.devices` tracking installation IDs, push tokens, token types (`fcm`, `web_push`, `none`), platforms, versions, and active state, protected by PostgreSQL Row-Level Security (`p_devices_*`).
+  - Exposed REST endpoints `POST /v1/devices`, `DELETE /v1/devices/:installationId`, and `GET /v1/devices`.
+  - Added `registerDevice`, `deactivateDevice`, and `listDevices` to `DaynoriApiClient`.
+- **Local Reminder Scheduling & Push Suppression (`apps/mobile`, `apps/worker`, `apps/api`):**
+  - Added database table `app.device_reminder_schedules` tracking device-local schedule acknowledgments per reminder occurrence and delivery generation.
+  - Exposed endpoint `POST /v1/workspaces/:workspaceId/reminders/schedules/acknowledge`.
+  - Extended background worker (`apps/worker/src/worker.ts`): queries `app.device_reminder_schedules` and suppresses redundant server push when a local schedule has been acknowledged by the device.
+  - Implemented `cancelScheduledReminderAsync` cancelling native Android notifications when items are rescheduled, completed, or cancelled.
+- **Privacy, Deep Linking & Tap Deduplication (`apps/mobile`):**
+  - Enforced lock-screen privacy by setting channel visibility to `PRIVATE` and generating generic previews hiding confidential note, journal, or vault content.
+  - Handled foreground, background, and cold-start notification responses routing directly to authorized task, calendar event, or routine screens.
+  - Implemented 3-second debounce window preventing duplicate navigation on repeated notification taps.
+- **Exact-Alarm Policy Compliance (`apps/mobile`):**
+  - Preserved the Google Play exact-alarm gate: ordinary reminders use standard date triggers without requiring restricted `SCHEDULE_EXACT_ALARM` or `USE_EXACT_ALARM` permissions.
+- **Integration Test Suite (`tests/integration`):**
+  - Added `tests/integration/phase28-android-notifications.test.ts` (15 passing tests) covering channels, permissions, token lifecycle, local scheduling, push fallback suppression, invalid token cleanup, deep links, tap deduplication, and lock-screen redaction.
+- **Decision Record:**
+  - Published [ADR-0034: Android Notifications, Device Registration, and Local-Push Coordination](docs/decisions/0034-android-notifications-and-device-schedules.md).
+
 ## Phase 27 — Reminder scheduling and durable delivery jobs — 2026-10-17
 
 - **Pure Domain Operations (`packages/domain`):**

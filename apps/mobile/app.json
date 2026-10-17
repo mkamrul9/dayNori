@@ -19,6 +19,12 @@
             "useSQLCipher": true
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0F172A"
+        }
       ]
     ],
     "android": {

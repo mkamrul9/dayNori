@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import { MobileButton, MobileCard } from '@daynori/ui-mobile';
+import type { NotificationCapabilityState } from '../notifications/adapter.js';
 
 export interface SettingsViewProps {
   themeMode: ThemeMode;
@@ -19,6 +20,8 @@ export interface SettingsViewProps {
   weekStart?: 'monday' | 'sunday' | 'saturday';
   onChangeWeekStart?: (weekStart: 'monday' | 'sunday' | 'saturday') => void;
   timeZone?: string;
+  notificationCapability?: NotificationCapabilityState | null;
+  onRequestNotificationPermission?: () => Promise<void>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -37,6 +40,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   weekStart = 'monday',
   onChangeWeekStart,
   timeZone = 'UTC',
+  notificationCapability = null,
+  onRequestNotificationPermission,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -371,6 +376,88 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               })}
             </View>
           </View>
+        </MobileCard>
+      </View>
+
+      {/* Section 5c: Android Notifications & Local Reminders (Phase 28) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Notifications & Reminders
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Permission Status:
+            </Text>
+            <Text
+              testID="mobile-notification-permission-status"
+              style={[
+                styles.settingDescription,
+                {
+                  color:
+                    notificationCapability?.status === 'granted'
+                      ? palette.status.success
+                      : notificationCapability?.status === 'channel_disabled'
+                        ? palette.status.warning
+                        : palette.text.secondary,
+                  fontWeight: '600',
+                  marginTop: 2,
+                },
+              ]}
+            >
+              {notificationCapability?.status === 'granted'
+                ? '✓ Enabled (Granted by OS)'
+                : notificationCapability?.status === 'channel_disabled'
+                  ? '⚠️ Channel Disabled in Android System Settings'
+                  : notificationCapability?.status === 'denied'
+                    ? '✗ Denied (Organizer functions remain fully usable)'
+                    : 'Undetermined (Not Yet Requested)'}
+            </Text>
+          </View>
+
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Delivery Capability:
+            </Text>
+            <Text
+              testID="mobile-notification-capability-details"
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
+              ]}
+            >
+              {notificationCapability?.details ??
+                'Local reminders schedule directly on Android. Server push serves as secondary fallback when online.'}
+            </Text>
+          </View>
+
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Timing & Reliability Policy:
+            </Text>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
+              ]}
+            >
+              Standard best-effort delivery. Daynori does not claim medical or exact-alarm reliability, complying with Google Play policies for organizer applications.
+            </Text>
+          </View>
+
+          {notificationCapability?.status !== 'granted' && onRequestNotificationPermission && (
+            <View style={{ marginTop: spacing.xs }}>
+              <MobileButton
+                testID="btn-request-notification-permission"
+                variant="primary"
+                themeMode={themeMode}
+                onPress={() => void onRequestNotificationPermission()}
+                accessibilityLabel="Enable notifications for reminder alerts"
+              >
+                🔔 Enable Reminder Notifications
+              </MobileButton>
+            </View>
+          )}
         </MobileCard>
       </View>
 

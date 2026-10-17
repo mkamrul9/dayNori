@@ -32,6 +32,16 @@ import { SettingsView } from './src/views/SettingsView';
 import { SearchSheet } from './src/views/SearchSheet';
 import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
+import {
+  setupForegroundNotificationHandler,
+  setupNotificationChannelsAsync,
+  initNotificationResponseListener,
+  getNotificationCapabilityAsync,
+  requestNotificationPermissionAsync,
+  registerDeviceAsync,
+  deactivateDeviceAsync,
+  type NotificationCapabilityState,
+} from './src/notifications/adapter.js';
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
@@ -40,6 +50,7 @@ export default function App() {
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+  const [notificationCapability, setNotificationCapability] = useState<NotificationCapabilityState | null>(null);
 
   // Production encrypted repository and sync engine state
   const [repository, setRepository] = useState<SqliteLocalRepository | null>(null);
@@ -150,6 +161,7 @@ export default function App() {
 
         setSyncEngine(engine);
         await engine.start();
+        void registerDeviceAsync(client);
       } catch {
         /* storage initialization error handled gracefully */
       }
@@ -309,10 +321,49 @@ export default function App() {
       handleDeepLink(event.url);
     });
 
+    // 5. Initialize Notification Lifecycle & Channels (Phase 28)
+    setupForegroundNotificationHandler();
+    void setupNotificationChannelsAsync();
+    void getNotificationCapabilityAsync().then(setNotificationCapability);
+
+    const cleanupNotifications = initNotificationResponseListener((payload) => {
+      const dest = payload.destination;
+      if (dest === 'today') {
+        setCurrentTab('today');
+        setActiveModal('none');
+      } else if (dest === 'plan' || dest === 'plan/tasks') {
+        setCurrentTab('plan');
+        setPlanSubView('tasks');
+        setActiveModal('none');
+      } else if (dest === 'plan/calendar') {
+        setCurrentTab('plan');
+        setPlanSubView('calendar');
+        setActiveModal('none');
+      } else if (dest === 'plan/routines') {
+        setCurrentTab('plan');
+        setPlanSubView('routines');
+        setActiveModal('none');
+      } else if (dest === 'library' || dest.startsWith('library/')) {
+        setCurrentTab('library');
+        setActiveModal('none');
+      } else if (dest === 'journal') {
+        if (!defaultAuthAdapter.isAuthenticated()) {
+          setPendingProtectedDest('journal');
+        }
+        setCurrentTab('journal');
+        setActiveModal('none');
+      } else if (dest === 'settings') {
+        setActiveModal('settings');
+      } else if (dest === 'review') {
+        setActiveModal('gallery');
+      }
+    });
+
     return () => {
       if (linkingSubscription && typeof linkingSubscription.remove === 'function') {
         linkingSubscription.remove();
       }
+      cleanupNotifications();
     };
   }, []);
 
@@ -447,6 +498,9 @@ export default function App() {
             isAuthenticated={isAuthenticated}
             onToggleAuth={() => {
               if (isAuthenticated) {
+                if (apiClient) {
+                  void deactivateDeviceAsync(apiClient);
+                }
                 if (userNamespace?.userId) {
                   void MobileOfflineFileCache.clearAccount(userNamespace.userId).catch(() => {});
                 }
@@ -463,6 +517,14 @@ export default function App() {
                 }
               } else {
                 defaultAuthAdapter.loginSynthetic();
+              }
+            }}
+            notificationCapability={notificationCapability}
+            onRequestNotificationPermission={async () => {
+              const cap = await requestNotificationPermissionAsync();
+              setNotificationCapability(cap);
+              if (apiClient && cap.status === 'granted') {
+                void registerDeviceAsync(apiClient);
               }
             }}
             onOpenGallery={() => setActiveModal('gallery')}
