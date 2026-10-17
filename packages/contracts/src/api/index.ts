@@ -12,4 +12,5 @@ export * from './routine.js';
 export * from './journal.js';
 export * from './files.js';
 export * from './calendar.js';
+export * from './reminders.js';
 export * from './openapi.js';

@@ -21,6 +21,7 @@ import {
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
+import { invalidateTargetReminders } from '../reminders/service.js';
 
 interface CalendarEventDbRow {
   id: string;
@@ -388,6 +389,19 @@ export async function updateCalendarEvent(
   );
 
   const eventRow = eventRes.rows[0]!;
+
+  if (isArchived) {
+    await invalidateTargetReminders(client, workspaceId, 'calendar_event', eventId, 'event_archived');
+  } else if (
+    input.startDate !== undefined ||
+    input.endDate !== undefined ||
+    input.startAt !== undefined ||
+    input.endAt !== undefined ||
+    input.timezone !== undefined
+  ) {
+    await invalidateTargetReminders(client, workspaceId, 'calendar_event', eventId, 'event_rescheduled');
+  }
+
   const seq = syncState.nextChangeSeq;
 
   await insertChange(client, {
@@ -489,6 +503,8 @@ export async function trashCalendarEvent(
      WHERE id = $3 AND workspace_id = $4`,
     [actorUserId, nextRevision, eventId, workspaceId]
   );
+
+  await invalidateTargetReminders(client, workspaceId, 'calendar_event', eventId, 'event_deleted');
 
   await insertChange(client, {
     workspaceId,

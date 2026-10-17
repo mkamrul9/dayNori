@@ -24,6 +24,7 @@ import {
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
+import { invalidateTargetReminders } from '../reminders/service.js';
 
 interface TaskDbRow {
   id: string;
@@ -1003,6 +1004,12 @@ export async function updateTask(
     ]
   );
 
+  if (status === 'completed' || status === 'cancelled') {
+    await invalidateTargetReminders(client, workspaceId, 'task', taskId, `task_${status}`);
+  } else if (input.deadline !== undefined) {
+    await invalidateTargetReminders(client, workspaceId, 'task', taskId, 'task_rescheduled');
+  }
+
   const seq = syncState.nextChangeSeq;
 
   await insertChange(client, {
@@ -1118,6 +1125,8 @@ export async function completeTaskService(
     WHERE workspace_id = $3 AND id = $4;`,
     [nowIso, JSON.stringify(completionHistory), workspaceId, taskId]
   );
+
+  await invalidateTargetReminders(client, workspaceId, 'task', taskId, 'task_completed');
 
   const seq = syncState.nextChangeSeq;
 
@@ -1314,6 +1323,8 @@ export async function trashTask(
   if (itemRes.rowCount === 0) {
     throw new ConflictError(`Revision conflict on trashing task ${taskId}`);
   }
+
+  await invalidateTargetReminders(client, workspaceId, 'task', taskId, 'task_deleted');
 
   const seq = syncState.nextChangeSeq;
 

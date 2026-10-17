@@ -1,4 +1,9 @@
 import crypto from 'node:crypto';
+import {
+  isTimeInQuietHours,
+  calculateNextQuietHoursEnd,
+  redactReminderPayload,
+} from '@daynori/domain';
 
 export interface DatabasePool {
   connect(): Promise<DatabaseClient>;
@@ -309,8 +314,12 @@ export class DaynoriWorker {
   ): Promise<JobResult> {
     // 1. Establish tenant context if workspaceId is present in payload
     const workspaceId = payload?.workspaceId as string | undefined;
+    const actorUserId = (payload?.actorUserId || payload?.userId) as string | undefined;
     if (workspaceId && client) {
-      await client.query(`SELECT set_config('app.current_workspace_id', $1, true)`, [workspaceId]);
+      await client.query(`SELECT set_config('app.current_workspace_id', $1, false)`, [workspaceId]);
+    }
+    if (actorUserId && client) {
+      await client.query(`SELECT set_config('app.current_user_id', $1, false)`, [actorUserId]);
     }
 
     // 2. Custom registered task handler
@@ -529,7 +538,397 @@ export class DaynoriWorker {
       };
     }
 
-    // 6. Built-in smoke / healthcheck / test job
+    // 6. Built-in: Reminder delivery durable leased job
+    if (taskType === 'reminder_delivery') {
+      const instanceId = payload?.instanceId as string | undefined;
+      const ruleId = payload?.ruleId as string | undefined;
+      const expectedRuleRevision = payload?.ruleRevision as number | undefined;
+      const targetType = payload?.targetType as string | undefined;
+      const targetId = payload?.targetId as string | undefined;
+
+      if (!instanceId || !workspaceId || !client) {
+        return {
+          jobId,
+          status: 'completed',
+          processedAt: new Date().toISOString(),
+          details: { outcome: 'skipped_missing_context' },
+        };
+      }
+
+      // 1. Fetch instance with row lock
+      const instRes = await client.query<{
+        id: string;
+        workspace_id: string;
+        rule_id: string;
+        rule_revision: number;
+        target_type: string;
+        target_id: string;
+        scheduled_at: Date;
+        status: string;
+        snooze_until: Date | null;
+      }>(
+        `
+        SELECT id, workspace_id, rule_id, rule_revision, target_type, target_id,
+               scheduled_at, status, snooze_until
+        FROM app.reminder_instances
+        WHERE id = $1 AND workspace_id = $2
+        FOR UPDATE;
+        `,
+        [instanceId, workspaceId]
+      );
+
+      if (instRes.rows.length === 0) {
+        return {
+          jobId,
+          status: 'completed',
+          processedAt: new Date().toISOString(),
+          details: { outcome: 'instance_not_found' },
+        };
+      }
+
+      const instance = instRes.rows[0]!;
+
+      // Terminal or already handled states
+      if (['invalidated', 'dismissed', 'observed'].includes(instance.status)) {
+        return {
+          jobId,
+          status: 'completed',
+          processedAt: new Date().toISOString(),
+          details: { outcome: 'already_terminal', status: instance.status },
+        };
+      }
+
+      // Check if already dispatched (deduplication / idempotency)
+      if (instance.status === 'dispatched') {
+        return {
+          jobId,
+          status: 'completed',
+          processedAt: new Date().toISOString(),
+          details: { outcome: 'already_dispatched' },
+        };
+      }
+
+      // If snoozed, verify snooze time has arrived
+      if (instance.status === 'snoozed' && instance.snooze_until) {
+        const snoozeMs = new Date(instance.snooze_until).getTime();
+        if (snoozeMs > Date.now()) {
+          return {
+            jobId,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+            details: { outcome: 'still_snoozed', snoozeUntil: instance.snooze_until },
+          };
+        }
+      }
+
+      // 2. Fetch rule and verify active & revision
+      const ruleRes = await client.query<{
+        id: string;
+        workspace_id: string;
+        rule_revision: number;
+        quiet_hours_behavior: 'defer' | 'allow' | 'drop';
+        channels: string[];
+        privacy_level: 'generic' | 'detailed';
+        is_active: boolean;
+      }>(
+        `
+        SELECT id, workspace_id, rule_revision, quiet_hours_behavior, channels,
+               privacy_level, is_active
+        FROM app.reminder_rules
+        WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL AND is_active = true;
+        `,
+        [ruleId || instance.rule_id, workspaceId]
+      );
+
+      if (
+        ruleRes.rows.length === 0 ||
+        (expectedRuleRevision !== undefined && ruleRes.rows[0]!.rule_revision !== expectedRuleRevision) ||
+        ruleRes.rows[0]!.rule_revision !== instance.rule_revision
+      ) {
+        await client.query(
+          `
+          UPDATE app.reminder_instances
+          SET status = 'invalidated',
+              invalidated_reason = 'rule_revised_or_deleted',
+              invalidation_time = now(),
+              updated_at = now()
+          WHERE id = $1 AND workspace_id = $2;
+          `,
+          [instanceId, workspaceId]
+        );
+        return {
+          jobId,
+          status: 'completed',
+          processedAt: new Date().toISOString(),
+          details: { outcome: 'invalidated_stale_rule' },
+        };
+      }
+
+      const rule = ruleRes.rows[0]!;
+
+      // 3. Verify target entity state (live task / routine / calendar event)
+      const tType = targetType || instance.target_type;
+      const tId = targetId || instance.target_id;
+      let targetTitle = 'Scheduled Item';
+
+      if (tType === 'task') {
+        const taskRes = await client.query<{
+          title: string;
+          status: string;
+          deleted_at: Date | null;
+        }>(
+          `
+          SELECT t.title, t.status, i.deleted_at
+          FROM app.tasks t
+          JOIN app.items i ON i.id = t.id AND i.workspace_id = t.workspace_id
+          WHERE t.id = $1 AND t.workspace_id = $2;
+          `,
+          [tId, workspaceId]
+        );
+
+        if (taskRes.rows.length === 0 || taskRes.rows[0]!.deleted_at) {
+          await client.query(
+            `UPDATE app.reminder_instances SET status = 'invalidated', invalidated_reason = 'target_deleted', invalidation_time = now(), updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+            [instanceId, workspaceId]
+          );
+          return {
+            jobId,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+            details: { outcome: 'invalidated_target_deleted' },
+          };
+        }
+
+        if (['completed', 'cancelled'].includes(taskRes.rows[0]!.status)) {
+          await client.query(
+            `UPDATE app.reminder_instances SET status = 'invalidated', invalidated_reason = 'target_completed', invalidation_time = now(), updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+            [instanceId, workspaceId]
+          );
+          return {
+            jobId,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+            details: { outcome: 'invalidated_target_completed' },
+          };
+        }
+
+        targetTitle = taskRes.rows[0]!.title;
+      } else if (tType === 'calendar_event') {
+        const eventRes = await client.query<{
+          title: string;
+          is_archived: boolean;
+          deleted_at: Date | null;
+        }>(
+          `
+          SELECT c.title, c.is_archived, i.deleted_at
+          FROM app.calendar_events c
+          JOIN app.items i ON i.id = c.id AND i.workspace_id = c.workspace_id
+          WHERE c.id = $1 AND c.workspace_id = $2;
+          `,
+          [tId, workspaceId]
+        );
+
+        if (eventRes.rows.length === 0 || eventRes.rows[0]!.deleted_at) {
+          await client.query(
+            `UPDATE app.reminder_instances SET status = 'invalidated', invalidated_reason = 'target_deleted', invalidation_time = now(), updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+            [instanceId, workspaceId]
+          );
+          return {
+            jobId,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+            details: { outcome: 'invalidated_target_deleted' },
+          };
+        }
+
+        if (eventRes.rows[0]!.is_archived) {
+          await client.query(
+            `UPDATE app.reminder_instances SET status = 'invalidated', invalidated_reason = 'target_archived', invalidation_time = now(), updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+            [instanceId, workspaceId]
+          );
+          return {
+            jobId,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+            details: { outcome: 'invalidated_target_archived' },
+          };
+        }
+
+        targetTitle = eventRes.rows[0]!.title;
+      } else if (tType === 'routine') {
+        const routineRes = await client.query<{
+          title: string;
+          is_archived: boolean;
+          is_paused: boolean;
+          deleted_at: Date | null;
+        }>(
+          `
+          SELECT r.title, r.is_archived, r.is_paused, i.deleted_at
+          FROM app.routines r
+          JOIN app.items i ON i.id = r.id AND i.workspace_id = r.workspace_id
+          WHERE r.id = $1 AND r.workspace_id = $2;
+          `,
+          [tId, workspaceId]
+        );
+
+        if (routineRes.rows.length === 0 || routineRes.rows[0]!.deleted_at) {
+          await client.query(
+            `UPDATE app.reminder_instances SET status = 'invalidated', invalidated_reason = 'target_deleted', invalidation_time = now(), updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+            [instanceId, workspaceId]
+          );
+          return {
+            jobId,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+            details: { outcome: 'invalidated_target_deleted' },
+          };
+        }
+
+        if (routineRes.rows[0]!.is_archived || routineRes.rows[0]!.is_paused) {
+          await client.query(
+            `UPDATE app.reminder_instances SET status = 'invalidated', invalidated_reason = 'target_paused_or_archived', invalidation_time = now(), updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+            [instanceId, workspaceId]
+          );
+          return {
+            jobId,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+            details: { outcome: 'invalidated_target_paused' },
+          };
+        }
+
+        targetTitle = routineRes.rows[0]!.title;
+      }
+
+      // 4. Quiet hours check
+      const profileRes = await client.query<{ preferences: Record<string, unknown> }>(
+        `
+        SELECT p.preferences
+        FROM app.profiles p
+        JOIN app.workspaces w ON w.owner_id = p.id
+        WHERE w.id = $1;
+        `,
+        [workspaceId]
+      );
+
+      const prefs = profileRes.rows[0]?.preferences;
+      const qhConfig = prefs?.quietHours as
+        | { enabled: boolean; start: string; end: string; timezone: string }
+        | undefined;
+
+      if (qhConfig && qhConfig.enabled) {
+        const inQuietHours = isTimeInQuietHours(new Date(), qhConfig);
+        if (inQuietHours) {
+          if (rule.quiet_hours_behavior === 'drop') {
+            const ownerRes = await client.query<{ owner_id: string }>(
+              `SELECT owner_id FROM app.workspaces WHERE id = $1;`,
+              [workspaceId]
+            );
+            const recipientUserId = ownerRes.rows[0]?.owner_id || crypto.randomUUID();
+
+            await client.query(
+              `
+              INSERT INTO app.reminder_deliveries (
+                workspace_id, instance_id, channel, recipient_user_id,
+                provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
+              )
+              VALUES ($1, $2, 'push', $3, 'fcm', 'dropped_quiet_hours', 'Daynori Reminder', null, 1, now());
+              `,
+              [workspaceId, instanceId, recipientUserId]
+            );
+
+            await client.query(
+              `UPDATE app.reminder_instances SET status = 'dismissed', updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+              [instanceId, workspaceId]
+            );
+
+            return {
+              jobId,
+              status: 'completed',
+              processedAt: new Date().toISOString(),
+              details: { outcome: 'dropped_quiet_hours' },
+            };
+          } else if (rule.quiet_hours_behavior === 'defer') {
+            const nextQuietEnd = calculateNextQuietHoursEnd(new Date(), qhConfig);
+            await client.query(
+              `UPDATE app.background_jobs SET run_at = $1, status = 'pending' WHERE id = $2;`,
+              [nextQuietEnd, jobId]
+            );
+            return {
+              jobId,
+              status: 'completed',
+              processedAt: new Date().toISOString(),
+              details: { outcome: 'deferred_quiet_hours', deferredUntil: nextQuietEnd },
+            };
+          }
+        }
+      }
+
+      // 5. Redact payload
+      const redacted = redactReminderPayload({
+        title: targetTitle,
+        targetType: (tType as 'task' | 'routine' | 'calendar_event') || 'task',
+        privacyLevel: rule.privacy_level,
+      });
+
+      // 6. Deliver to channels
+      const ownerRes = await client.query<{ owner_id: string }>(
+        `SELECT owner_id FROM app.workspaces WHERE id = $1;`,
+        [workspaceId]
+      );
+      const recipientUserId = (payload?.actorUserId as string) || ownerRes.rows[0]?.owner_id;
+
+      if (recipientUserId) {
+        for (const channel of rule.channels) {
+          const provider = channel === 'push' ? 'fcm' : 'in_app';
+          const providerMsgId = `prov_${crypto.randomUUID()}`;
+
+          // Deduplication: prevent duplicate channel delivery for this instance
+          const existingDeliv = await client.query(
+            `SELECT id FROM app.reminder_deliveries WHERE workspace_id = $1 AND instance_id = $2 AND channel = $3;`,
+            [workspaceId, instanceId, channel]
+          );
+
+          if (existingDeliv.rows.length === 0) {
+            await client.query(
+              `
+              INSERT INTO app.reminder_deliveries (
+                workspace_id, instance_id, channel, recipient_user_id,
+                provider, provider_message_id, status, redacted_title, redacted_body,
+                attempt_count, last_attempt_at
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, 'accepted', $7, $8, 1, now());
+              `,
+              [
+                workspaceId,
+                instanceId,
+                channel,
+                recipientUserId,
+                provider,
+                providerMsgId,
+                redacted.title,
+                redacted.body,
+              ]
+            );
+          }
+        }
+      }
+
+      // 7. Update instance status to dispatched
+      await client.query(
+        `UPDATE app.reminder_instances SET status = 'dispatched', updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+        [instanceId, workspaceId]
+      );
+
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: { outcome: 'dispatched', instanceId, ruleId: rule.id },
+      };
+    }
+
+    // 7. Built-in smoke / healthcheck / test job
     if (taskType === 'smoke' || taskType.startsWith('test:')) {
       return {
         jobId,

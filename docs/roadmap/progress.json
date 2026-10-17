@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-17",
   "activePhase": null,
-  "nextPhase": null,
-  "schedulingDecision": "Phase 26 calendar and deadline views provisional implementation delivered and verified across pure domain, API contracts and routes, Web and Mobile applications, DaynoriApiClient, and comprehensive integration journeys. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, and 26 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 26 (Calendar and deadline views) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "nextPhase": "28",
+  "schedulingDecision": "Phase 27 reminder scheduling and durable delivery jobs provisional implementation delivered and verified across pure domain, API contracts and routes, DaynoriApiClient, background worker leased delivery handlers, and comprehensive integration journeys. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, and 27 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 27 (Reminder scheduling and durable delivery jobs) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -164,7 +164,9 @@
     },
     {
       "id": "27",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional reminder scheduling and durable delivery jobs delivered under owner authorization and verified across Vitest pure domain, PostgreSQL RLS, Fastify reminders REST routes, DaynoriApiClient, worker leased-delivery jobs with crash recovery, quiet hours handling, and task/event/routine lifecycle invalidations (20/20 test files and 271/271 integration tests passing, 47/47 test files and 655/655 unit tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-27.md"
     },
     {
       "id": "28",

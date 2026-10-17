@@ -37,6 +37,7 @@ import {
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
+import { invalidateTargetReminders } from '../reminders/service.js';
 
 interface RoutineDbRow {
   id: string;
@@ -566,6 +567,12 @@ export async function updateRoutine(
     ]
   );
 
+  if (isPaused || isArchived) {
+    await invalidateTargetReminders(client, workspaceId, 'routine', routineId, isPaused ? 'routine_paused' : 'routine_archived');
+  } else if (isScheduleChanged) {
+    await invalidateTargetReminders(client, workspaceId, 'routine', routineId, 'routine_rescheduled');
+  }
+
   const updatedRoutine = mapRowToRoutine({
     ...rRes.rows[0]!,
     kind: 'routine',
@@ -796,6 +803,8 @@ export async function trashRoutine(
      WHERE workspace_id = $3 AND id = $4;`,
     [nextRevision, actorUserId, workspaceId, routineId]
   );
+
+  await invalidateTargetReminders(client, workspaceId, 'routine', routineId, 'routine_deleted');
 
   const nextSeq = syncState.nextChangeSeq;
 

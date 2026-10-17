@@ -129,6 +129,20 @@ import {
   type CalendarFeedQuery,
   type CalendarEventResponse,
   type CalendarReadModelResponse,
+  ReminderRuleResponseSchema,
+  ReminderRuleListResponseSchema,
+  ReminderInstanceResponseSchema,
+  ReminderInstanceListResponseSchema,
+  ReminderDeliveryResponseSchema,
+  type CreateReminderRuleRequest,
+  type UpdateReminderRuleRequest,
+  type SnoozeReminderRequest,
+  type RecordDeliveryReceiptRequest,
+  type ReminderRuleResponse,
+  type ReminderRuleListResponse,
+  type ReminderInstanceResponse,
+  type ReminderInstanceListResponse,
+  type ReminderDeliveryResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -1530,6 +1544,121 @@ export class DaynoriApiClient {
       meta?: { requestId: string };
     }>(`/v1/workspaces/${workspaceId}/calendar/events/${eventId}`, { method: 'DELETE' }, options);
     return raw;
+  }
+
+  // --- Phase 27: Reminders ---
+
+  async createReminderRule(
+    workspaceId: string,
+    data: CreateReminderRuleRequest,
+    options?: RequestOptions
+  ): Promise<ReminderRuleResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/rules`,
+      { method: 'POST', body: JSON.stringify(data) },
+      options
+    );
+    return ReminderRuleResponseSchema.parse(raw);
+  }
+
+  async listReminderRules(
+    workspaceId: string,
+    query?: { targetId?: string },
+    options?: RequestOptions
+  ): Promise<ReminderRuleListResponse> {
+    const params = new URLSearchParams();
+    if (query?.targetId) params.set('targetId', query.targetId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/rules${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return ReminderRuleListResponseSchema.parse(raw);
+  }
+
+  async getReminderRule(
+    workspaceId: string,
+    ruleId: string,
+    options?: RequestOptions
+  ): Promise<ReminderRuleResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/rules/${ruleId}`,
+      { method: 'GET' },
+      options
+    );
+    return ReminderRuleResponseSchema.parse(raw);
+  }
+
+  async updateReminderRule(
+    workspaceId: string,
+    ruleId: string,
+    data: UpdateReminderRuleRequest,
+    options?: RequestOptions
+  ): Promise<ReminderRuleResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/rules/${ruleId}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+      options
+    );
+    return ReminderRuleResponseSchema.parse(raw);
+  }
+
+  async deleteReminderRule(
+    workspaceId: string,
+    ruleId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; id: string }; meta?: { requestId: string } }> {
+    const raw = await this.request<{
+      data: { success: boolean; id: string };
+      meta?: { requestId: string };
+    }>(`/v1/workspaces/${workspaceId}/reminders/rules/${ruleId}`, { method: 'DELETE' }, options);
+    return raw;
+  }
+
+  async listReminderInstances(
+    workspaceId: string,
+    query?: { status?: string; targetId?: string },
+    options?: RequestOptions
+  ): Promise<ReminderInstanceListResponse> {
+    const params = new URLSearchParams();
+    if (query?.status) params.set('status', query.status);
+    if (query?.targetId) params.set('targetId', query.targetId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/instances${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return ReminderInstanceListResponseSchema.parse(raw);
+  }
+
+  async snoozeReminderInstance(
+    workspaceId: string,
+    instanceId: string,
+    data: SnoozeReminderRequest,
+    options?: RequestOptions
+  ): Promise<ReminderInstanceResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/instances/${instanceId}/snooze`,
+      { method: 'POST', body: JSON.stringify(data) },
+      options
+    );
+    return ReminderInstanceResponseSchema.parse(raw);
+  }
+
+  async recordDeliveryReceipt(
+    workspaceId: string,
+    deliveryId: string,
+    data: RecordDeliveryReceiptRequest,
+    options?: RequestOptions
+  ): Promise<ReminderDeliveryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/deliveries/${deliveryId}/receipt`,
+      { method: 'POST', body: JSON.stringify(data) },
+      options
+    );
+    return ReminderDeliveryResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

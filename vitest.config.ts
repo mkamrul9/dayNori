@@ -17,6 +17,8 @@ export default defineConfig({
       '@daynori/test-utils': path.resolve(__dirname, 'packages/test-utils/src/index.ts'),
       'react-native': path.resolve(__dirname, 'packages/test-utils/src/mock-react-native.ts'),
       'expo-status-bar': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-status-bar.ts'),
+      'expo-file-system': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-file-system.ts'),
+      'expo-document-picker': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-document-picker.ts'),
     },
   },
   test: {

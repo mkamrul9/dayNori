@@ -1,5 +1,32 @@
 # Changelog
 
+## Phase 27 — Reminder scheduling and durable delivery jobs — 2026-10-17
+
+- **Pure Domain Operations (`packages/domain`):**
+  - Implemented `isTimeInQuietHours` evaluating timezone-aware quiet hours across single-day and midnight-crossing intervals (e.g., 22:00 to 08:00) with DST safety.
+  - Implemented `calculateNextQuietHoursEnd` resolving the exact opening UTC instant with DST disambiguation.
+  - Implemented `calculateSnoozeTime` clamping snooze durations between 5 and 1440 minutes (24 hours).
+  - Implemented `materializeReminderOccurrences` generating deterministic, compound occurrence keys (`${rule.id}_rev${rule.ruleRevision}_...`) within a 14-day rolling horizon.
+  - Implemented `redactReminderPayload` strictly suppressing sensitive note text, journal reflections, or vault bodies from delivery buffers (generic vs. detailed mode).
+- **Contracts & Validation (`packages/contracts`):**
+  - Added Zod schemas: `ReminderRuleSchema`, `ReminderInstanceSchema`, `ReminderDeliverySchema`, `CreateReminderRuleRequestSchema`, `UpdateReminderRuleRequestSchema`, `SnoozeReminderRequestSchema`, and `RecordDeliveryReceiptRequestSchema`.
+- **Database Schema & Multi-Tenant Isolation (`infra/supabase`):**
+  - Added migration `00024_reminder_rules_instances_and_deliveries.sql` creating tables `app.reminder_rules`, `app.reminder_instances`, and `app.reminder_deliveries`.
+  - Added compound uniqueness constraint on `(workspace_id, rule_id, rule_revision, occurrence_key)` to guarantee recurrence idempotency.
+  - Enforced PostgreSQL Row-Level Security (RLS) policies on personal workspaces (`p_reminder_rules_*`, `p_reminder_instances_*`, `p_reminder_deliveries_*`).
+- **REST API Routes & Service (`apps/api`):**
+  - Registered `/v1/workspaces/:workspaceId/reminders`: rule CRUD (`POST /rules`, `GET /rules`, `GET /rules/:ruleId`, `PATCH /rules/:ruleId`, `DELETE /rules/:ruleId`), instance listing (`GET /instances`), snooze (`POST /instances/:instanceId/snooze`), and receipt recording (`POST /deliveries/:deliveryId/receipt`).
+  - Integrated target lifecycle invalidation: completing, cancelling, rescheduling deadline, or deleting a task, calendar event, or routine immediately invalidates pending reminder instances.
+- **Client SDK (`packages/api-client`):**
+  - Added `createReminderRule`, `listReminderRules`, `getReminderRule`, `updateReminderRule`, `deleteReminderRule`, `listReminderInstances`, `snoozeReminderInstance`, and `recordDeliveryReceipt` to `DaynoriApiClient`.
+- **Durable Leased Delivery Jobs (`apps/worker`):**
+  - Implemented handler for `task_type === 'reminder_delivery'` in `DaynoriWorker` using PostgreSQL `FOR UPDATE SKIP LOCKED` and lease fencing (`leased_until > now()`).
+  - Added pre-dispatch target verification (invalidating reminders for completed/cancelled/deleted items), quiet hours handling (`drop`, `defer`, `allow`), payload redaction, and channel deduplication.
+- **Integration Test Suite (`tests/integration`):**
+  - Added `tests/integration/phase27-reminders.test.ts` (13 passing tests) verifying pure domain logic, RLS isolation, task completion invalidation, deadline rescheduling invalidation, snooze transitions, delivery receipts, worker leased-job crash recovery, duplicate delivery suppression, and quiet hours drop behavior.
+- **Decision Record:**
+  - Published [ADR-0033: Reminder Scheduling, Recurrence Instances, and Durable Delivery Jobs](docs/decisions/0033-reminder-scheduling-and-durable-delivery-jobs.md).
+
 ## Phase 26 — Calendar and deadline views — 2026-10-17
 
 - **Pure Domain Operations (`packages/domain`):**

@@ -9,3 +9,4 @@ export * from './journal.js';
 export * from './files.js';
 export * from './crypto.js';
 export * from './calendar.js';
+export * from './reminders.js';
