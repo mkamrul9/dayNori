@@ -122,6 +122,13 @@ import {
   type DownloadCapabilityResponse,
   type FileItemResponse,
   type StorageQuotaResponse,
+  CalendarEventResponseSchema,
+  CalendarReadModelResponseSchema,
+  type CreateCalendarEventRequest,
+  type UpdateCalendarEventRequest,
+  type CalendarFeedQuery,
+  type CalendarEventResponse,
+  type CalendarReadModelResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -1438,6 +1445,90 @@ export class DaynoriApiClient {
       { method: 'DELETE' },
       options
     );
+    return raw;
+  }
+
+  // --- Calendar API methods (Phase 26) ---
+
+  async getCalendarFeed(
+    workspaceId: string,
+    query: CalendarFeedQuery,
+    options?: RequestOptions
+  ): Promise<CalendarReadModelResponse> {
+    const params = new URLSearchParams();
+    params.set('startDate', query.startDate);
+    params.set('endDate', query.endDate);
+    if (query.timezone) params.set('timezone', query.timezone);
+    if (query.includeTasks !== undefined) params.set('includeTasks', String(query.includeTasks));
+    if (query.includeRoutines !== undefined)
+      params.set('includeRoutines', String(query.includeRoutines));
+    if (query.includeEvents !== undefined) params.set('includeEvents', String(query.includeEvents));
+    if (query.includeJournalIndicators !== undefined)
+      params.set('includeJournalIndicators', String(query.includeJournalIndicators));
+
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/calendar/feed?${params.toString()}`,
+      { method: 'GET' },
+      options
+    );
+    return CalendarReadModelResponseSchema.parse(raw);
+  }
+
+  async createCalendarEvent(
+    workspaceId: string,
+    data: CreateCalendarEventRequest,
+    options?: RequestOptions
+  ): Promise<CalendarEventResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/calendar/events`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+      options
+    );
+    return CalendarEventResponseSchema.parse(raw);
+  }
+
+  async getCalendarEvent(
+    workspaceId: string,
+    eventId: string,
+    options?: RequestOptions
+  ): Promise<CalendarEventResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/calendar/events/${eventId}`,
+      { method: 'GET' },
+      options
+    );
+    return CalendarEventResponseSchema.parse(raw);
+  }
+
+  async updateCalendarEvent(
+    workspaceId: string,
+    eventId: string,
+    data: UpdateCalendarEventRequest,
+    options?: RequestOptions
+  ): Promise<CalendarEventResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/calendar/events/${eventId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      },
+      options
+    );
+    return CalendarEventResponseSchema.parse(raw);
+  }
+
+  async deleteCalendarEvent(
+    workspaceId: string,
+    eventId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; eventId: string }; meta?: { requestId: string } }> {
+    const raw = await this.request<{
+      data: { success: boolean; eventId: string };
+      meta?: { requestId: string };
+    }>(`/v1/workspaces/${workspaceId}/calendar/events/${eventId}`, { method: 'DELETE' }, options);
     return raw;
   }
 

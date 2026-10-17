@@ -29,6 +29,7 @@ import type {
   RoutineRecord,
   RoutineOccurrenceRecord,
   JournalEntryRecord,
+  CalendarEventRecord,
 } from './models.js';
 import { type SyncTransportPort, classifySyncError } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
@@ -1457,6 +1458,7 @@ export class SyncEngine {
         const routinesToApply: RoutineRecord[] = [];
         const occurrencesToApply: RoutineOccurrenceRecord[] = [];
         const journalEntriesToApply: JournalEntryRecord[] = [];
+        const calendarEventsToApply: CalendarEventRecord[] = [];
 
         for (const change of pullRes.data.changes) {
           totalChanges++;
@@ -1541,7 +1543,9 @@ export class SyncEngine {
                 ? 'task'
                 : change.entityType === 'routine'
                   ? 'routine'
-                  : 'note';
+                  : change.entityType === 'calendar_event'
+                    ? 'calendar_event'
+                    : 'note';
           const kind = typeof data.kind === 'string' ? data.kind : existing?.kind || defaultKind;
 
           // Distinguish an omitted field from an explicit null
@@ -1852,6 +1856,71 @@ export class SyncEngine {
               deletedAt,
             });
           }
+
+          if (kind === 'calendar_event' || change.entityType === 'calendar_event') {
+            const existingCal = await this.repository.getCalendarEvent(
+              this.namespace.workspaceId,
+              change.entityId
+            );
+
+            const title =
+              'title' in data && typeof data.title === 'string'
+                ? data.title
+                : (existingCal?.title ?? (name || 'Untitled Event'));
+            const details =
+              'details' in data
+                ? data.details !== null && data.details !== undefined
+                  ? String(data.details)
+                  : null
+                : (existingCal?.details ?? null);
+            const allDay = Boolean(data.allDay ?? existingCal?.allDay ?? false);
+            const startDate =
+              'startDate' in data
+                ? data.startDate
+                  ? String(data.startDate)
+                  : null
+                : (existingCal?.startDate ?? null);
+            const endDate =
+              'endDate' in data
+                ? data.endDate
+                  ? String(data.endDate)
+                  : null
+                : (existingCal?.endDate ?? null);
+            const startAt =
+              'startAt' in data
+                ? data.startAt
+                  ? String(data.startAt)
+                  : null
+                : (existingCal?.startAt ?? null);
+            const endAt =
+              'endAt' in data
+                ? data.endAt
+                  ? String(data.endAt)
+                  : null
+                : (existingCal?.endAt ?? null);
+            const timezone = (data.timezone as string) || (existingCal?.timezone ?? 'UTC');
+
+            calendarEventsToApply.push({
+              id: change.entityId,
+              workspaceId: this.namespace.workspaceId,
+              folderId: folderId ?? existingCal?.folderId ?? null,
+              title,
+              details,
+              allDay,
+              startDate,
+              endDate,
+              startAt,
+              endAt,
+              timezone,
+              isArchived,
+              securityScope:
+                (securityScope as 'standard' | 'vault') || existingCal?.securityScope || 'standard',
+              serverRevision: change.revision,
+              createdAt,
+              updatedAt,
+              deletedAt,
+            });
+          }
         }
 
         const newCursorRecord: SyncCursorRecord = {
@@ -1874,7 +1943,9 @@ export class SyncEngine {
           tasksToApply,
           routinesToApply,
           occurrencesToApply,
-          journalEntriesToApply
+          journalEntriesToApply,
+          undefined,
+          calendarEventsToApply
         );
 
         this.lastSyncedAt = newCursorRecord.lastSyncedAt;
@@ -1957,6 +2028,7 @@ export class SyncEngine {
     const snapshotRoutines: RoutineRecord[] = [];
     const snapshotOccurrences: RoutineOccurrenceRecord[] = [];
     const snapshotJournalEntries: JournalEntryRecord[] = [];
+    const snapshotCalendarEvents: CalendarEventRecord[] = [];
 
     const bData = bootstrapRes.data as Record<string, unknown>;
     const journalMap = new Map<string, JournalEntryRecord>();
@@ -2090,6 +2162,28 @@ export class SyncEngine {
           );
         }
       }
+
+      if (item.kind === 'calendar_event') {
+        snapshotCalendarEvents.push({
+          id: item.id,
+          workspaceId: item.workspaceId,
+          folderId: item.folderId ?? null,
+          title: (raw.title as string) || item.name || 'Untitled Event',
+          details: typeof raw.details === 'string' ? raw.details : null,
+          allDay: Boolean(raw.allDay),
+          startDate: raw.startDate ? String(raw.startDate) : null,
+          endDate: raw.endDate ? String(raw.endDate) : null,
+          startAt: raw.startAt ? String(raw.startAt) : null,
+          endAt: raw.endAt ? String(raw.endAt) : null,
+          timezone: (raw.timezone as string) || 'UTC',
+          isArchived: item.isArchived,
+          securityScope: item.securityScope,
+          serverRevision: item.revision,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          deletedAt: item.deletedAt,
+        });
+      }
     }
 
     // Add any remaining journal entries from the snapshot map
@@ -2145,6 +2239,30 @@ export class SyncEngine {
       }
     }
 
+    if (Array.isArray(bData['calendarEvents'])) {
+      for (const c of bData['calendarEvents'] as CalendarEventRecord[]) {
+        snapshotCalendarEvents.push({
+          id: c.id,
+          workspaceId: c.workspaceId,
+          folderId: c.folderId ?? null,
+          title: c.title,
+          details: c.details ?? null,
+          allDay: Boolean(c.allDay),
+          startDate: c.startDate ?? null,
+          endDate: c.endDate ?? null,
+          startAt: c.startAt ?? null,
+          endAt: c.endAt ?? null,
+          timezone: c.timezone || 'UTC',
+          isArchived: Boolean(c.isArchived),
+          securityScope: c.securityScope || 'standard',
+          serverRevision: (c as { revision?: number }).revision || c.serverRevision || 1,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          deletedAt: c.deletedAt ?? null,
+        });
+      }
+    }
+
     // Atomically install snapshot, replacing obsolete projections while preserving local work
     await this.repository.installBootstrapGeneration(
       snapshotItems,
@@ -2154,7 +2272,9 @@ export class SyncEngine {
       snapshotTasks,
       snapshotRoutines,
       snapshotOccurrences,
-      snapshotJournalEntries
+      snapshotJournalEntries,
+      undefined,
+      snapshotCalendarEvents
     );
 
     this.lastSyncedAt = newCursor.lastSyncedAt;

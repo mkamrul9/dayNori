@@ -12,6 +12,7 @@ import type {
   RoutineOccurrenceRecord,
   JournalEntryRecord,
   FileRecord,
+  CalendarEventRecord,
 } from './models.js';
 import type { ClientMutation } from './types.js';
 import type { WorkspaceId } from '@daynori/domain';
@@ -65,7 +66,8 @@ export interface LocalRepositoryPort {
     task?: TaskRecord,
     routine?: RoutineRecord,
     occurrence?: RoutineOccurrenceRecord,
-    journalEntry?: JournalEntryRecord
+    journalEntry?: JournalEntryRecord,
+    calendarEvent?: CalendarEventRecord
   ): Promise<void>;
   applyAcknowledgment(
     header: ItemHeaderRecord,
@@ -74,7 +76,8 @@ export interface LocalRepositoryPort {
     task?: TaskRecord,
     routine?: RoutineRecord,
     occurrence?: RoutineOccurrenceRecord,
-    journalEntry?: JournalEntryRecord
+    journalEntry?: JournalEntryRecord,
+    calendarEvent?: CalendarEventRecord
   ): Promise<void>;
   applyPullPage(
     changes: ItemHeaderRecord[],
@@ -84,7 +87,8 @@ export interface LocalRepositoryPort {
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
     journalEntries?: JournalEntryRecord[],
-    files?: FileRecord[]
+    files?: FileRecord[],
+    calendarEvents?: CalendarEventRecord[]
   ): Promise<void>;
   installBootstrapGeneration(
     items: ItemHeaderRecord[],
@@ -95,7 +99,8 @@ export interface LocalRepositoryPort {
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
     journalEntries?: JournalEntryRecord[],
-    files?: FileRecord[]
+    files?: FileRecord[],
+    calendarEvents?: CalendarEventRecord[]
   ): Promise<void>;
 
   // --- 5. Conflicts ---
@@ -113,7 +118,8 @@ export interface LocalRepositoryPort {
     updatedTask?: TaskRecord,
     updatedRoutine?: RoutineRecord,
     updatedOccurrence?: RoutineOccurrenceRecord,
-    updatedJournalEntry?: JournalEntryRecord
+    updatedJournalEntry?: JournalEntryRecord,
+    updatedCalendarEvent?: CalendarEventRecord
   ): Promise<void>;
 
   // --- 6. Notes & Documents ---
@@ -164,15 +170,28 @@ export interface LocalRepositoryPort {
   upsertFile(file: FileRecord): Promise<void>;
   deleteFile(workspaceId: string, id: string): Promise<void>;
 
-  // --- 11. Sync Cursors ---
+  // --- 11. Calendar Events ---
+  getCalendarEvent(workspaceId: string, id: string): Promise<CalendarEventRecord | null>;
+  listCalendarEvents(
+    workspaceId: string,
+    options?: {
+      startDate?: string;
+      endDate?: string;
+      includeDeleted?: boolean;
+    }
+  ): Promise<CalendarEventRecord[]>;
+  upsertCalendarEvent(event: CalendarEventRecord): Promise<void>;
+  deleteCalendarEvent(workspaceId: string, id: string): Promise<void>;
+
+  // --- 12. Sync Cursors ---
   getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null>;
   saveCursor(cursor: SyncCursorRecord): Promise<void>;
 
-  // --- 12. Preference Snapshots ---
+  // --- 13. Preference Snapshots ---
   getPreferenceSnapshot(userId: string): Promise<PreferenceSnapshotRecord | null>;
   savePreferenceSnapshot(snapshot: PreferenceSnapshotRecord): Promise<void>;
 
-  // --- 13. Boundary Lifecycle & Data Erasure ---
+  // --- 14. Boundary Lifecycle & Data Erasure ---
   clearWorkspaceData(workspaceId: string): Promise<void>;
   clearAccountData(userId: string): Promise<void>;
 }

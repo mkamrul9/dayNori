@@ -13,6 +13,7 @@ import type {
   RoutineOccurrenceRecord,
   JournalEntryRecord,
   FileRecord,
+  CalendarEventRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -32,6 +33,7 @@ import {
   validateRoutineOccurrenceRecord,
   validateJournalEntryRecord,
   validateFileRecord,
+  validateCalendarEventRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -574,6 +576,39 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             ON files (workspace_id, folder_id);
 
             INSERT INTO schema_migrations (version, applied_at) VALUES (8, datetime('now'));
+          `);
+        }
+
+        if (currentVersion < 9) {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS calendar_events (
+              id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              folder_id TEXT,
+              title TEXT NOT NULL,
+              details TEXT,
+              all_day INTEGER NOT NULL DEFAULT 0,
+              start_date TEXT,
+              end_date TEXT,
+              start_at TEXT,
+              end_at TEXT,
+              timezone TEXT NOT NULL DEFAULT 'UTC',
+              is_archived INTEGER NOT NULL DEFAULT 0,
+              security_scope TEXT NOT NULL DEFAULT 'standard',
+              server_revision INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT,
+              PRIMARY KEY (workspace_id, id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_calendar_events_start_date
+            ON calendar_events (workspace_id, start_date);
+
+            CREATE INDEX IF NOT EXISTS idx_calendar_events_start_at
+            ON calendar_events (workspace_id, start_at);
+
+            INSERT INTO schema_migrations (version, applied_at) VALUES (9, datetime('now'));
           `);
         }
       });
@@ -1416,6 +1451,50 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     );
   }
 
+  private async upsertCalendarEventDirect(valid: CalendarEventRecord): Promise<void> {
+    const db = this.ensureOpen();
+    await db.runAsync(
+      `INSERT INTO calendar_events (
+        id, workspace_id, folder_id, title, details, all_day, start_date, end_date,
+        start_at, end_at, timezone, is_archived, security_scope, server_revision,
+        created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        folder_id = excluded.folder_id,
+        title = excluded.title,
+        details = excluded.details,
+        all_day = excluded.all_day,
+        start_date = excluded.start_date,
+        end_date = excluded.end_date,
+        start_at = excluded.start_at,
+        end_at = excluded.end_at,
+        timezone = excluded.timezone,
+        is_archived = excluded.is_archived,
+        security_scope = excluded.security_scope,
+        server_revision = excluded.server_revision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        deleted_at = excluded.deleted_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.folderId ?? null,
+      valid.title,
+      valid.details ?? null,
+      valid.allDay ? 1 : 0,
+      valid.startDate ?? null,
+      valid.endDate ?? null,
+      valid.startAt ?? null,
+      valid.endAt ?? null,
+      valid.timezone,
+      valid.isArchived ? 1 : 0,
+      valid.securityScope,
+      valid.serverRevision,
+      valid.createdAt,
+      valid.updatedAt,
+      valid.deletedAt ?? null
+    );
+  }
+
   async saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
@@ -1424,7 +1503,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     task?: TaskRecord,
     routine?: RoutineRecord,
     occurrence?: RoutineOccurrenceRecord,
-    journalEntry?: JournalEntryRecord
+    journalEntry?: JournalEntryRecord,
+    calendarEvent?: CalendarEventRecord
   ): Promise<void> {
     const validItem = validateItemHeaderRecord(item);
     const validMut = validatePendingMutationRecord(mutation);
@@ -1434,6 +1514,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
     const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
     const validJournal = journalEntry ? validateJournalEntryRecord(journalEntry) : undefined;
+    const validCal = calendarEvent ? validateCalendarEventRecord(calendarEvent) : undefined;
 
     this.ensureNamespace(validItem.workspaceId);
     this.ensureNamespace(validMut.workspaceId, validMut.userId);
@@ -1454,6 +1535,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     }
     if (validJournal) {
       this.ensureNamespace(validJournal.workspaceId);
+    }
+    if (validCal) {
+      this.ensureNamespace(validCal.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1480,6 +1564,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validJournal) {
             await this.upsertJournalEntryDirect(validJournal);
           }
+          if (validCal) {
+            await this.upsertCalendarEventDirect(validCal);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1494,7 +1581,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     task?: TaskRecord,
     routine?: RoutineRecord,
     occurrence?: RoutineOccurrenceRecord,
-    journalEntry?: JournalEntryRecord
+    journalEntry?: JournalEntryRecord,
+    calendarEvent?: CalendarEventRecord
   ): Promise<void> {
     const valid = validateItemHeaderRecord(header);
     const validNote = note ? validateNoteRecord(note) : undefined;
@@ -1502,12 +1590,14 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validRoutine = routine ? validateRoutineRecord(routine) : undefined;
     const validOccurrence = occurrence ? validateRoutineOccurrenceRecord(occurrence) : undefined;
     const validJournal = journalEntry ? validateJournalEntryRecord(journalEntry) : undefined;
+    const validCal = calendarEvent ? validateCalendarEventRecord(calendarEvent) : undefined;
     this.ensureNamespace(valid.workspaceId);
     if (validNote) this.ensureNamespace(validNote.workspaceId);
     if (validTask) this.ensureNamespace(validTask.workspaceId);
     if (validRoutine) this.ensureNamespace(validRoutine.workspaceId);
     if (validOccurrence) this.ensureNamespace(validOccurrence.workspaceId);
     if (validJournal) this.ensureNamespace(validJournal.workspaceId);
+    if (validCal) this.ensureNamespace(validCal.workspaceId);
 
     const db = this.ensureOpen();
     return this.runWithLock(async () => {
@@ -1530,6 +1620,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           if (validJournal) {
             await this.upsertJournalEntryDirect(validJournal);
           }
+          if (validCal) {
+            await this.upsertCalendarEventDirect(validCal);
+          }
         });
       } catch (err) {
         throw this.mapError(err);
@@ -1545,7 +1638,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
     journalEntries?: JournalEntryRecord[],
-    files?: FileRecord[]
+    files?: FileRecord[],
+    calendarEvents?: CalendarEventRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1578,6 +1672,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedFiles = (files || []).map((f) => validateFileRecord(f));
     for (const f of validatedFiles) {
       this.ensureNamespace(f.workspaceId);
+    }
+    const validatedCalendarEvents = (calendarEvents || []).map((c) =>
+      validateCalendarEventRecord(c)
+    );
+    for (const c of validatedCalendarEvents) {
+      this.ensureNamespace(c.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1685,6 +1785,18 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertFileDirect(f);
           }
 
+          for (const c of validatedCalendarEvents) {
+            const existingCal = await db.getFirstAsync<{ server_revision: number }>(
+              `SELECT server_revision FROM calendar_events WHERE workspace_id = ? AND id = ?;`,
+              c.workspaceId,
+              c.id
+            );
+            if (existingCal && existingCal.server_revision > c.serverRevision) {
+              continue;
+            }
+            await this.upsertCalendarEventDirect(c);
+          }
+
           // Cursor advancement check: protect against moving cursor backward
           const existingCursor = await db.getFirstAsync<{ last_server_revision: number }>(
             `SELECT last_server_revision FROM sync_cursors WHERE workspace_id = ? AND user_id = ?;`,
@@ -1714,7 +1826,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
     journalEntries?: JournalEntryRecord[],
-    files?: FileRecord[]
+    files?: FileRecord[],
+    calendarEvents?: CalendarEventRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1747,6 +1860,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     const validatedFiles = (files || []).map((f) => validateFileRecord(f));
     for (const f of validatedFiles) {
       this.ensureNamespace(f.workspaceId);
+    }
+    const validatedCalendarEvents = (calendarEvents || []).map((c) =>
+      validateCalendarEventRecord(c)
+    );
+    for (const c of validatedCalendarEvents) {
+      this.ensureNamespace(c.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1809,7 +1928,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertFileDirect(f);
           }
 
-          // 9. Update watermark cursor
+          // 9. Upsert snapshot calendar events
+          for (const c of validatedCalendarEvents) {
+            await this.upsertCalendarEventDirect(c);
+          }
+
+          // 10. Update watermark cursor
           await this.saveCursorDirect(validCursor);
         });
       } catch (err) {
@@ -1965,7 +2089,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     updatedTask?: TaskRecord,
     updatedRoutine?: RoutineRecord,
     updatedOccurrence?: RoutineOccurrenceRecord,
-    updatedJournalEntry?: JournalEntryRecord
+    updatedJournalEntry?: JournalEntryRecord,
+    updatedCalendarEvent?: CalendarEventRecord
   ): Promise<void> {
     const ns = this.ensureNamespace();
     const validHeader = updatedHeader ? validateItemHeaderRecord(updatedHeader) : undefined;
@@ -1979,6 +2104,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
       : undefined;
     const validJournal = updatedJournalEntry
       ? validateJournalEntryRecord(updatedJournalEntry)
+      : undefined;
+    const validCal = updatedCalendarEvent
+      ? validateCalendarEventRecord(updatedCalendarEvent)
       : undefined;
 
     const db = this.ensureOpen();
@@ -2024,6 +2152,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
 
           if (validJournal) {
             await this.upsertJournalEntryDirect(validJournal);
+          }
+
+          if (validCal) {
+            await this.upsertCalendarEventDirect(validCal);
           }
 
           if (validDraft) {
@@ -3006,6 +3138,164 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
+  // --- 11. Calendar Events ---
+
+  async getCalendarEvent(workspaceId: string, id: string): Promise<CalendarEventRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string;
+        details: string | null;
+        all_day: number;
+        start_date: string | null;
+        end_date: string | null;
+        start_at: string | null;
+        end_at: string | null;
+        timezone: string;
+        is_archived: number;
+        security_scope: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(`SELECT * FROM calendar_events WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+
+      if (!row) return null;
+      return validateCalendarEventRecord({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        folderId: row.folder_id ?? null,
+        title: row.title,
+        details: row.details ?? null,
+        allDay: Boolean(row.all_day),
+        startDate: row.start_date ?? null,
+        endDate: row.end_date ?? null,
+        startAt: row.start_at ?? null,
+        endAt: row.end_at ?? null,
+        timezone: row.timezone,
+        isArchived: Boolean(row.is_archived),
+        securityScope: (row.security_scope === 'vault'
+          ? 'vault'
+          : 'standard') as CalendarEventRecord['securityScope'],
+        serverRevision: row.server_revision,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at ?? null,
+      });
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listCalendarEvents(
+    workspaceId: string,
+    options?: {
+      startDate?: string;
+      endDate?: string;
+      includeDeleted?: boolean;
+    }
+  ): Promise<CalendarEventRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const includeDeleted = options?.includeDeleted ?? false;
+      let sql = `SELECT * FROM calendar_events WHERE workspace_id = ?`;
+      if (!includeDeleted) {
+        sql += ` AND deleted_at IS NULL`;
+      }
+      const params: unknown[] = [workspaceId];
+
+      if (options?.startDate) {
+        sql += ` AND ((all_day = 1 AND COALESCE(end_date, start_date) >= ?) OR (all_day = 0 AND COALESCE(end_at, start_at) >= ?))`;
+        params.push(options.startDate, options.startDate);
+      }
+      if (options?.endDate) {
+        sql += ` AND ((all_day = 1 AND start_date <= ?) OR (all_day = 0 AND start_at <= ?))`;
+        params.push(options.endDate, options.endDate);
+      }
+
+      sql += ` ORDER BY COALESCE(start_date, start_at) ASC;`;
+
+      const rows = await db.getAllAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        title: string;
+        details: string | null;
+        all_day: number;
+        start_date: string | null;
+        end_date: string | null;
+        start_at: string | null;
+        end_at: string | null;
+        timezone: string;
+        is_archived: number;
+        security_scope: string;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(sql, ...params);
+
+      return rows.map((row) =>
+        validateCalendarEventRecord({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          folderId: row.folder_id ?? null,
+          title: row.title,
+          details: row.details ?? null,
+          allDay: Boolean(row.all_day),
+          startDate: row.start_date ?? null,
+          endDate: row.end_date ?? null,
+          startAt: row.start_at ?? null,
+          endAt: row.end_at ?? null,
+          timezone: row.timezone,
+          isArchived: Boolean(row.is_archived),
+          securityScope: (row.security_scope === 'vault'
+            ? 'vault'
+            : 'standard') as CalendarEventRecord['securityScope'],
+          serverRevision: row.server_revision,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          deletedAt: row.deleted_at ?? null,
+        })
+      );
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async upsertCalendarEvent(event: CalendarEventRecord): Promise<void> {
+    const valid = validateCalendarEventRecord(event);
+    this.ensureNamespace(valid.workspaceId);
+    return this.runWithLock(async () => {
+      try {
+        await this.upsertCalendarEventDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async deleteCalendarEvent(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(
+          `DELETE FROM calendar_events WHERE workspace_id = ? AND id = ?;`,
+          workspaceId,
+          id
+        );
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
   // --- 11. Boundary Lifecycle & Data Erasure ---
 
   async clearWorkspaceData(workspaceId: string): Promise<void> {
@@ -3025,6 +3315,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM routine_occurrences WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM journal_entries WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM files WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM calendar_events WHERE workspace_id = ?;`, workspaceId);
         });
       } catch (err) {
         throw this.mapError(err);
@@ -3052,6 +3343,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM routine_occurrences;`);
           await db.runAsync(`DELETE FROM journal_entries;`);
           await db.runAsync(`DELETE FROM files;`);
+          await db.runAsync(`DELETE FROM calendar_events;`);
         });
 
         // Clear all keys from KeyStore

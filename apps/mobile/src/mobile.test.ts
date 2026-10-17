@@ -202,6 +202,69 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       expect(activeSubView).toBe('routines');
     });
 
+    it('interactively navigates agenda, day, and month views and creates personal events in PlanView', async () => {
+      let renderer!: ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(PlanView, {
+            themeMode: 'dark',
+            initialSubView: 'calendar',
+          })
+        );
+      });
+
+      // 1. Verify calendar subview is rendered
+      const calendarSubView = renderer.root.findByProps({ testID: 'plan-calendar-subview' });
+      expect(calendarSubView).toBeDefined();
+
+      // 2. Switch between view modes: Day and Month
+      const dayTab = renderer.root.findByProps({ testID: 'plan-calendar-view-day' });
+      act(() => {
+        dayTab.props.onPress();
+      });
+
+      const monthTab = renderer.root.findByProps({ testID: 'plan-calendar-view-month' });
+      act(() => {
+        monthTab.props.onPress();
+      });
+
+      const agendaTab = renderer.root.findByProps({ testID: 'plan-calendar-view-agenda' });
+      act(() => {
+        agendaTab.props.onPress();
+      });
+
+      // 3. Toggle filter chips
+      const taskFilterChip = renderer.root.findByProps({ testID: 'plan-calendar-filter-tasks' });
+      act(() => {
+        taskFilterChip.props.onPress();
+      });
+
+      // 4. Open Add Event Sheet
+      const addEventBtn = renderer.root.findByProps({ testID: 'plan-calendar-add-event-btn' });
+      act(() => {
+        addEventBtn.props.onPress();
+      });
+
+      const eventModal = renderer.root.findByProps({ testID: 'plan-calendar-event-modal' });
+      expect(eventModal.props.visible).toBe(true);
+
+      // 5. Fill in title and save event
+      const titleInput = renderer.root.findByProps({ testID: 'plan-event-title-input' });
+      act(() => {
+        titleInput.props.onChangeText('Sprint Planning Ceremony');
+      });
+
+      const saveEventBtn = renderer.root.findByProps({ testID: 'plan-event-save-btn' });
+      await act(async () => {
+        await saveEventBtn.props.onPress();
+      });
+
+      // Verify event appears in agenda
+      const treeStr = JSON.stringify(renderer.toJSON());
+      expect(treeStr).toContain('Sprint Planning Ceremony');
+    });
+
     it('interactively creates tasks, toggles completion, and supports undo in PlanView', () => {
       let renderer!: ReactTestRenderer;
 

@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-17",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 25 files, folders, and safe previews provisional implementation delivered and verified across pure domain, UI components, Web and Mobile applications, DaynoriApiClient, and comprehensive integration journeys. Next eligible phase is Phase 26 (Cloud sync protocol and engine). Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, and 25 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 25 (Files, folders, and safe previews) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 26 calendar and deadline views provisional implementation delivered and verified across pure domain, API contracts and routes, Web and Mobile applications, DaynoriApiClient, and comprehensive integration journeys. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, and 26 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 26 (Calendar and deadline views) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -158,7 +158,9 @@
     },
     {
       "id": "26",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional calendar and deadline views, unified projection read models combining canonical tasks, routine occurrences, and personal events without duplicate task tables, personal event persistence and synchronization, interval validations, timezone/DST handling, locale week-start preferences, and accessible agenda/day/month views for web and mobile delivered under owner authorization and verified across Vitest pure domain, Web PlanCalendarPage, Mobile PlanView, IndexedDB/SQLite adapters, and 15 end-to-end integration tests. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-26.md"
     },
     {
       "id": "27",

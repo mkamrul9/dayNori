@@ -685,3 +685,51 @@ export function validateFileRecord(input: unknown): FileRecord {
     verifiedAt: r.verifiedAt ? String(r.verifiedAt) : null,
   };
 }
+
+export interface CalendarEventRecord {
+  id: string;
+  workspaceId: string;
+  folderId: string | null;
+  title: string;
+  details: string | null;
+  allDay: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  timezone: string;
+  isArchived: boolean;
+  securityScope: 'standard' | 'vault';
+  serverRevision: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export function validateCalendarEventRecord(input: unknown): CalendarEventRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: CalendarEventRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+  const securityScope = r.securityScope === 'vault' ? 'vault' : 'standard';
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    folderId: r.folderId !== null && r.folderId !== undefined ? String(r.folderId) : null,
+    title: assertNonEmptyString(r.title, 'title', 255),
+    details: typeof r.details === 'string' ? r.details.slice(0, 10000) : null,
+    allDay: Boolean(r.allDay),
+    startDate: typeof r.startDate === 'string' ? r.startDate.slice(0, 10) : null,
+    endDate: typeof r.endDate === 'string' ? r.endDate.slice(0, 10) : null,
+    startAt: typeof r.startAt === 'string' ? r.startAt : null,
+    endAt: typeof r.endAt === 'string' ? r.endAt : null,
+    timezone: typeof r.timezone === 'string' && r.timezone.length > 0 ? r.timezone : 'UTC',
+    isArchived: Boolean(r.isArchived),
+    securityScope,
+    serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
+    createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
+    updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
+    deletedAt: r.deletedAt ? String(r.deletedAt) : null,
+  };
+}

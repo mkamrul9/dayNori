@@ -1343,4 +1343,242 @@ describe('Domain Rules and Invariants', () => {
       expect(parseOfflineBinaryCacheKey('acc:ws:file:notnumber')).toBeNull();
     });
   });
+
+  describe('Calendar Domain & Deadline Projections (Phase 26)', () => {
+    it('validates calendar event title (Unicode, Bangla, whitespace rejection, length limit)', async () => {
+      const { validateCalendarEventTitle } = await import('./calendar.js');
+
+      expect(validateCalendarEventTitle('Architecture Sync')).toBe('Architecture Sync');
+      expect(validateCalendarEventTitle('  দাপ্তরিক পর্যালোচনা  ')).toBe('দাপ্তরিক পর্যালোচনা');
+      expect(() => validateCalendarEventTitle('')).toThrowError(/EVENT_TITLE_REQUIRED/);
+      expect(() => validateCalendarEventTitle('   ')).toThrowError(/EVENT_TITLE_REQUIRED/);
+      expect(() => validateCalendarEventTitle('a'.repeat(256))).toThrowError(
+        /EVENT_TITLE_TOO_LONG/
+      );
+    });
+
+    it('enforces all-day event interval invariants with exclusive endDate strictly after startDate', async () => {
+      const { validateCalendarEventInterval, getDaysCoveredByAllDayEvent } =
+        await import('./calendar.js');
+
+      // Valid 1-day all-day event: starts 2026-10-15, exclusive end 2026-10-16
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'All Day Workshop',
+          allDay: true,
+          startDate: '2026-10-15',
+          endDate: '2026-10-16',
+          timezone: 'Asia/Dhaka',
+        })
+      ).not.toThrow();
+
+      const days1 = getDaysCoveredByAllDayEvent('2026-10-15', '2026-10-16');
+      expect(days1).toEqual(['2026-10-15']);
+
+      // Valid 3-day all-day event: starts 2026-10-15, exclusive end 2026-10-18
+      const days3 = getDaysCoveredByAllDayEvent('2026-10-15', '2026-10-18');
+      expect(days3).toEqual(['2026-10-15', '2026-10-16', '2026-10-17']);
+
+      // Reject non-exclusive or backwards end date
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid Event',
+          allDay: true,
+          startDate: '2026-10-15',
+          endDate: '2026-10-15',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid Backwards',
+          allDay: true,
+          startDate: '2026-10-15',
+          endDate: '2026-10-14',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      // Reject invalid calendar date format
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid Date',
+          allDay: true,
+          startDate: '2026-02-29', // 2026 not leap
+          endDate: '2026-03-01',
+        })
+      ).toThrowError(/INVALID_START_DATE/);
+    });
+
+    it('enforces timed event interval invariants with endAt strictly after startAt', async () => {
+      const { validateCalendarEventInterval } = await import('./calendar.js');
+
+      // Valid timed event
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Sprint Planning',
+          allDay: false,
+          startAt: '2026-10-15T09:00:00Z',
+          endAt: '2026-10-15T10:00:00Z',
+          timezone: 'America/New_York',
+        })
+      ).not.toThrow();
+
+      // Reject identical or backwards times
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Zero Duration',
+          allDay: false,
+          startAt: '2026-10-15T10:00:00Z',
+          endAt: '2026-10-15T10:00:00Z',
+          timezone: 'UTC',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Backwards Time',
+          allDay: false,
+          startAt: '2026-10-15T10:00:00Z',
+          endAt: '2026-10-15T09:00:00Z',
+          timezone: 'UTC',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      // Reject invalid timezone
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid TZ',
+          allDay: false,
+          startAt: '2026-10-15T09:00:00Z',
+          endAt: '2026-10-15T10:00:00Z',
+          timezone: 'Invalid/City_Time',
+        })
+      ).toThrowError(/INVALID_TIMEZONE/);
+    });
+
+    it('builds calendar read model combining tasks, routines, and events without duplicating task tables', async () => {
+      const { buildCalendarReadModel } = await import('./calendar.js');
+
+      const readModel = buildCalendarReadModel({
+        startDate: '2026-10-14',
+        endDate: '2026-10-16',
+        timezone: 'UTC',
+        tasks: [
+          {
+            id: 'task-1',
+            workspaceId: 'ws-1',
+            folderId: null,
+            title: 'Prepare budget proposal',
+            priority: 'high',
+            status: 'todo',
+            deadline: { type: 'date', date: '2026-10-15' },
+          },
+        ],
+        routines: [{ id: 'rt-1', title: 'Morning Review', timezone: 'UTC' }],
+        routineOccurrences: [
+          {
+            id: 'occ-1',
+            routineId: 'rt-1',
+            workspaceId: 'ws-1',
+            scheduledDate: '2026-10-15',
+            plannedInstant: '2026-10-15T08:00:00Z',
+            timezone: 'UTC',
+            status: 'pending',
+          },
+        ],
+        events: [
+          {
+            id: 'evt-1',
+            workspaceId: 'ws-1',
+            folderId: null,
+            title: 'Customer Advisory Board',
+            details: 'Q4 roadmap preview',
+            allDay: true,
+            startDate: '2026-10-15',
+            endDate: '2026-10-16',
+            startAt: null,
+            endAt: null,
+            timezone: 'UTC',
+            isArchived: false,
+            securityScope: 'standard',
+            revision: 1,
+            createdAt: '2026-10-01T00:00:00Z',
+            updatedAt: '2026-10-01T00:00:00Z',
+            deletedAt: null,
+          },
+        ],
+        journalDates: [{ date: '2026-10-15', count: 2 }],
+      });
+
+      expect(readModel.items).toHaveLength(3);
+
+      const taskItem = readModel.items.find((i) => i.sourceType === 'task_deadline');
+      expect(taskItem).toBeDefined();
+      expect(taskItem?.title).toBe('Prepare budget proposal');
+      expect(taskItem?.id).toBe('task-task-1');
+
+      const routineItem = readModel.items.find((i) => i.sourceType === 'routine_occurrence');
+      expect(routineItem).toBeDefined();
+      expect(routineItem?.id).toBe('routine-occ-occ-1');
+
+      const eventItem = readModel.items.find((i) => i.sourceType === 'calendar_event');
+      expect(eventItem).toBeDefined();
+      expect(eventItem?.title).toBe('Customer Advisory Board');
+
+      // Journal indicator has count and date ONLY — no bodies or prompts
+      expect(readModel.journalIndicators['2026-10-15']).toEqual({
+        date: '2026-10-15',
+        hasEntry: true,
+        count: 2,
+      });
+      expect(
+        (readModel.journalIndicators['2026-10-15'] as unknown as Record<string, unknown>).body
+      ).toBeUndefined();
+      expect(
+        (readModel.journalIndicators['2026-10-15'] as unknown as Record<string, unknown>).prompts
+      ).toBeUndefined();
+    });
+
+    it('generates accessible month grid honoring Monday, Sunday, and Saturday week-start preferences', async () => {
+      const { buildMonthGrid } = await import('./calendar.js');
+
+      // October 2026 starts on Thursday (2026-10-01)
+      // 1. Monday week start (default ISO): Oct 1 is 4th day of the week, so 3 leading days from Sept
+      const gridMon = buildMonthGrid({
+        year: 2026,
+        month: 10,
+        weekStart: 1,
+        todayDate: '2026-10-15',
+        items: [],
+      });
+
+      expect(gridMon.length).toBeGreaterThanOrEqual(5);
+      // First cell of first week is Sept 28, 2026
+      expect(gridMon[0]?.cells[0]?.date).toBe('2026-09-28');
+      expect(gridMon[0]?.cells[0]?.isCurrentMonth).toBe(false);
+
+      // 2. Sunday week start: Oct 1 is 5th day of the week (Sun=1, Mon=2, Tue=3, Wed=4, Thu=5), so 4 leading days
+      const gridSun = buildMonthGrid({
+        year: 2026,
+        month: 10,
+        weekStart: 7,
+        todayDate: '2026-10-15',
+        items: [],
+      });
+      // First cell of first week is Sept 27, 2026 (Sunday)
+      expect(gridSun[0]?.cells[0]?.date).toBe('2026-09-27');
+      expect(gridSun[0]?.cells[0]?.isCurrentMonth).toBe(false);
+
+      // 3. Saturday week start: (Middle East regional)
+      const gridSat = buildMonthGrid({
+        year: 2026,
+        month: 10,
+        weekStart: 6,
+        todayDate: '2026-10-15',
+        items: [],
+      });
+      // First cell of first week is Sept 26, 2026 (Saturday)
+      expect(gridSat[0]?.cells[0]?.date).toBe('2026-09-26');
+    });
+  });
 });

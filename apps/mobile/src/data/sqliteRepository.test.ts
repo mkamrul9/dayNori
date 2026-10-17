@@ -15,6 +15,7 @@ import {
   type SyncCursorRecord,
   type PreferenceSnapshotRecord,
   type JournalEntryRecord,
+  type CalendarEventRecord,
 } from '@daynori/sync';
 
 /**
@@ -250,12 +251,12 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
       await repo.initialize({ userId: user1, workspaceId: ws1 });
 
       const version = await repo.getCurrentSchemaVersion();
-      expect(version).toBe(8);
+      expect(version).toBe(9);
 
       // Re-running initialization should not fail or duplicate migrations
       await repo.initialize({ userId: user1, workspaceId: ws1 });
       const versionAfter = await repo.getCurrentSchemaVersion();
-      expect(versionAfter).toBe(8);
+      expect(versionAfter).toBe(9);
 
       await repo.close();
     });
@@ -829,6 +830,78 @@ describe('Mobile SQLite Repository & Key Lifecycle (Node.js Contract Tests)', ()
       await repo.deleteJournalEntry(ws1, 'journal-mob-001');
       const afterDelete = await repo.getJournalEntry(ws1, 'journal-mob-001');
       expect(afterDelete).toBeNull();
+
+      await repo.close();
+    });
+  });
+
+  describe('Calendar Event Operations', () => {
+    it('persists, queries, and deletes calendar events with date and timestamp filtering', async () => {
+      const repo = createRepo();
+      await repo.initialize({ userId: user1, workspaceId: ws1 });
+
+      const event1: CalendarEventRecord = {
+        id: 'cal-mob-001',
+        workspaceId: ws1,
+        folderId: null,
+        title: 'Team Sprint Planning',
+        details: 'Bi-weekly backlog refinement and sprint planning',
+        allDay: false,
+        startDate: null,
+        endDate: null,
+        startAt: '2026-10-20T10:00:00.000Z',
+        endAt: '2026-10-20T11:30:00.000Z',
+        timezone: 'UTC',
+        isArchived: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        createdAt: '2026-10-17T06:00:00.000Z',
+        updatedAt: '2026-10-17T06:00:00.000Z',
+        deletedAt: null,
+      };
+
+      const event2: CalendarEventRecord = {
+        id: 'cal-mob-002',
+        workspaceId: ws1,
+        folderId: null,
+        title: 'Annual Company Retreat',
+        details: null,
+        allDay: true,
+        startDate: '2026-10-25',
+        endDate: '2026-10-28',
+        startAt: null,
+        endAt: null,
+        timezone: 'UTC',
+        isArchived: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        createdAt: '2026-10-17T06:00:00.000Z',
+        updatedAt: '2026-10-17T06:00:00.000Z',
+        deletedAt: null,
+      };
+
+      await repo.upsertCalendarEvent(event1);
+      await repo.upsertCalendarEvent(event2);
+
+      // Verify single fetch
+      const fetched = await repo.getCalendarEvent(ws1, 'cal-mob-001');
+      expect(fetched).not.toBeNull();
+      expect(fetched?.title).toBe('Team Sprint Planning');
+      expect(fetched?.allDay).toBe(false);
+      expect(fetched?.startAt).toBe('2026-10-20T10:00:00.000Z');
+
+      // Verify list all
+      const allEvents = await repo.listCalendarEvents(ws1);
+      expect(allEvents.length).toBe(2);
+
+      // Verify delete
+      await repo.deleteCalendarEvent(ws1, 'cal-mob-001');
+      const afterDelete = await repo.getCalendarEvent(ws1, 'cal-mob-001');
+      expect(afterDelete).toBeNull();
+
+      const remainingEvents = await repo.listCalendarEvents(ws1);
+      expect(remainingEvents.length).toBe(1);
+      expect(remainingEvents[0]?.id).toBe('cal-mob-002');
 
       await repo.close();
     });

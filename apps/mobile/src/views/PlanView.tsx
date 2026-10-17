@@ -13,6 +13,10 @@ import type {
   LocalRepositoryPort,
   SyncEngine,
   TaskRecord,
+  CalendarEventRecord,
+  RoutineRecord,
+  RoutineOccurrenceRecord,
+  JournalEntryRecord,
   PendingMutationRecord,
   ItemHeaderRecord,
 } from '@daynori/sync';
@@ -26,9 +30,15 @@ import {
   getCalendarDateTimeParts,
   checkLocalTimeDisambiguation,
   isValidCalendarDateString,
+  buildMonthGrid,
+  getItemsForDate,
+  buildCalendarReadModel,
+  validateCalendarEventTitle,
+  validateCalendarEventInterval,
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
+  type CalendarItem,
 } from '@daynori/domain';
 
 export type MobileTaskFilter = 'all' | 'today' | 'upcoming' | 'overdue' | 'completed' | 'undated';
@@ -39,6 +49,7 @@ export interface PlanViewProps {
   onSubViewChange?: (subView: PlanSubView) => void;
   testID?: string;
   initialTasks?: TaskRecord[];
+  initialEvents?: CalendarEventRecord[];
   workspaceId?: string | null;
   userId?: string | null;
   repository?: LocalRepositoryPort;
@@ -121,12 +132,59 @@ export const SAMPLE_MOBILE_TASKS: TaskRecord[] = [
   },
 ];
 
+export function getItemTitle(item: CalendarItem): string {
+  if (item.sourceType === 'routine_occurrence') return item.routineTitle;
+  return item.title;
+}
+
+export const SAMPLE_MOBILE_EVENTS: CalendarEventRecord[] = [
+  {
+    id: 'e1',
+    workspaceId: 'ws-sample',
+    folderId: null,
+    title: 'Engineering Handoff Review',
+    details: 'Verify platform adapter boundaries and sync invariant compliance',
+    allDay: false,
+    startDate: null,
+    endDate: null,
+    startAt: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
+    endAt: new Date(Date.now() + 3 * 3600 * 1000).toISOString(),
+    timezone: 'UTC',
+    isArchived: false,
+    securityScope: 'standard',
+    serverRevision: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    deletedAt: null,
+  },
+  {
+    id: 'e2',
+    workspaceId: 'ws-sample',
+    folderId: null,
+    title: 'Accessible Primitives Walkthrough',
+    details: 'Walkthrough mobile touch targets and accessibility announcements',
+    allDay: false,
+    startDate: null,
+    endDate: null,
+    startAt: new Date(Date.now() + 5 * 3600 * 1000).toISOString(),
+    endAt: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
+    timezone: 'UTC',
+    isArchived: false,
+    securityScope: 'standard',
+    serverRevision: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    deletedAt: null,
+  },
+];
+
 export const PlanView: React.FC<PlanViewProps> = ({
   themeMode,
   initialSubView = 'tasks',
   onSubViewChange,
   testID = 'plan-view',
   initialTasks,
+  initialEvents,
   workspaceId,
   userId,
   repository,
@@ -143,6 +201,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const isDemoOrTest =
     isDemo ||
     Boolean(initialTasks) ||
+    Boolean(initialEvents) ||
     (typeof process !== 'undefined' && process.env.NODE_ENV === 'test' && !repository);
 
   // Tasks state
@@ -151,6 +210,40 @@ export const PlanView: React.FC<PlanViewProps> = ({
     if (isDemoOrTest) return SAMPLE_MOBILE_TASKS;
     return [];
   });
+
+  // Calendar & Projection State
+  const [personalEvents, setPersonalEvents] = useState<CalendarEventRecord[]>(() => {
+    if (initialEvents) return initialEvents;
+    if (isDemoOrTest) return SAMPLE_MOBILE_EVENTS;
+    return [];
+  });
+  const [routineRecords, setRoutineRecords] = useState<RoutineRecord[]>([]);
+  const [routineOccurrences, setRoutineOccurrences] = useState<RoutineOccurrenceRecord[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntryRecord[]>([]);
+
+  const [calendarViewMode, setCalendarViewMode] = useState<'agenda' | 'day' | 'month'>('agenda');
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(() =>
+    getCalendarDateInTimezone(new Date(), userTimezone)
+  );
+  const [calendarMonthDate, setCalendarMonthDate] = useState(() => new Date());
+  const [weekStartPreference, setWeekStartPreference] = useState<1 | 6 | 7>(1); // 1 = Mon, 7 = Sun, 6 = Sat
+  const [filterIncludeTasks, setFilterIncludeTasks] = useState(true);
+  const [filterIncludeRoutines, setFilterIncludeRoutines] = useState(true);
+  const [filterIncludeEvents, setFilterIncludeEvents] = useState(true);
+
+  // Add Calendar Event Sheet State
+  const [isEventSheetOpen, setIsEventSheetOpen] = useState(false);
+  const [eventSheetTitle, setEventSheetTitle] = useState('');
+  const [eventSheetDescription, setEventSheetDescription] = useState('');
+  const [eventSheetLocation, setEventSheetLocation] = useState('');
+  const [eventSheetAllDay, setEventSheetAllDay] = useState(true);
+  const [eventSheetStartDate, setEventSheetStartDate] = useState(calendarSelectedDate);
+  const [eventSheetEndDate, setEventSheetEndDate] = useState(() =>
+    addCalendarDays(calendarSelectedDate, 1)
+  );
+  const [eventSheetStartAtTime, setEventSheetStartAtTime] = useState('09:00');
+  const [eventSheetEndAtTime, setEventSheetEndAtTime] = useState('10:00');
+  const [eventSheetError, setEventSheetError] = useState<string | null>(null);
 
   // Quick Capture State
   const [quickTitle, setQuickTitle] = useState('');
@@ -193,23 +286,36 @@ export const PlanView: React.FC<PlanViewProps> = ({
     if (!repository || !workspaceId) return;
     let isCancelled = false;
 
-    // Load initial tasks from local durable storage
-    void repository.listTasks(workspaceId).then((loaded) => {
-      if (!isCancelled && loaded) {
-        setTasks(loaded.filter((t) => t.deletedAt === null));
+    const reloadData = async () => {
+      try {
+        const [loadedTasks, loadedEvents, loadedRoutines, loadedOccurrences, loadedJournals] =
+          await Promise.all([
+            repository.listTasks(workspaceId),
+            repository.listCalendarEvents(workspaceId),
+            repository.listRoutines(workspaceId),
+            repository.listRoutineOccurrences(workspaceId),
+            repository.listJournalEntries(workspaceId),
+          ]);
+        if (!isCancelled) {
+          if (loadedTasks) setTasks(loadedTasks.filter((t) => t.deletedAt === null));
+          if (loadedEvents) setPersonalEvents(loadedEvents.filter((e) => e.deletedAt === null));
+          if (loadedRoutines) setRoutineRecords(loadedRoutines.filter((r) => r.deletedAt === null));
+          if (loadedOccurrences) setRoutineOccurrences(loadedOccurrences);
+          if (loadedJournals) setJournalEntries(loadedJournals.filter((j) => j.deletedAt === null));
+        }
+      } catch {
+        // Safe degrade on uninitialized or transient store state
       }
-    });
+    };
+
+    void reloadData();
 
     // Subscribe to durable sync events
     if (syncEngine) {
       const unsub = syncEngine.onEvent((evt) => {
         if (isCancelled) return;
         if (evt.type === 'sync_completed' || evt.type === 'conflict_resolved') {
-          void repository.listTasks(workspaceId).then((loaded) => {
-            if (!isCancelled && loaded) {
-              setTasks(loaded.filter((t) => t.deletedAt === null));
-            }
-          });
+          void reloadData();
         }
       });
       return () => {
@@ -250,21 +356,207 @@ export const PlanView: React.FC<PlanViewProps> = ({
     },
   ];
 
-  const calendarEvents = [
-    { id: 'e1', time: '10:00 AM – 10:30 AM', title: 'Engineering Handoff Review', type: 'Event' },
-    {
-      id: 'e2',
-      time: '2:00 PM – 3:00 PM',
-      title: 'Accessible Primitives Walkthrough',
-      type: 'Event',
-    },
-    {
-      id: 'e3',
-      time: '4:00 PM',
-      title: 'Review quarterly architecture plan',
-      type: 'Task Projection',
-    },
-  ];
+  // Transactional persistence helper for personal calendar events
+  const persistEventChange = async (
+    action: 'create' | 'update' | 'delete',
+    command: 'createCalendarEvent' | 'updateCalendarEvent' | 'deleteCalendarEvent',
+    event: CalendarEventRecord,
+    payload: Record<string, unknown>
+  ): Promise<boolean> => {
+    const activeWorkspace = workspaceId || (isDemoOrTest ? 'ws-sample' : null);
+    const activeUser = userId || (isDemoOrTest ? 'usr-sample' : null);
+
+    if (!activeWorkspace || !activeUser) return false;
+
+    const nowIso = new Date().toISOString();
+    const itemHeader: ItemHeaderRecord = {
+      id: event.id,
+      workspaceId: activeWorkspace,
+      folderId: event.folderId,
+      name: event.title,
+      kind: 'calendar_event',
+      rank: '00001000',
+      securityScope: 'standard',
+      isArchived: false,
+      isPinned: false,
+      serverRevision: event.serverRevision,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+      deletedAt: event.deletedAt,
+    };
+
+    if (syncEngine) {
+      try {
+        await syncEngine.saveItem(itemHeader, undefined, command, { payload });
+        return true;
+      } catch {
+        return false;
+      }
+    } else if (repository) {
+      try {
+        const mutation: PendingMutationRecord = {
+          operationId: `op-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          deviceId: 'mobile-local',
+          workspaceId: activeWorkspace,
+          userId: activeUser,
+          entityType: 'calendar_event',
+          entityId: event.id,
+          action,
+          command,
+          baseRevision: event.serverRevision,
+          payload,
+          dependencyOperationIds: [],
+          clientTimestamp: nowIso,
+          retryCount: 0,
+          status: 'pending',
+          lastError: null,
+        };
+        await repository.saveItemTransaction(
+          itemHeader,
+          mutation,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          event
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return true; // memory fallback for standalone test rendering
+  };
+
+  const handleSaveEvent = async () => {
+    setEventSheetError(null);
+    let trimmedTitle = '';
+    try {
+      trimmedTitle = validateCalendarEventTitle(eventSheetTitle);
+      validateCalendarEventInterval({
+        title: trimmedTitle,
+        allDay: eventSheetAllDay,
+        startDate: eventSheetAllDay ? eventSheetStartDate : null,
+        endDate: eventSheetAllDay ? eventSheetEndDate : null,
+        startAt: !eventSheetAllDay
+          ? `${eventSheetStartDate}T${eventSheetStartAtTime}:00.000Z`
+          : null,
+        endAt: !eventSheetAllDay ? `${eventSheetStartDate}T${eventSheetEndAtTime}:00.000Z` : null,
+        timezone: userTimezone,
+      });
+    } catch (err: unknown) {
+      setEventSheetError(err instanceof Error ? err.message : String(err));
+      return;
+    }
+
+    const activeWorkspace = workspaceId || (isDemoOrTest ? 'ws-sample' : null);
+    const newId = `evt-${Date.now()}`;
+    const nowIso = new Date().toISOString();
+
+    const newEvent: CalendarEventRecord = {
+      id: newId,
+      workspaceId: activeWorkspace || 'ws-sample',
+      folderId: null,
+      title: trimmedTitle,
+      details: eventSheetDescription.trim() || null,
+      allDay: eventSheetAllDay,
+      startDate: eventSheetAllDay ? eventSheetStartDate : null,
+      endDate: eventSheetAllDay ? eventSheetEndDate : null,
+      startAt: !eventSheetAllDay ? `${eventSheetStartDate}T${eventSheetStartAtTime}:00.000Z` : null,
+      endAt: !eventSheetAllDay ? `${eventSheetStartDate}T${eventSheetEndAtTime}:00.000Z` : null,
+      timezone: userTimezone,
+      isArchived: false,
+      securityScope: 'standard',
+      serverRevision: 1,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      deletedAt: null,
+    };
+
+    const success = await persistEventChange('create', 'createCalendarEvent', newEvent, {
+      ...newEvent,
+    });
+
+    if (success) {
+      setPersonalEvents((prev) => [newEvent, ...prev]);
+      setIsEventSheetOpen(false);
+      setEventSheetTitle('');
+      setEventSheetDescription('');
+      setEventSheetLocation('');
+    } else {
+      setEventSheetError('Failed to persist calendar event.');
+    }
+  };
+
+  // Build unified calendar projection read model
+  const calendarReadModel = useMemo(() => {
+    const y = calendarMonthDate.getFullYear();
+    const m = calendarMonthDate.getMonth() + 1;
+    const startRange = new Date(y, m - 2, 1).toISOString().slice(0, 10);
+    const endRange = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+
+    // Group journal entries by entryDate (privacy: entry count only)
+    const journalCounts = new Map<string, number>();
+    for (const j of journalEntries) {
+      if (j.entryDate) {
+        journalCounts.set(j.entryDate, (journalCounts.get(j.entryDate) || 0) + 1);
+      }
+    }
+    const journalDates = Array.from(journalCounts.entries()).map(([date, count]) => ({
+      date,
+      count,
+    }));
+
+    return buildCalendarReadModel({
+      startDate: startRange,
+      endDate: endRange,
+      timezone: userTimezone,
+      tasks: filterIncludeTasks ? tasks : [],
+      routines: filterIncludeRoutines
+        ? routineRecords.length > 0
+          ? routineRecords
+          : routines.map((r) => ({ id: r.id, title: r.title, timezone: userTimezone }))
+        : [],
+      routineOccurrences: filterIncludeRoutines ? routineOccurrences : [],
+      events: filterIncludeEvents
+        ? personalEvents.map((e) => ({
+            id: e.id,
+            workspaceId: e.workspaceId,
+            folderId: e.folderId,
+            title: e.title,
+            details: e.details,
+            allDay: e.allDay,
+            startDate: e.startDate,
+            endDate: e.endDate,
+            startAt: e.startAt,
+            endAt: e.endAt,
+            timezone: e.timezone,
+            isArchived: e.isArchived,
+            securityScope: e.securityScope,
+            revision: e.serverRevision,
+            createdAt: e.createdAt,
+            updatedAt: e.updatedAt,
+            deletedAt: e.deletedAt,
+          }))
+        : [],
+      journalDates,
+    });
+  }, [
+    calendarMonthDate,
+    userTimezone,
+    filterIncludeTasks,
+    tasks,
+    filterIncludeRoutines,
+    routineRecords,
+    routines,
+    routineOccurrences,
+    filterIncludeEvents,
+    personalEvents,
+    journalEntries,
+  ]);
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
@@ -1098,25 +1390,529 @@ export const PlanView: React.FC<PlanViewProps> = ({
       {/* Sub-view 3: Calendar */}
       {activeSubView === 'calendar' && (
         <View testID="plan-calendar-subview" style={styles.section}>
-          <Text style={[styles.sectionCaption, { color: palette.text.secondary }]}>
-            Chronological projection combining appointments and prioritized tasks.
-          </Text>
-          <MobileCard themeMode={themeMode}>
-            {calendarEvents.map((evt) => (
-              <MobileListRow
-                key={evt.id}
-                title={evt.title}
-                metadata={`${evt.time} • ${evt.type}`}
-                themeMode={themeMode}
-                onPress={() => {}}
-                accessibilityLabel={`${evt.title}, ${evt.time}, ${evt.type}`}
-              />
-            ))}
-          </MobileCard>
+          {/* Controls: View Mode Switcher and + Add Event */}
+          <View style={styles.calendarControlsRow}>
+            <View
+              style={[
+                styles.calendarModeSelector,
+                { backgroundColor: palette.surface, borderColor: palette.border.subtle },
+              ]}
+            >
+              {(['agenda', 'day', 'month'] as const).map((mode) => {
+                const active = calendarViewMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    testID={`plan-calendar-view-${mode}`}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Switch to ${mode} view`}
+                    onPress={() => setCalendarViewMode(mode)}
+                    style={[
+                      styles.calendarModeTab,
+                      { backgroundColor: active ? palette.action.primary : 'transparent' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.calendarModeTabText,
+                        {
+                          color: active ? palette.action.label : palette.text.primary,
+                          fontWeight: active ? '700' : '500',
+                        },
+                      ]}
+                    >
+                      {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable
+              testID="plan-calendar-add-event-btn"
+              accessibilityRole="button"
+              accessibilityLabel="Add new calendar event"
+              onPress={() => {
+                setEventSheetError(null);
+                setEventSheetStartDate(calendarSelectedDate);
+                try {
+                  setEventSheetEndDate(addCalendarDays(calendarSelectedDate, 1));
+                } catch {
+                  setEventSheetEndDate(calendarSelectedDate);
+                }
+                setIsEventSheetOpen(true);
+              }}
+              style={[styles.addEventBtn, { backgroundColor: palette.action.primary }]}
+            >
+              <Text style={[styles.addEventBtnText, { color: palette.action.label }]}>
+                + Add Event
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Source Filter Chips */}
+          <View style={styles.calendarFilterRow}>
+            <Pressable
+              testID="plan-calendar-filter-tasks"
+              accessibilityRole="button"
+              accessibilityState={{ selected: filterIncludeTasks }}
+              accessibilityLabel="Toggle task deadlines"
+              onPress={() => setFilterIncludeTasks((prev) => !prev)}
+              style={[
+                styles.calendarFilterChip,
+                {
+                  backgroundColor: filterIncludeTasks ? palette.action.primary : palette.surface,
+                  borderColor: palette.border.subtle,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.calendarFilterChipText,
+                  { color: filterIncludeTasks ? palette.action.label : palette.text.secondary },
+                ]}
+              >
+                ⏱ Tasks {filterIncludeTasks ? '✓' : ''}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              testID="plan-calendar-filter-routines"
+              accessibilityRole="button"
+              accessibilityState={{ selected: filterIncludeRoutines }}
+              accessibilityLabel="Toggle routine occurrences"
+              onPress={() => setFilterIncludeRoutines((prev) => !prev)}
+              style={[
+                styles.calendarFilterChip,
+                {
+                  backgroundColor: filterIncludeRoutines ? palette.action.primary : palette.surface,
+                  borderColor: palette.border.subtle,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.calendarFilterChipText,
+                  { color: filterIncludeRoutines ? palette.action.label : palette.text.secondary },
+                ]}
+              >
+                🔄 Routines {filterIncludeRoutines ? '✓' : ''}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              testID="plan-calendar-filter-events"
+              accessibilityRole="button"
+              accessibilityState={{ selected: filterIncludeEvents }}
+              accessibilityLabel="Toggle personal events"
+              onPress={() => setFilterIncludeEvents((prev) => !prev)}
+              style={[
+                styles.calendarFilterChip,
+                {
+                  backgroundColor: filterIncludeEvents ? palette.action.primary : palette.surface,
+                  borderColor: palette.border.subtle,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.calendarFilterChipText,
+                  { color: filterIncludeEvents ? palette.action.label : palette.text.secondary },
+                ]}
+              >
+                🗓 Events {filterIncludeEvents ? '✓' : ''}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Agenda Mode */}
+          {calendarViewMode === 'agenda' && (
+            <MobileCard themeMode={themeMode}>
+              {calendarReadModel.items.length === 0 ? (
+                <View style={styles.emptyTasksContainer}>
+                  <Text style={[styles.emptyTasksText, { color: palette.text.secondary }]}>
+                    No upcoming deadlines or calendar events found.
+                  </Text>
+                </View>
+              ) : (
+                calendarReadModel.items.map((item) => {
+                  let timeLabel = '';
+                  let badgeLabel = '';
+                  let badgeBg: string = palette.action.subtle;
+                  let badgeColor: string = palette.text.primary;
+
+                  if (item.sourceType === 'calendar_event') {
+                    badgeLabel = '🗓 Event';
+                    timeLabel = item.allDay
+                      ? `All-day (${item.startDate})`
+                      : item.startAt && item.endAt
+                        ? `${item.startAt.slice(11, 16)} – ${item.endAt.slice(11, 16)}`
+                        : item.startDate;
+                  } else if (item.sourceType === 'task_deadline') {
+                    badgeLabel = item.isOverdue ? '⚠️ Overdue Task' : '⏱ Task';
+                    badgeBg = item.isOverdue ? '#fee2e2' : '#fef3c7';
+                    badgeColor = item.isOverdue ? '#991b1b' : '#92400e';
+                    timeLabel = item.deadlineTime
+                      ? item.deadlineTime.slice(11, 16)
+                      : item.deadlineDate;
+                  } else {
+                    badgeLabel = item.status === 'done' ? '✓ Routine Done' : '🔄 Routine';
+                    timeLabel = item.scheduledDate;
+                  }
+
+                  return (
+                    <View key={item.id} style={styles.calendarItemRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.taskTitle, { color: palette.text.primary }]}>
+                          {getItemTitle(item)}
+                        </Text>
+                        <Text style={[styles.calendarItemTime, { color: palette.text.secondary }]}>
+                          {timeLabel}
+                        </Text>
+                      </View>
+                      <View style={[styles.calendarItemTypeBadge, { backgroundColor: badgeBg }]}>
+                        <Text style={[styles.calendarItemTypeBadgeText, { color: badgeColor }]}>
+                          {badgeLabel}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </MobileCard>
+          )}
+
+          {/* Day Mode */}
+          {calendarViewMode === 'day' && (
+            <View style={{ gap: spacing.sm }}>
+              <View style={styles.monthHeaderRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous day"
+                  onPress={() => setCalendarSelectedDate((prev) => addCalendarDays(prev, -1))}
+                  style={[
+                    styles.monthNavBtn,
+                    { backgroundColor: palette.surface, borderColor: palette.border.subtle },
+                  ]}
+                >
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>←</Text>
+                </Pressable>
+                <Text style={[styles.monthTitleText, { color: palette.text.primary }]}>
+                  {calendarSelectedDate}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Next day"
+                  onPress={() => setCalendarSelectedDate((prev) => addCalendarDays(prev, 1))}
+                  style={[
+                    styles.monthNavBtn,
+                    { backgroundColor: palette.surface, borderColor: palette.border.subtle },
+                  ]}
+                >
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>→</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Jump to today"
+                  onPress={() =>
+                    setCalendarSelectedDate(getCalendarDateInTimezone(new Date(), userTimezone))
+                  }
+                  style={[
+                    styles.monthNavBtn,
+                    { backgroundColor: palette.action.primary, paddingHorizontal: 12 },
+                  ]}
+                >
+                  <Text style={[styles.monthNavBtnText, { color: palette.action.label }]}>
+                    Today
+                  </Text>
+                </Pressable>
+              </View>
+
+              <MobileCard themeMode={themeMode}>
+                {(() => {
+                  const dayItems = getItemsForDate(
+                    calendarReadModel.items,
+                    calendarSelectedDate,
+                    userTimezone
+                  );
+                  const journalInd = calendarReadModel.journalIndicators[calendarSelectedDate];
+
+                  return (
+                    <View style={{ gap: spacing.sm }}>
+                      {journalInd && (
+                        <View
+                          style={{
+                            padding: spacing.xs,
+                            backgroundColor: palette.action.subtle,
+                            borderRadius: radii.sm,
+                            marginBottom: spacing.xs,
+                          }}
+                        >
+                          <Text style={{ fontSize: 12, color: palette.text.primary }}>
+                            📓 Journal: {journalInd.count}{' '}
+                            {journalInd.count === 1 ? 'entry' : 'entries'} on this date (private)
+                          </Text>
+                        </View>
+                      )}
+                      {dayItems.length === 0 ? (
+                        <View style={styles.emptyTasksContainer}>
+                          <Text style={[styles.emptyTasksText, { color: palette.text.secondary }]}>
+                            No items scheduled for this date.
+                          </Text>
+                        </View>
+                      ) : (
+                        dayItems.map((item) => (
+                          <View key={item.id} style={styles.calendarItemRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.taskTitle, { color: palette.text.primary }]}>
+                                {getItemTitle(item)}
+                              </Text>
+                              <Text
+                                style={[styles.calendarItemTime, { color: palette.text.secondary }]}
+                              >
+                                {item.sourceType === 'calendar_event' && item.allDay
+                                  ? 'All-day'
+                                  : item.sourceType === 'task_deadline' && item.deadlineTime
+                                    ? item.deadlineTime.slice(11, 16)
+                                    : 'Scheduled'}
+                              </Text>
+                            </View>
+                            <View
+                              style={[
+                                styles.calendarItemTypeBadge,
+                                { backgroundColor: palette.action.subtle },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.calendarItemTypeBadgeText,
+                                  { color: palette.text.primary },
+                                ]}
+                              >
+                                {item.sourceType === 'calendar_event'
+                                  ? '🗓 Event'
+                                  : item.sourceType === 'task_deadline'
+                                    ? '⏱ Task'
+                                    : '🔄 Routine'}
+                              </Text>
+                            </View>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  );
+                })()}
+              </MobileCard>
+            </View>
+          )}
+
+          {/* Month Mode */}
+          {calendarViewMode === 'month' && (
+            <View style={{ gap: spacing.sm }}>
+              <View style={styles.monthHeaderRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous month"
+                  onPress={() =>
+                    setCalendarMonthDate((prev) => {
+                      const d = new Date(prev);
+                      d.setMonth(d.getMonth() - 1);
+                      return d;
+                    })
+                  }
+                  style={[
+                    styles.monthNavBtn,
+                    { backgroundColor: palette.surface, borderColor: palette.border.subtle },
+                  ]}
+                >
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>←</Text>
+                </Pressable>
+                <Text style={[styles.monthTitleText, { color: palette.text.primary }]}>
+                  {calendarMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Next month"
+                  onPress={() =>
+                    setCalendarMonthDate((prev) => {
+                      const d = new Date(prev);
+                      d.setMonth(d.getMonth() + 1);
+                      return d;
+                    })
+                  }
+                  style={[
+                    styles.monthNavBtn,
+                    { backgroundColor: palette.surface, borderColor: palette.border.subtle },
+                  ]}
+                >
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>→</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Jump to today's month"
+                  onPress={() => {
+                    const today = new Date();
+                    setCalendarMonthDate(today);
+                    setCalendarSelectedDate(getCalendarDateInTimezone(today, userTimezone));
+                  }}
+                  style={[
+                    styles.monthNavBtn,
+                    { backgroundColor: palette.action.primary, paddingHorizontal: 12 },
+                  ]}
+                >
+                  <Text style={[styles.monthNavBtnText, { color: palette.action.label }]}>
+                    Today
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Week-start preference selector */}
+              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ fontSize: 11, color: palette.text.muted }}>Week starts:</Text>
+                {([1, 7, 6] as const).map((ws) => (
+                  <Pressable
+                    key={ws}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Set week start to ${ws === 1 ? 'Monday' : ws === 7 ? 'Sunday' : 'Saturday'}`}
+                    onPress={() => setWeekStartPreference(ws)}
+                    style={[
+                      styles.sheetPill,
+                      {
+                        backgroundColor:
+                          weekStartPreference === ws ? palette.action.primary : palette.surface,
+                        borderColor: palette.border.subtle,
+                        paddingVertical: 2,
+                        paddingHorizontal: 8,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetPillText,
+                        {
+                          color:
+                            weekStartPreference === ws
+                              ? palette.action.label
+                              : palette.text.primary,
+                        },
+                      ]}
+                    >
+                      {ws === 1 ? 'Mon' : ws === 7 ? 'Sun' : 'Sat'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Weekday Labels Header */}
+              <View style={styles.weekdayHeaderRow}>
+                {(weekStartPreference === 1
+                  ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                  : weekStartPreference === 7
+                    ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                    : ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+                ).map((dayName) => (
+                  <Text
+                    key={dayName}
+                    style={[styles.weekdayHeaderText, { color: palette.text.muted }]}
+                  >
+                    {dayName}
+                  </Text>
+                ))}
+              </View>
+
+              {/* Month Grid Weeks */}
+              <View style={{ gap: 2 }}>
+                {buildMonthGrid({
+                  year: calendarMonthDate.getFullYear(),
+                  month: calendarMonthDate.getMonth() + 1,
+                  weekStart: weekStartPreference,
+                  todayDate: getCalendarDateInTimezone(new Date(), userTimezone),
+                  items: calendarReadModel.items,
+                  journalIndicators: calendarReadModel.journalIndicators,
+                  viewingTimezone: userTimezone,
+                }).map((week, wIdx) => (
+                  <View key={`week-${wIdx}`} style={styles.monthGridRow}>
+                    {week.cells.map((cell) => {
+                      const isSelected = cell.date === calendarSelectedDate;
+                      const dayItems = cell.items;
+                      const hasJournal = Boolean(cell.journalIndicator?.hasEntry);
+
+                      return (
+                        <Pressable
+                          key={cell.date}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${cell.date}, ${dayItems.length} items`}
+                          onPress={() => {
+                            setCalendarSelectedDate(cell.date);
+                            setCalendarViewMode('day');
+                          }}
+                          style={[
+                            styles.monthDayCell,
+                            {
+                              backgroundColor: isSelected
+                                ? palette.action.primary
+                                : cell.isToday
+                                  ? palette.action.subtle
+                                  : palette.surface,
+                              borderColor: isSelected
+                                ? palette.action.primary
+                                : palette.border.subtle,
+                              opacity: cell.isCurrentMonth ? 1 : 0.4,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.monthDayNumber,
+                              {
+                                color: isSelected
+                                  ? palette.action.label
+                                  : cell.isToday
+                                    ? palette.action.primary
+                                    : palette.text.primary,
+                                fontWeight: cell.isToday || isSelected ? '700' : '400',
+                              },
+                            ]}
+                          >
+                            {cell.dayNumber}
+                          </Text>
+                          <View style={styles.monthDayDotsRow}>
+                            {dayItems.length > 0 && (
+                              <View
+                                style={[
+                                  styles.monthDayDot,
+                                  {
+                                    backgroundColor: isSelected
+                                      ? palette.action.label
+                                      : palette.action.primary,
+                                  },
+                                ]}
+                              />
+                            )}
+                            {hasJournal && (
+                              <View
+                                style={[
+                                  styles.journalIndicatorDot,
+                                  {
+                                    backgroundColor: isSelected ? palette.action.label : '#8b5cf6',
+                                  },
+                                ]}
+                              />
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
           <View style={styles.calendarNote}>
             <Text style={[styles.calendarNoteText, { color: palette.text.muted }]}>
-              Calendar appointments remain independent of local storage and do not overwrite task
-              state.
+              Calendar appointments remain independent of task records and do not mutate task state.
             </Text>
           </View>
         </View>
@@ -1312,6 +2108,156 @@ export const PlanView: React.FC<PlanViewProps> = ({
           </View>
         </MobileModalSheet>
       )}
+
+      {/* Calendar Add Event Modal Sheet */}
+      <MobileModalSheet
+        visible={isEventSheetOpen}
+        title="New Calendar Event"
+        themeMode={themeMode}
+        onClose={() => setIsEventSheetOpen(false)}
+        testID="plan-calendar-event-modal"
+      >
+        <View style={styles.sheetContent}>
+          {eventSheetError && (
+            <View
+              accessibilityRole="alert"
+              style={{
+                padding: spacing.sm,
+                backgroundColor: palette.status.dangerBg,
+                borderColor: palette.status.dangerBorder,
+                borderWidth: 1,
+                borderRadius: radii.sm,
+              }}
+            >
+              <Text style={{ color: palette.status.danger, fontSize: 13, fontWeight: '600' }}>
+                {eventSheetError}
+              </Text>
+            </View>
+          )}
+
+          <MobileTextField
+            label="Title *"
+            value={eventSheetTitle}
+            onChangeText={setEventSheetTitle}
+            placeholder="Event title"
+            themeMode={themeMode}
+            testID="plan-event-title-input"
+          />
+
+          <MobileTextField
+            label="Location"
+            value={eventSheetLocation}
+            onChangeText={setEventSheetLocation}
+            placeholder="Meeting room, link, or address"
+            themeMode={themeMode}
+            testID="plan-event-location-input"
+          />
+
+          <MobileTextField
+            label="Description"
+            value={eventSheetDescription}
+            onChangeText={setEventSheetDescription}
+            placeholder="Notes or agenda..."
+            themeMode={themeMode}
+            testID="plan-event-description-input"
+          />
+
+          {/* All Day Toggle */}
+          <View style={styles.sheetFieldGroup}>
+            <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Timing</Text>
+            <View style={styles.sheetPillRow}>
+              <Pressable
+                testID="plan-event-allday-toggle"
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: eventSheetAllDay }}
+                accessibilityLabel="All day event"
+                onPress={() => setEventSheetAllDay((prev) => !prev)}
+                style={[
+                  styles.sheetPill,
+                  {
+                    backgroundColor: eventSheetAllDay ? palette.action.primary : palette.surface,
+                    borderColor: palette.border.subtle,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sheetPillText,
+                    { color: eventSheetAllDay ? palette.action.label : palette.text.primary },
+                  ]}
+                >
+                  {eventSheetAllDay ? '✓ All-Day Event' : 'Timed Event'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Date & Time Inputs */}
+          {eventSheetAllDay ? (
+            <View style={{ gap: spacing.sm }}>
+              <MobileTextField
+                label="Start Date (YYYY-MM-DD)"
+                value={eventSheetStartDate}
+                onChangeText={setEventSheetStartDate}
+                placeholder="YYYY-MM-DD"
+                themeMode={themeMode}
+                testID="plan-event-start-date-input"
+              />
+              <MobileTextField
+                label="End Date Exclusive (YYYY-MM-DD)"
+                value={eventSheetEndDate}
+                onChangeText={setEventSheetEndDate}
+                placeholder="YYYY-MM-DD"
+                themeMode={themeMode}
+                testID="plan-event-end-date-input"
+              />
+            </View>
+          ) : (
+            <View style={{ gap: spacing.sm }}>
+              <MobileTextField
+                label="Date (YYYY-MM-DD)"
+                value={eventSheetStartDate}
+                onChangeText={setEventSheetStartDate}
+                placeholder="YYYY-MM-DD"
+                themeMode={themeMode}
+                testID="plan-event-timed-date-input"
+              />
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <View style={{ flex: 1 }}>
+                  <MobileTextField
+                    label="Start Time (HH:MM)"
+                    value={eventSheetStartAtTime}
+                    onChangeText={setEventSheetStartAtTime}
+                    placeholder="09:00"
+                    themeMode={themeMode}
+                    testID="plan-event-start-time-input"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <MobileTextField
+                    label="End Time (HH:MM)"
+                    value={eventSheetEndAtTime}
+                    onChangeText={setEventSheetEndAtTime}
+                    placeholder="10:00"
+                    themeMode={themeMode}
+                    testID="plan-event-end-time-input"
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.sheetActionsRow}>
+            <MobileButton
+              title="Save Event"
+              variant="primary"
+              themeMode={themeMode}
+              onPress={handleSaveEvent}
+              testID="plan-event-save-btn"
+            />
+          </View>
+        </View>
+      </MobileModalSheet>
     </ScrollView>
   );
 };
@@ -1567,5 +2513,141 @@ const styles = StyleSheet.create({
   calendarNoteText: {
     fontSize: 12,
     lineHeight: 17,
+  },
+  calendarControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  calendarModeSelector: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    padding: 2,
+  },
+  calendarModeTab: {
+    flex: 1,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.sm - 2,
+  },
+  calendarModeTabText: {
+    fontSize: 12,
+  },
+  addEventBtn: {
+    paddingHorizontal: 12,
+    minHeight: 36,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addEventBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  calendarFilterRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  calendarFilterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+  },
+  calendarFilterChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  calendarItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  calendarItemTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+  },
+  calendarItemTypeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  calendarItemTime: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  monthHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  monthNavBtn: {
+    minHeight: 36,
+    minWidth: 36,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  monthNavBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  monthTitleText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  weekdayHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 4,
+  },
+  weekdayHeaderText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  monthGridRow: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  monthDayCell: {
+    flex: 1,
+    aspectRatio: 1,
+    borderWidth: 1,
+    borderRadius: radii.sm - 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+  },
+  monthDayNumber: {
+    fontSize: 11,
+  },
+  monthDayDotsRow: {
+    flexDirection: 'row',
+    gap: 2,
+    marginTop: 2,
+  },
+  monthDayDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  journalIndicatorDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
 });

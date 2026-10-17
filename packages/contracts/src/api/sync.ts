@@ -51,6 +51,11 @@ export const SyncCommandTypeSchema = z.enum([
   'restoreJournalEntry',
   'archiveJournalEntry',
   'unarchiveJournalEntry',
+  'createCalendarEvent',
+  'updateCalendarEvent',
+  'deleteCalendarEvent',
+  'trashCalendarEvent',
+  'restoreCalendarEvent',
 ]);
 
 export type SyncCommandType = z.infer<typeof SyncCommandTypeSchema>;

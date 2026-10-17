@@ -1,5 +1,44 @@
 # Changelog
 
+## Phase 26 — Calendar and deadline views — 2026-10-17
+
+- **Pure Domain Operations (`packages/domain`):**
+  - Implemented `validateCalendarEventTitle` and `validateCalendarEventInterval` enforcing strict title constraints, all-day exclusive end dates (`endDate > startDate`), and timed timestamp ordering (`endAt > startAt`).
+  - Implemented `getDaysCoveredByAllDayEvent`, `isEventActiveOnDate`, `isTaskDeadlineOnDate`, and `getItemsForDate` for fast date and interval querying.
+  - Implemented `buildMonthGrid` supporting customizable week starts (Mon=1, Sun=7, Sat=6), today flags, and item mappings.
+  - Implemented `buildCalendarReadModel` aggregating canonical tasks, routine occurrences, personal events, and privacy-preserving journal indicators into a consolidated read model without duplicating task tables.
+- **Contracts & Validation (`packages/contracts`):**
+  - Added Zod schemas for calendar events, requests, feed query, and read model responses (`CalendarEventSchema`, `CalendarFeedQuerySchema`, `CalendarReadModelResponseSchema`).
+  - Added item schemas for feed union (`CalendarTaskDeadlineItemSchema`, `CalendarRoutineOccurrenceItemSchema`, `CalendarPersonalEventItemSchema`).
+  - Configured boolean query preprocessing with `z.preprocess` for reliable query parameter coercion.
+- **Database Schema & Multi-Tenant Isolation (`infra/supabase`):**
+  - Added migration `00022_calendar_events_and_projections.sql` creating table `app.calendar_events` linked to canonical `app.items(workspace_id, id)`.
+  - Added interval check constraint `chk_calendar_event_interval` enforcing all-day exclusive end dates and timed timestamp ordering.
+  - Enforced PostgreSQL Row-Level Security (RLS) policies (`p_calendar_events_select`, `p_calendar_events_insert`, `p_calendar_events_update`, `p_calendar_events_delete`).
+- **REST API Routes & Service (`apps/api`):**
+  - Registered `/v1/workspaces/:workspaceId/calendar/feed` returning unified projection read models.
+  - Registered personal calendar event CRUD endpoints: `POST /events`, `GET /events/:eventId`, `PATCH /events/:eventId`, and `DELETE /events/:eventId` with mutation receipts and change feed entries.
+- **API Client (`packages/api-client`):**
+  - Added `getCalendarFeed`, `createCalendarEvent`, `getCalendarEvent`, `updateCalendarEvent`, and `deleteCalendarEvent` to `DaynoriApiClient`.
+- **Sync Engine & Durable Local Storage (`packages/sync`, `apps/web`, `apps/mobile`):**
+  - Extended `LocalRepositoryPort` with calendar event CRUD signatures and transactional operations.
+  - Handled `calendar_events` in `SyncEngine.applyPullPage` and bootstrap generation.
+  - Upgraded Web IndexedDB store to `DB_VERSION = 8` with `calendar_events` store and indices.
+  - Upgraded Mobile SQLite schema to version 9 with `calendar_events` table and sync application.
+- **Web User Interface (`apps/web`):**
+  - Created `apps/web/src/app/plan/calendar/page.tsx` with live API feed connection and local fallback.
+  - Supported Agenda (`role="feed"`), Day, and Month (`role="grid"`) view modes.
+  - Supported week-start preferences (Monday, Sunday, Saturday) and source filter chips (`⏱ Tasks`, `🔄 Routines`, `🗓 Events`).
+  - Supported journal privacy count indicators and Add/Edit event modal dialog with live validation.
+- **Mobile User Interface (`apps/mobile`):**
+  - Integrated Calendar sub-view into `apps/mobile/src/views/PlanView.tsx`.
+  - Supported Agenda, Day, and Month modes, week-start selector, and source filter chips.
+  - Added New Calendar Event bottom sheet (`MobileModalSheet`) with transactional offline persistence.
+- **Integration Test Suite (`tests/integration`):**
+  - Added `tests/integration/phase26-calendar-deadlines.test.ts` (15 passing tests) verifying aggregated projections, canonical task deadline updates, interval validations, week-start preferences, DST handling, journal privacy preservation, multi-tenant workspace isolation, source filter toggles, and IndexedDB local storage.
+- **Decision Record:**
+  - Published [ADR-0032: Unified Calendar Views, Canonical Deadline Projections, and Personal Events](docs/decisions/0032-calendar-views-and-deadline-projections.md).
+
 ## Defect Repairs & Hardening (Phase 24/25) — 2026-10-17
 
 - **Authoritative Mobile Uploads & Metadata (Finding A):**
