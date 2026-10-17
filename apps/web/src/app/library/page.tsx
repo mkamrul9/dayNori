@@ -156,6 +156,17 @@ export default function LibraryPage() {
   const syncEngineRef = useRef<SyncEngine | null>(null);
   const localRepoRef = useRef<IndexedDbLocalRepository | null>(null);
   const apiClientRef = useRef<DaynoriApiClient | null>(null);
+  const localBlobUrlsRef = useRef<Set<string>>(new Set());
+
+  // Clean up object URLs on workspace change or unmount
+  useEffect(() => {
+    return () => {
+      for (const url of localBlobUrlsRef.current) {
+        URL.revokeObjectURL(url);
+      }
+      localBlobUrlsRef.current.clear();
+    };
+  }, [workspaceId]);
 
   // Announce to screen readers
   const announce = useCallback((msg: string) => {
@@ -1488,9 +1499,21 @@ export default function LibraryPage() {
       if (!workspaceId || !apiClientRef.current) {
         return { success: false, error: 'Workspace is not connected.' };
       }
+      if (_abortSignal?.aborted) {
+        return { success: false, error: 'Upload cancelled.' };
+      }
+
+      let reservationId: string | null = null;
       try {
         const buffer = await file.arrayBuffer();
+        if (_abortSignal?.aborted) {
+          return { success: false, error: 'Upload cancelled.' };
+        }
+
         const sha256 = await computeBufferSha256(buffer);
+        if (_abortSignal?.aborted) {
+          return { success: false, error: 'Upload cancelled.' };
+        }
 
         const reserveRes = await apiClientRef.current.reserveFileUpload(workspaceId, {
           fileName: file.name,
@@ -1499,7 +1522,15 @@ export default function LibraryPage() {
           folderId: folderId ?? undefined,
         });
 
-        const { reservationId, uploadUrl, headers } = reserveRes.data;
+        reservationId = reserveRes.data.reservationId;
+        const { uploadUrl, headers } = reserveRes.data;
+
+        if (_abortSignal?.aborted) {
+          await apiClientRef.current
+            .cancelFileUploadReservation(workspaceId, reservationId)
+            .catch(() => {});
+          return { success: false, error: 'Upload cancelled.' };
+        }
 
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
@@ -1511,21 +1542,58 @@ export default function LibraryPage() {
           }
           if (xhr.upload) {
             xhr.upload.onprogress = (evt) => {
-              if (evt.lengthComputable) {
+              if (evt.lengthComputable && !_abortSignal?.aborted) {
                 onProgress(Math.round((evt.loaded / evt.total) * 100), evt.loaded);
               }
             };
           }
+
+          const onAbort = () => {
+            xhr.abort();
+            reject(new Error('Upload cancelled.'));
+          };
+
+          if (_abortSignal) {
+            if (_abortSignal.aborted) {
+              onAbort();
+              return;
+            }
+            _abortSignal.addEventListener('abort', onAbort, { once: true });
+          }
+
           xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
+            if (_abortSignal) {
+              _abortSignal.removeEventListener('abort', onAbort);
+            }
+            if (_abortSignal?.aborted) {
+              reject(new Error('Upload cancelled.'));
+            } else if (xhr.status >= 200 && xhr.status < 300) {
               resolve();
             } else {
               reject(new Error(`Storage transfer failed with status ${xhr.status}`));
             }
           };
-          xhr.onerror = () => reject(new Error('Storage transfer network error.'));
+          xhr.onerror = () => {
+            if (_abortSignal) {
+              _abortSignal.removeEventListener('abort', onAbort);
+            }
+            reject(new Error('Storage transfer network error.'));
+          };
+          xhr.onabort = () => {
+            if (_abortSignal) {
+              _abortSignal.removeEventListener('abort', onAbort);
+            }
+            reject(new Error('Upload cancelled.'));
+          };
           xhr.send(buffer);
         });
+
+        if (_abortSignal?.aborted) {
+          await apiClientRef.current
+            .cancelFileUploadReservation(workspaceId, reservationId)
+            .catch(() => {});
+          return { success: false, error: 'Upload cancelled.' };
+        }
 
         const finalizeRes = await apiClientRef.current.finalizeFileUpload(
           workspaceId,
@@ -1619,6 +1687,11 @@ export default function LibraryPage() {
           fileItem: rec,
         };
       } catch (err: unknown) {
+        if (reservationId && apiClientRef.current && workspaceId) {
+          await apiClientRef.current
+            .cancelFileUploadReservation(workspaceId, reservationId)
+            .catch(() => {});
+        }
         return {
           success: false,
           error: err instanceof Error ? err.message : String(err),
@@ -1630,11 +1703,35 @@ export default function LibraryPage() {
 
   const handleRequestDownloadUrl = useCallback(
     async (file: FileItemRecord): Promise<string> => {
-      if (!workspaceId || !apiClientRef.current) return '';
+      if (!workspaceId) return '';
+
+      // Check if file binary is cached offline locally first
+      if (user?.id) {
+        try {
+          const cached = await OfflineFileCache.getBinary(
+            user.id,
+            workspaceId,
+            file.id,
+            file.version
+          );
+          if (cached && cached.binaryData) {
+            const blob = new Blob([cached.binaryData], {
+              type: cached.mimeType || file.detectedMimeType || 'application/octet-stream',
+            });
+            const objectUrl = URL.createObjectURL(blob);
+            localBlobUrlsRef.current.add(objectUrl);
+            return objectUrl;
+          }
+        } catch {
+          // Fall through to cloud download capability if local cache is corrupted
+        }
+      }
+
+      if (!apiClientRef.current) return '';
       const res = await apiClientRef.current.getFileDownloadCapability(workspaceId, file.id);
       return res.data?.downloadUrl || '';
     },
-    [workspaceId]
+    [workspaceId, user?.id]
   );
 
   const handleToggleOffline = useCallback(

@@ -17,8 +17,9 @@ import { MobileKeyManager } from './src/data/keyManager.js';
 import { SqliteLocalRepository } from './src/data/sqliteRepository.js';
 import { createMobileSyncEngine } from './src/data/syncAdapter.js';
 import { defaultSecureStorage } from './src/auth/secureStorage.js';
-import { createApiClient } from '@daynori/api-client';
+import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
 import type { SyncEngine } from '@daynori/sync';
+import { MobileOfflineFileCache } from './src/data/offlineFileCache.js';
 import type { ActiveModal, CreateDraft, LibraryFilter, PlanSubView } from './src/navigation/types';
 import { TodayView } from './src/views/TodayView';
 import { PlanView } from './src/views/PlanView';
@@ -40,6 +41,7 @@ export default function App() {
   // Production encrypted repository and sync engine state
   const [repository, setRepository] = useState<SqliteLocalRepository | null>(null);
   const [syncEngine, setSyncEngine] = useState<SyncEngine | null>(null);
+  const [apiClient, setApiClient] = useState<DaynoriApiClient | null>(null);
   const [userNamespace, setUserNamespace] = useState<{
     userId: string;
     workspaceId: string;
@@ -97,12 +99,14 @@ export default function App() {
           void repository.close();
           setRepository(null);
         }
+        setApiClient(null);
         setUserNamespace(null);
         return;
       }
 
       const currentUser = defaultAuthAdapter.getCurrentUser();
       if (!currentUser?.id || !currentUser?.workspaceId) {
+        setApiClient(null);
         setUserNamespace(null);
         return;
       }
@@ -127,6 +131,7 @@ export default function App() {
         const client = createApiClient({
           baseUrl: 'http://localhost:3000',
         });
+        setApiClient(client);
 
         const engine = createMobileSyncEngine({
           repository: repo,
@@ -376,6 +381,12 @@ export default function App() {
             initialFilter={libraryFilter}
             onFilterChange={setLibraryFilter}
             onOpenCreate={() => setActiveModal('create')}
+            repository={repository ?? undefined}
+            syncEngine={syncEngine ?? undefined}
+            workspaceId={userNamespace?.workspaceId ?? null}
+            userId={userNamespace?.userId ?? null}
+            isOnline={isOnline}
+            apiClient={apiClient ?? undefined}
           />
         )}
 
@@ -433,6 +444,14 @@ export default function App() {
             isAuthenticated={isAuthenticated}
             onToggleAuth={() => {
               if (isAuthenticated) {
+                if (userNamespace?.userId) {
+                  void MobileOfflineFileCache.clearAccount(userNamespace.userId).catch(() => {});
+                }
+                if (userNamespace?.workspaceId) {
+                  void MobileOfflineFileCache.clearWorkspace(userNamespace.workspaceId).catch(
+                    () => {}
+                  );
+                }
                 void defaultAuthAdapter.signOut({ createDraft, searchQuery });
                 setCreateDraft({ type: 'task', title: '', details: '' });
                 setSearchQuery('');

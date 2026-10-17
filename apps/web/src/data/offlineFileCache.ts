@@ -1,4 +1,4 @@
-import { getOfflineBinaryCacheKey } from '@daynori/domain';
+import { getOfflineBinaryCacheKey, computeSha256 } from '@daynori/domain';
 
 export interface OfflineFileEntry {
   cacheKey: string;
@@ -54,20 +54,14 @@ function openOfflineDb(): Promise<IDBDatabase | null> {
 
 /**
  * Computes SHA-256 hex string of ArrayBuffer for integrity verification.
+ * Fails explicitly if hash computation fails or returns invalid result.
  */
 export async function computeBufferSha256(buffer: ArrayBuffer): Promise<string> {
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  const hash = await computeSha256(buffer);
+  if (!hash) {
+    throw new Error('INTEGRITY_CHECK_UNAVAILABLE: Checksum calculation returned empty result.');
   }
-  // Node / test fallback if crypto.subtle is absent
-  try {
-    const nodeCrypto = await import('crypto');
-    return nodeCrypto.createHash('sha256').update(Buffer.from(buffer)).digest('hex');
-  } catch {
-    return '';
-  }
+  return hash;
 }
 
 export class OfflineFileCache {
@@ -86,7 +80,12 @@ export class OfflineFileCache {
     data: ArrayBuffer;
   }): Promise<OfflineFileEntry> {
     const computedHash = await computeBufferSha256(params.data);
-    if (computedHash && params.expectedSha256 && computedHash !== params.expectedSha256) {
+    if (!computedHash) {
+      throw new Error(
+        'INTEGRITY_CHECK_UNAVAILABLE: Checksum could not be calculated for offline persistence.'
+      );
+    }
+    if (params.expectedSha256 && computedHash !== params.expectedSha256) {
       throw new Error(
         `INTEGRITY_CHECK_FAILED: File hash ${computedHash} does not match expected checksum ${params.expectedSha256}.`
       );
@@ -124,8 +123,10 @@ export class OfflineFileCache {
       const store = tx.objectStore(STORE_NAME);
       const req = store.put(entry);
 
-      req.onsuccess = () => resolve(entry);
       req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve(entry);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   }
 
@@ -212,8 +213,10 @@ export class OfflineFileCache {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const req = store.delete(cacheKey);
-      req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   }
 

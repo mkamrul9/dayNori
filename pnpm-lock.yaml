@@ -203,6 +203,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@daynori/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@daynori/domain':
         specifier: workspace:*
         version: link:../../packages/domain

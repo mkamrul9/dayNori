@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "@daynori/contracts": "workspace:*",
-    "@daynori/domain": "workspace:*"
+    "@daynori/domain": "workspace:*",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@daynori/config": "workspace:*",
-    "@types/node": "^22.13.4"
+    "@types/node": "^22.13.4",
+    "@types/pg": "^8.23.1"
   }
 }

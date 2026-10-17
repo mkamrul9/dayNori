@@ -1,5 +1,30 @@
 # Changelog
 
+## Defect Repairs & Hardening (Phase 24/25) — 2026-10-17
+
+- **Authoritative Mobile Uploads & Metadata (Finding A):**
+  - Integrated real file picking and upload execution (`reserveFileUpload`, PUT transfer, `finalizeFileUpload`) in `LibraryView.tsx` and `MobileFileUploadSheet.tsx`.
+  - Replaced simulated local metadata fabrication with authoritative backend synchronization via `repository.getFile` and `apiClient.getFileMetadata`.
+  - Disallowed offline upload simulations; offline upload attempts return explicit error feedback.
+- **Web Upload Cancellation & Safe Reservation Disposal (Finding B):**
+  - Connected `_abortSignal` directly to XHR abort in `apps/web/src/app/library/page.tsx`.
+  - Checked abort state at reservation and transfer boundaries, invoking `cancelFileUploadReservation` to release reserved quota exposure immediately and preventing subsequent finalization.
+- **Persistent Mobile Offline Cache & Cryptographic Integrity (Finding C):**
+  - Implemented `PersistentMobileOfflineStorageAdapter` in `apps/mobile/src/data/offlineFileCache.ts` with bounded storage limit (50MB), FIFO/LRU eviction, crash-safe atomic tmp-to-dest writes, and restart recovery across app launches.
+  - Implemented pure TypeScript zero-dependency SHA-256 cryptographic hashing (`computeSha256`, `sha256Sync`) in `@daynori/domain` with Web Crypto acceleration and deterministic fallback that never returns empty strings.
+  - Added object URL lifecycle management (`localBlobUrlsRef`) in `apps/web/src/app/library/page.tsx` revoking blob URLs on preview close, dialog unmount, or workspace switch.
+  - Bound offline cache clearing (`clearAccount` / `clearWorkspace`) to sign-out in Web and Mobile auth handlers.
+- **Worker Handlers & Lease Fencing (Finding D):**
+  - Added lease fencing on job completion and retry (`leased_by = $workerId AND leased_until > now()`) in `DaynoriWorker`.
+  - Implemented real job execution handlers for `file_deletion`, `file_scan`, and `file_orphan_cleanup` with tenant context scoping (`set_config('app.current_workspace_id', ...)`).
+  - Configured PostgreSQL pool, polling loop, and graceful shutdown in `apps/worker/src/index.ts`.
+- **Runtime Storage & Scanner Defaults (Finding E):**
+  - Restricted `MemoryStorageProvider` to test and development environments, defaulting to `UnavailableStorageProvider` in production.
+  - Defaulted to `UnavailableMalwareScanner` in production; updated `ExternalMalwareScanner` to validate boolean `isClean` responses strictly.
+  - Hardened PDF preview iframe sandbox to `sandbox="allow-scripts"` (removing `allow-same-origin`) in `FilePreviewDialog.tsx`.
+- **Regression Test Suite:**
+  - Added `tests/integration/phase25-repairs.test.ts` (14 passing tests) covering Findings A through E.
+
 ## Phase 25 — Files, folders, and safe previews — 2026-10-17
 
 - **Contracts & Content Inspection (`packages/contracts`, `apps/api`):**

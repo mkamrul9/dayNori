@@ -49,11 +49,36 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 - **Excluded/deferred scope:**
   - Physical Android TalkBack and hardware KeyStore release gates remain recorded as `blocked` in `docs/roadmap/progress.json` and phase reports, pending physical testing equipment.
   - In-browser or in-app Microsoft Office editing is strictly out of scope and forbidden to be claimed; office documents provide verified format metadata and safe download fallbacks.
-  - Next Phase 26 (Cloud sync protocol and engine) remains untouched.
+  - Next Phase 26 (Calendar and deadline views) remains untouched.
+
+## Phase 24/25 Defect Repairs & Hardening
+
+Following initial Phase 25 delivery, five specific defects (Findings A–E) were identified and addressed under owner authorization:
+
+1. **Finding A: Authoritative Mobile Uploads & Metadata:**
+   - Wired document selection directly to device storage via `onPickDocument` in `MobileFileUploadSheet.tsx`.
+   - Replaced simulated local metadata fabrication in `LibraryView.tsx` with authoritative backend synchronization via `repository.getFile` and `apiClient.getFileMetadata`.
+   - Prevented simulated uploads when offline; disconnected upload attempts fail with an honest and clear error.
+2. **Finding B: Web Upload Cancellation & Safe Reservation Disposal:**
+   - Connected `_abortSignal` to native XHR abort in `apps/web/src/app/library/page.tsx`.
+   - Checked abort status at every boundary, invoking `cancelFileUploadReservation` immediately to release reserved exposure and prevent subsequent finalization.
+3. **Finding C: Persistent Mobile Offline Cache & Web Preview Isolation:**
+   - Replaced the in-memory mobile cache with `PersistentMobileOfflineStorageAdapter` in `apps/mobile/src/data/offlineFileCache.ts`, featuring bounded storage (50MB), FIFO/LRU eviction, crash-safe tmp-to-dest atomic writes, and restart recovery across app launches.
+   - Implemented zero-dependency pure TypeScript SHA-256 (`computeSha256`, `sha256Sync`) in `@daynori/domain` with Web Crypto acceleration and deterministic fallback that never returns empty strings.
+   - Added object URL lifecycle management (`localBlobUrlsRef`) in `apps/web/src/app/library/page.tsx` revoking blob URLs on preview close, dialog unmount, or workspace switch.
+   - Connected offline cache purging on sign-out across Web and Mobile auth handlers.
+4. **Finding D: Worker Handlers & Lease Fencing:**
+   - Added lease fencing on job completion and retry (`leased_by = $workerId AND leased_until > now()`) in `DaynoriWorker`.
+   - Implemented real job execution handlers for `file_deletion`, `file_scan`, and `file_orphan_cleanup` with tenant context scoping (`set_config('app.current_workspace_id', ...)`).
+   - Wired PostgreSQL pool, polling loop, and graceful shutdown in `apps/worker/src/index.ts`.
+5. **Finding E: Runtime Storage & Scanner Defaults:**
+   - Restricted `MemoryStorageProvider` to test/development environments, defaulting to `UnavailableStorageProvider` in production.
+   - Defaulted to `UnavailableMalwareScanner` in production; updated `ExternalMalwareScanner` to validate boolean `isClean` responses strictly.
+   - Hardened PDF preview iframe sandbox to `sandbox="allow-scripts"` (removing `allow-same-origin`) in `FilePreviewDialog.tsx`.
 
 ## Result
 
-Delivered complete, safe, and accessible file and folder organization, safe isolated previews, storage usage visibility, and verified offline file availability across Web and Mobile surfaces. All 606 automated tests across the workspace pass 100%.
+Delivered complete, safe, and accessible file and folder organization, safe isolated previews, storage usage visibility, verified offline file availability, and robust defect hardening across Web and Mobile surfaces. All 620 automated tests across 45 test files pass 100%.
 
 ## Acceptance evidence
 
@@ -66,6 +91,7 @@ Delivered complete, safe, and accessible file and folder organization, safe isol
 | 5. Upload cancellation and retry without orphan records                           | `tests/integration/phase25-files-previews.test.ts` (Journey 5)                                        | Passed. In-flight abort calls `cancelFileUploadReservation` to reconcile reserved exposure immediately; subsequent retry succeeds without duplicate records.                                    |
 | 6. Offline file availability, cache namespacing, and integrity eviction           | `tests/integration/phase25-files-previews.test.ts` (Journey 6)                                        | Passed. Cache keys are namespaced `${accountId}:${workspaceId}:${fileId}:v${version}`; SHA-256 mismatch triggers automatic eviction; switching workspaces purges cached entries.                |
 | 7. Multi-tenant workspace isolation                                               | `tests/integration/phase25-files-previews.test.ts` (Journey 7)                                        | Passed. Unauthorized users cannot download cross-workspace files, query file metadata, or inspect foreign storage quotas (returns 404/403).                                                     |
+| 8. Phase 24/25 Defect Repairs Regression Suite (Findings A–E)                     | `tests/integration/phase25-repairs.test.ts` (14 journeys)                                             | Passed. Verified mobile metadata authority, upload abort cancellation, persistent mobile cache with SHA-256 eviction, worker lease fencing, and fail-closed security defaults.                   |
 
 ## Verification commands and output
 
@@ -77,15 +103,17 @@ Delivered complete, safe, and accessible file and folder organization, safe isol
    `pnpm --filter @daynori/ui-mobile test` -> 9 passed (9).
 4. **Integration Test Suite (`tests/integration/phase25-files-previews.test.ts`)**:
    `pnpm vitest run tests/integration/phase25-files-previews.test.ts` -> 7 passed (7).
-5. **Full Monorepo Test Suite**:
-   `pnpm vitest run` -> 44 test files passed (44), 606 tests passed (606).
-6. **Typecheck Quality Gate**:
+5. **Defect Repairs Test Suite (`tests/integration/phase25-repairs.test.ts`)**:
+   `pnpm vitest run tests/integration/phase25-repairs.test.ts` -> 14 passed (14).
+6. **Full Monorepo Test Suite**:
+   `pnpm vitest run` -> 45 test files passed (45), 620 tests passed (620).
+7. **Typecheck Quality Gate**:
    `pnpm typecheck` -> Exited 0 across all 13 workspace projects.
-7. **Lint Quality Gate**:
+8. **Lint Quality Gate**:
    `pnpm lint` -> Exited 0 with 0 errors and 0 warnings.
-8. **Format Quality Gate**:
+9. **Format Quality Gate**:
    `pnpm format:check` -> Exited 0; all matched files use Prettier style.
-9. **Secrets Scanning**:
-   `node scripts/scan-secrets.mjs` -> Passed: checked 1685 files without detecting unapproved secrets.
-10. **Planning Validation**:
-    `node scripts/validate-planning.mjs` -> Planning validation passed: 64 phases, 22 mapped requirements, 182 Markdown files.
+10. **Secrets Scanning**:
+    `node scripts/scan-secrets.mjs` -> Passed: checked 1689 files without detecting unapproved secrets.
+11. **Planning Validation**:
+    `node scripts/validate-planning.mjs` -> Planning validation passed: 64 phases, 22 mapped requirements, 184 Markdown files.

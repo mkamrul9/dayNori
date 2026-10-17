@@ -18,6 +18,7 @@ export interface MobileSelectedFile {
   size: number;
   type: string;
   uri?: string;
+  data?: ArrayBuffer;
 }
 
 export interface MobileFileUploadSheetProps {
@@ -30,6 +31,7 @@ export interface MobileFileUploadSheetProps {
   storedBytes: number;
   reservedBytes: number;
   maxBytes: number;
+  onPickDocument?: () => Promise<MobileSelectedFile | null>;
   onUploadFile?: (
     file: MobileSelectedFile,
     folderId: string | null,
@@ -49,6 +51,7 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
   storedBytes,
   reservedBytes,
   maxBytes,
+  onPickDocument,
   onUploadFile,
   onSuccess,
   testID = 'mobile-file-upload-sheet',
@@ -60,6 +63,20 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+
+  const handleOpenDevicePicker = async () => {
+    if (!onPickDocument) return;
+    setErrorMessage(null);
+    setRejectionReason(null);
+    try {
+      const picked = await onPickDocument();
+      if (picked) {
+        setSelectedFile(picked);
+      }
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to pick file from device.');
+    }
+  };
 
   const handleSelectMockDocument = (preset: 'image' | 'pdf' | 'doc') => {
     setErrorMessage(null);
@@ -217,6 +234,26 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
                 ? `${formatByteSize(selectedFile.size)} • ${selectedFile.type}`
                 : 'Choose a file format below (PDF, Image, DOC/DOCX)'}
             </Text>
+
+            {/* Device File Picker */}
+            {onPickDocument && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Browse device files"
+                onPress={handleOpenDevicePicker}
+                style={[
+                  styles.devicePickBtn,
+                  {
+                    backgroundColor: palette.action.subtle,
+                    borderColor: palette.action.primary,
+                  },
+                ]}
+              >
+                <Text style={[styles.devicePickBtnText, { color: palette.action.primary }]}>
+                  📂 Browse Device Storage
+                </Text>
+              </Pressable>
+            )}
 
             {/* Quick Picker Buttons */}
             <View style={styles.quickPickRow}>
@@ -382,6 +419,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginBottom: spacing.md,
+  },
+  devicePickBtn: {
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    minHeight: touchTargets.mobileMin,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  devicePickBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   quickPickRow: {
     flexDirection: 'row',

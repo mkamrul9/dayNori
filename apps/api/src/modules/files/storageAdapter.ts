@@ -331,8 +331,15 @@ export class MemoryStorageProvider implements StorageProviderContract {
   }
 }
 
-// Global default storage provider
-let defaultStorageProvider: StorageProviderContract = new MemoryStorageProvider();
+// Global default storage provider restricted to explicit test/development mode
+const isTestOrDev =
+  process.env['NODE_ENV'] === 'test' ||
+  process.env['NODE_ENV'] === 'development' ||
+  process.env['VITEST'] !== undefined;
+
+let defaultStorageProvider: StorageProviderContract = isTestOrDev
+  ? new MemoryStorageProvider()
+  : new UnavailableStorageProvider();
 
 export function getDefaultStorageProvider(): StorageProviderContract {
   return defaultStorageProvider;

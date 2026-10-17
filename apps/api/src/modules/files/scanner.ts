@@ -124,10 +124,18 @@ export class ExternalMalwareScanner implements MalwareScannerContract {
     bytes: Buffer,
     context: { fileName: string; detectedMime: string }
   ): Promise<ScanResult> {
+    const isTestOrDev =
+      process.env['NODE_ENV'] === 'test' ||
+      process.env['NODE_ENV'] === 'development' ||
+      process.env['VITEST'] !== undefined;
+
     if (!this.endpoint) {
-      // In development/test with unconfigured external endpoint, delegate to PolicyMalwareScanner
-      const fallback = new PolicyMalwareScanner();
-      return fallback.scanBytes(bytes, context);
+      if (isTestOrDev) {
+        // In development/test with unconfigured external endpoint, delegate to PolicyMalwareScanner
+        const fallback = new PolicyMalwareScanner();
+        return fallback.scanBytes(bytes, context);
+      }
+      throw new MalwareScannerUnavailableError('External malware scanner URL is not configured');
     }
 
     const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
@@ -151,17 +159,24 @@ export class ExternalMalwareScanner implements MalwareScannerContract {
       }
 
       const body = (await res.json()) as {
-        isClean?: boolean;
-        threatName?: string;
-        engine?: string;
-        version?: string;
+        isClean?: unknown;
+        threatName?: unknown;
+        engine?: unknown;
+        version?: unknown;
       };
+
+      if (typeof body !== 'object' || body === null || typeof body.isClean !== 'boolean') {
+        throw new MalwareScannerUnavailableError(
+          'Scanner returned invalid response format: isClean boolean required'
+        );
+      }
+
       return {
-        isClean: Boolean(body.isClean),
-        threatName: body.threatName,
+        isClean: body.isClean,
+        threatName: typeof body.threatName === 'string' ? body.threatName : undefined,
         scannedAt: new Date(),
-        scannerEngine: body.engine || 'External-Scanner',
-        engineVersion: body.version || '1.0.0',
+        scannerEngine: typeof body.engine === 'string' ? body.engine : 'External-Scanner',
+        engineVersion: typeof body.version === 'string' ? body.version : '1.0.0',
         scannedBytesCount: bytes.length,
         scannedSha256: sha256,
       };
@@ -176,7 +191,26 @@ export class ExternalMalwareScanner implements MalwareScannerContract {
   }
 }
 
-let defaultScanner: MalwareScannerContract = new PolicyMalwareScanner();
+/**
+ * Scanner returned when external scanner service is unconfigured in production.
+ * Returns honest 503 unavailable status rather than simulated clean pass.
+ */
+export class UnavailableMalwareScanner implements MalwareScannerContract {
+  async scanBytes(): Promise<never> {
+    throw new MalwareScannerUnavailableError(
+      'Malware scanner service is not configured or unavailable'
+    );
+  }
+}
+
+const isTestOrDev =
+  process.env['NODE_ENV'] === 'test' ||
+  process.env['NODE_ENV'] === 'development' ||
+  process.env['VITEST'] !== undefined;
+
+let defaultScanner: MalwareScannerContract = isTestOrDev
+  ? new PolicyMalwareScanner()
+  : new UnavailableMalwareScanner();
 
 export function getDefaultMalwareScanner(): MalwareScannerContract {
   return defaultScanner;

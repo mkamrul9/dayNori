@@ -370,7 +370,7 @@ export const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                         <iframe
                           src={downloadUrl}
                           title={`Preview of ${file.fileName}`}
-                          sandbox="allow-scripts allow-same-origin"
+                          sandbox="allow-scripts"
                           style={{
                             width: '100%',
                             flex: 1,

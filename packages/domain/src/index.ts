@@ -7,3 +7,4 @@ export * from './tasks.js';
 export * from './routines.js';
 export * from './journal.js';
 export * from './files.js';
+export * from './crypto.js';

@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { AuthSession, SignInResponse, SignUpResponse } from '@daynori/contracts';
+import { OfflineFileCache } from '../data/offlineFileCache.js';
 
 export interface AuthUser {
   id: string;
@@ -423,6 +424,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     cancelInFlightRequests();
+
+    const currentUserId = user?.id;
+    const currentWsId = workspaceId;
+    if (currentUserId) {
+      void OfflineFileCache.clearAccount(currentUserId).catch(() => {});
+    }
+    if (currentWsId) {
+      void OfflineFileCache.clearWorkspace(currentWsId).catch(() => {});
+    }
 
     // Reset client state immediately
     setUser(null);

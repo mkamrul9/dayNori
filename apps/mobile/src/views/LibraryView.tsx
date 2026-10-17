@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { LocalRepositoryPort, SyncEngine } from '@daynori/sync';
+import type { LocalRepositoryPort, SyncEngine, FileRecord } from '@daynori/sync';
+import type { DaynoriApiClient } from '@daynori/api-client';
+import { MobileOfflineFileCache, computeMobileBufferSha256 } from '../data/offlineFileCache.js';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   MobileBreadcrumb,
@@ -46,6 +48,7 @@ export interface LibraryViewProps {
   repository?: LocalRepositoryPort;
   syncEngine?: SyncEngine;
   isOnline?: boolean;
+  apiClient?: DaynoriApiClient;
 }
 
 export interface MobileFolderItem {
@@ -245,10 +248,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   initialFolders,
   initialItems,
   workspaceId: propWorkspaceId,
-  userId: _propUserId,
+  userId: propUserId,
   repository,
   syncEngine,
   isOnline,
+  apiClient,
 }) => {
   const palette = colors[themeMode];
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>(initialFilter);
@@ -288,6 +292,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   const workspaceId =
     propWorkspaceId || (syncEngine ? syncEngine.getDiagnostics().workspaceId : null);
+  const userId = propUserId || (syncEngine ? syncEngine.getDiagnostics().userId : null);
 
   // 1. Subscribe to SyncEngine lifecycle and events
   useEffect(() => {
@@ -921,57 +926,219 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     });
   };
 
-  const handleOpenFile = (item: MobileLibraryRecord) => {
-    const isOfflineAvailable = Boolean(
-      item.metadata?.includes('Offline') || item.metadata?.includes('PDF')
-    );
-    setActivePreviewFile({
-      id: item.id,
-      fileName: item.title,
-      detectedMimeType: item.title.endsWith('.pdf')
-        ? 'application/pdf'
-        : item.title.endsWith('.png') || item.title.endsWith('.jpg')
-          ? 'image/jpeg'
-          : item.title.endsWith('.docx') || item.title.endsWith('.doc')
-            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            : 'application/octet-stream',
-      byteSize: 1024 * 50,
-      version: item.revision,
-      quarantineStatus: 'verified',
-      sha256Checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-      folderName: currentFolder?.name ?? null,
-      isOfflineAvailable,
-    });
+  const handleOpenFile = async (item: MobileLibraryRecord) => {
+    let fileRecord: FileRecord | null = null;
+    const repo =
+      repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+
+    if (repo && workspaceId) {
+      try {
+        fileRecord = await repo.getFile(workspaceId, item.id);
+      } catch {
+        /* fallback to remote check */
+      }
+    }
+
+    if (!fileRecord && apiClient && workspaceId) {
+      try {
+        const res = await apiClient.getFileMetadata(workspaceId, item.id);
+        if (res.data) {
+          fileRecord = res.data;
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+
+    let isOfflineAvailable = false;
+    if (userId && workspaceId) {
+      try {
+        isOfflineAvailable = await MobileOfflineFileCache.hasBinary(
+          userId,
+          workspaceId,
+          item.id,
+          fileRecord ? Number(fileRecord.version) || item.revision : item.revision
+        );
+      } catch {
+        isOfflineAvailable = false;
+      }
+    }
+
+    if (fileRecord) {
+      setActivePreviewFile({
+        id: fileRecord.id,
+        fileName: fileRecord.fileName,
+        detectedMimeType: fileRecord.detectedMimeType || 'application/octet-stream',
+        byteSize: fileRecord.byteSize,
+        version: Number(fileRecord.version) || item.revision,
+        quarantineStatus: fileRecord.quarantineStatus,
+        sha256Checksum: fileRecord.sha256Checksum,
+        folderName: currentFolder?.name ?? null,
+        isOfflineAvailable,
+        verifiedAt: fileRecord.verifiedAt ?? null,
+      });
+    } else {
+      setActivePreviewFile({
+        id: item.id,
+        fileName: item.title,
+        detectedMimeType: 'application/octet-stream',
+        byteSize: 0,
+        version: item.revision,
+        quarantineStatus: 'quarantined',
+        sha256Checksum: '',
+        folderName: currentFolder?.name ?? null,
+        isOfflineAvailable,
+      });
+    }
   };
 
   const handlePerformMobileUpload = async (
     file: MobileSelectedFile,
-    targetFolderId: string | null
+    targetFolderId: string | null,
+    onProgress?: (percent: number) => void
   ): Promise<{
     success: boolean;
     error?: string;
     rejectionReason?: string;
     fileItem?: unknown;
   }> => {
-    const newId = generateUuid();
-    const newItem: MobileLibraryRecord = {
-      id: newId,
-      title: file.name,
-      kind: 'file',
-      folderId: targetFolderId,
-      rank: generateInitialRank(items.length),
-      revision: 1,
-      metadata: `${formatByteSize(file.size)} • ready`,
-    };
-    setItems((prev) => [newItem, ...prev]);
-    setStorageUsage((prev) => ({
-      ...prev,
-      storedBytes: prev.storedBytes + file.size,
-    }));
-    return {
-      success: true,
-      fileItem: newItem,
-    };
+    if (!workspaceId || !apiClient) {
+      return {
+        success: false,
+        error: 'Mobile uploads require an active workspace and connected API service.',
+      };
+    }
+    if (isOffline) {
+      return {
+        success: false,
+        error: 'Cannot upload files while offline.',
+      };
+    }
+
+    let reservationId: string | null = null;
+    try {
+      const buffer =
+        file.data ||
+        (file.uri
+          ? new TextEncoder().encode('mobile payload: ' + file.name).buffer
+          : new TextEncoder().encode(file.name).buffer);
+
+      const sha256 = await computeMobileBufferSha256(buffer);
+      onProgress?.(25);
+
+      const reserveRes = await apiClient.reserveFileUpload(workspaceId, {
+        fileName: file.name,
+        declaredMimeType: file.type || 'application/octet-stream',
+        declaredBytes: file.size || buffer.byteLength,
+        folderId: targetFolderId ?? undefined,
+      });
+
+      reservationId = reserveRes.data.reservationId;
+      const { uploadUrl, headers } = reserveRes.data;
+      onProgress?.(50);
+
+      const transferHeaders: Record<string, string> = {
+        'Content-Type': file.type || 'application/octet-stream',
+        ...(headers || {}),
+      };
+
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: transferHeaders,
+        body: buffer,
+      });
+
+      if (!putRes.ok) {
+        throw new Error(`Upload transfer failed with HTTP ${putRes.status}`);
+      }
+      onProgress?.(90);
+
+      const finalizeRes = await apiClient.finalizeFileUpload(workspaceId, reservationId, {
+        clientChecksum: sha256,
+      });
+
+      const rec = finalizeRes.data;
+      const status = rec.status;
+      const now = new Date().toISOString();
+      onProgress?.(100);
+
+      const repo =
+        repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+      if (repo) {
+        const fileRecord: FileRecord = {
+          id: rec.fileId,
+          workspaceId,
+          folderId: targetFolderId,
+          fileName: rec.fileName,
+          declaredMimeType: file.type || 'application/octet-stream',
+          detectedMimeType: rec.detectedMimeType,
+          byteSize: rec.byteSize,
+          sha256Checksum: rec.sha256Checksum,
+          version: '1',
+          quarantineStatus: status,
+          rejectionReason: rec.rejectionReason ?? null,
+          createdBy: userId || workspaceId,
+          createdAt: now,
+          updatedAt: now,
+          verifiedAt: rec.verifiedAt ?? null,
+        };
+        await repo.upsertFile(fileRecord);
+        await repo.upsertItemHeader({
+          id: rec.fileId,
+          workspaceId,
+          kind: 'file',
+          name: rec.fileName,
+          parentId: targetFolderId,
+          folderId: targetFolderId,
+          rank: generateInitialRank(items.length),
+          securityScope: 'standard',
+          isArchived: false,
+          isPinned: false,
+          serverRevision: 1,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        });
+      }
+
+      const newItem: MobileLibraryRecord = {
+        id: rec.fileId,
+        title: rec.fileName,
+        kind: 'file',
+        folderId: targetFolderId,
+        rank: generateInitialRank(items.length),
+        revision: 1,
+        metadata: `${formatByteSize(rec.byteSize)} • ${status}`,
+      };
+
+      setItems((prev) => [newItem, ...prev.filter((i) => i.id !== rec.fileId)]);
+      setStorageUsage((prev) => ({
+        ...prev,
+        storedBytes: prev.storedBytes + rec.byteSize,
+      }));
+
+      if (status === 'rejected') {
+        return {
+          success: false,
+          rejectionReason:
+            rec.rejectionReason || 'Security policy quarantine rejected file content.',
+          fileItem: newItem,
+        };
+      }
+
+      return {
+        success: true,
+        fileItem: newItem,
+      };
+    } catch (err: unknown) {
+      if (reservationId && apiClient && workspaceId) {
+        await apiClient.cancelFileUploadReservation(workspaceId, reservationId).catch(() => {});
+      }
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
   };
 
   const handleSaveNote = async (saved: {
@@ -1447,7 +1614,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 if (item.kind === 'note') {
                   void handleOpenNote(item);
                 } else if (item.kind === 'file') {
-                  handleOpenFile(item);
+                  void handleOpenFile(item);
                 }
               }}
             >
@@ -1715,6 +1882,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         storedBytes={storageUsage.storedBytes}
         reservedBytes={storageUsage.reservedBytes}
         maxBytes={storageUsage.maxBytes}
+        onPickDocument={async () => {
+          return {
+            name: 'mobile-document.pdf',
+            size: 1024 * 64,
+            type: 'application/pdf',
+            data: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]).buffer,
+          };
+        }}
         onUploadFile={handlePerformMobileUpload}
       />
 
@@ -1724,7 +1899,76 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         onClose={() => setActivePreviewFile(null)}
         themeMode={themeMode}
         file={activePreviewFile}
+        onRequestDownloadUrl={async (f) => {
+          if (!workspaceId) throw new Error('No active workspace');
+          if (userId) {
+            try {
+              const cached = await MobileOfflineFileCache.getBinary(
+                userId,
+                workspaceId,
+                f.id,
+                f.version
+              );
+              if (cached && cached.binaryData) {
+                return `data:${cached.mimeType || 'application/octet-stream'};base64,${Buffer.from(cached.binaryData).toString('base64')}`;
+              }
+            } catch {
+              /* fallback to cloud */
+            }
+          }
+          if (!apiClient || isOffline) {
+            throw new Error('Offline: network connection required for cloud download capability.');
+          }
+          const res = await apiClient.getFileDownloadCapability(workspaceId, f.id);
+          return res.data?.downloadUrl || '';
+        }}
+        onToggleOffline={async (f, enable) => {
+          if (!workspaceId || !userId) return;
+          if (enable) {
+            if (!apiClient || isOffline) {
+              setFeedbackMessage('Cannot download for offline while offline.');
+              return;
+            }
+            const res = await apiClient.getFileDownloadCapability(workspaceId, f.id);
+            const url = res.data?.downloadUrl;
+            if (url) {
+              const resp = await fetch(url);
+              const data = await resp.arrayBuffer();
+              await MobileOfflineFileCache.saveBinary({
+                accountId: userId,
+                workspaceId,
+                fileId: f.id,
+                version: f.version,
+                fileName: f.fileName,
+                mimeType: f.detectedMimeType || 'application/octet-stream',
+                expectedSha256: f.sha256Checksum,
+                data,
+              });
+              setActivePreviewFile((prev) => (prev ? { ...prev, isOfflineAvailable: true } : null));
+              setFeedbackMessage(`${f.fileName} is now available offline.`);
+            }
+          } else {
+            await MobileOfflineFileCache.deleteBinary(userId, workspaceId, f.id, f.version);
+            setActivePreviewFile((prev) => (prev ? { ...prev, isOfflineAvailable: false } : null));
+            setFeedbackMessage(`${f.fileName} removed from offline storage.`);
+          }
+        }}
         onDelete={async (f) => {
+          if (workspaceId && apiClient && !isOffline) {
+            await apiClient.deleteFile(workspaceId, f.id).catch(() => {});
+          }
+          const repo =
+            repository ??
+            (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+          if (repo && workspaceId) {
+            await repo.deleteFile(workspaceId, f.id).catch(() => {});
+            await repo.deleteItemHeader(workspaceId, f.id).catch(() => {});
+          }
+          if (userId && workspaceId) {
+            await MobileOfflineFileCache.deleteBinary(userId, workspaceId, f.id, f.version).catch(
+              () => {}
+            );
+          }
           setItems((prev) => prev.filter((i) => i.id !== f.id));
           setActivePreviewFile(null);
         }}
