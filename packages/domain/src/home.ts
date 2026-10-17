@@ -78,6 +78,31 @@ export interface HomeLayout {
   widgets: HomeWidgetConfig[];
   moduleShortcuts: ModuleShortcutConfig[];
   favoriteFolderIds: string[];
+  unsupportedVersion?: number;
+}
+
+export const CURRENT_HOME_LAYOUT_VERSION = 1;
+
+/**
+ * Thrown when an older client receives a HomeLayout created by a newer schema version,
+ * preventing silent overwriting of newer metadata.
+ */
+export class UnsupportedLayoutVersionError extends Error {
+  constructor(public readonly version: number) {
+    super(
+      `Unsupported layout schema version ${version}. This configuration was created by a newer version of Daynori; update your client to view and modify this layout.`
+    );
+    this.name = 'UnsupportedLayoutVersionError';
+  }
+}
+
+/**
+ * Checks whether an incoming layout object has a version newer than currently supported.
+ */
+export function isUnsupportedNewerLayoutVersion(input: unknown): boolean {
+  if (!input || typeof input !== 'object') return false;
+  const raw = input as Record<string, unknown>;
+  return typeof raw.version === 'number' && raw.version > CURRENT_HOME_LAYOUT_VERSION;
 }
 
 /**
@@ -137,8 +162,13 @@ export function getDefaultHomeLayout(): HomeLayout {
  * Drops unknown or unreleased widget/module identifiers (e.g. expenses, vault, rooms, ai),
  * appends missing approved widgets with defaults, bounds custom labels,
  * normalizes ordering to consecutive zero-indexed integers, and deduplicates folder UUIDs.
+ * Throws UnsupportedLayoutVersionError if the input layout has a newer version,
+ * unless allowUnsupportedVersion is specified.
  */
-export function sanitizeAndMigrateHomeLayout(input: unknown): HomeLayout {
+export function sanitizeAndMigrateHomeLayout(
+  input: unknown,
+  options?: { allowUnsupportedVersion?: boolean }
+): HomeLayout {
   const defaults = getDefaultHomeLayout();
 
   if (!input || typeof input !== 'object') {
@@ -146,6 +176,18 @@ export function sanitizeAndMigrateHomeLayout(input: unknown): HomeLayout {
   }
 
   const raw = input as Record<string, unknown>;
+
+  // Check version compatibility
+  if (isUnsupportedNewerLayoutVersion(input)) {
+    const ver = Number(raw.version);
+    if (!options?.allowUnsupportedVersion) {
+      throw new UnsupportedLayoutVersionError(ver);
+    }
+    return {
+      ...defaults,
+      unsupportedVersion: ver,
+    };
+  }
 
   // Density
   const density: HomeDensity =
@@ -241,7 +283,7 @@ export function sanitizeAndMigrateHomeLayout(input: unknown): HomeLayout {
     density,
     widgets: normalizedWidgets,
     moduleShortcuts: normalizedShortcuts,
-    favoriteFolderIds,
+    favoriteFolderIds: favoriteFolderIds.slice(0, 20),
   };
 }
 

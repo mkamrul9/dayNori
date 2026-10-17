@@ -129,23 +129,55 @@ export async function getWebPushCapabilityStateAsync(): Promise<WebPushCapabilit
 const BOUND_ACCOUNT_KEY = 'daynori_push_bound_account';
 const PENDING_DEACTIVATIONS_KEY = 'daynori_pending_push_deactivations';
 
+export interface PendingPushDeactivation {
+  endpoint: string;
+  userId: string;
+  queuedAt: string;
+}
+
+let activePushSessionGeneration = 0;
+let activePushSessionUserId: string | null = null;
+
+export function setActivePushSession(userId: string | null): void {
+  activePushSessionUserId = userId;
+  activePushSessionGeneration++;
+}
+
+export function getActivePushSession(): { generation: number; userId: string | null } {
+  return { generation: activePushSessionGeneration, userId: activePushSessionUserId };
+}
+
 /**
- * Flushes any pending subscription deactivations that were queued while offline.
+ * Flushes any pending subscription deactivations that were queued while offline,
+ * scoped strictly to the currently authenticated user.
  */
-export async function flushPendingPushDeactivationsAsync(apiClient: DaynoriApiClient): Promise<void> {
+export async function flushPendingPushDeactivationsAsync(
+  apiClient: DaynoriApiClient,
+  currentUserId?: string
+): Promise<void> {
   if (typeof localStorage === 'undefined') return;
   try {
     const raw = localStorage.getItem(PENDING_DEACTIVATIONS_KEY);
     if (!raw) return;
-    const pending: string[] = JSON.parse(raw);
-    if (!Array.isArray(pending) || pending.length === 0) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return;
 
-    const remaining: string[] = [];
-    for (const endpoint of pending) {
-      try {
-        await apiClient.deactivateWebPushSubscription(endpoint);
-      } catch {
-        remaining.push(endpoint);
+    const pending: PendingPushDeactivation[] = parsed.map((item) =>
+      typeof item === 'string'
+        ? { endpoint: item, userId: currentUserId || '', queuedAt: new Date().toISOString() }
+        : item
+    );
+
+    const remaining: PendingPushDeactivation[] = [];
+    for (const item of pending) {
+      if (!currentUserId || !item.userId || item.userId === currentUserId) {
+        try {
+          await apiClient.deactivateWebPushSubscription(item.endpoint);
+        } catch {
+          remaining.push(item);
+        }
+      } else {
+        remaining.push(item);
       }
     }
     if (remaining.length > 0) {
@@ -161,7 +193,7 @@ export async function flushPendingPushDeactivationsAsync(apiClient: DaynoriApiCl
 /**
  * Contextual subscription request: prompts user permission upon explicit click,
  * fetches VAPID public key from backend, creates PushSubscription, and registers with backend.
- * Aborts and rejects late responses if user identity changed mid-operation.
+ * Aborts and rejects late responses if user identity or session changed mid-operation.
  */
 export async function subscribeWebPushAsync(
   apiClient: DaynoriApiClient,
@@ -172,7 +204,10 @@ export async function subscribeWebPushAsync(
     return cap;
   }
 
-  const initiatingUserId = currentUserId || (typeof localStorage !== 'undefined' ? localStorage.getItem(BOUND_ACCOUNT_KEY) : null);
+  // Real session generation tracking
+  const sessionGen = ++activePushSessionGeneration;
+  const sessionUser = currentUserId ?? null;
+  activePushSessionUserId = sessionUser;
 
   try {
     // 1. Request notification permission contextually upon explicit user gesture
@@ -181,10 +216,20 @@ export async function subscribeWebPushAsync(
       return getWebPushCapabilityStateAsync();
     }
 
+    if (activePushSessionGeneration !== sessionGen || activePushSessionUserId !== sessionUser) {
+      console.warn('[WebPush] Session changed during permission prompt; aborting registration');
+      return getWebPushCapabilityStateAsync();
+    }
+
     // 2. Fetch VAPID public key from API
     const vapidRes = await apiClient.getVapidPublicKey();
     const vapidPublicKey = vapidRes.data.publicKey;
     const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+
+    if (activePushSessionGeneration !== sessionGen || activePushSessionUserId !== sessionUser) {
+      console.warn('[WebPush] Session changed during VAPID key acquisition; aborting registration');
+      return getWebPushCapabilityStateAsync();
+    }
 
     // 3. Ensure service worker is ready and subscribe via PushManager
     const registration = await navigator.serviceWorker.ready;
@@ -197,9 +242,8 @@ export async function subscribeWebPushAsync(
       });
     }
 
-    // Guard against identity change during async prompt/key fetch
-    if (currentUserId && initiatingUserId && currentUserId !== initiatingUserId) {
-      console.warn('[WebPush] Identity changed during subscription; aborting registration for old user');
+    if (activePushSessionGeneration !== sessionGen || activePushSessionUserId !== sessionUser) {
+      console.warn('[WebPush] Session changed during push subscription; aborting registration');
       return getWebPushCapabilityStateAsync();
     }
 
@@ -219,8 +263,8 @@ export async function subscribeWebPushAsync(
       localStorage.setItem(BOUND_ACCOUNT_KEY, currentUserId);
     }
 
-    // Flush any pending deactivations
-    void flushPendingPushDeactivationsAsync(apiClient);
+    // Flush any pending deactivations for this user
+    void flushPendingPushDeactivationsAsync(apiClient, currentUserId);
 
     return getWebPushCapabilityStateAsync();
   } catch (err) {
@@ -247,10 +291,15 @@ export async function unsubscribeWebPushAsync(
         } catch {
           // Queue durable offline deactivation
           if (typeof localStorage !== 'undefined') {
+            const boundUser = localStorage.getItem(BOUND_ACCOUNT_KEY) || 'current';
             const raw = localStorage.getItem(PENDING_DEACTIVATIONS_KEY);
-            const pending: string[] = raw ? JSON.parse(raw) : [];
-            if (!pending.includes(endpoint)) {
-              pending.push(endpoint);
+            const pending: PendingPushDeactivation[] = raw ? JSON.parse(raw) : [];
+            if (!pending.some((p) => p.endpoint === endpoint)) {
+              pending.push({
+                endpoint,
+                userId: boundUser,
+                queuedAt: new Date().toISOString(),
+              });
               localStorage.setItem(PENDING_DEACTIVATIONS_KEY, JSON.stringify(pending));
             }
           }
@@ -272,8 +321,10 @@ export async function unsubscribeWebPushAsync(
  * Durably queues deactivations if network is offline and resets bound account state.
  */
 export async function cleanupWebPushOnSignOutAsync(
-  apiClient: DaynoriApiClient
+  apiClient: DaynoriApiClient,
+  currentUserId?: string
 ): Promise<void> {
+  setActivePushSession(null);
   try {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.ready;
@@ -284,15 +335,21 @@ export async function cleanupWebPushOnSignOutAsync(
           await apiClient.deactivateWebPushSubscription(endpoint);
         } catch {
           // Persist durable pending deactivation if network fails/offline
-          try {
-            const raw = localStorage.getItem(PENDING_DEACTIVATIONS_KEY);
-            const pending: string[] = raw ? JSON.parse(raw) : [];
-            if (!pending.includes(endpoint)) {
-              pending.push(endpoint);
-              localStorage.setItem(PENDING_DEACTIVATIONS_KEY, JSON.stringify(pending));
+          if (typeof localStorage !== 'undefined' && currentUserId) {
+            try {
+              const raw = localStorage.getItem(PENDING_DEACTIVATIONS_KEY);
+              const pending: PendingPushDeactivation[] = raw ? JSON.parse(raw) : [];
+              if (!pending.some((p) => p.endpoint === endpoint && p.userId === currentUserId)) {
+                pending.push({
+                  endpoint,
+                  userId: currentUserId,
+                  queuedAt: new Date().toISOString(),
+                });
+                localStorage.setItem(PENDING_DEACTIVATIONS_KEY, JSON.stringify(pending));
+              }
+            } catch {
+              // Ignore storage failure
             }
-          } catch {
-            // Ignore storage failure
           }
         }
       }

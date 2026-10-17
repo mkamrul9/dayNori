@@ -54,14 +54,22 @@ export interface WebPushNotificationAdapter {
   }>;
 }
 
+import {
+  encryptWebPushPayload,
+  createVapidAuthHeader,
+  assertSafePushEndpointNetworkDestination,
+} from './crypto/webPushEncryption.js';
+
 /**
  * Creates the production-configured Web Push transport adapter.
+ * Enforces RFC 8291 payload encryption (aes128gcm), RFC 8292 VAPID signing (ES256),
+ * and network-level SSRF / safe destination verification.
  * Truthfully reports unavailable when required VAPID credentials are not configured.
  */
 export function createConfiguredWebPushAdapter(): WebPushNotificationAdapter {
   const publicKey = process.env['VAPID_PUBLIC_KEY'];
   const privateKey = process.env['VAPID_PRIVATE_KEY'];
-  const subject = process.env['VAPID_SUBJECT'];
+  const subject = process.env['VAPID_SUBJECT'] || 'mailto:security@daynori.com';
 
   const isConfigured = Boolean(publicKey && privateKey && subject);
 
@@ -76,19 +84,41 @@ export function createConfiguredWebPushAdapter(): WebPushNotificationAdapter {
       }
 
       try {
+        // 1. Enforce safe outbound network destination (DNS resolution & private address guards)
+        await assertSafePushEndpointNetworkDestination(subscription.endpoint);
+
         const payloadStr = JSON.stringify({
           title: redactedTitle,
           body: redactedBody,
           data: dataPayload,
         });
 
+        // 2. Perform RFC 8291 aes128gcm payload encryption using subscription keys
+        const encryptedBody = encryptWebPushPayload({
+          p256dh: subscription.p256dh,
+          auth: subscription.auth,
+          payload: payloadStr,
+        });
+
+        // 3. Generate RFC 8292 VAPID Authorization header signed with server private key
+        const vapidHeader = createVapidAuthHeader({
+          endpoint: subscription.endpoint,
+          vapidPublicKey: publicKey!,
+          vapidPrivateKey: privateKey!,
+          subject: subject!,
+        });
+
         const res = await fetch(subscription.endpoint, {
           method: 'POST',
           headers: {
             TTL: '86400',
-            'Content-Type': 'application/json',
+            'Content-Encoding': 'aes128gcm',
+            'Content-Type': 'application/octet-stream',
+            Authorization: vapidHeader,
           },
-          body: payloadStr,
+          body: encryptedBody,
+          redirect: 'error',
+          signal: AbortSignal.timeout(10_000),
         });
 
         if (res.status === 201 || res.status === 200 || res.status === 202) {

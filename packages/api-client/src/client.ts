@@ -174,6 +174,8 @@ import {
 export interface ApiClientOptions {
   baseUrl: string;
   token?: string | (() => Promise<string | null> | string | null);
+  csrfToken?: string | (() => Promise<string | null> | string | null);
+  headers?: Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
   fetchFn?: typeof fetch;
   defaultTimeoutMs?: number;
 }
@@ -187,12 +189,16 @@ export interface RequestOptions {
 export class DaynoriApiClient {
   private readonly baseUrl: string;
   private readonly tokenResolver?: string | (() => Promise<string | null> | string | null);
+  private readonly csrfTokenResolver?: string | (() => Promise<string | null> | string | null);
+  private readonly headersResolver?: Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
   private readonly fetch: typeof fetch;
   private readonly defaultTimeoutMs: number;
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.tokenResolver = options.token;
+    this.csrfTokenResolver = options.csrfToken;
+    this.headersResolver = options.headers;
     this.fetch = options.fetchFn ?? globalThis.fetch;
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? 10_000;
   }
@@ -207,6 +213,23 @@ export class DaynoriApiClient {
     return this.tokenResolver;
   }
 
+  private async resolveCsrfToken(): Promise<string | null> {
+    if (this.csrfTokenResolver) {
+      if (typeof this.csrfTokenResolver === 'function') {
+        return this.csrfTokenResolver();
+      }
+      return this.csrfTokenResolver;
+    }
+    const globalDoc = (globalThis as unknown as { document?: { cookie?: string } }).document;
+    if (globalDoc && globalDoc.cookie) {
+      const match = globalDoc.cookie.match(/(?:^|;\s*)daynori_csrf_token=([^;]+)/);
+      if (match) {
+        return decodeURIComponent(match[1]!);
+      }
+    }
+    return null;
+  }
+
   private async request<T>(
     endpoint: string,
     init: RequestInit,
@@ -215,8 +238,15 @@ export class DaynoriApiClient {
     const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
     const token = await this.resolveToken();
 
+    const resolvedDefaultHeaders = this.headersResolver
+      ? typeof this.headersResolver === 'function'
+        ? await this.headersResolver()
+        : this.headersResolver
+      : {};
+
     const headers: Record<string, string> = {
       Accept: 'application/json',
+      ...resolvedDefaultHeaders,
       ...((options?.headers as Record<string, string>) || {}),
     };
 
@@ -226,6 +256,16 @@ export class DaynoriApiClient {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const method = (init.method || 'GET').toUpperCase();
+    const isMutating = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
+
+    if (isMutating && !headers['x-csrf-token'] && !headers['X-CSRF-Token']) {
+      const csrf = await this.resolveCsrfToken();
+      if (csrf) {
+        headers['x-csrf-token'] = csrf;
+      }
     }
 
     // Set up timeout and cancellation signal handling

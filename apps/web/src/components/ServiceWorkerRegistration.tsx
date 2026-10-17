@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { createApiClient } from '@daynori/api-client';
+import { createWebApiClient } from '../data/webApiClient';
 import { reconcileWebPushSubscriptionAsync } from '../notifications/webPushManager';
 
 export function ServiceWorkerRegistration() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, csrfToken } = useAuth();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -36,12 +36,10 @@ export function ServiceWorkerRegistration() {
   // Reconcile push subscription when user session changes
   useEffect(() => {
     if (isAuthenticated && user?.id) {
-      const client = createApiClient({
-        baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
-      });
+      const client = createWebApiClient({ csrfToken });
       void reconcileWebPushSubscriptionAsync(client, user.id);
     }
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, csrfToken]);
 
   return null;
 }

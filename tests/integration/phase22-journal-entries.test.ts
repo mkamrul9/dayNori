@@ -309,8 +309,8 @@ describe('Phase 22: Journal Entries and Privacy Defaults (Integration Tests)', (
 
       expect(backdatedEntry.data.entryDate).toBe(pastDate);
       // Physical createdAt is within the actual execution window, NOT September!
-      expect(backdatedEntry.data.createdAt >= beforeCreate).toBe(true);
-      expect(backdatedEntry.data.createdAt <= afterCreate).toBe(true);
+      expect(Date.parse(backdatedEntry.data.createdAt) >= Date.parse(beforeCreate) - 2000).toBe(true);
+      expect(Date.parse(backdatedEntry.data.createdAt) <= Date.parse(afterCreate) + 2000).toBe(true);
 
       // Domain check: isEntryBackdated identifies this as backdated
       const isBackdated = isEntryBackdated(

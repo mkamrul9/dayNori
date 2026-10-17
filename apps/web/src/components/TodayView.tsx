@@ -23,7 +23,8 @@ import {
   type TaskRecord,
   type ItemHeaderRecord,
 } from '@daynori/sync';
-import { createApiClient } from '@daynori/api-client';
+import { ApiClientError } from '@daynori/api-client';
+import { createWebApiClient } from '../data/webApiClient';
 import {
   getCalendarDateInTimezone,
   addCalendarDays,
@@ -43,28 +44,87 @@ import {
   getDefaultHomeLayout,
   sanitizeAndMigrateHomeLayout,
   reorderWidgets,
+  reorderModuleShortcuts,
   validateCustomLabel,
   filterRecentItemsForPrivacy,
   DEFAULT_WIDGET_LABELS,
+  DEFAULT_MODULE_LABELS,
+  UnsupportedLayoutVersionError,
   type HomeLayout,
   type HomeWidgetId,
+  type ModuleShortcutId,
   type RecentItemEntry,
 } from '@daynori/domain';
 
+const MODULE_SHORTCUT_HREFS: Record<ModuleShortcutId, string> = {
+  today: '/',
+  plan: '/plan',
+  library: '/library',
+  journal: '/journal',
+  notes: '/library?view=notes',
+  tasks: '/plan?view=tasks',
+  routines: '/plan?view=routines',
+  calendar: '/plan?view=calendar',
+  files: '/library?view=files',
+  knowledge: '/library?view=knowledge',
+};
+
+const MODULE_SHORTCUT_ICONS: Record<ModuleShortcutId, string> = {
+  today: '☀️',
+  plan: '📋',
+  library: '📚',
+  journal: '📖',
+  notes: '📝',
+  tasks: '✓',
+  routines: '🔁',
+  calendar: '📅',
+  files: '📁',
+  knowledge: '💡',
+};
+
+function getRecentItemHref(item: RecentItemEntry): string {
+  switch (item.type) {
+    case 'note':
+      return `/library?folderId=${item.folderId || ''}&noteId=${item.id}`;
+    case 'task':
+      return `/plan?taskId=${item.id}`;
+    case 'routine':
+      return `/plan?routineId=${item.id}`;
+    case 'file':
+      return `/library?fileId=${item.id}`;
+    case 'journal':
+      return `/journal?id=${item.id}`;
+    default:
+      return '/';
+  }
+}
+
 export const TodayView: React.FC = () => {
   const liveRegionId = useId();
-  const { themeMode, setTheme } = useShell();
+  const { themeMode, themePreference, setTheme } = useShell();
   const palette = colors[themeMode];
-  const { workspaceId, user } = useAuth();
+  const { workspaceId, user, csrfToken, preferences: authPreferences } = useAuth();
 
-  // Viewing timezone
+  // Viewing timezone from account preferences with device timezone fallback
+  const savedAccountTimezone = authPreferences?.timeZone;
   const [viewingTimezone, setViewingTimezone] = useState<string>(() => {
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    } catch {
-      return 'UTC';
-    }
+    return (
+      savedAccountTimezone ||
+      (() => {
+        try {
+          return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        } catch {
+          return 'UTC';
+        }
+      })()
+    );
   });
+
+  useEffect(() => {
+    if (savedAccountTimezone && savedAccountTimezone !== viewingTimezone) {
+      setViewingTimezone(savedAccountTimezone);
+    }
+  }, [savedAccountTimezone, viewingTimezone]);
 
   // Current calendar reference time
   const [currentNow, setCurrentNow] = useState<Date>(() => new Date());
@@ -92,6 +152,11 @@ export const TodayView: React.FC = () => {
   const [isOverdueExpanded, setIsOverdueExpanded] = useState(false);
   const [isSavingLayout, setIsSavingLayout] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [hasUnsupportedVersion, setHasUnsupportedVersion] = useState(false);
+  const [conflictState, setConflictState] = useState<{
+    serverRevision: number;
+    serverLayout: HomeLayout;
+  } | null>(null);
 
   // Editor & History modal states
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -118,6 +183,26 @@ export const TodayView: React.FC = () => {
   const localRepoRef = useRef<IndexedDbLocalRepository | null>(null);
   const syncEngineRef = useRef<SyncEngine | null>(null);
 
+  // Scope tracker to clear stale visible data on account changes and ignore late results
+  const activeScopeRef = useRef<{ workspaceId: string | null; userId: string | null }>({
+    workspaceId,
+    userId: user?.id || null,
+  });
+
+  useEffect(() => {
+    activeScopeRef.current = { workspaceId, userId: user?.id || null };
+    // Clear visible state on account/workspace change
+    setRoutines([]);
+    setOccurrences([]);
+    setTasks([]);
+    setRecentItems([]);
+    setWorkspaceFolders([]);
+    setHomeLayout(getDefaultHomeLayout());
+    setPreferencesRevision(0);
+    setConflictState(null);
+    setHasUnsupportedVersion(false);
+  }, [workspaceId, user?.id]);
+
   const announce = useCallback((msg: string) => {
     setLiveAnnouncement(msg);
   }, []);
@@ -140,6 +225,8 @@ export const TodayView: React.FC = () => {
       return;
     }
 
+    const currentScope = { workspaceId, userId: user?.id || null };
+
     try {
       if (!localRepoRef.current) {
         const repo = new IndexedDbLocalRepository();
@@ -150,9 +237,7 @@ export const TodayView: React.FC = () => {
         localRepoRef.current = repo;
       }
 
-      const client = createApiClient({
-        baseUrl: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
-      });
+      const client = createWebApiClient({ csrfToken });
 
       if (!syncEngineRef.current) {
         const engine = createWebSyncEngine({
@@ -180,15 +265,41 @@ export const TodayView: React.FC = () => {
       // 1. Load preferences (HomeLayout and display preferences)
       try {
         const prefRes = await client.getUserPreferences().catch(() => null);
-        if (prefRes?.data?.preferences?.homeLayout) {
-          setHomeLayout(sanitizeAndMigrateHomeLayout(prefRes.data.preferences.homeLayout));
+        if (
+          activeScopeRef.current.workspaceId !== currentScope.workspaceId ||
+          activeScopeRef.current.userId !== currentScope.userId
+        ) {
+          return;
+        }
+
+        if (prefRes?.data) {
+          // Authoritative revision adopted independently from whether optional layout exists
           setPreferencesRevision(prefRes.data.revision);
+          if (prefRes.data.preferences?.homeLayout) {
+            try {
+              setHomeLayout(sanitizeAndMigrateHomeLayout(prefRes.data.preferences.homeLayout));
+              setHasUnsupportedVersion(false);
+            } catch (err) {
+              if (err instanceof UnsupportedLayoutVersionError) {
+                setHasUnsupportedVersion(true);
+              }
+            }
+          }
         } else {
           // Fall back to local repository snapshot
           const snapshot = await repo.getPreferenceSnapshot(user?.id || 'anonymous');
-          if (snapshot?.preferences?.homeLayout) {
-            setHomeLayout(sanitizeAndMigrateHomeLayout(snapshot.preferences.homeLayout));
+          if (snapshot) {
             setPreferencesRevision(snapshot.revision);
+            if (snapshot.preferences?.homeLayout) {
+              try {
+                setHomeLayout(sanitizeAndMigrateHomeLayout(snapshot.preferences.homeLayout));
+                setHasUnsupportedVersion(false);
+              } catch (err) {
+                if (err instanceof UnsupportedLayoutVersionError) {
+                  setHasUnsupportedVersion(true);
+                }
+              }
+            }
           }
         }
       } catch {
@@ -199,7 +310,12 @@ export const TodayView: React.FC = () => {
       try {
         const folderRes = await client.listFolders(workspaceId).catch(() => null);
         if (folderRes?.data) {
-          setWorkspaceFolders(folderRes.data.map((f) => ({ id: f.id, name: f.name })));
+          if (
+            activeScopeRef.current.workspaceId === currentScope.workspaceId &&
+            activeScopeRef.current.userId === currentScope.userId
+          ) {
+            setWorkspaceFolders(folderRes.data.map((f) => ({ id: f.id, name: f.name })));
+          }
         }
       } catch {
         // Non-blocking for offline
@@ -359,13 +475,15 @@ export const TodayView: React.FC = () => {
       if (currentCalDate !== todayDate) {
         setCurrentNow(now);
       }
-      try {
-        const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-        if (detectedTz !== viewingTimezone) {
-          setViewingTimezone(detectedTz);
+      if (!savedAccountTimezone) {
+        try {
+          const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+          if (detectedTz !== viewingTimezone) {
+            setViewingTimezone(detectedTz);
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
     };
 
@@ -1048,54 +1166,125 @@ export const TodayView: React.FC = () => {
     announce(`Density changed to ${density}.`);
   };
 
+  // Module Shortcuts Handlers
+  const handleToggleShortcut = (id: ModuleShortcutId) => {
+    setHomeLayout((prev) => {
+      const updated = {
+        ...prev,
+        moduleShortcuts: prev.moduleShortcuts.map((s) =>
+          s.id === id ? { ...s, visible: !s.visible } : s
+        ),
+      };
+      announce(`Toggled shortcut visibility for ${DEFAULT_MODULE_LABELS[id] || id}.`);
+      return updated;
+    });
+  };
+
+  const handleShortcutLabelChange = (id: ModuleShortcutId, label: string) => {
+    const validated = validateCustomLabel(label);
+    setHomeLayout((prev) => ({
+      ...prev,
+      moduleShortcuts: prev.moduleShortcuts.map((s) =>
+        s.id === id ? { ...s, customLabel: validated } : s
+      ),
+    }));
+  };
+
+  const handleMoveShortcut = (id: ModuleShortcutId, direction: 'up' | 'down') => {
+    setHomeLayout((prev) => {
+      const reordered = reorderModuleShortcuts(prev.moduleShortcuts, id, direction);
+      announce(`Moved shortcut ${DEFAULT_MODULE_LABELS[id] || id} ${direction}.`);
+      return { ...prev, moduleShortcuts: reordered };
+    });
+  };
+
   const handleRestoreDefaults = () => {
     const defaults = getDefaultHomeLayout();
     setHomeLayout(defaults);
-    announce('Restored default home layout. All user items and routines remain intact.');
+    announce(
+      'Restored default home layout and module shortcuts. Personal content, notes, routines, and tasks remain intact.'
+    );
   };
 
-  const handleSavePreferences = async () => {
+  const handleSavePreferences = async (forceOverwriteRevision?: number) => {
     if (!workspaceId) return;
     setIsSavingLayout(true);
     setSaveSuccessMessage(null);
     setErrorMessage(null);
 
+    const targetRevision =
+      forceOverwriteRevision !== undefined ? forceOverwriteRevision : preferencesRevision;
+
     try {
-      const client = createApiClient({
-        baseUrl: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
-      });
+      const client = createWebApiClient({ csrfToken });
 
       const res = await client.updateUserPreferences({
         preferences: {
           homeLayout,
           compactMode: homeLayout.density === 'compact',
+          theme: themePreference,
         },
-        expectedRevision: preferencesRevision,
+        expectedRevision: targetRevision,
       });
 
       if (res.data) {
         setPreferencesRevision(res.data.revision);
+        setConflictState(null);
+
+        // Preserve full preference snapshot locally
         if (localRepoRef.current) {
+          const existingSnapshot = await localRepoRef.current.getPreferenceSnapshot(
+            user?.id || 'anonymous'
+          );
+          const mergedPreferences = {
+            ...existingSnapshot?.preferences,
+            homeLayout,
+            compactMode: homeLayout.density === 'compact',
+            theme: themePreference,
+          };
           await localRepoRef.current.savePreferenceSnapshot({
             userId: user?.id || 'anonymous',
-            preferences: { homeLayout },
+            preferences: mergedPreferences,
             schemaVersion: 1,
             revision: res.data.revision,
             updatedAt: new Date().toISOString(),
           });
         }
+
         setSaveSuccessMessage('Home customization saved successfully.');
         announce('Home customization saved successfully.');
         setIsCustomizing(false);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('conflict') || msg.includes('revision')) {
+      const isConflict =
+        (err instanceof ApiClientError && err.statusCode === 409) ||
+        (err instanceof Error &&
+          (err.message.includes('conflict') ||
+            err.message.includes('revision') ||
+            err.message.includes('409')));
+
+      if (isConflict) {
+        try {
+          const client = createWebApiClient({ csrfToken });
+          const latest = await client.getUserPreferences();
+          if (latest.data) {
+            setConflictState({
+              serverRevision: latest.data.revision,
+              serverLayout: latest.data.preferences?.homeLayout
+                ? sanitizeAndMigrateHomeLayout(latest.data.preferences.homeLayout, {
+                    allowUnsupportedVersion: true,
+                  })
+                : getDefaultHomeLayout(),
+            });
+          }
+        } catch {
+          // ignore error fetching latest
+        }
         setErrorMessage(
-          'Preference revision conflict: layout was modified on another device. Please refresh to load latest changes.'
+          'Preference conflict: settings were modified on another device. You can keep your unsaved edits or discard them to load latest settings.'
         );
       } else {
-        setErrorMessage(`Failed to save preferences: ${msg}`);
+        setErrorMessage(`Failed to save preferences: ${err instanceof Error ? err.message : String(err)}`);
       }
       announce('Failed to save layout preferences.');
     } finally {
@@ -1103,11 +1292,33 @@ export const TodayView: React.FC = () => {
     }
   };
 
+  const handleKeepMyEdits = () => {
+    if (!conflictState) return;
+    const newRev = conflictState.serverRevision;
+    setPreferencesRevision(newRev);
+    void handleSavePreferences(newRev);
+  };
+
+  const handleDiscardAndReload = () => {
+    if (!conflictState) return;
+    setHomeLayout(conflictState.serverLayout);
+    setPreferencesRevision(conflictState.serverRevision);
+    setConflictState(null);
+    setErrorMessage(null);
+    announce('Loaded latest preferences from cloud.');
+  };
+
   const visibleWidgets = useMemo(() => {
     return [...homeLayout.widgets]
       .filter((w) => w.visible)
       .sort((a, b) => a.order - b.order);
   }, [homeLayout.widgets]);
+
+  const visibleShortcuts = useMemo(() => {
+    return [...homeLayout.moduleShortcuts]
+      .filter((s) => s.visible)
+      .sort((a, b) => a.order - b.order);
+  }, [homeLayout.moduleShortcuts]);
 
   const cardPadding = homeLayout.density === 'compact' ? spacing.sm : spacing.base;
 
@@ -1248,6 +1459,104 @@ export const TodayView: React.FC = () => {
             onDismiss={() => setSaveSuccessMessage(null)}
           />
         </div>
+      )}
+
+      {/* Unsupported Newer Version Warning */}
+      {hasUnsupportedVersion && (
+        <div style={{ marginBottom: `${spacing.base}px` }}>
+          <Feedback
+            severity="warning"
+            title="Newer Layout Version Detected"
+            message="Your layout was created or modified by a newer version of Daynori. To prevent data loss, changes cannot be saved until you update your application."
+            themeMode={themeMode}
+          />
+        </div>
+      )}
+
+      {/* Conflict Resolution Banner */}
+      {conflictState && (
+        <div
+          style={{
+            marginBottom: `${spacing.base}px`,
+            padding: `${spacing.base}px`,
+            borderRadius: `${radii.card}px`,
+            backgroundColor: palette.surfaceRaised,
+            border: `1px solid ${palette.status.warning || palette.border.subtle}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: `${spacing.sm}px`,
+          }}
+        >
+          <div style={{ fontWeight: 700, color: palette.text.primary, fontSize: '14px' }}>
+            ⚠️ Layout Conflict Detected
+          </div>
+          <div style={{ fontSize: '13px', color: palette.text.secondary }}>
+            Your settings were modified on another device (revision {conflictState.serverRevision}).
+            Your unsaved local edits are currently preserved in this view.
+          </div>
+          <div style={{ display: 'flex', gap: `${spacing.xs}px`, flexWrap: 'wrap' }}>
+            <Button
+              id="keep-my-edits-btn"
+              variant="primary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={handleKeepMyEdits}
+            >
+              Keep My Edits & Overwrite
+            </Button>
+            <Button
+              id="discard-reload-btn"
+              variant="secondary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={handleDiscardAndReload}
+            >
+              Discard & Load Latest
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Module Shortcuts Navigation Bar */}
+      {visibleShortcuts.length > 0 && (
+        <nav
+          aria-label="Quick Navigation Shortcuts"
+          style={{
+            display: 'flex',
+            gap: `${spacing.xs}px`,
+            flexWrap: 'wrap',
+            marginBottom: `${spacing.lg}px`,
+          }}
+        >
+          {visibleShortcuts.map((shortcut) => {
+            const label =
+              shortcut.customLabel || DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id;
+            const href = MODULE_SHORTCUT_HREFS[shortcut.id] || '/';
+            return (
+              <Link
+                key={shortcut.id}
+                href={href}
+                id={`shortcut-${shortcut.id}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: `${radii.pill}px`,
+                  backgroundColor: palette.surfaceRaised,
+                  border: `1px solid ${palette.border.subtle}`,
+                  color: palette.text.primary,
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                <span>{MODULE_SHORTCUT_ICONS[shortcut.id]}</span>
+                <span>{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
       )}
 
       {/* Error / Retry Banner */}
@@ -2049,17 +2358,27 @@ export const TodayView: React.FC = () => {
                         </div>
                       ) : (
                         recentItems.map((item) => (
-                          <div
+                          <Link
                             key={item.id}
+                            href={getRecentItemHref(item)}
+                            id={`recent-item-${item.id}`}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               padding: `${spacing.xs}px 0`,
                               borderBottom: `1px solid ${palette.border.subtle}`,
+                              textDecoration: 'none',
+                              color: 'inherit',
                             }}
                           >
-                            <span style={{ fontSize: '13px', color: palette.text.primary, fontWeight: 500 }}>
+                            <span
+                              style={{
+                                fontSize: '13px',
+                                color: palette.text.primary,
+                                fontWeight: 500,
+                              }}
+                            >
                               {item.title}
                             </span>
                             <span
@@ -2074,7 +2393,7 @@ export const TodayView: React.FC = () => {
                             >
                               {item.type}
                             </span>
-                          </div>
+                          </Link>
                         ))
                       )}
                     </div>
@@ -2391,6 +2710,115 @@ export const TodayView: React.FC = () => {
               </div>
             </fieldset>
 
+            {/* Module Shortcuts Reordering & Visibility */}
+            <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+                Navigation Shortcuts & Ordering
+              </legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
+                {[...homeLayout.moduleShortcuts]
+                  .sort((a, b) => a.order - b.order)
+                  .map((shortcut, idx, arr) => (
+                    <div
+                      key={shortcut.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: `${spacing.xs}px ${spacing.sm}px`,
+                        backgroundColor: palette.surfaceRaised,
+                        borderRadius: `${radii.sm}px`,
+                        border: `1px solid ${palette.border.subtle}`,
+                        gap: `${spacing.sm}px`,
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: `${spacing.xs}px`,
+                          cursor: 'pointer',
+                          flex: 1,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          id={`toggle-shortcut-${shortcut.id}`}
+                          checked={shortcut.visible}
+                          onChange={() => handleToggleShortcut(shortcut.id)}
+                          style={{ width: '18px', height: '18px', accentColor: palette.action.primary }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: palette.text.primary }}>
+                          {MODULE_SHORTCUT_ICONS[shortcut.id]} {DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id}
+                        </span>
+                      </label>
+
+                      {/* Custom Label Input */}
+                      <input
+                        type="text"
+                        id={`shortcut-label-input-${shortcut.id}`}
+                        placeholder={DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id}
+                        value={shortcut.customLabel || ''}
+                        onChange={(e) => handleShortcutLabelChange(shortcut.id, e.target.value)}
+                        maxLength={40}
+                        aria-label={`Custom label for ${DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id}`}
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 8px',
+                          borderRadius: `${radii.sm}px`,
+                          border: `1px solid ${palette.border.subtle}`,
+                          backgroundColor: palette.surface,
+                          color: palette.text.primary,
+                          width: '160px',
+                        }}
+                      />
+
+                      {/* Accessible Reorder Controls */}
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          type="button"
+                          id={`shortcut-move-up-${shortcut.id}`}
+                          onClick={() => handleMoveShortcut(shortcut.id, 'up')}
+                          disabled={idx === 0}
+                          aria-label={`Move ${DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id} up`}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                            opacity: idx === 0 ? 0.4 : 1,
+                            backgroundColor: palette.surface,
+                            border: `1px solid ${palette.border.subtle}`,
+                            borderRadius: '4px',
+                            color: palette.text.primary,
+                          }}
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          id={`shortcut-move-down-${shortcut.id}`}
+                          onClick={() => handleMoveShortcut(shortcut.id, 'down')}
+                          disabled={idx === arr.length - 1}
+                          aria-label={`Move ${DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id} down`}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            cursor: idx === arr.length - 1 ? 'not-allowed' : 'pointer',
+                            opacity: idx === arr.length - 1 ? 0.4 : 1,
+                            backgroundColor: palette.surface,
+                            border: `1px solid ${palette.border.subtle}`,
+                            borderRadius: '4px',
+                            color: palette.text.primary,
+                          }}
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </fieldset>
+
             {/* Display Density */}
             <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
               <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
@@ -2428,7 +2856,7 @@ export const TodayView: React.FC = () => {
                 Theme
               </legend>
               <div style={{ display: 'flex', gap: `${spacing.base}px` }}>
-                {(['light', 'dark'] as const).map((mode) => (
+                {(['system', 'light', 'dark'] as const).map((mode) => (
                   <label
                     key={mode}
                     style={{
@@ -2446,7 +2874,7 @@ export const TodayView: React.FC = () => {
                       name="theme"
                       id={`theme-${mode}`}
                       value={mode}
-                      checked={themeMode === mode}
+                      checked={themePreference === mode}
                       onChange={() => setTheme(mode)}
                     />
                     {mode}
@@ -2488,6 +2916,48 @@ export const TodayView: React.FC = () => {
               </fieldset>
             )}
 
+            {/* Modal Conflict Notice */}
+            {conflictState && (
+              <div
+                style={{
+                  padding: `${spacing.sm}px`,
+                  borderRadius: `${radii.sm}px`,
+                  backgroundColor: palette.surfaceRaised,
+                  border: `1px solid ${palette.status.warning || palette.border.subtle}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: `${spacing.xs}px`,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: palette.text.primary, fontSize: '13px' }}>
+                  ⚠️ Cloud Settings Conflict (revision {conflictState.serverRevision})
+                </div>
+                <div style={{ fontSize: '12px', color: palette.text.secondary }}>
+                  Another device saved preferences since this page was loaded. Your unsaved edits are kept in this form.
+                </div>
+                <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                  <Button
+                    id="modal-keep-my-edits-btn"
+                    variant="primary"
+                    size="compact"
+                    themeMode={themeMode}
+                    onClick={handleKeepMyEdits}
+                  >
+                    Keep My Edits & Overwrite
+                  </Button>
+                  <Button
+                    id="modal-discard-reload-btn"
+                    variant="secondary"
+                    size="compact"
+                    themeMode={themeMode}
+                    onClick={handleDiscardAndReload}
+                  >
+                    Discard & Load Cloud
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div
               style={{
@@ -2501,22 +2971,28 @@ export const TodayView: React.FC = () => {
                 gap: `${spacing.sm}px`,
               }}
             >
-              <button
-                type="button"
-                id="restore-defaults-btn"
-                onClick={handleRestoreDefaults}
-                style={{
-                  background: 'none',
-                  border: `1px solid ${palette.border.subtle}`,
-                  borderRadius: `${radii.sm}px`,
-                  padding: '6px 12px',
-                  fontSize: '13px',
-                  color: palette.text.secondary,
-                  cursor: 'pointer',
-                }}
-              >
-                Restore Defaults
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <button
+                  type="button"
+                  id="restore-defaults-btn"
+                  onClick={handleRestoreDefaults}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${palette.border.subtle}`,
+                    borderRadius: `${radii.sm}px`,
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    color: palette.text.secondary,
+                    cursor: 'pointer',
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  Restore Defaults
+                </button>
+                <span style={{ fontSize: '11px', color: palette.text.secondary }}>
+                  Applies default card order and shortcut visibility without modifying personal content.
+                </span>
+              </div>
 
               <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
                 <Button
@@ -2533,8 +3009,8 @@ export const TodayView: React.FC = () => {
                   variant="primary"
                   size="compact"
                   themeMode={themeMode}
-                  onClick={handleSavePreferences}
-                  disabled={isSavingLayout}
+                  onClick={() => void handleSavePreferences()}
+                  disabled={isSavingLayout || hasUnsupportedVersion}
                 >
                   {isSavingLayout ? 'Saving...' : 'Save Preferences'}
                 </Button>

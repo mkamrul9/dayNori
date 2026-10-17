@@ -581,14 +581,40 @@ export default function PlanPage() {
   const handleNavigateReminderTarget = useCallback(
     (targetType: string, targetId: string) => {
       if (targetType === 'task') {
-        const found = tasks.find((t) => t.id === targetId);
+        const found = tasks.find((t) => t.id === targetId && t.deletedAt === null);
         if (found) {
           setEditingTask(found);
+          setLiveAnnouncement(`Opened reminder target task: ${found.title}`);
         }
       }
     },
     [tasks]
   );
+
+  // Resolve and reauthorize notification arrival query parameters (?targetId=...&targetType=...&workspaceId=...)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !workspaceId || tasks.length === 0) return;
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const paramWsId = searchParams.get('workspaceId');
+      const targetId = searchParams.get('targetId');
+      const targetType = searchParams.get('targetType') || 'task';
+      const reminderInstanceId = searchParams.get('reminderInstanceId');
+
+      if (paramWsId && paramWsId !== workspaceId) {
+        console.warn('[Plan] Ignoring notification deep link for unauthorized workspace:', paramWsId);
+        return;
+      }
+
+      if (targetId) {
+        handleNavigateReminderTarget(targetType, targetId);
+      } else if (reminderInstanceId) {
+        setActiveView('reminders');
+      }
+    } catch {
+      // Ignore
+    }
+  }, [workspaceId, tasks, handleNavigateReminderTarget]);
 
   // Toggle Task Completion
   const handleToggleComplete = async (taskId: string) => {

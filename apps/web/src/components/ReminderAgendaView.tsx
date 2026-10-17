@@ -11,6 +11,7 @@ import {
   unsubscribeWebPushAsync,
   type WebPushCapabilityState,
 } from '../notifications/webPushManager';
+import { createWebApiClient } from '../data/webApiClient';
 
 export interface ReminderAgendaViewProps {
   workspaceId: string | null;
@@ -25,11 +26,15 @@ export function ReminderAgendaView({
   workspaceId,
   isAuthenticated,
   userId,
-  apiClient,
+  apiClient: passedApiClient,
   themeMode = 'light',
   onNavigateToItem,
 }: ReminderAgendaViewProps) {
   const palette = colors[themeMode];
+  const apiClient = React.useMemo(
+    () => passedApiClient || createWebApiClient(),
+    [passedApiClient]
+  );
 
   const [capability, setCapability] = useState<WebPushCapabilityState | null>(null);
   const [instances, setInstances] = useState<ReminderInstance[]>([]);

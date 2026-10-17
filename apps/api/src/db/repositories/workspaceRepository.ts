@@ -237,12 +237,7 @@ export async function updateProfilePreferences(
   // Atomic revision predicate in UPDATE: ($7::bigint IS NULL OR revision = $7::bigint)
   // Ensures race conditions between two concurrent updates serialize, where only the
   // transaction matching the actual committed revision succeeds, and concurrent updates return conflict.
-  const currentPrefs = (current.preferences && typeof current.preferences === 'object')
-    ? (current.preferences as Record<string, unknown>)
-    : {};
-  const mergedPrefs = params.preferences
-    ? { ...currentPrefs, ...params.preferences }
-    : null;
+  const updatePrefsJson = params.preferences ? JSON.stringify(params.preferences) : null;
 
   const updatedRes = await client.query<ProfileRecord>(
     `UPDATE app.profiles
@@ -250,7 +245,10 @@ export async function updateProfilePreferences(
          preferred_locale = COALESCE($3, preferred_locale),
          time_zone = COALESCE($4, time_zone),
          week_start = COALESCE($5, week_start),
-         preferences = COALESCE($6::jsonb, preferences),
+         preferences = CASE 
+           WHEN $6::jsonb IS NOT NULL THEN COALESCE(preferences, '{}'::jsonb) || $6::jsonb
+           ELSE preferences
+         END,
          revision = revision + 1,
          updated_at = now()
      WHERE id = $1 AND ($7::bigint IS NULL OR revision = $7::bigint)
@@ -261,7 +259,7 @@ export async function updateProfilePreferences(
       params.preferredLocale || null,
       params.timeZone || null,
       params.weekStart || null,
-      mergedPrefs ? JSON.stringify(mergedPrefs) : null,
+      updatePrefsJson,
       params.expectedRevision !== undefined ? params.expectedRevision : null,
     ]
   );

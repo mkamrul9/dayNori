@@ -5,11 +5,13 @@ import { useRouter, usePathname } from 'next/navigation';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
 
 export type ShellModal = 'search' | 'create' | 'help' | 'account' | null;
+export type ThemePreference = 'system' | 'light' | 'dark';
 
 export interface ShellContextType {
   themeMode: ThemeMode;
+  themePreference: ThemePreference;
   toggleTheme: () => void;
-  setTheme: (mode: ThemeMode) => void;
+  setTheme: (mode: ThemePreference) => void;
   textScale: number;
   setTextScale: (scale: number) => void;
   direction: 'ltr' | 'rtl';
@@ -40,7 +42,38 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const router = useRouter();
   const pathname = usePathname();
 
-  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => {
+      setSystemIsDark(e.matches);
+    };
+    media.addEventListener('change', handler);
+    return () => media.removeEventListener('change', handler);
+  }, []);
+
+  const themeMode: ThemeMode =
+    themePreference === 'system' ? (systemIsDark ? 'dark' : 'light') : themePreference;
+
+  const toggleTheme = () => {
+    setThemePreference((prev) => {
+      const currentEffective = prev === 'system' ? (systemIsDark ? 'dark' : 'light') : prev;
+      return currentEffective === 'light' ? 'dark' : 'light';
+    });
+  };
+
+  const setTheme = (mode: ThemePreference) => {
+    setThemePreference(mode);
+  };
+
   const [textScale, setTextScale] = useState<number>(100);
   const [direction, setDirection] = useState<'ltr' | 'rtl'>('ltr');
   const [language, setLanguage] = useState<'en' | 'bn'>('en');
@@ -152,14 +185,6 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [router, shortcutsEnabled]);
 
-  const toggleTheme = () => {
-    setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'));
-  };
-
-  const setTheme = (mode: ThemeMode) => {
-    setThemeMode(mode);
-  };
-
   const openModal = (modal: ShellModal) => {
     setActiveModal(modal);
   };
@@ -174,6 +199,7 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ShellContext.Provider
       value={{
         themeMode,
+        themePreference,
         toggleTheme,
         setTheme,
         textScale,

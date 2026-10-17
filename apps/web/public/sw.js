@@ -1,5 +1,5 @@
-// Daynori Service Worker (Phase 29/30: Web Reminders & Reviewed PWA Shell)
-const CACHE_VERSION = 'daynori-static-v1';
+// Daynori Service Worker (Phase 29/30/31: Web Reminders & Reviewed PWA Shell)
+const CACHE_VERSION = 'daynori-static-v2';
 
 // Strict allowlist: immutable public static assets only.
 // Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.
@@ -79,7 +79,8 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 2. Activate Lifecycle: clean up only old daynori-static-v* caches without touching unrelated origin caches
+// 2. Activate Lifecycle: clean up only old daynori-static-v* caches without touching unrelated origin caches,
+// and safely remove any legacy navigation/private entries from old installations.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -93,6 +94,20 @@ self.addEventListener('activate', (event) => {
             return Promise.resolve();
           })
         );
+      })
+      .then(() => {
+        return caches.open(CACHE_VERSION).then((cache) => {
+          return cache.keys().then((requests) => {
+            return Promise.all(
+              requests.map((request) => {
+                if (!isAllowlistedStaticAsset(request.url)) {
+                  return cache.delete(request);
+                }
+                return Promise.resolve();
+              })
+            );
+          });
+        });
       })
       .then(() => self.clients.claim())
   );

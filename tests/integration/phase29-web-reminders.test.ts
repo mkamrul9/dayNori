@@ -783,7 +783,7 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
     });
 
     it('includes static public allowlist and versioned cache name', () => {
-      expect(swContent).toContain('daynori-static-v1');
+      expect(swContent).toContain('daynori-static-v2');
       expect(swContent).toContain('ALLOWLISTED_STATIC_ASSETS');
       expect(swContent).toContain('/offline.html');
       expect(swContent).toContain('/manifest.json');

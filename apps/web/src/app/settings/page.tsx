@@ -6,7 +6,7 @@ import { Button, Card, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
-import { createApiClient } from '@daynori/api-client';
+import { createWebApiClient } from '../../data/webApiClient';
 
 export default function SettingsPage() {
   const {
@@ -26,6 +26,7 @@ export default function SettingsPage() {
     isAuthenticated,
     user,
     workspaceId,
+    csrfToken,
     preferences,
     loadPreferences,
     savePreferences,
@@ -670,9 +671,7 @@ export default function SettingsPage() {
           workspaceId={workspaceId}
           isAuthenticated={isAuthenticated}
           userId={user?.id}
-          apiClient={createApiClient({
-            baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
-          })}
+          apiClient={createWebApiClient({ csrfToken })}
           themeMode={themeMode}
         />
 

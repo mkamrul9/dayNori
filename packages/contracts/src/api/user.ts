@@ -67,9 +67,10 @@ export const HomeLayoutSchema = z
   .object({
     version: z.literal(1).default(1),
     density: z.enum(['comfortable', 'compact']).default('comfortable'),
-    widgets: z.array(HomeWidgetConfigSchema),
-    moduleShortcuts: z.array(ModuleShortcutConfigSchema),
-    favoriteFolderIds: z.array(z.string().uuid()).default([]),
+    widgets: z.array(HomeWidgetConfigSchema).max(7),
+    moduleShortcuts: z.array(ModuleShortcutConfigSchema).max(10),
+    favoriteFolderIds: z.array(z.string().uuid()).max(20).default([]),
+    unsupportedVersion: z.number().int().optional(),
   })
   .strict();
 export type HomeLayout = z.infer<typeof HomeLayoutSchema>;

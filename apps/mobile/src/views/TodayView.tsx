@@ -35,11 +35,16 @@ import {
   getDefaultHomeLayout,
   sanitizeAndMigrateHomeLayout,
   reorderWidgets,
+  reorderModuleShortcuts,
   validateCustomLabel,
   filterRecentItemsForPrivacy,
   DEFAULT_WIDGET_LABELS,
+  DEFAULT_MODULE_LABELS,
+  UnsupportedLayoutVersionError,
   type HomeLayout,
   type HomeWidgetId,
+  type ModuleShortcutId,
+  type HomeDensity,
   type RecentItemEntry,
 } from '@daynori/domain';
 import type {
@@ -49,6 +54,21 @@ import type {
   TaskRecord,
   ItemHeaderRecord,
 } from '@daynori/sync';
+import type { DaynoriApiClient } from '@daynori/api-client';
+import { ApiClientError } from '@daynori/api-client';
+
+const MOBILE_MODULE_SHORTCUT_ICONS: Record<ModuleShortcutId, string> = {
+  today: '☀️',
+  plan: '📋',
+  library: '📚',
+  journal: '📖',
+  notes: '📝',
+  tasks: '✓',
+  routines: '🔁',
+  calendar: '📅',
+  files: '📁',
+  knowledge: '💡',
+};
 
 export interface MobileRoutineItem {
   id: string;
@@ -84,6 +104,7 @@ export interface TodayViewProps {
   themeMode: ThemeMode;
   onNavigateToPlan: () => void;
   onNavigateToJournal: () => void;
+  onNavigateToLibrary?: (folderId?: string) => void;
   onOpenCreate: () => void;
   testID?: string;
   todayDate?: string;
@@ -93,6 +114,7 @@ export interface TodayViewProps {
   initialFolders?: Array<{ id: string; name: string }>;
   repository?: LocalRepositoryPort;
   syncEngine?: SyncEngine;
+  apiClient?: DaynoriApiClient;
   workspaceId?: string | null;
   userId?: string | null;
   isOnline?: boolean;
@@ -180,6 +202,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   themeMode,
   onNavigateToPlan,
   onNavigateToJournal,
+  onNavigateToLibrary,
   onOpenCreate,
   testID = 'today-view',
   todayDate: todayDateProp = DEFAULT_TODAY,
@@ -189,6 +212,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   initialFolders = [],
   repository,
   syncEngine,
+  apiClient,
   workspaceId,
   userId,
   isOnline: _isOnline = true,
@@ -197,7 +221,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const isProduction = Boolean(repository && workspaceId);
 
   // Timezone & dynamic calendar reference
-  const [viewingTimezone] = useState<string>(() => {
+  const [viewingTimezone, setViewingTimezone] = useState<string>(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     } catch {
@@ -216,19 +240,56 @@ export const TodayView: React.FC<TodayViewProps> = ({
     return addCalendarDays(todayDate, -1);
   }, [todayDate]);
 
-  // Interactive state toggles
+  // Production vs Interactive demo states
   const [demoState, setDemoState] = useState<'normal' | 'empty' | 'loading' | 'error'>('normal');
-  const [tasks, setTasks] = useState<MobileTaskItem[]>(initialTasks);
-  const [routines, setRoutines] = useState<MobileRoutineItem[]>(initialRoutines);
-  const [occurrences, setOccurrences] = useState<MobileOccurrenceItem[]>(initialOccurrences);
+  const [isLoading, setIsLoading] = useState<boolean>(isProduction);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Clear demo fixtures during authenticated production load
+  const [tasks, setTasks] = useState<MobileTaskItem[]>(isProduction ? [] : initialTasks);
+  const [routines, setRoutines] = useState<MobileRoutineItem[]>(isProduction ? [] : initialRoutines);
+  const [occurrences, setOccurrences] = useState<MobileOccurrenceItem[]>(
+    isProduction ? [] : initialOccurrences
+  );
   const [recentItems, setRecentItems] = useState<RecentItemEntry[]>([]);
-  const favoriteFolders = useMemo(() => initialFolders, [initialFolders]);
+  const [workspaceFolders, setWorkspaceFolders] = useState<Array<{ id: string; name: string }>>(
+    initialFolders
+  );
   const rawTasksRef = useRef<TaskRecord[]>([]);
 
-  // Phase 30 Customization State
+  // Phase 30 Customization & Synchronization State
   const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => getDefaultHomeLayout());
+  const [preferencesRevision, setPreferencesRevision] = useState<number>(0);
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [isOverdueExpanded, setIsOverdueExpanded] = useState(false);
+  const [hasUnsupportedVersion, setHasUnsupportedVersion] = useState(false);
+  const [conflictState, setConflictState] = useState<{
+    serverRevision: number;
+    serverLayout: HomeLayout;
+  } | null>(null);
+
+  // Scope tracker to clear stale visible data on account changes and ignore late results
+  const activeScopeRef = useRef<{ workspaceId: string | null; userId: string | null }>({
+    workspaceId: workspaceId ?? null,
+    userId: userId ?? null,
+  });
+
+  useEffect(() => {
+    activeScopeRef.current = { workspaceId: workspaceId ?? null, userId: userId ?? null };
+    if (isProduction) {
+      setTasks([]);
+      setRoutines([]);
+      setOccurrences([]);
+      setRecentItems([]);
+      setWorkspaceFolders([]);
+      setHomeLayout(getDefaultHomeLayout());
+      setPreferencesRevision(0);
+      setConflictState(null);
+      setHasUnsupportedVersion(false);
+      setIsLoading(true);
+      setErrorMessage(null);
+    }
+  }, [workspaceId, userId, isProduction]);
 
   // History sheet state
   const [historyRoutine, setHistoryRoutine] = useState<MobileRoutineItem | null>(null);
@@ -251,18 +312,94 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const loadProductionData = useCallback(async () => {
     if (!repository || !workspaceId) return;
 
+    const currentScope = { workspaceId, userId: userId ?? null };
+    setIsLoading(true);
+    setErrorMessage(null);
+
     try {
-      // 1. Load preferences snapshot
-      try {
-        const snapshot = await repository.getPreferenceSnapshot(userId || 'anonymous');
-        if (snapshot?.preferences?.homeLayout) {
-          setHomeLayout(sanitizeAndMigrateHomeLayout(snapshot.preferences.homeLayout));
+      // 1. Load preferences
+      let loadedRevision = 0;
+      if (apiClient) {
+        try {
+          const prefRes = await apiClient.getUserPreferences();
+          if (
+            activeScopeRef.current.workspaceId !== currentScope.workspaceId ||
+            activeScopeRef.current.userId !== currentScope.userId
+          ) {
+            return;
+          }
+          if (prefRes?.data) {
+            loadedRevision = prefRes.data.revision;
+            setPreferencesRevision(loadedRevision);
+            if (prefRes.data.timeZone) {
+              setViewingTimezone(prefRes.data.timeZone);
+            }
+            if (prefRes.data.preferences?.homeLayout) {
+              try {
+                setHomeLayout(sanitizeAndMigrateHomeLayout(prefRes.data.preferences.homeLayout));
+                setHasUnsupportedVersion(false);
+              } catch (err) {
+                if (err instanceof UnsupportedLayoutVersionError) {
+                  setHasUnsupportedVersion(true);
+                }
+              }
+            }
+          }
+        } catch {
+          // Fall back to local snapshot if offline
         }
-      } catch {
-        // Fall back to defaults
       }
 
-      // 2. Load routines
+      if (loadedRevision === 0) {
+        try {
+          const snapshot = await repository.getPreferenceSnapshot(userId || 'anonymous');
+          if (
+            activeScopeRef.current.workspaceId !== currentScope.workspaceId ||
+            activeScopeRef.current.userId !== currentScope.userId
+          ) {
+            return;
+          }
+          if (snapshot) {
+            setPreferencesRevision(snapshot.revision);
+            const snapTz = (snapshot.preferences as Record<string, unknown> | undefined)?.timeZone;
+            if (typeof snapTz === 'string' && snapTz) {
+              setViewingTimezone(snapTz);
+            }
+            if (snapshot.preferences?.homeLayout) {
+              try {
+                setHomeLayout(sanitizeAndMigrateHomeLayout(snapshot.preferences.homeLayout));
+                setHasUnsupportedVersion(false);
+              } catch (err) {
+                if (err instanceof UnsupportedLayoutVersionError) {
+                  setHasUnsupportedVersion(true);
+                }
+              }
+            }
+          }
+        } catch {
+          // Fall back to defaults
+        }
+      }
+
+      // 2. Load workspace folders
+      try {
+        if (apiClient) {
+          const folderRes = await apiClient.listFolders(workspaceId).catch(() => null);
+          if (
+            folderRes?.data &&
+            activeScopeRef.current.workspaceId === currentScope.workspaceId &&
+            activeScopeRef.current.userId === currentScope.userId
+          ) {
+            setWorkspaceFolders(
+              folderRes.data.map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }))
+            );
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+
+      // 3. Load routines
       const loadedRoutines = await repository.listRoutines(workspaceId);
       const loadedOccurrences = await repository.listRoutineOccurrences(
         workspaceId,
@@ -314,33 +451,35 @@ export const TodayView: React.FC<TodayViewProps> = ({
         }
       }
 
-      // 3. Load tasks
+      // 4. Load tasks
       const allTasks = await repository.listTasks(workspaceId);
       rawTasksRef.current = allTasks;
       const refDate = new Date();
 
       const activeTasks = allTasks.filter((t) => t.deletedAt === null);
-      const todayTasks = activeTasks.map((t) => {
-        const isOver = isTaskOverdue(
-          { status: t.status, deadline: t.deadline },
-          refDate,
-          viewingTimezone
-        );
-        return {
-          id: t.id,
-          title: t.title,
-          due:
-            t.deadline?.type === 'timed'
-              ? `Due ${t.deadline.timestamp.slice(11, 16)}`
-              : isOver
-                ? 'Overdue'
-                : 'Today',
-          completed: t.status === 'completed',
-          isOverdue: isOver && t.status !== 'completed',
-        };
-      }).filter((t) => t.isOverdue || t.due.includes('Due') || t.due === 'Today');
+      const todayTasks = activeTasks
+        .map((t) => {
+          const isOver = isTaskOverdue(
+            { status: t.status, deadline: t.deadline },
+            refDate,
+            viewingTimezone
+          );
+          return {
+            id: t.id,
+            title: t.title,
+            due:
+              t.deadline?.type === 'timed'
+                ? `Due ${t.deadline.timestamp.slice(11, 16)}`
+                : isOver
+                  ? 'Overdue'
+                  : 'Today',
+            completed: t.status === 'completed',
+            isOverdue: isOver && t.status !== 'completed',
+          };
+        })
+        .filter((t) => t.isOverdue || t.due.includes('Due') || t.due === 'Today');
 
-      // 4. Load recent items
+      // 5. Load recent items
       try {
         const notes = await repository.listNotes(workspaceId);
         const files = await repository.listFiles(workspaceId);
@@ -398,6 +537,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
         // Non-blocking
       }
 
+      if (
+        activeScopeRef.current.workspaceId !== currentScope.workspaceId ||
+        activeScopeRef.current.userId !== currentScope.userId
+      ) {
+        return;
+      }
+
       setRoutines(
         loadedRoutines.map((r) => ({
           id: r.id,
@@ -423,10 +569,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
         }))
       );
       setTasks(todayTasks);
-    } catch {
-      // ignore
+      setIsLoading(false);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : String(err));
+      setIsLoading(false);
     }
-  }, [repository, workspaceId, userId, yesterdayDate, todayDate, currentNow, viewingTimezone]);
+  }, [repository, workspaceId, userId, yesterdayDate, todayDate, currentNow, viewingTimezone, apiClient]);
 
   useEffect(() => {
     if (isProduction) {
@@ -891,21 +1039,171 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }));
   };
 
+  // Module Shortcuts Handlers
+  const handleToggleShortcut = (id: ModuleShortcutId) => {
+    setHomeLayout((prev) => ({
+      ...prev,
+      moduleShortcuts: prev.moduleShortcuts.map((s) =>
+        s.id === id ? { ...s, visible: !s.visible } : s
+      ),
+    }));
+  };
+
+  const handleShortcutLabelChange = (id: ModuleShortcutId, label: string) => {
+    const validated = validateCustomLabel(label);
+    setHomeLayout((prev) => ({
+      ...prev,
+      moduleShortcuts: prev.moduleShortcuts.map((s) =>
+        s.id === id ? { ...s, customLabel: validated } : s
+      ),
+    }));
+  };
+
+  const handleMoveShortcut = (id: ModuleShortcutId, direction: 'up' | 'down') => {
+    setHomeLayout((prev) => ({
+      ...prev,
+      moduleShortcuts: reorderModuleShortcuts(prev.moduleShortcuts, id, direction),
+    }));
+  };
+
+  const handleDensityChange = (density: HomeDensity) => {
+    setHomeLayout((prev) => ({ ...prev, density }));
+  };
+
+  const handleToggleFavoriteFolder = (folderId: string) => {
+    setHomeLayout((prev) => {
+      const exists = prev.favoriteFolderIds.includes(folderId);
+      return {
+        ...prev,
+        favoriteFolderIds: exists
+          ? prev.favoriteFolderIds.filter((id) => id !== folderId)
+          : [...prev.favoriteFolderIds, folderId],
+      };
+    });
+  };
+
   const handleRestoreDefaults = () => {
     setHomeLayout(getDefaultHomeLayout());
   };
 
-  const handleSaveCustomization = async () => {
-    if (repository) {
+  const handleSaveCustomization = async (forceOverwriteRevision?: number) => {
+    if (!repository) {
+      setIsCustomizing(false);
+      return;
+    }
+
+    const targetRevision =
+      forceOverwriteRevision !== undefined ? forceOverwriteRevision : preferencesRevision;
+
+    try {
+      let newRevision = targetRevision + 1;
+
+      // 1. If online and apiClient available, submit to server
+      if (apiClient) {
+        try {
+          const res = await apiClient.updateUserPreferences({
+            preferences: {
+              homeLayout,
+              compactMode: homeLayout.density === 'compact',
+            },
+            expectedRevision: targetRevision,
+          });
+          if (res.data) {
+            newRevision = res.data.revision;
+            setPreferencesRevision(newRevision);
+            setConflictState(null);
+          }
+        } catch (err: unknown) {
+          const isConflict =
+            (err instanceof ApiClientError && err.statusCode === 409) ||
+            (err instanceof Error &&
+              (err.message.includes('conflict') ||
+                err.message.includes('revision') ||
+                err.message.includes('409')));
+
+          if (isConflict) {
+            try {
+              const latest = await apiClient.getUserPreferences();
+              if (latest.data) {
+                setConflictState({
+                  serverRevision: latest.data.revision,
+                  serverLayout: latest.data.preferences?.homeLayout
+                    ? sanitizeAndMigrateHomeLayout(latest.data.preferences.homeLayout, {
+                        allowUnsupportedVersion: true,
+                      })
+                    : getDefaultHomeLayout(),
+                });
+              }
+            } catch {
+              // ignore
+            }
+            setErrorMessage(
+              'Preference conflict: layout was modified on another device. Keep your edits or discard to reload.'
+            );
+            return; // Keep unsaved customization sheet open
+          }
+        }
+      }
+
+      // 2. Persist to local repository snapshot, merging with existing preferences
+      const existingSnapshot = await repository.getPreferenceSnapshot(userId || 'anonymous');
+      const mergedPreferences = {
+        ...existingSnapshot?.preferences,
+        homeLayout,
+        compactMode: homeLayout.density === 'compact',
+      };
+
       await repository.savePreferenceSnapshot({
         userId: userId || 'anonymous',
-        preferences: { homeLayout },
+        preferences: mergedPreferences,
         schemaVersion: 1,
-        revision: 1,
+        revision: newRevision,
         updatedAt: new Date().toISOString(),
       });
+
+      setIsCustomizing(false);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : String(err));
     }
-    setIsCustomizing(false);
+  };
+
+  const handleKeepMyEdits = () => {
+    if (!conflictState) return;
+    const newRev = conflictState.serverRevision;
+    setPreferencesRevision(newRev);
+    void handleSaveCustomization(newRev);
+  };
+
+  const handleDiscardAndReload = () => {
+    if (!conflictState) return;
+    setHomeLayout(conflictState.serverLayout);
+    setPreferencesRevision(conflictState.serverRevision);
+    setConflictState(null);
+    setErrorMessage(null);
+  };
+
+  const handleShortcutPress = (id: ModuleShortcutId) => {
+    switch (id) {
+      case 'today':
+        break;
+      case 'plan':
+      case 'tasks':
+      case 'routines':
+      case 'calendar':
+        onNavigateToPlan();
+        break;
+      case 'library':
+      case 'notes':
+      case 'files':
+      case 'knowledge':
+        if (onNavigateToLibrary) {
+          onNavigateToLibrary();
+        }
+        break;
+      case 'journal':
+        onNavigateToJournal();
+        break;
+    }
   };
 
   const visibleWidgets = useMemo(() => {
@@ -913,6 +1211,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
       .filter((w) => w.visible)
       .sort((a, b) => a.order - b.order);
   }, [homeLayout.widgets]);
+
+  const visibleShortcuts = useMemo(() => {
+    return [...homeLayout.moduleShortcuts]
+      .filter((s) => s.visible)
+      .sort((a, b) => a.order - b.order);
+  }, [homeLayout.moduleShortcuts]);
 
   const dueTodayTasks = tasks.filter((t) => !t.isOverdue);
   const overdueTasks = tasks.filter((t) => t.isOverdue);
@@ -984,6 +1288,110 @@ export const TodayView: React.FC<TodayViewProps> = ({
         </View>
       </View>
 
+      {/* Production Loading State */}
+      {isProduction && isLoading && (
+        <View testID="today-production-loading" style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={palette.action.primary} />
+          <Text style={[styles.loadingText, { color: palette.text.secondary }]}>
+            Loading today&apos;s agenda...
+          </Text>
+        </View>
+      )}
+
+      {/* Production Error State */}
+      {isProduction && errorMessage && !isLoading && (
+        <View testID="today-production-error" style={styles.errorContainer}>
+          <MobileFeedback
+            severity="danger"
+            message={errorMessage}
+            themeMode={themeMode}
+          />
+        </View>
+      )}
+
+      {/* Conflict Resolution Banner */}
+      {conflictState && (
+        <View
+          style={{
+            marginHorizontal: spacing.sm,
+            marginBottom: spacing.sm,
+            padding: spacing.sm,
+            borderRadius: radii.sm,
+            backgroundColor: palette.surfaceRaised,
+            borderWidth: 1,
+            borderColor: palette.status.warning,
+            gap: spacing.xs,
+          }}
+        >
+          <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 13 }}>
+            ⚠️ Settings Conflict Detected
+          </Text>
+          <Text style={{ fontSize: 12, color: palette.text.secondary }}>
+            Preferences were updated on another device (rev {conflictState.serverRevision}).
+            Your unsaved changes are preserved.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: 4 }}>
+            <MobileButton
+              variant="primary"
+              themeMode={themeMode}
+              onPress={handleKeepMyEdits}
+            >
+              Keep My Edits
+            </MobileButton>
+            <MobileButton
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={handleDiscardAndReload}
+            >
+              Discard & Reload
+            </MobileButton>
+          </View>
+        </View>
+      )}
+
+      {/* Module Shortcuts Navigation Bar */}
+      {visibleShortcuts.length > 0 && (!isProduction || !isLoading) && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            gap: spacing.xs,
+            paddingHorizontal: spacing.xs,
+            marginBottom: spacing.sm,
+          }}
+        >
+          {visibleShortcuts.map((shortcut) => {
+            const label =
+              shortcut.customLabel || DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id;
+            return (
+              <Pressable
+                key={shortcut.id}
+                testID={`mobile-shortcut-${shortcut.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Navigate to ${label}`}
+                onPress={() => handleShortcutPress(shortcut.id)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: spacing.xs,
+                  borderRadius: radii.pill,
+                  backgroundColor: palette.surfaceRaised,
+                  borderWidth: 1,
+                  borderColor: palette.border.subtle,
+                }}
+              >
+                <Text style={{ fontSize: 14 }}>{MOBILE_MODULE_SHORTCUT_ICONS[shortcut.id]}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: palette.text.primary }}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {/* Loading State */}
       {demoState === 'loading' && (
         <View testID="today-loading-state" style={styles.loadingContainer}>
@@ -1028,7 +1436,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       )}
 
       {/* Normal State: Render Customizable Cards */}
-      {demoState === 'normal' && (
+      {demoState === 'normal' && (!isProduction || (!isLoading && !errorMessage)) && (
         <>
           {visibleWidgets.map((widget) => {
             const cardTitle = widget.customLabel || DEFAULT_WIDGET_LABELS[widget.id];
@@ -1269,11 +1677,24 @@ export const TodayView: React.FC<TodayViewProps> = ({
                       </Text>
                     ) : (
                       recentItems.map((item) => (
-                        <View
+                        <Pressable
                           key={item.id}
+                          testID={`mobile-recent-item-${item.id}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Open ${item.title}`}
+                          onPress={() => {
+                            if (item.type === 'task' || item.type === 'routine') {
+                              onNavigateToPlan();
+                            } else if (item.type === 'journal') {
+                              onNavigateToJournal();
+                            } else {
+                              onNavigateToLibrary?.(item.folderId ?? undefined);
+                            }
+                          }}
                           style={{
                             flexDirection: 'row',
                             justifyContent: 'space-between',
+                            alignItems: 'center',
                             paddingVertical: spacing.xs,
                             borderBottomWidth: 1,
                             borderBottomColor: palette.border.subtle,
@@ -1285,7 +1706,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                           <Text style={{ color: palette.text.secondary, fontSize: 11, textTransform: 'uppercase' }}>
                             {item.type}
                           </Text>
-                        </View>
+                        </Pressable>
                       ))
                     )}
                   </MobileCard>
@@ -1295,21 +1716,40 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
             // 7. Favorite Folders Card
             if (widget.id === 'favorite_folders') {
+              const activeFavs = workspaceFolders.filter((f) =>
+                homeLayout.favoriteFolderIds.includes(f.id)
+              );
+
               return (
                 <View key={widget.id} style={styles.section} testID="today-favorites-section">
                   <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
                     {cardTitle}
                   </Text>
                   <MobileCard themeMode={themeMode}>
-                    {favoriteFolders.length === 0 ? (
+                    {activeFavs.length === 0 ? (
                       <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
                         No favorite folders pinned.
                       </Text>
                     ) : (
-                      favoriteFolders.map((f) => (
-                        <Text key={f.id} style={{ color: palette.text.primary, fontSize: 13, paddingVertical: spacing.xs }}>
-                          📁 {f.name}
-                        </Text>
+                      activeFavs.map((f) => (
+                        <Pressable
+                          key={f.id}
+                          testID={`mobile-fav-folder-${f.id}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Open folder ${f.name}`}
+                          onPress={() => onNavigateToLibrary?.(f.id)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingVertical: spacing.sm,
+                            borderBottomWidth: 1,
+                            borderBottomColor: palette.border.subtle,
+                          }}
+                        >
+                          <Text style={{ color: palette.text.primary, fontSize: 14, fontWeight: '600' }}>
+                            📁 {f.name}
+                          </Text>
+                        </Pressable>
                       ))
                     )}
                   </MobileCard>
@@ -1490,26 +1930,183 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 </View>
               ))}
 
-            <View style={{ marginTop: spacing.base, flexDirection: 'row', justifyContent: 'space-between' }}>
-              <MobileButton
-                testID="mobile-restore-defaults-btn"
-                variant="subtle"
-                themeMode={themeMode}
-                onPress={handleRestoreDefaults}
-                accessibilityLabel="Restore default layout"
-              >
-                Restore Defaults
-              </MobileButton>
+            {/* Module Shortcuts & Ordering */}
+            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginTop: spacing.md, marginBottom: spacing.sm }}>
+              Module Shortcuts & Ordering
+            </Text>
 
-              <MobileButton
-                testID="mobile-save-customization-btn"
-                variant="primary"
-                themeMode={themeMode}
-                onPress={handleSaveCustomization}
-                accessibilityLabel="Save customization"
+            {[...homeLayout.moduleShortcuts]
+              .sort((a, b) => a.order - b.order)
+              .map((sc, idx, arr) => (
+                <View
+                  key={sc.id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: spacing.xs,
+                    borderBottomWidth: 1,
+                    borderBottomColor: palette.border.subtle,
+                  }}
+                >
+                  <Pressable
+                    testID={`mobile-toggle-shortcut-${sc.id}`}
+                    onPress={() => handleToggleShortcut(sc.id)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1 }}
+                  >
+                    <Text style={{ fontSize: 14 }}>{sc.visible ? '☑' : '☐'}</Text>
+                    <Text style={{ color: palette.text.primary, fontSize: 13, fontWeight: '600' }}>
+                      {MOBILE_MODULE_SHORTCUT_ICONS[sc.id]} {DEFAULT_MODULE_LABELS[sc.id] || sc.id}
+                    </Text>
+                  </Pressable>
+
+                  <TextInput
+                    testID={`mobile-shortcut-label-input-${sc.id}`}
+                    defaultValue={sc.customLabel || ''}
+                    placeholder={DEFAULT_MODULE_LABELS[sc.id] || sc.id}
+                    placeholderTextColor={palette.text.secondary}
+                    onChangeText={(txt) => handleShortcutLabelChange(sc.id, txt)}
+                    maxLength={40}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: palette.border.subtle,
+                      borderRadius: radii.sm,
+                      padding: 4,
+                      fontSize: 12,
+                      width: 110,
+                      color: palette.text.primary,
+                      marginHorizontal: spacing.xs,
+                    }}
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    <Pressable
+                      testID={`mobile-shortcut-move-up-${sc.id}`}
+                      onPress={() => handleMoveShortcut(sc.id, 'up')}
+                      disabled={idx === 0}
+                      style={{ padding: 4, opacity: idx === 0 ? 0.3 : 1 }}
+                    >
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▲</Text>
+                    </Pressable>
+                    <Pressable
+                      testID={`mobile-shortcut-move-down-${sc.id}`}
+                      onPress={() => handleMoveShortcut(sc.id, 'down')}
+                      disabled={idx === arr.length - 1}
+                      style={{ padding: 4, opacity: idx === arr.length - 1 ? 0.3 : 1 }}
+                    >
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▼</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+
+            {/* Layout Density */}
+            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginTop: spacing.md, marginBottom: spacing.xs }}>
+              Density
+            </Text>
+            <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm }}>
+              <Pressable
+                testID="mobile-density-comfortable"
+                onPress={() => handleDensityChange('comfortable')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
-                Save
-              </MobileButton>
+                <Text style={{ fontSize: 14 }}>{homeLayout.density === 'comfortable' ? '🔘' : '⚪'}</Text>
+                <Text style={{ color: palette.text.primary, fontSize: 13 }}>Comfortable</Text>
+              </Pressable>
+              <Pressable
+                testID="mobile-density-compact"
+                onPress={() => handleDensityChange('compact')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <Text style={{ fontSize: 14 }}>{homeLayout.density === 'compact' ? '🔘' : '⚪'}</Text>
+                <Text style={{ color: palette.text.primary, fontSize: 13 }}>Compact</Text>
+              </Pressable>
+            </View>
+
+            {/* Favorite Folders Picker */}
+            {workspaceFolders.length > 0 && (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginTop: spacing.md, marginBottom: spacing.xs }}>
+                  Favorite Folders
+                </Text>
+                {workspaceFolders.map((folder) => {
+                  const isFav = homeLayout.favoriteFolderIds.includes(folder.id);
+                  return (
+                    <Pressable
+                      key={folder.id}
+                      testID={`mobile-toggle-fav-${folder.id}`}
+                      onPress={() => handleToggleFavoriteFolder(folder.id)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 4 }}
+                    >
+                      <Text style={{ fontSize: 14 }}>{isFav ? '☑' : '☐'}</Text>
+                      <Text style={{ color: palette.text.primary, fontSize: 13 }}>📁 {folder.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Conflict Notification in Sheet */}
+            {conflictState && (
+              <View
+                style={{
+                  marginVertical: spacing.sm,
+                  padding: spacing.sm,
+                  borderRadius: radii.sm,
+                  backgroundColor: palette.surfaceRaised,
+                  borderWidth: 1,
+                  borderColor: palette.status.warning,
+                  gap: spacing.xs,
+                }}
+              >
+                <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 12 }}>
+                  ⚠️ Cloud Conflict (rev {conflictState.serverRevision})
+                </Text>
+                <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: 4 }}>
+                  <MobileButton
+                    variant="primary"
+                    themeMode={themeMode}
+                    onPress={handleKeepMyEdits}
+                  >
+                    Keep My Edits
+                  </MobileButton>
+                  <MobileButton
+                    variant="secondary"
+                    themeMode={themeMode}
+                    onPress={handleDiscardAndReload}
+                  >
+                    Discard & Reload
+                  </MobileButton>
+                </View>
+              </View>
+            )}
+
+            <View style={{ marginTop: spacing.base, gap: spacing.xs }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <MobileButton
+                  testID="mobile-restore-defaults-btn"
+                  variant="subtle"
+                  themeMode={themeMode}
+                  onPress={handleRestoreDefaults}
+                  accessibilityLabel="Restore default layout"
+                >
+                  Restore Defaults
+                </MobileButton>
+
+                <MobileButton
+                  testID="mobile-save-customization-btn"
+                  variant="primary"
+                  themeMode={themeMode}
+                  onPress={() => void handleSaveCustomization()}
+                  accessibilityLabel="Save customization"
+                  disabled={hasUnsupportedVersion}
+                >
+                  Save
+                </MobileButton>
+              </View>
+              <Text style={{ fontSize: 11, color: palette.text.secondary, marginTop: 4 }}>
+                Restores default layout presentation without modifying notes, tasks, or routines.
+              </Text>
             </View>
           </ScrollView>
         </MobileModalSheet>

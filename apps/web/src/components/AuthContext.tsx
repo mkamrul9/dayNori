@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { AuthSession, SignInResponse, SignUpResponse } from '@daynori/contracts';
-import { createApiClient } from '@daynori/api-client';
+import { createWebApiClient } from '../data/webApiClient';
 import { OfflineFileCache } from '../data/offlineFileCache.js';
 import { cleanupWebPushOnSignOutAsync } from '../notifications/webPushManager';
 
@@ -438,10 +438,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Clean up browser push subscription on backend and reset bound account state
     try {
-      const client = createApiClient({
-        baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
-      });
-      void cleanupWebPushOnSignOutAsync(client).catch(() => {});
+      const client = createWebApiClient({ csrfToken });
+      await cleanupWebPushOnSignOutAsync(client, currentUserId);
     } catch {
       // Ignore
     }

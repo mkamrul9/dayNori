@@ -462,9 +462,13 @@ export default function App() {
             themeMode={themeMode}
             onNavigateToPlan={() => setCurrentTab('plan')}
             onNavigateToJournal={() => setCurrentTab('journal')}
+            onNavigateToLibrary={(_folderId?: string) => {
+              setCurrentTab('library');
+            }}
             onOpenCreate={() => setActiveModal('create')}
             repository={repository ?? undefined}
             syncEngine={syncEngine ?? undefined}
+            apiClient={apiClient ?? undefined}
             workspaceId={userNamespace?.workspaceId ?? null}
             userId={userNamespace?.userId ?? null}
             isOnline={isOnline}
