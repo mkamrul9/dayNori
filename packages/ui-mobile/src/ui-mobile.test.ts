@@ -14,6 +14,9 @@ import {
   MobileHeader,
   MobileNoteEditor,
   MobileRoutineRow,
+  MobileStorageUsageBar,
+  MobileFileUploadSheet,
+  MobileFilePreviewSheet,
 } from './index.js';
 
 describe('UI Mobile Primitives', () => {
@@ -129,5 +132,75 @@ describe('UI Mobile Primitives', () => {
     expect(row.type).toBe(MobileRoutineRow);
     expect(row.props.routine.title).toBe('Morning stretch');
     expect(row.props.occurrence?.status).toBe('pending');
+  });
+
+  it('instantiates MobileStorageUsageBar with usage percentage and alert thresholds', () => {
+    const bar = React.createElement(MobileStorageUsageBar, {
+      storedBytes: 80 * 1024 * 1024,
+      reservedBytes: 15 * 1024 * 1024,
+      maxBytes: 100 * 1024 * 1024,
+      themeMode: 'light',
+    });
+    expect(bar.type).toBe(MobileStorageUsageBar);
+    expect(bar.props.storedBytes).toBe(80 * 1024 * 1024);
+    expect(bar.props.reservedBytes).toBe(15 * 1024 * 1024);
+    expect(bar.props.maxBytes).toBe(100 * 1024 * 1024);
+  });
+
+  it('instantiates MobileFileUploadSheet with folder selection and upload props', () => {
+    const sheet = React.createElement(MobileFileUploadSheet, {
+      visible: true,
+      onClose: () => {},
+      folders: [
+        { id: 'f-1', name: 'Software' },
+        { id: 'f-2', name: 'Guides' },
+      ],
+      initialFolderId: 'f-1',
+      storedBytes: 10 * 1024 * 1024,
+      reservedBytes: 0,
+      maxBytes: 50 * 1024 * 1024,
+      onUploadFile: async () => ({ success: true }),
+    });
+    expect(sheet.type).toBe(MobileFileUploadSheet);
+    expect(sheet.props.visible).toBe(true);
+    expect(sheet.props.folders).toHaveLength(2);
+    expect(sheet.props.initialFolderId).toBe('f-1');
+  });
+
+  it('instantiates MobileFilePreviewSheet for verified and quarantined files', () => {
+    const verifiedSheet = React.createElement(MobileFilePreviewSheet, {
+      visible: true,
+      onClose: () => {},
+      file: {
+        id: 'file-1',
+        fileName: 'report.pdf',
+        detectedMimeType: 'application/pdf',
+        byteSize: 1024 * 50,
+        version: 1,
+        quarantineStatus: 'verified',
+        sha256Checksum: 'abcdef123456',
+        folderName: 'Reports',
+        isOfflineAvailable: true,
+      },
+    });
+    expect(verifiedSheet.type).toBe(MobileFilePreviewSheet);
+    expect(verifiedSheet.props.file?.quarantineStatus).toBe('verified');
+    expect(verifiedSheet.props.file?.isOfflineAvailable).toBe(true);
+
+    const quarantinedSheet = React.createElement(MobileFilePreviewSheet, {
+      visible: true,
+      onClose: () => {},
+      file: {
+        id: 'file-2',
+        fileName: 'suspicious.exe',
+        detectedMimeType: 'application/octet-stream',
+        byteSize: 2048,
+        version: 1,
+        quarantineStatus: 'quarantined',
+        sha256Checksum: '9876543210ab',
+      },
+    });
+    expect(quarantinedSheet.type).toBe(MobileFilePreviewSheet);
+    expect(quarantinedSheet.props.file?.quarantineStatus).toBe('quarantined');
   });
 });

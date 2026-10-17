@@ -9,6 +9,7 @@ export const ALLOWED_MIME_TYPES = [
   'application/pdf',
   'text/plain',
   'text/markdown',
+  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'audio/mpeg',

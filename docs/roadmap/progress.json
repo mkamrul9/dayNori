@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-17",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 24 private binary upload lifecycle provisional implementation delivered and verified across PostgreSQL, Fastify API, MemoryStorageProvider, PolicyMalwareScanner, DaynoriWorker, DaynoriApiClient, and comprehensive integration journeys. Next eligible phase is Phase 25 (File and attachment browsing and management interfaces). Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, and 24 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 24 (Private binary upload lifecycle) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 25 files, folders, and safe previews provisional implementation delivered and verified across pure domain, UI components, Web and Mobile applications, DaynoriApiClient, and comprehensive integration journeys. Next eligible phase is Phase 26 (Cloud sync protocol and engine). Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, and 25 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 25 (Files, folders, and safe previews) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -152,7 +152,9 @@
     },
     {
       "id": "25",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional file organization, safe document previews, storage usage visibility, offline file availability with cryptographic SHA-256 integrity eviction, and cancellation/retry handling delivered under owner authorization and verified across Vitest pure domain, Web Library/Preview components, Mobile LibraryView/Sheets, DaynoriApiClient, and 7 end-to-end integration journeys (44/44 test files and 606/606 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-25.md"
     },
     {
       "id": "26",

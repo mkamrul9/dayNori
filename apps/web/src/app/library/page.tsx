@@ -11,7 +11,12 @@ import {
   ItemTypeBadge,
   TextField,
   NoteEditor,
+  StorageUsageBar,
+  FileUploadDialog,
+  FilePreviewDialog,
   type BreadcrumbItem,
+  type FileItemRecord,
+  type UploadExecutionResult,
 } from '@daynori/ui-web';
 import {
   calculateFolderDepth,
@@ -21,15 +26,17 @@ import {
   generateBetweenRanks,
   generateInitialRank,
   generateUuid,
+  formatByteSize,
   MAX_FOLDER_DEPTH,
   type NoteDocument,
 } from '@daynori/domain';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
-import type { ItemHeaderRecord, SyncEngine } from '@daynori/sync';
+import type { ItemHeaderRecord, SyncEngine, FileRecord } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../../data/indexedDbRepository';
 import { createWebSyncEngine } from '../../data/syncAdapter';
+import { OfflineFileCache, computeBufferSha256 } from '../../data/offlineFileCache';
 
 export interface FolderNode {
   id: string;
@@ -122,6 +129,20 @@ export default function LibraryPage() {
   const [trashMode, setTrashMode] = useState<'trash_subtree' | 'preserve_to_parent'>(
     'trash_subtree'
   );
+
+  // Storage Quota & File State
+  const [storageUsage, setStorageUsage] = useState<{
+    storedBytes: number;
+    reservedBytes: number;
+    maxBytes: number;
+  }>({
+    storedBytes: 0,
+    reservedBytes: 0,
+    maxBytes: 52428800,
+  });
+  const [filesMap, setFilesMap] = useState<Record<string, FileRecord>>({});
+  const [isFileUploadOpen, setFileUploadOpen] = useState(false);
+  const [activePreviewFile, setActivePreviewFile] = useState<FileItemRecord | null>(null);
 
   // Reversible Undo Toast State
   const [undoToast, setUndoToast] = useState<{
@@ -306,6 +327,44 @@ export default function LibraryPage() {
               }
             }
 
+            // Load files from local repo
+            try {
+              const localFiles = await repo.listFiles(workspaceId!);
+              const fMap: Record<string, FileRecord> = {};
+              for (const f of localFiles) {
+                fMap[f.id] = f;
+                if (!loadedItems.some((i) => i.id === f.id)) {
+                  loadedItems.push({
+                    id: f.id,
+                    title: f.fileName,
+                    kind: 'file',
+                    folderId: f.folderId ?? null,
+                    rank: '00001000',
+                    scope: 'workspace',
+                    revision: Number(f.version) || 1,
+                    metadata: `${formatByteSize(f.byteSize)} • ${f.quarantineStatus}`,
+                  });
+                }
+              }
+              setFilesMap(fMap);
+            } catch {
+              /* ignore */
+            }
+
+            // Fetch storage usage
+            try {
+              const usageRes = await client.getWorkspaceStorageQuota(workspaceId!);
+              if (usageRes.data && !isCancelled) {
+                setStorageUsage({
+                  storedBytes: usageRes.data.storedBytes,
+                  reservedBytes: usageRes.data.reservedBytes,
+                  maxBytes: usageRes.data.maxStorageBytes,
+                });
+              }
+            } catch {
+              /* ignore */
+            }
+
             setFolders(loadedFolders);
             setItems(loadedItems);
             setCloudSyncStatus('Synced');
@@ -339,6 +398,32 @@ export default function LibraryPage() {
             }));
             setFolders(loaded);
             setCloudSyncStatus('Synced');
+          }
+
+          const usageRes = await client.getWorkspaceStorageQuota(workspaceId!);
+          if (usageRes.data && !isCancelled) {
+            setStorageUsage({
+              storedBytes: usageRes.data.storedBytes,
+              reservedBytes: usageRes.data.reservedBytes,
+              maxBytes: usageRes.data.maxStorageBytes,
+            });
+          }
+
+          const itemsRes = await client.listItems(workspaceId!);
+          if (itemsRes.data && !isCancelled) {
+            const loadedFiles: LibraryItemRecord[] = itemsRes.data
+              .filter((it) => it.kind === 'file')
+              .map((it) => ({
+                id: it.id,
+                title: it.name || 'Untitled File',
+                kind: 'file',
+                folderId: it.parentId ?? null,
+                rank: it.rank,
+                scope: 'workspace',
+                revision: it.revision,
+                metadata: 'File item',
+              }));
+            setItems((prev) => [...prev, ...loadedFiles]);
           }
         } catch {
           if (!isCancelled) {
@@ -1331,9 +1416,283 @@ export default function LibraryPage() {
           conflict: conflictInfo,
         });
         announce(`Opened note ${item.title}`);
+      } else if (item.kind === 'file') {
+        const f = filesMap[item.id];
+        let isOffline = false;
+        if (user) {
+          try {
+            isOffline = await OfflineFileCache.hasBinary(
+              user.id,
+              workspaceId || 'ws-local',
+              item.id,
+              Number(f?.version ?? item.revision)
+            );
+          } catch {
+            isOffline = false;
+          }
+        }
+        const folder = folders.find((fol) => fol.id === (f?.folderId ?? item.folderId));
+        setActivePreviewFile({
+          id: item.id,
+          fileName: f?.fileName ?? item.title,
+          detectedMimeType:
+            f?.detectedMimeType ?? f?.declaredMimeType ?? 'application/octet-stream',
+          byteSize: f?.byteSize ?? 0,
+          version: Number(f?.version ?? item.revision),
+          quarantineStatus:
+            (f?.quarantineStatus as 'verified' | 'quarantined' | 'rejected' | 'deleted') ??
+            'verified',
+          sha256Checksum: f?.sha256Checksum ?? '',
+          folderName: folder?.name ?? null,
+          verifiedAt: f?.verifiedAt ?? null,
+          isOfflineAvailable: isOffline,
+          rejectionReason: f?.rejectionReason ?? null,
+        });
+        announce(`Opened preview for ${item.title}`);
       }
     },
-    [workspaceId, announce]
+    [workspaceId, announce, filesMap, user, folders]
+  );
+
+  const refreshFilesAndUsage = useCallback(async () => {
+    if (!workspaceId || !apiClientRef.current) return;
+    try {
+      const uRes = await apiClientRef.current.getWorkspaceStorageQuota(workspaceId);
+      if (uRes.data) {
+        setStorageUsage({
+          storedBytes: uRes.data.storedBytes,
+          reservedBytes: uRes.data.reservedBytes,
+          maxBytes: uRes.data.maxStorageBytes,
+        });
+      }
+      if (localRepoRef.current) {
+        const localFiles = await localRepoRef.current.listFiles(workspaceId);
+        const mapped: Record<string, FileRecord> = {};
+        for (const f of localFiles) {
+          mapped[f.id] = f;
+        }
+        setFilesMap(mapped);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [workspaceId]);
+
+  const handlePerformUpload = useCallback(
+    async (
+      file: File,
+      folderId: string | null,
+      onProgress: (percent: number, loaded: number) => void,
+      _abortSignal?: AbortSignal
+    ): Promise<UploadExecutionResult> => {
+      if (!workspaceId || !apiClientRef.current) {
+        return { success: false, error: 'Workspace is not connected.' };
+      }
+      try {
+        const buffer = await file.arrayBuffer();
+        const sha256 = await computeBufferSha256(buffer);
+
+        const reserveRes = await apiClientRef.current.reserveFileUpload(workspaceId, {
+          fileName: file.name,
+          declaredMimeType: file.type || 'application/octet-stream',
+          declaredBytes: file.size,
+          folderId: folderId ?? undefined,
+        });
+
+        const { reservationId, uploadUrl, headers } = reserveRes.data;
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('PUT', uploadUrl);
+          if (headers) {
+            for (const [k, v] of Object.entries(headers)) {
+              xhr.setRequestHeader(k, v);
+            }
+          }
+          if (xhr.upload) {
+            xhr.upload.onprogress = (evt) => {
+              if (evt.lengthComputable) {
+                onProgress(Math.round((evt.loaded / evt.total) * 100), evt.loaded);
+              }
+            };
+          }
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Storage transfer failed with status ${xhr.status}`));
+            }
+          };
+          xhr.onerror = () => reject(new Error('Storage transfer network error.'));
+          xhr.send(buffer);
+        });
+
+        const finalizeRes = await apiClientRef.current.finalizeFileUpload(
+          workspaceId,
+          reservationId,
+          {
+            clientChecksum: sha256,
+          }
+        );
+
+        const rec = finalizeRes.data;
+        const status = rec.status;
+        const now = new Date().toISOString();
+
+        if (localRepoRef.current) {
+          const fileRecord: FileRecord = {
+            id: rec.fileId,
+            workspaceId,
+            folderId: folderId ?? null,
+            fileName: rec.fileName,
+            declaredMimeType: file.type || 'application/octet-stream',
+            detectedMimeType: rec.detectedMimeType,
+            byteSize: rec.byteSize,
+            sha256Checksum: rec.sha256Checksum,
+            version: '1',
+            quarantineStatus: status,
+            rejectionReason: rec.rejectionReason ?? null,
+            createdBy: user?.id || workspaceId,
+            createdAt: now,
+            updatedAt: now,
+            verifiedAt: rec.verifiedAt ?? null,
+          };
+          await localRepoRef.current.upsertFile(fileRecord);
+          const itemHeader: ItemHeaderRecord = {
+            id: rec.fileId,
+            workspaceId,
+            kind: 'file',
+            name: rec.fileName,
+            parentId: folderId ?? null,
+            folderId: folderId ?? null,
+            rank: generateInitialRank(items.length),
+            securityScope: 'standard',
+            isArchived: false,
+            isPinned: false,
+            serverRevision: 1,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+          };
+          await localRepoRef.current.upsertItemHeader(itemHeader);
+        }
+
+        setFilesMap((prev) => ({
+          ...prev,
+          [rec.fileId]: {
+            id: rec.fileId,
+            workspaceId,
+            folderId: folderId ?? null,
+            fileName: rec.fileName,
+            declaredMimeType: file.type || 'application/octet-stream',
+            detectedMimeType: rec.detectedMimeType,
+            byteSize: rec.byteSize,
+            sha256Checksum: rec.sha256Checksum,
+            version: '1',
+            quarantineStatus: status,
+            rejectionReason: rec.rejectionReason ?? null,
+            createdBy: user?.id || workspaceId,
+            createdAt: now,
+            updatedAt: now,
+            verifiedAt: rec.verifiedAt ?? null,
+          },
+        }));
+
+        const newItem: LibraryItemRecord = {
+          id: rec.fileId,
+          title: rec.fileName,
+          kind: 'file',
+          folderId: folderId ?? null,
+          rank: generateInitialRank(items.length),
+          scope: 'workspace',
+          revision: 1,
+          metadata: `${formatByteSize(rec.byteSize)} • ${status}`,
+        };
+        setItems((prev) => [newItem, ...prev.filter((i) => i.id !== rec.fileId)]);
+        void refreshFilesAndUsage();
+        announce(`Uploaded ${rec.fileName} with status ${status}`);
+
+        return {
+          success: status === 'verified',
+          quarantineStatus: status === 'deleted' ? 'rejected' : status,
+          rejectionReason: rec.rejectionReason ?? undefined,
+          fileItem: rec,
+        };
+      } catch (err: unknown) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+    [workspaceId, items.length, user?.id, announce, refreshFilesAndUsage]
+  );
+
+  const handleRequestDownloadUrl = useCallback(
+    async (file: FileItemRecord): Promise<string> => {
+      if (!workspaceId || !apiClientRef.current) return '';
+      const res = await apiClientRef.current.getFileDownloadCapability(workspaceId, file.id);
+      return res.data?.downloadUrl || '';
+    },
+    [workspaceId]
+  );
+
+  const handleToggleOffline = useCallback(
+    async (file: FileItemRecord, enable: boolean): Promise<void> => {
+      if (!workspaceId || !user) return;
+      if (enable) {
+        if (apiClientRef.current) {
+          const res = await apiClientRef.current.getFileDownloadCapability(workspaceId, file.id);
+          const url = res.data?.downloadUrl;
+          if (url) {
+            const resp = await fetch(url);
+            const buf = await resp.arrayBuffer();
+            await OfflineFileCache.saveBinary({
+              accountId: user.id,
+              workspaceId,
+              fileId: file.id,
+              version: file.version,
+              fileName: file.fileName,
+              mimeType: file.detectedMimeType || 'application/octet-stream',
+              expectedSha256: file.sha256Checksum,
+              data: buf,
+            });
+            setActivePreviewFile((prev: FileItemRecord | null) =>
+              prev ? { ...prev, isOfflineAvailable: true } : null
+            );
+            announce(`${file.fileName} is now available offline.`);
+          }
+        }
+      } else {
+        await OfflineFileCache.deleteBinary(user.id, workspaceId, file.id, file.version);
+        setActivePreviewFile((prev: FileItemRecord | null) =>
+          prev ? { ...prev, isOfflineAvailable: false } : null
+        );
+        announce(`${file.fileName} removed from offline storage.`);
+      }
+    },
+    [workspaceId, user, announce]
+  );
+
+  const handleDeleteFile = useCallback(
+    async (file: FileItemRecord): Promise<void> => {
+      if (!workspaceId) return;
+      if (apiClientRef.current) {
+        await apiClientRef.current.deleteFile(workspaceId, file.id);
+      }
+      if (localRepoRef.current) {
+        await localRepoRef.current.deleteFile(workspaceId, file.id);
+        await localRepoRef.current.deleteItemHeader(workspaceId, file.id);
+      }
+      if (user) {
+        await OfflineFileCache.deleteBinary(user.id, workspaceId, file.id, file.version);
+      }
+      setItems((prev) => prev.filter((i) => i.id !== file.id));
+      setActivePreviewFile(null);
+      void refreshFilesAndUsage();
+      announce(`Deleted file ${file.fileName}`);
+    },
+    [workspaceId, user, announce, refreshFilesAndUsage]
   );
 
   const handleSaveNote = useCallback(
@@ -1527,12 +1886,17 @@ export default function LibraryPage() {
     }
   }, [editingNote, items, workspaceId, isOnline, announce]);
 
-  // Handle URL query parameter ?create=note
+  // Handle URL query parameter ?create=note or ?create=file
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('create') === 'note') {
         handleOpenNewNote();
+      } else if (params.get('create') === 'file') {
+        setFileUploadOpen(true);
+      }
+      if (params.get('type') === 'files') {
+        setTypeFilter('files');
       }
     }
   }, [handleOpenNewNote]);
@@ -1698,6 +2062,16 @@ export default function LibraryPage() {
             <BreadcrumbNav items={breadcrumbItems} onNavigateBack={handleNavigateUp} />
           </div>
 
+          {/* Storage Quota Usage Bar */}
+          <div style={{ marginBottom: spacing.md }}>
+            <StorageUsageBar
+              storedBytes={storageUsage.storedBytes}
+              reservedBytes={storageUsage.reservedBytes}
+              maxBytes={storageUsage.maxBytes}
+              themeMode={themeMode}
+            />
+          </div>
+
           {/* Toolbar: Search, Filters, and Actions */}
           <div
             style={{
@@ -1781,6 +2155,14 @@ export default function LibraryPage() {
 
               <Button variant="primary" onClick={handleOpenNewNote} aria-label="Create new note">
                 + New Note
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => setFileUploadOpen(true)}
+                aria-label="Upload file to workspace folder"
+              >
+                + Upload File
               </Button>
 
               <Button
@@ -2060,10 +2442,10 @@ export default function LibraryPage() {
                       border: `1px solid ${palette.border.subtle}`,
                       borderRadius: radii.card,
                       gap: spacing.sm,
-                      cursor: item.kind === 'note' ? 'pointer' : 'default',
+                      cursor: item.kind === 'note' || item.kind === 'file' ? 'pointer' : 'default',
                     }}
                     onClick={() => {
-                      if (item.kind === 'note') {
+                      if (item.kind === 'note' || item.kind === 'file') {
                         void handleOpenItem(item);
                       }
                     }}
@@ -2105,6 +2487,19 @@ export default function LibraryPage() {
                         aria-label={`Edit note ${item.title}`}
                       >
                         Edit Note
+                      </Button>
+                    )}
+
+                    {item.kind === 'file' && (
+                      <Button
+                        variant="subtle"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleOpenItem(item);
+                        }}
+                        aria-label={`Preview file ${item.title}`}
+                      >
+                        Preview
                       </Button>
                     )}
                   </div>
@@ -2404,6 +2799,37 @@ export default function LibraryPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* File Upload Dialog */}
+      <FileUploadDialog
+        isOpen={isFileUploadOpen}
+        onClose={() => setFileUploadOpen(false)}
+        themeMode={themeMode}
+        workspaceId={workspaceId || ''}
+        folders={folders.map((f) => ({
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId,
+          icon: f.icon || undefined,
+        }))}
+        initialFolderId={currentFolderId}
+        storedBytes={storageUsage.storedBytes}
+        reservedBytes={storageUsage.reservedBytes}
+        maxBytes={storageUsage.maxBytes}
+        onPerformUpload={handlePerformUpload}
+      />
+
+      {/* File Preview Dialog */}
+      <FilePreviewDialog
+        isOpen={activePreviewFile !== null}
+        onClose={() => setActivePreviewFile(null)}
+        themeMode={themeMode}
+        workspaceId={workspaceId || ''}
+        file={activePreviewFile}
+        onRequestDownloadUrl={handleRequestDownloadUrl}
+        onToggleOffline={handleToggleOffline}
+        onDelete={handleDeleteFile}
+      />
     </div>
   );
 }

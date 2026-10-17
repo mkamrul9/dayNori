@@ -1,5 +1,37 @@
 # Changelog
 
+## Phase 25 — Files, folders, and safe previews — 2026-10-17
+
+- **Contracts & Content Inspection (`packages/contracts`, `apps/api`):**
+  - Added `'application/msword'` (.doc) to `ALLOWED_MIME_TYPES` alongside `.docx` in `packages/contracts/src/api/files.ts`.
+  - Added OLE Compound File Binary (`D0 CF 11 E0 A1 B1 1A E1`) sniffing in `apps/api/src/modules/files/inspector.ts` to detect legacy Microsoft Word files securely.
+- **Pure Domain Operations (`packages/domain`):**
+  - Implemented `getFilePreviewKind` categorizing files into `image`, `pdf`, `office`, `text`, `audio`, or `unsupported`.
+  - Implemented `isSafeToPreview` strictly gating inline rendering to verified quarantine status and supported kinds.
+  - Implemented `computeStorageUsage` calculating storage breakdown, progress percentage, and 80%/100% threshold flags.
+  - Implemented `getOfflineBinaryCacheKey` returning `${accountId}:${workspaceId}:${fileId}:v${version}`.
+- **Web UI Primitives & Application (`packages/ui-web`, `apps/web`):**
+  - Created `StorageUsageBar.tsx` displaying live quota breakdown, progress bar, and warning banners.
+  - Created `FileUploadDialog.tsx` modal with folder selection, drag-and-drop zone, size validation, direct XHR progress, cancellation via `AbortController`, and quarantine rejection alert banners.
+  - Created `FilePreviewDialog.tsx` modal supporting image viewport, PDF frame, office document metadata breakdown + download action (without in-app office editing claims), and offline pinning toggle.
+  - Updated `apps/web/src/app/library/page.tsx` integrating upload dialog, preview modal, quota progress bar, and leaf item click handlers.
+  - Created `apps/web/src/app/files/page.tsx` redirecting to `/library?type=files`.
+  - Updated `apps/web/src/components/AppModals.tsx` with Files search destination and quick upload action.
+- **Mobile UI Primitives & Application (`packages/ui-mobile`, `apps/mobile`):**
+  - Created `MobileStorageUsageBar.tsx` progress bar component with design token integration.
+  - Created `MobileFileUploadSheet.tsx` bottom sheet supporting folder selection, upload progress, cancellation, and rejection feedback.
+  - Created `MobileFilePreviewSheet.tsx` bottom sheet supporting safe image/PDF previews, office metadata breakdown + download action, and offline pinning.
+  - Updated `apps/mobile/src/views/LibraryView.tsx` integrating storage bar, `+ Upload` button, file item click handlers, and modal sheets.
+  - Updated `apps/mobile/src/navigation/types.ts` and `CreateSheet.tsx` with File creation pill.
+- **Offline Binary Caches (`apps/web`, `apps/mobile`):**
+  - Created `apps/web/src/data/offlineFileCache.ts` (`OfflineFileCache`) with IndexedDB and in-memory fallback.
+  - Created `apps/mobile/src/data/offlineFileCache.ts` (`MobileOfflineFileCache`).
+  - Implemented strict `${accountId}:${workspaceId}:${fileId}:v${version}` namespacing, SHA-256 integrity verification (`computeBufferSha256`), automatic eviction on bit rot / tampering, and context clearance on account switch or logout.
+- **Comprehensive Integration Tests (`tests/integration`):**
+  - Added `tests/integration/phase25-files-previews.test.ts` covering 7 journeys (organized folder uploads, safe previews, quarantine / rejection blocking, quota visibility, upload abort and retry without duplicates, offline caching with SHA-256 integrity eviction, and multi-tenant isolation).
+- **Decision Record:**
+  - Published [ADR-0031: Safe Document Previews, Storage Usage Visibility, and Offline Availability](docs/decisions/0031-safe-document-previews-and-offline-storage.md).
+
 ## Defect Repairs & Hardening (Phase 24) — 2026-10-17
 
 - **Real Storage Provider Transport & Byte Bounding (Finding A):**

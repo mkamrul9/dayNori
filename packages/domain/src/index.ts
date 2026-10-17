@@ -6,3 +6,4 @@ export * from './notes.js';
 export * from './tasks.js';
 export * from './routines.js';
 export * from './journal.js';
+export * from './files.js';

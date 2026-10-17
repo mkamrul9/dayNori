@@ -6,7 +6,7 @@ export type LibraryFilter = 'all' | 'notes' | 'knowledge' | 'files';
 export type ActiveModal = 'none' | 'search' | 'create' | 'settings' | 'gallery';
 
 export interface CreateDraft {
-  type: 'task' | 'routine' | 'note' | 'journal';
+  type: 'task' | 'routine' | 'note' | 'journal' | 'file';
   title: string;
   details: string;
 }

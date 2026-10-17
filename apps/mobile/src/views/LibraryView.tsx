@@ -12,7 +12,12 @@ import {
   MobileTextField,
   MobileTypeBadge,
   MobileNoteEditor,
+  MobileStorageUsageBar,
+  MobileFileUploadSheet,
+  MobileFilePreviewSheet,
   type MobileBreadcrumbSegment,
+  type MobileFileItem,
+  type MobileSelectedFile,
 } from '@daynori/ui-mobile';
 import {
   calculateFolderDepth,
@@ -22,6 +27,7 @@ import {
   generateBetweenRanks,
   generateInitialRank,
   generateUuid,
+  formatByteSize,
   MAX_FOLDER_DEPTH,
   type NoteDocument,
 } from '@daynori/domain';
@@ -252,6 +258,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [items, setItems] = useState<MobileLibraryRecord[]>(initialItems ?? []);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = Root / Workspace
   const [page, setPage] = useState(1);
+
+  // File & Storage States
+  const [storageUsage, setStorageUsage] = useState({
+    storedBytes: 15 * 1024 * 1024,
+    reservedBytes: 0,
+    maxBytes: 50 * 1024 * 1024,
+  });
+  const [isFileUploadSheetOpen, setFileUploadSheetOpen] = useState(false);
+  const [activePreviewFile, setActivePreviewFile] = useState<MobileFileItem | null>(null);
 
   // Status & Offline/Sync State
   const [isOffline, setIsOffline] = useState(
@@ -906,6 +921,59 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     });
   };
 
+  const handleOpenFile = (item: MobileLibraryRecord) => {
+    const isOfflineAvailable = Boolean(
+      item.metadata?.includes('Offline') || item.metadata?.includes('PDF')
+    );
+    setActivePreviewFile({
+      id: item.id,
+      fileName: item.title,
+      detectedMimeType: item.title.endsWith('.pdf')
+        ? 'application/pdf'
+        : item.title.endsWith('.png') || item.title.endsWith('.jpg')
+          ? 'image/jpeg'
+          : item.title.endsWith('.docx') || item.title.endsWith('.doc')
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : 'application/octet-stream',
+      byteSize: 1024 * 50,
+      version: item.revision,
+      quarantineStatus: 'verified',
+      sha256Checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      folderName: currentFolder?.name ?? null,
+      isOfflineAvailable,
+    });
+  };
+
+  const handlePerformMobileUpload = async (
+    file: MobileSelectedFile,
+    targetFolderId: string | null
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    rejectionReason?: string;
+    fileItem?: unknown;
+  }> => {
+    const newId = generateUuid();
+    const newItem: MobileLibraryRecord = {
+      id: newId,
+      title: file.name,
+      kind: 'file',
+      folderId: targetFolderId,
+      rank: generateInitialRank(items.length),
+      revision: 1,
+      metadata: `${formatByteSize(file.size)} • ready`,
+    };
+    setItems((prev) => [newItem, ...prev]);
+    setStorageUsage((prev) => ({
+      ...prev,
+      storedBytes: prev.storedBytes + file.size,
+    }));
+    return {
+      success: true,
+      fileItem: newItem,
+    };
+  };
+
   const handleSaveNote = async (saved: {
     title: string;
     document: NoteDocument;
@@ -1225,19 +1293,38 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         })}
       </View>
 
+      {/* Storage Usage Bar */}
+      <View style={{ marginBottom: spacing.sm, paddingHorizontal: spacing.sm }}>
+        <MobileStorageUsageBar
+          storedBytes={storageUsage.storedBytes}
+          reservedBytes={storageUsage.reservedBytes}
+          maxBytes={storageUsage.maxBytes}
+          themeMode={themeMode}
+        />
+      </View>
+
       {/* Subfolders Section */}
       <View style={{ marginBottom: spacing.md }}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
             {currentFolder ? 'Subfolders' : 'Workspace Folders'} ({subfolders.length})
           </Text>
-          <MobileButton
-            variant="secondary"
-            accessibilityLabel="Create new folder"
-            onPress={() => setCreateFolderSheetOpen(true)}
-          >
-            + Folder
-          </MobileButton>
+          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+            <MobileButton
+              variant="secondary"
+              accessibilityLabel="Upload file"
+              onPress={() => setFileUploadSheetOpen(true)}
+            >
+              + Upload
+            </MobileButton>
+            <MobileButton
+              variant="secondary"
+              accessibilityLabel="Create new folder"
+              onPress={() => setCreateFolderSheetOpen(true)}
+            >
+              + Folder
+            </MobileButton>
+          </View>
         </View>
 
         {subfolders.length === 0 && currentFolderId !== null && (
@@ -1355,8 +1442,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <Pressable
               key={item.id}
               accessibilityRole="button"
-              accessibilityLabel={`Open note ${item.title}`}
-              onPress={() => item.kind === 'note' && void handleOpenNote(item)}
+              accessibilityLabel={`Open ${item.kind === 'file' ? 'file' : 'note'} ${item.title}`}
+              onPress={() => {
+                if (item.kind === 'note') {
+                  void handleOpenNote(item);
+                } else if (item.kind === 'file') {
+                  handleOpenFile(item);
+                }
+              }}
             >
               <MobileCard themeMode={themeMode} style={styles.itemCard}>
                 <View style={styles.itemRow}>
@@ -1611,6 +1704,31 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           </View>
         </View>
       </MobileModalSheet>
+
+      {/* File Upload Sheet */}
+      <MobileFileUploadSheet
+        visible={isFileUploadSheetOpen}
+        onClose={() => setFileUploadSheetOpen(false)}
+        themeMode={themeMode}
+        folders={folders.map((f) => ({ id: f.id, name: f.name, icon: f.icon }))}
+        initialFolderId={currentFolderId}
+        storedBytes={storageUsage.storedBytes}
+        reservedBytes={storageUsage.reservedBytes}
+        maxBytes={storageUsage.maxBytes}
+        onUploadFile={handlePerformMobileUpload}
+      />
+
+      {/* File Preview Sheet */}
+      <MobileFilePreviewSheet
+        visible={activePreviewFile !== null}
+        onClose={() => setActivePreviewFile(null)}
+        themeMode={themeMode}
+        file={activePreviewFile}
+        onDelete={async (f) => {
+          setItems((prev) => prev.filter((i) => i.id !== f.id));
+          setActivePreviewFile(null);
+        }}
+      />
     </ScrollView>
   );
 };

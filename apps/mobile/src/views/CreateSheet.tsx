@@ -85,6 +85,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
               { key: 'task', label: 'Task' },
               { key: 'routine', label: 'Routine' },
               { key: 'note', label: 'Note' },
+              { key: 'file', label: 'File' },
               { key: 'journal', label: 'Journal' },
             ] as const
           ).map((t) => {

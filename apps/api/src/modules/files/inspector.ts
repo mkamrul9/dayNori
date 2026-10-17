@@ -126,7 +126,22 @@ export function detectMimeType(bytes: Buffer): string {
     return 'application/zip';
   }
 
-  // 12. Check for UTF-8 Text / Markdown
+  // 12. Office Compound Document (.doc): D0 CF 11 E0 A1 B1 1A E1
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0xd0 &&
+    bytes[1] === 0xcf &&
+    bytes[2] === 0x11 &&
+    bytes[3] === 0xe0 &&
+    bytes[4] === 0xa1 &&
+    bytes[5] === 0xb1 &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0xe1
+  ) {
+    return 'application/msword';
+  }
+
+  // 13. Check for UTF-8 Text / Markdown
   if (isUtf8Text(bytes)) {
     return 'text/plain';
   }

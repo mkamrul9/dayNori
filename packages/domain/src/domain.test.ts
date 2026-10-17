@@ -1244,4 +1244,103 @@ describe('Domain Rules and Invariants', () => {
       expect(unredacted.prompts?.[0]?.response).toBe('Very personal answer.');
     });
   });
+
+  describe('Phase 25: Files and Previews Domain Logic', () => {
+    it('determines correct preview kind for supported MIME types', async () => {
+      const { getFilePreviewKind } = await import('./files.js');
+
+      expect(getFilePreviewKind('image/jpeg')).toBe('image');
+      expect(getFilePreviewKind('image/png')).toBe('image');
+      expect(getFilePreviewKind('image/webp')).toBe('image');
+      expect(getFilePreviewKind('image/gif')).toBe('image');
+      expect(getFilePreviewKind('application/pdf')).toBe('pdf');
+      expect(
+        getFilePreviewKind(
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+      ).toBe('office');
+      expect(getFilePreviewKind('application/msword')).toBe('office');
+      expect(
+        getFilePreviewKind('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      ).toBe('office');
+      expect(getFilePreviewKind('text/plain')).toBe('text');
+      expect(getFilePreviewKind('text/markdown')).toBe('text');
+      expect(getFilePreviewKind('audio/mpeg')).toBe('audio');
+      expect(getFilePreviewKind('application/octet-stream')).toBe('unsupported');
+      expect(getFilePreviewKind('application/x-msdownload')).toBe('unsupported');
+    });
+
+    it('enforces that only verified files can be safely previewed', async () => {
+      const { isSafeToPreview } = await import('./files.js');
+
+      // Only 'verified' status allows safe preview
+      expect(isSafeToPreview('verified', 'image/png')).toBe(true);
+      expect(isSafeToPreview('verified', 'application/pdf')).toBe(true);
+      expect(isSafeToPreview('verified', 'application/msword')).toBe(true);
+
+      // Quarantined, rejected, or deleted files MUST NOT be rendered
+      expect(isSafeToPreview('quarantined', 'image/png')).toBe(false);
+      expect(isSafeToPreview('rejected', 'image/png')).toBe(false);
+      expect(isSafeToPreview('deleted', 'image/png')).toBe(false);
+
+      // Missing MIME or unsupported MIME
+      expect(isSafeToPreview('verified', undefined)).toBe(false);
+      expect(isSafeToPreview('verified', 'application/octet-stream')).toBe(false);
+    });
+
+    it('formats byte sizes cleanly', async () => {
+      const { formatByteSize } = await import('./files.js');
+
+      expect(formatByteSize(0)).toBe('0 B');
+      expect(formatByteSize(512)).toBe('512 B');
+      expect(formatByteSize(1024)).toBe('1 KB');
+      expect(formatByteSize(1536)).toBe('1.5 KB');
+      expect(formatByteSize(1024 * 1024)).toBe('1 MB');
+      expect(formatByteSize(2.5 * 1024 * 1024)).toBe('2.5 MB');
+      expect(formatByteSize(1024 * 1024 * 1024)).toBe('1 GB');
+    });
+
+    it('computes storage quota usage accurately', async () => {
+      const { computeStorageUsage } = await import('./files.js');
+
+      const usage = computeStorageUsage(20 * 1024 * 1024, 10 * 1024 * 1024, 100 * 1024 * 1024);
+      expect(usage.percentUsed).toBe(30);
+      expect(usage.isNearLimit).toBe(false);
+      expect(usage.isExceeded).toBe(false);
+      expect(usage.formattedStored).toBe('20 MB');
+      expect(usage.formattedReserved).toBe('10 MB');
+      expect(usage.formattedTotal).toBe('30 MB');
+      expect(usage.formattedMax).toBe('100 MB');
+
+      // Near limit (>= 80%)
+      const near = computeStorageUsage(75 * 1024 * 1024, 10 * 1024 * 1024, 100 * 1024 * 1024);
+      expect(near.percentUsed).toBe(85);
+      expect(near.isNearLimit).toBe(true);
+      expect(near.isExceeded).toBe(false);
+
+      // Exceeded (>= 100%)
+      const exceeded = computeStorageUsage(95 * 1024 * 1024, 10 * 1024 * 1024, 100 * 1024 * 1024);
+      expect(exceeded.percentUsed).toBe(100);
+      expect(exceeded.isNearLimit).toBe(true);
+      expect(exceeded.isExceeded).toBe(true);
+    });
+
+    it('creates and parses namespaced offline binary cache keys', async () => {
+      const { getOfflineBinaryCacheKey, parseOfflineBinaryCacheKey } = await import('./files.js');
+
+      const key = getOfflineBinaryCacheKey('acc-1', 'ws-1', 'file-42', 2);
+      expect(key).toBe('acc-1:ws-1:file-42:v2');
+
+      const parsed = parseOfflineBinaryCacheKey(key);
+      expect(parsed).toEqual({
+        accountId: 'acc-1',
+        workspaceId: 'ws-1',
+        fileId: 'file-42',
+        version: 2,
+      });
+
+      expect(parseOfflineBinaryCacheKey('invalid-key')).toBeNull();
+      expect(parseOfflineBinaryCacheKey('acc:ws:file:notnumber')).toBeNull();
+    });
+  });
 });

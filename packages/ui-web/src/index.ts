@@ -16,3 +16,6 @@ export * from './RoutineRow.js';
 export * from './RoutineDetailEditor.js';
 export * from './RoutineHistoryViewer.js';
 export * from './JournalEditor.js';
+export * from './StorageUsageBar.js';
+export * from './FileUploadDialog.js';
+export * from './FilePreviewDialog.js';

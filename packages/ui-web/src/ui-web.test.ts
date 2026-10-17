@@ -667,4 +667,174 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('শান্ত ও নিরিবিলি পরিবেশে আজকের ভাবনা।');
     });
   });
+
+  describe('StorageUsageBar Component', () => {
+    it('renders storage progress bar with percentage and byte counts', async () => {
+      const { StorageUsageBar } = await import('./StorageUsageBar.js');
+
+      const html = renderToString(
+        React.createElement(StorageUsageBar, {
+          storedBytes: 25 * 1024 * 1024,
+          reservedBytes: 5 * 1024 * 1024,
+          maxBytes: 100 * 1024 * 1024,
+          themeMode: 'light',
+        })
+      );
+
+      expect(html).toContain('role="progressbar"');
+      expect(html).toContain('aria-valuenow="30"');
+      expect(html).toContain('25 MB');
+      expect(html).toContain('100 MB');
+      expect(html).toContain('30');
+      expect(html).toContain('5 MB reserved');
+    });
+
+    it('displays warning when approaching storage quota', async () => {
+      const { StorageUsageBar } = await import('./StorageUsageBar.js');
+
+      const html = renderToString(
+        React.createElement(StorageUsageBar, {
+          storedBytes: 85 * 1024 * 1024,
+          reservedBytes: 0,
+          maxBytes: 100 * 1024 * 1024,
+        })
+      );
+
+      expect(html).toContain('Storage is nearing capacity');
+      expect(html).toContain('85');
+      expect(html).toContain('% used');
+    });
+
+    it('displays alert message when quota is exceeded', async () => {
+      const { StorageUsageBar } = await import('./StorageUsageBar.js');
+
+      const html = renderToString(
+        React.createElement(StorageUsageBar, {
+          storedBytes: 100 * 1024 * 1024,
+          reservedBytes: 5 * 1024 * 1024,
+          maxBytes: 100 * 1024 * 1024,
+        })
+      );
+
+      expect(html).toContain('role="alert"');
+      expect(html).toContain('Storage quota exceeded');
+    });
+  });
+
+  describe('FileUploadDialog Component', () => {
+    it('renders file upload dialog with folder placement and storage bar', async () => {
+      const { FileUploadDialog } = await import('./FileUploadDialog.js');
+
+      const html = renderToString(
+        React.createElement(FileUploadDialog, {
+          isOpen: true,
+          onClose: () => {},
+          workspaceId: 'ws-test',
+          folders: [
+            { id: 'f-1', name: 'Software', parentId: null, icon: '💻' },
+            { id: 'f-2', name: 'Guides', parentId: 'f-1', icon: '📚' },
+          ],
+          initialFolderId: 'f-2',
+          storedBytes: 10 * 1024 * 1024,
+          reservedBytes: 0,
+          maxBytes: 100 * 1024 * 1024,
+        })
+      );
+
+      expect(html).toContain('role="dialog"');
+      expect(html).toContain('Upload File');
+      expect(html).toContain('Folder Destination');
+      expect(html).toContain('Software');
+      expect(html).toContain('Guides');
+      expect(html).toContain('Browse Files');
+      expect(html).toContain('Storage Usage');
+    });
+  });
+
+  describe('FilePreviewDialog Component', () => {
+    it('renders safe image preview when file is verified', async () => {
+      const { FilePreviewDialog } = await import('./FilePreviewDialog.js');
+
+      const html = renderToString(
+        React.createElement(FilePreviewDialog, {
+          isOpen: true,
+          onClose: () => {},
+          workspaceId: 'ws-test',
+          file: {
+            id: 'file-img-1',
+            fileName: 'architecture-diagram.png',
+            detectedMimeType: 'image/png',
+            byteSize: 1024 * 512,
+            version: 1,
+            quarantineStatus: 'verified',
+            sha256Checksum: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+            folderName: 'Software',
+            verifiedAt: '2026-10-17T12:00:00.000Z',
+          },
+          onRequestDownloadUrl: async () => 'https://storage.local/download/img.png',
+        })
+      );
+
+      expect(html).toContain('role="dialog"');
+      expect(html).toContain('architecture-diagram.png');
+      expect(html).toContain('✓ Verified Clean');
+      expect(html).toContain('512 KB');
+    });
+
+    it('renders office document metadata card without claiming full in-browser editing', async () => {
+      const { FilePreviewDialog } = await import('./FilePreviewDialog.js');
+
+      const html = renderToString(
+        React.createElement(FilePreviewDialog, {
+          isOpen: true,
+          onClose: () => {},
+          workspaceId: 'ws-test',
+          file: {
+            id: 'file-doc-1',
+            fileName: 'Study-Guide-Notes.docx',
+            detectedMimeType:
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            byteSize: 1024 * 1024 * 2,
+            version: 1,
+            quarantineStatus: 'verified',
+            sha256Checksum: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff',
+            folderName: 'Government jobs',
+            verifiedAt: '2026-10-17T12:00:00.000Z',
+          },
+          onRequestDownloadUrl: async () => 'https://storage.local/download/doc.docx',
+        })
+      );
+
+      expect(html).toContain('Study-Guide-Notes.docx');
+      expect(html).toContain('Office Document Notice');
+      expect(html).toContain('In-browser office document editing is not supported in this release');
+      expect(html).toContain('Download Document');
+    });
+
+    it('blocks preview and displays warning when file is quarantined or rejected', async () => {
+      const { FilePreviewDialog } = await import('./FilePreviewDialog.js');
+
+      const html = renderToString(
+        React.createElement(FilePreviewDialog, {
+          isOpen: true,
+          onClose: () => {},
+          workspaceId: 'ws-test',
+          file: {
+            id: 'file-quarantine-1',
+            fileName: 'Suspicious-Script.svg',
+            detectedMimeType: 'image/svg+xml',
+            byteSize: 1024,
+            version: 1,
+            quarantineStatus: 'rejected',
+            sha256Checksum: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+          },
+        })
+      );
+
+      expect(html).toContain('✕ Security Rejected');
+      expect(html).toContain('rejected by malware and active content inspection');
+      expect(html).not.toContain('<iframe');
+      expect(html).not.toContain('<img');
+    });
+  });
 });

@@ -43,6 +43,12 @@ export const AppModals: React.FC = () => {
       icon: '📚',
     },
     {
+      title: 'Files & Storage',
+      subtitle: 'Upload files, safe previews, and storage quota',
+      href: '/library?type=files',
+      icon: '📎',
+    },
+    {
       title: 'Journal: Reflection Timeline',
       subtitle: 'Date-grouped timeline and private writing',
       href: '/journal',
@@ -181,9 +187,15 @@ export const AppModals: React.FC = () => {
               themeMode={themeMode}
             />
             <ListRow
-              title="📄 New Note / File"
-              subtitle="Save reference knowledge, guides, or files to Library"
+              title="📄 New Note"
+              subtitle="Save reference knowledge, guides, or rich documents"
               onClick={() => navigateTo('/library?create=note')}
+              themeMode={themeMode}
+            />
+            <ListRow
+              title="📎 Upload File"
+              subtitle="Upload PDFs, images, or documents to workspace folders"
+              onClick={() => navigateTo('/library?create=file')}
               themeMode={themeMode}
             />
             <ListRow
