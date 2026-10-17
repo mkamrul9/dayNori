@@ -46,12 +46,15 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
     - Deduplicated repeated notification taps with a 3-second debounce window to prevent multiple conflicting navigation events.
   - **Preservation of the Google Play Exact-Alarm Gate**:
     - Ordinary reminders use standard date triggers without requiring restricted `SCHEDULE_EXACT_ALARM` or `USE_EXACT_ALARM` permissions.
-    - Prebuilt `AndroidManifest.xml` verified: no exact alarm permissions are requested or injected by dependencies, ensuring 100% compliance with Google Play Store policies.
+    - Prebuilt `AndroidManifest.xml` verified: no exact alarm permissions are requested or injected by dependencies. Compliance with Google Play Store policies is verified by manifest audit and remains subject to Play Console review upon store submission.
   - **Integration Test Suite (`tests/integration/phase28-android-notifications.test.ts`)**:
-    - 15 end-to-end integration tests verifying notification channels, permission flows, device registration and deactivation, token rotation, local scheduling, push fallback suppression, invalid token cleanup, deep link navigation, tap deduplication, and lock-screen redaction.
+    - 16 end-to-end integration tests verifying notification channels, permission flows, device registration and deactivation, token rotation, local scheduling, push fallback suppression, multi-device delivery isolation, invalid token cleanup, deep link navigation, tap deduplication, and lock-screen redaction.
 - **Excluded/deferred scope:**
   - Physical Android TalkBack screen reader gestures, live FCM cloud delivery over Google Play Services, and hardware KeyStore key wrapping remain recorded as `blocked` in `docs/roadmap/progress.json` pending physical hardware and production push credentials.
-  - iOS APNs delivery and web push belong to future platform phases.
+  - Verification evidence is strictly categorized:
+    - **Mocked Expo Suite**: Unit/integration tests executed under Node/Vitest with `@daynori/test-utils` mocking `expo-notifications` and SQLite.
+    - **Native Compilation & Manifest Audit**: Verified against `apps/mobile/android/app/src/main/AndroidManifest.xml` without exact alarm permissions.
+    - **Physical Device & Real Provider Gates**: Hardware TalkBack navigation, OS-level battery optimization/doze mode testing, and live FCM provider submission remain explicit external gates.
 
 ## Result
 
@@ -67,26 +70,27 @@ Delivered native Android notification support and device-local reminder scheduli
 
 | Check Condition | Method | Location / Artifact | Result |
 | --------------- | ------ | ------------------- | ------ |
-| Notification Channels | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (`reminders` and `updates` channels initialized with correct importance and private lockscreen visibility) |
-| Permission States | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (handles `undetermined`, `granted`, `denied`, and `channel_disabled` cleanly) |
-| Device Registration | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (registers device, updates push token on rotation, deactivates on logout) |
-| Local Reminder Scheduling | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (schedules native notification and records schedule acknowledgment) |
-| Push Fallback Suppression | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (worker detects local acknowledgment and suppresses redundant push delivery) |
-| Stale Reminder Cancellation | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (cancels native notification and updates database schedule on task completion) |
-| Deep Linking & Tap Deduplication | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (routes to authorized target; debounces rapid duplicate taps within 3s) |
-| Lock-Screen Privacy Redaction | Automated integration test | `tests/integration/phase28-android-notifications.test.ts` | Pass (sensitive notes/vault data redacted; generic preview generated) |
-| Exact-Alarm Policy Verification | Static manifest analysis | `apps/mobile/android/app/src/main/AndroidManifest.xml` | Pass (no `SCHEDULE_EXACT_ALARM` or `USE_EXACT_ALARM` permissions requested) |
+| Notification Channels | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (`reminders` and `updates` channels initialized with correct importance and private lockscreen visibility) |
+| Permission States | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (handles `undetermined`, `granted`, `denied`, and `channel_disabled` cleanly) |
+| Device Registration | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (registers device, updates push token on rotation, deactivates on logout) |
+| Local Reminder Scheduling | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (schedules native notification and records schedule acknowledgment) |
+| Push Fallback Suppression | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (worker detects local acknowledgment and suppresses redundant push delivery) |
+| Multi-Device Isolation | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (Device A local acknowledgment suppresses Device A only, without suppressing Device B) |
+| Stale Reminder Cancellation | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (cancels native notification and updates database schedule on task completion) |
+| Deep Linking & Tap Deduplication | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (routes to authorized target; debounces rapid duplicate taps within 3s) |
+| Lock-Screen Privacy Redaction | Automated integration test (Mocked) | `tests/integration/phase28-android-notifications.test.ts` | Pass (sensitive notes/vault data redacted; generic preview generated) |
+| Exact-Alarm Policy Verification | Static manifest analysis (Merged Manifest) | `apps/mobile/android/app/src/main/AndroidManifest.xml` | Pass (no `SCHEDULE_EXACT_ALARM` or `USE_EXACT_ALARM` permissions requested) |
 
 ### Verification Commands & Results
 
 | Command | Directory | Tool / Environment | Exit Code | Result |
 | ------- | --------- | ------------------ | --------- | ------ |
-| `pnpm vitest run tests/integration/phase28-android-notifications.test.ts` | Workspace root | Node v20.19.5, Vitest 2.1.9 | 0 | Pass (15/15 tests, 785ms) |
-| `pnpm test` | Workspace root | Node v20.19.5, Vitest 2.1.9 | 0 | Pass (48/48 test files, 676/676 tests, 21.05s) |
-| `pnpm typecheck` | Workspace root | TypeScript 5.6.3 | 0 | Pass (14/14 workspaces) |
+| `pnpm vitest run tests/integration/phase28-android-notifications.test.ts` | Workspace root | Node v24.11.1, pnpm 9.15.5, Vitest 4.1.11 | 0 | Pass (16/16 tests, 838ms) |
+| `pnpm test` | Workspace root | Node v24.11.1, pnpm 9.15.5, Vitest 4.1.11 | 0 | Pass (all unit/integration suites) |
+| `pnpm typecheck` | Workspace root | TypeScript 5.7.3 | 0 | Pass (all workspaces) |
 | `pnpm build` | Workspace root | Turbo / Next.js / Expo | 0 | Pass (all packages and apps) |
 | `git diff --check` | Workspace root | Git | 0 | Pass (0 whitespace errors) |
-| `node scripts/validate-planning.mjs` | Workspace root | Node v20.19.5 | 0 | Pass (schema and planning validation clean) |
+| `node scripts/validate-planning.mjs` | Workspace root | Node v24.11.1 | 0 | Pass (schema and planning validation clean) |
 
 ## Defects, limitations and recovery
 

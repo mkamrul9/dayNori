@@ -1,5 +1,28 @@
 # Changelog
 
+## Defect repairs (Phases 27 and 28 notification foundation) — 2026-10-17
+
+- **Push Token & Transport Alignment (`apps/mobile`, `packages/contracts`, `infra/supabase`):**
+  - Differentiated native Android FCM device tokens (`fcm`) from Expo Push transport tokens (`expo_push`), adding `expo_push` check constraint to `app.devices.token_type` and migrating legacy registrations in migration `00026_notification_delivery_coordination_and_web_push.sql`.
+  - Added push token rotation listener (`setupPushTokenRotationListener`) to reconcile device registration upon rotation.
+  - Derived capability state honestly from current permission, registration, and provider availability rather than stale secure-storage tokens.
+- **Local Reminder Schedule Coordinator (`apps/mobile`):**
+  - Implemented `ReminderScheduleCoordinator` (`apps/mobile/src/notifications/coordinator.ts`) persisting instance/rule/generation/nativeId mappings in secure storage.
+  - Wired into `apps/mobile/App.tsx` on initialization, app resume, and sync pull.
+  - Persisted unacknowledged local schedules and retried server acknowledgment.
+  - Added local alert cancellation and acknowledgment invalidation on logout, account switch, item deletion, and item completion.
+- **Per-Device Delivery Coordination (`apps/worker`, `apps/api`, `infra/supabase`):**
+  - Tracked delivery uniqueness per recipient device and subscription via `uq_reminder_deliveries_target`.
+  - Ensured local schedule acknowledgment on Android Device A suppresses Device A only (`suppressed_local_schedule`) without suppressing Device B or web push subscriptions.
+  - Handled retryable failed/unavailable delivery attempts up to 3 bounded retries with backoff.
+- **Notification Privacy, Navigation & Deduplication (`apps/mobile`, `packages/contracts`):**
+  - Applied shared generic redaction (`Daynori Reminder: You have a scheduled reminder`) by default for lock-screen safety unless detailed content is explicitly requested.
+  - Handled notification responses with authenticated account/workspace reauthorization, stale/deleted-target fallback, and instance/generation identity deduplication.
+  - Cleared consumed responses and invalidated pending protected destinations upon sign-out.
+- **Evidence & Manifest Audit (`docs/phase-reports/phase-28.md`):**
+  - Corrected tool versions (Node v24.11.1, pnpm 9.15.5, Vitest 4.1.11, TypeScript 5.7.3).
+  - Clarified evidence separation between mocked Expo unit/integration tests, native manifest inspection, physical hardware behavior, and live push provider submission.
+
 ## Phase 28 — Android notifications and local reminders — 2026-10-17
 
 - **Native Android Notification Adapter (`apps/mobile`):**

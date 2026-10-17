@@ -37,6 +37,7 @@ export const ReminderDeliveryStatusSchema = z.enum([
   'opened',
   'dropped_quiet_hours',
   'unavailable',
+  'suppressed_local_schedule',
 ]);
 export type ReminderDeliveryStatus = z.infer<typeof ReminderDeliveryStatusSchema>;
 
@@ -147,7 +148,9 @@ export const ReminderDeliverySchema = z.object({
   deliveryGeneration: z.number().int().default(1),
   channel: ReminderChannelSchema,
   recipientUserId: z.string().uuid(),
-  provider: z.enum(['in_app', 'fcm', 'web_push']),
+  recipientDeviceId: z.string().uuid().nullable().optional().default(null),
+  recipientSubscriptionId: z.string().uuid().nullable().optional().default(null),
+  provider: z.enum(['in_app', 'fcm', 'expo_push', 'web_push']),
   providerMessageId: z.string().nullable().default(null),
   status: ReminderDeliveryStatusSchema,
   redactedTitle: z.string(),
@@ -166,7 +169,7 @@ export type ReminderDelivery = z.infer<typeof ReminderDeliverySchema>;
 export const DevicePlatformSchema = z.enum(['android', 'ios', 'web']);
 export type DevicePlatform = z.infer<typeof DevicePlatformSchema>;
 
-export const DeviceTokenTypeSchema = z.enum(['fcm', 'web_push', 'none']);
+export const DeviceTokenTypeSchema = z.enum(['fcm', 'expo_push', 'web_push', 'none']);
 export type DeviceTokenType = z.infer<typeof DeviceTokenTypeSchema>;
 
 export const RegisterDeviceRequestSchema = z.object({
@@ -275,3 +278,47 @@ export const DeviceScheduleListResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type DeviceScheduleListResponse = z.infer<typeof DeviceScheduleListResponseSchema>;
+
+// --- Web Push Subscriptions (Phase 29) ---
+
+export const RegisterWebPushSubscriptionRequestSchema = z.object({
+  endpoint: z.string().url().max(1024),
+  p256dh: z.string().min(1).max(256),
+  auth: z.string().min(1).max(256),
+  userAgent: z.string().max(512).optional(),
+});
+export type RegisterWebPushSubscriptionRequest = z.infer<typeof RegisterWebPushSubscriptionRequestSchema>;
+
+export const WebPushSubscriptionSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  endpoint: z.string(),
+  p256dh: z.string(),
+  auth: z.string(),
+  userAgent: z.string().nullable(),
+  isActive: z.boolean(),
+  lastSeenAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type WebPushSubscription = z.infer<typeof WebPushSubscriptionSchema>;
+
+export const WebPushSubscriptionResponseSchema = z.object({
+  data: WebPushSubscriptionSchema,
+  meta: ResponseMetaSchema,
+});
+export type WebPushSubscriptionResponse = z.infer<typeof WebPushSubscriptionResponseSchema>;
+
+export const WebPushSubscriptionListResponseSchema = z.object({
+  data: z.array(WebPushSubscriptionSchema),
+  meta: ResponseMetaSchema,
+});
+export type WebPushSubscriptionListResponse = z.infer<typeof WebPushSubscriptionListResponseSchema>;
+
+export const VapidPublicKeyResponseSchema = z.object({
+  data: z.object({
+    publicKey: z.string().min(1),
+  }),
+  meta: ResponseMetaSchema,
+});
+export type VapidPublicKeyResponse = z.infer<typeof VapidPublicKeyResponseSchema>;

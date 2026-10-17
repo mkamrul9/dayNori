@@ -47,6 +47,11 @@ export const NotificationPayloadSchema = z.object({
   destination: ApprovedDestinationSchema,
   itemId: SafeIdentifierSchema.optional(),
   action: z.string().max(64).optional(),
+  instanceId: z.string().uuid().optional(),
+  workspaceId: z.string().uuid().optional(),
+  ruleRevision: z.number().int().positive().optional(),
+  deliveryGeneration: z.number().int().positive().optional(),
+  targetType: z.enum(['task', 'routine', 'calendar_event']).optional(),
   timestamp: z.number().int().positive().optional(),
   nonce: z.string().max(64).optional(),
 });

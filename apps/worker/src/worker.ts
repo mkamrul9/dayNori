@@ -21,7 +21,7 @@ export interface PushNotificationAdapter {
   sendPushNotification(params: {
     recipientUserId: string;
     pushToken: string;
-    tokenType: 'fcm' | 'web_push';
+    tokenType: 'fcm' | 'expo_push' | 'web_push';
     redactedTitle: string;
     redactedBody: string | null;
     dataPayload: Record<string, string>;
@@ -31,6 +31,26 @@ export interface PushNotificationAdapter {
     providerMessageId?: string;
     errorMessage?: string;
     isTokenInvalid?: boolean;
+  }>;
+}
+
+export interface WebPushNotificationAdapter {
+  sendWebPush(params: {
+    recipientUserId: string;
+    subscription: {
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+    };
+    redactedTitle: string;
+    redactedBody: string | null;
+    dataPayload: Record<string, string>;
+  }): Promise<{
+    success: boolean;
+    status: 'accepted' | 'delivered' | 'unavailable' | 'failed';
+    providerMessageId?: string;
+    errorMessage?: string;
+    isSubscriptionExpired?: boolean;
   }>;
 }
 
@@ -76,6 +96,7 @@ export interface DaynoriWorkerOptions {
   storageService?: StorageServiceContract;
   scannerService?: ScannerServiceContract;
   pushAdapter?: PushNotificationAdapter;
+  webPushAdapter?: WebPushNotificationAdapter;
   defaultBucket?: string;
   workerId?: string;
 }
@@ -90,6 +111,7 @@ export class DaynoriWorker {
   private storageService?: StorageServiceContract;
   private scannerService?: ScannerServiceContract;
   private pushAdapter?: PushNotificationAdapter;
+  private webPushAdapter?: WebPushNotificationAdapter;
   private defaultBucket: string = 'files';
 
   constructor(pool?: DatabasePool, options?: DaynoriWorkerOptions) {
@@ -106,6 +128,9 @@ export class DaynoriWorker {
     if (options?.pushAdapter) {
       this.pushAdapter = options.pushAdapter;
     }
+    if (options?.webPushAdapter) {
+      this.webPushAdapter = options.webPushAdapter;
+    }
     if (options?.defaultBucket) {
       this.defaultBucket = options.defaultBucket;
     }
@@ -113,6 +138,10 @@ export class DaynoriWorker {
 
   setPushAdapter(adapter: PushNotificationAdapter): void {
     this.pushAdapter = adapter;
+  }
+
+  setWebPushAdapter(adapter: WebPushNotificationAdapter): void {
+    this.webPushAdapter = adapter;
   }
 
   registerHandler(taskType: string, handler: JobTaskHandler): void {
@@ -940,7 +969,7 @@ export class DaynoriWorker {
                 provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
               )
               VALUES ($1, $2, $3, 'push', $4, 'fcm', 'dropped_quiet_hours', 'Daynori Reminder', null, 1, now())
-              ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+              ON CONFLICT DO NOTHING;
               `,
               [workspaceId, instanceId, deliveryGen, recipientUserId]
             );
@@ -986,14 +1015,13 @@ export class DaynoriWorker {
 
       if (recipientUserId) {
         for (const channel of rule.channels) {
-          // Deduplication: prevent duplicate channel delivery for this instance and generation
-          const existingDeliv = await client.query(
-            `SELECT id FROM app.reminder_deliveries WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = $4;`,
-            [workspaceId, instanceId, deliveryGen, channel]
-          );
+          if (channel === 'in_app') {
+            const existingInApp = await client.query(
+              `SELECT id FROM app.reminder_deliveries WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'in_app';`,
+              [workspaceId, instanceId, deliveryGen]
+            );
 
-          if (existingDeliv.rows.length === 0) {
-            if (channel === 'in_app') {
+            if (existingInApp.rows.length === 0) {
               await client.query(
                 `
                 INSERT INTO app.reminder_deliveries (
@@ -1001,7 +1029,7 @@ export class DaynoriWorker {
                   provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
                 )
                 VALUES ($1, $2, $3, 'in_app', $4, 'in_app', 'delivered', $5, $6, 1, now())
-                ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+                ON CONFLICT DO NOTHING;
                 `,
                 [
                   workspaceId,
@@ -1012,105 +1040,294 @@ export class DaynoriWorker {
                   redacted.body,
                 ]
               );
-            } else if (channel === 'push') {
-              // Check if device local scheduling was already acknowledged
-              const localAckRes = await client.query(
-                `SELECT 1 FROM app.device_reminder_schedules
-                 WHERE instance_id = $1 AND delivery_generation = $2 AND delivery_mode = 'local' AND acknowledged = true
-                 LIMIT 1;`,
-                [instanceId, deliveryGen]
-              );
+            }
+          } else if (channel === 'push') {
+            // 1. Fetch active registered devices with push tokens for recipientUserId
+            const devRes = await client.query<{
+              id: string;
+              push_token: string;
+              token_type: 'fcm' | 'expo_push' | 'web_push';
+              is_active: boolean;
+            }>(
+              `SELECT id, push_token, token_type, is_active FROM app.devices
+               WHERE user_id = $1 AND is_active = true AND push_token IS NOT NULL;`,
+              [recipientUserId]
+            );
 
-              if (localAckRes.rows.length > 0) {
-                // Device local scheduling acknowledged; push fallback not needed
+            // 2. Fetch active Web Push subscriptions for recipientUserId (Phase 29)
+            const webSubRes = await client.query<{
+              id: string;
+              endpoint: string;
+              p256dh: string;
+              auth: string;
+            }>(
+              `SELECT id, endpoint, p256dh, auth FROM app.web_push_subscriptions
+               WHERE user_id = $1 AND is_active = true;`,
+              [recipientUserId]
+            );
+
+            const totalTargets = devRes.rows.length + webSubRes.rows.length;
+
+            if (totalTargets === 0) {
+              // No device or subscription registered
+              const existingNoTarget = await client.query(
+                `SELECT id FROM app.reminder_deliveries
+                 WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'push'
+                   AND recipient_device_id IS NULL AND recipient_subscription_id IS NULL;`,
+                [workspaceId, instanceId, deliveryGen]
+              );
+              if (existingNoTarget.rows.length === 0) {
                 await client.query(
                   `
                   INSERT INTO app.reminder_deliveries (
                     workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
-                    provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
+                    provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
                   )
-                  VALUES ($1, $2, $3, 'push', $4, 'fcm', 'delivered', $5, 'Suppressed by device local schedule acknowledgment', 1, now())
-                  ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+                  VALUES ($1, $2, $3, 'push', $4, 'fcm', 'unavailable', $5, $6, 1, now(), 'No registered device or subscription')
+                  ON CONFLICT DO NOTHING;
                   `,
-                  [workspaceId, instanceId, deliveryGen, recipientUserId, redacted.title]
+                  [workspaceId, instanceId, deliveryGen, recipientUserId, redacted.title, redacted.body]
                 );
-              } else {
-                // Check if user has active devices with push tokens
-                const devRes = await client.query<{ id: string; push_token: string; token_type: 'fcm' | 'web_push' }>(
-                  `SELECT id, push_token, token_type FROM app.devices
-                   WHERE user_id = $1 AND is_active = true AND push_token IS NOT NULL;`,
-                  [recipientUserId]
-                );
+              }
+            }
 
-                if (devRes.rows.length === 0 || !this.pushAdapter) {
-                  // Truthful outcome: Missing configuration produces 'unavailable' state, not fabricated success!
+            // Deliver to each mobile device
+            for (const dev of devRes.rows) {
+              const devDelivRes = await client.query<{ id: string; status: string; attempt_count: number }>(
+                `SELECT id, status, attempt_count FROM app.reminder_deliveries
+                 WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'push' AND recipient_device_id = $4;`,
+                [workspaceId, instanceId, deliveryGen, dev.id]
+              );
+              const existingDevDeliv = devDelivRes.rows[0];
+              if (
+                existingDevDeliv &&
+                (existingDevDeliv.status === 'delivered' ||
+                  existingDevDeliv.status === 'suppressed_local_schedule' ||
+                  existingDevDeliv.attempt_count >= 3)
+              ) {
+                continue;
+              }
+
+              // Check if THIS specific device has acknowledged local scheduling
+              const localAckRes = await client.query<{ acknowledged_at: Date }>(
+                `SELECT acknowledged_at FROM app.device_reminder_schedules
+                 WHERE instance_id = $1 AND device_id = $2 AND delivery_generation = $3
+                   AND rule_revision = $4 AND delivery_mode = 'local' AND acknowledged = true
+                   AND acknowledged_at > now() - INTERVAL '14 days'
+                 LIMIT 1;`,
+                [instanceId, dev.id, deliveryGen, rule.rule_revision]
+              );
+
+              if (localAckRes.rows.length > 0) {
+                // Device local scheduling acknowledged: record suppression as a scheduling decision
+                if (existingDevDeliv) {
+                  await client.query(
+                    `UPDATE app.reminder_deliveries
+                     SET status = 'suppressed_local_schedule', redacted_body = 'Suppressed by device local schedule acknowledgment',
+                         attempt_count = attempt_count + 1, last_attempt_at = now()
+                     WHERE id = $1;`,
+                    [existingDevDeliv.id]
+                  );
+                } else {
                   await client.query(
                     `
                     INSERT INTO app.reminder_deliveries (
                       workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
-                      provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
+                      recipient_device_id, provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
                     )
-                    VALUES ($1, $2, $3, 'push', $4, 'fcm', 'unavailable', $5, $6, 1, now(), $7)
-                    ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+                    VALUES ($1, $2, $3, 'push', $4, $5, $6, 'suppressed_local_schedule', $7, 'Suppressed by device local schedule acknowledgment', 1, now())
+                    ON CONFLICT DO NOTHING;
+                    `,
+                    [workspaceId, instanceId, deliveryGen, recipientUserId, dev.id, dev.token_type, redacted.title]
+                  );
+                }
+              } else if (!this.pushAdapter) {
+                // Push adapter not configured: honest unavailable state
+                if (existingDevDeliv) {
+                  await client.query(
+                    `UPDATE app.reminder_deliveries
+                     SET status = 'unavailable', error_message = 'No push adapter configured',
+                         attempt_count = attempt_count + 1, last_attempt_at = now()
+                     WHERE id = $1;`,
+                    [existingDevDeliv.id]
+                  );
+                } else {
+                  await client.query(
+                    `
+                    INSERT INTO app.reminder_deliveries (
+                      workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                      recipient_device_id, provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
+                    )
+                    VALUES ($1, $2, $3, 'push', $4, $5, $6, 'unavailable', $7, $8, 1, now(), 'No push adapter configured')
+                    ON CONFLICT DO NOTHING;
+                    `,
+                    [workspaceId, instanceId, deliveryGen, recipientUserId, dev.id, dev.token_type, redacted.title, redacted.body]
+                  );
+                }
+              } else {
+                const sendRes = await this.pushAdapter.sendPushNotification({
+                  recipientUserId,
+                  pushToken: dev.push_token,
+                  tokenType: dev.token_type,
+                  redactedTitle: redacted.title,
+                  redactedBody: redacted.body,
+                  dataPayload: {
+                    type: 'notification',
+                    destination: 'plan',
+                    itemId: targetId || '',
+                    instanceId,
+                    workspaceId,
+                    ruleRevision: String(rule.rule_revision),
+                    deliveryGeneration: String(deliveryGen),
+                    targetType: (tType as string) || 'task',
+                    timestamp: String(Date.now()),
+                  },
+                });
+
+                if (sendRes.isTokenInvalid) {
+                  await client.query(
+                    `UPDATE app.devices SET is_active = false, push_token = NULL, updated_at = now() WHERE id = $1;`,
+                    [dev.id]
+                  );
+                }
+
+                if (existingDevDeliv) {
+                  await client.query(
+                    `UPDATE app.reminder_deliveries
+                     SET status = $1, provider_message_id = $2, error_message = $3,
+                         attempt_count = attempt_count + 1, last_attempt_at = now()
+                     WHERE id = $4;`,
+                    [sendRes.status, sendRes.providerMessageId || null, sendRes.errorMessage || null, existingDevDeliv.id]
+                  );
+                } else {
+                  await client.query(
+                    `
+                    INSERT INTO app.reminder_deliveries (
+                      workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                      recipient_device_id, provider, provider_message_id, status, redacted_title, redacted_body,
+                      attempt_count, last_attempt_at, error_message
+                    )
+                    VALUES ($1, $2, $3, 'push', $4, $5, $6, $7, $8, $9, $10, 1, now(), $11)
+                    ON CONFLICT DO NOTHING;
                     `,
                     [
                       workspaceId,
                       instanceId,
                       deliveryGen,
                       recipientUserId,
+                      dev.id,
+                      dev.token_type,
+                      sendRes.providerMessageId || null,
+                      sendRes.status,
                       redacted.title,
                       redacted.body,
-                      devRes.rows.length === 0 ? 'No registered device with push token' : 'No push adapter configured',
+                      sendRes.errorMessage || null,
                     ]
                   );
+                }
+              }
+            }
+
+            // Deliver to each Web Push subscription (Phase 29)
+            for (const sub of webSubRes.rows) {
+              const subDelivRes = await client.query<{ id: string; status: string; attempt_count: number }>(
+                `SELECT id, status, attempt_count FROM app.reminder_deliveries
+                 WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'push' AND recipient_subscription_id = $4;`,
+                [workspaceId, instanceId, deliveryGen, sub.id]
+              );
+              const existingSubDeliv = subDelivRes.rows[0];
+              if (
+                existingSubDeliv &&
+                (existingSubDeliv.status === 'delivered' ||
+                  existingSubDeliv.attempt_count >= 3)
+              ) {
+                continue;
+              }
+
+              if (!this.webPushAdapter) {
+                if (existingSubDeliv) {
+                  await client.query(
+                    `UPDATE app.reminder_deliveries
+                     SET status = 'unavailable', error_message = 'No Web Push adapter configured',
+                         attempt_count = attempt_count + 1, last_attempt_at = now()
+                     WHERE id = $1;`,
+                    [existingSubDeliv.id]
+                  );
                 } else {
-                  for (const dev of devRes.rows) {
-                    const sendRes = await this.pushAdapter.sendPushNotification({
+                  await client.query(
+                    `
+                    INSERT INTO app.reminder_deliveries (
+                      workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                      recipient_subscription_id, provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
+                    )
+                    VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', 'unavailable', $6, $7, 1, now(), 'No Web Push adapter configured')
+                    ON CONFLICT DO NOTHING;
+                    `,
+                    [workspaceId, instanceId, deliveryGen, recipientUserId, sub.id, redacted.title, redacted.body]
+                  );
+                }
+              } else {
+                const sendRes = await this.webPushAdapter.sendWebPush({
+                  recipientUserId,
+                  subscription: {
+                    endpoint: sub.endpoint,
+                    p256dh: sub.p256dh,
+                    auth: sub.auth,
+                  },
+                  redactedTitle: redacted.title,
+                  redactedBody: redacted.body,
+                  dataPayload: {
+                    type: 'notification',
+                    destination: 'plan',
+                    itemId: targetId || '',
+                    instanceId,
+                    workspaceId,
+                    ruleRevision: String(rule.rule_revision),
+                    deliveryGeneration: String(deliveryGen),
+                    targetType: (tType as string) || 'task',
+                    timestamp: String(Date.now()),
+                  },
+                });
+
+                if (sendRes.isSubscriptionExpired) {
+                  await client.query(
+                    `UPDATE app.web_push_subscriptions SET is_active = false, updated_at = now() WHERE id = $1;`,
+                    [sub.id]
+                  );
+                }
+
+                if (existingSubDeliv) {
+                  await client.query(
+                    `UPDATE app.reminder_deliveries
+                     SET status = $1, provider_message_id = $2, error_message = $3,
+                         attempt_count = attempt_count + 1, last_attempt_at = now()
+                     WHERE id = $4;`,
+                    [sendRes.status, sendRes.providerMessageId || null, sendRes.errorMessage || null, existingSubDeliv.id]
+                  );
+                } else {
+                  await client.query(
+                    `
+                    INSERT INTO app.reminder_deliveries (
+                      workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                      recipient_subscription_id, provider, provider_message_id, status, redacted_title, redacted_body,
+                      attempt_count, last_attempt_at, error_message
+                    )
+                    VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', $6, $7, $8, $9, 1, now(), $10)
+                    ON CONFLICT DO NOTHING;
+                    `,
+                    [
+                      workspaceId,
+                      instanceId,
+                      deliveryGen,
                       recipientUserId,
-                      pushToken: dev.push_token,
-                      tokenType: dev.token_type,
-                      redactedTitle: redacted.title,
-                      redactedBody: redacted.body,
-                      dataPayload: {
-                        instanceId,
-                        targetType: (tType as string) || 'task',
-                        targetId: targetId || '',
-                        workspaceId,
-                        deliveryGeneration: String(deliveryGen),
-                      },
-                    });
-
-                    if (sendRes.isTokenInvalid) {
-                      await client.query(
-                        `UPDATE app.devices SET is_active = false, push_token = NULL, updated_at = now() WHERE id = $1;`,
-                        [dev.id]
-                      );
-                    }
-
-                    await client.query(
-                      `
-                      INSERT INTO app.reminder_deliveries (
-                        workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
-                        provider, provider_message_id, status, redacted_title, redacted_body,
-                        attempt_count, last_attempt_at, error_message
-                      )
-                      VALUES ($1, $2, $3, 'push', $4, $5, $6, $7, $8, $9, 1, now(), $10)
-                      ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
-                      `,
-                      [
-                        workspaceId,
-                        instanceId,
-                        deliveryGen,
-                        recipientUserId,
-                        dev.token_type,
-                        sendRes.providerMessageId || null,
-                        sendRes.status,
-                        redacted.title,
-                        redacted.body,
-                        sendRes.errorMessage || null,
-                      ]
-                    );
-                  }
+                      sub.id,
+                      sendRes.providerMessageId || null,
+                      sendRes.status,
+                      redacted.title,
+                      redacted.body,
+                      sendRes.errorMessage || null,
+                    ]
+                  );
                 }
               }
             }
@@ -1118,7 +1335,7 @@ export class DaynoriWorker {
         }
       }
 
-      // 7. Update instance status to dispatched
+      // Mark instance as dispatched
       await client.query(
         `UPDATE app.reminder_instances SET status = 'dispatched', updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
         [instanceId, workspaceId]

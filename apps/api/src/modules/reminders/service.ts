@@ -12,6 +12,8 @@ import type {
   RecordDeliveryReceiptRequest,
   RegisterDeviceRequest,
   AcknowledgeDeviceScheduleRequest,
+  WebPushSubscription,
+  RegisterWebPushSubscriptionRequest,
 } from '@daynori/contracts';
 import {
   materializeReminderOccurrences,
@@ -75,7 +77,9 @@ interface ReminderDeliveryDbRow {
   delivery_generation: number;
   channel: 'in_app' | 'push' | 'local';
   recipient_user_id: string;
-  provider: 'in_app' | 'fcm' | 'web_push';
+  recipient_device_id: string | null;
+  recipient_subscription_id: string | null;
+  provider: 'in_app' | 'fcm' | 'expo_push' | 'web_push';
   provider_message_id: string | null;
   status:
     | 'pending'
@@ -84,7 +88,8 @@ interface ReminderDeliveryDbRow {
     | 'delivered'
     | 'opened'
     | 'dropped_quiet_hours'
-    | 'unavailable';
+    | 'unavailable'
+    | 'suppressed_local_schedule';
   redacted_title: string;
   redacted_body: string | null;
   attempt_count: number;
@@ -101,8 +106,21 @@ interface DeviceDbRow {
   installation_id: string;
   platform: 'android' | 'ios' | 'web';
   push_token: string | null;
-  token_type: 'fcm' | 'web_push' | 'none';
+  token_type: 'fcm' | 'expo_push' | 'web_push' | 'none';
   capabilities: Record<string, unknown>;
+  is_active: boolean;
+  last_seen_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface WebPushSubscriptionDbRow {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
   is_active: boolean;
   last_seen_at: Date;
   created_at: Date;
@@ -174,6 +192,8 @@ function mapRowToDelivery(row: ReminderDeliveryDbRow): ReminderDelivery {
     deliveryGeneration: row.delivery_generation ?? 1,
     channel: row.channel,
     recipientUserId: row.recipient_user_id,
+    recipientDeviceId: row.recipient_device_id ?? null,
+    recipientSubscriptionId: row.recipient_subscription_id ?? null,
     provider: row.provider,
     providerMessageId: row.provider_message_id,
     status: row.status,
@@ -183,6 +203,21 @@ function mapRowToDelivery(row: ReminderDeliveryDbRow): ReminderDelivery {
     lastAttemptAt: row.last_attempt_at ? row.last_attempt_at.toISOString() : null,
     errorMessage: row.error_message,
     openedAt: row.opened_at ? row.opened_at.toISOString() : null,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapRowToWebPushSubscription(row: WebPushSubscriptionDbRow): WebPushSubscription {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    endpoint: row.endpoint,
+    p256dh: row.p256dh,
+    auth: row.auth,
+    userAgent: row.user_agent,
+    isActive: row.is_active,
+    lastSeenAt: row.last_seen_at.toISOString(),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -1299,4 +1334,109 @@ export async function listDeviceSchedules(
     [workspaceId, instanceId]
   );
   return res.rows.map(mapRowToDeviceSchedule);
+}
+
+/**
+ * Validates that a Web Push endpoint URL is HTTPS and does not target
+ * private, internal, or loopback network addresses (SSRF prevention).
+ */
+export function assertValidPushEndpoint(endpoint: string): void {
+  try {
+    const url = new URL(endpoint);
+    if (url.protocol !== 'https:') {
+      throw new ValidationError('Push notification endpoint must use HTTPS');
+    }
+    const hostname = url.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.test') ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[01])\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^169\.254\./.test(hostname) ||
+      /^0\./.test(hostname)
+    ) {
+      throw new ValidationError(
+        'Push notification endpoint points to a disallowed, private, or loopback network address'
+      );
+    }
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
+    throw new ValidationError('Invalid push notification endpoint URL');
+  }
+}
+
+/**
+ * Returns the VAPID public key for Web Push client subscription.
+ */
+export function getVapidPublicKey(): string {
+  return (
+    process.env['VAPID_PUBLIC_KEY'] ||
+    // Standard test public key (base64url uncompressed P-256 point)
+    'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXY5CEvHg84'
+  );
+}
+
+/**
+ * Registers or updates a browser Web Push subscription for a user.
+ */
+export async function registerWebPushSubscription(
+  client: PoolClient,
+  userId: string,
+  input: RegisterWebPushSubscriptionRequest
+): Promise<WebPushSubscription> {
+  assertValidPushEndpoint(input.endpoint);
+
+  const upsertRes = await client.query<WebPushSubscriptionDbRow>(
+    `
+    INSERT INTO app.web_push_subscriptions (
+      user_id, endpoint, p256dh, auth, user_agent, is_active, last_seen_at
+    )
+    VALUES ($1, $2, $3, $4, $5, true, now())
+    ON CONFLICT (user_id, endpoint) DO UPDATE SET
+      p256dh = EXCLUDED.p256dh,
+      auth = EXCLUDED.auth,
+      user_agent = EXCLUDED.user_agent,
+      is_active = true,
+      last_seen_at = now(),
+      updated_at = now()
+    RETURNING *;
+    `,
+    [userId, input.endpoint, input.p256dh, input.auth, input.userAgent || null]
+  );
+
+  return mapRowToWebPushSubscription(upsertRes.rows[0]!);
+}
+
+/**
+ * Deactivates a browser Web Push subscription for a user (unsubscribe).
+ */
+export async function deactivateWebPushSubscription(
+  client: PoolClient,
+  userId: string,
+  endpoint: string
+): Promise<{ success: boolean }> {
+  await client.query(
+    `UPDATE app.web_push_subscriptions SET is_active = false, updated_at = now() WHERE user_id = $1 AND endpoint = $2;`,
+    [userId, endpoint]
+  );
+  return { success: true };
+}
+
+/**
+ * Lists active Web Push subscriptions for a user.
+ */
+export async function listUserWebPushSubscriptions(
+  client: PoolClient,
+  userId: string
+): Promise<WebPushSubscription[]> {
+  const res = await client.query<WebPushSubscriptionDbRow>(
+    `SELECT * FROM app.web_push_subscriptions WHERE user_id = $1 AND is_active = true ORDER BY last_seen_at DESC;`,
+    [userId]
+  );
+  return res.rows.map(mapRowToWebPushSubscription);
 }

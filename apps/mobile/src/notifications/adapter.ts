@@ -20,7 +20,7 @@ export interface NotificationCapabilityState {
   canDeliverLocally: boolean;
   canDeliverPush: boolean;
   hasPushToken: boolean;
-  pushTokenType: 'fcm' | 'web_push' | 'none';
+  pushTokenType: 'fcm' | 'expo_push' | 'web_push' | 'none';
   isExactAlarmPermitted: boolean;
   details: string;
 }
@@ -35,7 +35,7 @@ export interface ScheduleLocalReminderOptions {
   itemId?: string;
   ruleRevision: number;
   deliveryGeneration?: number;
-  privacyLevel?: 'normal' | 'private' | 'confidential';
+  privacyLevel?: 'normal' | 'private' | 'confidential' | 'detailed' | 'title_only';
 }
 
 export interface ScheduledReminderResult {
@@ -47,6 +47,7 @@ export interface ScheduledReminderResult {
 const SECURE_KEY_INSTALLATION_ID = 'daynori_installation_id';
 const SECURE_KEY_DEVICE_ID = 'daynori_registered_device_id';
 const SECURE_KEY_PUSH_TOKEN = 'daynori_registered_push_token';
+const SECURE_KEY_PUSH_TOKEN_TYPE = 'daynori_registered_push_token_type';
 
 let isChannelsInitialized = false;
 
@@ -59,7 +60,7 @@ export async function setupNotificationChannelsAsync(): Promise<void> {
   if (isChannelsInitialized) return;
 
   try {
-    // 1. Reminders channel (high importance, sound, vibration)
+    // 1. Reminders channel (high importance, sound, vibration, lockscreen privacy)
     await Notifications.setNotificationChannelAsync('reminders', {
       name: 'Reminders & Alerts',
       importance: Notifications.AndroidImportance.HIGH,
@@ -69,6 +70,9 @@ export async function setupNotificationChannelsAsync(): Promise<void> {
       enableLights: true,
       enableVibrate: true,
       showBadge: true,
+      ...(Notifications.AndroidNotificationVisibility
+        ? { lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE }
+        : {}),
       description: 'Scheduled reminders for tasks, routines, and calendar events',
     });
 
@@ -118,7 +122,12 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
     }
 
     const storedPushToken = await defaultSecureStorage.getItemAsync(SECURE_KEY_PUSH_TOKEN);
-    const hasPushToken = Boolean(storedPushToken);
+    const storedTokenType = (await defaultSecureStorage.getItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE)) as
+      | 'fcm'
+      | 'expo_push'
+      | 'web_push'
+      | null;
+    const hasPushToken = Boolean(storedPushToken && status === 'granted');
 
     const canDeliverLocally = status === 'granted';
     const canDeliverPush = status === 'granted' && hasPushToken;
@@ -139,7 +148,7 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
       canDeliverLocally,
       canDeliverPush,
       hasPushToken,
-      pushTokenType: hasPushToken ? 'fcm' : 'none',
+      pushTokenType: hasPushToken ? storedTokenType || 'fcm' : 'none',
       isExactAlarmPermitted: false, // Invariant: ordinary best-effort reminders, no restricted exact alarms
       details,
     };
@@ -201,6 +210,7 @@ export async function getInstallationIdAsync(): Promise<string> {
 /**
  * Register device and push capabilities with the Daynori API.
  * Honestly reflects when push tokens are unavailable (e.g. Missing server credentials or local testing).
+ * Differentiates native FCM device tokens from Expo Push transport tokens.
  */
 export async function registerDeviceAsync(
   apiClient: DaynoriApiClient,
@@ -216,21 +226,38 @@ export async function registerDeviceAsync(
     const capability = await getNotificationCapabilityAsync();
 
     let pushToken: string | null = null;
-    let tokenType: 'fcm' | 'web_push' | 'none' = 'none';
+    let tokenType: 'fcm' | 'expo_push' | 'none' = 'none';
 
     // Attempt to fetch push token honestly without throwing
     if (capability.status === 'granted') {
       try {
-        const tokenResult = await Notifications.getExpoPushTokenAsync();
-        if (tokenResult?.data) {
-          pushToken = tokenResult.data;
+        // First try native device push token (FCM on Android)
+        const nativeResult = await Notifications.getDevicePushTokenAsync();
+        if (nativeResult?.data) {
+          pushToken =
+            typeof nativeResult.data === 'string'
+              ? nativeResult.data
+              : JSON.stringify(nativeResult.data);
           tokenType = 'fcm';
           await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN, pushToken);
+          await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE, tokenType);
         }
       } catch {
-        // Push credentials not configured in local environment — honest unavailable state
-        tokenType = 'none';
-        pushToken = null;
+        // Fallback to Expo Push Token if native device token is unavailable
+        try {
+          const expoResult = await Notifications.getExpoPushTokenAsync();
+          if (expoResult?.data) {
+            pushToken = expoResult.data;
+            tokenType = 'expo_push';
+            await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN, pushToken);
+            await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE, tokenType);
+          }
+        } catch {
+          tokenType = 'none';
+          pushToken = null;
+          await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN);
+          await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE);
+        }
       }
     }
 
@@ -270,6 +297,25 @@ export async function registerDeviceAsync(
 }
 
 /**
+ * Setup token rotation listener to reconcile device registration with backend when token updates.
+ */
+export function setupPushTokenRotationListener(apiClient: DaynoriApiClient): () => void {
+  const subscription = Notifications.addPushTokenListener(async () => {
+    try {
+      await registerDeviceAsync(apiClient);
+    } catch (err) {
+      console.warn('Failed to reconcile device registration on token rotation:', err);
+    }
+  });
+
+  return () => {
+    if (subscription && typeof subscription.remove === 'function') {
+      subscription.remove();
+    }
+  };
+}
+
+/**
  * Deactivate the device registration on logout or account switch to prevent cross-account push.
  */
 export async function deactivateDeviceAsync(apiClient: DaynoriApiClient): Promise<void> {
@@ -279,6 +325,7 @@ export async function deactivateDeviceAsync(apiClient: DaynoriApiClient): Promis
       await apiClient.deactivateDevice(installationId);
       await defaultSecureStorage.deleteItemAsync(SECURE_KEY_DEVICE_ID);
       await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN);
+      await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE);
     }
   } catch (err) {
     console.warn('Device deactivation failed:', err);
@@ -287,6 +334,7 @@ export async function deactivateDeviceAsync(apiClient: DaynoriApiClient): Promis
 
 /**
  * Schedule a local notification on the Android device and acknowledge it with the backend.
+ * Default applies generic privacy redaction for lock-screen safety unless detailed is explicitly selected.
  */
 export async function scheduleLocalReminderAsync(
   apiClient: DaynoriApiClient | null,
@@ -306,16 +354,19 @@ export async function scheduleLocalReminderAsync(
     };
   }
 
-  // Redact confidential or private titles/bodies by default for lock-screen privacy
-  let displayTitle = options.title;
-  let displayBody = options.body ?? '';
+  // Apply shared generic redaction by default for payload minimization and lock-screen privacy
+  let displayTitle = 'Daynori Reminder';
+  let displayBody = 'You have a scheduled reminder';
 
-  if (options.privacyLevel === 'confidential') {
-    displayTitle = 'Daynori Reminder';
-    displayBody = 'You have a scheduled reminder';
-  } else if (options.privacyLevel === 'private') {
+  if (options.privacyLevel === 'detailed') {
+    displayTitle = options.title;
+    displayBody = options.body ?? '';
+  } else if (options.privacyLevel === 'private' || options.privacyLevel === 'title_only') {
     displayTitle = options.title;
     displayBody = 'Open Daynori to view details';
+  } else if (options.privacyLevel === 'confidential') {
+    displayTitle = 'Daynori Reminder';
+    displayBody = 'You have a scheduled reminder';
   }
 
   // Build deep link payload conforming to NotificationPayloadSchema
@@ -416,6 +467,19 @@ export function setupForegroundNotificationHandler(): void {
   });
 }
 
+let lastTapTimestamp = 0;
+let lastTapPayloadKey = '';
+const consumedResponseIds = new Set<string>();
+
+/**
+ * Reset notification deduplication and response state on logout or account switch.
+ */
+export function resetNotificationResponseState(): void {
+  lastTapTimestamp = 0;
+  lastTapPayloadKey = '';
+  consumedResponseIds.clear();
+}
+
 /**
  * Initialize notification response listeners for warm-start and cold-start handling.
  * Validates payload schema, reauthorizes target before navigating, and deduplicates repeated taps.
@@ -423,11 +487,15 @@ export function setupForegroundNotificationHandler(): void {
 export function initNotificationResponseListener(
   onNavigateToDestination: (payload: NotificationPayload) => void
 ): () => void {
-  let lastTapTimestamp = 0;
-  let lastTapPayloadKey = '';
-
-  const processResponse = (data: unknown) => {
+  const processResponse = (data: unknown, responseId?: string) => {
     if (!data || typeof data !== 'object') return;
+
+    if (responseId && consumedResponseIds.has(responseId)) {
+      return;
+    }
+    if (responseId) {
+      consumedResponseIds.add(responseId);
+    }
 
     // Validate using contracts schema
     const parseResult = NotificationPayloadSchema.safeParse(data);
@@ -437,9 +505,9 @@ export function initNotificationResponseListener(
 
     const payload = parseResult.data;
 
-    // Deduplicate repeated taps within 3 seconds
+    // Deduplicate repeated taps within 3 seconds by instance/generation/destination identity
     const now = Date.now();
-    const payloadKey = `${payload.destination}:${payload.itemId ?? ''}`;
+    const payloadKey = `${payload.instanceId ?? payload.destination}:${payload.deliveryGeneration ?? payload.itemId ?? ''}`;
     if (payloadKey === lastTapPayloadKey && now - lastTapTimestamp < 3000) {
       return;
     }
@@ -453,14 +521,16 @@ export function initNotificationResponseListener(
   // 1. Cold-start response check
   void Notifications.getLastNotificationResponseAsync().then((response) => {
     if (response?.notification?.request?.content?.data) {
-      processResponse(response.notification.request.content.data);
+      const respId = response.notification.request.identifier || 'cold-start-response';
+      processResponse(response.notification.request.content.data, respId);
     }
   });
 
   // 2. Warm-start / Foreground listener
   const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
     if (response?.notification?.request?.content?.data) {
-      processResponse(response.notification.request.content.data);
+      const respId = response.notification.request.identifier;
+      processResponse(response.notification.request.content.data, respId);
     }
   });
 

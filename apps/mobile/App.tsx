@@ -40,8 +40,11 @@ import {
   requestNotificationPermissionAsync,
   registerDeviceAsync,
   deactivateDeviceAsync,
+  setupPushTokenRotationListener,
+  resetNotificationResponseState,
   type NotificationCapabilityState,
 } from './src/notifications/adapter.js';
+import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
@@ -161,7 +164,19 @@ export default function App() {
 
         setSyncEngine(engine);
         await engine.start();
+        await defaultScheduleCoordinator.initialize(currentUser.id, currentUser.workspaceId);
         void registerDeviceAsync(client);
+        setupPushTokenRotationListener(client);
+
+        // Initial reconciliation of upcoming reminders
+        void client
+          .listReminderInstances(currentUser.workspaceId)
+          .then((res) => {
+            if (res?.data) {
+              void defaultScheduleCoordinator.reconcileInstances(client, res.data);
+            }
+          })
+          .catch(() => {});
       } catch {
         /* storage initialization error handled gracefully */
       }
@@ -217,15 +232,25 @@ export default function App() {
 
   // 3. App Resume / Background Lifecycle Handling
   useEffect(() => {
-    const appStateSubscription = AppState.addEventListener('change', (_nextState) => {
-      // Retain active tab, modal state, and input drafts upon resume
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      // Reconcile reminders and local alerts upon resume
+      if (nextState === 'active' && apiClient && userNamespace?.workspaceId) {
+        void apiClient
+          .listReminderInstances(userNamespace.workspaceId)
+          .then((res) => {
+            if (res?.data) {
+              void defaultScheduleCoordinator.reconcileInstances(apiClient, res.data);
+            }
+          })
+          .catch(() => {});
+      }
     });
     return () => {
       if (appStateSubscription && typeof appStateSubscription.remove === 'function') {
         appStateSubscription.remove();
       }
     };
-  }, []);
+  }, [apiClient, userNamespace?.workspaceId]);
 
   // 4. Cold-Start and Warm-Start Deep-Linking
   useEffect(() => {
@@ -326,7 +351,37 @@ export default function App() {
     void setupNotificationChannelsAsync();
     void getNotificationCapabilityAsync().then(setNotificationCapability);
 
-    const cleanupNotifications = initNotificationResponseListener((payload) => {
+    const cleanupNotifications = initNotificationResponseListener(async (payload) => {
+      // 1. Authenticated workspace and account check
+      const currentAuth = defaultAuthAdapter.isAuthenticated();
+      const currentUser = defaultAuthAdapter.getCurrentUser();
+
+      if (!currentAuth || !currentUser) {
+        setPendingProtectedDest(payload.destination);
+        return;
+      }
+
+      if (
+        payload.workspaceId &&
+        currentUser.workspaceId &&
+        payload.workspaceId !== currentUser.workspaceId
+      ) {
+        // Prevent cross-workspace navigation
+        return;
+      }
+
+      // 2. Reauthorize target and verify source record exists
+      if (payload.itemId && repository && currentUser.workspaceId) {
+        try {
+          const header = await repository.getItemHeader(currentUser.workspaceId, payload.itemId);
+          if (!header) {
+            console.warn(`Reminder target item ${payload.itemId} not found or deleted.`);
+          }
+        } catch {
+          // Fallback gracefully to destination tab navigation
+        }
+      }
+
       const dest = payload.destination;
       if (dest === 'today') {
         setCurrentTab('today');
@@ -499,8 +554,11 @@ export default function App() {
             onToggleAuth={() => {
               if (isAuthenticated) {
                 if (apiClient) {
+                  void defaultScheduleCoordinator.cancelAll(apiClient);
                   void deactivateDeviceAsync(apiClient);
                 }
+                resetNotificationResponseState();
+                setPendingProtectedDest(null);
                 if (userNamespace?.userId) {
                   void MobileOfflineFileCache.clearAccount(userNamespace.userId).catch(() => {});
                 }

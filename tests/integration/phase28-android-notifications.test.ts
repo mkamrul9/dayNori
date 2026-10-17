@@ -376,6 +376,9 @@ describe('Phase 28: Android Notifications and Local Reminders Suite', () => {
       });
       const instance = instances.data[0]!;
 
+      // Isolate device state for this test
+      await adminPool.query('UPDATE app.devices SET is_active = false WHERE user_id = $1;', [userAId]);
+
       // Register device and acknowledge local schedule
       const deviceId = crypto.randomUUID();
       await adminPool.query(
@@ -431,7 +434,92 @@ describe('Phase 28: Android Notifications and Local Reminders Suite', () => {
       expect(delivRes.rows[0]!.redacted_body).toContain('Suppressed by device local schedule acknowledgment');
     });
 
+    it('worker isolates delivery decisions per device so device A acknowledgment does not suppress device B', async () => {
+      const taskRes = await clientA.createTask(personalWorkspaceAId, {
+        title: 'Multi-device task',
+        deadline: {
+          type: 'timed',
+          timestamp: new Date(Date.now() + 3600000).toISOString(),
+          timezone: 'UTC',
+        },
+      });
+
+      const ruleRes = await clientA.createReminderRule(personalWorkspaceAId, {
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        offsetMinutes: 10,
+        channels: ['push'],
+      });
+
+      const instances = await clientA.listReminderInstances(personalWorkspaceAId, {
+        targetId: taskRes.data.id,
+      });
+      const instance = instances.data[0]!;
+
+      // Deactivate other devices
+      await adminPool.query('UPDATE app.devices SET is_active = false WHERE user_id = $1;', [userAId]);
+
+      // Register Device A (acknowledged) and Device B (unacknowledged)
+      const devAId = crypto.randomUUID();
+      const devBId = crypto.randomUUID();
+
+      await adminPool.query(
+        `INSERT INTO app.devices (id, user_id, installation_id, platform, push_token, token_type, is_active)
+         VALUES ($1, $2, 'inst_a', 'android', 'token_a', 'fcm', true),
+                ($3, $2, 'inst_b', 'android', 'token_b', 'fcm', true);`,
+        [devAId, userAId, devBId]
+      );
+
+      // Only Device A acknowledged local scheduling
+      await adminPool.query(
+        `INSERT INTO app.device_reminder_schedules (
+           workspace_id, instance_id, device_id, rule_revision, delivery_generation,
+           native_notification_id, delivery_mode, acknowledged, acknowledged_at
+         )
+         VALUES ($1, $2, $3, 1, 1, 'notif_a', 'local', true, now());`,
+        [personalWorkspaceAId, instance.id, devAId]
+      );
+
+      const pushedTokens: string[] = [];
+      const testPushAdapter: PushNotificationAdapter = {
+        sendPushNotification: async (req) => {
+          pushedTokens.push(req.pushToken);
+          return { status: 'delivered', providerMessageId: `prov_${req.pushToken}` };
+        },
+      };
+      worker.setPushAdapter(testPushAdapter);
+
+      const res = await worker.processJob(crypto.randomUUID(), 'reminder_delivery', {
+        workspaceId: personalWorkspaceAId,
+        instanceId: instance.id,
+        ruleId: ruleRes.data.id,
+        ruleRevision: 1,
+        deliveryGeneration: 1,
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        actorUserId: userAId,
+      });
+
+      expect(res.status).toBe('completed');
+      // Device A was suppressed, Device B was sent push!
+      expect(pushedTokens).toEqual(['token_b']);
+
+      const devDeliveries = await adminPool.query<{ recipient_device_id: string; status: string }>(
+        `SELECT recipient_device_id, status FROM app.reminder_deliveries
+         WHERE instance_id = $1 AND channel = 'push' ORDER BY recipient_device_id ASC;`,
+        [instance.id]
+      );
+      expect(devDeliveries.rows.length).toBe(2);
+      const rowA = devDeliveries.rows.find((r) => r.recipient_device_id === devAId);
+      const rowB = devDeliveries.rows.find((r) => r.recipient_device_id === devBId);
+      expect(rowA?.status).toBe('suppressed_local_schedule');
+      expect(rowB?.status).toBe('delivered');
+    });
+
     it('worker activates push fallback when local schedule is NOT acknowledged and device has valid token', async () => {
+      // Isolate device state
+      await adminPool.query('UPDATE app.devices SET is_active = false WHERE user_id = $1;', [userAId]);
+
       const taskRes = await clientA.createTask(personalWorkspaceAId, {
         title: 'Fallback push task',
         deadline: {

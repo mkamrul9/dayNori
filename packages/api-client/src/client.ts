@@ -138,6 +138,13 @@ import {
   DeviceListResponseSchema,
   DeviceScheduleResponseSchema,
   DeviceScheduleListResponseSchema,
+  WebPushSubscriptionResponseSchema,
+  WebPushSubscriptionListResponseSchema,
+  VapidPublicKeyResponseSchema,
+  type RegisterWebPushSubscriptionRequest,
+  type WebPushSubscriptionResponse,
+  type WebPushSubscriptionListResponse,
+  type VapidPublicKeyResponse,
   type CreateReminderRuleRequest,
   type UpdateReminderRuleRequest,
   type SnoozeReminderRequest,
@@ -1725,6 +1732,42 @@ export class DaynoriApiClient {
       options
     );
     return DeviceScheduleListResponseSchema.parse(raw);
+  }
+
+  // --- Web Push Subscriptions (Phase 29) ---
+
+  async getVapidPublicKey(options?: RequestOptions): Promise<VapidPublicKeyResponse> {
+    const raw = await this.request<unknown>('/v1/web-push/vapid-public-key', { method: 'GET' }, options);
+    return VapidPublicKeyResponseSchema.parse(raw);
+  }
+
+  async registerWebPushSubscription(
+    data: RegisterWebPushSubscriptionRequest,
+    options?: RequestOptions
+  ): Promise<WebPushSubscriptionResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/web-push/subscriptions',
+      { method: 'POST', body: JSON.stringify(data) },
+      options
+    );
+    return WebPushSubscriptionResponseSchema.parse(raw);
+  }
+
+  async deactivateWebPushSubscription(
+    endpoint: string,
+    options?: RequestOptions
+  ): Promise<{ success: boolean }> {
+    const raw = await this.request<{ success: boolean }>(
+      '/v1/web-push/subscriptions',
+      { method: 'DELETE', body: JSON.stringify({ endpoint }) },
+      options
+    );
+    return raw;
+  }
+
+  async listWebPushSubscriptions(options?: RequestOptions): Promise<WebPushSubscriptionListResponse> {
+    const raw = await this.request<unknown>('/v1/web-push/subscriptions', { method: 'GET' }, options);
+    return WebPushSubscriptionListResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

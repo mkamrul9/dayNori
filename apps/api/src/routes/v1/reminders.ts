@@ -16,6 +16,10 @@ import {
   DeviceResponseSchema,
   DeviceScheduleResponseSchema,
   WorkspaceParamsSchema,
+  RegisterWebPushSubscriptionRequestSchema,
+  WebPushSubscriptionResponseSchema,
+  WebPushSubscriptionListResponseSchema,
+  VapidPublicKeyResponseSchema,
 } from '@daynori/contracts';
 import { withTenantContext, withUserContext } from '../../db/index.js';
 import {
@@ -32,6 +36,10 @@ import {
   listUserDevices,
   acknowledgeDeviceSchedule,
   listDeviceSchedules,
+  registerWebPushSubscription,
+  deactivateWebPushSubscription,
+  listUserWebPushSubscriptions,
+  getVapidPublicKey,
 } from '../../modules/reminders/service.js';
 import { validateResponse, NotFoundError } from '../../plugins/errorHandler.js';
 
@@ -459,4 +467,82 @@ export function registerReminderRoutes(app: FastifyInstance, pool: Pool): void {
       });
     }
   );
+
+  // 14. Phase 29: Web Push - Get VAPID public key
+  app.get('/v1/web-push/vapid-public-key', async (request: FastifyRequest, reply) => {
+    return reply.status(200).send(
+      validateResponse(VapidPublicKeyResponseSchema, {
+        data: {
+          publicKey: getVapidPublicKey(),
+        },
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      })
+    );
+  });
+
+  // 15. Phase 29: Web Push - Register subscription
+  app.post('/v1/web-push/subscriptions', async (request: FastifyRequest, reply) => {
+    const actor = request.actor;
+    if (!actor) {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    const body = RegisterWebPushSubscriptionRequestSchema.parse(request.body);
+
+    return withUserContext(pool, actor.userId, async (client) => {
+      const subscription = await registerWebPushSubscription(client, actor.userId, body);
+
+      return reply.status(201).send(
+        validateResponse(WebPushSubscriptionResponseSchema, {
+          data: subscription,
+          meta: { requestId: request.id, serverTime: new Date().toISOString() },
+        })
+      );
+    });
+  });
+
+  // 16. Phase 29: Web Push - Deactivate subscription (unsubscribe)
+  app.delete('/v1/web-push/subscriptions', async (request: FastifyRequest, reply) => {
+    const actor = request.actor;
+    if (!actor) {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    const BodySchema = z.object({ endpoint: z.string().url() });
+    const { endpoint } = BodySchema.parse(request.body);
+
+    return withUserContext(pool, actor.userId, async (client) => {
+      await deactivateWebPushSubscription(client, actor.userId, endpoint);
+
+      return reply.status(200).send({
+        data: { success: true },
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
+    });
+  });
+
+  // 17. Phase 29: Web Push - List user subscriptions
+  app.get('/v1/web-push/subscriptions', async (request: FastifyRequest, reply) => {
+    const actor = request.actor;
+    if (!actor) {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    return withUserContext(pool, actor.userId, async (client) => {
+      const subscriptions = await listUserWebPushSubscriptions(client, actor.userId);
+
+      return reply.status(200).send(
+        validateResponse(WebPushSubscriptionListResponseSchema, {
+          data: subscriptions,
+          meta: { requestId: request.id, serverTime: new Date().toISOString() },
+        })
+      );
+    });
+  });
 }
