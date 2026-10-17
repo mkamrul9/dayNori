@@ -35,11 +35,21 @@ import {
   buildCalendarReadModel,
   validateCalendarEventTitle,
   validateCalendarEventInterval,
+  generateUuid,
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
   type CalendarItem,
 } from '@daynori/domain';
+
+function resolveLocalTimeToUtc(dateStr: string, timeStr: string, timezone: string): string {
+  const result = checkLocalTimeDisambiguation(dateStr, timeStr, timezone);
+  if (result.type === 'exact') return result.utcTimestamp;
+  if (result.type === 'nonexistent') {
+    return result.suggestedUtcTimestamp || new Date(`${dateStr}T${timeStr}:00.000Z`).toISOString();
+  }
+  return result.earlierUtcTimestamp;
+}
 
 export type MobileTaskFilter = 'all' | 'today' | 'upcoming' | 'overdue' | 'completed' | 'undated';
 
@@ -395,7 +405,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     } else if (repository) {
       try {
         const mutation: PendingMutationRecord = {
-          operationId: `op-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          operationId: generateUuid(),
           deviceId: 'mobile-local',
           workspaceId: activeWorkspace,
           userId: activeUser,
@@ -434,6 +444,13 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const handleSaveEvent = async () => {
     setEventSheetError(null);
     let trimmedTitle = '';
+    const startAtIso = !eventSheetAllDay
+      ? resolveLocalTimeToUtc(eventSheetStartDate, eventSheetStartAtTime, userTimezone)
+      : null;
+    const endAtIso = !eventSheetAllDay
+      ? resolveLocalTimeToUtc(eventSheetStartDate, eventSheetEndAtTime, userTimezone)
+      : null;
+
     try {
       trimmedTitle = validateCalendarEventTitle(eventSheetTitle);
       validateCalendarEventInterval({
@@ -441,10 +458,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
         allDay: eventSheetAllDay,
         startDate: eventSheetAllDay ? eventSheetStartDate : null,
         endDate: eventSheetAllDay ? eventSheetEndDate : null,
-        startAt: !eventSheetAllDay
-          ? `${eventSheetStartDate}T${eventSheetStartAtTime}:00.000Z`
-          : null,
-        endAt: !eventSheetAllDay ? `${eventSheetStartDate}T${eventSheetEndAtTime}:00.000Z` : null,
+        startAt: startAtIso,
+        endAt: endAtIso,
         timezone: userTimezone,
       });
     } catch (err: unknown) {
@@ -453,7 +468,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     }
 
     const activeWorkspace = workspaceId || (isDemoOrTest ? 'ws-sample' : null);
-    const newId = `evt-${Date.now()}`;
+    const newId = generateUuid();
     const nowIso = new Date().toISOString();
 
     const newEvent: CalendarEventRecord = {
@@ -465,12 +480,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
       allDay: eventSheetAllDay,
       startDate: eventSheetAllDay ? eventSheetStartDate : null,
       endDate: eventSheetAllDay ? eventSheetEndDate : null,
-      startAt: !eventSheetAllDay ? `${eventSheetStartDate}T${eventSheetStartAtTime}:00.000Z` : null,
-      endAt: !eventSheetAllDay ? `${eventSheetStartDate}T${eventSheetEndAtTime}:00.000Z` : null,
+      startAt: startAtIso,
+      endAt: endAtIso,
       timezone: userTimezone,
       isArchived: false,
       securityScope: 'standard',
-      serverRevision: 1,
+      serverRevision: 0,
       createdAt: nowIso,
       updatedAt: nowIso,
       deletedAt: null,
@@ -637,7 +652,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     } else if (repository) {
       try {
         const mutation: PendingMutationRecord = {
-          operationId: `op-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          operationId: generateUuid(),
           deviceId: 'mobile-local',
           workspaceId: activeWorkspace,
           userId: activeUser,
@@ -1547,14 +1562,14 @@ export const PlanView: React.FC<PlanViewProps> = ({
                     timeLabel = item.allDay
                       ? `All-day (${item.startDate})`
                       : item.startAt && item.endAt
-                        ? `${item.startAt.slice(11, 16)} – ${item.endAt.slice(11, 16)}`
+                        ? `${getCalendarDateTimeParts(new Date(item.startAt), userTimezone).time} – ${getCalendarDateTimeParts(new Date(item.endAt), userTimezone).time}`
                         : item.startDate;
                   } else if (item.sourceType === 'task_deadline') {
                     badgeLabel = item.isOverdue ? '⚠️ Overdue Task' : '⏱ Task';
                     badgeBg = item.isOverdue ? '#fee2e2' : '#fef3c7';
                     badgeColor = item.isOverdue ? '#991b1b' : '#92400e';
                     timeLabel = item.deadlineTime
-                      ? item.deadlineTime.slice(11, 16)
+                      ? getCalendarDateTimeParts(new Date(item.deadlineTime), userTimezone).time
                       : item.deadlineDate;
                   } else {
                     badgeLabel = item.status === 'done' ? '✓ Routine Done' : '🔄 Routine';
@@ -1671,10 +1686,14 @@ export const PlanView: React.FC<PlanViewProps> = ({
                               <Text
                                 style={[styles.calendarItemTime, { color: palette.text.secondary }]}
                               >
-                                {item.sourceType === 'calendar_event' && item.allDay
-                                  ? 'All-day'
+                                {item.sourceType === 'calendar_event'
+                                  ? item.allDay
+                                    ? 'All-day'
+                                    : item.startAt && item.endAt
+                                      ? `${getCalendarDateTimeParts(new Date(item.startAt), userTimezone).time} – ${getCalendarDateTimeParts(new Date(item.endAt), userTimezone).time}`
+                                      : 'Scheduled'
                                   : item.sourceType === 'task_deadline' && item.deadlineTime
-                                    ? item.deadlineTime.slice(11, 16)
+                                    ? getCalendarDateTimeParts(new Date(item.deadlineTime), userTimezone).time
                                     : 'Scheduled'}
                               </Text>
                             </View>
@@ -1715,11 +1734,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Previous month"
                   onPress={() =>
-                    setCalendarMonthDate((prev) => {
-                      const d = new Date(prev);
-                      d.setMonth(d.getMonth() - 1);
-                      return d;
-                    })
+                    setCalendarMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
                   }
                   style={[
                     styles.monthNavBtn,
@@ -1735,11 +1750,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Next month"
                   onPress={() =>
-                    setCalendarMonthDate((prev) => {
-                      const d = new Date(prev);
-                      d.setMonth(d.getMonth() + 1);
-                      return d;
-                    })
+                    setCalendarMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
                   }
                   style={[
                     styles.monthNavBtn,

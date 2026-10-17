@@ -15,7 +15,7 @@ import {
   createCalendarEvent,
   getCalendarEvent,
   updateCalendarEvent,
-  deleteCalendarEvent,
+  trashCalendarEvent,
   getCalendarFeed,
 } from '../../modules/calendar/service.js';
 import {
@@ -127,6 +127,11 @@ export function registerCalendarRoutes(app: FastifyInstance, pool: Pool): void {
             operationId
           );
           if (lockedReceipt) {
+            if (lockedReceipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
             const event =
               (lockedReceipt.resultPayload?.event as CalendarEvent) ||
               (await getCalendarEvent(client, workspaceId, lockedReceipt.entityId));
@@ -231,6 +236,7 @@ export function registerCalendarRoutes(app: FastifyInstance, pool: Pool): void {
       const body = UpdateCalendarEventRequestSchema.parse(request.body);
       const operationId = (request.headers['idempotency-key'] ||
         request.headers['x-operation-id']) as string | undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       return withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
         const accessRes = await client.query<{ exists: boolean }>(
@@ -241,13 +247,76 @@ export function registerCalendarRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
+        if (operationId) {
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'updateCalendarEvent',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: eventId,
+            baseRevision: body.expectedRevision ?? 0,
+            payload: body as Record<string, unknown>,
+          });
+
+          const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            const event =
+              (receipt.resultPayload?.event as CalendarEvent) ||
+              (await getCalendarEvent(client, workspaceId, eventId));
+            return reply.status(200).send(
+              validateResponse(CalendarEventResponseSchema, {
+                data: event,
+                meta: { requestId: request.id, serverTime: new Date().toISOString() },
+              })
+            );
+          }
+
+          const event = await updateCalendarEvent(
+            client,
+            workspaceId,
+            eventId,
+            actor.userId,
+            body,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId: actor.userId,
+            deviceId,
+            operationId,
+            command: 'updateCalendarEvent',
+            entityType: 'item',
+            entityId: eventId,
+            schemaVersion: 1,
+            baseRevision: body.expectedRevision ?? 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: event.revision,
+            appliedChangeSeq: null,
+            resultPayload: { event },
+          });
+
+          return reply.status(200).send(
+            validateResponse(CalendarEventResponseSchema, {
+              data: event,
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            })
+          );
+        }
+
         const event = await updateCalendarEvent(
           client,
           workspaceId,
           eventId,
           actor.userId,
-          body,
-          operationId
+          body
         );
 
         return reply.status(200).send(
@@ -260,7 +329,7 @@ export function registerCalendarRoutes(app: FastifyInstance, pool: Pool): void {
     }
   );
 
-  // 5. Delete Calendar Event
+  // 5. Delete Calendar Event (Soft Delete / Trash)
   app.delete(
     '/v1/workspaces/:workspaceId/calendar/events/:eventId',
     async (request: FastifyRequest, reply) => {
@@ -274,6 +343,7 @@ export function registerCalendarRoutes(app: FastifyInstance, pool: Pool): void {
       const { workspaceId, eventId } = CalendarEventParamsSchema.parse(request.params);
       const operationId = (request.headers['idempotency-key'] ||
         request.headers['x-operation-id']) as string | undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       return withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
         const accessRes = await client.query<{ exists: boolean }>(
@@ -284,16 +354,72 @@ export function registerCalendarRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
-        const result = await deleteCalendarEvent(
+        if (operationId) {
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'deleteCalendarEvent',
+            commandVersion: 1,
+            schemaVersion: 1,
+            entityType: 'item',
+            entityId: eventId,
+            baseRevision: 0,
+            payload: {},
+          });
+
+          const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            return reply.status(200).send({
+              data: { success: true, eventId },
+              meta: { requestId: request.id, serverTime: new Date().toISOString() },
+            });
+          }
+
+          const result = await trashCalendarEvent(
+            client,
+            workspaceId,
+            eventId,
+            actor.userId,
+            undefined,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId: actor.userId,
+            deviceId,
+            operationId,
+            command: 'deleteCalendarEvent',
+            entityType: 'item',
+            entityId: eventId,
+            schemaVersion: 1,
+            baseRevision: 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: result.revision,
+            appliedChangeSeq: result.seq,
+            resultPayload: { result },
+          });
+
+          return reply.status(200).send({
+            data: { success: true, eventId },
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          });
+        }
+
+        await trashCalendarEvent(
           client,
           workspaceId,
           eventId,
-          actor.userId,
-          operationId
+          actor.userId
         );
 
         return reply.status(200).send({
-          data: result,
+          data: { success: true, eventId },
           meta: { requestId: request.id, serverTime: new Date().toISOString() },
         });
       });

@@ -61,7 +61,7 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 - **Excluded/deferred scope:**
   - Physical Android TalkBack screen reader and hardware KeyStore verification remain recorded as `blocked` in `docs/roadmap/progress.json` pending access to physical hardware devices.
   - External calendar provider synchronization (Google Calendar, Microsoft Outlook, CalDAV) is intentionally deferred to later roadmap phases.
-  - Phase 27 (Vault domain and encryption foundation) remains untouched.
+  - Phase 27 (Reminder scheduling and durable delivery jobs; vault implementation belongs to Phases 44–47) was untouched during Phase 26 delivery.
 
 ## Verification evidence
 
@@ -79,5 +79,5 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 
 ## Next steps
 
-- Await owner authorization before proceeding to Phase 27.
-- Complete conventional commit: `feat(calendar): add linked deadlines routines and personal events`.
+- Complete remaining Phase 25/26 defect repairs under owner authorization, then implement Phase 27 (Reminder scheduling and durable delivery jobs).
+- Initial Phase 26 conventional commit recorded as `6719886 feat(calendar): add linked deadlines routines and personal events`.

@@ -9,12 +9,16 @@ import { useAuth } from '../../../components/AuthContext';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
 import {
   buildMonthGrid,
+  buildCalendarReadModel,
+  getCalendarDateTimeParts,
+  checkLocalTimeDisambiguation,
   validateCalendarEventTitle,
   validateCalendarEventInterval,
   type CalendarItem,
   type CalendarPersonalEventItem,
   type JournalDateIndicator,
 } from '@daynori/domain';
+import { IndexedDbLocalRepository } from '../../../data/indexedDbRepository';
 
 export type CalendarViewMode = 'agenda' | 'day' | 'month';
 
@@ -39,7 +43,7 @@ export default function PlanCalendarPage() {
   const liveRegionId = useId();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
-  const { workspaceId } = useAuth();
+  const { workspaceId, user } = useAuth();
 
   const [viewMode, setViewMode] = useState<CalendarViewMode>('agenda');
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -90,12 +94,20 @@ export default function PlanCalendarPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const apiClientRef = useRef<DaynoriApiClient | null>(null);
+  const requestIdRef = useRef(0);
 
   if (!apiClientRef.current) {
     apiClientRef.current = createApiClient({
       baseUrl: '/api',
     });
   }
+
+  // Clear sensitive state on workspace change
+  useEffect(() => {
+    setItems([]);
+    setJournalIndicators({});
+    setErrorMessage(null);
+  }, [workspaceId]);
 
   // Calculate visible range based on currentDate
   const year = currentDate.getFullYear();
@@ -116,9 +128,14 @@ export default function PlanCalendarPage() {
     };
   }, [year, month]);
 
-  // Load feed from API
+  // Load feed from API with IndexedDB offline fallback
   const loadFeed = useCallback(async () => {
-    if (!workspaceId) return;
+    if (!workspaceId) {
+      setItems([]);
+      setJournalIndicators({});
+      return;
+    }
+    const currentReqId = ++requestIdRef.current;
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -136,37 +153,130 @@ export default function PlanCalendarPage() {
         includeJournalIndicators: true,
       });
 
+      if (currentReqId !== requestIdRef.current) return;
+
       if (feedRes.data) {
         setItems(feedRes.data.items);
         setJournalIndicators(feedRes.data.journalIndicators);
       }
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to load calendar items');
+      if (currentReqId !== requestIdRef.current) return;
+
+      // Offline fallback: try reading from IndexedDB
+      try {
+        const repo = new IndexedDbLocalRepository();
+        await repo.initialize({
+          userId: user?.id || 'offline-user',
+          workspaceId,
+        });
+
+        const [localEvents, localTasks, localOccurrences, localJournals] = await Promise.all([
+          sourceEvents
+            ? repo.listCalendarEvents(workspaceId, {
+                startDate: visibleRange.startDate,
+                endDate: visibleRange.endDate,
+                includeDeleted: false,
+              })
+            : Promise.resolve([]),
+          sourceTasks ? repo.listTasks(workspaceId) : Promise.resolve([]),
+          sourceRoutines
+            ? repo.listRoutineOccurrences(
+                workspaceId,
+                undefined,
+                visibleRange.startDate,
+                visibleRange.endDate
+              )
+            : Promise.resolve([]),
+          repo.listJournalEntries(workspaceId, { includeDeleted: false }),
+        ]);
+
+        if (currentReqId !== requestIdRef.current) {
+          await repo.close();
+          return;
+        }
+
+        const journalDateCounts: Record<string, number> = {};
+        for (const j of localJournals) {
+          if (!j.deletedAt && !j.isArchived) {
+            journalDateCounts[j.entryDate] = (journalDateCounts[j.entryDate] || 0) + 1;
+          }
+        }
+        const journalDates = Object.entries(journalDateCounts).map(([date, count]) => ({
+          date,
+          count,
+        }));
+
+        const readModel = buildCalendarReadModel({
+          startDate: visibleRange.startDate,
+          endDate: visibleRange.endDate,
+          timezone,
+          tasks: localTasks.map((t) => ({
+            id: t.id,
+            workspaceId: t.workspaceId,
+            folderId: t.folderId,
+            title: t.title,
+            priority: t.priority,
+            status: t.status,
+            deadline: t.deadline,
+            tags: t.tags,
+          })),
+          routines: [],
+          routineOccurrences: localOccurrences.map((o) => ({
+            id: o.id,
+            routineId: o.routineId,
+            workspaceId: o.workspaceId,
+            scheduledDate: o.scheduledDate,
+            plannedInstant: o.plannedInstant,
+            timezone: o.timezone,
+            status: o.status,
+          })),
+          events: localEvents.map((e) => ({
+            id: e.id,
+            workspaceId: e.workspaceId,
+            folderId: e.folderId,
+            title: e.title,
+            details: e.details,
+            allDay: e.allDay,
+            startDate: e.startDate,
+            endDate: e.endDate,
+            startAt: e.startAt,
+            endAt: e.endAt,
+            timezone: e.timezone,
+            isArchived: e.isArchived,
+            securityScope: e.securityScope,
+            createdAt: e.createdAt,
+            updatedAt: e.updatedAt,
+            deletedAt: e.deletedAt,
+            revision: e.serverRevision,
+          })),
+          journalDates,
+        });
+
+        setItems(readModel.items);
+        setJournalIndicators(readModel.journalIndicators);
+        await repo.close();
+      } catch {
+        setErrorMessage(err instanceof Error ? err.message : 'Failed to load calendar items');
+      }
     } finally {
-      setIsLoading(false);
+      if (currentReqId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [workspaceId, visibleRange, timezone, sourceTasks, sourceRoutines, sourceEvents]);
+  }, [workspaceId, user, visibleRange, timezone, sourceTasks, sourceRoutines, sourceEvents]);
 
   useEffect(() => {
     void loadFeed();
   }, [loadFeed]);
 
-  // Month navigation
+  // Month navigation (safe from 31st rollover)
   const handlePrevMonth = () => {
-    setCurrentDate((prev) => {
-      const next = new Date(prev);
-      next.setMonth(next.getMonth() - 1);
-      return next;
-    });
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
     setLiveAnnouncement(`Navigated to previous month.`);
   };
 
   const handleNextMonth = () => {
-    setCurrentDate((prev) => {
-      const next = new Date(prev);
-      next.setMonth(next.getMonth() + 1);
-      return next;
-    });
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
     setLiveAnnouncement(`Navigated to next month.`);
   };
 
@@ -237,15 +347,26 @@ export default function PlanCalendarPage() {
   // Open modal for editing event
   const handleOpenEditEvent = (ev: CalendarPersonalEventItem) => {
     setEditingEventId(ev.id);
-    setEventRevision(undefined);
+    setEventRevision(ev.revision);
     setEventTitle(ev.title);
     setEventDetails(ev.details || '');
     setEventAllDay(ev.allDay);
     setEventStartDate(ev.startDate || getItemDate(ev));
     setEventEndDate(ev.endDate || getItemDate(ev));
-    setEventStartAt(ev.startAt ? ev.startAt.slice(0, 16) : `${getItemDate(ev)}T09:00`);
-    setEventEndAt(ev.endAt ? ev.endAt.slice(0, 16) : `${getItemDate(ev)}T10:00`);
-    setEventTimezone(ev.timezone || timezone);
+    const evTz = ev.timezone || timezone;
+    if (ev.startAt) {
+      const parts = getCalendarDateTimeParts(new Date(ev.startAt), evTz);
+      setEventStartAt(`${parts.date}T${parts.time}`);
+    } else {
+      setEventStartAt(`${getItemDate(ev)}T09:00`);
+    }
+    if (ev.endAt) {
+      const parts = getCalendarDateTimeParts(new Date(ev.endAt), evTz);
+      setEventEndAt(`${parts.date}T${parts.time}`);
+    } else {
+      setEventEndAt(`${getItemDate(ev)}T10:00`);
+    }
+    setEventTimezone(evTz);
     setFormError(null);
     setEventModalOpen(true);
   };
@@ -256,6 +377,38 @@ export default function PlanCalendarPage() {
     if (!workspaceId) return;
 
     let normalizedTitle = '';
+    const [startDatePart, startTimePart] = eventStartAt.split('T');
+    const [endDatePart, endTimePart] = eventEndAt.split('T');
+
+    let startAtIso: string | undefined = undefined;
+    let endAtIso: string | undefined = undefined;
+
+    if (!eventAllDay) {
+      const startResult = checkLocalTimeDisambiguation(
+        startDatePart || eventStartDate,
+        startTimePart || '09:00',
+        eventTimezone
+      );
+      startAtIso =
+        startResult.type === 'exact'
+          ? startResult.utcTimestamp
+          : startResult.type === 'nonexistent'
+            ? startResult.suggestedUtcTimestamp || new Date(`${startDatePart || eventStartDate}T${startTimePart || '09:00'}:00.000Z`).toISOString()
+            : startResult.earlierUtcTimestamp;
+
+      const endResult = checkLocalTimeDisambiguation(
+        endDatePart || eventStartDate,
+        endTimePart || '10:00',
+        eventTimezone
+      );
+      endAtIso =
+        endResult.type === 'exact'
+          ? endResult.utcTimestamp
+          : endResult.type === 'nonexistent'
+            ? endResult.suggestedUtcTimestamp || new Date(`${endDatePart || eventStartDate}T${endTimePart || '10:00'}:00.000Z`).toISOString()
+            : endResult.earlierUtcTimestamp;
+    }
+
     try {
       normalizedTitle = validateCalendarEventTitle(eventTitle);
       validateCalendarEventInterval({
@@ -263,8 +416,8 @@ export default function PlanCalendarPage() {
         allDay: eventAllDay,
         startDate: eventAllDay ? eventStartDate : undefined,
         endDate: eventAllDay ? eventEndDate : undefined,
-        startAt: !eventAllDay ? new Date(eventStartAt).toISOString() : undefined,
-        endAt: !eventAllDay ? new Date(eventEndAt).toISOString() : undefined,
+        startAt: startAtIso,
+        endAt: endAtIso,
         timezone: eventTimezone,
       });
     } catch (valErr: unknown) {
@@ -286,8 +439,8 @@ export default function PlanCalendarPage() {
           allDay: eventAllDay,
           startDate: eventAllDay ? eventStartDate : undefined,
           endDate: eventAllDay ? eventEndDate : undefined,
-          startAt: !eventAllDay ? new Date(eventStartAt).toISOString() : undefined,
-          endAt: !eventAllDay ? new Date(eventEndAt).toISOString() : undefined,
+          startAt: startAtIso,
+          endAt: endAtIso,
           timezone: eventTimezone,
           expectedRevision: eventRevision,
         });
@@ -299,8 +452,8 @@ export default function PlanCalendarPage() {
           allDay: eventAllDay,
           startDate: eventAllDay ? eventStartDate : undefined,
           endDate: eventAllDay ? eventEndDate : undefined,
-          startAt: !eventAllDay ? new Date(eventStartAt).toISOString() : undefined,
-          endAt: !eventAllDay ? new Date(eventEndAt).toISOString() : undefined,
+          startAt: startAtIso,
+          endAt: endAtIso,
           timezone: eventTimezone,
         });
         setLiveAnnouncement(`Event "${normalizedTitle}" scheduled.`);

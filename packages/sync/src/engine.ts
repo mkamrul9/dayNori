@@ -354,6 +354,9 @@ export class SyncEngine {
       item.kind === 'journal_entry' ||
       item.kind === 'journal' ||
       (command !== undefined && (command.includes('Journal') || command.includes('journal')));
+    const isCalendar =
+      item.kind === 'calendar_event' ||
+      (command !== undefined && (command.includes('CalendarEvent') || command.includes('Calendar')));
 
     const determinedCommand =
       command ||
@@ -368,7 +371,9 @@ export class SyncEngine {
                 ? 'createRoutine'
                 : isJournal
                   ? 'createJournalEntry'
-                  : 'createItem'
+                  : isCalendar
+                    ? 'createCalendarEvent'
+                    : 'createItem'
         : isFolder
           ? 'updateFolder'
           : isNote
@@ -379,7 +384,9 @@ export class SyncEngine {
                 ? 'updateRoutine'
                 : isJournal
                   ? 'updateJournalEntry'
-                  : 'updateItem');
+                  : isCalendar
+                    ? 'updateCalendarEvent'
+                    : 'updateItem');
 
     const action: 'create' | 'update' | 'delete' =
       determinedCommand === 'trashItem' ||
@@ -387,14 +394,17 @@ export class SyncEngine {
       determinedCommand === 'trashNote' ||
       determinedCommand === 'trashTask' ||
       determinedCommand === 'trashRoutine' ||
-      determinedCommand === 'trashJournalEntry'
+      determinedCommand === 'trashJournalEntry' ||
+      determinedCommand === 'trashCalendarEvent' ||
+      determinedCommand === 'deleteCalendarEvent'
         ? 'delete'
         : determinedCommand === 'createItem' ||
             determinedCommand === 'createFolder' ||
             determinedCommand === 'createNote' ||
             determinedCommand === 'createTask' ||
             determinedCommand === 'createRoutine' ||
-            determinedCommand === 'createJournalEntry'
+            determinedCommand === 'createJournalEntry' ||
+            determinedCommand === 'createCalendarEvent'
           ? 'create'
           : 'update';
 
@@ -508,6 +518,17 @@ export class SyncEngine {
                     : {}),
                   ...(options?.payload || {}),
                 }
+              : isCalendar
+                ? {
+                    kind: 'calendar_event',
+                    title: item.title || item.name || 'Untitled Event',
+                    folderId: item.folderId,
+                    rank: item.rank,
+                    securityScope: item.securityScope,
+                    isArchived: item.isArchived,
+                    isPinned: item.isPinned,
+                    ...(options?.payload || {}),
+                  }
               : {
                   kind: item.kind,
                   rank: item.rank,
@@ -545,7 +566,9 @@ export class SyncEngine {
               ? 'routine'
               : isJournal
                 ? 'journal_entry'
-                : 'item',
+                : isCalendar
+                  ? 'calendar_event'
+                  : 'item',
       entityId: item.id,
       action,
       command: determinedCommand,
@@ -720,6 +743,31 @@ export class SyncEngine {
       };
     }
 
+    let calendarRecord: CalendarEventRecord | undefined;
+    if (isCalendar) {
+      const p = options?.payload || {};
+      const allDay = Boolean(p['allDay'] ?? false);
+      calendarRecord = {
+        id: item.id,
+        workspaceId: item.workspaceId,
+        folderId: item.folderId ?? null,
+        title: (p['title'] as string) || item.title || item.name || 'Untitled Event',
+        details: (p['details'] as string | null) ?? null,
+        allDay,
+        startDate: (p['startDate'] as string | null) ?? null,
+        endDate: (p['endDate'] as string | null) ?? null,
+        startAt: (p['startAt'] as string | null) ?? null,
+        endAt: (p['endAt'] as string | null) ?? null,
+        timezone: (p['timezone'] as string) || 'UTC',
+        isArchived: Boolean(p['isArchived'] ?? item.isArchived ?? false),
+        securityScope: (item.securityScope as 'standard' | 'vault') || 'standard',
+        serverRevision: item.serverRevision,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        deletedAt: item.deletedAt,
+      };
+    }
+
     // 2. Perform atomic local storage write via transaction
     try {
       await this.repository.saveItemTransaction(
@@ -730,7 +778,8 @@ export class SyncEngine {
         taskRecord,
         routineRecord,
         undefined,
-        journalRecord
+        journalRecord,
+        calendarRecord
       );
     } catch (err) {
       // Local transaction failed: cannot show as saved on device
@@ -849,6 +898,50 @@ export class SyncEngine {
       ...(options?.payload || {}),
     };
     return this.saveItem(itemHeader, undefined, command || 'createJournalEntry', {
+      ...options,
+      payload,
+    });
+  }
+
+  async saveCalendarEvent(
+    event: CalendarEventRecord,
+    command?: SyncCommandType,
+    options?: SaveItemOptions
+  ): Promise<PendingMutationRecord> {
+    const itemHeader: ItemHeaderRecord = {
+      id: event.id,
+      workspaceId: event.workspaceId,
+      kind: 'calendar_event',
+      folderId: event.folderId,
+      rank: '00001000',
+      isArchived: event.isArchived,
+      isPinned: false,
+      securityScope: event.securityScope,
+      serverRevision: event.serverRevision,
+      title: event.title,
+      name: event.title,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+      deletedAt: event.deletedAt,
+    };
+    const payload = {
+      id: event.id,
+      folderId: event.folderId,
+      title: event.title,
+      details: event.details,
+      allDay: event.allDay,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      timezone: event.timezone,
+      isArchived: event.isArchived,
+      securityScope: event.securityScope,
+      ...(options?.payload || {}),
+    };
+    const defaultCommand: SyncCommandType =
+      event.serverRevision === 0 ? 'createCalendarEvent' : 'updateCalendarEvent';
+    return this.saveItem(itemHeader, undefined, command || defaultCommand, {
       ...options,
       payload,
     });
@@ -1114,19 +1207,26 @@ export class SyncEngine {
 
     const commands: SyncCommand[] = batch.map((m) => {
       const isTask = m.entityType === 'task';
+      const isCalendar = m.entityType === 'calendar_event';
       const cmdType: SyncCommandType =
         (m.command as SyncCommandType) ||
-        (isTask
+        (isCalendar
           ? m.action === 'delete'
-            ? 'trashTask'
+            ? 'deleteCalendarEvent'
             : m.action === 'create'
-              ? 'createTask'
-              : 'updateTask'
-          : m.action === 'delete'
-            ? 'trashItem'
-            : m.action === 'create'
-              ? 'createItem'
-              : 'updateItem');
+              ? 'createCalendarEvent'
+              : 'updateCalendarEvent'
+          : isTask
+            ? m.action === 'delete'
+              ? 'trashTask'
+              : m.action === 'create'
+                ? 'createTask'
+                : 'updateTask'
+            : m.action === 'delete'
+              ? 'trashItem'
+              : m.action === 'create'
+                ? 'createItem'
+                : 'updateItem');
 
       return {
         operationId: m.operationId,
@@ -1135,7 +1235,22 @@ export class SyncEngine {
         commandVersion: m.commandVersion || 1,
         schemaVersion: m.schemaVersion || 1,
         command: cmdType,
-        entityType: 'item',
+        entityType:
+          m.entityType === 'calendar_event'
+            ? 'calendar_event'
+            : m.entityType === 'journal' || m.entityType === 'journal_entry'
+              ? 'journal_entry'
+              : m.entityType === 'task'
+                ? 'task'
+                : m.entityType === 'routine'
+                  ? 'routine'
+                  : m.entityType === 'routine_occurrence'
+                    ? 'routine_occurrence'
+                    : m.entityType === 'note'
+                      ? 'note'
+                      : m.entityType === 'folder'
+                        ? 'folder'
+                        : 'item',
         entityId: m.entityId,
         baseRevision: m.baseRevision,
         dependencyOperationIds: m.dependencyOperationIds,
@@ -1332,6 +1447,29 @@ export class SyncEngine {
           }
         }
 
+        let calendarToAck: CalendarEventRecord | undefined;
+        if (
+          updatedHeader.kind === 'calendar_event' ||
+          origMutation.entityType === 'calendar_event'
+        ) {
+          const existingCal = await this.repository.getCalendarEvent(
+            this.namespace.workspaceId,
+            result.entityId
+          );
+          if (existingCal) {
+            calendarToAck = {
+              ...existingCal,
+              serverRevision: result.revision,
+              title:
+                updatedHeader.title !== undefined && updatedHeader.title !== null
+                  ? updatedHeader.title
+                  : (updatedHeader.name || existingCal.title),
+              folderId: updatedHeader.folderId ?? null,
+              deletedAt: updatedHeader.deletedAt,
+            };
+          }
+        }
+
         // B. Retain pending work until the durable result is applied locally
         // and apply acknowledgment atomically in a single transaction
         await this.repository.applyAcknowledgment(
@@ -1341,7 +1479,8 @@ export class SyncEngine {
           taskToAck,
           routineToAck,
           occurrenceToAck,
-          journalToAck
+          journalToAck,
+          calendarToAck
         );
 
         // C. Update item sync state: do NOT report item synced if other operations for it remain unresolved

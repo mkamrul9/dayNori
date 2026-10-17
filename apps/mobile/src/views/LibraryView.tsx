@@ -2,7 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { LocalRepositoryPort, SyncEngine, FileRecord } from '@daynori/sync';
 import type { DaynoriApiClient } from '@daynori/api-client';
-import { MobileOfflineFileCache, computeMobileBufferSha256 } from '../data/offlineFileCache.js';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import {
+  MobileOfflineFileCache,
+  computeMobileBufferSha256,
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
+} from '../data/offlineFileCache.js';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   MobileBreadcrumb,
@@ -1883,12 +1890,31 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         reservedBytes={storageUsage.reservedBytes}
         maxBytes={storageUsage.maxBytes}
         onPickDocument={async () => {
-          return {
-            name: 'mobile-document.pdf',
-            size: 1024 * 64,
-            type: 'application/pdf',
-            data: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]).buffer,
-          };
+          try {
+            const res = await DocumentPicker.getDocumentAsync({
+              copyToCacheDirectory: true,
+              type: '*/*',
+            });
+            if (res.canceled || !res.assets || res.assets.length === 0) {
+              return null;
+            }
+            const asset = res.assets[0];
+            if (!asset) {
+              return null;
+            }
+            const base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            const binaryData = base64ToArrayBuffer(base64Data);
+            return {
+              name: asset.name,
+              size: asset.size ?? binaryData.byteLength,
+              type: asset.mimeType ?? 'application/octet-stream',
+              data: binaryData,
+            };
+          } catch {
+            return null;
+          }
         }}
         onUploadFile={handlePerformMobileUpload}
       />
@@ -1910,7 +1936,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 f.version
               );
               if (cached && cached.binaryData) {
-                return `data:${cached.mimeType || 'application/octet-stream'};base64,${Buffer.from(cached.binaryData).toString('base64')}`;
+                return `data:${cached.mimeType || 'application/octet-stream'};base64,${arrayBufferToBase64(cached.binaryData)}`;
               }
             } catch {
               /* fallback to cloud */

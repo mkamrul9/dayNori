@@ -22,9 +22,9 @@ import {
 import { computeBufferSha256 as computeWebBufferSha256 } from '../../apps/web/src/data/offlineFileCache.js';
 import {
   MobileOfflineFileCache,
-  PersistentMobileOfflineStorageAdapter,
   computeMobileBufferSha256,
 } from '../../apps/mobile/src/data/offlineFileCache.js';
+import { PersistentMobileOfflineStorageAdapter } from '../../apps/mobile/src/data/nodeOfflineStorageAdapter.js';
 
 describe('Phase 24/25 Remaining Defects Verification & Repairs', () => {
   let tempDir: string;

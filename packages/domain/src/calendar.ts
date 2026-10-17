@@ -88,6 +88,7 @@ export interface CalendarPersonalEventItem {
   startAt: string | null; // ISO timestamp
   endAt: string | null; // ISO timestamp
   timezone: string;
+  revision?: number;
 }
 
 export type CalendarItem =
@@ -261,7 +262,8 @@ export function isEventActiveOnDate(
   if (isNaN(startMs) || isNaN(endMs) || endMs <= startMs) return false;
 
   const startCalDate = getCalendarDateInTimezone(new Date(startMs), viewingTimezone);
-  const endCalDate = getCalendarDateInTimezone(new Date(endMs), viewingTimezone);
+  const effectiveEndMs = Math.max(startMs, endMs - 1);
+  const endCalDate = getCalendarDateInTimezone(new Date(effectiveEndMs), viewingTimezone);
 
   return dateStr >= startCalDate && dateStr <= endCalDate;
 }
@@ -574,12 +576,16 @@ export function buildCalendarReadModel(params: {
           startAt: null,
           endAt: null,
           timezone: evt.timezone,
+          revision: evt.revision,
         });
       }
     } else {
       if (!evt.startAt || !evt.endAt) continue;
-      const startCal = getCalendarDateInTimezone(new Date(evt.startAt), timezone);
-      const endCal = getCalendarDateInTimezone(new Date(evt.endAt), timezone);
+      const startMs = new Date(evt.startAt).getTime();
+      const endMs = new Date(evt.endAt).getTime();
+      const startCal = getCalendarDateInTimezone(new Date(startMs), timezone);
+      const effectiveEndMs = Math.max(startMs, endMs - 1);
+      const endCal = getCalendarDateInTimezone(new Date(effectiveEndMs), timezone);
 
       if (startCal <= endDate && endCal >= startDate) {
         items.push({
@@ -596,6 +602,7 @@ export function buildCalendarReadModel(params: {
           startAt: evt.startAt,
           endAt: evt.endAt,
           timezone: evt.timezone,
+          revision: evt.revision,
         });
       }
     }

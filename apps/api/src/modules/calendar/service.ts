@@ -47,7 +47,7 @@ interface CalendarEventDbRow {
   timezone: string;
 }
 
-function formatCalendarDate(d: Date | string | null | undefined): string | null {
+export function formatCalendarDate(d: Date | string | null | undefined): string | null {
   if (!d) return null;
   if (typeof d === 'string') return d.slice(0, 10);
   const year = d.getFullYear();
@@ -56,7 +56,7 @@ function formatCalendarDate(d: Date | string | null | undefined): string | null 
   return `${year}-${month}-${day}`;
 }
 
-function mapRowToCalendarEvent(r: CalendarEventDbRow): CalendarEvent {
+export function mapRowToCalendarEvent(r: CalendarEventDbRow): CalendarEvent {
   const startDateStr = formatCalendarDate(r.start_date);
   const endDateStr = formatCalendarDate(r.end_date);
 
@@ -82,6 +82,46 @@ function mapRowToCalendarEvent(r: CalendarEventDbRow): CalendarEvent {
 }
 
 /**
+ * Asserts that the workspace exists and is personal.
+ * Calendar events are strictly personal-isolated domain objects.
+ */
+export async function assertPersonalWorkspace(client: PoolClient, workspaceId: string): Promise<void> {
+  const wsRes = await client.query<{ kind: string }>(
+    `SELECT kind FROM app.workspaces WHERE id = $1;`,
+    [workspaceId]
+  );
+  if (wsRes.rows.length === 0) {
+    throw new NotFoundError(`Workspace with ID ${workspaceId} was not found.`);
+  }
+  if (wsRes.rows[0]!.kind !== 'personal') {
+    throw new ValidationError('Personal calendar events are strictly isolated to personal workspaces.');
+  }
+}
+
+/**
+ * Validates folder reference integrity: must exist, belong to same workspace, be kind='folder', and not deleted.
+ */
+async function validateFolderReference(
+  client: PoolClient,
+  workspaceId: string,
+  folderId: string | null | undefined
+): Promise<string | null> {
+  if (!folderId) return null;
+  const fRes = await client.query<{ id: string; security_scope: string }>(
+    `SELECT id, security_scope FROM app.items
+     WHERE workspace_id = $1 AND id = $2 AND kind = 'folder' AND deleted_at IS NULL;`,
+    [workspaceId, folderId]
+  );
+  if (fRes.rows.length === 0) {
+    throw new ValidationError(`Target folder ${folderId} does not exist, has been deleted, or is not a folder.`);
+  }
+  if (fRes.rows[0]!.security_scope !== 'standard') {
+    throw new ValidationError('Calendar events only support standard security scope.');
+  }
+  return folderId;
+}
+
+/**
  * Creates a personal standalone calendar event.
  * Atomic persistence in app.items and app.calendar_events with change feed and outbox intent.
  */
@@ -92,6 +132,8 @@ export async function createCalendarEvent(
   input: CreateCalendarEventRequest,
   operationId?: string
 ): Promise<CalendarEvent> {
+  await assertPersonalWorkspace(client, workspaceId);
+
   // 1. Validation
   let title = '';
   try {
@@ -110,25 +152,14 @@ export async function createCalendarEvent(
   }
 
   const eventId = input.id || crypto.randomUUID();
-  const folderId = input.folderId || null;
+  const folderId = await validateFolderReference(client, workspaceId, input.folderId);
   const timezone = input.timezone || 'UTC';
   const details = input.details?.trim() || null;
 
-  // 2. Folder existence check if assigned
-  if (folderId) {
-    const folderRes = await client.query<{ id: string }>(
-      `SELECT id FROM app.items WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`,
-      [folderId, workspaceId]
-    );
-    if (folderRes.rowCount === 0) {
-      throw new ValidationError(`Folder with ID ${folderId} does not exist in this workspace`);
-    }
-  }
-
-  // 3. Acquire sync state lock
+  // 2. Acquire sync state lock
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  // 4. Insert into app.items
+  // 3. Insert into app.items
   await client.query(
     `INSERT INTO app.items (
       id, workspace_id, folder_id, kind, created_by, updated_by, rank, is_pinned, security_scope, revision
@@ -136,7 +167,7 @@ export async function createCalendarEvent(
     [eventId, workspaceId, folderId, actorUserId]
   );
 
-  // 5. Insert into app.calendar_events
+  // 4. Insert into app.calendar_events
   const eventRes = await client.query<CalendarEventDbRow>(
     `INSERT INTO app.calendar_events (
       id, workspace_id, folder_id, title, details, all_day, start_date, end_date, start_at, end_at, timezone
@@ -160,7 +191,7 @@ export async function createCalendarEvent(
   const eventRow = eventRes.rows[0]!;
   const seq = syncState.nextChangeSeq;
 
-  // 6. Record change feed & outbox intent
+  // 5. Record change feed & outbox intent
   await insertChange(client, {
     workspaceId,
     seq,
@@ -222,12 +253,14 @@ export async function getCalendarEvent(
   workspaceId: string,
   eventId: string
 ): Promise<CalendarEvent> {
+  await assertPersonalWorkspace(client, workspaceId);
+
   const res = await client.query<CalendarEventDbRow>(
     `SELECT
       i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
       i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
       i.is_archived, i.is_pinned, i.security_scope,
-      e.title, e.details, e.all_day, e.start_date, e.end_date, e.start_at, e.end_at, e.timezone
+      e.title, e.details, e.all_day, e.start_date::text as start_date, e.end_date::text as end_date, e.start_at, e.end_at, e.timezone
     FROM app.items i
     JOIN app.calendar_events e ON i.id = e.id AND i.workspace_id = e.workspace_id
     WHERE i.id = $1 AND i.workspace_id = $2 AND i.deleted_at IS NULL`,
@@ -242,7 +275,8 @@ export async function getCalendarEvent(
 }
 
 /**
- * Updates a personal calendar event with optimistic concurrency protection.
+ * Updates a personal calendar event with strict optimistic concurrency protection.
+ * Reads authoritative state and checks revisions after acquiring workspace sync lock.
  */
 export async function updateCalendarEvent(
   client: PoolClient,
@@ -252,12 +286,40 @@ export async function updateCalendarEvent(
   input: UpdateCalendarEventRequest,
   operationId?: string
 ): Promise<CalendarEvent> {
-  const current = await getCalendarEvent(client, workspaceId, eventId);
+  await assertPersonalWorkspace(client, workspaceId);
 
-  // Optimistic concurrency check
-  if (input.expectedRevision !== undefined && current.revision !== input.expectedRevision) {
+  // 1. Acquire workspace sync lock first to prevent concurrent check races
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  // 2. Fetch existing event under lock
+  const currentRes = await client.query<CalendarEventDbRow>(
+    `SELECT
+      i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
+      i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
+      i.is_archived, i.is_pinned, i.security_scope,
+      e.title, e.details, e.all_day, e.start_date::text as start_date, e.end_date::text as end_date, e.start_at, e.end_at, e.timezone
+    FROM app.items i
+    JOIN app.calendar_events e ON i.id = e.id AND i.workspace_id = e.workspace_id
+    WHERE i.id = $1 AND i.workspace_id = $2`,
+    [eventId, workspaceId]
+  );
+
+  if (currentRes.rowCount === 0) {
+    throw new NotFoundError(`Calendar event ${eventId} not found`);
+  }
+
+  const currentRow = currentRes.rows[0]!;
+  if (currentRow.deleted_at) {
+    throw new NotFoundError(`Calendar event ${eventId} is in trash`);
+  }
+
+  const current = mapRowToCalendarEvent(currentRow);
+  const currentRev = current.revision;
+
+  // 3. Optimistic concurrency check under lock
+  if (input.expectedRevision !== undefined && currentRev !== input.expectedRevision) {
     throw new ConflictError(
-      `Conflict updating calendar event ${eventId}: expected revision ${input.expectedRevision}, but current is ${current.revision}`
+      `Conflict updating calendar event ${eventId}: expected revision ${input.expectedRevision}, but current is ${currentRev}`
     );
   }
 
@@ -269,27 +331,31 @@ export async function updateCalendarEvent(
   const endAt = input.endAt !== undefined ? input.endAt : current.endAt;
   const timezone = input.timezone !== undefined ? input.timezone : current.timezone;
   const details = input.details !== undefined ? input.details?.trim() || null : current.details;
-  const folderId = input.folderId !== undefined ? input.folderId : current.folderId;
   const isArchived = input.isArchived !== undefined ? input.isArchived : current.isArchived;
+
+  // Validate folder if updated
+  let folderId = current.folderId;
+  if (input.folderId !== undefined) {
+    folderId = await validateFolderReference(client, workspaceId, input.folderId);
+  }
 
   try {
     validateCalendarEventInterval({
       title,
       allDay,
-      startDate,
-      endDate,
-      startAt,
-      endAt,
+      startDate: allDay ? startDate : null,
+      endDate: allDay ? endDate : null,
+      startAt: allDay ? null : startAt,
+      endAt: allDay ? null : endAt,
       timezone,
     });
   } catch (err: unknown) {
     throw new ValidationError(err instanceof Error ? err.message : String(err));
   }
 
-  const nextRevision = current.revision + 1;
-  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  const nextRevision = currentRev + 1;
 
-  // Update app.items
+  // 4. Update app.items
   await client.query(
     `UPDATE app.items
      SET folder_id = $1, updated_by = $2, updated_at = now(), revision = $3, is_archived = $4
@@ -297,7 +363,7 @@ export async function updateCalendarEvent(
     [folderId, actorUserId, nextRevision, isArchived, eventId, workspaceId]
   );
 
-  // Update app.calendar_events
+  // 5. Update app.calendar_events
   const eventRes = await client.query<CalendarEventDbRow>(
     `UPDATE app.calendar_events
      SET folder_id = $1, title = $2, details = $3, all_day = $4,
@@ -357,7 +423,8 @@ export async function updateCalendarEvent(
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
   return {
-    ...current,
+    id: eventId,
+    workspaceId,
     folderId,
     title,
     details,
@@ -368,24 +435,53 @@ export async function updateCalendarEvent(
     endAt: allDay ? null : endAt,
     timezone,
     isArchived,
+    securityScope: current.securityScope,
     revision: nextRevision,
+    createdAt: current.createdAt,
     updatedAt: new Date(eventRow.updated_at).toISOString(),
+    deletedAt: null,
   };
 }
 
 /**
- * Deletes a personal calendar event (soft deletion with sync tombstone).
+ * Trashes a personal calendar event (soft deletion with sync tombstone).
+ * Reads authoritative state under workspace lock to guarantee ordering.
  */
-export async function deleteCalendarEvent(
+export async function trashCalendarEvent(
   client: PoolClient,
   workspaceId: string,
   eventId: string,
   actorUserId: string,
+  expectedRevision?: number,
   operationId?: string
-): Promise<{ success: boolean; eventId: string }> {
-  const current = await getCalendarEvent(client, workspaceId, eventId);
-  const nextRevision = current.revision + 1;
+): Promise<{ success: boolean; eventId: string; revision: number; seq: number }> {
+  await assertPersonalWorkspace(client, workspaceId);
+
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const currentRes = await client.query<{ revision: number; deleted_at: Date | null }>(
+    `SELECT revision, deleted_at FROM app.items WHERE id = $1 AND workspace_id = $2;`,
+    [eventId, workspaceId]
+  );
+
+  if (currentRes.rowCount === 0) {
+    throw new NotFoundError(`Calendar event ${eventId} not found`);
+  }
+
+  const current = currentRes.rows[0]!;
+  const currentRev = Number(current.revision);
+  if (current.deleted_at) {
+    return { success: true, eventId, revision: currentRev, seq: 0 };
+  }
+
+  if (expectedRevision !== undefined && expectedRevision !== currentRev) {
+    throw new ConflictError(
+      `Conflict trashing calendar event ${eventId}: expected revision ${expectedRevision}, current is ${currentRev}`
+    );
+  }
+
+  const nextRevision = currentRev + 1;
+  const seq = syncState.nextChangeSeq;
 
   await client.query(
     `UPDATE app.items
@@ -393,8 +489,6 @@ export async function deleteCalendarEvent(
      WHERE id = $3 AND workspace_id = $4`,
     [actorUserId, nextRevision, eventId, workspaceId]
   );
-
-  const seq = syncState.nextChangeSeq;
 
   await insertChange(client, {
     workspaceId,
@@ -418,12 +512,98 @@ export async function deleteCalendarEvent(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
-  return { success: true, eventId };
+  return { success: true, eventId, revision: nextRevision, seq };
+}
+
+/**
+ * Restores a personal calendar event from trash.
+ */
+export async function restoreCalendarEvent(
+  client: PoolClient,
+  workspaceId: string,
+  eventId: string,
+  actorUserId: string,
+  expectedRevision?: number,
+  operationId?: string
+): Promise<{ success: boolean; eventId: string; revision: number; seq: number }> {
+  await assertPersonalWorkspace(client, workspaceId);
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const currentRes = await client.query<{ revision: number; deleted_at: Date | null }>(
+    `SELECT revision, deleted_at FROM app.items WHERE id = $1 AND workspace_id = $2;`,
+    [eventId, workspaceId]
+  );
+
+  if (currentRes.rowCount === 0) {
+    throw new NotFoundError(`Calendar event ${eventId} not found`);
+  }
+
+  const current = currentRes.rows[0]!;
+  const currentRev = Number(current.revision);
+  if (!current.deleted_at) {
+    return { success: true, eventId, revision: currentRev, seq: 0 };
+  }
+
+  if (expectedRevision !== undefined && expectedRevision !== currentRev) {
+    throw new ConflictError(
+      `Conflict restoring calendar event ${eventId}: expected revision ${expectedRevision}, current is ${currentRev}`
+    );
+  }
+
+  const nextRevision = currentRev + 1;
+  const seq = syncState.nextChangeSeq;
+
+  await client.query(
+    `UPDATE app.items
+     SET deleted_at = NULL, updated_by = $1, updated_at = now(), revision = $2
+     WHERE id = $3 AND workspace_id = $4`,
+    [actorUserId, nextRevision, eventId, workspaceId]
+  );
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'item',
+    entityId: eventId,
+    revision: nextRevision,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      kind: 'calendar_event',
+      restoredAt: new Date().toISOString(),
+    },
+  });
+
+  await insertOutboxIntent(client, {
+    workspaceId,
+    eventType: 'calendar_event.restored',
+    payload: { eventId, revision: nextRevision, seq },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  return { success: true, eventId, revision: nextRevision, seq };
+}
+
+/**
+ * Backward compatibility delete alias mapping to trashCalendarEvent.
+ */
+export async function deleteCalendarEvent(
+  client: PoolClient,
+  workspaceId: string,
+  eventId: string,
+  actorUserId: string,
+  operationId?: string
+): Promise<{ success: boolean; eventId: string }> {
+  const res = await trashCalendarEvent(client, workspaceId, eventId, actorUserId, undefined, operationId);
+  return { success: res.success, eventId: res.eventId };
 }
 
 /**
  * Builds the aggregated calendar feed combining task deadlines, routine occurrences,
  * personal events, and journal date indicators without duplicating task records.
+ * Pushes date-range and non-deleted filters into database queries with bounded loading limits.
  */
 export async function getCalendarFeed(
   client: PoolClient,
@@ -431,6 +611,8 @@ export async function getCalendarFeed(
   query: CalendarFeedQuery,
   now = new Date()
 ): Promise<CalendarReadModelResponse['data']> {
+  await assertPersonalWorkspace(client, workspaceId);
+
   const {
     startDate,
     endDate,
@@ -441,7 +623,11 @@ export async function getCalendarFeed(
     includeJournalIndicators = true,
   } = query;
 
-  // 1. Fetch tasks with deadlines if requested
+  // Approximate range boundaries for timestamp filtering
+  const rangeStartInstant = `${startDate}T00:00:00.000Z`;
+  const rangeEndInstant = `${endDate}T23:59:59.999Z`;
+
+  // 1. Fetch tasks with deadlines if requested (bounded to active and matching range)
   const tasksList: Array<{
     id: string;
     workspaceId: string;
@@ -474,8 +660,15 @@ export async function getCalendarFeed(
       JOIN app.items i ON t.id = i.id AND t.workspace_id = i.workspace_id
       WHERE t.workspace_id = $1
         AND i.deleted_at IS NULL
-        AND t.deadline_type != 'none'`,
-      [workspaceId]
+        AND i.is_archived = false
+        AND t.deadline_type != 'none'
+        AND (
+          (t.deadline_type = 'date' AND t.deadline_date >= $2 AND t.deadline_date <= $3)
+          OR
+          (t.deadline_type = 'timed' AND t.deadline_time >= $4::timestamptz AND t.deadline_time <= $5::timestamptz)
+        )
+      LIMIT 500;`,
+      [workspaceId, startDate, endDate, rangeStartInstant, rangeEndInstant]
     );
 
     for (const r of taskRows.rows) {
@@ -521,7 +714,7 @@ export async function getCalendarFeed(
       `SELECT r.id, r.title, r.timezone
        FROM app.routines r
        JOIN app.items i ON r.id = i.id AND r.workspace_id = i.workspace_id
-       WHERE r.workspace_id = $1 AND i.deleted_at IS NULL`,
+       WHERE r.workspace_id = $1 AND i.deleted_at IS NULL AND i.is_archived = false`,
       [workspaceId]
     );
     for (const r of routineRows.rows) {
@@ -539,7 +732,8 @@ export async function getCalendarFeed(
     }>(
       `SELECT id, routine_id, workspace_id, scheduled_date::text as scheduled_date, planned_instant, timezone, status
        FROM app.routine_occurrences
-       WHERE workspace_id = $1 AND scheduled_date >= $2 AND scheduled_date <= $3`,
+       WHERE workspace_id = $1 AND scheduled_date >= $2 AND scheduled_date <= $3
+       LIMIT 500;`,
       [workspaceId, startDate, endDate]
     );
 
@@ -559,7 +753,7 @@ export async function getCalendarFeed(
     }
   }
 
-  // 3. Fetch personal calendar events if requested
+  // 3. Fetch personal calendar events with date-range query pushdown
   const eventsList: CalendarEventEntity[] = [];
   if (includeEvents) {
     const eventRows = await client.query<CalendarEventDbRow>(
@@ -570,8 +764,16 @@ export async function getCalendarFeed(
         e.title, e.details, e.all_day, e.start_date::text as start_date, e.end_date::text as end_date, e.start_at, e.end_at, e.timezone
       FROM app.items i
       JOIN app.calendar_events e ON i.id = e.id AND i.workspace_id = e.workspace_id
-      WHERE i.workspace_id = $1 AND i.deleted_at IS NULL`,
-      [workspaceId]
+      WHERE i.workspace_id = $1
+        AND i.deleted_at IS NULL
+        AND i.is_archived = false
+        AND (
+          (e.all_day = true AND e.start_date <= $3 AND e.end_date >= $2)
+          OR
+          (e.all_day = false AND e.start_at <= $5::timestamptz AND e.end_at >= $4::timestamptz)
+        )
+      LIMIT 500;`,
+      [workspaceId, startDate, endDate, rangeStartInstant, rangeEndInstant]
     );
 
     for (const r of eventRows.rows) {
@@ -584,14 +786,18 @@ export async function getCalendarFeed(
     }
   }
 
-  // 4. Fetch journal date indicators (count only, strictly NO bodies or prompts)
+  // 4. Fetch journal date indicators (count only, strictly NO bodies or prompts, excludes trash and archived)
   const journalDatesList: Array<{ date: string; count: number }> = [];
   if (includeJournalIndicators) {
     const journalRows = await client.query<{ entry_date: string; count: string | number }>(
-      `SELECT entry_date::text as entry_date, COUNT(*)::int as count
-       FROM app.journal_entries
-       WHERE workspace_id = $1 AND entry_date >= $2 AND entry_date <= $3
-       GROUP BY entry_date`,
+      `SELECT j.entry_date::text as entry_date, COUNT(*)::int as count
+       FROM app.journal_entries j
+       JOIN app.items i ON j.id = i.id AND j.workspace_id = i.workspace_id
+       WHERE j.workspace_id = $1
+         AND i.deleted_at IS NULL
+         AND i.is_archived = false
+         AND j.entry_date >= $2 AND j.entry_date <= $3
+       GROUP BY j.entry_date;`,
       [workspaceId, startDate, endDate]
     );
 

@@ -16,6 +16,7 @@ import type {
   RoutineOccurrenceTransition,
   JournalEntry,
   FileItem,
+  CalendarEvent,
 } from '@daynori/contracts';
 import {
   lockWorkspaceSyncState,
@@ -84,6 +85,12 @@ import {
   trashJournalEntry,
   restoreJournalEntry,
 } from '../journal/service.js';
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  trashCalendarEvent,
+  restoreCalendarEvent,
+} from '../calendar/service.js';
 import {
   type NoteDocument,
   validateNoteDocument,
@@ -788,6 +795,32 @@ export class SyncService {
         return {
           code: 'VALIDATION_FAILED',
           message: 'Invalid title: must be a string.',
+        };
+      }
+    }
+    if (cmd.command === 'createCalendarEvent') {
+      const title = cmd.payload['title'];
+      if (typeof title !== 'string' || title.trim().length === 0) {
+        return {
+          code: 'VALIDATION_FAILED',
+          message: 'Calendar event title must be a non-empty string.',
+        };
+      }
+    }
+    if (cmd.command === 'updateCalendarEvent') {
+      if (typeof cmd.baseRevision !== 'number' || cmd.baseRevision < 0) {
+        return {
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid baseRevision: must be a non-negative integer.',
+        };
+      }
+      if (
+        cmd.payload['title'] !== undefined &&
+        (typeof cmd.payload['title'] !== 'string' || cmd.payload['title'].trim().length === 0)
+      ) {
+        return {
+          code: 'VALIDATION_FAILED',
+          message: 'Calendar event title must be a non-empty string.',
         };
       }
     }
@@ -2397,6 +2430,243 @@ export class SyncService {
       }
     }
 
+    // --- Phase 26: Calendar Event Commands ---
+    if (
+      cmd.command === 'createCalendarEvent' ||
+      cmd.command === 'updateCalendarEvent' ||
+      cmd.command === 'trashCalendarEvent' ||
+      cmd.command === 'restoreCalendarEvent' ||
+      cmd.command === 'deleteCalendarEvent'
+    ) {
+      try {
+        let resultRevision = 1;
+        let appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'createCalendarEvent': {
+            if (existingItem) {
+              throw new ValidationError(
+                `Entity with ID ${cmd.entityId} already exists in this workspace.`
+              );
+            }
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const event = await createCalendarEvent(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              {
+                id: cmd.entityId,
+                folderId: typeof payload['folderId'] === 'string' ? payload['folderId'] : null,
+                title: typeof payload['title'] === 'string' ? payload['title'] : 'Untitled Event',
+                details: typeof payload['details'] === 'string' ? payload['details'] : null,
+                allDay: Boolean(payload['allDay']),
+                startDate: typeof payload['startDate'] === 'string' ? payload['startDate'] : undefined,
+                endDate: typeof payload['endDate'] === 'string' ? payload['endDate'] : undefined,
+                startAt: typeof payload['startAt'] === 'string' ? payload['startAt'] : undefined,
+                endAt: typeof payload['endAt'] === 'string' ? payload['endAt'] : undefined,
+                timezone: typeof payload['timezone'] === 'string' ? payload['timezone'] : 'UTC',
+              },
+              cmd.operationId
+            );
+            resultRevision = event.revision;
+            const changeRes = await client.query<{ seq: number }>(
+              `SELECT seq FROM app.changes WHERE workspace_id = $1 AND entity_id = $2 AND revision = $3;`,
+              [cmd.workspaceId, cmd.entityId, resultRevision]
+            );
+            appliedSeq = changeRes.rows[0]?.seq ?? null;
+            resultPayload = { event };
+            break;
+          }
+          case 'updateCalendarEvent': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const event = await updateCalendarEvent(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                expectedRevision: cmd.baseRevision,
+                folderId:
+                  typeof payload['folderId'] === 'string'
+                    ? payload['folderId']
+                    : payload['folderId'] === null
+                      ? null
+                      : undefined,
+                title: typeof payload['title'] === 'string' ? payload['title'] : undefined,
+                details:
+                  typeof payload['details'] === 'string'
+                    ? payload['details']
+                    : payload['details'] === null
+                      ? null
+                      : undefined,
+                allDay: typeof payload['allDay'] === 'boolean' ? payload['allDay'] : undefined,
+                startDate:
+                  typeof payload['startDate'] === 'string'
+                    ? payload['startDate']
+                    : payload['startDate'] === null
+                      ? null
+                      : undefined,
+                endDate:
+                  typeof payload['endDate'] === 'string'
+                    ? payload['endDate']
+                    : payload['endDate'] === null
+                      ? null
+                      : undefined,
+                startAt:
+                  typeof payload['startAt'] === 'string'
+                    ? payload['startAt']
+                    : payload['startAt'] === null
+                      ? null
+                      : undefined,
+                endAt:
+                  typeof payload['endAt'] === 'string'
+                    ? payload['endAt']
+                    : payload['endAt'] === null
+                      ? null
+                      : undefined,
+                timezone: typeof payload['timezone'] === 'string' ? payload['timezone'] : undefined,
+                isArchived:
+                  typeof payload['isArchived'] === 'boolean' ? payload['isArchived'] : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = event.revision;
+            const changeRes = await client.query<{ seq: number }>(
+              `SELECT seq FROM app.changes WHERE workspace_id = $1 AND entity_id = $2 AND revision = $3;`,
+              [cmd.workspaceId, cmd.entityId, resultRevision]
+            );
+            appliedSeq = changeRes.rows[0]?.seq ?? null;
+            resultPayload = { event };
+            break;
+          }
+          case 'trashCalendarEvent':
+          case 'deleteCalendarEvent': {
+            const res = await trashCalendarEvent(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            appliedSeq = res.seq;
+            break;
+          }
+          case 'restoreCalendarEvent': {
+            const res = await restoreCalendarEvent(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.baseRevision,
+              cmd.operationId
+            );
+            resultRevision = res.revision;
+            appliedSeq = res.seq;
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          const conflictErrorPayload = {
+            code: 'CONFLICT',
+            message: err.message,
+            currentServerState: existingItem
+              ? {
+                  revision: existingItem.revision,
+                  deletedAt: existingItem.deletedAt,
+                  isArchived: existingItem.isArchived,
+                }
+              : undefined,
+          };
+
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictErrorPayload },
+          });
+
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: existingItem ? existingItem.revision : 0,
+            seq: null,
+            error: conflictErrorPayload,
+          };
+        }
+
+        const errorPayload = {
+          code: err instanceof ValidationError ? 'VALIDATION_FAILED' : 'DOMAIN_ERROR',
+          message: err instanceof Error ? err.message : String(err),
+        };
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: existingItem ? existingItem.revision : 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
     // --- Command: createItem ---
     if (cmd.command === 'createItem') {
       if (existingItem) {
@@ -2439,6 +2709,38 @@ export class SyncService {
         const error = {
           code: 'VALIDATION_FAILED',
           message: 'Journal entries must be created via createJournalEntry command.',
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error,
+        };
+      }
+
+      if (kind === 'calendar_event') {
+        const error = {
+          code: 'VALIDATION_FAILED',
+          message: 'Calendar events must be created via createCalendarEvent command.',
         };
         await insertMutationReceipt(client, {
           workspaceId: cmd.workspaceId,
@@ -3297,6 +3599,7 @@ export class SyncService {
     routines: Routine[];
     routineOccurrences: RoutineOccurrence[];
     journalEntries: JournalEntry[];
+    calendarEvents: CalendarEvent[];
     files: FileItem[];
     watermarkCursor: string;
     accessEpoch: string;
@@ -3705,6 +4008,61 @@ export class SyncService {
         // Fetch active verified files
         const activeFiles = await listActiveFilesForBootstrap(client, workspaceId);
 
+        // Fetch active calendar events
+        const calendarRes = await client.query<{
+          id: string;
+          workspace_id: string;
+          folder_id: string | null;
+          title: string;
+          details: string | null;
+          all_day: boolean;
+          start_date: string | null;
+          end_date: string | null;
+          start_at: Date | null;
+          end_at: Date | null;
+          timezone: string;
+          is_archived: boolean;
+          security_scope: 'standard' | 'vault';
+          revision: number;
+          created_at: Date;
+          updated_at: Date;
+          deleted_at: Date | null;
+        }>(
+          `SELECT
+            c.id, c.workspace_id, c.folder_id, c.title, c.details, c.all_day,
+            c.start_date::text as start_date, c.end_date::text as end_date,
+            c.start_at, c.end_at, c.timezone,
+            i.is_archived, i.security_scope, i.revision,
+            i.created_at, i.updated_at, i.deleted_at
+          FROM app.calendar_events c
+          JOIN app.items i ON i.workspace_id = c.workspace_id AND i.id = c.id
+          WHERE c.workspace_id = $1 AND i.deleted_at IS NULL
+          ORDER BY c.start_at ASC NULLS LAST, c.start_date ASC NULLS LAST, c.id ASC;`,
+          [workspaceId]
+        );
+
+        const formattedCalendarEvents: CalendarEvent[] = calendarRes.rows.map((r) => {
+          return {
+            id: r.id,
+            workspaceId: r.workspace_id,
+            folderId: r.folder_id,
+            title: r.title,
+            details: r.details,
+            allDay: Boolean(r.all_day),
+            startDate: r.start_date ? formatDateOnly(r.start_date) : null,
+            endDate: r.end_date ? formatDateOnly(r.end_date) : null,
+            startAt: r.start_at ? new Date(r.start_at).toISOString() : null,
+            endAt: r.end_at ? new Date(r.end_at).toISOString() : null,
+            timezone: r.timezone || 'UTC',
+            isArchived: Boolean(r.is_archived),
+            securityScope: r.security_scope || 'standard',
+            revision: Number(r.revision) || 1,
+            createdAt: new Date(r.created_at).toISOString(),
+            updatedAt: new Date(r.updated_at).toISOString(),
+            deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
+          };
+        });
+
         return {
           items: formattedItems,
           folders: formattedFolders,
@@ -3714,6 +4072,7 @@ export class SyncService {
           routines: formattedRoutines,
           routineOccurrences: formattedOccurrences,
           journalEntries: formattedJournalEntries,
+          calendarEvents: formattedCalendarEvents,
           files: activeFiles,
           watermarkCursor,
           accessEpoch: syncState.accessEpoch,

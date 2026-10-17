@@ -20,6 +20,9 @@ import { defaultSecureStorage } from './src/auth/secureStorage.js';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
 import type { SyncEngine } from '@daynori/sync';
 import { MobileOfflineFileCache } from './src/data/offlineFileCache.js';
+import { ExpoFileSystemOfflineStorageAdapter } from './src/data/expoFileSystemStorageAdapter.js';
+
+MobileOfflineFileCache.setAdapter(new ExpoFileSystemOfflineStorageAdapter());
 import type { ActiveModal, CreateDraft, LibraryFilter, PlanSubView } from './src/navigation/types';
 import { TodayView } from './src/views/TodayView';
 import { PlanView } from './src/views/PlanView';
