@@ -603,5 +603,341 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
         [userAId]
       );
     });
+
+    it('worker records truthful unavailable status when no push adapter is configured instead of fabricating delivery rows', async () => {
+      // Ensure quiet hours are not active
+      await adminPool.query(
+        `UPDATE app.profiles SET preferences = preferences - 'quietHours' WHERE id = $1;`,
+        [userAId]
+      );
+
+      const taskRes = await clientA.createTask(personalWorkspaceAId, {
+        title: 'Truthful delivery test task',
+        deadline: {
+          type: 'timed',
+          timestamp: new Date(Date.now() + 3600000).toISOString(),
+          timezone: 'UTC',
+        },
+      });
+
+      const ruleRes = await clientA.createReminderRule(personalWorkspaceAId, {
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        offsetMinutes: 10,
+        channels: ['push'],
+      });
+
+      const instances = await clientA.listReminderInstances(personalWorkspaceAId, {
+        targetId: taskRes.data.id,
+      });
+      const instance = instances.data[0]!;
+
+      // Ensure worker has no push adapter set
+      worker.setPushAdapter(null);
+
+      const fakeJobId = crypto.randomUUID();
+      const jobPayload = {
+        workspaceId: personalWorkspaceAId,
+        instanceId: instance.id,
+        ruleId: ruleRes.data.id,
+        ruleRevision: 1,
+        deliveryGeneration: 1,
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        actorUserId: userAId,
+      };
+
+      const res = await worker.processJob(fakeJobId, 'reminder_delivery', jobPayload);
+      expect(res.status).toBe('completed');
+      expect(res.details?.['outcome']).toBe('dispatched');
+
+      // Query database delivery row: must be truthful 'unavailable', NOT fabricated 'accepted' with prov_* ID
+      const deliv = await runtimePool.query<{ status: string; provider_message_id: string | null }>(
+        `SELECT status, provider_message_id FROM app.reminder_deliveries WHERE instance_id = $1 AND channel = 'push';`,
+        [instance.id]
+      );
+      expect(deliv.rows.length).toBe(1);
+      expect(deliv.rows[0]!.status).toBe('unavailable');
+      expect(deliv.rows[0]!.provider_message_id).toBeNull();
+    });
+
+    it('worker defers delivery during quiet hours and preserves the pending job at rescheduleRunAt', async () => {
+      const updRes = await adminPool.query(
+        `
+        UPDATE app.profiles
+        SET preferences = jsonb_set(
+          preferences,
+          '{quietHours}',
+          '{"enabled": true, "start": "00:00", "end": "23:59", "timezone": "UTC"}'::jsonb
+        )
+        WHERE id = $1;
+        `,
+        [userAId]
+      );
+
+      try {
+        const taskRes = await clientA.createTask(personalWorkspaceAId, {
+          title: 'Quiet hours defer test task',
+          deadline: {
+            type: 'timed',
+            timestamp: new Date(Date.now() + 3600000).toISOString(),
+            timezone: 'UTC',
+          },
+        });
+
+        const ruleRes = await clientA.createReminderRule(personalWorkspaceAId, {
+          targetType: 'task',
+          targetId: taskRes.data.id,
+          offsetMinutes: 10,
+          quietHoursBehavior: 'defer',
+        });
+
+        const instances = await clientA.listReminderInstances(personalWorkspaceAId, {
+          targetId: taskRes.data.id,
+        });
+        const instance = instances.data[0]!;
+
+        // Enqueue actual background job using task_type
+        const enqueueRes = await adminPool.query<{ id: string }>(
+          `
+          INSERT INTO app.background_jobs (task_type, payload, run_at, status)
+          VALUES ('reminder_delivery', $1, NOW() - INTERVAL '1 second', 'pending')
+          RETURNING id;
+          `,
+          [
+            JSON.stringify({
+              workspaceId: personalWorkspaceAId,
+              instanceId: instance.id,
+              ruleId: ruleRes.data.id,
+              ruleRevision: 1,
+              deliveryGeneration: 1,
+              targetType: 'task',
+              targetId: taskRes.data.id,
+              actorUserId: userAId,
+            }),
+          ]
+        );
+        const dbJobId = enqueueRes.rows[0]!.id;
+
+        // Start worker and process through polling lifecycle
+        worker.start(adminPool);
+        let jobResult: any = null;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          jobResult = await worker.pollAndProcessNextJob(adminPool);
+          if (jobResult?.jobId === dbJobId) break;
+        }
+        expect(jobResult).toBeDefined();
+        expect(jobResult?.jobId).toBe(dbJobId);
+        expect(jobResult?.status).toBe('deferred');
+        worker.stop();
+
+        // Verify DB job state: must NOT be 'completed'; must be 'pending' with deferred run_at
+        const jobRow = await adminPool.query<{ status: string; run_at: Date }>(
+          `SELECT status, run_at FROM app.background_jobs WHERE id = $1;`,
+          [dbJobId]
+        );
+        expect(jobRow.rows[0]!.status).toBe('pending');
+        expect(new Date(jobRow.rows[0]!.run_at).getTime()).toBeGreaterThan(Date.now());
+
+        // Instance state must remain scheduled
+        const instRow = await runtimePool.query<{ status: string }>(
+          `SELECT status FROM app.reminder_instances WHERE id = $1;`,
+          [instance.id]
+        );
+        expect(instRow.rows[0]!.status).toBe('scheduled');
+      } finally {
+        worker.stop();
+        // Cleanup quiet hours
+        await adminPool.query(
+          `UPDATE app.profiles SET preferences = preferences - 'quietHours' WHERE id = $1;`,
+          [userAId]
+        );
+      }
+    });
+
+    it('snooze advances delivery generation, tracks relative to user action, and retries do not collide', async () => {
+      // Ensure quiet hours are not active
+      await adminPool.query(
+        `UPDATE app.profiles SET preferences = preferences - 'quietHours' WHERE id = $1;`,
+        [userAId]
+      );
+
+      const taskRes = await clientA.createTask(personalWorkspaceAId, {
+        title: 'Snooze generation test task',
+        deadline: {
+          type: 'timed',
+          timestamp: new Date(Date.now() + 3600000).toISOString(),
+          timezone: 'UTC',
+        },
+      });
+
+      await clientA.createReminderRule(personalWorkspaceAId, {
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        offsetMinutes: 10,
+        channels: ['in_app'],
+      });
+
+      const instances = await clientA.listReminderInstances(personalWorkspaceAId, {
+        targetId: taskRes.data.id,
+      });
+      const initialInstance = instances.data[0]!;
+      expect(initialInstance.deliveryGeneration).toBe(1);
+
+      // Snooze instance for 20 minutes
+      const snoozedRes = await clientA.snoozeReminderInstance(personalWorkspaceAId, initialInstance.id, {
+        snoozeMinutes: 20,
+      });
+
+      expect(snoozedRes.data.status).toBe('snoozed');
+      expect(snoozedRes.data.deliveryGeneration).toBe(2);
+
+      // The new scheduledAt should be roughly now + 20 minutes
+      const diffMs = new Date(snoozedRes.data.scheduledAt).getTime() - Date.now();
+      expect(diffMs).toBeGreaterThan(18 * 60 * 1000);
+      expect(diffMs).toBeLessThanOrEqual(21 * 60 * 1000);
+    });
+
+    it('source deadline update rebuilds future reminder instances', async () => {
+      const initialDeadline = new Date(Date.now() + 2 * 3600000).toISOString();
+      const taskRes = await clientA.createTask(personalWorkspaceAId, {
+        title: 'Deadline rebuild test task',
+        deadline: {
+          type: 'timed',
+          timestamp: initialDeadline,
+          timezone: 'UTC',
+        },
+      });
+
+      await clientA.createReminderRule(personalWorkspaceAId, {
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        offsetMinutes: 30,
+        channels: ['in_app'],
+      });
+
+      const instList1 = await clientA.listReminderInstances(personalWorkspaceAId, {
+        targetId: taskRes.data.id,
+      });
+      expect(instList1.data.length).toBe(1);
+      const oldInstanceId = instList1.data[0]!.id;
+
+      // Update task deadline to +5 hours with required baseRevision
+      const newDeadline = new Date(Date.now() + 5 * 3600000).toISOString();
+      await clientA.updateTask(personalWorkspaceAId, taskRes.data.id, {
+        deadline: {
+          type: 'timed',
+          timestamp: newDeadline,
+          timezone: 'UTC',
+        },
+        baseRevision: taskRes.data.revision,
+      });
+
+      // Query instances again: old instance should be invalidated, new instance scheduled
+      const instList2 = await clientA.listReminderInstances(personalWorkspaceAId, {
+        targetId: taskRes.data.id,
+      });
+
+      const activeInst = instList2.data.find((i) => i.status === 'scheduled');
+      expect(activeInst).toBeDefined();
+      expect(activeInst!.id).not.toBe(oldInstanceId);
+
+      // Verify scheduled time matches new deadline - 30 minutes
+      const expectedTime = new Date(new Date(newDeadline).getTime() - 30 * 60 * 1000);
+      expect(Math.abs(new Date(activeInst!.scheduledAt).getTime() - expectedTime.getTime())).toBeLessThan(5000);
+    });
+
+    it('enforces optimistic concurrency with baseRevision on reminder rule updates', async () => {
+      const taskRes = await clientA.createTask(personalWorkspaceAId, {
+        title: 'Rule concurrency test task',
+        deadline: {
+          type: 'timed',
+          timestamp: new Date(Date.now() + 7200000).toISOString(),
+          timezone: 'UTC',
+        },
+      });
+
+      const ruleRes = await clientA.createReminderRule(personalWorkspaceAId, {
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        offsetMinutes: 15,
+        channels: ['in_app'],
+      });
+
+      const ruleId = ruleRes.data.id;
+      expect(ruleRes.data.ruleRevision).toBe(1);
+
+      // Attempt to update with mismatched baseRevision (e.g. 99)
+      await expect(
+        clientA.updateReminderRule(personalWorkspaceAId, ruleId, {
+          offsetMinutes: 20,
+          baseRevision: 99,
+        })
+      ).rejects.toThrow();
+
+      // Update with correct baseRevision (1)
+      const updated = await clientA.updateReminderRule(personalWorkspaceAId, ruleId, {
+        offsetMinutes: 25,
+        baseRevision: 1,
+      });
+
+      expect(updated.data.ruleRevision).toBe(2);
+      expect(updated.data.offsetMinutes).toBe(25);
+    });
+
+    it('enforces monotonic delivery receipts: client cannot regress opened to delivered or claim accepted', async () => {
+      const taskRes = await clientA.createTask(personalWorkspaceAId, {
+        title: 'Monotonic receipt test task',
+        deadline: {
+          type: 'timed',
+          timestamp: new Date(Date.now() + 3600000).toISOString(),
+          timezone: 'UTC',
+        },
+      });
+
+      await clientA.createReminderRule(personalWorkspaceAId, {
+        targetType: 'task',
+        targetId: taskRes.data.id,
+        offsetMinutes: 10,
+        channels: ['in_app'],
+      });
+
+      const instances = await clientA.listReminderInstances(personalWorkspaceAId, {
+        targetId: taskRes.data.id,
+      });
+      const instance = instances.data[0]!;
+
+      // Insert delivery record
+      const delivRes = await runtimePool.query<{ id: string }>(
+        `
+        INSERT INTO app.reminder_deliveries (
+          workspace_id, instance_id, delivery_generation, channel, recipient_user_id, status, redacted_title, created_at
+        ) VALUES ($1, $2, 1, 'in_app', $3, 'delivered', 'Test reminder', NOW())
+        RETURNING id;
+        `,
+        [personalWorkspaceAId, instance.id, userAId]
+      );
+      const deliveryId = delivRes.rows[0]!.id;
+
+      // 1. Client transitions to 'opened'
+      const openReceipt = await clientA.recordDeliveryReceipt(personalWorkspaceAId, deliveryId, {
+        status: 'opened',
+      });
+      expect(openReceipt.data.status).toBe('opened');
+
+      // 2. Client attempts to regress back to 'delivered' -> must be monotonic/idempotent and remain 'opened'
+      const regressReceipt = await clientA.recordDeliveryReceipt(personalWorkspaceAId, deliveryId, {
+        status: 'delivered',
+      });
+      expect(regressReceipt.data.status).toBe('opened');
+
+      // 3. Client attempts to claim provider status 'accepted' -> rejected by contract validation
+      await expect(
+        // @ts-expect-error testing invalid status from client
+        clientA.recordDeliveryReceipt(personalWorkspaceAId, deliveryId, {
+          status: 'accepted',
+        })
+      ).rejects.toThrow();
+    });
   });
 });

@@ -4,18 +4,24 @@ import type {
   ReminderRule,
   ReminderInstance,
   ReminderDelivery,
+  Device,
+  DeviceSchedule,
   CreateReminderRuleRequest,
   UpdateReminderRuleRequest,
   SnoozeReminderRequest,
   RecordDeliveryReceiptRequest,
+  RegisterDeviceRequest,
+  AcknowledgeDeviceScheduleRequest,
 } from '@daynori/contracts';
 import {
   materializeReminderOccurrences,
   calculateSnoozeTime,
   isValidIanaTimezone,
+  type ReminderTargetTiming,
+  type QuietHoursConfig,
 } from '@daynori/domain';
 import { insertOutboxIntent } from '../sync/repository.js';
-import { NotFoundError, ValidationError, ConflictError } from '../../plugins/errorHandler.js';
+import { NotFoundError, ValidationError, ConflictError, ForbiddenError } from '../../plugins/errorHandler.js';
 
 interface ReminderRuleDbRow {
   id: string;
@@ -41,6 +47,7 @@ interface ReminderInstanceDbRow {
   workspace_id: string;
   rule_id: string;
   rule_revision: number;
+  delivery_generation: number;
   occurrence_key: string;
   target_type: 'task' | 'routine' | 'calendar_event';
   target_id: string;
@@ -65,6 +72,7 @@ interface ReminderDeliveryDbRow {
   id: string;
   workspace_id: string;
   instance_id: string;
+  delivery_generation: number;
   channel: 'in_app' | 'push' | 'local';
   recipient_user_id: string;
   provider: 'in_app' | 'fcm' | 'web_push';
@@ -75,13 +83,43 @@ interface ReminderDeliveryDbRow {
     | 'failed'
     | 'delivered'
     | 'opened'
-    | 'dropped_quiet_hours';
+    | 'dropped_quiet_hours'
+    | 'unavailable';
   redacted_title: string;
   redacted_body: string | null;
   attempt_count: number;
   last_attempt_at: Date | null;
   error_message: string | null;
   opened_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface DeviceDbRow {
+  id: string;
+  user_id: string;
+  installation_id: string;
+  platform: 'android' | 'ios' | 'web';
+  push_token: string | null;
+  token_type: 'fcm' | 'web_push' | 'none';
+  capabilities: Record<string, unknown>;
+  is_active: boolean;
+  last_seen_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface DeviceScheduleDbRow {
+  id: string;
+  workspace_id: string;
+  instance_id: string;
+  device_id: string;
+  rule_revision: number;
+  delivery_generation: number;
+  native_notification_id: string | null;
+  delivery_mode: 'local' | 'push';
+  acknowledged: boolean;
+  acknowledged_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -113,6 +151,7 @@ function mapRowToInstance(row: ReminderInstanceDbRow): ReminderInstance {
     workspaceId: row.workspace_id,
     ruleId: row.rule_id,
     ruleRevision: row.rule_revision,
+    deliveryGeneration: row.delivery_generation ?? 1,
     occurrenceKey: row.occurrence_key,
     targetType: row.target_type,
     targetId: row.target_id,
@@ -132,6 +171,7 @@ function mapRowToDelivery(row: ReminderDeliveryDbRow): ReminderDelivery {
     id: row.id,
     workspaceId: row.workspace_id,
     instanceId: row.instance_id,
+    deliveryGeneration: row.delivery_generation ?? 1,
     channel: row.channel,
     recipientUserId: row.recipient_user_id,
     provider: row.provider,
@@ -148,36 +188,69 @@ function mapRowToDelivery(row: ReminderDeliveryDbRow): ReminderDelivery {
   };
 }
 
+function mapRowToDevice(row: DeviceDbRow): Device {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    installationId: row.installation_id,
+    platform: row.platform,
+    pushToken: row.push_token,
+    tokenType: row.token_type,
+    capabilities: row.capabilities ?? {},
+    isActive: row.is_active,
+    lastSeenAt: row.last_seen_at.toISOString(),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapRowToDeviceSchedule(row: DeviceScheduleDbRow): DeviceSchedule {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    instanceId: row.instance_id,
+    deviceId: row.device_id,
+    ruleRevision: row.rule_revision,
+    deliveryGeneration: row.delivery_generation ?? 1,
+    nativeNotificationId: row.native_notification_id,
+    deliveryMode: row.delivery_mode,
+    acknowledged: row.acknowledged,
+    acknowledgedAt: row.acknowledged_at ? row.acknowledged_at.toISOString() : null,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 /**
- * Checks that the workspace is personal (reminders are currently private/personal only).
+ * Validates that the workspace is personal (reminders belong to personal organizers).
  */
-export async function assertPersonalWorkspace(client: PoolClient, workspaceId: string): Promise<void> {
+export async function assertPersonalWorkspace(
+  client: PoolClient,
+  workspaceId: string
+): Promise<void> {
   const wsRes = await client.query<{ kind: string }>(
     `SELECT kind FROM app.workspaces WHERE id = $1;`,
     [workspaceId]
   );
   if (wsRes.rows.length === 0) {
-    throw new NotFoundError('Workspace not found');
+    throw new NotFoundError(`Workspace ${workspaceId} not found`);
   }
-  if (wsRes.rows[0]!.kind !== 'personal') {
-    throw new ValidationError('Reminders are currently supported in personal workspaces only');
+  if (wsRes.rows[0]?.kind !== 'personal') {
+    throw new ValidationError(
+      `REMINDERS_PERSONAL_ONLY: Reminders are scoped exclusively to personal workspaces.`
+    );
   }
 }
 
 /**
- * Loads target entity timing details to support occurrence materialization.
+ * Loads target timing metadata with routine schedules and pause states.
  */
 export async function loadTargetTiming(
   client: PoolClient,
   workspaceId: string,
   targetType: 'task' | 'routine' | 'calendar_event',
   targetId: string
-): Promise<{
-  dueTimestamp: string | null;
-  startDate: string | null;
-  isDone: boolean;
-  isDeleted: boolean;
-}> {
+): Promise<ReminderTargetTiming> {
   if (targetType === 'task') {
     const res = await client.query<{
       status: string;
@@ -205,10 +278,12 @@ export async function loadTargetTiming(
       dueTimestamp = row.deadline_time.toISOString();
     }
     return {
+      id: targetId,
       dueTimestamp,
       startDate: row.deadline_date,
       isDone,
       isDeleted,
+      routine: null,
     };
   }
 
@@ -233,10 +308,12 @@ export async function loadTargetTiming(
     }
     const row = res.rows[0]!;
     return {
+      id: targetId,
       dueTimestamp: row.start_at ? row.start_at.toISOString() : null,
       startDate: row.start_date,
       isDone: row.is_archived,
       isDeleted: Boolean(row.deleted_at),
+      routine: null,
     };
   }
 
@@ -244,12 +321,16 @@ export async function loadTargetTiming(
     const res = await client.query<{
       scheduled_time: string | null;
       active_from: string;
+      active_to: string | null;
+      weekdays: number[];
+      frequency: 'daily' | 'weekdays';
       is_archived: boolean;
       is_paused: boolean;
       deleted_at: Date | null;
     }>(
       `
-      SELECT r.scheduled_time, r.active_from, r.is_archived, r.is_paused, i.deleted_at
+      SELECT r.scheduled_time, r.active_from, r.active_to, r.weekdays, r.frequency,
+             r.is_archived, r.is_paused, i.deleted_at
       FROM app.routines r
       JOIN app.items i ON i.id = r.id AND i.workspace_id = r.workspace_id
       WHERE r.id = $1 AND r.workspace_id = $2;
@@ -261,10 +342,20 @@ export async function loadTargetTiming(
     }
     const row = res.rows[0]!;
     return {
+      id: targetId,
       dueTimestamp: null,
       startDate: row.active_from,
       isDone: row.is_archived || row.is_paused,
       isDeleted: Boolean(row.deleted_at),
+      routine: {
+        frequency: row.frequency,
+        weekdays: row.weekdays || [],
+        scheduledTime: row.scheduled_time,
+        activeFrom: row.active_from,
+        activeTo: row.active_to,
+        isPaused: row.is_paused,
+        isArchived: row.is_archived,
+      },
     };
   }
 
@@ -325,16 +416,10 @@ export async function createReminderRule(
 
   const rule = mapRowToRule(insertRes.rows[0]!);
 
-  // Materialize occurrences
+  // Materialize occurrences within 14-day rolling horizon
   const occurrences = materializeReminderOccurrences({
     rule,
-    target: {
-      id: input.targetId,
-      dueTimestamp: targetTiming.dueTimestamp,
-      startDate: targetTiming.startDate,
-      isDone: targetTiming.isDone,
-      isDeleted: targetTiming.isDeleted,
-    },
+    target: targetTiming,
     horizonDays: 14,
     now: new Date(),
   });
@@ -343,10 +428,10 @@ export async function createReminderRule(
     const instRes = await client.query<{ id: string }>(
       `
       INSERT INTO app.reminder_instances (
-        workspace_id, rule_id, rule_revision, occurrence_key,
+        workspace_id, rule_id, rule_revision, delivery_generation, occurrence_key,
         target_type, target_id, scheduled_at, original_scheduled_at, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled')
+      VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, 'scheduled')
       ON CONFLICT (workspace_id, rule_id, rule_revision, occurrence_key) DO NOTHING
       RETURNING id;
       `,
@@ -364,7 +449,6 @@ export async function createReminderRule(
 
     if (instRes.rows.length > 0) {
       const instanceId = instRes.rows[0]!.id;
-      // Enqueue durable leased job
       await client.query(
         `
         INSERT INTO app.background_jobs (task_type, payload, run_at, status)
@@ -376,6 +460,7 @@ export async function createReminderRule(
             instanceId,
             ruleId: rule.id,
             ruleRevision: rule.ruleRevision,
+            deliveryGeneration: 1,
             targetType: rule.targetType,
             targetId: rule.targetId,
             actorUserId,
@@ -389,14 +474,14 @@ export async function createReminderRule(
   await insertOutboxIntent(client, {
     workspaceId,
     eventType: 'reminder_rule.created',
-    payload: { ruleId: rule.id, targetId: rule.targetId, targetType: rule.targetType },
+    payload: { ruleId: rule.id, targetId: rule.targetId },
   });
 
   return rule;
 }
 
 /**
- * Updates an existing reminder rule, increments revision, invalidates stale occurrences,
+ * Updates a reminder rule, increments revision, invalidates previous instances,
  * and rematerializes occurrences under the new revision.
  */
 export async function updateReminderRule(
@@ -408,14 +493,23 @@ export async function updateReminderRule(
 ): Promise<ReminderRule> {
   await assertPersonalWorkspace(client, workspaceId);
 
-  const existingRes = await client.query<ReminderRuleDbRow>(
-    `SELECT * FROM app.reminder_rules WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL;`,
+  // 1. Fetch current rule with row lock
+  const ruleRes = await client.query<ReminderRuleDbRow>(
+    `SELECT * FROM app.reminder_rules WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL FOR UPDATE;`,
     [ruleId, workspaceId]
   );
-  if (existingRes.rows.length === 0) {
+  if (ruleRes.rows.length === 0) {
     throw new NotFoundError(`Reminder rule ${ruleId} not found`);
   }
-  const current = mapRowToRule(existingRes.rows[0]!);
+
+  const current = mapRowToRule(ruleRes.rows[0]!);
+
+  // Version check: if client provided baseRevision, ensure it matches current revision
+  if (input.baseRevision !== undefined && current.ruleRevision !== input.baseRevision) {
+    throw new ConflictError(
+      `RULE_REVISION_MISMATCH: Expected rule revision ${input.baseRevision}, but current revision is ${current.ruleRevision}.`
+    );
+  }
 
   if (input.timezone && !isValidIanaTimezone(input.timezone)) {
     throw new ValidationError(`INVALID_TIMEZONE: ${input.timezone} is not a valid IANA timezone`);
@@ -488,13 +582,7 @@ export async function updateReminderRule(
 
     const occurrences = materializeReminderOccurrences({
       rule: updatedRule,
-      target: {
-        id: updatedRule.targetId,
-        dueTimestamp: targetTiming.dueTimestamp,
-        startDate: targetTiming.startDate,
-        isDone: targetTiming.isDone,
-        isDeleted: targetTiming.isDeleted,
-      },
+      target: targetTiming,
       horizonDays: 14,
       now: new Date(),
     });
@@ -503,10 +591,10 @@ export async function updateReminderRule(
       const instRes = await client.query<{ id: string }>(
         `
         INSERT INTO app.reminder_instances (
-          workspace_id, rule_id, rule_revision, occurrence_key,
+          workspace_id, rule_id, rule_revision, delivery_generation, occurrence_key,
           target_type, target_id, scheduled_at, original_scheduled_at, status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled')
+        VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, 'scheduled')
         ON CONFLICT (workspace_id, rule_id, rule_revision, occurrence_key) DO NOTHING
         RETURNING id;
         `,
@@ -535,6 +623,7 @@ export async function updateReminderRule(
               instanceId,
               ruleId: updatedRule.id,
               ruleRevision: updatedRule.ruleRevision,
+              deliveryGeneration: 1,
               targetType: updatedRule.targetType,
               targetId: updatedRule.targetId,
               actorUserId,
@@ -676,6 +765,8 @@ export async function listReminderInstances(
 
 /**
  * Snoozes a scheduled or dispatched reminder instance.
+ * Calculates snooze instant relative to the current instant, respects quiet hours,
+ * and advances the delivery_generation to ensure safe delivery and deduplication.
  */
 export async function snoozeReminderInstance(
   client: PoolClient,
@@ -696,10 +787,24 @@ export async function snoozeReminderInstance(
 
   const current = instRes.rows[0]!;
   if (current.status === 'invalidated' || current.status === 'dismissed') {
-    throw new ConflictError(`Cannot snooze reminder with status '${current.status}'`);
+    throw new ConflictError(`Cannot snooze reminder with terminal status '${current.status}'`);
   }
 
-  const { snoozeUntil } = calculateSnoozeTime(current.scheduled_at, input.snoozeMinutes);
+  // Load quiet hours preference for workspace owner
+  const profileRes = await client.query<{ preferences: Record<string, unknown> }>(
+    `
+    SELECT p.preferences
+    FROM app.profiles p
+    JOIN app.workspaces w ON w.owner_id = p.id
+    WHERE w.id = $1;
+    `,
+    [workspaceId]
+  );
+  const qhConfig = profileRes.rows[0]?.preferences?.quietHours as QuietHoursConfig | undefined;
+
+  // Calculate snooze relative to actual action time (now)
+  const { snoozeUntil } = calculateSnoozeTime(new Date(), input.snoozeMinutes, qhConfig);
+  const nextGeneration = (current.delivery_generation ?? 1) + 1;
 
   const updateRes = await client.query<ReminderInstanceDbRow>(
     `
@@ -707,14 +812,15 @@ export async function snoozeReminderInstance(
       status = 'snoozed',
       snooze_until = $1,
       scheduled_at = $1,
+      delivery_generation = $2,
       updated_at = now()
-    WHERE id = $2 AND workspace_id = $3
+    WHERE id = $3 AND workspace_id = $4
     RETURNING *;
     `,
-    [snoozeUntil, instanceId, workspaceId]
+    [snoozeUntil, nextGeneration, instanceId, workspaceId]
   );
 
-  // Enqueue new background job for snoozed instant
+  // Enqueue new background job for snoozed instant with incremented delivery generation
   await client.query(
     `
     INSERT INTO app.background_jobs (task_type, payload, run_at, status)
@@ -726,6 +832,7 @@ export async function snoozeReminderInstance(
         instanceId,
         ruleId: current.rule_id,
         ruleRevision: current.rule_revision,
+        deliveryGeneration: nextGeneration,
         targetType: current.target_type,
         targetId: current.target_id,
         actorUserId,
@@ -738,14 +845,16 @@ export async function snoozeReminderInstance(
 }
 
 /**
- * Records receipt of a delivery (e.g. user-opened or provider-accepted).
+ * Records receipt of a delivery (e.g. user-opened or client-observed).
+ * Enforces monotonic state transitions: client cannot report 'accepted' (reserved for delivery adapters).
  * When opened, updates the instance status to 'observed'.
  */
 export async function recordDeliveryReceipt(
   client: PoolClient,
   workspaceId: string,
   deliveryId: string,
-  input: RecordDeliveryReceiptRequest
+  input: RecordDeliveryReceiptRequest,
+  actorUserId?: string
 ): Promise<ReminderDelivery> {
   await assertPersonalWorkspace(client, workspaceId);
 
@@ -758,13 +867,30 @@ export async function recordDeliveryReceipt(
   }
 
   const current = delivRes.rows[0]!;
+
+  // Scope check: if actorUserId is provided, ensure actor is recipient or workspace owner
+  if (actorUserId && current.recipient_user_id !== actorUserId) {
+    const ownerRes = await client.query<{ owner_id: string }>(
+      `SELECT owner_id FROM app.workspaces WHERE id = $1;`,
+      [workspaceId]
+    );
+    if (ownerRes.rows[0]?.owner_id !== actorUserId) {
+      throw new ForbiddenError(`FORBIDDEN: You cannot record receipts for other recipients' deliveries.`);
+    }
+  }
+
   const nextStatus = input.status;
+
+  // Monotonic state transitions: cannot regress from 'opened' back to 'delivered'
+  if (current.status === 'opened' && nextStatus === 'delivered') {
+    return mapRowToDelivery(current);
+  }
 
   const updateRes = await client.query<ReminderDeliveryDbRow>(
     `
     UPDATE app.reminder_deliveries SET
       status = $1,
-      opened_at = CASE WHEN $1 = 'opened' THEN now() ELSE opened_at END,
+      opened_at = CASE WHEN $1 = 'opened' THEN COALESCE(opened_at, now()) ELSE opened_at END,
       updated_at = now()
     WHERE id = $2 AND workspace_id = $3
     RETURNING *;
@@ -778,7 +904,7 @@ export async function recordDeliveryReceipt(
       UPDATE app.reminder_instances SET
         status = 'observed',
         updated_at = now()
-      WHERE id = $1 AND workspace_id = $2;
+      WHERE id = $1 AND workspace_id = $2 AND status != 'invalidated';
       `,
       [current.instance_id, workspaceId]
     );
@@ -788,16 +914,17 @@ export async function recordDeliveryReceipt(
 }
 
 /**
- * Invalidates pending reminder instances for a given target entity.
- * Called when tasks are completed, routines are paused, or dates/targets change.
+ * Invalidates all pending/scheduled reminder instances for a given target entity.
  */
 export async function invalidateTargetReminders(
   client: PoolClient,
   workspaceId: string,
-  targetType: 'task' | 'routine' | 'calendar_event',
-  targetId: string,
-  reason: string
+  arg3: string,
+  arg4: string,
+  arg5?: string
 ): Promise<number> {
+  const targetId = arg5 !== undefined ? arg4 : arg3;
+  const reason = arg5 !== undefined ? arg5 : arg4;
   const res = await client.query(
     `
     UPDATE app.reminder_instances SET
@@ -805,11 +932,371 @@ export async function invalidateTargetReminders(
       invalidated_reason = $1,
       invalidation_time = now(),
       updated_at = now()
-    WHERE workspace_id = $2 AND target_type = $3 AND target_id = $4
-      AND status IN ('scheduled', 'snoozed');
+    WHERE workspace_id = $2 AND target_id = $3 AND status IN ('scheduled', 'snoozed');
     `,
-    [reason, workspaceId, targetType, targetId]
+    [reason, workspaceId, targetId]
+  );
+  return res.rowCount ?? 0;
+}
+
+/**
+ * Rebuilds reminder instances for a target entity after source updates
+ * (deadline edit, timezone change, pause/resume, or restoration from trash).
+ */
+export async function rebuildTargetReminders(
+  client: PoolClient,
+  workspaceId: string,
+  arg3: string,
+  arg4: string,
+  arg5?: string,
+  arg6?: string
+): Promise<number> {
+  const targetId = arg6 !== undefined ? arg4 : arg3;
+  const actorUserId = arg6 !== undefined ? arg5! : arg4;
+  const reason = arg6 !== undefined ? arg6 : (arg5 || 'target_updated');
+  // 1. Invalidate stale pending instances
+  await invalidateTargetReminders(client, workspaceId, targetId, reason);
+
+  // 2. Fetch all active reminder rules for this target
+  const rulesRes = await client.query<ReminderRuleDbRow>(
+    `SELECT * FROM app.reminder_rules WHERE workspace_id = $1 AND target_id = $2 AND is_active = true AND deleted_at IS NULL;`,
+    [workspaceId, targetId]
   );
 
-  return res.rowCount ?? 0;
+  if (rulesRes.rows.length === 0) {
+    return 0;
+  }
+
+  // 3. For each active rule, load current target timing and rematerialize
+  let newlyScheduled = 0;
+  for (const row of rulesRes.rows) {
+    const rule = mapRowToRule(row);
+    try {
+      const targetTiming = await loadTargetTiming(client, workspaceId, rule.targetType, targetId);
+
+      // If target is done or deleted, do not schedule
+      if (targetTiming.isDone || targetTiming.isDeleted) {
+        continue;
+      }
+
+      const occurrences = materializeReminderOccurrences({
+        rule,
+        target: targetTiming,
+        horizonDays: 14,
+        now: new Date(),
+      });
+
+      for (const occ of occurrences) {
+        const instRes = await client.query<{ id: string }>(
+          `
+          INSERT INTO app.reminder_instances (
+            workspace_id, rule_id, rule_revision, delivery_generation, occurrence_key,
+            target_type, target_id, scheduled_at, original_scheduled_at, status
+          )
+          VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, 'scheduled')
+          ON CONFLICT (workspace_id, rule_id, rule_revision, occurrence_key) DO NOTHING
+          RETURNING id;
+          `,
+          [
+            workspaceId,
+            rule.id,
+            rule.ruleRevision,
+            occ.occurrenceKey,
+            rule.targetType,
+            rule.targetId,
+            occ.scheduledAt,
+            occ.originalScheduledAt,
+          ]
+        );
+
+        if (instRes.rows.length > 0) {
+          newlyScheduled++;
+          await client.query(
+            `
+            INSERT INTO app.background_jobs (task_type, payload, run_at, status)
+            VALUES ('reminder_delivery', $1::jsonb, $2, 'pending');
+            `,
+            [
+              JSON.stringify({
+                workspaceId,
+                instanceId: instRes.rows[0]!.id,
+                ruleId: rule.id,
+                ruleRevision: rule.ruleRevision,
+                deliveryGeneration: 1,
+                targetType: rule.targetType,
+                targetId: rule.targetId,
+                actorUserId,
+              }),
+              occ.scheduledAt,
+            ]
+          );
+        }
+      }
+    } catch {
+      // If target deleted or not found, skip rule
+    }
+  }
+
+  return newlyScheduled;
+}
+
+/**
+ * Replenishes rolling horizon occurrences for all recurring reminder rules
+ * without stopping after the initial 14 days. Idempotently skips already scheduled occurrences.
+ */
+export async function replenishRollingHorizonReminders(
+  client: PoolClient,
+  workspaceId?: string,
+  horizonDays = 14
+): Promise<number> {
+  let query = `
+    SELECT * FROM app.reminder_rules
+    WHERE is_active = true AND deleted_at IS NULL AND recurrence != 'none'
+  `;
+  const params: unknown[] = [];
+  if (workspaceId) {
+    query += ` AND workspace_id = $1`;
+    params.push(workspaceId);
+  }
+
+  const rulesRes = await client.query<ReminderRuleDbRow>(query, params);
+  let newlyScheduled = 0;
+
+  for (const row of rulesRes.rows) {
+    const rule = mapRowToRule(row);
+    try {
+      const targetTiming = await loadTargetTiming(client, rule.workspaceId, rule.targetType, rule.targetId);
+      if (targetTiming.isDone || targetTiming.isDeleted) {
+        continue;
+      }
+
+      const occurrences = materializeReminderOccurrences({
+        rule,
+        target: targetTiming,
+        horizonDays,
+        now: new Date(),
+      });
+
+      for (const occ of occurrences) {
+        const instRes = await client.query<{ id: string }>(
+          `
+          INSERT INTO app.reminder_instances (
+            workspace_id, rule_id, rule_revision, delivery_generation, occurrence_key,
+            target_type, target_id, scheduled_at, original_scheduled_at, status
+          )
+          VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, 'scheduled')
+          ON CONFLICT (workspace_id, rule_id, rule_revision, occurrence_key) DO NOTHING
+          RETURNING id;
+          `,
+          [
+            rule.workspaceId,
+            rule.id,
+            rule.ruleRevision,
+            occ.occurrenceKey,
+            rule.targetType,
+            rule.targetId,
+            occ.scheduledAt,
+            occ.originalScheduledAt,
+          ]
+        );
+
+        if (instRes.rows.length > 0) {
+          newlyScheduled++;
+          await client.query(
+            `
+            INSERT INTO app.background_jobs (task_type, payload, run_at, status)
+            VALUES ('reminder_delivery', $1::jsonb, $2, 'pending');
+            `,
+            [
+              JSON.stringify({
+                workspaceId: rule.workspaceId,
+                instanceId: instRes.rows[0]!.id,
+                ruleId: rule.id,
+                ruleRevision: rule.ruleRevision,
+                deliveryGeneration: 1,
+                targetType: rule.targetType,
+                targetId: rule.targetId,
+              }),
+              occ.scheduledAt,
+            ]
+          );
+        }
+      }
+    } catch {
+      // Target may be gone
+    }
+  }
+
+  return newlyScheduled;
+}
+
+// ============================================================================
+// Phase 28: Device Registration & Schedule Coordination Service Methods
+// ============================================================================
+
+/**
+ * Registers or updates a client device installation.
+ * Enforces token ownership hygiene: if a push token is transferred from another account,
+ * deactivates the previous ownership to prevent authorization hijacking.
+ */
+export async function registerDevice(
+  client: PoolClient,
+  userId: string,
+  input: RegisterDeviceRequest
+): Promise<Device> {
+  const pushToken = input.pushToken?.trim() || null;
+
+  // Protect against token hijacking: if pushToken already registered to another user, deactivate it
+  if (pushToken) {
+    await client.query(
+      `
+      UPDATE app.devices
+      SET is_active = false, push_token = NULL, updated_at = now()
+      WHERE push_token = $1 AND user_id != $2;
+      `,
+      [pushToken, userId]
+    );
+  }
+
+  const upsertRes = await client.query<DeviceDbRow>(
+    `
+    INSERT INTO app.devices (
+      user_id, installation_id, platform, push_token, token_type, capabilities, is_active, last_seen_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb, true, now())
+    ON CONFLICT (user_id, installation_id) DO UPDATE SET
+      platform = EXCLUDED.platform,
+      push_token = EXCLUDED.push_token,
+      token_type = EXCLUDED.token_type,
+      capabilities = EXCLUDED.capabilities,
+      is_active = true,
+      last_seen_at = now(),
+      updated_at = now()
+    RETURNING *;
+    `,
+    [
+      userId,
+      input.installationId,
+      input.platform,
+      pushToken,
+      input.tokenType,
+      JSON.stringify(input.capabilities || {}),
+    ]
+  );
+
+  return mapRowToDevice(upsertRes.rows[0]!);
+}
+
+/**
+ * Deactivates a device registration on user sign-out or uninstall.
+ */
+export async function deactivateDevice(
+  client: PoolClient,
+  userId: string,
+  installationId: string
+): Promise<{ success: boolean }> {
+  await client.query(
+    `
+    UPDATE app.devices
+    SET is_active = false, push_token = NULL, updated_at = now()
+    WHERE user_id = $1 AND installation_id = $2;
+    `,
+    [userId, installationId]
+  );
+  return { success: true };
+}
+
+/**
+ * Lists active registered devices for a user.
+ */
+export async function listUserDevices(
+  client: PoolClient,
+  userId: string
+): Promise<Device[]> {
+  const res = await client.query<DeviceDbRow>(
+    `SELECT * FROM app.devices WHERE user_id = $1 AND is_active = true ORDER BY last_seen_at DESC;`,
+    [userId]
+  );
+  return res.rows.map(mapRowToDevice);
+}
+
+/**
+ * Acknowledges a device's local schedule for a reminder instance, coordinating
+ * between device-local delivery and server push fallback.
+ */
+export async function acknowledgeDeviceSchedule(
+  client: PoolClient,
+  workspaceId: string,
+  actorUserId: string,
+  input: AcknowledgeDeviceScheduleRequest
+): Promise<DeviceSchedule> {
+  await assertPersonalWorkspace(client, workspaceId);
+
+  // Verify device belongs to actor
+  const devRes = await client.query<{ id: string; user_id: string }>(
+    `SELECT id, user_id FROM app.devices WHERE id = $1;`,
+    [input.deviceId]
+  );
+  if (devRes.rows.length === 0) {
+    throw new NotFoundError(`Device ${input.deviceId} not found`);
+  }
+  if (devRes.rows[0]?.user_id !== actorUserId) {
+    throw new ForbiddenError(`FORBIDDEN: Device does not belong to the authenticated user`);
+  }
+
+  // Verify instance exists in workspace
+  const instRes = await client.query<{ id: string }>(
+    `SELECT id FROM app.reminder_instances WHERE id = $1 AND workspace_id = $2;`,
+    [input.instanceId, workspaceId]
+  );
+  if (instRes.rows.length === 0) {
+    throw new NotFoundError(`Reminder instance ${input.instanceId} not found in workspace`);
+  }
+
+  const upsertRes = await client.query<DeviceScheduleDbRow>(
+    `
+    INSERT INTO app.device_reminder_schedules (
+      workspace_id, instance_id, device_id, rule_revision, delivery_generation,
+      native_notification_id, delivery_mode, acknowledged, acknowledged_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $8 = true THEN now() ELSE NULL END)
+    ON CONFLICT (instance_id, device_id, delivery_generation) DO UPDATE SET
+      rule_revision = EXCLUDED.rule_revision,
+      native_notification_id = EXCLUDED.native_notification_id,
+      delivery_mode = EXCLUDED.delivery_mode,
+      acknowledged = EXCLUDED.acknowledged,
+      acknowledged_at = CASE WHEN EXCLUDED.acknowledged = true THEN now() ELSE NULL END,
+      updated_at = now()
+    RETURNING *;
+    `,
+    [
+      workspaceId,
+      input.instanceId,
+      input.deviceId,
+      input.ruleRevision,
+      input.deliveryGeneration,
+      input.nativeNotificationId || null,
+      input.deliveryMode,
+      input.acknowledged,
+    ]
+  );
+
+  return mapRowToDeviceSchedule(upsertRes.rows[0]!);
+}
+
+/**
+ * Lists device schedule acknowledgments for a reminder instance.
+ */
+export async function listDeviceSchedules(
+  client: PoolClient,
+  workspaceId: string,
+  instanceId: string
+): Promise<DeviceSchedule[]> {
+  await assertPersonalWorkspace(client, workspaceId);
+
+  const res = await client.query<DeviceScheduleDbRow>(
+    `SELECT * FROM app.device_reminder_schedules WHERE workspace_id = $1 AND instance_id = $2;`,
+    [workspaceId, instanceId]
+  );
+  return res.rows.map(mapRowToDeviceSchedule);
 }

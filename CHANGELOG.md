@@ -23,7 +23,14 @@
   - Implemented handler for `task_type === 'reminder_delivery'` in `DaynoriWorker` using PostgreSQL `FOR UPDATE SKIP LOCKED` and lease fencing (`leased_until > now()`).
   - Added pre-dispatch target verification (invalidating reminders for completed/cancelled/deleted items), quiet hours handling (`drop`, `defer`, `allow`), payload redaction, and channel deduplication.
 - **Integration Test Suite (`tests/integration`):**
-  - Added `tests/integration/phase27-reminders.test.ts` (13 passing tests) verifying pure domain logic, RLS isolation, task completion invalidation, deadline rescheduling invalidation, snooze transitions, delivery receipts, worker leased-job crash recovery, duplicate delivery suppression, and quiet hours drop behavior.
+  - Added `tests/integration/phase27-reminders.test.ts` (19 passing tests) verifying pure domain logic, RLS isolation, task completion invalidation, deadline rescheduling invalidation, snooze transitions, delivery receipts, worker leased-job crash recovery, duplicate delivery suppression, quiet hours drop behavior, truthful unavailable delivery status without push adapter, quiet hours deferral job preservation through full polling lifecycle, source deadline updates rebuilding future occurrences, and optimistic concurrency `baseRevision` enforcement.
+- **Defect Repairs & Invariant Hardening (`apps/worker`, `apps/api`, `packages/domain`, `packages/contracts`):**
+  - Removed fabricated `prov_*` acceptance; missing push provider produces truthful `unavailable` status; push deliveries only record acceptance when confirmed by an active push adapter.
+  - Fixed quiet-hours deferral in outer worker loop to preserve jobs returning `deferred`/`rescheduled` with updated `run_at` instead of marking them `completed`.
+  - Redefined snooze calculation relative to user action instant (not stale scheduled_at), advancing `delivery_generation` so prior deliveries do not suppress snoozed alerts and duplicate snooze requests remain idempotent.
+  - Added `rebuildTargetReminders` hooks on task deadline changes, routine schedule/pause/resume updates, and calendar event updates to recompute eligible occurrences. Added durable rolling-horizon replenishment (`replenishRollingHorizonReminders`).
+  - Enforced optimistic concurrency via `baseRevision` checks on rule updates, atomic instance/job mutations, monotonic delivery receipt state transitions (preventing clients from regressing `opened` or fabricating delivery states), and verified tenant scoping on pooled connections.
+  - Exposed `quietHours` in `@daynori/contracts` `UserProfilePreferencesSchema` and `DisplayPreferencesSchema`, enabling validated preference synchronization instead of relying on administrative fixtures.
 - **Decision Record:**
   - Published [ADR-0033: Reminder Scheduling, Recurrence Instances, and Durable Delivery Jobs](docs/decisions/0033-reminder-scheduling-and-durable-delivery-jobs.md).
 

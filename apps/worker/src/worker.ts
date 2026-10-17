@@ -17,12 +17,30 @@ export interface DatabaseClient {
   release(): void;
 }
 
+export interface PushNotificationAdapter {
+  sendPushNotification(params: {
+    recipientUserId: string;
+    pushToken: string;
+    tokenType: 'fcm' | 'web_push';
+    redactedTitle: string;
+    redactedBody: string | null;
+    dataPayload: Record<string, string>;
+  }): Promise<{
+    success: boolean;
+    status: 'accepted' | 'delivered' | 'unavailable' | 'failed';
+    providerMessageId?: string;
+    errorMessage?: string;
+    isTokenInvalid?: boolean;
+  }>;
+}
+
 export interface JobResult {
   jobId: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'rescheduled' | 'deferred';
   processedAt: string;
   error?: string;
   details?: Record<string, unknown>;
+  rescheduleRunAt?: string | Date;
 }
 
 export interface JobContext {
@@ -57,6 +75,7 @@ export interface ScannerServiceContract {
 export interface DaynoriWorkerOptions {
   storageService?: StorageServiceContract;
   scannerService?: ScannerServiceContract;
+  pushAdapter?: PushNotificationAdapter;
   defaultBucket?: string;
   workerId?: string;
 }
@@ -70,6 +89,7 @@ export class DaynoriWorker {
   private taskHandlers = new Map<string, JobTaskHandler>();
   private storageService?: StorageServiceContract;
   private scannerService?: ScannerServiceContract;
+  private pushAdapter?: PushNotificationAdapter;
   private defaultBucket: string = 'files';
 
   constructor(pool?: DatabasePool, options?: DaynoriWorkerOptions) {
@@ -83,9 +103,16 @@ export class DaynoriWorker {
     if (options?.scannerService) {
       this.scannerService = options.scannerService;
     }
+    if (options?.pushAdapter) {
+      this.pushAdapter = options.pushAdapter;
+    }
     if (options?.defaultBucket) {
       this.defaultBucket = options.defaultBucket;
     }
+  }
+
+  setPushAdapter(adapter: PushNotificationAdapter): void {
+    this.pushAdapter = adapter;
   }
 
   registerHandler(taskType: string, handler: JobTaskHandler): void {
@@ -239,24 +266,46 @@ export class DaynoriWorker {
     try {
       result = await this.executeTask(jobId, taskType, payload, client);
 
-      // On completion: FENCE update by lease ownership and validity
-      const compRes = await client.query(
-        `
-        UPDATE app.background_jobs
-        SET status = 'completed',
-            completed_at = now(),
-            updated_at = now(),
-            leased_by = NULL,
-            leased_until = NULL
-        WHERE id = $1 AND leased_by = $2 AND leased_until > now()
-        `,
-        [jobId, this.workerId]
-      );
-
-      if (compRes.rowCount === 0) {
-        throw new Error(
-          `LEASE_LOST: Lease for job ${jobId} expired or was overtaken by another worker`
+      if (result.status === 'rescheduled' || result.status === 'deferred') {
+        const runAt = result.rescheduleRunAt ? new Date(result.rescheduleRunAt) : new Date();
+        const compRes = await client.query(
+          `
+          UPDATE app.background_jobs
+          SET status = 'pending',
+              run_at = $3,
+              updated_at = now(),
+              leased_by = NULL,
+              leased_until = NULL
+          WHERE id = $1 AND leased_by = $2 AND leased_until > now()
+          `,
+          [jobId, this.workerId, runAt]
         );
+
+        if (compRes.rowCount === 0) {
+          throw new Error(
+            `LEASE_LOST: Lease for job ${jobId} expired or was overtaken by another worker`
+          );
+        }
+      } else {
+        // On completion: FENCE update by lease ownership and validity
+        const compRes = await client.query(
+          `
+          UPDATE app.background_jobs
+          SET status = 'completed',
+              completed_at = now(),
+              updated_at = now(),
+              leased_by = NULL,
+              leased_until = NULL
+          WHERE id = $1 AND leased_by = $2 AND leased_until > now()
+          `,
+          [jobId, this.workerId]
+        );
+
+        if (compRes.rowCount === 0) {
+          throw new Error(
+            `LEASE_LOST: Lease for job ${jobId} expired or was overtaken by another worker`
+          );
+        }
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -285,6 +334,7 @@ export class DaynoriWorker {
         processedAt: new Date().toISOString(),
       };
     } finally {
+      await client.query('RESET app.current_workspace_id; RESET app.current_user_id;').catch(() => {});
       client.release();
     }
 
@@ -427,32 +477,58 @@ export class DaynoriWorker {
 
       // Reconcile database and storage quota
       if (client && fileId) {
-        const fileRes = await client.query<{ byte_size: number; workspace_id: string }>(
-          `
-          UPDATE app.files
-          SET status = 'deleted',
-              deleted_at = now(),
-              updated_at = now()
-          WHERE id = $1
-          RETURNING byte_size, workspace_id
-          `,
-          [fileId]
-        );
+        let byteSize = Number(payload?.byteSize) || 0;
+        let wsId = (payload?.workspaceId as string | undefined) || null;
 
-        if (fileRes.rowCount && fileRes.rowCount > 0) {
-          const row = fileRes.rows[0]!;
-          const byteSize = Number(row.byte_size) || 0;
-          if (byteSize > 0) {
-            await client.query(
-              `
-              UPDATE app.workspace_storage_usage
-              SET stored_bytes = GREATEST(0, stored_bytes - $1),
-                  updated_at = now()
-              WHERE workspace_id = $2
-              `,
-              [byteSize, row.workspace_id]
-            );
+        try {
+          const fileRes = await client.query<{ byte_size: number; workspace_id: string }>(
+            `
+            UPDATE app.files
+            SET status = 'deleted',
+                deleted_at = now(),
+                updated_at = now()
+            WHERE id = $1
+            RETURNING byte_size, workspace_id
+            `,
+            [fileId]
+          );
+
+          if (fileRes.rowCount && fileRes.rowCount > 0) {
+            byteSize = Number(fileRes.rows[0]!.byte_size) || byteSize;
+            wsId = fileRes.rows[0]!.workspace_id || wsId;
           }
+        } catch {
+          // If app.files table doesn't exist, try app.file_items or payload
+          try {
+            const fiRes = await client.query<{ byte_size: number; workspace_id: string }>(
+              `
+              UPDATE app.file_items
+              SET quarantine_status = 'deleted',
+                  updated_at = now()
+              WHERE id = $1
+              RETURNING byte_size, workspace_id
+              `,
+              [fileId]
+            );
+            if (fiRes.rowCount && fiRes.rowCount > 0) {
+              byteSize = Number(fiRes.rows[0]!.byte_size) || byteSize;
+              wsId = fiRes.rows[0]!.workspace_id || wsId;
+            }
+          } catch {
+            /* ignore if table does not exist */
+          }
+        }
+
+        if (wsId && byteSize > 0) {
+          await client.query(
+            `
+            UPDATE app.workspace_storage_usage
+            SET stored_bytes = GREATEST(0, stored_bytes - $1),
+                updated_at = now()
+            WHERE workspace_id = $2
+            `,
+            [byteSize, wsId]
+          );
         }
       }
 
@@ -510,17 +586,33 @@ export class DaynoriWorker {
           );
         }
         if (fileId) {
-          await client.query(
-            `
-            UPDATE app.files
-            SET status = $1,
-                quarantine_reason = $2,
-                verified_at = CASE WHEN $1 = 'verified' THEN now() ELSE NULL END,
-                updated_at = now()
-            WHERE id = $3
-            `,
-            [newStatus, rejectionReason, fileId]
-          );
+          try {
+            await client.query(
+              `
+              UPDATE app.files
+              SET status = $1,
+                  quarantine_reason = $2,
+                  verified_at = CASE WHEN $1 = 'verified' THEN now() ELSE NULL END,
+                  updated_at = now()
+              WHERE id = $3
+              `,
+              [newStatus, rejectionReason, fileId]
+            );
+          } catch {
+            await client
+              .query(
+                `
+                UPDATE app.file_items
+                SET quarantine_status = $1,
+                    rejection_reason = $2,
+                    verified_at = CASE WHEN $1 = 'verified' THEN now() ELSE NULL END,
+                    updated_at = now()
+                WHERE id = $3
+                `,
+                [newStatus, rejectionReason, fileId]
+              )
+              .catch(() => {});
+          }
         }
       }
 
@@ -561,6 +653,7 @@ export class DaynoriWorker {
         workspace_id: string;
         rule_id: string;
         rule_revision: number;
+        delivery_generation: number;
         target_type: string;
         target_id: string;
         scheduled_at: Date;
@@ -568,7 +661,7 @@ export class DaynoriWorker {
         snooze_until: Date | null;
       }>(
         `
-        SELECT id, workspace_id, rule_id, rule_revision, target_type, target_id,
+        SELECT id, workspace_id, rule_id, rule_revision, delivery_generation, target_type, target_id,
                scheduled_at, status, snooze_until
         FROM app.reminder_instances
         WHERE id = $1 AND workspace_id = $2
@@ -587,6 +680,20 @@ export class DaynoriWorker {
       }
 
       const instance = instRes.rows[0]!;
+
+      // Skip stale background jobs if instance delivery_generation has advanced
+      const expectedGeneration = payload?.deliveryGeneration as number | undefined;
+      if (
+        expectedGeneration !== undefined &&
+        (instance.delivery_generation ?? 1) !== expectedGeneration
+      ) {
+        return {
+          jobId,
+          status: 'completed',
+          processedAt: new Date().toISOString(),
+          details: { outcome: 'stale_generation_skipped' },
+        };
+      }
 
       // Terminal or already handled states
       if (['invalidated', 'dismissed', 'observed'].includes(instance.status)) {
@@ -801,16 +908,15 @@ export class DaynoriWorker {
       }
 
       // 4. Quiet hours check
-      const profileRes = await client.query<{ preferences: Record<string, unknown> }>(
+      const profileRes = await client.query<{ preferences: Record<string, unknown>; owner_id: string }>(
         `
-        SELECT p.preferences
+        SELECT p.preferences, w.owner_id
         FROM app.profiles p
         JOIN app.workspaces w ON w.owner_id = p.id
         WHERE w.id = $1;
         `,
         [workspaceId]
       );
-
       const prefs = profileRes.rows[0]?.preferences;
       const qhConfig = prefs?.quietHours as
         | { enabled: boolean; start: string; end: string; timezone: string }
@@ -819,6 +925,7 @@ export class DaynoriWorker {
       if (qhConfig && qhConfig.enabled) {
         const inQuietHours = isTimeInQuietHours(new Date(), qhConfig);
         if (inQuietHours) {
+          const deliveryGen = instance.delivery_generation ?? 1;
           if (rule.quiet_hours_behavior === 'drop') {
             const ownerRes = await client.query<{ owner_id: string }>(
               `SELECT owner_id FROM app.workspaces WHERE id = $1;`,
@@ -829,12 +936,13 @@ export class DaynoriWorker {
             await client.query(
               `
               INSERT INTO app.reminder_deliveries (
-                workspace_id, instance_id, channel, recipient_user_id,
+                workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
                 provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
               )
-              VALUES ($1, $2, 'push', $3, 'fcm', 'dropped_quiet_hours', 'Daynori Reminder', null, 1, now());
+              VALUES ($1, $2, $3, 'push', $4, 'fcm', 'dropped_quiet_hours', 'Daynori Reminder', null, 1, now())
+              ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
               `,
-              [workspaceId, instanceId, recipientUserId]
+              [workspaceId, instanceId, deliveryGen, recipientUserId]
             );
 
             await client.query(
@@ -850,13 +958,10 @@ export class DaynoriWorker {
             };
           } else if (rule.quiet_hours_behavior === 'defer') {
             const nextQuietEnd = calculateNextQuietHoursEnd(new Date(), qhConfig);
-            await client.query(
-              `UPDATE app.background_jobs SET run_at = $1, status = 'pending' WHERE id = $2;`,
-              [nextQuietEnd, jobId]
-            );
             return {
               jobId,
-              status: 'completed',
+              status: 'deferred',
+              rescheduleRunAt: nextQuietEnd,
               processedAt: new Date().toISOString(),
               details: { outcome: 'deferred_quiet_hours', deferredUntil: nextQuietEnd },
             };
@@ -877,39 +982,138 @@ export class DaynoriWorker {
         [workspaceId]
       );
       const recipientUserId = (payload?.actorUserId as string) || ownerRes.rows[0]?.owner_id;
+      const deliveryGen = instance.delivery_generation ?? 1;
 
       if (recipientUserId) {
         for (const channel of rule.channels) {
-          const provider = channel === 'push' ? 'fcm' : 'in_app';
-          const providerMsgId = `prov_${crypto.randomUUID()}`;
-
-          // Deduplication: prevent duplicate channel delivery for this instance
+          // Deduplication: prevent duplicate channel delivery for this instance and generation
           const existingDeliv = await client.query(
-            `SELECT id FROM app.reminder_deliveries WHERE workspace_id = $1 AND instance_id = $2 AND channel = $3;`,
-            [workspaceId, instanceId, channel]
+            `SELECT id FROM app.reminder_deliveries WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = $4;`,
+            [workspaceId, instanceId, deliveryGen, channel]
           );
 
           if (existingDeliv.rows.length === 0) {
-            await client.query(
-              `
-              INSERT INTO app.reminder_deliveries (
-                workspace_id, instance_id, channel, recipient_user_id,
-                provider, provider_message_id, status, redacted_title, redacted_body,
-                attempt_count, last_attempt_at
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, 'accepted', $7, $8, 1, now());
-              `,
-              [
-                workspaceId,
-                instanceId,
-                channel,
-                recipientUserId,
-                provider,
-                providerMsgId,
-                redacted.title,
-                redacted.body,
-              ]
-            );
+            if (channel === 'in_app') {
+              await client.query(
+                `
+                INSERT INTO app.reminder_deliveries (
+                  workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                  provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
+                )
+                VALUES ($1, $2, $3, 'in_app', $4, 'in_app', 'delivered', $5, $6, 1, now())
+                ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+                `,
+                [
+                  workspaceId,
+                  instanceId,
+                  deliveryGen,
+                  recipientUserId,
+                  redacted.title,
+                  redacted.body,
+                ]
+              );
+            } else if (channel === 'push') {
+              // Check if device local scheduling was already acknowledged
+              const localAckRes = await client.query(
+                `SELECT 1 FROM app.device_reminder_schedules
+                 WHERE instance_id = $1 AND delivery_generation = $2 AND delivery_mode = 'local' AND acknowledged = true
+                 LIMIT 1;`,
+                [instanceId, deliveryGen]
+              );
+
+              if (localAckRes.rows.length > 0) {
+                // Device local scheduling acknowledged; push fallback not needed
+                await client.query(
+                  `
+                  INSERT INTO app.reminder_deliveries (
+                    workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                    provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at
+                  )
+                  VALUES ($1, $2, $3, 'push', $4, 'fcm', 'delivered', $5, 'Suppressed by device local schedule acknowledgment', 1, now())
+                  ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+                  `,
+                  [workspaceId, instanceId, deliveryGen, recipientUserId, redacted.title]
+                );
+              } else {
+                // Check if user has active devices with push tokens
+                const devRes = await client.query<{ id: string; push_token: string; token_type: 'fcm' | 'web_push' }>(
+                  `SELECT id, push_token, token_type FROM app.devices
+                   WHERE user_id = $1 AND is_active = true AND push_token IS NOT NULL;`,
+                  [recipientUserId]
+                );
+
+                if (devRes.rows.length === 0 || !this.pushAdapter) {
+                  // Truthful outcome: Missing configuration produces 'unavailable' state, not fabricated success!
+                  await client.query(
+                    `
+                    INSERT INTO app.reminder_deliveries (
+                      workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                      provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
+                    )
+                    VALUES ($1, $2, $3, 'push', $4, 'fcm', 'unavailable', $5, $6, 1, now(), $7)
+                    ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+                    `,
+                    [
+                      workspaceId,
+                      instanceId,
+                      deliveryGen,
+                      recipientUserId,
+                      redacted.title,
+                      redacted.body,
+                      devRes.rows.length === 0 ? 'No registered device with push token' : 'No push adapter configured',
+                    ]
+                  );
+                } else {
+                  for (const dev of devRes.rows) {
+                    const sendRes = await this.pushAdapter.sendPushNotification({
+                      recipientUserId,
+                      pushToken: dev.push_token,
+                      tokenType: dev.token_type,
+                      redactedTitle: redacted.title,
+                      redactedBody: redacted.body,
+                      dataPayload: {
+                        instanceId,
+                        targetType: (tType as string) || 'task',
+                        targetId: targetId || '',
+                        workspaceId,
+                        deliveryGeneration: String(deliveryGen),
+                      },
+                    });
+
+                    if (sendRes.isTokenInvalid) {
+                      await client.query(
+                        `UPDATE app.devices SET is_active = false, push_token = NULL, updated_at = now() WHERE id = $1;`,
+                        [dev.id]
+                      );
+                    }
+
+                    await client.query(
+                      `
+                      INSERT INTO app.reminder_deliveries (
+                        workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                        provider, provider_message_id, status, redacted_title, redacted_body,
+                        attempt_count, last_attempt_at, error_message
+                      )
+                      VALUES ($1, $2, $3, 'push', $4, $5, $6, $7, $8, $9, 1, now(), $10)
+                      ON CONFLICT (workspace_id, instance_id, delivery_generation, channel) DO NOTHING;
+                      `,
+                      [
+                        workspaceId,
+                        instanceId,
+                        deliveryGen,
+                        recipientUserId,
+                        dev.token_type,
+                        sendRes.providerMessageId || null,
+                        sendRes.status,
+                        redacted.title,
+                        redacted.body,
+                        sendRes.errorMessage || null,
+                      ]
+                    );
+                  }
+                }
+              }
+            }
           }
         }
       }

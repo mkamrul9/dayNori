@@ -21,7 +21,7 @@ import {
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
-import { invalidateTargetReminders } from '../reminders/service.js';
+import { invalidateTargetReminders, rebuildTargetReminders } from '../reminders/service.js';
 
 interface CalendarEventDbRow {
   id: string;
@@ -399,7 +399,7 @@ export async function updateCalendarEvent(
     input.endAt !== undefined ||
     input.timezone !== undefined
   ) {
-    await invalidateTargetReminders(client, workspaceId, 'calendar_event', eventId, 'event_rescheduled');
+    await rebuildTargetReminders(client, workspaceId, 'calendar_event', eventId, actorUserId, 'event_rescheduled');
   }
 
   const seq = syncState.nextChangeSeq;

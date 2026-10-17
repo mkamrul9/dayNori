@@ -45,9 +45,17 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
     - Acquires jobs with PostgreSQL `FOR UPDATE SKIP LOCKED` and lease fencing (`leased_until > now()`).
     - Rechecks target active revision before delivery; if target completed/cancelled/deleted, marks instance `invalidated` without dispatching alerts.
     - Enforces quiet hours behaviors: `drop` (marks delivery `dropped_quiet_hours` and instance `dismissed`), `defer` (reschedules job to quiet hours end), and `allow`.
-    - Deduplicates channel deliveries for each instance.
+    - Deduplicates channel deliveries for each instance and delivery generation.
+    - Truthful delivery reporting: replaces fabricated `prov_*` acceptance rows with real adapter confirmation or honest `unavailable` status when no push adapter is configured.
+  - **Defect Repairs & Invariant Hardening (2026-10-17)**:
+    - **Truthful Delivery Acceptance**: Removed synthetic `prov_*` provider message generation and unconditionally accepted delivery records. Missing push adapter produces truthful `unavailable` status; push deliveries only record acceptance when confirmed by an active push adapter.
+    - **Quiet-Hours Deferral & Preserved Jobs**: Fixed outer worker loop to recognize `deferred` and `rescheduled` outcomes, preserving pending jobs with updated `run_at` instead of marking them `completed`.
+    - **Snooze Bounds & Generation Advancement**: Redefined snooze calculation relative to user action instant (not stale scheduled_at), advancing `delivery_generation` so previous deliveries do not suppress snoozed alerts and duplicate snooze requests remain idempotent.
+    - **Source Edit Rebuilding & Rolling Replenishment**: Added `rebuildTargetReminders` hooks on task deadline changes, routine schedule/pause/resume updates, and calendar event updates to recompute eligible occurrences. Added durable rolling-horizon replenishment (`replenishRollingHorizonReminders`).
+    - **Concurrency, Receipts & Tenant Scoping**: Enforced optimistic concurrency via `baseRevision` checks on rule updates, atomic instance/job mutations, monotonic delivery receipt state transitions (preventing clients from regressing `opened` or fabricating delivery states), and verified tenant scoping on pooled connections.
+    - **Validated Profile Preferences**: Exposed `quietHours` in `@daynori/contracts` `UserProfilePreferencesSchema` and `DisplayPreferencesSchema`, enabling validated preference synchronization instead of relying on administrative fixtures.
   - **Integration Test Suite (`tests/integration/phase27-reminders.test.ts`)**:
-    - 13 comprehensive integration tests covering pure domain logic, personal workspace boundary assertions, task completion invalidation, task rescheduling invalidation, snooze transitions, delivery receipt tracking, worker leased job crash recovery and deduplication, and quiet hours drop behavior.
+    - 19 comprehensive integration tests (expanded from 13) covering pure domain logic, personal workspace boundary assertions, task completion invalidation, task rescheduling invalidation, snooze transitions with generation advancement, delivery receipt tracking, worker leased job crash recovery and deduplication, quiet hours drop behavior, truthful unavailable delivery status without push adapter, quiet hours deferral job preservation through full polling lifecycle, source deadline updates rebuilding future occurrences, and optimistic concurrency `baseRevision` enforcement.
 - **Excluded/deferred scope:**
   - Physical Android TalkBack screen reader and hardware KeyStore verification remain recorded as `blocked` in `docs/roadmap/progress.json` pending access to physical hardware devices.
   - Native Android notification tokens, FCM credentials, and exact alarm permissions (`SCHEDULE_EXACT_ALARM`) belong to Phase 28 / Phase 29.
@@ -57,11 +65,11 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 
 | Suite / Command                                                        | Result             | Duration | Scope                                                                                                          |
 | ---------------------------------------------------------------------- | ------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `pnpm vitest run tests/integration/phase27-reminders.test.ts`          | Pass (13/13 tests) | 758ms    | End-to-end reminder scheduling, quiet hours, snooze, receipts, worker deduplication                            |
-| `pnpm test:integration`                                                | Pass (271/271 tests)| 10.01s  | Full 20 integration test suites across all phases                                                             |
-| `pnpm test`                                                            | Pass (655/655 tests)| 15.37s  | All 47 test suites across all packages and apps                                                               |
-| `pnpm typecheck`                                                       | Pass (Exit code 0) | ~12s     | Strict TypeScript checking across all 14 workspaces without `any` regressions                                 |
-| `pnpm build`                                                           | Pass (Exit code 0) | ~25s     | Monorepo production builds including domain, contracts, api-client, worker, api, web, and mobile               |
+| `pnpm vitest run tests/integration/phase27-reminders.test.ts`          | Pass (19/19 tests) | 997ms    | End-to-end reminder scheduling, quiet hours, snooze, receipts, worker deduplication, source updates, and concurrency |
+| `pnpm test:integration`                                                | Pass (286/286 tests)| 12.11s  | Full 21 integration test suites across all phases                                                             |
+| `pnpm test`                                                            | Pass (661/661 tests)| 18.25s  | All 47 test suites across all packages and apps                                                               |
+| `pnpm typecheck`                                                       | Pass (Exit code 0) | ~11s     | Strict TypeScript checking across all 14 workspaces without `any` regressions                                 |
+| `pnpm build`                                                           | Pass (Exit code 0) | ~24s     | Monorepo production builds including domain, contracts, api-client, worker, api, web, and mobile               |
 
 ## Blocked gates & physical hardware notes
 

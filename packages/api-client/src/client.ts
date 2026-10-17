@@ -134,15 +134,25 @@ import {
   ReminderInstanceResponseSchema,
   ReminderInstanceListResponseSchema,
   ReminderDeliveryResponseSchema,
+  DeviceResponseSchema,
+  DeviceListResponseSchema,
+  DeviceScheduleResponseSchema,
+  DeviceScheduleListResponseSchema,
   type CreateReminderRuleRequest,
   type UpdateReminderRuleRequest,
   type SnoozeReminderRequest,
   type RecordDeliveryReceiptRequest,
+  type RegisterDeviceRequest,
+  type AcknowledgeDeviceScheduleRequest,
   type ReminderRuleResponse,
   type ReminderRuleListResponse,
   type ReminderInstanceResponse,
   type ReminderInstanceListResponse,
   type ReminderDeliveryResponse,
+  type DeviceResponse,
+  type DeviceListResponse,
+  type DeviceScheduleResponse,
+  type DeviceScheduleListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -1659,6 +1669,62 @@ export class DaynoriApiClient {
       options
     );
     return ReminderDeliveryResponseSchema.parse(raw);
+  }
+
+  // --- Devices & Local Reminders (Phase 28) ---
+
+  async registerDevice(
+    data: RegisterDeviceRequest,
+    options?: RequestOptions
+  ): Promise<DeviceResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/devices',
+      { method: 'POST', body: JSON.stringify(data) },
+      options
+    );
+    return DeviceResponseSchema.parse(raw);
+  }
+
+  async deactivateDevice(
+    deviceId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; id: string }; meta?: { requestId: string } }> {
+    const raw = await this.request<{
+      data: { success: boolean; id: string };
+      meta?: { requestId: string };
+    }>(`/v1/devices/${deviceId}`, { method: 'DELETE' }, options);
+    return raw;
+  }
+
+  async listUserDevices(options?: RequestOptions): Promise<DeviceListResponse> {
+    const raw = await this.request<unknown>('/v1/devices', { method: 'GET' }, options);
+    return DeviceListResponseSchema.parse(raw);
+  }
+
+  async acknowledgeDeviceSchedule(
+    workspaceId: string,
+    data: AcknowledgeDeviceScheduleRequest,
+    options?: RequestOptions
+  ): Promise<DeviceScheduleResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/schedules/acknowledge`,
+      { method: 'POST', body: JSON.stringify(data) },
+      options
+    );
+    return DeviceScheduleResponseSchema.parse(raw);
+  }
+
+  async listDeviceSchedules(
+    workspaceId: string,
+    instanceId: string,
+    options?: RequestOptions
+  ): Promise<DeviceScheduleListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/reminders/instances/${instanceId}/schedules`,
+      { method: 'GET' },
+      options
+    );
+    return DeviceScheduleListResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

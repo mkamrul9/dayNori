@@ -6,14 +6,18 @@ import {
   UpdateReminderRuleRequestSchema,
   SnoozeReminderRequestSchema,
   RecordDeliveryReceiptRequestSchema,
+  RegisterDeviceRequestSchema,
+  AcknowledgeDeviceScheduleRequestSchema,
   ReminderRuleResponseSchema,
   ReminderRuleListResponseSchema,
   ReminderInstanceListResponseSchema,
   ReminderInstanceResponseSchema,
   ReminderDeliveryResponseSchema,
+  DeviceResponseSchema,
+  DeviceScheduleResponseSchema,
   WorkspaceParamsSchema,
 } from '@daynori/contracts';
-import { withTenantContext } from '../../db/index.js';
+import { withTenantContext, withUserContext } from '../../db/index.js';
 import {
   createReminderRule,
   updateReminderRule,
@@ -23,6 +27,11 @@ import {
   listReminderInstances,
   snoozeReminderInstance,
   recordDeliveryReceipt,
+  registerDevice,
+  deactivateDevice,
+  listUserDevices,
+  acknowledgeDeviceSchedule,
+  listDeviceSchedules,
 } from '../../modules/reminders/service.js';
 import { validateResponse, NotFoundError } from '../../plugins/errorHandler.js';
 
@@ -45,6 +54,10 @@ const ListRulesQuerySchema = z.object({
 const ListInstancesQuerySchema = z.object({
   status: z.string().optional(),
   targetId: z.string().uuid().optional(),
+});
+
+const DeviceInstallationParamsSchema = z.object({
+  installationId: z.string().min(1).max(128),
 });
 
 export function registerReminderRoutes(app: FastifyInstance, pool: Pool): void {
@@ -300,7 +313,7 @@ export function registerReminderRoutes(app: FastifyInstance, pool: Pool): void {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
 
-        const delivery = await recordDeliveryReceipt(client, workspaceId, deliveryId, body);
+        const delivery = await recordDeliveryReceipt(client, workspaceId, deliveryId, body, actor.userId);
 
         return reply.status(200).send(
           validateResponse(ReminderDeliveryResponseSchema, {
@@ -308,6 +321,141 @@ export function registerReminderRoutes(app: FastifyInstance, pool: Pool): void {
             meta: { requestId: request.id, serverTime: new Date().toISOString() },
           })
         );
+      });
+    }
+  );
+
+  // 9. Phase 28: Register or update device
+  app.post('/v1/devices', async (request: FastifyRequest, reply) => {
+    const actor = request.actor;
+    if (!actor) {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    const body = RegisterDeviceRequestSchema.parse(request.body);
+
+    return withUserContext(pool, actor.userId, async (client) => {
+      const device = await registerDevice(client, actor.userId, body);
+
+      return reply.status(200).send(
+        validateResponse(DeviceResponseSchema, {
+          data: device,
+          meta: { requestId: request.id, serverTime: new Date().toISOString() },
+        })
+      );
+    });
+  });
+
+  // 10. Phase 28: Deactivate device
+  app.delete('/v1/devices/:installationId', async (request: FastifyRequest, reply) => {
+    const actor = request.actor;
+    if (!actor) {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    const { installationId } = DeviceInstallationParamsSchema.parse(request.params);
+
+    return withUserContext(pool, actor.userId, async (client) => {
+      const result = await deactivateDevice(client, actor.userId, installationId);
+
+      return reply.status(200).send({
+        data: result,
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
+    });
+  });
+
+  // 11. Phase 28: List user devices
+  app.get('/v1/devices', async (request: FastifyRequest, reply) => {
+    const actor = request.actor;
+    if (!actor) {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    return withUserContext(pool, actor.userId, async (client) => {
+      const devices = await listUserDevices(client, actor.userId);
+
+      return reply.status(200).send({
+        data: devices,
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
+    });
+  });
+
+  // 12. Phase 28: Acknowledge device local schedule coordination
+  app.post(
+    '/v1/workspaces/:workspaceId/reminders/schedules/acknowledge',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        });
+      }
+
+      const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+      const body = AcknowledgeDeviceScheduleRequestSchema.parse(request.body);
+
+      return withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
+        const accessRes = await client.query<{ exists: boolean }>(
+          `SELECT app.user_has_workspace_role($1, 'editor') as exists;`,
+          [workspaceId]
+        );
+        if (!accessRes.rows[0]?.exists) {
+          throw new NotFoundError('Workspace not found or unauthorized');
+        }
+
+        const schedule = await acknowledgeDeviceSchedule(
+          client,
+          workspaceId,
+          actor.userId,
+          body
+        );
+
+        return reply.status(200).send(
+          validateResponse(DeviceScheduleResponseSchema, {
+            data: schedule,
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          })
+        );
+      });
+    }
+  );
+
+  // 13. Phase 28: List device schedules for instance
+  app.get(
+    '/v1/workspaces/:workspaceId/reminders/instances/:instanceId/schedules',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        });
+      }
+
+      const { workspaceId, instanceId } = InstanceParamsSchema.parse(request.params);
+
+      return withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
+        const accessRes = await client.query<{ exists: boolean }>(
+          `SELECT app.user_has_workspace_role($1, 'viewer') as exists;`,
+          [workspaceId]
+        );
+        if (!accessRes.rows[0]?.exists) {
+          throw new NotFoundError('Workspace not found or unauthorized');
+        }
+
+        const schedules = await listDeviceSchedules(client, workspaceId, instanceId);
+
+        return reply.status(200).send({
+          data: schedules,
+          meta: { requestId: request.id, serverTime: new Date().toISOString() },
+        });
       });
     }
   );

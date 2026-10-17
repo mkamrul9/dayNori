@@ -36,6 +36,7 @@ export const ReminderDeliveryStatusSchema = z.enum([
   'delivered',
   'opened',
   'dropped_quiet_hours',
+  'unavailable',
 ]);
 export type ReminderDeliveryStatus = z.infer<typeof ReminderDeliveryStatusSchema>;
 
@@ -82,10 +83,12 @@ export const CreateReminderRuleRequestSchema = z.object({
   quietHoursBehavior: QuietHoursBehaviorSchema.optional().default('defer'),
   channels: z.array(ReminderChannelSchema).optional().default(['in_app', 'push']),
   privacyLevel: ReminderPrivacyLevelSchema.optional().default('generic'),
+  clientMutationId: z.string().optional(),
 });
 export type CreateReminderRuleRequest = z.infer<typeof CreateReminderRuleRequestSchema>;
 
 export const UpdateReminderRuleRequestSchema = z.object({
+  baseRevision: z.number().int().nonnegative().optional(),
   offsetMinutes: z.number().int().nullable().optional(),
   scheduleTime: z
     .string()
@@ -98,6 +101,7 @@ export const UpdateReminderRuleRequestSchema = z.object({
   channels: z.array(ReminderChannelSchema).optional(),
   privacyLevel: ReminderPrivacyLevelSchema.optional(),
   isActive: z.boolean().optional(),
+  clientMutationId: z.string().optional(),
 });
 export type UpdateReminderRuleRequest = z.infer<typeof UpdateReminderRuleRequestSchema>;
 
@@ -108,6 +112,7 @@ export const ReminderInstanceSchema = z.object({
   workspaceId: z.string().uuid(),
   ruleId: z.string().uuid(),
   ruleRevision: z.number().int(),
+  deliveryGeneration: z.number().int().default(1),
   occurrenceKey: z.string().min(1),
   targetType: ReminderTargetTypeSchema,
   targetId: z.string().uuid(),
@@ -124,6 +129,7 @@ export type ReminderInstance = z.infer<typeof ReminderInstanceSchema>;
 
 export const SnoozeReminderRequestSchema = z.object({
   snoozeMinutes: z.number().int().min(5).max(1440).default(15),
+  clientMutationId: z.string().optional(),
 });
 export type SnoozeReminderRequest = z.infer<typeof SnoozeReminderRequestSchema>;
 
@@ -138,6 +144,7 @@ export const ReminderDeliverySchema = z.object({
   id: z.string().uuid(),
   workspaceId: z.string().uuid(),
   instanceId: z.string().uuid(),
+  deliveryGeneration: z.number().int().default(1),
   channel: ReminderChannelSchema,
   recipientUserId: z.string().uuid(),
   provider: z.enum(['in_app', 'fcm', 'web_push']),
@@ -153,6 +160,65 @@ export const ReminderDeliverySchema = z.object({
   updatedAt: z.string().datetime(),
 });
 export type ReminderDelivery = z.infer<typeof ReminderDeliverySchema>;
+
+// --- Device Registration & Coordination (Phase 28) ---
+
+export const DevicePlatformSchema = z.enum(['android', 'ios', 'web']);
+export type DevicePlatform = z.infer<typeof DevicePlatformSchema>;
+
+export const DeviceTokenTypeSchema = z.enum(['fcm', 'web_push', 'none']);
+export type DeviceTokenType = z.infer<typeof DeviceTokenTypeSchema>;
+
+export const RegisterDeviceRequestSchema = z.object({
+  installationId: z.string().trim().min(1).max(128),
+  platform: DevicePlatformSchema,
+  pushToken: z.string().trim().min(1).max(512).nullable().optional(),
+  tokenType: DeviceTokenTypeSchema.default('none'),
+  capabilities: z.record(z.unknown()).optional().default({}),
+});
+export type RegisterDeviceRequest = z.infer<typeof RegisterDeviceRequestSchema>;
+
+export const DeviceSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  installationId: z.string(),
+  platform: DevicePlatformSchema,
+  pushToken: z.string().nullable(),
+  tokenType: DeviceTokenTypeSchema,
+  capabilities: z.record(z.unknown()),
+  isActive: z.boolean(),
+  lastSeenAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type Device = z.infer<typeof DeviceSchema>;
+
+export const AcknowledgeDeviceScheduleRequestSchema = z.object({
+  instanceId: z.string().uuid(),
+  deviceId: z.string().uuid(),
+  ruleRevision: z.number().int().positive(),
+  deliveryGeneration: z.number().int().positive().default(1),
+  nativeNotificationId: z.string().nullable().optional(),
+  deliveryMode: z.enum(['local', 'push']),
+  acknowledged: z.boolean().default(true),
+});
+export type AcknowledgeDeviceScheduleRequest = z.infer<typeof AcknowledgeDeviceScheduleRequestSchema>;
+
+export const DeviceScheduleSchema = z.object({
+  id: z.string().uuid(),
+  workspaceId: z.string().uuid(),
+  instanceId: z.string().uuid(),
+  deviceId: z.string().uuid(),
+  ruleRevision: z.number().int(),
+  deliveryGeneration: z.number().int(),
+  nativeNotificationId: z.string().nullable(),
+  deliveryMode: z.enum(['local', 'push']),
+  acknowledged: z.boolean(),
+  acknowledgedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type DeviceSchedule = z.infer<typeof DeviceScheduleSchema>;
 
 // --- Response Payloads ---
 
@@ -185,3 +251,27 @@ export const ReminderDeliveryResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type ReminderDeliveryResponse = z.infer<typeof ReminderDeliveryResponseSchema>;
+
+export const DeviceResponseSchema = z.object({
+  data: DeviceSchema,
+  meta: ResponseMetaSchema,
+});
+export type DeviceResponse = z.infer<typeof DeviceResponseSchema>;
+
+export const DeviceListResponseSchema = z.object({
+  data: z.array(DeviceSchema),
+  meta: ResponseMetaSchema,
+});
+export type DeviceListResponse = z.infer<typeof DeviceListResponseSchema>;
+
+export const DeviceScheduleResponseSchema = z.object({
+  data: DeviceScheduleSchema,
+  meta: ResponseMetaSchema,
+});
+export type DeviceScheduleResponse = z.infer<typeof DeviceScheduleResponseSchema>;
+
+export const DeviceScheduleListResponseSchema = z.object({
+  data: z.array(DeviceScheduleSchema),
+  meta: ResponseMetaSchema,
+});
+export type DeviceScheduleListResponse = z.infer<typeof DeviceScheduleListResponseSchema>;

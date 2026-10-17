@@ -145,19 +145,48 @@ export function calculateNextQuietHoursEnd(timeUtc: string | Date, config: Quiet
   return disambig.earlierUtcTimestamp;
 }
 
+export interface ReminderTargetTiming {
+  id: string;
+  dueTimestamp?: string | null;
+  startDate?: string | null;
+  isDone?: boolean;
+  isDeleted?: boolean;
+  routine?: {
+    frequency: 'daily' | 'weekdays';
+    weekdays: number[]; // 1 = Mon ... 7 = Sun (ISO)
+    scheduledTime: string | null;
+    activeFrom: string;
+    activeTo: string | null;
+    isPaused: boolean;
+    isArchived: boolean;
+  } | null;
+}
+
 /**
  * Validates a snooze duration and returns the updated schedule time and status.
- * Bounds snooze duration between 5 minutes and 1440 minutes (24 hours).
+ * Bounds snooze duration between 5 minutes and 1440 minutes (24 hours),
+ * calculating relative to the user action / current instant.
+ * If the resulting snooze time falls in quiet hours and quiet hours config is provided,
+ * adjusts snoozeUntil to the end of quiet hours.
  */
 export function calculateSnoozeTime(
-  currentScheduledAt: string | Date,
-  snoozeMinutes: number
+  fromTime: string | Date = new Date(),
+  snoozeMinutes: number = 15,
+  quietHoursConfig?: QuietHoursConfig
 ): { snoozeUntil: string; status: 'snoozed' } {
   const boundedMinutes = Math.max(5, Math.min(1440, Math.round(snoozeMinutes)));
-  const baseMs = typeof currentScheduledAt === 'string' ? new Date(currentScheduledAt).getTime() : currentScheduledAt.getTime();
+  const baseMs = typeof fromTime === 'string' ? new Date(fromTime).getTime() : fromTime.getTime();
   const snoozeMs = baseMs + boundedMinutes * 60 * 1000;
+  let snoozeIso = new Date(snoozeMs).toISOString();
+
+  if (quietHoursConfig && quietHoursConfig.enabled) {
+    if (isTimeInQuietHours(snoozeIso, quietHoursConfig)) {
+      snoozeIso = calculateNextQuietHoursEnd(snoozeIso, quietHoursConfig);
+    }
+  }
+
   return {
-    snoozeUntil: new Date(snoozeMs).toISOString(),
+    snoozeUntil: snoozeIso,
     status: 'snoozed',
   };
 }
@@ -168,13 +197,7 @@ export function calculateSnoozeTime(
  */
 export function materializeReminderOccurrences(params: {
   rule: ReminderRule;
-  target: {
-    id: string;
-    dueTimestamp?: string | null;
-    startDate?: string | null;
-    isDone?: boolean;
-    isDeleted?: boolean;
-  };
+  target: ReminderTargetTiming;
   horizonDays?: number;
   now?: Date;
 }): Array<{ occurrenceKey: string; scheduledAt: string; originalScheduledAt: string }> {
@@ -185,9 +208,16 @@ export function materializeReminderOccurrences(params: {
     return [];
   }
 
+  // Routine-specific pause/archive checks
+  if (rule.targetType === 'routine' && target.routine) {
+    if (target.routine.isPaused || target.routine.isArchived) {
+      return [];
+    }
+  }
+
   const results: Array<{ occurrenceKey: string; scheduledAt: string; originalScheduledAt: string }> = [];
 
-  // 1. One-time offset before due/start timestamp
+  // 1. One-time offset before due/start timestamp (for non-recurrent rules)
   if (rule.recurrence === 'none') {
     if (target.dueTimestamp) {
       const dueMs = new Date(target.dueTimestamp).getTime();
@@ -223,7 +253,53 @@ export function materializeReminderOccurrences(params: {
     return results;
   }
 
-  // 2. Recurrent schedules (daily, weekdays, weekly)
+  // 2. Routine-specific recurrent occurrences (canonical date matching)
+  if (rule.targetType === 'routine' && target.routine) {
+    const routine = target.routine;
+    const tz = rule.timezone && isValidIanaTimezone(rule.timezone) ? rule.timezone : 'UTC';
+    const timeStr = routine.scheduledTime || rule.scheduleTime || '09:00';
+    const currentDateStr = getCalendarDateTimeParts(now, tz).date;
+
+    for (let i = 0; i < horizonDays; i++) {
+      const candidateDate = addCalendarDays(currentDateStr, i);
+
+      // Check effective dates
+      if (candidateDate < routine.activeFrom) continue;
+      if (routine.activeTo && candidateDate > routine.activeTo) continue;
+
+      // Check frequency and weekdays
+      const dateUtc = new Date(`${candidateDate}T12:00:00.000Z`);
+      const utcDay = dateUtc.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      const isoWeekday = ((utcDay + 6) % 7) + 1; // 1 = Mon, ..., 7 = Sun
+
+      if (routine.frequency === 'weekdays' && (utcDay === 0 || utcDay === 6)) {
+        continue;
+      }
+      if (routine.weekdays && routine.weekdays.length > 0 && !routine.weekdays.includes(isoWeekday)) {
+        continue;
+      }
+
+      const disambig = checkLocalTimeDisambiguation(candidateDate, timeStr, tz);
+      const scheduledIso =
+        disambig.type === 'exact'
+          ? disambig.utcTimestamp
+          : disambig.type === 'nonexistent'
+            ? disambig.suggestedUtcTimestamp || new Date(`${candidateDate}T${timeStr}:00.000Z`).toISOString()
+            : disambig.earlierUtcTimestamp;
+
+      const scheduledMs = new Date(scheduledIso).getTime();
+      if (scheduledMs >= now.getTime() - 15 * 60 * 1000) {
+        results.push({
+          occurrenceKey: `${rule.id}_rev${rule.ruleRevision}_routine_${candidateDate}`,
+          scheduledAt: scheduledIso,
+          originalScheduledAt: scheduledIso,
+        });
+      }
+    }
+    return results;
+  }
+
+  // 3. Generic recurrent schedules (daily, weekdays, weekly)
   const tz = rule.timezone && isValidIanaTimezone(rule.timezone) ? rule.timezone : 'UTC';
   const timeStr = rule.scheduleTime || '09:00';
   let currentDateStr = getCalendarDateTimeParts(now, tz).date;
