@@ -8,7 +8,7 @@ import {
   type ReserveUploadRequest,
   type FileItem,
 } from '@daynori/contracts';
-import { getDefaultStorageProvider } from './storageAdapter.js';
+import { getDefaultStorageProvider, StorageUnavailableError } from './storageAdapter.js';
 import { inspectBinaryContent } from './inspector.js';
 import { getDefaultMalwareScanner } from './scanner.js';
 import {
@@ -21,7 +21,16 @@ import {
   insertChange,
   lockWorkspaceSyncState,
   updateWorkspaceSyncSeq,
+  getMutationReceipt,
+  insertMutationReceipt,
 } from '../sync/repository.js';
+import {
+  NotFoundError as FileNotFoundError,
+  NotFoundError as ReservationNotFoundError,
+  FileNotReadyError,
+  FileValidationError,
+  ConflictError,
+} from '../../plugins/errorHandler.js';
 
 export const PRIVATE_ASSETS_BUCKET = 'private_assets';
 
@@ -44,14 +53,20 @@ export interface ReservationRecord {
   updatedAt: string;
 }
 
-import {
-  NotFoundError as FileNotFoundError,
-  NotFoundError as ReservationNotFoundError,
+export {
+  FileNotFoundError,
+  ReservationNotFoundError,
   FileNotReadyError,
   FileValidationError,
-} from '../../plugins/errorHandler.js';
+  ConflictError,
+};
 
-export { FileNotFoundError, ReservationNotFoundError, FileNotReadyError, FileValidationError };
+function computePayloadHash(payload: unknown): string {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify(payload ?? {}))
+    .digest('hex');
+}
 
 /**
  * 1. Reserve an upload capability with quota check and predictable isolation.
@@ -90,28 +105,43 @@ export async function reserveFileUpload(
     }
   }
 
+  // Prevent caller-supplied fileId from hijacking an existing item
+  if (request.fileId) {
+    const existing = await client.query<{ id: string; workspace_id: string; kind: string }>(
+      `SELECT id, workspace_id, kind FROM app.items WHERE id = $1`,
+      [request.fileId]
+    );
+    if (existing.rowCount && existing.rows[0]) {
+      throw new ConflictError(`File ID '${request.fileId}' already exists in workspace`);
+    }
+  }
+
   const fileId = request.fileId ?? crypto.randomUUID();
   const versionId = '1';
   const randomHex = crypto.randomBytes(16).toString('hex');
   // Secure server-generated path: never derive from client names or emails!
   const objectPath = `${workspaceId}/${fileId}/${versionId}/${randomHex}`;
 
-  // Reserve the declared bytes or maximum exposure
+  // Reserve declared exposure bytes
   const reservedExposureBytes = request.declaredBytes;
 
   // Atomically check quota and reserve exposure
   await reserveQuota(client, workspaceId, reservedExposureBytes);
 
-  // Generate provider signed upload capability (2 hours validity)
+  // Check storage provider readiness
   const storageProvider = getDefaultStorageProvider();
-  const { signedUrl, expiresInSeconds } = await storageProvider.createSignedUploadUrl(
-    PRIVATE_ASSETS_BUCKET,
-    objectPath,
-    {
+  if (!storageProvider.isConfigured()) {
+    throw new StorageUnavailableError('Storage provider is not configured or unavailable');
+  }
+
+  // Generate provider signed upload capability (2 hours validity)
+  const { signedUrl, expiresInSeconds, method, headers } =
+    await storageProvider.createSignedUploadUrl(PRIVATE_ASSETS_BUCKET, objectPath, {
       expiresInSeconds: UPLOAD_CAPABILITY_EXPIRY_SECONDS,
       upsert: false, // Strict: never permit overwrite
-    }
-  );
+      contentType: request.declaredMimeType,
+      maxByteLimit: request.declaredBytes,
+    });
 
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
 
@@ -157,8 +187,8 @@ export async function reserveFileUpload(
     fileId,
     objectPath,
     uploadUrl: signedUrl,
-    method: 'PUT',
-    headers: {
+    method: method ?? 'PUT',
+    headers: headers ?? {
       'Content-Type': request.declaredMimeType,
     },
     expiresAt,
@@ -179,6 +209,7 @@ export async function finalizeFileUpload(
     reservationId: string;
     clientChecksum?: string;
     operationId?: string;
+    deviceId?: string;
   }
 ): Promise<{
   fileId: string;
@@ -190,9 +221,35 @@ export async function finalizeFileUpload(
   rejectionReason?: string | null;
   verifiedAt?: string | null;
 }> {
-  const { workspaceId, actorId, reservationId, clientChecksum } = params;
+  const { workspaceId, actorId, reservationId, clientChecksum, operationId } = params;
+  const deviceId = params.deviceId ?? 'files-client';
+  const payloadHash = computePayloadHash({ reservationId, clientChecksum });
 
-  // 1. Fetch reservation
+  // 1. Idempotency Receipt Check
+  if (operationId) {
+    const receipt = await getMutationReceipt(client, actorId, deviceId, operationId);
+    if (receipt) {
+      if (receipt.canonicalPayloadHash !== payloadHash) {
+        throw new ConflictError(
+          'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+        );
+      }
+      if (receipt.status === 'accepted' && receipt.resultPayload) {
+        return receipt.resultPayload as {
+          fileId: string;
+          status: FileQuarantineStatus;
+          fileName: string;
+          byteSize: number;
+          detectedMimeType: string;
+          sha256Checksum: string;
+          rejectionReason?: string | null;
+          verifiedAt?: string | null;
+        };
+      }
+    }
+  }
+
+  // 2. Fetch reservation
   const resRes = await client.query<ReservationRecord>(
     `
     SELECT
@@ -225,7 +282,7 @@ export async function finalizeFileUpload(
 
   const reservation = resRes.rows[0]!;
 
-  // 2. Check for idempotent completion
+  // 3. Strict State Transition Enforcement
   if (reservation.status === 'verified' || reservation.status === 'finalized') {
     const existingFile = await client.query<{
       id: string;
@@ -268,8 +325,41 @@ export async function finalizeFileUpload(
     throw new FileValidationError('Upload reservation was cancelled');
   }
 
-  // 3. Retrieve stored binary from storage provider
+  if (reservation.status === 'rejected') {
+    throw new FileValidationError('Upload reservation was rejected and cannot be finalized');
+  }
+
+  const nowEpoch = Date.now();
+  const expiresEpoch = new Date(reservation.expiresAt).getTime();
+  if (reservation.status === 'expired' || expiresEpoch <= nowEpoch) {
+    throw new FileValidationError('Upload reservation has expired');
+  }
+
+  if (reservation.status !== 'reserved' && reservation.status !== 'uploaded') {
+    throw new FileValidationError(
+      `Invalid reservation status for finalization: ${reservation.status}`
+    );
+  }
+
+  // 4. Recheck target folder existence and authorization if folderId was set
+  if (reservation.folderId) {
+    const folderCheck = await client.query(
+      `SELECT id FROM app.items WHERE id = $1 AND workspace_id = $2 AND kind = 'folder' AND deleted_at IS NULL`,
+      [reservation.folderId, workspaceId]
+    );
+    if (folderCheck.rowCount === 0) {
+      throw new FileValidationError(
+        `Destination folder '${reservation.folderId}' no longer exists in workspace`
+      );
+    }
+  }
+
+  // 5. Retrieve stored binary from storage provider
   const storageProvider = getDefaultStorageProvider();
+  if (!storageProvider.isConfigured()) {
+    throw new StorageUnavailableError('Storage provider is not configured or unavailable');
+  }
+
   const bytes = await storageProvider.getObject(PRIVATE_ASSETS_BUCKET, reservation.objectPath);
 
   if (!bytes || bytes.length === 0) {
@@ -278,23 +368,31 @@ export async function finalizeFileUpload(
     );
   }
 
-  // 4. Content Inspection & Signature Verification
+  // 6. Content Inspection & Signature Verification
   const inspection = inspectBinaryContent(
     bytes,
     reservation.declaredMimeType,
-    reservation.declaredBytes
+    reservation.reservedExposureBytes
   );
 
   if (!inspection.isValid) {
-    // Quarantine rejected
+    // Revoke capability, purge object, and mark rejected
+    await storageProvider.revokeUploadCapability(reservation.objectPath).catch(() => {});
+    await storageProvider
+      .deleteObject(PRIVATE_ASSETS_BUCKET, reservation.objectPath)
+      .catch(() => {});
+
     await client.query(
       `
       UPDATE app.upload_reservations
-      SET status = 'rejected', updated_at = now()
+      SET status = 'rejected', reconciled = true, updated_at = now()
       WHERE id = $1
       `,
       [reservationId]
     );
+
+    // Release exposure since object was purged and capability revoked
+    await releaseReservedExposure(client, workspaceId, reservation.reservedExposureBytes);
 
     throw new FileValidationError(
       `File failed security verification: ${inspection.rejectionReason ?? 'Disallowed content'}`
@@ -308,7 +406,7 @@ export async function finalizeFileUpload(
     );
   }
 
-  // 5. Fail-Closed Malware Scanning Policy
+  // 7. Fail-Closed Malware Scanning Policy
   const scanner = getDefaultMalwareScanner();
   const scanResult = await scanner.scanBytes(bytes, {
     fileName: reservation.fileName,
@@ -316,14 +414,22 @@ export async function finalizeFileUpload(
   });
 
   if (!scanResult.isClean) {
+    await storageProvider.revokeUploadCapability(reservation.objectPath).catch(() => {});
+    await storageProvider
+      .deleteObject(PRIVATE_ASSETS_BUCKET, reservation.objectPath)
+      .catch(() => {});
+
     await client.query(
       `
       UPDATE app.upload_reservations
-      SET status = 'rejected', updated_at = now()
+      SET status = 'rejected', reconciled = true, updated_at = now()
       WHERE id = $1
       `,
       [reservationId]
     );
+
+    await releaseReservedExposure(client, workspaceId, reservation.reservedExposureBytes);
+
     throw new FileValidationError(
       `File rejected by malware scanner: ${scanResult.threatName ?? 'Malicious payload detected'}`
     );
@@ -331,105 +437,202 @@ export async function finalizeFileUpload(
 
   const nowIso = new Date().toISOString();
 
-  // 6. Transition Quota from Reserved Exposure to Actual Stored Bytes
+  // 8. Transition Quota from Reserved Exposure to Actual Stored Bytes
   await finalizeQuota(client, workspaceId, reservation.reservedExposureBytes, inspection.byteSize);
 
-  // 7. Atomically create Item Header and File Item record
-  await client.query(
-    `
-    INSERT INTO app.items (
-      id,
-      workspace_id,
-      folder_id,
-      kind,
-      created_by,
-      updated_by,
-      display_order,
-      revision,
-      created_at,
-      updated_at
-    )
-    VALUES ($1, $2, $3, 'file', $4, $4, 0, 1, $5, $5)
-    ON CONFLICT (id) DO UPDATE SET
-      folder_id = EXCLUDED.folder_id,
-      updated_by = EXCLUDED.updated_by,
-      updated_at = EXCLUDED.updated_at
-    `,
-    [reservation.fileId, workspaceId, reservation.folderId, actorId, nowIso]
-  );
+  // 9. Check if item exists (separate initial creation from version update)
+  const existingItemRes = await client.query<{
+    id: string;
+    workspace_id: string;
+    kind: string;
+    revision: string;
+  }>(`SELECT id, workspace_id, kind, revision FROM app.items WHERE id = $1 FOR UPDATE`, [
+    reservation.fileId,
+  ]);
 
-  await client.query(
-    `
-    INSERT INTO app.file_items (
-      id,
-      workspace_id,
-      folder_id,
-      file_name,
-      declared_mime_type,
-      detected_mime_type,
-      byte_size,
-      sha256_checksum,
-      object_path,
-      version,
-      quarantine_status,
-      created_by,
-      created_at,
-      updated_at,
-      verified_at
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, '1', 'verified', $10, $11, $11, $11)
-    ON CONFLICT (id) DO UPDATE SET
-      file_name = EXCLUDED.file_name,
-      byte_size = EXCLUDED.byte_size,
-      sha256_checksum = EXCLUDED.sha256_checksum,
-      quarantine_status = 'verified',
-      updated_at = EXCLUDED.updated_at,
-      verified_at = EXCLUDED.verified_at
-    `,
-    [
-      reservation.fileId,
-      workspaceId,
-      reservation.folderId,
-      reservation.fileName,
-      reservation.declaredMimeType,
-      inspection.detectedMimeType,
-      inspection.byteSize,
-      inspection.sha256Checksum,
-      reservation.objectPath,
-      actorId,
-      nowIso,
-    ]
-  );
+  let versionStr = '1';
+  let serverRevision = 1;
 
-  // 8. Create immutable version record
-  await client.query(
-    `
-    INSERT INTO app.file_versions (
-      file_id,
-      workspace_id,
-      version,
-      object_path,
-      byte_size,
-      sha256_checksum,
-      detected_mime_type,
-      created_by,
-      created_at
-    )
-    VALUES ($1, $2, '1', $3, $4, $5, $6, $7, $8)
-    `,
-    [
-      reservation.fileId,
-      workspaceId,
-      reservation.objectPath,
-      inspection.byteSize,
-      inspection.sha256Checksum,
-      inspection.detectedMimeType,
-      actorId,
-      nowIso,
-    ]
-  );
+  if (existingItemRes.rows[0]) {
+    const existing = existingItemRes.rows[0];
+    if (existing.workspace_id !== workspaceId) {
+      throw new ConflictError(`File ID '${reservation.fileId}' belongs to another workspace`);
+    }
+    if (existing.kind !== 'file') {
+      throw new ConflictError(
+        `Item ID '${reservation.fileId}' is already used for another entity kind`
+      );
+    }
 
-  // 9. Update reservation status to finalized
+    // Authorized revision update for existing file
+    serverRevision = Number(existing.revision) + 1;
+
+    const maxVerRes = await client.query<{ max_ver: string }>(
+      `SELECT COALESCE(MAX(version::integer), 1) as max_ver FROM app.file_versions WHERE file_id = $1`,
+      [reservation.fileId]
+    );
+    const nextVer = Number(maxVerRes.rows[0]?.max_ver ?? 1) + 1;
+    versionStr = String(nextVer);
+
+    await client.query(
+      `UPDATE app.items SET updated_by = $1, revision = $2, updated_at = $3 WHERE id = $4 AND workspace_id = $5`,
+      [actorId, serverRevision, nowIso, reservation.fileId, workspaceId]
+    );
+
+    await client.query(
+      `
+      UPDATE app.file_items SET
+        file_name = $1,
+        declared_mime_type = $2,
+        detected_mime_type = $3,
+        byte_size = $4,
+        sha256_checksum = $5,
+        object_path = $6,
+        version = $7,
+        quarantine_status = 'verified',
+        updated_at = $8,
+        verified_at = $8,
+        scanner_engine = $9,
+        scanned_bytes = $10,
+        scanned_checksum = $11
+      WHERE id = $12 AND workspace_id = $13
+      `,
+      [
+        reservation.fileName,
+        reservation.declaredMimeType,
+        inspection.detectedMimeType,
+        inspection.byteSize,
+        inspection.sha256Checksum,
+        reservation.objectPath,
+        versionStr,
+        nowIso,
+        scanResult.scannerEngine,
+        inspection.byteSize,
+        inspection.sha256Checksum,
+        reservation.fileId,
+        workspaceId,
+      ]
+    );
+
+    await client.query(
+      `
+      INSERT INTO app.file_versions (
+        file_id,
+        workspace_id,
+        version,
+        object_path,
+        byte_size,
+        sha256_checksum,
+        detected_mime_type,
+        created_by,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `,
+      [
+        reservation.fileId,
+        workspaceId,
+        versionStr,
+        reservation.objectPath,
+        inspection.byteSize,
+        inspection.sha256Checksum,
+        inspection.detectedMimeType,
+        actorId,
+        nowIso,
+      ]
+    );
+  } else {
+    // Brand-new initial creation: strict insert without ON CONFLICT hijacking
+    await client.query(
+      `
+      INSERT INTO app.items (
+        id,
+        workspace_id,
+        folder_id,
+        kind,
+        created_by,
+        updated_by,
+        display_order,
+        revision,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, 'file', $4, $4, 0, 1, $5, $5)
+      `,
+      [reservation.fileId, workspaceId, reservation.folderId, actorId, nowIso]
+    );
+
+    await client.query(
+      `
+      INSERT INTO app.file_items (
+        id,
+        workspace_id,
+        folder_id,
+        file_name,
+        declared_mime_type,
+        detected_mime_type,
+        byte_size,
+        sha256_checksum,
+        object_path,
+        version,
+        quarantine_status,
+        created_by,
+        created_at,
+        updated_at,
+        verified_at,
+        scanner_engine,
+        scanned_bytes,
+        scanned_checksum
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, '1', 'verified', $10, $11, $11, $11, $12, $13, $14)
+      `,
+      [
+        reservation.fileId,
+        workspaceId,
+        reservation.folderId,
+        reservation.fileName,
+        reservation.declaredMimeType,
+        inspection.detectedMimeType,
+        inspection.byteSize,
+        inspection.sha256Checksum,
+        reservation.objectPath,
+        actorId,
+        nowIso,
+        scanResult.scannerEngine,
+        inspection.byteSize,
+        inspection.sha256Checksum,
+      ]
+    );
+
+    await client.query(
+      `
+      INSERT INTO app.file_versions (
+        file_id,
+        workspace_id,
+        version,
+        object_path,
+        byte_size,
+        sha256_checksum,
+        detected_mime_type,
+        created_by,
+        created_at
+      )
+      VALUES ($1, $2, '1', $3, $4, $5, $6, $7, $8)
+      `,
+      [
+        reservation.fileId,
+        workspaceId,
+        reservation.objectPath,
+        inspection.byteSize,
+        inspection.sha256Checksum,
+        inspection.detectedMimeType,
+        actorId,
+        nowIso,
+      ]
+    );
+  }
+
+  // 10. Update reservation status to finalized
   await client.query(
     `
     UPDATE app.upload_reservations
@@ -439,34 +642,71 @@ export async function finalizeFileUpload(
     [reservationId]
   );
 
-  // 10. Record change feed outbox event
+  // 11. Record complete canonical file projection in change feed outbox
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  const outboxOperationId = operationId ?? crypto.randomUUID();
+
+  const fileProjection = {
+    id: reservation.fileId,
+    workspaceId,
+    folderId: reservation.folderId,
+    fileName: reservation.fileName,
+    declaredMimeType: reservation.declaredMimeType,
+    detectedMimeType: inspection.detectedMimeType,
+    byteSize: inspection.byteSize,
+    sha256Checksum: inspection.sha256Checksum,
+    version: versionStr,
+    quarantineStatus: 'verified',
+    rejectionReason: null,
+    createdBy: actorId,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    verifiedAt: nowIso,
+  };
+
   await insertChange(client, {
     workspaceId,
     seq: syncState.nextChangeSeq,
     entityType: 'file',
     entityId: reservation.fileId,
-    revision: 1,
+    revision: serverRevision,
     isTombstone: false,
-    operationId: crypto.randomUUID(),
-    changeData: {
-      id: reservation.fileId,
-      fileName: reservation.fileName,
-      byteSize: inspection.byteSize,
-      detectedMimeType: inspection.detectedMimeType,
-    },
+    operationId: outboxOperationId,
+    changeData: fileProjection,
   });
   await updateWorkspaceSyncSeq(client, workspaceId, syncState.nextChangeSeq + 1);
 
-  return {
+  const resultPayload = {
     fileId: reservation.fileId,
-    status: 'verified',
+    status: 'verified' as FileQuarantineStatus,
     fileName: reservation.fileName,
     byteSize: inspection.byteSize,
     detectedMimeType: inspection.detectedMimeType,
     sha256Checksum: inspection.sha256Checksum,
     verifiedAt: nowIso,
   };
+
+  // 12. Record mutation receipt for durable idempotency
+  if (operationId) {
+    await insertMutationReceipt(client, {
+      workspaceId,
+      actorUserId: actorId,
+      deviceId,
+      operationId,
+      command: 'files.finalize',
+      entityType: 'file',
+      entityId: reservation.fileId,
+      schemaVersion: 1,
+      baseRevision: 0,
+      canonicalPayloadHash: payloadHash,
+      status: 'accepted',
+      acceptedRevision: serverRevision,
+      appliedChangeSeq: null,
+      resultPayload,
+    });
+  }
+
+  return resultPayload;
 }
 
 /**
@@ -555,8 +795,7 @@ export async function getUploadReservationStatus(
 
 /**
  * 4. Cancel upload reservation.
- * Note: Marks status cancelled. Provider capability remains active until expires_at,
- * so quota is reconciled after expiry horizon or when verified that no object exists.
+ * Revokes upload capability and deletes any uploaded binary before reconciling exposure.
  */
 export async function cancelUploadReservation(
   client: PoolClient,
@@ -570,13 +809,29 @@ export async function cancelUploadReservation(
     throw new FileValidationError('Cannot cancel an already finalized upload reservation');
   }
 
-  // Check if object was uploaded
   const storageProvider = getDefaultStorageProvider();
-  const exists = await storageProvider.headObject(PRIVATE_ASSETS_BUCKET, reservation.objectPath);
+
+  // 1. Explicitly revoke the capability so no late uploads can occur
+  await storageProvider.revokeUploadCapability(reservation.objectPath).catch(() => {});
+
+  // 2. Check if an object was uploaded
+  const exists = await storageProvider
+    .headObject(PRIVATE_ASSETS_BUCKET, reservation.objectPath)
+    .catch(() => null);
 
   let reconciled = false;
-  if (!exists) {
-    // If no object was ever uploaded, we can safely release the exposure immediately!
+  if (exists) {
+    // Delete the stored binary before releasing exposure
+    try {
+      await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, reservation.objectPath);
+      await releaseReservedExposure(client, workspaceId, reservation.reservedExposureBytes);
+      reconciled = true;
+    } catch {
+      // If storage delete failed, keep exposure accounted for until worker reconciles it!
+      reconciled = false;
+    }
+  } else {
+    // No object in storage and capability revoked -> safe to reconcile immediately
     await releaseReservedExposure(client, workspaceId, reservation.reservedExposureBytes);
     reconciled = true;
   }
@@ -624,6 +879,10 @@ export async function getFileDownloadCapability(
   }
 
   const storageProvider = getDefaultStorageProvider();
+  if (!storageProvider.isConfigured()) {
+    throw new StorageUnavailableError('Storage provider is not configured or unavailable');
+  }
+
   const { signedUrl, expiresInSeconds } = await storageProvider.createSignedDownloadUrl(
     PRIVATE_ASSETS_BUCKET,
     file.object_path,
@@ -731,30 +990,51 @@ export async function getFileItem(
 }
 
 /**
- * 7. Delete file item and release stored quota.
+ * 7. Delete file item with durable intent.
+ * Enqueues durable background deletion job so DB transaction rollback
+ * cannot leave database records pointing to deleted storage bytes.
  */
 export async function deleteFileItem(
   client: PoolClient,
   workspaceId: string,
   _actorId: string,
-  fileId: string
+  fileId: string,
+  operationId?: string
 ): Promise<void> {
   const file = await getFileItem(client, workspaceId, fileId);
 
-  // 1. Delete object from storage provider
-  const storageProvider = getDefaultStorageProvider();
-  await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, file.object_path);
-
-  // 2. Release stored bytes
+  // 1. Release stored bytes
   await releaseStoredBytes(client, workspaceId, file.byteSize);
 
-  // 3. Delete from database (cascades to file_items and file_versions)
+  // 2. Mark deleted in database
+  await client.query(
+    `UPDATE app.file_items SET quarantine_status = 'deleted', updated_at = now() WHERE id = $1 AND workspace_id = $2`,
+    [fileId, workspaceId]
+  );
+
+  // 3. Delete from items (cascades to file_items, file_versions)
   await client.query(`DELETE FROM app.items WHERE id = $1 AND workspace_id = $2`, [
     fileId,
     workspaceId,
   ]);
 
-  // 4. Record change feed outbox event
+  // 4. Enqueue durable background job for external storage object deletion
+  await client.query(
+    `
+    INSERT INTO app.background_jobs (task_type, payload, status)
+    VALUES ('file_deletion', $1, 'pending')
+    `,
+    [
+      JSON.stringify({
+        workspaceId,
+        fileId,
+        objectPath: file.object_path,
+        byteSize: file.byteSize,
+      }),
+    ]
+  );
+
+  // 5. Record change feed outbox event
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
   await insertChange(client, {
     workspaceId,
@@ -763,14 +1043,26 @@ export async function deleteFileItem(
     entityId: fileId,
     revision: 2,
     isTombstone: true,
-    operationId: crypto.randomUUID(),
-    changeData: { id: fileId },
+    operationId: operationId ?? crypto.randomUUID(),
+    changeData: { id: fileId, workspaceId, quarantineStatus: 'deleted' },
   });
   await updateWorkspaceSyncSeq(client, workspaceId, syncState.nextChangeSeq + 1);
+
+  // 6. Proactively attempt storage deletion (if it fails, the background job retries)
+  const storageProvider = getDefaultStorageProvider();
+  if (storageProvider.isConfigured()) {
+    try {
+      await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, file.object_path);
+    } catch {
+      // Handled dually by background job
+    }
+  }
 }
 
 /**
  * 8. Reconcile expired reservations and release orphan quota.
+ * Does not suppress storage deletion failures: preserves accounting and retry state
+ * until deletion actually succeeds.
  */
 export async function reconcileExpiredReservations(client: PoolClient): Promise<number> {
   const expiredRes = await client.query<{
@@ -784,9 +1076,9 @@ export async function reconcileExpiredReservations(client: PoolClient): Promise<
     FROM app.upload_reservations
     WHERE expires_at < now()
       AND reconciled = false
-      AND status IN ('reserved', 'cancelled', 'expired')
+      AND status IN ('reserved', 'uploaded', 'cancelled', 'expired', 'rejected')
     LIMIT 100
-    FOR UPDATE
+    FOR UPDATE SKIP LOCKED
     `
   );
 
@@ -796,27 +1088,29 @@ export async function reconcileExpiredReservations(client: PoolClient): Promise<
   for (const row of expiredRes.rows) {
     const exposure = Number(row.reserved_exposure_bytes);
 
-    // Delete any orphan object from storage
+    let deleteSuccess = true;
     try {
       await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, row.object_path);
     } catch {
-      // quiet
+      deleteSuccess = false;
     }
 
-    // Release reserved quota
-    await releaseReservedExposure(client, row.workspace_id, exposure);
+    if (deleteSuccess) {
+      // Release reserved quota
+      await releaseReservedExposure(client, row.workspace_id, exposure);
 
-    // Mark reconciled
-    await client.query(
-      `
-      UPDATE app.upload_reservations
-      SET status = 'expired', reconciled = true, updated_at = now()
-      WHERE id = $1
-      `,
-      [row.id]
-    );
+      // Mark reconciled
+      await client.query(
+        `
+        UPDATE app.upload_reservations
+        SET status = 'expired', reconciled = true, updated_at = now()
+        WHERE id = $1
+        `,
+        [row.id]
+      );
 
-    count++;
+      count++;
+    }
   }
 
   return count;

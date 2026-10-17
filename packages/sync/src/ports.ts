@@ -11,6 +11,7 @@ import type {
   RoutineRecord,
   RoutineOccurrenceRecord,
   JournalEntryRecord,
+  FileRecord,
 } from './models.js';
 import type { ClientMutation } from './types.js';
 import type { WorkspaceId } from '@daynori/domain';
@@ -82,7 +83,8 @@ export interface LocalRepositoryPort {
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
-    journalEntries?: JournalEntryRecord[]
+    journalEntries?: JournalEntryRecord[],
+    files?: FileRecord[]
   ): Promise<void>;
   installBootstrapGeneration(
     items: ItemHeaderRecord[],
@@ -92,7 +94,8 @@ export interface LocalRepositoryPort {
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
-    journalEntries?: JournalEntryRecord[]
+    journalEntries?: JournalEntryRecord[],
+    files?: FileRecord[]
   ): Promise<void>;
 
   // --- 5. Conflicts ---
@@ -155,15 +158,21 @@ export interface LocalRepositoryPort {
   upsertJournalEntry(entry: JournalEntryRecord): Promise<void>;
   deleteJournalEntry(workspaceId: string, id: string): Promise<void>;
 
-  // --- 10. Sync Cursors ---
+  // --- 10. File Metadata Records ---
+  getFile(workspaceId: string, id: string): Promise<FileRecord | null>;
+  listFiles(workspaceId: string, folderId?: string | null): Promise<FileRecord[]>;
+  upsertFile(file: FileRecord): Promise<void>;
+  deleteFile(workspaceId: string, id: string): Promise<void>;
+
+  // --- 11. Sync Cursors ---
   getCursor(workspaceId: string, userId: string): Promise<SyncCursorRecord | null>;
   saveCursor(cursor: SyncCursorRecord): Promise<void>;
 
-  // --- 10. Preference Snapshots ---
+  // --- 12. Preference Snapshots ---
   getPreferenceSnapshot(userId: string): Promise<PreferenceSnapshotRecord | null>;
   savePreferenceSnapshot(snapshot: PreferenceSnapshotRecord): Promise<void>;
 
-  // --- 11. Boundary Lifecycle & Data Erasure ---
+  // --- 13. Boundary Lifecycle & Data Erasure ---
   clearWorkspaceData(workspaceId: string): Promise<void>;
   clearAccountData(userId: string): Promise<void>;
 }

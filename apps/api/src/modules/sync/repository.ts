@@ -519,7 +519,7 @@ export async function listActiveItemsForBootstrap(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by, i.created_at, i.updated_at, i.deleted_at,
             i.display_order, i.revision, i.rank, i.is_archived, i.is_pinned, i.security_scope,
             f.name as folder_name, f.color as folder_color, f.icon as folder_icon,
-            COALESCE(n.title, j.title) as note_title,
+            COALESCE(n.title, j.title, fi.file_name) as note_title,
             COALESCE(n.document, j.document) as note_document,
             COALESCE(n.plain_text, j.plain_text) as note_plain_text,
             COALESCE(n.word_count, j.word_count) as note_word_count,
@@ -528,6 +528,7 @@ export async function listActiveItemsForBootstrap(
      LEFT JOIN app.folders f ON f.workspace_id = i.workspace_id AND f.id = i.id
      LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
      LEFT JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
+     LEFT JOIN app.file_items fi ON fi.workspace_id = i.workspace_id AND fi.id = i.id
      WHERE i.workspace_id = $1 AND i.deleted_at IS NULL
      ORDER BY i.created_at ASC;`,
     [workspaceId]
@@ -557,5 +558,72 @@ export async function listActiveItemsForBootstrap(
     plainText: r.note_plain_text ?? undefined,
     wordCount: r.note_word_count !== null ? Number(r.note_word_count) : undefined,
     charCount: r.note_char_count !== null ? Number(r.note_char_count) : undefined,
+  }));
+}
+
+export async function listActiveFilesForBootstrap(
+  client: PoolClient,
+  workspaceId: string
+): Promise<
+  Array<{
+    id: string;
+    workspaceId: string;
+    folderId: string | null;
+    fileName: string;
+    declaredMimeType: string;
+    detectedMimeType: string;
+    byteSize: number;
+    sha256Checksum: string;
+    version: string;
+    quarantineStatus: 'quarantined' | 'verified' | 'rejected' | 'deleted';
+    rejectionReason: string | null;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    verifiedAt: string | null;
+  }>
+> {
+  const res = await client.query<{
+    id: string;
+    workspace_id: string;
+    folder_id: string | null;
+    file_name: string;
+    declared_mime_type: string;
+    detected_mime_type: string;
+    byte_size: string;
+    sha256_checksum: string;
+    version: string;
+    quarantine_status: 'quarantined' | 'verified' | 'rejected' | 'deleted';
+    rejection_reason: string | null;
+    created_by: string;
+    created_at: Date;
+    updated_at: Date;
+    verified_at: Date | null;
+  }>(
+    `SELECT id, workspace_id, folder_id, file_name, declared_mime_type, detected_mime_type,
+            byte_size, sha256_checksum, version, quarantine_status, rejection_reason,
+            created_by, created_at, updated_at, verified_at
+     FROM app.file_items
+     WHERE workspace_id = $1 AND quarantine_status = 'verified'
+     ORDER BY created_at ASC;`,
+    [workspaceId]
+  );
+
+  return res.rows.map((r) => ({
+    id: r.id,
+    workspaceId: r.workspace_id,
+    folderId: r.folder_id,
+    fileName: r.file_name,
+    declaredMimeType: r.declared_mime_type,
+    detectedMimeType: r.detected_mime_type,
+    byteSize: Number(r.byte_size),
+    sha256Checksum: r.sha256_checksum,
+    version: r.version,
+    quarantineStatus: r.quarantine_status,
+    rejectionReason: r.rejection_reason,
+    createdBy: r.created_by,
+    createdAt: r.created_at.toISOString(),
+    updatedAt: r.updated_at.toISOString(),
+    verifiedAt: r.verified_at ? r.verified_at.toISOString() : null,
   }));
 }

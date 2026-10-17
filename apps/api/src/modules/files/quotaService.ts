@@ -48,7 +48,7 @@ export async function getStorageUsage(
     SELECT COUNT(*) as count
     FROM app.upload_reservations
     WHERE workspace_id = $1
-      AND status IN ('reserved', 'uploaded', 'quarantined')
+      AND status IN ('reserved', 'uploaded')
       AND expires_at > now()
       AND reconciled = false
     `,
@@ -104,7 +104,7 @@ export async function reserveQuota(
     SELECT COUNT(*) as count
     FROM app.upload_reservations
     WHERE workspace_id = $1
-      AND status IN ('reserved', 'uploaded', 'quarantined')
+      AND status IN ('reserved', 'uploaded')
       AND expires_at > now()
       AND reconciled = false
     `,

@@ -62,6 +62,13 @@ export class FileValidationError extends Error {
   }
 }
 
+export class StorageUnavailableError extends Error {
+  constructor(message = 'Storage provider is not configured or unavailable') {
+    super(message);
+    this.name = 'StorageUnavailableError';
+  }
+}
+
 export class ResponseValidationError extends Error {
   public override readonly cause?: unknown;
 
@@ -221,6 +228,18 @@ export function createErrorHandler(logger: SafeLogger) {
         },
       };
       return reply.status(400).send(body);
+    }
+
+    // 4h. Storage provider unavailable (503)
+    if (error instanceof StorageUnavailableError || error.name === 'StorageUnavailableError') {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.INTERNAL_ERROR,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(503).send(body);
     }
 
     // 5. Authentication errors

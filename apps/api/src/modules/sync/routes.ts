@@ -78,6 +78,7 @@ export function registerSyncRoutes(app: FastifyInstance, runtimePool: Pool): voi
       routines,
       routineOccurrences,
       journalEntries,
+      files,
       watermarkCursor,
       accessEpoch,
     } = await syncService.bootstrap(actor.userId, query.workspaceId);
@@ -92,6 +93,7 @@ export function registerSyncRoutes(app: FastifyInstance, runtimePool: Pool): voi
         routines,
         routineOccurrences,
         journalEntries,
+        files: files || [],
         watermarkCursor,
         accessEpoch,
       },

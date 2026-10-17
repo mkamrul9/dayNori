@@ -1,5 +1,25 @@
 # Changelog
 
+## Defect Repairs & Hardening (Phase 24) — 2026-10-17
+
+- **Real Storage Provider Transport & Byte Bounding (Finding A):**
+  - Implemented dynamic HTTP transfer endpoints (PUT `/v1/storage/upload/:bucket/*` and GET `/v1/storage/download/:bucket/*`) verifying capability tokens, bounding payload body sizes (50 MiB), checking max byte bounds, and detecting 409 conflicts for non-upsert uploads.
+  - Configured honest 503 unavailable states when storage credentials are unconfigured, rather than returning fictional upload URLs.
+- **Quota Accounting & State Filtering (Finding B):**
+  - Fixed active reservation queries in `quotaService.ts` to strictly filter by `status IN ('reserved', 'uploaded') AND expires_at > now() AND reconciled = false`.
+  - Added actual byte length validation in `inspector.ts` against declared reservation bounds and `maxAllowedBytes`.
+- **Durable Worker & Fail-Closed Malware Scanning (Finding C):**
+  - Added `app.background_jobs` with `SELECT ... FOR UPDATE SKIP LOCKED`, exponential backoff, dead-letter state, and restart recovery in `apps/worker`.
+  - Added `ExternalMalwareScanner` with execution timeout, recording engine version, scanned bytes count, and scanned SHA-256 without logging content.
+- **Strict Lifecycle Transitions & Transactional Recovery (Finding D):**
+  - Prevented caller-supplied `fileId` hijacking, enforced strict state transitions (`reserved` -> `quarantined` -> `verified`/`rejected`), and used mutation receipts with canonical payload hash.
+  - Enqueued durable `file_deletion` jobs to ensure storage bytes are not deleted before database commits.
+- **Database Grants & Synchronization Projections (Finding E):**
+  - Applied migration `00021_repair_file_lifecycle_jobs_and_grants.sql` revoking direct table writes from `authenticated` role and adding composite foreign keys `(folder_id, workspace_id)`.
+  - Added `files` projection to sync bootstrap query and response schema, Web `IndexedDbLocalRepository` (schema v7), and Mobile `SqliteLocalRepository` (migration v8).
+- **Mobile Journal Preference Synchronization (Finding F):**
+  - Connected mobile snippet toggle in `JournalView.tsx` to remote `updateUserPreferences` with full `DisplayPreferences` schema and offline retry.
+
 ## Phase 24 — Private binary upload lifecycle — 2026-10-17
 
 - **Private Storage Schema & Isolation (`infra/supabase`):**

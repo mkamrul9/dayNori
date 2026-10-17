@@ -37,6 +37,7 @@ import type {
   PendingMutationRecord,
   SyncEngine,
 } from '@daynori/sync';
+import type { DaynoriApiClient } from '@daynori/api-client';
 
 export interface JournalViewProps {
   themeMode: ThemeMode;
@@ -48,6 +49,7 @@ export interface JournalViewProps {
   userId?: string | null;
   repository?: LocalRepositoryPort;
   syncEngine?: SyncEngine;
+  apiClient?: DaynoriApiClient;
   isOnline?: boolean;
   userTimezone?: string;
 }
@@ -178,6 +180,8 @@ export const JournalView: React.FC<JournalViewProps> = ({
   userId,
   repository,
   syncEngine,
+  apiClient,
+  isOnline = true,
   userTimezone: propTimezone,
 }) => {
   const palette = colors[themeMode];
@@ -246,6 +250,25 @@ export const JournalView: React.FC<JournalViewProps> = ({
   const activeDraftIdRef = useRef<string>(generateUuid());
   const activeNamespaceRef = useRef<{ userId: string; workspaceId: string } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPrefSyncRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (isOnline !== false && pendingPrefSyncRef.current && apiClient && userId) {
+      pendingPrefSyncRef.current = false;
+      apiClient
+        .updateUserPreferences({
+          preferences: {
+            theme: 'system',
+            compactMode: false,
+            journalPreviewHidden: true,
+            suppressBodySnippets: suppressSnippets,
+          },
+        })
+        .catch(() => {
+          pendingPrefSyncRef.current = true;
+        });
+    }
+  }, [isOnline, apiClient, userId, suppressSnippets]);
 
   const STATIC_FIXTURES: LocalJournalItem[] = [
     {
@@ -388,10 +411,47 @@ export const JournalView: React.FC<JournalViewProps> = ({
         .catch(() => {});
     }
 
+    if (apiClient && isOnline !== false) {
+      apiClient
+        .getUserPreferences()
+        .then(async (profile) => {
+          const prefs = profile.data?.preferences;
+          if (
+            activeNamespaceRef.current?.userId === userId &&
+            activeNamespaceRef.current?.workspaceId === workspaceId &&
+            prefs
+          ) {
+            if (typeof prefs.suppressBodySnippets === 'boolean') {
+              setSuppressSnippets(prefs.suppressBodySnippets);
+              if (repository) {
+                const snap = await repository.getPreferenceSnapshot(userId).catch(() => null);
+                const prevPrefs = (snap?.preferences as Record<string, unknown>) || {};
+                await repository
+                  .savePreferenceSnapshot({
+                    userId,
+                    preferences: {
+                      ...prevPrefs,
+                      displayPreferences: {
+                        ...((prevPrefs.displayPreferences as Record<string, unknown>) || {}),
+                        suppressBodySnippets: prefs.suppressBodySnippets,
+                      },
+                    },
+                    schemaVersion: profile.data?.preferencesSchemaVersion || 1,
+                    revision: (snap?.revision ?? 0) + 1,
+                    updatedAt: new Date().toISOString(),
+                  })
+                  .catch(() => {});
+              }
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
     if (isAuthenticated && repository) {
       void reloadFromRepository();
     }
-  }, [isAuthenticated, repository, workspaceId, userId, reloadFromRepository]);
+  }, [isAuthenticated, repository, workspaceId, userId, reloadFromRepository, apiClient, isOnline]);
 
   // Subscribe to syncEngine events
   useEffect(() => {
@@ -993,7 +1053,27 @@ export const JournalView: React.FC<JournalViewProps> = ({
         // quiet
       }
     }
-  }, [suppressSnippets, repository, userId]);
+
+    if (apiClient) {
+      if (isOnline !== false) {
+        try {
+          await apiClient.updateUserPreferences({
+            preferences: {
+              theme: 'system',
+              compactMode: false,
+              journalPreviewHidden: true,
+              suppressBodySnippets: nextVal,
+            },
+          });
+          pendingPrefSyncRef.current = false;
+        } catch {
+          pendingPrefSyncRef.current = true;
+        }
+      } else {
+        pendingPrefSyncRef.current = true;
+      }
+    }
+  }, [suppressSnippets, repository, userId, apiClient, isOnline]);
 
   // Filter entries based on search, viewMode, and selectedDate
   const filteredEntries = useMemo(() => {

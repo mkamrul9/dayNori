@@ -168,6 +168,8 @@ import { FolderSchema, TagSchema, ItemTagSchema, ItemLinkSchema } from './organi
 import { RoutineSchema, RoutineOccurrenceSchema } from './routine.js';
 import { JournalEntrySchema } from './journal.js';
 
+import { FileItemSchema } from './files.js';
+
 export const SyncBootstrapQuerySchema = z.object({
   workspaceId: z.string().uuid(),
 });
@@ -184,6 +186,7 @@ export const SyncBootstrapResponseSchema = z.object({
     routines: z.array(RoutineSchema).optional().default([]),
     routineOccurrences: z.array(RoutineOccurrenceSchema).optional().default([]),
     journalEntries: z.array(JournalEntrySchema).optional().default([]),
+    files: z.array(FileItemSchema).optional().default([]),
     watermarkCursor: z.string(),
     accessEpoch: z.string(),
   }),

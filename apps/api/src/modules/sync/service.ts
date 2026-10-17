@@ -15,6 +15,7 @@ import type {
   RoutineOccurrence,
   RoutineOccurrenceTransition,
   JournalEntry,
+  FileItem,
 } from '@daynori/contracts';
 import {
   lockWorkspaceSyncState,
@@ -32,6 +33,7 @@ import {
   restoreItemForSync,
   pullChanges as repoPullChanges,
   listActiveItemsForBootstrap,
+  listActiveFilesForBootstrap,
   type SyncItemRecord,
 } from './repository.js';
 import {
@@ -3295,6 +3297,7 @@ export class SyncService {
     routines: Routine[];
     routineOccurrences: RoutineOccurrence[];
     journalEntries: JournalEntry[];
+    files: FileItem[];
     watermarkCursor: string;
     accessEpoch: string;
   }> {
@@ -3699,6 +3702,9 @@ export class SyncService {
           };
         });
 
+        // Fetch active verified files
+        const activeFiles = await listActiveFilesForBootstrap(client, workspaceId);
+
         return {
           items: formattedItems,
           folders: formattedFolders,
@@ -3708,6 +3714,7 @@ export class SyncService {
           routines: formattedRoutines,
           routineOccurrences: formattedOccurrences,
           journalEntries: formattedJournalEntries,
+          files: activeFiles,
           watermarkCursor,
           accessEpoch: syncState.accessEpoch,
         };

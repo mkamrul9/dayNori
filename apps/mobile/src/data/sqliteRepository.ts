@@ -12,6 +12,7 @@ import type {
   RoutineRecord,
   RoutineOccurrenceRecord,
   JournalEntryRecord,
+  FileRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -30,6 +31,7 @@ import {
   validateRoutineRecord,
   validateRoutineOccurrenceRecord,
   validateJournalEntryRecord,
+  validateFileRecord,
 } from '@daynori/sync';
 import type { MobileKeyManager } from './keyManager.js';
 
@@ -540,6 +542,38 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             ON journal_entries (workspace_id, entry_date);
 
             INSERT INTO schema_migrations (version, applied_at) VALUES (7, datetime('now'));
+          `);
+        }
+
+        if (currentVersion < 8) {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS files (
+              id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              folder_id TEXT,
+              file_name TEXT NOT NULL,
+              mime_type TEXT NOT NULL,
+              size_bytes INTEGER NOT NULL,
+              sha256 TEXT NOT NULL,
+              storage_path TEXT NOT NULL,
+              current_version INTEGER NOT NULL DEFAULT 1,
+              status TEXT NOT NULL DEFAULT 'ready',
+              quarantine_reason TEXT,
+              security_scope TEXT NOT NULL DEFAULT 'standard',
+              scanner_engine TEXT,
+              scanned_bytes INTEGER,
+              scanned_checksum TEXT,
+              server_revision INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT,
+              PRIMARY KEY (workspace_id, id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_files_folder
+            ON files (workspace_id, folder_id);
+
+            INSERT INTO schema_migrations (version, applied_at) VALUES (8, datetime('now'));
           `);
         }
       });
@@ -1327,6 +1361,61 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     );
   }
 
+  private async upsertFileDirect(valid: FileRecord): Promise<void> {
+    const db = this.ensureOpen();
+    const ver = parseInt(valid.version, 10) || 1;
+    const status = valid.quarantineStatus === 'verified' ? 'ready' : valid.quarantineStatus;
+    const storagePath = `${valid.workspaceId}/${valid.id}/${valid.version}`;
+    const mimeType = valid.detectedMimeType || valid.declaredMimeType;
+    const deletedAt = valid.quarantineStatus === 'deleted' ? valid.updatedAt : null;
+
+    await db.runAsync(
+      `INSERT INTO files (
+        id, workspace_id, folder_id, file_name, mime_type, size_bytes,
+        sha256, storage_path, current_version, status, quarantine_reason,
+        security_scope, scanner_engine, scanned_bytes, scanned_checksum,
+        server_revision, created_at, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (workspace_id, id) DO UPDATE SET
+        folder_id = excluded.folder_id,
+        file_name = excluded.file_name,
+        mime_type = excluded.mime_type,
+        size_bytes = excluded.size_bytes,
+        sha256 = excluded.sha256,
+        storage_path = excluded.storage_path,
+        current_version = excluded.current_version,
+        status = excluded.status,
+        quarantine_reason = excluded.quarantine_reason,
+        security_scope = excluded.security_scope,
+        scanner_engine = excluded.scanner_engine,
+        scanned_bytes = excluded.scanned_bytes,
+        scanned_checksum = excluded.scanned_checksum,
+        server_revision = excluded.server_revision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        deleted_at = excluded.deleted_at;`,
+      valid.id,
+      valid.workspaceId,
+      valid.folderId ?? null,
+      valid.fileName,
+      mimeType,
+      valid.byteSize,
+      valid.sha256Checksum,
+      storagePath,
+      ver,
+      status,
+      valid.rejectionReason ?? null,
+      'standard',
+      null,
+      valid.byteSize,
+      valid.sha256Checksum,
+      ver,
+      valid.createdAt,
+      valid.updatedAt,
+      deletedAt
+    );
+  }
+
   async saveItemTransaction(
     item: ItemHeaderRecord,
     mutation: PendingMutationRecord,
@@ -1455,7 +1544,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
-    journalEntries?: JournalEntryRecord[]
+    journalEntries?: JournalEntryRecord[],
+    files?: FileRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1484,6 +1574,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     );
     for (const j of validatedJournalEntries) {
       this.ensureNamespace(j.workspaceId);
+    }
+    const validatedFiles = (files || []).map((f) => validateFileRecord(f));
+    for (const f of validatedFiles) {
+      this.ensureNamespace(f.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1578,6 +1672,19 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertJournalEntryDirect(j);
           }
 
+          for (const f of validatedFiles) {
+            const ver = parseInt(f.version, 10) || 1;
+            const existingFile = await db.getFirstAsync<{ server_revision: number }>(
+              `SELECT server_revision FROM files WHERE workspace_id = ? AND id = ?;`,
+              f.workspaceId,
+              f.id
+            );
+            if (existingFile && existingFile.server_revision > ver) {
+              continue;
+            }
+            await this.upsertFileDirect(f);
+          }
+
           // Cursor advancement check: protect against moving cursor backward
           const existingCursor = await db.getFirstAsync<{ last_server_revision: number }>(
             `SELECT last_server_revision FROM sync_cursors WHERE workspace_id = ? AND user_id = ?;`,
@@ -1606,7 +1713,8 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
-    journalEntries?: JournalEntryRecord[]
+    journalEntries?: JournalEntryRecord[],
+    files?: FileRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1635,6 +1743,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     );
     for (const j of validatedJournalEntries) {
       this.ensureNamespace(j.workspaceId);
+    }
+    const validatedFiles = (files || []).map((f) => validateFileRecord(f));
+    for (const f of validatedFiles) {
+      this.ensureNamespace(f.workspaceId);
     }
 
     const db = this.ensureOpen();
@@ -1692,7 +1804,12 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
             await this.upsertJournalEntryDirect(j);
           }
 
-          // 8. Update watermark cursor
+          // 8. Upsert snapshot files
+          for (const f of validatedFiles) {
+            await this.upsertFileDirect(f);
+          }
+
+          // 9. Update watermark cursor
           await this.saveCursorDirect(validCursor);
         });
       } catch (err) {
@@ -2727,6 +2844,168 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     });
   }
 
+  // --- 10. Files ---
+
+  async getFile(workspaceId: string, id: string): Promise<FileRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const row = await db.getFirstAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        file_name: string;
+        mime_type: string;
+        size_bytes: number;
+        sha256: string;
+        storage_path: string;
+        current_version: number;
+        status: string;
+        quarantine_reason: string | null;
+        security_scope: string;
+        scanner_engine: string | null;
+        scanned_bytes: number | null;
+        scanned_checksum: string | null;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(`SELECT * FROM files WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+
+      if (!row) return null;
+      return validateFileRecord({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        folderId: row.folder_id ?? null,
+        fileName: row.file_name,
+        declaredMimeType: row.mime_type,
+        detectedMimeType: row.mime_type,
+        byteSize: row.size_bytes,
+        sha256Checksum: row.sha256,
+        version: String(row.current_version),
+        quarantineStatus: (row.status === 'ready'
+          ? 'verified'
+          : row.status) as FileRecord['quarantineStatus'],
+        rejectionReason: row.quarantine_reason ?? null,
+        createdBy: row.workspace_id,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        verifiedAt: row.updated_at,
+      });
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async listFiles(
+    workspaceId: string,
+    folderIdOrOptions?:
+      | string
+      | null
+      | {
+          folderId?: string | null;
+          includeDeleted?: boolean;
+        }
+  ): Promise<FileRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    try {
+      const folderId =
+        typeof folderIdOrOptions === 'string' || folderIdOrOptions === null
+          ? folderIdOrOptions
+          : folderIdOrOptions?.folderId;
+      const includeDeleted =
+        typeof folderIdOrOptions === 'object' && folderIdOrOptions !== null
+          ? folderIdOrOptions.includeDeleted
+          : false;
+
+      let sql = `SELECT * FROM files WHERE workspace_id = ?`;
+      if (!includeDeleted) {
+        sql += ` AND deleted_at IS NULL`;
+      }
+      const params: unknown[] = [workspaceId];
+      if (folderId !== undefined) {
+        if (folderId === null) {
+          sql += ` AND folder_id IS NULL`;
+        } else {
+          sql += ` AND folder_id = ?`;
+          params.push(folderId);
+        }
+      }
+      sql += ` ORDER BY created_at DESC;`;
+
+      const rows = await db.getAllAsync<{
+        id: string;
+        workspace_id: string;
+        folder_id: string | null;
+        file_name: string;
+        mime_type: string;
+        size_bytes: number;
+        sha256: string;
+        storage_path: string;
+        current_version: number;
+        status: string;
+        quarantine_reason: string | null;
+        security_scope: string;
+        scanner_engine: string | null;
+        scanned_bytes: number | null;
+        scanned_checksum: string | null;
+        server_revision: number;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(sql, ...params);
+
+      return rows.map((row) =>
+        validateFileRecord({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          folderId: row.folder_id ?? null,
+          fileName: row.file_name,
+          declaredMimeType: row.mime_type,
+          detectedMimeType: row.mime_type,
+          byteSize: row.size_bytes,
+          sha256Checksum: row.sha256,
+          version: String(row.current_version),
+          quarantineStatus: (row.status === 'ready'
+            ? 'verified'
+            : row.status) as FileRecord['quarantineStatus'],
+          rejectionReason: row.quarantine_reason ?? null,
+          createdBy: row.workspace_id,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          verifiedAt: row.updated_at,
+        })
+      );
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async upsertFile(file: FileRecord): Promise<void> {
+    const valid = validateFileRecord(file);
+    this.ensureNamespace(valid.workspaceId);
+    return this.runWithLock(async () => {
+      try {
+        await this.upsertFileDirect(valid);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
+  async deleteFile(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return this.runWithLock(async () => {
+      try {
+        await db.runAsync(`DELETE FROM files WHERE workspace_id = ? AND id = ?;`, workspaceId, id);
+      } catch (err) {
+        throw this.mapError(err);
+      }
+    });
+  }
+
   // --- 11. Boundary Lifecycle & Data Erasure ---
 
   async clearWorkspaceData(workspaceId: string): Promise<void> {
@@ -2745,6 +3024,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM routines WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM routine_occurrences WHERE workspace_id = ?;`, workspaceId);
           await db.runAsync(`DELETE FROM journal_entries WHERE workspace_id = ?;`, workspaceId);
+          await db.runAsync(`DELETE FROM files WHERE workspace_id = ?;`, workspaceId);
         });
       } catch (err) {
         throw this.mapError(err);
@@ -2759,7 +3039,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
     return this.runWithLock(async () => {
       try {
         await db.withTransactionAsync(async () => {
-          // Erase all account-owned data including item headers, notes, tasks, routines, occurrences, and journal entries
+          // Erase all account-owned data including item headers, notes, tasks, routines, occurrences, journal entries, and files
           await db.runAsync(`DELETE FROM item_headers;`);
           await db.runAsync(`DELETE FROM drafts WHERE user_id = ?;`, userId);
           await db.runAsync(`DELETE FROM pending_mutations WHERE user_id = ?;`, userId);
@@ -2771,6 +3051,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           await db.runAsync(`DELETE FROM routines;`);
           await db.runAsync(`DELETE FROM routine_occurrences;`);
           await db.runAsync(`DELETE FROM journal_entries;`);
+          await db.runAsync(`DELETE FROM files;`);
         });
 
         // Clear all keys from KeyStore

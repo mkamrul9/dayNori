@@ -96,7 +96,7 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
     const safeLogger = new (await import('../../apps/api/src/plugins/logger.js')).SafeLogger(
       (entry) => {
         if (entry.level === 'error') {
-          console.error('SERVER ERROR:', entry.message, entry.error, entry.details);
+          console.error('SERVER ERROR:', JSON.stringify(entry));
         }
       }
     );
@@ -112,6 +112,7 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
     const addr = server.server.address();
     if (!addr || typeof addr === 'string') throw new Error('Failed to bind server port');
     baseUrl = `http://127.0.0.1:${addr.port}`;
+    memoryStorage.setBaseUrl(baseUrl);
 
     tokenUserA = await createToken(userAId);
     tokenUserB = await createToken(userBId);
@@ -176,11 +177,25 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
     expect(reservation.expiresInSeconds).toBe(7200);
     expect(reservation.objectPath).toContain(`${workspaceAId}/${reservation.fileId}/1/`);
 
-    // 2. Client transfers binary directly to storage provider
-    await memoryStorage.putObject('private_assets', reservation.objectPath, validPngBytes, {
-      contentType: 'image/png',
-      upsert: false,
+    // 2. Client transfers binary directly to storage provider via returned signed upload capability
+    const uploadRes = await fetch(reservation.uploadUrl, {
+      method: reservation.method,
+      headers: {
+        'content-type': 'image/png',
+      },
+      body: validPngBytes,
     });
+    expect(uploadRes.status).toBe(200);
+
+    // 2b. Verify overwrite prevention with upsert: false over HTTP transport
+    const duplicateUploadRes = await fetch(reservation.uploadUrl, {
+      method: reservation.method,
+      headers: {
+        'content-type': 'image/png',
+      },
+      body: validPngBytes,
+    });
+    expect([409, 400]).toContain(duplicateUploadRes.status);
 
     // 3. Finalize upload
     const finalizeRes = await clientA.finalizeFileUpload(workspaceAId, reservation.reservationId);
@@ -193,7 +208,7 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
       crypto.createHash('sha256').update(validPngBytes).digest('hex')
     );
 
-    // 4. Request authorized download capability
+    // 4. Request authorized download capability and verify byte transport
     const downloadRes = await clientA.getFileDownloadCapability(
       workspaceAId,
       finalizeRes.data.fileId
@@ -203,7 +218,28 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
     expect(downloadRes.data.expiresInSeconds).toBe(DOWNLOAD_CAPABILITY_EXPIRY_SECONDS);
     expect(downloadRes.data.expiresInSeconds).toBe(300);
 
-    // 5. Fetch file metadata
+    const dlRes = await fetch(downloadRes.data.downloadUrl);
+    expect(dlRes.status).toBe(200);
+    const downloadedBytes = Buffer.from(await dlRes.arrayBuffer());
+    expect(downloadedBytes).toEqual(validPngBytes);
+
+    // 5. Without required configuration, return honest 503 rather than fictional URLs
+    const { UnavailableStorageProvider } =
+      await import('../../apps/api/src/modules/files/storageAdapter.js');
+    try {
+      setDefaultStorageProvider(new UnavailableStorageProvider('S3 configuration missing'));
+      await expect(
+        clientA.reserveFileUpload(workspaceAId, {
+          fileName: 'unconfigured.png',
+          declaredMimeType: 'image/png',
+          declaredBytes: 1024,
+        })
+      ).rejects.toThrowError(/Storage.*unavailable/i);
+    } finally {
+      setDefaultStorageProvider(memoryStorage);
+    }
+
+    // 6. Fetch file metadata
     const metaRes = await clientA.getFileMetadata(workspaceAId, finalizeRes.data.fileId);
     expect(metaRes.data.quarantineStatus).toBe('verified');
     expect(metaRes.data.fileName).toBe('architecture_diagram.png');
@@ -214,18 +250,40 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
     const initialQuota = await clientA.getWorkspaceStorageQuota(workspaceAId);
     expect(initialQuota.data.maxStorageBytes).toBe(104857600); // 100 MiB
 
-    // 2. Attempt reservation exceeding quota (> 100 MiB)
+    // 2. Genuine concurrent requests and quota limits
+    // Per-file limit is 50 MiB. Workspace quota is 100 MiB.
+    // Reserve two 45 MiB uploads (total 90 MiB <= 100 MiB quota, each <= 50 MiB per-file limit)
+    const reserve1 = await clientA.reserveFileUpload(workspaceAId, {
+      fileName: 'large_part_1.bin',
+      declaredMimeType: 'application/octet-stream',
+      declaredBytes: 45 * 1024 * 1024,
+    });
+    expect(reserve1.data.reservationId).toBeDefined();
+
+    const reserve2 = await clientA.reserveFileUpload(workspaceAId, {
+      fileName: 'large_part_2.bin',
+      declaredMimeType: 'application/octet-stream',
+      declaredBytes: 45 * 1024 * 1024,
+    });
+    expect(reserve2.data.reservationId).toBeDefined();
+
+    // Attempt reservation within 50 MiB per-file limit (20 MiB), but exceeding 100 MiB workspace quota (90 + 20 = 110 MiB)
     let quotaError: unknown;
     try {
       await clientA.reserveFileUpload(workspaceAId, {
-        fileName: 'huge_file.mp4',
-        declaredMimeType: 'audio/mp4',
-        declaredBytes: 150 * 1024 * 1024, // 150 MiB
+        fileName: 'overflow_quota.bin',
+        declaredMimeType: 'application/octet-stream',
+        declaredBytes: 20 * 1024 * 1024, // 20 MiB <= 50 MiB per-file, but 90 + 20 > 100 MiB quota
       });
     } catch (err) {
       quotaError = err;
     }
     expect(quotaError).toBeDefined();
+    expect(quotaError instanceof Error ? quotaError.message : String(quotaError)).toMatch(/quota/i);
+
+    // Cancel to free reserved quota
+    await clientA.cancelFileUploadReservation(workspaceAId, reserve1.data.reservationId);
+    await clientA.cancelFileUploadReservation(workspaceAId, reserve2.data.reservationId);
 
     // 3. Bound concurrent active reservations
     const reservations: string[] = [];
@@ -453,6 +511,20 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
         upsert: false,
       })
     ).rejects.toThrowError(/upsert is disabled/);
+
+    // Caller-supplied fileId cannot hijack or overwrite an existing item through ON CONFLICT
+    let hijackError: unknown;
+    try {
+      await clientA.reserveFileUpload(workspaceAId, {
+        fileId: firstFinalize.data.fileId,
+        fileName: 'hijack_test.png',
+        declaredMimeType: 'image/png',
+        declaredBytes: pngBytes.length,
+      });
+    } catch (err) {
+      hijackError = err;
+    }
+    expect(hijackError).toBeDefined();
   });
 
   it('Journey 7: Multi-Tenant Workspace & Actor Isolation', async () => {
@@ -527,13 +599,39 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
       dbClient.release();
     }
 
-    // 2. DaynoriWorker executes orphan cleanup job with lease protection
-    const worker = new DaynoriWorker();
-    worker.start();
+    // 2. DaynoriWorker executes durable jobs with database lease ownership and SKIP LOCKED
+    const durableWorker = new DaynoriWorker(runtimePool);
+    durableWorker.start();
 
-    const jobResult = await worker.processJob('cleanup-job-1', 'file_orphan_cleanup');
-    expect(jobResult.status).toBe('completed');
-    expect(jobResult.details?.action).toBe('reconciled_expired_reservations');
+    // Insert durable background job into app.background_jobs
+    const testJobClient = await adminPool.connect();
+    let durableJobId: string;
+    try {
+      await testJobClient.query('DELETE FROM app.background_jobs');
+      const insRes = await testJobClient.query<{ id: string }>(
+        `INSERT INTO app.background_jobs (task_type, payload) VALUES ('file_orphan_cleanup', '{}'::jsonb) RETURNING id`
+      );
+      durableJobId = insRes.rows[0]!.id;
+    } finally {
+      testJobClient.release();
+    }
+
+    const jobProcessed = await durableWorker.pollAndProcessNextJob();
+    expect(jobProcessed).not.toBeNull();
+    expect(jobProcessed?.status).toBe('completed');
+
+    const verifyJobClient = await adminPool.connect();
+    try {
+      const checkRes = await verifyJobClient.query<{ status: string; completed_at: string }>(
+        `SELECT status, completed_at FROM app.background_jobs WHERE id = $1`,
+        [durableJobId]
+      );
+      expect(checkRes.rows[0]?.status).toBe('completed');
+      expect(checkRes.rows[0]?.completed_at).toBeDefined();
+    } finally {
+      verifyJobClient.release();
+    }
+    durableWorker.stop();
 
     // 3. Reconcile database expired reservations
     const reconClient = await adminPool.connect();
@@ -560,10 +658,12 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
       declaredBytes: deleteDoc.length,
     });
 
-    await memoryStorage.putObject('private_assets', deleteReserve.data.objectPath, deleteDoc, {
-      contentType: 'application/pdf',
-      upsert: false,
+    const delUploadRes = await fetch(deleteReserve.data.uploadUrl, {
+      method: deleteReserve.data.method,
+      headers: { 'content-type': 'application/pdf' },
+      body: deleteDoc,
     });
+    expect(delUploadRes.ok).toBe(true);
 
     const finalizedDoc = await clientA.finalizeFileUpload(
       workspaceAId,
@@ -589,7 +689,85 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
       deletedFetchError = err;
     }
     expect(deletedFetchError).toBeDefined();
+  });
 
-    worker.stop();
+  it('Journey 9: File Metadata Projections, Sync Bootstrap & Fresh Client Projection', async () => {
+    // 1. Create a folder and upload a verified file into that folder
+    const folderRes = await clientA.createFolder(workspaceAId, {
+      name: 'Project Assets',
+    });
+    const folderId = folderRes.data.id;
+
+    const fileBytes = Buffer.from('%PDF-1.4\nSynchronized canonical asset content');
+    const reserve = await clientA.reserveFileUpload(workspaceAId, {
+      fileName: 'project_spec.pdf',
+      declaredMimeType: 'application/pdf',
+      declaredBytes: fileBytes.length,
+      folderId,
+    });
+
+    const putRes = await fetch(reserve.data.uploadUrl, {
+      method: reserve.data.method,
+      headers: { 'content-type': 'application/pdf' },
+      body: fileBytes,
+    });
+    expect(putRes.ok).toBe(true);
+
+    const finalized = await clientA.finalizeFileUpload(workspaceAId, reserve.data.reservationId);
+    expect(finalized.data.status).toBe('verified');
+
+    // 2. Fresh second client connects and performs bootstrap sync
+    const clientA2 = createApiClient({ baseUrl, token: tokenUserA });
+    const bootstrapRes = await clientA2.syncBootstrap({ workspaceId: workspaceAId });
+    expect(bootstrapRes.data.files).toBeDefined();
+    expect(bootstrapRes.data.files.length).toBeGreaterThanOrEqual(1);
+
+    const syncedFile = bootstrapRes.data.files.find((f) => f.id === finalized.data.fileId);
+    expect(syncedFile).toBeDefined();
+    expect(syncedFile?.fileName).toBe('project_spec.pdf');
+    expect(syncedFile?.folderId).toBe(folderId);
+    expect(syncedFile?.quarantineStatus).toBe('verified');
+    // Ensure binary bytes and signed capabilities are strictly omitted from sync metadata
+    const rawSynced = syncedFile as unknown as Record<string, unknown>;
+    expect(rawSynced['downloadUrl']).toBeUndefined();
+    expect(rawSynced['binaryContent']).toBeUndefined();
+    expect(rawSynced['bytes']).toBeUndefined();
+
+    // 3. Incremental sync cursor advance and reset
+    const watermarkCursor = bootstrapRes.data.watermarkCursor;
+    const pullRes = await clientA2.syncPull({
+      workspaceId: workspaceAId,
+      cursor: watermarkCursor,
+      limit: 50,
+    });
+    expect(pullRes.data.hasMore).toBe(false);
+  });
+
+  it('Journey 10: Mobile Snippet Preference Synchronization & Propagation', async () => {
+    // 1. Fetch actor profile preferences
+    const initialPrefs = await clientA.getUserPreferences();
+    expect(initialPrefs.data.preferences).toBeDefined();
+
+    // 2. Update snippet suppression preference
+    const updatedPrefs = await clientA.updateUserPreferences({
+      preferences: {
+        suppressBodySnippets: false,
+      },
+    });
+    expect(updatedPrefs.data.preferences?.suppressBodySnippets).toBe(false);
+
+    // 3. Second device reads the propagated preference
+    const clientA2 = createApiClient({ baseUrl, token: tokenUserA });
+    const secondDevicePrefs = await clientA2.getUserPreferences();
+    expect(secondDevicePrefs.data.preferences?.suppressBodySnippets).toBe(false);
+
+    // 4. Toggle back to true
+    await clientA2.updateUserPreferences({
+      preferences: {
+        suppressBodySnippets: true,
+      },
+    });
+    const finalPrefs = await clientA.getUserPreferences();
+    expect(finalPrefs.data.preferences?.suppressBodySnippets).toBe(true);
   });
 });

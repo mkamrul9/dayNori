@@ -633,3 +633,55 @@ export function validateJournalEntryRecord(input: unknown): JournalEntryRecord {
     deletedAt: r.deletedAt ? String(r.deletedAt) : null,
   };
 }
+
+export interface FileRecord {
+  id: string;
+  workspaceId: string;
+  folderId: string | null;
+  fileName: string;
+  declaredMimeType: string;
+  detectedMimeType: string;
+  byteSize: number;
+  sha256Checksum: string;
+  version: string;
+  quarantineStatus: 'quarantined' | 'verified' | 'rejected' | 'deleted';
+  rejectionReason: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  verifiedAt: string | null;
+}
+
+export function validateFileRecord(input: unknown): FileRecord {
+  if (!input || typeof input !== 'object') {
+    throw new TypeError('Validation failed: FileRecord must be an object.');
+  }
+  const r = input as Record<string, unknown>;
+  const status = r.quarantineStatus;
+  if (
+    status !== 'quarantined' &&
+    status !== 'verified' &&
+    status !== 'rejected' &&
+    status !== 'deleted'
+  ) {
+    throw new TypeError('Validation failed: quarantineStatus must be valid.');
+  }
+
+  return {
+    id: assertNonEmptyString(r.id, 'id'),
+    workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
+    folderId: r.folderId !== null && r.folderId !== undefined ? String(r.folderId) : null,
+    fileName: assertNonEmptyString(r.fileName, 'fileName', 255),
+    declaredMimeType: assertNonEmptyString(r.declaredMimeType, 'declaredMimeType', 100),
+    detectedMimeType: assertNonEmptyString(r.detectedMimeType, 'detectedMimeType', 100),
+    byteSize: typeof r.byteSize === 'number' ? r.byteSize : Number(r.byteSize) || 0,
+    sha256Checksum: assertNonEmptyString(r.sha256Checksum, 'sha256Checksum', 128),
+    version: typeof r.version === 'string' ? r.version : '1',
+    quarantineStatus: status,
+    rejectionReason: r.rejectionReason ? String(r.rejectionReason) : null,
+    createdBy: assertNonEmptyString(r.createdBy, 'createdBy'),
+    createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
+    updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),
+    verifiedAt: r.verifiedAt ? String(r.verifiedAt) : null,
+  };
+}

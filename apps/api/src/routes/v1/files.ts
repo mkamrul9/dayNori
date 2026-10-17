@@ -24,8 +24,8 @@ import {
   deleteFileItem,
   type ReservationRecord,
 } from '../../modules/files/service.js';
-import { getStorageUsage, releaseReservedExposure } from '../../modules/files/quotaService.js';
-import { validateResponse, FileValidationError } from '../../plugins/errorHandler.js';
+import { getStorageUsage } from '../../modules/files/quotaService.js';
+import { validateResponse } from '../../plugins/errorHandler.js';
 
 const ReservationParamsSchema = WorkspaceParamsSchema.extend({
   reservationId: z.string().uuid(),
@@ -112,58 +112,32 @@ export function registerFileRoutes(app: FastifyInstance, pool: Pool): void {
       const { workspaceId, reservationId } = ReservationParamsSchema.parse(request.params);
       const parsedBody = FinalizeUploadRequestSchema.parse(request.body ?? {});
 
-      try {
-        const finalized = await withTenantContext(
-          pool,
-          { userId: actor.userId, workspaceId },
-          async (client) => {
-            return finalizeFileUpload(client, {
-              workspaceId,
-              actorId: actor.userId,
-              reservationId,
-              clientChecksum: parsedBody?.clientChecksum,
-              operationId: parsedBody?.operationId,
-            });
-          }
-        );
+      const deviceId = (request.headers['x-device-id'] as string) || 'client-device';
 
-        const payload = validateResponse(FinalizeUploadResponseSchema, {
-          data: finalized,
-          meta: {
-            requestId: request.id,
-            serverTime: new Date().toISOString(),
-          },
-        });
-
-        return reply.status(200).send(payload);
-      } catch (err) {
-        if (
-          err instanceof FileValidationError &&
-          (err.message.includes('security verification') || err.message.includes('malware scanner'))
-        ) {
-          try {
-            await withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
-              const res = await client.query<{ reserved_exposure_bytes: string }>(
-                `UPDATE app.upload_reservations
-                   SET status = 'rejected', reconciled = true, updated_at = now()
-                   WHERE id = $1 AND workspace_id = $2
-                   RETURNING reserved_exposure_bytes`,
-                [reservationId, workspaceId]
-              );
-              if (res.rows[0]) {
-                await releaseReservedExposure(
-                  client,
-                  workspaceId,
-                  Number(res.rows[0].reserved_exposure_bytes)
-                );
-              }
-            });
-          } catch {
-            // best-effort persistence of rejection status
-          }
+      const finalized = await withTenantContext(
+        pool,
+        { userId: actor.userId, workspaceId },
+        async (client) => {
+          return finalizeFileUpload(client, {
+            workspaceId,
+            actorId: actor.userId,
+            reservationId,
+            clientChecksum: parsedBody?.clientChecksum,
+            operationId: parsedBody?.operationId,
+            deviceId,
+          });
         }
-        throw err;
-      }
+      );
+
+      const payload = validateResponse(FinalizeUploadResponseSchema, {
+        data: finalized,
+        meta: {
+          requestId: request.id,
+          serverTime: new Date().toISOString(),
+        },
+      });
+
+      return reply.status(200).send(payload);
     }
   );
 
@@ -308,9 +282,12 @@ export function registerFileRoutes(app: FastifyInstance, pool: Pool): void {
       }
 
       const { workspaceId, fileId } = FileParamsSchema.parse(request.params);
+      const operationId =
+        (request.headers['x-operation-id'] as string) ||
+        (request.query as { operationId?: string })?.operationId;
 
       await withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
-        return deleteFileItem(client, workspaceId, actor.userId, fileId);
+        return deleteFileItem(client, workspaceId, actor.userId, fileId, operationId);
       });
 
       return reply.status(200).send({

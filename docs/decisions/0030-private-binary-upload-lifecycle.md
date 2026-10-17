@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Provisional Phase 24 private binary upload lifecycle delivered under owner authorization and verified across Vitest pure domain, content inspector, fail-closed malware scanner, quota bounding, worker lease jobs, PostgreSQL Row-Level Security, Fastify files REST routes, DaynoriApiClient, and 8 end-to-end integration journeys; physical Android TalkBack hardware and hardware KeyStore release gates remain explicitly blocked).
+Accepted (Provisional Phase 24 private binary upload lifecycle delivered under owner authorization and verified across Vitest pure domain, content inspector, fail-closed malware scanner, quota bounding, durable worker lease jobs, PostgreSQL Row-Level Security, Fastify files REST routes, DaynoriApiClient, and 10 end-to-end integration journeys; physical Android TalkBack hardware, KeyStore release gates, and external production virus scanning engine provisioning remain explicitly blocked).
 
 ## Context
 
@@ -14,33 +14,41 @@ Key architectural and security challenges addressed in this phase:
    - Object paths in private storage buckets must never be predictable or derived from client filenames, user IDs, or folder structures.
    - Guessing object paths must never allow cross-workspace downloads or enumeration.
    - Strict Row-Level Security (RLS) policies must prevent unauthorized tenants from querying or modifying upload reservations, storage quotas, file items, or file versions.
-2. **Provider Upload Expiry Realism**:
+2. **Provider Upload Expiry Realism & Storage Transfer Endpoints**:
    - Supabase Storage signed upload capabilities have a provider-enforced minimum validity horizon of two hours (7200 seconds). Claiming a shorter five-minute upload window would misrepresent provider-level capability exposure.
-   - Conversely, authorized read/download capabilities must remain strictly short-lived (300 seconds / 5 minutes) and accessible only for verified, non-quarantined files.
+   - Storage providers must expose real HTTP PUT/GET transport endpoints with capability token verification, body bounds, and 409 conflict detection for `upsert: false`. Unconfigured storage must return an honest 503 unavailable state.
+   - Authorized read/download capabilities remain strictly short-lived (300 seconds / 5 minutes) and accessible only for verified, non-quarantined files.
 3. **Reservation-Time Quota Bounding & Concurrency Limiting**:
    - Finalize-only quota checks are insecure because a client with an issued upload capability could write up to the provider's maximum payload limit before finalization, exhausting physical bucket storage or evading quota enforcement.
    - The system must bound temporary exposure _before_ generating signed upload capabilities by atomically reserving declared bytes against available quota and enforcing a maximum of 5 concurrent active reservations per workspace.
+   - In-flight reservations are strictly filtered by active status (`reserved`, `uploaded`), unexpired timestamps, and unreconciled status.
 4. **Quarantine State Machine & Active Content Sniffing**:
    - All uploaded binaries must start in a quarantined state until explicitly verified.
    - Client-declared MIME types cannot be trusted (e.g. Windows PE executables or ELF binaries declared as `image/png`).
    - Active content vectors (SVG files containing `<script>` tags, HTML documents with embedded scripts, shell scripts) must be rejected before files become downloadable or viewable.
+   - Actual binary lengths are verified against reservation bounds and `maxAllowedBytes`.
 5. **Fail-Closed Malware Scanning Policy**:
    - Malware scanning must detect known signatures (including EICAR standard antivirus test signatures and embedded script payloads).
    - If scanner infrastructure experiences outages or timeouts, the system must fail closed (rejecting or preserving quarantine, never defaulting to verified).
-6. **Durable Worker Leases and Orphan Storage Reconciliation**:
+   - Scanner engine version, scanned bytes count, and scanned SHA-256 are recorded without logging user content.
+6. **Durable Worker Leases and Background Deletion**:
    - Unfinalized, cancelled, or expired reservations could leave orphan binaries in cloud storage.
-   - A durable background worker must acquire exclusive leases to reconcile expired reservations, purge orphaned storage objects, and release committed reserved quota back to the workspace.
+   - A durable background worker must acquire exclusive row leases via `app.background_jobs` (`SELECT ... FOR UPDATE SKIP LOCKED`) to reconcile expired reservations, purge orphaned storage objects, and execute durable file deletions.
+7. **Database Grants & Sync Projections**:
+   - Role `authenticated` direct writes are revoked to ensure all mutations route through the API-owned service layer.
+   - Active verified files are projected into bootstrap snapshots and synchronized to Web IndexedDB and Mobile SQLite local repositories.
 
 ## Decision
 
-### 1. Database Schema & Row-Level Security (`00020_file_upload_lifecycle_and_quarantine.sql`)
+### 1. Database Schema & Row-Level Security (`00020_file_upload_lifecycle_and_quarantine.sql` & `00021_repair_file_lifecycle_jobs_and_grants.sql`)
 
 - Created four core tables in schema `app`:
-  - `app.workspace_storage_usage`: Tracks `stored_bytes`, `reserved_bytes`, and `max_storage_bytes` (100 MiB default for personal workspaces). RLS restricts `SELECT` to workspace viewers and `INSERT`/`UPDATE` to workspace editors.
-  - `app.file_items`: Extends `app.items` (with `kind = 'file'`) recording `file_name`, `declared_mime_type`, `detected_mime_type`, `byte_size`, `sha256_checksum`, `object_path`, `version`, `quarantine_status` (`quarantined`, `verified`, `rejected`, `deleted`), `rejection_reason`, and `verified_at`. Viewers can only select `verified` files; editors can inspect `quarantined` and `rejected` records for diagnostics.
-  - `app.file_versions`: Immutable version history recording each revision's object path, checksum, byte size, and detected MIME type.
+  - `app.workspace_storage_usage`: Tracks `stored_bytes`, `reserved_bytes`, and `max_storage_bytes` (100 MiB default for personal workspaces). RLS restricts `SELECT` to workspace viewers. Direct writes from `authenticated` are revoked.
+  - `app.file_items`: Extends `app.items` (with `kind = 'file'`) recording `file_name`, `declared_mime_type`, `detected_mime_type`, `byte_size`, `sha256_checksum`, `object_path`, `version`, `quarantine_status` (`quarantined`, `verified`, `rejected`, `deleted`), `rejection_reason`, and `verified_at`. Viewers can only select `verified` files. Composite tenant foreign key `(folder_id, workspace_id) REFERENCES app.items(id, workspace_id)` prevents cross-workspace folder hijacking.
+  - `app.file_versions`: Immutable version history recording each revision's object path, checksum, byte size, and detected MIME type with unique constraint on `(file_id, version)`.
   - `app.upload_reservations`: Tracks reservation lifecycle (`reserved`, `uploaded`, `quarantined`, `verified`, `rejected`, `cancelled`, `expired`, `finalized`), 2-hour capability expiration, declared/reserved exposure bytes, and reconciliation status.
-- Granted least-privilege `SELECT, INSERT, UPDATE, DELETE` permissions to `daynori_runtime` and `authenticated` roles.
+  - `app.background_jobs`: Stores durable asynchronous jobs with status, attempt counters, scheduled run times, lease locks, and payload.
+- Granted least-privilege `SELECT, INSERT, UPDATE, DELETE` permissions strictly to `daynori_runtime`.
 
 ### 2. Contract Schemas & Standard Constants (`@daynori/contracts`)
 
@@ -142,7 +150,7 @@ Key architectural and security challenges addressed in this phase:
   - `apps/api/src/modules/files/files.test.ts` (11 tests passing: magic byte sniffing, script injection detection, hash computation, memory storage adapter expiry/upsert, policy malware scanner EICAR detection).
   - `apps/worker/src/worker.test.ts` (6 tests passing: worker start/stop, lease acquisition, concurrency exclusion, job execution).
 - **Integration Test Journeys**:
-  - `tests/integration/phase24-binary-upload.test.ts` (8 passing journeys):
+  - `tests/integration/phase24-binary-upload.test.ts` (10 passing journeys):
     - Journey 1: Happy path reservation -> storage upload -> finalize -> 300s download capability -> metadata fetch.
     - Journey 2: 100 MiB quota enforcement & 5 concurrent active reservation limits.
     - Journey 3: Content verification, MIME spoofing (PE exe disguised as PNG), path traversal rejection, SVG script injection detection.
@@ -151,12 +159,14 @@ Key architectural and security challenges addressed in this phase:
     - Journey 6: Idempotent finalization and strict overwrite prevention (`upsert: false`).
     - Journey 7: Multi-tenant workspace isolation (cross-workspace finalize, download, and metadata 404s).
     - Journey 8: Capability expiry horizon, worker lease acquisition, orphan storage reconciliation, and file deletion lifecycle.
+    - Journey 9: Real HTTP upload transport, max byte enforcement, and quota rejection.
+    - Journey 10: Multi-tenant synchronization projections into bootstrap and local IndexedDB/SQLite adapters.
 - **Monorepo Health**:
-  - Full test suite: 43 test files, 582 tests passing (100% pass rate).
+  - Full test suite: 43 test files, 584 tests passing (100% pass rate).
   - TypeScript typecheck (`pnpm typecheck`): Clean exit code 0.
   - ESLint (`pnpm lint`): 0 warnings, 0 errors.
   - Prettier (`pnpm format:check`): Clean exit code 0.
-  - Secret scanning (`node scripts/scan-secrets.mjs`): 1669 files checked, 0 secrets detected.
+  - Secret scanning (`node scripts/scan-secrets.mjs`): 1674 files checked, 0 secrets detected.
   - Planning validation (`node scripts/validate-planning.mjs`): 64 phases validated, clean exit code 0.
   - Git diff check (`git diff --check`): Clean exit code 0.
 

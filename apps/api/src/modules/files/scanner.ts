@@ -1,8 +1,13 @@
+import crypto from 'node:crypto';
+
 export interface ScanResult {
   isClean: boolean;
   threatName?: string;
   scannedAt: Date;
   scannerEngine: string;
+  engineVersion: string;
+  scannedBytesCount: number;
+  scannedSha256: string;
 }
 
 export interface MalwareScannerContract {
@@ -12,6 +17,16 @@ export interface MalwareScannerContract {
   ): Promise<ScanResult>;
 }
 
+export class MalwareScannerUnavailableError extends Error {
+  constructor(message = 'Malware scanner service is temporarily unavailable (connection refused)') {
+    super(message);
+    this.name = 'MalwareScannerUnavailableError';
+  }
+}
+
+/**
+ * Heuristic/test policy scanner for detecting EICAR and high-risk vectors.
+ */
 export class PolicyMalwareScanner implements MalwareScannerContract {
   private simulatedFailureMode: 'none' | 'outage' | 'timeout' = 'none';
 
@@ -29,13 +44,14 @@ export class PolicyMalwareScanner implements MalwareScannerContract {
   ): Promise<ScanResult> {
     // 1. Enforce fail-closed on scanner outages/timeouts
     if (this.simulatedFailureMode === 'outage') {
-      throw new Error('Malware scanner service is temporarily unavailable (connection refused)');
+      throw new MalwareScannerUnavailableError();
     }
     if (this.simulatedFailureMode === 'timeout') {
-      throw new Error('Malware scan timed out after 30000ms');
+      throw new MalwareScannerUnavailableError('Malware scan timed out after 30000ms');
     }
 
     const now = new Date();
+    const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
 
     // 2. EICAR Test Signature Check
     const contentAscii = bytes.toString('ascii');
@@ -45,6 +61,9 @@ export class PolicyMalwareScanner implements MalwareScannerContract {
         threatName: 'EICAR-Standard-AV-Test-File',
         scannedAt: now,
         scannerEngine: 'Daynori-Policy-Scanner/1.0',
+        engineVersion: '1.0.0',
+        scannedBytesCount: bytes.length,
+        scannedSha256: sha256,
       };
     }
 
@@ -69,6 +88,9 @@ export class PolicyMalwareScanner implements MalwareScannerContract {
           threatName: `Generic.Exploit.ScriptVector.${pattern.split(' ')[0]}`,
           scannedAt: now,
           scannerEngine: 'Daynori-Policy-Scanner/1.0',
+          engineVersion: '1.0.0',
+          scannedBytesCount: bytes.length,
+          scannedSha256: sha256,
         };
       }
     }
@@ -78,7 +100,79 @@ export class PolicyMalwareScanner implements MalwareScannerContract {
       isClean: true,
       scannedAt: now,
       scannerEngine: 'Daynori-Policy-Scanner/1.0',
+      engineVersion: '1.0.0',
+      scannedBytesCount: bytes.length,
+      scannedSha256: sha256,
     };
+  }
+}
+
+/**
+ * External malware scanner client (e.g. ClamAV / ICAP daemon) with bounded execution
+ * and strict fail-closed behavior.
+ */
+export class ExternalMalwareScanner implements MalwareScannerContract {
+  private timeoutMs: number;
+  private endpoint: string;
+
+  constructor(options?: { endpoint?: string; timeoutMs?: number }) {
+    this.endpoint = options?.endpoint || process.env['MALWARE_SCANNER_URL'] || '';
+    this.timeoutMs = options?.timeoutMs || 10000;
+  }
+
+  async scanBytes(
+    bytes: Buffer,
+    context: { fileName: string; detectedMime: string }
+  ): Promise<ScanResult> {
+    if (!this.endpoint) {
+      // In development/test with unconfigured external endpoint, delegate to PolicyMalwareScanner
+      const fallback = new PolicyMalwareScanner();
+      return fallback.scanBytes(bytes, context);
+    }
+
+    const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const res = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(context.fileName),
+          'X-File-Mime': context.detectedMime,
+        },
+        body: bytes,
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        throw new MalwareScannerUnavailableError(`Scanner service returned HTTP ${res.status}`);
+      }
+
+      const body = (await res.json()) as {
+        isClean?: boolean;
+        threatName?: string;
+        engine?: string;
+        version?: string;
+      };
+      return {
+        isClean: Boolean(body.isClean),
+        threatName: body.threatName,
+        scannedAt: new Date(),
+        scannerEngine: body.engine || 'External-Scanner',
+        engineVersion: body.version || '1.0.0',
+        scannedBytesCount: bytes.length,
+        scannedSha256: sha256,
+      };
+    } catch (err) {
+      // Strictly fail-closed: do not allow files to be verified on scanner failures!
+      throw new MalwareScannerUnavailableError(
+        err instanceof Error ? err.message : 'External scanner connection failed'
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 }
 

@@ -12,6 +12,7 @@ import type {
   RoutineRecord,
   RoutineOccurrenceRecord,
   JournalEntryRecord,
+  FileRecord,
 } from '@daynori/sync';
 import {
   StorageQuotaError,
@@ -30,11 +31,12 @@ import {
   validateRoutineRecord,
   validateRoutineOccurrenceRecord,
   validateJournalEntryRecord,
+  validateFileRecord,
 } from '@daynori/sync';
 
 export const TRUSTED_DEVICE_CONSENT_KEY = 'daynori_trusted_device_consent';
 export const DB_NAME = 'daynori_web_storage';
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 export const COORDINATION_CHANNEL_NAME = 'daynori_storage_coordination';
 
 function getStorage(): Storage | null {
@@ -270,6 +272,15 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
               keyPath: ['workspaceId', 'id'],
             });
             journalStore.createIndex('by_date', ['workspaceId', 'entryDate'], {
+              unique: false,
+            });
+          }
+
+          if (!db.objectStoreNames.contains('files')) {
+            const fileStore = db.createObjectStore('files', {
+              keyPath: ['workspaceId', 'id'],
+            });
+            fileStore.createIndex('by_folder', ['workspaceId', 'folderId'], {
               unique: false,
             });
           }
@@ -794,7 +805,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
-    journalEntries?: JournalEntryRecord[]
+    journalEntries?: JournalEntryRecord[],
+    files?: FileRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(newCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -824,6 +836,10 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     for (const j of validatedJournalEntries) {
       this.ensureNamespace(j.workspaceId);
     }
+    const validatedFiles = (files || []).map((f) => validateFileRecord(f));
+    for (const f of validatedFiles) {
+      this.ensureNamespace(f.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -833,6 +849,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validatedRoutines.length > 0) stores.push('routines');
       if (validatedOccurrences.length > 0) stores.push('routine_occurrences');
       if (validatedJournalEntries.length > 0) stores.push('journal_entries');
+      if (validatedFiles.length > 0) stores.push('files');
       const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
@@ -843,6 +860,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         validatedOccurrences.length > 0 ? tx.objectStore('routine_occurrences') : null;
       const journalStore =
         validatedJournalEntries.length > 0 ? tx.objectStore('journal_entries') : null;
+      const fileStore = validatedFiles.length > 0 ? tx.objectStore('files') : null;
 
       // 1. Process each item change under protection against stale concurrent overwrites
       for (const change of validatedChanges) {
@@ -944,7 +962,23 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       }
 
-      // 7. Cursor advancement: protect against moving cursor backward
+      // 7. Process files in the same transaction
+      if (fileStore) {
+        for (const f of validatedFiles) {
+          const getFileReq = fileStore.get([f.workspaceId, f.id]);
+          getFileReq.onsuccess = () => {
+            const existing = getFileReq.result ? validateFileRecord(getFileReq.result) : null;
+            const existingVer = parseInt(existing?.version ?? '0', 10) || 0;
+            const newVer = parseInt(f.version, 10) || 0;
+            if (existing && existingVer > newVer) {
+              return;
+            }
+            fileStore.put(f);
+          };
+        }
+      }
+
+      // 8. Cursor advancement: protect against moving cursor backward
       const cursorGetReq = cursorStore.get([validCursor.workspaceId, validCursor.userId]);
       cursorGetReq.onsuccess = () => {
         const existingCursor = cursorGetReq.result
@@ -971,7 +1005,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     tasks?: TaskRecord[],
     routines?: RoutineRecord[],
     occurrences?: RoutineOccurrenceRecord[],
-    journalEntries?: JournalEntryRecord[]
+    journalEntries?: JournalEntryRecord[],
+    files?: FileRecord[]
   ): Promise<void> {
     const validCursor = validateSyncCursorRecord(watermarkCursor);
     this.ensureNamespace(validCursor.workspaceId, validCursor.userId);
@@ -1001,6 +1036,10 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     for (const j of validatedJournalEntries) {
       this.ensureNamespace(j.workspaceId);
     }
+    const validatedFiles = (files || []).map((f) => validateFileRecord(f));
+    for (const f of validatedFiles) {
+      this.ensureNamespace(f.workspaceId);
+    }
 
     const db = this.ensureOpen();
     return new Promise((resolve, reject) => {
@@ -1010,6 +1049,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       if (validatedRoutines.length > 0) stores.push('routines');
       if (validatedOccurrences.length > 0) stores.push('routine_occurrences');
       if (validatedJournalEntries.length > 0) stores.push('journal_entries');
+      if (validatedFiles.length > 0) stores.push('files');
       const tx = db.transaction(stores, 'readwrite');
       const itemStore = tx.objectStore('item_headers');
       const cursorStore = tx.objectStore('sync_cursors');
@@ -1020,6 +1060,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         validatedOccurrences.length > 0 ? tx.objectStore('routine_occurrences') : null;
       const journalStore =
         validatedJournalEntries.length > 0 ? tx.objectStore('journal_entries') : null;
+      const fileStore = validatedFiles.length > 0 ? tx.objectStore('files') : null;
 
       const snapshotIds = new Set(validItems.map((i) => i.id));
 
@@ -1082,7 +1123,14 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           }
         }
 
-        // 8. Update watermark cursor
+        // 8. Upsert snapshot files
+        if (fileStore) {
+          for (const f of validatedFiles) {
+            fileStore.put(f);
+          }
+        }
+
+        // 9. Update watermark cursor
         cursorStore.put(validCursor);
       };
 
@@ -1677,6 +1725,97 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
     });
   }
 
+  // --- 10. Files ---
+
+  async getFile(workspaceId: string, id: string): Promise<FileRecord | null> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('files', 'readonly');
+      const store = tx.objectStore('files');
+      const req = store.get([workspaceId, id]);
+
+      req.onsuccess = () => resolve(req.result ? validateFileRecord(req.result) : null);
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async listFiles(
+    workspaceId: string,
+    folderIdOrOptions?:
+      | string
+      | null
+      | {
+          folderId?: string | null;
+          includeDeleted?: boolean;
+        }
+  ): Promise<FileRecord[]> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    const folderId =
+      typeof folderIdOrOptions === 'string' || folderIdOrOptions === null
+        ? folderIdOrOptions
+        : folderIdOrOptions?.folderId;
+    const includeDeleted =
+      typeof folderIdOrOptions === 'object' && folderIdOrOptions !== null
+        ? folderIdOrOptions.includeDeleted
+        : false;
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('files', 'readonly');
+      const store = tx.objectStore('files');
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const raw = (req.result as unknown[]) || [];
+        let results = raw
+          .map((f) => validateFileRecord(f))
+          .filter(
+            (f) =>
+              f.workspaceId === workspaceId &&
+              (includeDeleted ? true : f.quarantineStatus !== 'deleted')
+          );
+
+        if (folderId !== undefined) {
+          results = results.filter((f) => f.folderId === folderId);
+        }
+
+        results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        resolve(results);
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async upsertFile(file: FileRecord): Promise<void> {
+    const valid = validateFileRecord(file);
+    this.ensureNamespace(valid.workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('files', 'readwrite');
+      const store = tx.objectStore('files');
+      store.put(valid);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async deleteFile(workspaceId: string, id: string): Promise<void> {
+    this.ensureNamespace(workspaceId);
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('files', 'readwrite');
+      const store = tx.objectStore('files');
+      store.delete([workspaceId, id]);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
   // --- 11. Boundary Lifecycle & Data Erasure ---
 
   async clearWorkspaceData(workspaceId: string): Promise<void> {
@@ -1695,6 +1834,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           'routines',
           'routine_occurrences',
           'journal_entries',
+          'files',
         ],
         'readwrite'
       );
@@ -1809,6 +1949,17 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
         }
       };
 
+      // 11. Clear files
+      const fileStore = tx.objectStore('files');
+      const fileReq = fileStore.getAll();
+      fileReq.onsuccess = () => {
+        for (const f of fileReq.result as FileRecord[]) {
+          if (f.workspaceId === workspaceId) {
+            fileStore.delete([f.workspaceId, f.id]);
+          }
+        }
+      };
+
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));
       tx.onabort = () => reject(this.mapError(tx.error));
@@ -1832,6 +1983,7 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           'routines',
           'routine_occurrences',
           'journal_entries',
+          'files',
         ],
         'readwrite'
       );
@@ -1907,6 +2059,10 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       // 11. Clear journal entries
       const journalStore = tx.objectStore('journal_entries');
       journalStore.clear();
+
+      // 12. Clear files
+      const fileStore = tx.objectStore('files');
+      fileStore.clear();
 
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(this.mapError(tx.error));

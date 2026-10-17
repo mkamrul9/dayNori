@@ -26,6 +26,7 @@ import { registerRoutineRoutes } from './routes/v1/routines.js';
 import { registerJournalRoutes } from './routes/v1/journal.js';
 import { registerFileRoutes } from './routes/v1/files.js';
 import { registerSyncRoutes } from './modules/sync/index.js';
+import { storageTransferPlugin } from './modules/files/storageTransfer.js';
 
 export interface ServerOptions {
   runtimePool?: Pool;
@@ -128,6 +129,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
   // 1. Unauthenticated Foundation Routes
   registerHealthRoutes(app, runtimePool, Boolean(verifier));
   registerOpenApiRoutes(app);
+  app.register(storageTransferPlugin);
 
   // 2. Authenticated Routes (/v1/workspaces and sub-resources)
   if (verifier) {

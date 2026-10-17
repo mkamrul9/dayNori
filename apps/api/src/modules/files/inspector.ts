@@ -213,10 +213,22 @@ export function checkActiveContent(bytes: Buffer): { isActiveContent: boolean; r
 export function inspectBinaryContent(
   bytes: Buffer,
   declaredMimeType: string,
-  _declaredBytes: number
+  maxAllowedBytes: number
 ): InspectedContent {
   const sha256Checksum = crypto.createHash('sha256').update(bytes).digest('hex');
   const actualSize = bytes.length;
+
+  // Enforce reservation capability byte bound
+  if (actualSize > maxAllowedBytes) {
+    return {
+      detectedMimeType: 'application/octet-stream',
+      sha256Checksum,
+      byteSize: actualSize,
+      isValid: false,
+      isActiveContent: false,
+      rejectionReason: `File size ${actualSize} bytes exceeds reservation limit of ${maxAllowedBytes} bytes`,
+    };
+  }
 
   // Active content check
   const activeCheck = checkActiveContent(bytes);
