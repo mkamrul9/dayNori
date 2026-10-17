@@ -176,7 +176,9 @@
     },
     {
       "id": "29",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional Web reminder delivery and PWA support implementation delivered under owner authorization and verified across capability detection, VAPID key acquisition, SSRF-protected subscription lifecycle, multi-target delivery coordination independent from Android local scheduling, strict public static asset service worker caching, notification click routing, accessible in-app agenda fallback, and 16 integration tests passing (49/49 test files and 693/693 tests passing). Completion blocked pending external production VAPID push infrastructure and physical push gateways.",
+      "report": "docs/phase-reports/phase-29.md"
     },
     {
       "id": "30",

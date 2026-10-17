@@ -735,7 +735,7 @@ export class DaynoriWorker {
       }
 
       // Check if already dispatched (deduplication / idempotency)
-      if (instance.status === 'dispatched') {
+      if (instance.status === 'dispatched' && !payload?.isRetry) {
         return {
           jobId,
           status: 'completed',

@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 29 — Web reminder delivery and PWA support — 2026-10-17
+
+- **Web Push Capability & Subscription Lifecycle (`apps/web`, `packages/contracts`, `packages/api-client`, `apps/api`, `infra/supabase`):**
+  - Implemented capability detection (`webPushManager.ts`) checking `isSecureContext`, `serviceWorker`, `PushManager`, and `Notification.permission`.
+  - Added VAPID application key retrieval endpoint (`GET /v1/web-push/vapid-public-key`) and base64url key helpers.
+  - Implemented subscription registration (`POST /v1/web-push/subscriptions`), deactivation (`DELETE /v1/web-push/subscriptions`), and listing (`GET /v1/web-push/subscriptions`) with PostgreSQL RLS on `app.web_push_subscriptions`.
+  - Added SSRF protection (`assertValidPushEndpoint`) rejecting loopback, RFC1918 private subnets, cloud metadata IPs, and insecure HTTP endpoints.
+- **Worker Web Push Delivery Coordination (`apps/worker`):**
+  - Integrated `WebPushNotificationAdapter` into `DaynoriWorker` with per-target delivery isolation.
+  - Local schedule acknowledgments on Android devices suppress push for that specific Android device only without muting desktop or mobile Web Push alerts.
+  - Handled expired push subscriptions (HTTP 410 Gone / unsubscribed) by marking `is_active = false`.
+  - Implemented bounded retry with exponential backoff on transient errors (HTTP 502/503/504).
+- **Service Worker & PWA Safety Shell (`apps/web`):**
+  - Added web app manifest (`apps/web/public/manifest.json`) and clean offline shell fallback (`apps/web/public/offline.html`).
+  - Reviewed service worker (`apps/web/public/sw.js`) enforcing strict static allowlist caching (`daynori-static-v1`) for public static assets.
+  - Strictly excluded authenticated HTML documents, Next.js RSC/prefetch payloads (`_rsc`, `RSC: 1`), private API endpoints (`/api/*`, `/v1/*`), and signed URLs to prevent cross-account offline leakage.
+  - Handled push events with generic privacy-minimized notification text (`Daynori Reminder`).
+  - Added safe notification click handler closing the notification, validating same-origin destinations, and focusing or navigating existing windows.
+- **Accessible In-App Reminder Agenda Fallback (`apps/web`):**
+  - Implemented `ReminderAgendaView` (`apps/web/src/components/ReminderAgendaView.tsx`) embedded into Settings and Plan tabs (`Reminders & Agenda` view filter).
+  - Provides an accessible, keyboard-navigable agenda view displaying upcoming due reminders, delivery channels, and privacy levels.
+  - Includes browser push capability indicators, subscription toggle controls, and offline status feedback.
+- **Integration Test Suite & Verification:**
+  - Added 16 end-to-end integration tests in `tests/integration/phase29-web-reminders.test.ts`.
+  - Verified across 693 tests with 100% pass rate.
+
 ## Defect repairs (Phases 27 and 28 notification foundation) — 2026-10-17
 
 - **Push Token & Transport Alignment (`apps/mobile`, `packages/contracts`, `infra/supabase`):**

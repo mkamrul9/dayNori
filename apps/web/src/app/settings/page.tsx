@@ -5,6 +5,8 @@ import { colors, radii, spacing, touchTargets, typography } from '@daynori/desig
 import { Button, Card, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
+import { ReminderAgendaView } from '../../components/ReminderAgendaView';
+import { createApiClient } from '@daynori/api-client';
 
 export default function SettingsPage() {
   const {
@@ -662,7 +664,15 @@ export default function SettingsPage() {
           )}
         </Card>
 
-        {/* 6. Storage & Privacy Architecture */}
+        {/* 6. Browser Reminders & Web Push (Phase 29) */}
+        <ReminderAgendaView
+          workspaceId={workspaceId}
+          isAuthenticated={isAuthenticated}
+          apiClient={createApiClient({ baseUrl: '/api' })}
+          themeMode={themeMode}
+        />
+
+        {/* 7. Storage & Privacy Architecture */}
         <Card themeMode={themeMode}>
           <h2
             style={{

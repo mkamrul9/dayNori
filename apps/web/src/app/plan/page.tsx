@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useId, useCallback, useMemo } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, EmptyState, Feedback, TaskRow, TaskDetailEditor } from '@daynori/ui-web';
+import { ReminderAgendaView } from '../../components/ReminderAgendaView';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import {
@@ -29,7 +30,14 @@ import {
   type TaskDeadline,
 } from '@daynori/domain';
 
-export type PlanViewFilter = 'today' | 'upcoming' | 'overdue' | 'completed' | 'undated' | 'all';
+export type PlanViewFilter =
+  | 'today'
+  | 'upcoming'
+  | 'overdue'
+  | 'completed'
+  | 'undated'
+  | 'reminders'
+  | 'all';
 export type PlanSortBy = 'deadline' | 'priority' | 'createdAt';
 export type PlanSortDir = 'asc' | 'desc';
 
@@ -568,6 +576,19 @@ export default function PlanPage() {
     }
     // On failure, quickTitle is deliberately retained
   };
+
+  // Navigate from reminder target
+  const handleNavigateReminderTarget = useCallback(
+    (targetType: string, targetId: string) => {
+      if (targetType === 'task') {
+        const found = tasks.find((t) => t.id === targetId);
+        if (found) {
+          setEditingTask(found);
+        }
+      }
+    },
+    [tasks]
+  );
 
   // Toggle Task Completion
   const handleToggleComplete = async (taskId: string) => {
@@ -1243,6 +1264,7 @@ export default function PlanPage() {
             { key: 'overdue', label: 'Overdue' },
             { key: 'completed', label: 'Completed' },
             { key: 'undated', label: 'Undated' },
+            { key: 'reminders', label: 'Reminders & Agenda' },
             { key: 'all', label: 'All Tasks' },
           ] as const
         ).map((tab) => {
@@ -1274,7 +1296,17 @@ export default function PlanPage() {
         })}
       </div>
 
-      {/* Filter and Sort Toolbar */}
+      {activeView === 'reminders' ? (
+        <ReminderAgendaView
+          workspaceId={workspaceId}
+          isAuthenticated={Boolean(user && workspaceId)}
+          apiClient={apiClientRef.current || createApiClient({ baseUrl: '/api' })}
+          themeMode={themeMode}
+          onNavigateToItem={handleNavigateReminderTarget}
+        />
+      ) : (
+        <>
+          {/* Filter and Sort Toolbar */}
       <div
         style={{
           display: 'flex',
@@ -1563,6 +1595,8 @@ export default function PlanPage() {
             );
           })}
         </div>
+      )}
+        </>
       )}
 
       {/* Floating Undo Toast */}
