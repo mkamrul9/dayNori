@@ -34,6 +34,34 @@ export class ConflictError extends Error {
   }
 }
 
+export class QuotaExceededError extends Error {
+  constructor(message = 'Storage quota exceeded') {
+    super(message);
+    this.name = 'QuotaExceededError';
+  }
+}
+
+export class TooManyConcurrentReservationsError extends Error {
+  constructor(message = 'Too many concurrent upload reservations') {
+    super(message);
+    this.name = 'TooManyConcurrentReservationsError';
+  }
+}
+
+export class FileNotReadyError extends Error {
+  constructor(message = 'File is quarantined or rejected and cannot be downloaded') {
+    super(message);
+    this.name = 'FileNotReadyError';
+  }
+}
+
+export class FileValidationError extends Error {
+  constructor(message = 'File validation failed') {
+    super(message);
+    this.name = 'FileValidationError';
+  }
+}
+
 export class ResponseValidationError extends Error {
   public override readonly cause?: unknown;
 
@@ -144,6 +172,55 @@ export function createErrorHandler(logger: SafeLogger) {
         },
       };
       return reply.status(409).send(body);
+    }
+
+    // 4d. Quota exceeded error (413 or 400 with QUOTA_EXCEEDED code)
+    if (error instanceof QuotaExceededError) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.QUOTA_EXCEEDED,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(400).send(body);
+    }
+
+    // 4e. Too many concurrent reservations (429 with RATE_LIMITED code)
+    if (error instanceof TooManyConcurrentReservationsError) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.RATE_LIMITED,
+          message: error.message,
+          requestId,
+          retryAfter: 60,
+        },
+      };
+      return reply.status(429).send(body);
+    }
+
+    // 4f. File not ready for download / quarantined / rejected
+    if (error instanceof FileNotReadyError) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.UPLOAD_NOT_READY,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(409).send(body);
+    }
+
+    // 4g. File validation error
+    if (error instanceof FileValidationError) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.VALIDATION_FAILED,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(400).send(body);
     }
 
     // 5. Authentication errors

@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AppState, AppStateStatus, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  AppState,
+  AppStateStatus,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   MobileButton,
@@ -238,34 +247,34 @@ export const JournalView: React.FC<JournalViewProps> = ({
   const activeNamespaceRef = useRef<{ userId: string; workspaceId: string } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-const STATIC_FIXTURES: LocalJournalItem[] = [
-  {
-    id: 'j1',
-    date: 'Wednesday, Oct 14',
-    entryDate: '2026-10-14',
-    title: 'Reflections on Architecture & Simplicity',
-    snippet:
-      'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
-    plainText:
-      'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
-    mood: 'reflective',
-    tags: ['architecture', 'simplicity'],
-  },
-  {
-    id: 'j2',
-    date: 'Tuesday, Oct 13',
-    entryDate: '2026-10-13',
-    title: 'Progressive Disclosure in Daily Organizers',
-    snippet:
-      'Users benefit when tools stay restrained until advanced capabilities are requested...',
-    plainText:
-      'Users benefit when tools stay restrained until advanced capabilities are requested...',
-    mood: 'good',
-    tags: ['design'],
-  },
-];
+  const STATIC_FIXTURES: LocalJournalItem[] = [
+    {
+      id: 'j1',
+      date: 'Wednesday, Oct 14',
+      entryDate: '2026-10-14',
+      title: 'Reflections on Architecture & Simplicity',
+      snippet:
+        'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
+      plainText:
+        'Keeping system abstractions clean and platform adapters isolated brings long-term agility...',
+      mood: 'reflective',
+      tags: ['architecture', 'simplicity'],
+    },
+    {
+      id: 'j2',
+      date: 'Tuesday, Oct 13',
+      entryDate: '2026-10-13',
+      title: 'Progressive Disclosure in Daily Organizers',
+      snippet:
+        'Users benefit when tools stay restrained until advanced capabilities are requested...',
+      plainText:
+        'Users benefit when tools stay restrained until advanced capabilities are requested...',
+      mood: 'good',
+      tags: ['design'],
+    },
+  ];
 
-const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+  const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
 
   const [entries, setEntries] = useState<LocalJournalItem[]>(() =>
     isTestEnv && !repository ? STATIC_FIXTURES : []
@@ -329,9 +338,7 @@ const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 't
 
       // Check for conflicts
       const conflicts = await repository.listConflicts(workspaceId);
-      const journalConflict = conflicts.find((c) =>
-        persisted.some((e) => e.id === c.entityId)
-      );
+      const journalConflict = conflicts.find((c) => persisted.some((e) => e.id === c.entityId));
       setActiveConflict(journalConflict || null);
     } catch {
       // Quiet read error
@@ -645,11 +652,7 @@ const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 't
       deletedAt: null,
     };
 
-    const finalDoc = updateNoteDocumentPreservingAst(
-      editingDocument,
-      entryBody,
-      originalPlainText
-    );
+    const finalDoc = updateNoteDocumentPreservingAst(editingDocument, entryBody, originalPlainText);
     const wordCount = entryBody.split(/\s+/).filter(Boolean).length;
 
     const journalEntry: JournalEntryRecord = {
@@ -1274,7 +1277,9 @@ const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 't
             {/* Folder Placement Selector */}
             {folders.length > 0 && (
               <View style={{ marginBottom: spacing.sm }}>
-                <Text style={[styles.inputLabel, { color: palette.text.secondary, marginBottom: 4 }]}>
+                <Text
+                  style={[styles.inputLabel, { color: palette.text.secondary, marginBottom: 4 }]}
+                >
                   Folder (optional):
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1298,9 +1303,7 @@ const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 't
                         style={{
                           fontSize: 12,
                           color:
-                            selectedFolderId === null
-                              ? palette.action.label
-                              : palette.text.primary,
+                            selectedFolderId === null ? palette.action.label : palette.text.primary,
                         }}
                       >
                         Root (No folder)
@@ -1315,9 +1318,7 @@ const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 't
                           styles.folderPill,
                           {
                             backgroundColor:
-                              selectedFolderId === f.id
-                                ? palette.action.primary
-                                : palette.surface,
+                              selectedFolderId === f.id ? palette.action.primary : palette.surface,
                             borderColor:
                               selectedFolderId === f.id
                                 ? palette.action.primary
@@ -1635,8 +1636,8 @@ const isTestEnv = typeof process !== 'undefined' && process.env?.NODE_ENV === 't
                   viewMode === 'trash'
                     ? 'Trash is empty'
                     : searchQuery.trim()
-                    ? 'No matching reflections'
-                    : `No entries for ${selectedDate}`
+                      ? 'No matching reflections'
+                      : `No entries for ${selectedDate}`
                 }
                 description={
                   viewMode === 'trash'

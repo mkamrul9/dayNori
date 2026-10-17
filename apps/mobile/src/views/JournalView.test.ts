@@ -7,7 +7,7 @@ import { SqliteLocalRepository, type SqliteDatabaseContract } from '../data/sqli
 import { MobileKeyManager } from '../data/keyManager.js';
 import type { SecureStoreContract } from '../auth/secureStorage.js';
 import { generateInitialRank, generateUuid, type NoteDocument } from '@daynori/domain';
-import type { ConflictRecord, DraftRecord } from '@daynori/sync';
+import type { ConflictRecord, DraftRecord, LocalRepositoryPort, SyncEngine } from '@daynori/sync';
 
 class NodeSqliteAdapter implements SqliteDatabaseContract {
   constructor(private db: DatabaseSync) {}
@@ -185,7 +185,7 @@ describe('JournalView Screen Wiring Integration Tests', () => {
           isAuthenticated: true,
           workspaceId,
           userId,
-          repository: failingRepo as any,
+          repository: failingRepo as unknown as LocalRepositoryPort,
           userTimezone: 'UTC',
           onLoginSynthetic: () => {},
           onNavigateToToday: () => {},
@@ -344,7 +344,7 @@ describe('JournalView Screen Wiring Integration Tests', () => {
     expect(saved?.folderId).toBe(folderId);
     expect(saved?.document.content.length).toBe(2);
     expect(saved?.document.content[0]?.type).toBe('heading');
-    expect((saved?.document.content[0] as any)?.id).toBe('heading-block');
+    expect((saved?.document.content[0] as { id?: string })?.id).toBe('heading-block');
     expect(saved?.document.content[1]?.type).toBe('paragraph');
 
     // 5. Trash and verify AST is STILL not flattened
@@ -462,7 +462,7 @@ describe('JournalView Screen Wiring Integration Tests', () => {
           workspaceId,
           userId,
           repository: repo,
-          syncEngine: mockSyncEngine as any,
+          syncEngine: mockSyncEngine as unknown as SyncEngine,
           userTimezone: 'UTC',
           onLoginSynthetic: () => {},
           onNavigateToToday: () => {},
@@ -507,7 +507,10 @@ describe('JournalView Screen Wiring Integration Tests', () => {
     await sleep(100);
 
     const prefs = await repo.getPreferenceSnapshot(userId);
-    expect((prefs?.preferences?.displayPreferences as any)?.suppressBodySnippets).toBe(false);
+    expect(
+      (prefs?.preferences?.displayPreferences as { suppressBodySnippets?: boolean })
+        ?.suppressBodySnippets
+    ).toBe(false);
 
     // 2. Switch to different user/workspace
     act(() => {

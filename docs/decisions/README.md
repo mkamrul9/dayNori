@@ -31,5 +31,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0027: Daily Routine Checklists, Non-Punitive Progress, and Completion History](0027-daily-routine-checklist-and-history.md)
 - [ADR-0028: Journal Entries, Dated Local Semantics, and Privacy Defaults](0028-journal-entries-and-privacy-defaults.md)
 - [ADR-0029: Journal Writing and Reflection Interfaces](0029-journal-writing-and-reflection-interfaces.md)
+- [ADR-0030: Private Binary Upload Lifecycle, Storage Quotas, and Quarantine Verification](0030-private-binary-upload-lifecycle.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

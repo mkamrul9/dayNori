@@ -13,6 +13,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@daynori/contracts": "workspace:*",
     "@daynori/domain": "workspace:*"
   },
   "devDependencies": {

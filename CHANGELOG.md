@@ -1,5 +1,37 @@
 # Changelog
 
+## Phase 24 — Private binary upload lifecycle — 2026-10-17
+
+- **Private Storage Schema & Isolation (`infra/supabase`):**
+  - Created `app.workspace_storage_usage` tracking stored bytes, reserved exposure, and workspace quota (100 MiB default) with Row-Level Security restricting queries to viewers and updates to editors.
+  - Created `app.file_items` (extending `app.items` where `kind = 'file'`) recording quarantine status (`quarantined`, `verified`, `rejected`, `deleted`), detected MIME types, SHA-256 checksums, and verified timestamps.
+  - Created `app.file_versions` storing immutable revision history.
+  - Created `app.upload_reservations` tracking signed capability issuance, 2-hour provider expiry, and reconciliation status.
+- **Contract Schemas & Curated Allowlist (`packages/contracts`):**
+  - Added `ALLOWED_MIME_TYPES` allowlist for standard images, PDFs, text, Markdown, and audio.
+  - Defined file size and concurrency bounds: `MAX_GENERAL_FILE_BYTES` (25 MiB), `MAX_AUDIO_FILE_BYTES` (50 MiB), `MAX_CONCURRENT_RESERVATIONS` (5).
+  - Documented realistic provider expiry horizons: `UPLOAD_CAPABILITY_EXPIRY_SECONDS` (7200 seconds / 2 hours) and short-lived authorized download capabilities `DOWNLOAD_CAPABILITY_EXPIRY_SECONDS` (300 seconds / 5 minutes).
+  - Defined Zod schemas for upload reservation, finalization, capability generation, and quota status.
+- **Binary Content Inspection & Fail-Closed Malware Policy (`apps/api`):**
+  - Implemented `inspectBinaryContent` sniffing true MIME types from magic bytes, rejecting Windows PE executables, Unix ELF binaries, and script vectors in XML/SVG or text payloads.
+  - Implemented `PolicyMalwareScanner` detecting standard EICAR test signatures and fail-closed simulation on scanner outages or timeouts.
+- **Atomic Quota Accounting & Reservation Exposure Bounding (`apps/api`):**
+  - Bounded storage exposure before issuing upload capabilities by atomically checking `stored + reserved + requested <= max` and enforcing maximum 5 concurrent active reservations.
+  - Atomically transitioned exposure on finalization and freed reserved bytes on rejection or cancellation.
+- **Files Service & REST Routes (`apps/api`):**
+  - Generated unpredictable, server-controlled object paths: `${workspaceId}/${fileId}/${versionId}/${crypto.randomBytes(16).toString('hex')}`.
+  - Registered Fastify REST routes under `/v1/workspaces/:workspaceId/files` for quota, reservations, finalization, cancellation, download capabilities, metadata, and deletion.
+  - Emitted `file` entity events to the workspace sync change outbox with sequence advancement.
+- **Worker Leases & Orphan Cleanup (`apps/worker`):**
+  - Implemented `DaynoriWorker` lease acquisition engine (30s TTL) preventing multi-worker execution collisions.
+  - Handled `file_scan` and `file_orphan_cleanup` jobs, purging abandoned storage objects and reconciling expired reservations.
+- **Client SDK (`packages/api-client`):**
+  - Extended `DaynoriApiClient` with typed file lifecycle methods (`getWorkspaceStorageQuota`, `reserveFileUpload`, `finalizeFileUpload`, `getFileUploadStatus`, `cancelFileUploadReservation`, `getFileDownloadCapability`, `getFileMetadata`, `deleteFile`).
+- **Comprehensive Integration Tests (`tests/integration`):**
+  - Added `tests/integration/phase24-binary-upload.test.ts` covering 8 full journeys (happy path, quota/concurrency bounding, MIME spoofing/SVG script rejection, checksum verification, fail-closed malware detection, idempotent finalize, multi-tenant isolation, and worker orphan cleanup).
+- **Decision Record:**
+  - Published [ADR-0030: Private Binary Upload Lifecycle, Storage Quotas, and Quarantine Verification](docs/decisions/0030-private-binary-upload-lifecycle.md).
+
 ## Phase 23 — Journal writing and reflection interfaces — 2026-10-17
 
 - **Focused Web Journal Canvas (`packages/ui-web`, `apps/web`):**

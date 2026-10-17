@@ -106,6 +106,22 @@ import {
   type JournalEntryListQuery,
   type JournalEntryResponse,
   type JournalEntryListResponse,
+  ReserveUploadResponseSchema,
+  FinalizeUploadResponseSchema,
+  UploadStatusResponseSchema,
+  CancelReservationResponseSchema,
+  DownloadCapabilityResponseSchema,
+  FileItemResponseSchema,
+  StorageQuotaResponseSchema,
+  type ReserveUploadRequest,
+  type ReserveUploadResponse,
+  type FinalizeUploadRequest,
+  type FinalizeUploadResponse,
+  type UploadStatusResponse,
+  type CancelReservationResponse,
+  type DownloadCapabilityResponse,
+  type FileItemResponse,
+  type StorageQuotaResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -1311,6 +1327,115 @@ export class DaynoriApiClient {
     const raw = await this.request<{ data: unknown; meta: { requestId: string } }>(
       `/v1/workspaces/${workspaceId}/journal/templates`,
       { method: 'GET' },
+      options
+    );
+    return raw;
+  }
+
+  // --- Files & Storage Lifecycle ---
+
+  async getWorkspaceStorageQuota(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<StorageQuotaResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/files/quota`,
+      { method: 'GET' },
+      options
+    );
+    return StorageQuotaResponseSchema.parse(raw);
+  }
+
+  async reserveFileUpload(
+    workspaceId: string,
+    request: ReserveUploadRequest,
+    options?: RequestOptions
+  ): Promise<ReserveUploadResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/files/reservations`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return ReserveUploadResponseSchema.parse(raw);
+  }
+
+  async finalizeFileUpload(
+    workspaceId: string,
+    reservationId: string,
+    request?: FinalizeUploadRequest,
+    options?: RequestOptions
+  ): Promise<FinalizeUploadResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/files/reservations/${reservationId}/finalize`,
+      {
+        method: 'POST',
+        body: request ? JSON.stringify(request) : undefined,
+      },
+      options
+    );
+    return FinalizeUploadResponseSchema.parse(raw);
+  }
+
+  async getFileUploadStatus(
+    workspaceId: string,
+    reservationId: string,
+    options?: RequestOptions
+  ): Promise<UploadStatusResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/files/reservations/${reservationId}`,
+      { method: 'GET' },
+      options
+    );
+    return UploadStatusResponseSchema.parse(raw);
+  }
+
+  async cancelFileUploadReservation(
+    workspaceId: string,
+    reservationId: string,
+    options?: RequestOptions
+  ): Promise<CancelReservationResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/files/reservations/${reservationId}/cancel`,
+      { method: 'POST' },
+      options
+    );
+    return CancelReservationResponseSchema.parse(raw);
+  }
+
+  async getFileDownloadCapability(
+    workspaceId: string,
+    fileId: string,
+    options?: RequestOptions
+  ): Promise<DownloadCapabilityResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/files/${fileId}/download`,
+      { method: 'GET' },
+      options
+    );
+    return DownloadCapabilityResponseSchema.parse(raw);
+  }
+
+  async getFileMetadata(
+    workspaceId: string,
+    fileId: string,
+    options?: RequestOptions
+  ): Promise<FileItemResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/files/${fileId}`,
+      { method: 'GET' },
+      options
+    );
+    return FileItemResponseSchema.parse(raw);
+  }
+
+  async deleteFile(
+    workspaceId: string,
+    fileId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean }; meta: { requestId: string } }> {
+    const raw = await this.request<{ data: { success: boolean }; meta: { requestId: string } }>(
+      `/v1/workspaces/${workspaceId}/files/${fileId}`,
+      { method: 'DELETE' },
       options
     );
     return raw;

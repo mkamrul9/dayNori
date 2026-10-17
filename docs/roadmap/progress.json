@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-17",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 23 journal writing and reflection interfaces provisional implementation delivered and verified across PostgreSQL, Fastify API, SyncEngine, Web JournalEditor, and Mobile JournalView. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, and 23 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
-  "note": "Phase 23 (Journal writing and reflection interfaces) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 24 private binary upload lifecycle provisional implementation delivered and verified across PostgreSQL, Fastify API, MemoryStorageProvider, PolicyMalwareScanner, DaynoriWorker, DaynoriApiClient, and comprehensive integration journeys. Next eligible phase is Phase 25 (File and attachment browsing and management interfaces). Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, and 24 remains blocked pending physical Android TalkBack and hardware KeyStore release gates.",
+  "note": "Phase 24 (Private binary upload lifecycle) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -146,7 +146,9 @@
     },
     {
       "id": "24",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional private verified uploads and storage lifecycle delivered under owner authorization and verified across Vitest pure domain, inspector, fail-closed malware scanner, quota bounding, worker lease jobs, PostgreSQL RLS, Fastify files REST routes, DaynoriApiClient, and 8 end-to-end integration journeys (43/43 test files and 582/582 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-24.md"
     },
     {
       "id": "25",
