@@ -6,9 +6,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import {
   MobileButton,
   MobileCard,
@@ -26,12 +27,20 @@ import {
   calculatePlannedInstant,
   computeDeterministicOccurrenceId,
   isRoutineScheduledOnDate,
-  isTaskDueToday,
   isTaskOverdue,
   type RoutineFrequency,
   type Weekday,
   type RoutineOccurrenceStatus,
   type RoutineOccurrenceTransition,
+  getDefaultHomeLayout,
+  sanitizeAndMigrateHomeLayout,
+  reorderWidgets,
+  validateCustomLabel,
+  filterRecentItemsForPrivacy,
+  DEFAULT_WIDGET_LABELS,
+  type HomeLayout,
+  type HomeWidgetId,
+  type RecentItemEntry,
 } from '@daynori/domain';
 import type {
   LocalRepositoryPort,
@@ -68,6 +77,7 @@ export interface MobileTaskItem {
   title: string;
   due: string;
   completed: boolean;
+  isOverdue?: boolean;
 }
 
 export interface TodayViewProps {
@@ -80,6 +90,7 @@ export interface TodayViewProps {
   initialRoutines?: MobileRoutineItem[];
   initialOccurrences?: MobileOccurrenceItem[];
   initialTasks?: MobileTaskItem[];
+  initialFolders?: Array<{ id: string; name: string }>;
   repository?: LocalRepositoryPort;
   syncEngine?: SyncEngine;
   workspaceId?: string | null;
@@ -120,7 +131,6 @@ const DEFAULT_ROUTINES: MobileRoutineItem[] = [
 ];
 
 const DEFAULT_OCCURRENCES: MobileOccurrenceItem[] = [
-  // Today's occurrences
   {
     id: 'occ_r1_today',
     routineId: 'r1',
@@ -135,7 +145,6 @@ const DEFAULT_OCCURRENCES: MobileOccurrenceItem[] = [
     completedAt: null,
     scheduledDate: DEFAULT_TODAY,
   },
-  // Yesterday's preserved history
   {
     id: 'occ_r1_yesterday',
     routineId: 'r1',
@@ -177,6 +186,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   initialRoutines = DEFAULT_ROUTINES,
   initialOccurrences = DEFAULT_OCCURRENCES,
   initialTasks = DEFAULT_TASKS,
+  initialFolders = [],
   repository,
   syncEngine,
   workspaceId,
@@ -206,12 +216,19 @@ export const TodayView: React.FC<TodayViewProps> = ({
     return addCalendarDays(todayDate, -1);
   }, [todayDate]);
 
-  // Interactive state toggles for testing empty, loading, and error states
+  // Interactive state toggles
   const [demoState, setDemoState] = useState<'normal' | 'empty' | 'loading' | 'error'>('normal');
   const [tasks, setTasks] = useState<MobileTaskItem[]>(initialTasks);
   const [routines, setRoutines] = useState<MobileRoutineItem[]>(initialRoutines);
   const [occurrences, setOccurrences] = useState<MobileOccurrenceItem[]>(initialOccurrences);
+  const [recentItems, setRecentItems] = useState<RecentItemEntry[]>([]);
+  const favoriteFolders = useMemo(() => initialFolders, [initialFolders]);
   const rawTasksRef = useRef<TaskRecord[]>([]);
+
+  // Phase 30 Customization State
+  const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => getDefaultHomeLayout());
+  const [isCustomizing, setIsCustomizing] = useState(false);
+  const [isOverdueExpanded, setIsOverdueExpanded] = useState(false);
 
   // History sheet state
   const [historyRoutine, setHistoryRoutine] = useState<MobileRoutineItem | null>(null);
@@ -235,6 +252,17 @@ export const TodayView: React.FC<TodayViewProps> = ({
     if (!repository || !workspaceId) return;
 
     try {
+      // 1. Load preferences snapshot
+      try {
+        const snapshot = await repository.getPreferenceSnapshot(userId || 'anonymous');
+        if (snapshot?.preferences?.homeLayout) {
+          setHomeLayout(sanitizeAndMigrateHomeLayout(snapshot.preferences.homeLayout));
+        }
+      } catch {
+        // Fall back to defaults
+      }
+
+      // 2. Load routines
       const loadedRoutines = await repository.listRoutines(workspaceId);
       const loadedOccurrences = await repository.listRoutineOccurrences(
         workspaceId,
@@ -243,7 +271,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         addCalendarDays(todayDate, 7)
       );
 
-      // Generate missing occurrences for each routine using its scheduling timezone
+      // Generate missing occurrences
       const updatedOccurrences = [...loadedOccurrences];
       for (const r of loadedRoutines) {
         const routineDate = getCalendarDateInTimezone(currentNow, r.timezone);
@@ -286,16 +314,89 @@ export const TodayView: React.FC<TodayViewProps> = ({
         }
       }
 
-      // Filter tasks due today
+      // 3. Load tasks
       const allTasks = await repository.listTasks(workspaceId);
       rawTasksRef.current = allTasks;
       const refDate = new Date();
-      const todayTasks = allTasks.filter(
-        (t) =>
-          t.deletedAt === null &&
-          (isTaskDueToday({ deadline: t.deadline }, refDate, viewingTimezone) ||
-            isTaskOverdue({ status: t.status, deadline: t.deadline }, refDate, viewingTimezone))
-      );
+
+      const activeTasks = allTasks.filter((t) => t.deletedAt === null);
+      const todayTasks = activeTasks.map((t) => {
+        const isOver = isTaskOverdue(
+          { status: t.status, deadline: t.deadline },
+          refDate,
+          viewingTimezone
+        );
+        return {
+          id: t.id,
+          title: t.title,
+          due:
+            t.deadline?.type === 'timed'
+              ? `Due ${t.deadline.timestamp.slice(11, 16)}`
+              : isOver
+                ? 'Overdue'
+                : 'Today',
+          completed: t.status === 'completed',
+          isOverdue: isOver && t.status !== 'completed',
+        };
+      }).filter((t) => t.isOverdue || t.due.includes('Due') || t.due === 'Today');
+
+      // 4. Load recent items
+      try {
+        const notes = await repository.listNotes(workspaceId);
+        const files = await repository.listFiles(workspaceId);
+        const journalEntries = await repository.listJournalEntries(workspaceId, {
+          includeDeleted: false,
+        });
+
+        const rawRecent: RecentItemEntry[] = [
+          ...notes.map((n) => ({
+            id: n.id,
+            type: 'note' as const,
+            title: n.title,
+            updatedAt: n.updatedAt,
+            folderId: n.folderId,
+          })),
+          ...allTasks.map((t) => ({
+            id: t.id,
+            type: 'task' as const,
+            title: t.title,
+            updatedAt: t.updatedAt,
+            folderId: t.folderId,
+          })),
+          ...loadedRoutines.map((r) => ({
+            id: r.id,
+            type: 'routine' as const,
+            title: r.title,
+            updatedAt: r.updatedAt,
+            folderId: r.folderId,
+          })),
+          ...files.map((f) => ({
+            id: f.id,
+            type: 'file' as const,
+            title: f.fileName,
+            updatedAt: f.updatedAt,
+            folderId: f.folderId,
+          })),
+          ...journalEntries.map((j) => ({
+            id: j.id,
+            type: 'journal' as const,
+            title: j.title || 'Journal entry',
+            updatedAt: j.updatedAt,
+            folderId: j.folderId,
+            bodyPreview: 'redacted',
+          })),
+        ];
+
+        rawRecent.sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+        const safeRecent = filterRecentItemsForPrivacy(rawRecent.slice(0, 5), {
+          hideJournalSnippets: true,
+        });
+        setRecentItems(safeRecent);
+      } catch {
+        // Non-blocking
+      }
 
       setRoutines(
         loadedRoutines.map((r) => ({
@@ -321,18 +422,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
           scheduledDate: o.scheduledDate,
         }))
       );
-      setTasks(
-        todayTasks.map((t) => ({
-          id: t.id,
-          title: t.title,
-          due: t.deadline?.type === 'timed' ? `Due ${t.deadline.timestamp.slice(11, 16)}` : 'Today',
-          completed: t.status === 'completed',
-        }))
-      );
+      setTasks(todayTasks);
     } catch {
       // ignore
     }
-  }, [repository, workspaceId, yesterdayDate, todayDate, currentNow, viewingTimezone]);
+  }, [repository, workspaceId, userId, yesterdayDate, todayDate, currentNow, viewingTimezone]);
 
   useEffect(() => {
     if (isProduction) {
@@ -459,6 +553,63 @@ export const TodayView: React.FC<TodayViewProps> = ({
     undoTimeoutRef.current = setTimeout(() => {
       setUndoNotice(null);
     }, 5000);
+  };
+
+  const handleUndo = async () => {
+    if (!undoNotice) return;
+    const { occurrenceId, previousStatus, previousCompletedAt } = undoNotice;
+
+    setOccurrences((prev) =>
+      prev.map((o) =>
+        o.id === occurrenceId
+          ? {
+              ...o,
+              status: previousStatus,
+              completedAt: previousCompletedAt,
+            }
+          : o
+      )
+    );
+
+    if (isProduction && workspaceId && repository) {
+      const existingOcc = await repository.getRoutineOccurrence(workspaceId, occurrenceId);
+      if (existingOcc) {
+        const nowIso = new Date().toISOString();
+        const compensatingTransition: RoutineOccurrenceTransition = {
+          fromStatus: existingOcc.status,
+          toStatus: previousStatus,
+          status: previousStatus,
+          previousStatus: existingOcc.status,
+          changedAt: nowIso,
+          transitionedAt: nowIso,
+          actorId: userId || null,
+          reason: 'Mobile user compensated transition via undo toast',
+        };
+
+        const restoredOcc: RoutineOccurrenceRecord = {
+          ...existingOcc,
+          status: previousStatus,
+          completedAt: previousCompletedAt,
+          completedBy: previousStatus === 'done' ? userId || null : null,
+          history: [...existingOcc.history, compensatingTransition],
+          updatedAt: nowIso,
+        };
+
+        if (syncEngine) {
+          const command =
+            previousStatus === 'done'
+              ? 'completeOccurrence'
+              : previousStatus === 'skipped'
+                ? 'skipOccurrence'
+                : 'reopenOccurrence';
+          await syncEngine.saveRoutineOccurrence(restoredOcc, command);
+        } else {
+          await repository.upsertRoutineOccurrence(restoredOcc);
+        }
+      }
+    }
+
+    setUndoNotice(null);
   };
 
   const handleCompleteRoutine = async (routineId: string, occurrenceId?: string) => {
@@ -622,7 +773,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }
 
     showUndoToast(
-      `Skipped "${routine?.title || 'routine'}".`,
+      `Skipped "${routine?.title || 'routine'}" for today.`,
       routineId,
       effectiveOccId,
       prevStatus,
@@ -635,23 +786,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
     const occ = occurrenceId
       ? occurrences.find((o) => o.id === occurrenceId)
       : getTodayOccurrence(routineId);
-    if (!occ) return;
 
+    if (!occ) return;
     const nowIso = new Date().toISOString();
     const routine = routines.find((r) => r.id === routineId);
-    const prevHistory = (occ as RoutineOccurrenceRecord)?.history || [];
-    const updatedHistory: RoutineOccurrenceTransition[] = [
-      ...prevHistory,
-      {
-        fromStatus: occ.status,
-        toStatus: 'pending',
-        status: 'pending',
-        changedAt: nowIso,
-        transitionedAt: nowIso,
-        actorId: userId || null,
-        reason: null,
-      },
-    ];
 
     setOccurrences((prev) =>
       prev.map((o) => (o.id === occ.id ? { ...o, status: 'pending', completedAt: null } : o))
@@ -664,12 +802,23 @@ export const TodayView: React.FC<TodayViewProps> = ({
         routineId,
         scheduledDate: occ.scheduledDate,
         scheduleRevision: 1,
-        plannedInstant: (occ as RoutineOccurrenceRecord)?.plannedInstant || null,
+        plannedInstant: null,
         timezone: routine?.timezone || 'UTC',
         status: 'pending',
         completedAt: null,
         completedBy: null,
-        history: updatedHistory,
+        history: [
+          ...((occ as RoutineOccurrenceRecord)?.history || []),
+          {
+            fromStatus: occ.status,
+            toStatus: 'pending',
+            status: 'pending',
+            changedAt: nowIso,
+            transitionedAt: nowIso,
+            actorId: userId || null,
+            reason: 'Reopened occurrence',
+          },
+        ],
         serverRevision: (occ as RoutineOccurrenceRecord)?.serverRevision || 1,
         createdAt: (occ as RoutineOccurrenceRecord)?.createdAt || nowIso,
         updatedAt: nowIso,
@@ -683,124 +832,90 @@ export const TodayView: React.FC<TodayViewProps> = ({
     }
   };
 
-  const handleUndo = async () => {
-    if (!undoNotice) return;
-    if (undoTimeoutRef.current) {
-      clearTimeout(undoTimeoutRef.current);
-    }
-    const { occurrenceId, previousStatus, previousCompletedAt, previousHistory } = undoNotice;
-    const occ = occurrences.find((o) => o.id === occurrenceId);
-    if (!occ) return;
-
-    const nowIso = new Date().toISOString();
-    const routine = routines.find((r) => r.id === occ.routineId);
-
-    // Revision-protected compensating transition
-    const compensatingTransition: RoutineOccurrenceTransition = {
-      fromStatus: occ.status,
-      toStatus: previousStatus,
-      status: previousStatus,
-      previousStatus: occ.status,
-      changedAt: nowIso,
-      transitionedAt: nowIso,
-      actorId: userId || null,
-      reason: 'Compensating undo action',
-    };
-
-    setOccurrences((prev) =>
-      prev.map((o) =>
-        o.id === occurrenceId
-          ? { ...o, status: previousStatus, completedAt: previousCompletedAt }
-          : o
-      )
-    );
-
-    if (isProduction && workspaceId) {
-      const restoredOcc: RoutineOccurrenceRecord = {
-        id: occurrenceId,
-        workspaceId,
-        routineId: occ.routineId,
-        scheduledDate: occ.scheduledDate,
-        scheduleRevision: 1,
-        plannedInstant: (occ as RoutineOccurrenceRecord)?.plannedInstant || null,
-        timezone: routine?.timezone || 'UTC',
-        status: previousStatus,
-        completedAt: previousStatus === 'done' ? previousCompletedAt || nowIso : null,
-        completedBy: previousStatus === 'done' ? userId || null : null,
-        history: [...previousHistory, compensatingTransition],
-        serverRevision: (occ as RoutineOccurrenceRecord)?.serverRevision || 1,
-        createdAt: (occ as RoutineOccurrenceRecord)?.createdAt || nowIso,
-        updatedAt: nowIso,
-      };
-
-      if (syncEngine) {
-        const command =
-          previousStatus === 'done'
-            ? 'completeOccurrence'
-            : previousStatus === 'skipped'
-              ? 'skipOccurrence'
-              : 'reopenOccurrence';
-        await syncEngine.saveRoutineOccurrence(restoredOcc, command);
-      } else if (repository) {
-        await repository.upsertRoutineOccurrence(restoredOcc);
-      }
-    }
-
-    setUndoNotice(null);
-  };
-
   const handleOpenHistory = async (routine: MobileRoutineItem) => {
     setHistoryRoutine(routine);
     if (repository && workspaceId) {
       const routineDate = getCalendarDateInTimezone(currentNow, routine.timezone);
       const past90 = addCalendarDays(routineDate, -90);
-      const list = await repository.listRoutineOccurrences(
+      const loaded = await repository.listRoutineOccurrences(
         workspaceId,
         routine.id,
         past90,
         routineDate
       );
-      setHistoryOccurrencesList(list);
+      setHistoryOccurrencesList(loaded);
     } else {
       setHistoryOccurrencesList(
         occurrences
           .filter((o) => o.routineId === routine.id)
           .map((o) => ({
             id: o.id,
-            workspaceId: 'ws-sample',
+            workspaceId: 'mock-ws',
             routineId: o.routineId,
             scheduledDate: o.scheduledDate,
             scheduleRevision: 1,
             plannedInstant: null,
-            timezone: routine.timezone,
+            timezone: 'UTC',
             status: o.status,
             completedAt: o.completedAt || null,
             completedBy: null,
             history: [],
             serverRevision: 1,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
           }))
       );
     }
   };
 
-  // Occurrences for currently selected history routine
-  const historyOccurrences = useMemo(() => {
-    if (!historyRoutine) return [];
-    if (historyOccurrencesList.length > 0) {
-      return historyOccurrencesList
-        .filter((o) => o.routineId === historyRoutine.id)
-        .sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate));
-    }
-    return occurrences
-      .filter((o) => o.routineId === historyRoutine.id)
-      .sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate));
-  }, [historyRoutine, occurrences, historyOccurrencesList]);
+  // Phase 30 Customization Handlers
+  const handleToggleWidget = (id: HomeWidgetId) => {
+    setHomeLayout((prev) => ({
+      ...prev,
+      widgets: prev.widgets.map((w) => (w.id === id ? { ...w, visible: !w.visible } : w)),
+    }));
+  };
 
-  const historyProgress = useMemo(() => {
-    return calculateGentleProgress(historyOccurrences);
-  }, [historyOccurrences]);
+  const handleMoveWidget = (id: HomeWidgetId, direction: 'up' | 'down') => {
+    setHomeLayout((prev) => ({
+      ...prev,
+      widgets: reorderWidgets(prev.widgets, id, direction),
+    }));
+  };
+
+  const handleLabelChange = (id: HomeWidgetId, label: string) => {
+    const validated = validateCustomLabel(label);
+    setHomeLayout((prev) => ({
+      ...prev,
+      widgets: prev.widgets.map((w) => (w.id === id ? { ...w, customLabel: validated } : w)),
+    }));
+  };
+
+  const handleRestoreDefaults = () => {
+    setHomeLayout(getDefaultHomeLayout());
+  };
+
+  const handleSaveCustomization = async () => {
+    if (repository) {
+      await repository.savePreferenceSnapshot({
+        userId: userId || 'anonymous',
+        preferences: { homeLayout },
+        schemaVersion: 1,
+        revision: 1,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    setIsCustomizing(false);
+  };
+
+  const visibleWidgets = useMemo(() => {
+    return [...homeLayout.widgets]
+      .filter((w) => w.visible)
+      .sort((a, b) => a.order - b.order);
+  }, [homeLayout.widgets]);
+
+  const dueTodayTasks = tasks.filter((t) => !t.isOverdue);
+  const overdueTasks = tasks.filter((t) => t.isOverdue);
 
   return (
     <ScrollView
@@ -810,14 +925,27 @@ export const TodayView: React.FC<TodayViewProps> = ({
     >
       {/* Date & Restrained Greeting */}
       <View style={styles.greetingHeader}>
-        <Text style={[styles.greetingDate, { color: palette.text.secondary }]}>
-          Wednesday, October 14
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={[styles.greetingDate, { color: palette.text.secondary }]}>
+            {todayDate} · {viewingTimezone}
+          </Text>
+          <Pressable
+            testID="mobile-customize-today-btn"
+            accessibilityRole="button"
+            accessibilityLabel="Customize Today screen"
+            onPress={() => setIsCustomizing(true)}
+            style={{ padding: spacing.xs }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.action.primary }}>
+              ⚙️ Customize
+            </Text>
+          </Pressable>
+        </View>
         <Text
           accessibilityRole="header"
           style={[styles.greetingTitle, { color: palette.text.primary }]}
         >
-          Good afternoon, Alex
+          Today
         </Text>
       </View>
 
@@ -899,128 +1027,298 @@ export const TodayView: React.FC<TodayViewProps> = ({
         />
       )}
 
-      {/* Normal State */}
+      {/* Normal State: Render Customizable Cards */}
       {demoState === 'normal' && (
         <>
-          {/* Section 1: Daily Routines Checklist */}
-          <View style={styles.section} testID="today-routines-section">
-            <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-                Today&apos;s Routines ({progress.completedCount}/{routines.length} completed)
-              </Text>
-            </View>
+          {visibleWidgets.map((widget) => {
+            const cardTitle = widget.customLabel || DEFAULT_WIDGET_LABELS[widget.id];
 
-            {/* Gentle non-punitive encouragement */}
-            <View
-              style={[
-                styles.gentleProgressBanner,
-                {
-                  backgroundColor: palette.surfaceRaised,
-                  borderColor: palette.border.subtle,
-                },
-              ]}
-            >
-              <Text style={[styles.gentleProgressText, { color: palette.text.primary }]}>
-                {progress.message}
-              </Text>
-            </View>
+            // 1. Routines Card
+            if (widget.id === 'routines') {
+              return (
+                <View key={widget.id} style={styles.section} testID="today-routines-section">
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+                      {cardTitle} ({progress.completedCount}/{routines.length} completed)
+                    </Text>
+                  </View>
 
-            <MobileCard themeMode={themeMode}>
-              {routines.map((routine) => {
-                const occ = getTodayOccurrence(routine.id);
-                return (
-                  <MobileRoutineRow
-                    key={routine.id}
-                    routine={routine}
-                    occurrence={occ}
-                    viewingDate={todayDate}
-                    themeMode={themeMode}
-                    onComplete={handleCompleteRoutine}
-                    onSkip={handleSkipRoutine}
-                    onReopen={handleReopenRoutine}
-                    onViewHistory={(id) => {
-                      const r = routines.find((item) => item.id === id);
-                      if (r) void handleOpenHistory(r);
-                    }}
-                    testID={`mobile-routine-row-${routine.id}`}
-                  />
-                );
-              })}
-            </MobileCard>
-          </View>
+                  <View
+                    style={[
+                      styles.gentleProgressBanner,
+                      {
+                        backgroundColor: palette.surfaceRaised,
+                        borderColor: palette.border.subtle,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.gentleProgressText, { color: palette.text.primary }]}>
+                      {progress.message}
+                    </Text>
+                  </View>
 
-          {/* Section 2: Tasks Due Today (Strictly Separate from Routines) */}
-          <View style={styles.section} testID="today-tasks-section">
-            <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-                Due Today ({tasks.filter((t) => !t.completed).length})
-              </Text>
-              <Text style={[styles.sectionSubtitle, { color: palette.text.secondary }]}>
-                One-off tasks
-              </Text>
-            </View>
+                  <MobileCard themeMode={themeMode}>
+                    {routines.length === 0 ? (
+                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                        No routines scheduled for today.
+                      </Text>
+                    ) : (
+                      routines.map((routine) => {
+                        const occ = getTodayOccurrence(routine.id);
+                        return (
+                          <MobileRoutineRow
+                            key={routine.id}
+                            routine={routine}
+                            occurrence={occ}
+                            viewingDate={todayDate}
+                            themeMode={themeMode}
+                            onComplete={handleCompleteRoutine}
+                            onSkip={handleSkipRoutine}
+                            onReopen={handleReopenRoutine}
+                            onViewHistory={(id) => {
+                              const r = routines.find((item) => item.id === id);
+                              if (r) void handleOpenHistory(r);
+                            }}
+                            testID={`mobile-routine-row-${routine.id}`}
+                          />
+                        );
+                      })
+                    )}
+                  </MobileCard>
+                </View>
+              );
+            }
 
-            <MobileCard themeMode={themeMode}>
-              {tasks.map((task) => (
-                <MobileListRow
-                  key={task.id}
-                  title={task.title}
-                  metadata={task.due}
-                  selected={task.completed}
-                  themeMode={themeMode}
-                  onPress={() => toggleTask(task.id)}
-                  accessibilityLabel={`${task.title}, ${task.completed ? 'completed' : 'not completed'}`}
-                />
-              ))}
-            </MobileCard>
-          </View>
+            // 2. Tasks Card
+            if (widget.id === 'tasks') {
+              return (
+                <View key={widget.id} style={styles.section} testID="today-tasks-section">
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+                      {cardTitle} ({dueTodayTasks.filter((t) => !t.completed).length})
+                    </Text>
+                    <Text style={[styles.sectionSubtitle, { color: palette.text.secondary }]}>
+                      One-off tasks
+                    </Text>
+                  </View>
 
-          {/* Section 3: Next 7 Days Preview linking to Plan */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-              Upcoming 7 Days
-            </Text>
-            <MobileCard themeMode={themeMode}>
-              <Text style={[styles.cardBody, { color: palette.text.secondary }]}>
-                3 deadlines scheduled across Thursday and Friday.
-              </Text>
-              <View style={styles.cardAction}>
-                <MobileButton
-                  variant="subtle"
-                  themeMode={themeMode}
-                  onPress={onNavigateToPlan}
-                  accessibilityLabel="View full schedule in Plan"
-                >
-                  View Full Schedule in Plan &rarr;
-                </MobileButton>
-              </View>
-            </MobileCard>
-          </View>
+                  <MobileCard themeMode={themeMode}>
+                    {dueTodayTasks.length === 0 ? (
+                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                        No tasks due today.
+                      </Text>
+                    ) : (
+                      dueTodayTasks.map((task) => (
+                        <MobileListRow
+                          key={task.id}
+                          title={task.title}
+                          metadata={task.due}
+                          selected={task.completed}
+                          themeMode={themeMode}
+                          onPress={() => toggleTask(task.id)}
+                          accessibilityLabel={`${task.title}, ${task.completed ? 'completed' : 'not completed'}`}
+                        />
+                      ))
+                    )}
+                  </MobileCard>
 
-          {/* Section 4: Journal Reflection Prompt */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-              Daily Reflection
-            </Text>
-            <MobileCard themeMode={themeMode}>
-              <Text style={[styles.cardPrompt, { color: palette.text.primary }]}>
-                What is one thing that brought clarity today?
-              </Text>
-              <Text style={[styles.cardBody, { color: palette.text.secondary }]}>
-                Private entries are stored safely in your protected journal.
-              </Text>
-              <View style={styles.cardAction}>
-                <MobileButton
-                  variant="secondary"
-                  themeMode={themeMode}
-                  onPress={onNavigateToJournal}
-                  accessibilityLabel="Write reflection in Journal"
-                >
-                  ✍️ Write in Journal
-                </MobileButton>
-              </View>
-            </MobileCard>
-          </View>
+                  {/* Overdue collapsible group */}
+                  {overdueTasks.length > 0 && (
+                    <View style={{ marginTop: spacing.sm }}>
+                      <Pressable
+                        testID="mobile-toggle-overdue-btn"
+                        accessibilityRole="button"
+                        accessibilityLabel="Toggle overdue tasks"
+                        onPress={() => setIsOverdueExpanded((v) => !v)}
+                        style={{ paddingVertical: spacing.xs }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: palette.status.danger }}>
+                          {isOverdueExpanded ? '▼' : '▶'} {overdueTasks.length} Overdue Task{overdueTasks.length === 1 ? '' : 's'}
+                        </Text>
+                      </Pressable>
+
+                      {isOverdueExpanded && (
+                        <MobileCard themeMode={themeMode}>
+                          {overdueTasks.map((task) => (
+                            <MobileListRow
+                              key={task.id}
+                              title={task.title}
+                              metadata={task.due}
+                              selected={task.completed}
+                              themeMode={themeMode}
+                              onPress={() => toggleTask(task.id)}
+                              accessibilityLabel={`${task.title}, overdue`}
+                            />
+                          ))}
+                        </MobileCard>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            }
+
+            // 3. Upcoming Summary Card
+            if (widget.id === 'upcoming_summary') {
+              return (
+                <View key={widget.id} style={styles.section} testID="today-upcoming-section">
+                  <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+                    {cardTitle}
+                  </Text>
+                  <MobileCard themeMode={themeMode}>
+                    <Text style={[styles.cardBody, { color: palette.text.secondary }]}>
+                      Upcoming priorities and routine schedule for the next seven days.
+                    </Text>
+                    <View style={styles.cardAction}>
+                      <MobileButton
+                        variant="subtle"
+                        themeMode={themeMode}
+                        onPress={onNavigateToPlan}
+                        accessibilityLabel="View full schedule in Plan"
+                      >
+                        View Full Schedule in Plan &rarr;
+                      </MobileButton>
+                    </View>
+                  </MobileCard>
+                </View>
+              );
+            }
+
+            // 4. Quick Capture Card
+            if (widget.id === 'quick_capture') {
+              return (
+                <View key={widget.id} style={styles.section} testID="today-quick-capture-section">
+                  <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+                    {cardTitle}
+                  </Text>
+                  <MobileCard themeMode={themeMode}>
+                    <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+                      <Pressable
+                        testID="mobile-quick-task"
+                        onPress={onOpenCreate}
+                        style={[styles.quickButton, { borderColor: palette.border.subtle }]}
+                      >
+                        <Text style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}>
+                          ✓ Task
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        testID="mobile-quick-routine"
+                        onPress={onOpenCreate}
+                        style={[styles.quickButton, { borderColor: palette.border.subtle }]}
+                      >
+                        <Text style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}>
+                          🔄 Routine
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        testID="mobile-quick-journal"
+                        onPress={onNavigateToJournal}
+                        style={[styles.quickButton, { borderColor: palette.border.subtle }]}
+                      >
+                        <Text style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}>
+                          📖 Journal
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </MobileCard>
+                </View>
+              );
+            }
+
+            // 5. Journal Reflection Card (No body preview!)
+            if (widget.id === 'journal_prompt') {
+              return (
+                <View key={widget.id} style={styles.section} testID="today-journal-section">
+                  <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+                    {cardTitle}
+                  </Text>
+                  <MobileCard themeMode={themeMode}>
+                    <Text style={[styles.cardPrompt, { color: palette.text.primary }]}>
+                      What is one thing that brought clarity today?
+                    </Text>
+                    <Text style={[styles.cardBody, { color: palette.text.secondary }]}>
+                      Private reflection entries are protected.
+                    </Text>
+                    <View style={styles.cardAction}>
+                      <MobileButton
+                        variant="secondary"
+                        themeMode={themeMode}
+                        onPress={onNavigateToJournal}
+                        accessibilityLabel="Write reflection in Journal"
+                      >
+                        ✍️ Write in Journal
+                      </MobileButton>
+                    </View>
+                  </MobileCard>
+                </View>
+              );
+            }
+
+            // 6. Recent Items Card
+            if (widget.id === 'recent_items') {
+              return (
+                <View key={widget.id} style={styles.section} testID="today-recent-items-section">
+                  <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+                    {cardTitle}
+                  </Text>
+                  <MobileCard themeMode={themeMode}>
+                    {recentItems.length === 0 ? (
+                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                        No recent items recorded.
+                      </Text>
+                    ) : (
+                      recentItems.map((item) => (
+                        <View
+                          key={item.id}
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            paddingVertical: spacing.xs,
+                            borderBottomWidth: 1,
+                            borderBottomColor: palette.border.subtle,
+                          }}
+                        >
+                          <Text style={{ color: palette.text.primary, fontSize: 13, fontWeight: '500' }}>
+                            {item.title}
+                          </Text>
+                          <Text style={{ color: palette.text.secondary, fontSize: 11, textTransform: 'uppercase' }}>
+                            {item.type}
+                          </Text>
+                        </View>
+                      ))
+                    )}
+                  </MobileCard>
+                </View>
+              );
+            }
+
+            // 7. Favorite Folders Card
+            if (widget.id === 'favorite_folders') {
+              return (
+                <View key={widget.id} style={styles.section} testID="today-favorites-section">
+                  <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+                    {cardTitle}
+                  </Text>
+                  <MobileCard themeMode={themeMode}>
+                    {favoriteFolders.length === 0 ? (
+                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                        No favorite folders pinned.
+                      </Text>
+                    ) : (
+                      favoriteFolders.map((f) => (
+                        <Text key={f.id} style={{ color: palette.text.primary, fontSize: 13, paddingVertical: spacing.xs }}>
+                          📁 {f.name}
+                        </Text>
+                      ))
+                    )}
+                  </MobileCard>
+                </View>
+              );
+            }
+
+            return null;
+          })}
         </>
       )}
 
@@ -1082,7 +1380,6 @@ export const TodayView: React.FC<TodayViewProps> = ({
               }
             </Text>
 
-            {/* Gentle Progress Stats */}
             <View
               style={[
                 styles.historyStatsCard,
@@ -1096,51 +1393,193 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 Gentle Routine Overview
               </Text>
               <Text style={[styles.historyStatsMessage, { color: palette.text.secondary }]}>
-                {historyProgress.message}
+                {calculateGentleProgress(historyOccurrencesList).message}
+              </Text>
+            </View>
+
+            <View style={{ marginTop: spacing.lg }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={() => setHistoryRoutine(null)}
+                accessibilityLabel="Close history"
+              >
+                Close History
+              </MobileButton>
+            </View>
+          </View>
+        </MobileModalSheet>
+      )}
+
+      {/* Phase 30: Customize Today ModalSheet */}
+      {isCustomizing && (
+        <MobileModalSheet
+          visible={isCustomizing}
+          onClose={() => setIsCustomizing(false)}
+          title="Customize Today"
+          themeMode={themeMode}
+          testID="mobile-customization-sheet"
+        >
+          <ScrollView style={{ maxHeight: 400, padding: spacing.sm }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginBottom: spacing.sm }}>
+              Cards & Ordering
+            </Text>
+
+            {[...homeLayout.widgets]
+              .sort((a, b) => a.order - b.order)
+              .map((w, idx, arr) => (
+                <View
+                  key={w.id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: spacing.xs,
+                    borderBottomWidth: 1,
+                    borderBottomColor: palette.border.subtle,
+                  }}
+                >
+                  <Pressable
+                    testID={`mobile-toggle-${w.id}`}
+                    onPress={() => handleToggleWidget(w.id)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1 }}
+                  >
+                    <Text style={{ fontSize: 14 }}>{w.visible ? '☑' : '☐'}</Text>
+                    <Text style={{ color: palette.text.primary, fontSize: 13, fontWeight: '600' }}>
+                      {DEFAULT_WIDGET_LABELS[w.id]}
+                    </Text>
+                  </Pressable>
+
+                  <TextInput
+                    testID={`mobile-label-input-${w.id}`}
+                    defaultValue={w.customLabel || ''}
+                    placeholder={DEFAULT_WIDGET_LABELS[w.id]}
+                    placeholderTextColor={palette.text.secondary}
+                    onChangeText={(txt) => handleLabelChange(w.id, txt)}
+                    maxLength={40}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: palette.border.subtle,
+                      borderRadius: radii.sm,
+                      padding: 4,
+                      fontSize: 12,
+                      width: 110,
+                      color: palette.text.primary,
+                      marginHorizontal: spacing.xs,
+                    }}
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    <Pressable
+                      testID={`mobile-move-up-${w.id}`}
+                      onPress={() => handleMoveWidget(w.id, 'up')}
+                      disabled={idx === 0}
+                      style={{ padding: 4, opacity: idx === 0 ? 0.3 : 1 }}
+                    >
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▲</Text>
+                    </Pressable>
+                    <Pressable
+                      testID={`mobile-move-down-${w.id}`}
+                      onPress={() => handleMoveWidget(w.id, 'down')}
+                      disabled={idx === arr.length - 1}
+                      style={{ padding: 4, opacity: idx === arr.length - 1 ? 0.3 : 1 }}
+                    >
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▼</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+
+            <View style={{ marginTop: spacing.base, flexDirection: 'row', justifyContent: 'space-between' }}>
+              <MobileButton
+                testID="mobile-restore-defaults-btn"
+                variant="subtle"
+                themeMode={themeMode}
+                onPress={handleRestoreDefaults}
+                accessibilityLabel="Restore default layout"
+              >
+                Restore Defaults
+              </MobileButton>
+
+              <MobileButton
+                testID="mobile-save-customization-btn"
+                variant="primary"
+                themeMode={themeMode}
+                onPress={handleSaveCustomization}
+                accessibilityLabel="Save customization"
+              >
+                Save
+              </MobileButton>
+            </View>
+          </ScrollView>
+        </MobileModalSheet>
+      )}
+
+      {/* Routine History Sheet */}
+      {historyRoutine && (
+        <MobileModalSheet
+          visible={Boolean(historyRoutine)}
+          onClose={() => setHistoryRoutine(null)}
+          title={historyRoutine ? `History: ${historyRoutine.title}` : 'Routine History'}
+          themeMode={themeMode}
+          testID="mobile-routine-history-sheet"
+        >
+          <View style={styles.historyContainer}>
+            <Text style={[styles.historySubtitle, { color: palette.text.secondary }]}>
+              Recent occurrence records and daily completion stats
+            </Text>
+
+            {/* Gentle Progress Banner */}
+            <View
+              style={[
+                styles.historyStatsCard,
+                {
+                  backgroundColor: palette.surface,
+                  borderColor: palette.border.subtle,
+                },
+              ]}
+            >
+              <Text style={[styles.historyStatsTitle, { color: palette.text.primary }]}>
+                Routine Progress
+              </Text>
+              <Text style={[styles.historyStatsMessage, { color: palette.text.secondary }]}>
+                {progress.message}
               </Text>
               <View style={styles.historyStatsRow}>
-                <Text style={[styles.historyStatPill, { color: palette.text.primary }]}>
-                  Completed: {historyProgress.completedCount}
+                <Text style={[styles.historyStatPill, { color: palette.action.primary }]}>
+                  Done: {progress.completedCount}
                 </Text>
-                <Text style={[styles.historyStatPill, { color: palette.text.secondary }]}>
-                  Skipped: {historyProgress.skippedCount}
+                <Text style={[styles.historyStatPill, { color: palette.accent.warm }]}>
+                  Skipped: {progress.skippedCount}
+                </Text>
+                <Text style={[styles.historyStatPill, { color: palette.text.muted }]}>
+                  Pending: {progress.pendingCount}
                 </Text>
               </View>
             </View>
 
-            {/* Past Occurrences List */}
             <Text style={[styles.historyListTitle, { color: palette.text.primary }]}>
-              Occurrences & Revisions
+              Past Occurrences (90 Days)
             </Text>
-            {historyOccurrences.length === 0 ? (
-              <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
-                No recorded occurrences yet.
+
+            {historyOccurrencesList.length === 0 ? (
+              <Text style={{ color: palette.text.muted, fontSize: 13, paddingVertical: spacing.md }}>
+                No past occurrences found for this routine.
               </Text>
             ) : (
-              historyOccurrences.map((occ) => (
+              historyOccurrencesList.map((occ) => (
                 <View
                   key={occ.id}
                   testID={`history-occ-${occ.scheduledDate}`}
-                  style={[
-                    styles.historyItemRow,
-                    {
-                      borderBottomColor: palette.border.subtle,
-                    },
-                  ]}
+                  style={[styles.historyItemRow, { borderBottomColor: palette.border.subtle }]}
                 >
-                  <View style={{ flex: 1 }}>
+                  <View>
                     <Text style={[styles.historyItemDate, { color: palette.text.primary }]}>
-                      {occ.scheduledDate === todayDate
-                        ? 'Today'
-                        : occ.scheduledDate === DEFAULT_YESTERDAY
-                          ? 'Yesterday'
-                          : occ.scheduledDate}
+                      {occ.scheduledDate}
                     </Text>
                     {occ.completedAt && (
-                      <Text
-                        style={[styles.historyItemTimestamp, { color: palette.text.secondary }]}
-                      >
-                        Completed at {new Date(occ.completedAt).toLocaleTimeString()}
+                      <Text style={[styles.historyItemTimestamp, { color: palette.text.muted }]}>
+                        Completed at {occ.completedAt.slice(11, 16)} UTC
                       </Text>
                     )}
                   </View>
@@ -1250,17 +1689,16 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 200,
+    gap: spacing.md,
   },
   loadingText: {
-    marginTop: spacing.md,
-    fontSize: 14,
+    fontSize: 13,
   },
   errorContainer: {
-    marginVertical: spacing.md,
+    padding: spacing.sm,
   },
   section: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.base,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -1271,33 +1709,39 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
+    marginBottom: spacing.xs,
   },
   sectionSubtitle: {
     fontSize: 12,
-    fontWeight: '500',
   },
   gentleProgressBanner: {
     padding: spacing.sm,
-    borderRadius: radii.card,
+    borderRadius: radii.sm,
     borderWidth: 1,
     marginBottom: spacing.sm,
   },
   gentleProgressText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
-  },
-  cardPrompt: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
   },
   cardBody: {
     fontSize: 13,
     lineHeight: 18,
     marginBottom: spacing.sm,
   },
+  cardPrompt: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
   cardAction: {
-    marginTop: spacing.xs,
+    alignItems: 'flex-start',
+  },
+  quickButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.sm,
+    borderWidth: 1,
   },
   undoToast: {
     position: 'absolute',
@@ -1309,51 +1753,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    elevation: 4,
   },
   undoToastText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     flex: 1,
   },
   undoToastButton: {
-    minHeight: touchTargets.mobileMin,
-    minWidth: touchTargets.mobileMin,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   undoToastButtonText: {
     fontSize: 13,
     fontWeight: '700',
-    textDecorationLine: 'underline',
   },
   historyContainer: {
-    paddingVertical: spacing.sm,
+    padding: spacing.sm,
   },
   historySubtitle: {
     fontSize: 13,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   historyStatsCard: {
-    padding: spacing.md,
-    borderRadius: radii.card,
+    padding: spacing.sm,
+    borderRadius: radii.sm,
     borderWidth: 1,
     marginBottom: spacing.md,
   },
   historyStatsTitle: {
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   historyStatsMessage: {
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: spacing.xs,
+    fontSize: 13,
   },
   historyStatsRow: {
     flexDirection: 'row',

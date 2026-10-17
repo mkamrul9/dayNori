@@ -1581,4 +1581,176 @@ describe('Domain Rules and Invariants', () => {
       expect(gridSat[0]?.cells[0]?.date).toBe('2026-09-26');
     });
   });
+
+  describe('Phase 30: Today Home and Personal Customization', () => {
+    it('returns a calm, small default HomeLayout with 5 visible primary cards and 2 optional hidden cards', async () => {
+      const { getDefaultHomeLayout, APPROVED_HOME_WIDGET_IDS } = await import('./home.js');
+      const layout = getDefaultHomeLayout();
+
+      expect(layout.version).toBe(1);
+      expect(layout.density).toBe('comfortable');
+      expect(layout.widgets.length).toBe(7);
+
+      const visibleWidgets = layout.widgets.filter((w) => w.visible);
+      expect(visibleWidgets.length).toBe(5);
+      expect(visibleWidgets.map((w) => w.id)).toEqual([
+        'tasks',
+        'routines',
+        'upcoming_summary',
+        'quick_capture',
+        'journal_prompt',
+      ]);
+
+      const hiddenWidgets = layout.widgets.filter((w) => !w.visible);
+      expect(hiddenWidgets.map((w) => w.id)).toEqual(['recent_items', 'favorite_folders']);
+
+      // All approved widgets are present
+      for (const id of APPROVED_HOME_WIDGET_IDS) {
+        expect(layout.widgets.some((w) => w.id === id)).toBe(true);
+      }
+    });
+
+    it('sanitizes and bounds custom display labels, preventing HTML and script injection', async () => {
+      const { validateCustomLabel } = await import('./home.js');
+
+      expect(validateCustomLabel('My Daily Focus')).toBe('My Daily Focus');
+      expect(validateCustomLabel('  Bangla কাজ এবং লক্ষ্য  ')).toBe('Bangla কাজ এবং লক্ষ্য');
+      expect(validateCustomLabel('<script>alert("pwn")</script>Focus')).toBe('Focus');
+      expect(validateCustomLabel('<img src="x" onerror="alert(1)">')).toBe(null);
+      expect(validateCustomLabel('')).toBe(null);
+      expect(validateCustomLabel('   ')).toBe(null);
+      expect(validateCustomLabel(null)).toBe(null);
+      expect(validateCustomLabel(123)).toBe(null);
+
+      // Bounded to 40 characters
+      const longLabel = 'This is a very long label that exceeds forty characters and should be truncated';
+      const validated = validateCustomLabel(longLabel);
+      expect(validated?.length).toBe(40);
+    });
+
+    it('safely migrates and sanitizes home layout, filtering out unapproved future modules and deduplicating', async () => {
+      const { sanitizeAndMigrateHomeLayout } = await import('./home.js');
+
+      // 1. Null / undefined fallback to defaults
+      expect(sanitizeAndMigrateHomeLayout(null).widgets.length).toBe(7);
+      expect(sanitizeAndMigrateHomeLayout(undefined).density).toBe('comfortable');
+
+      // 2. Unapproved / unreleased module IDs (expenses, vault, rooms, ai) are filtered out safely
+      const malformed = {
+        density: 'compact',
+        widgets: [
+          { id: 'vault_secret_card', visible: true, order: 0 },
+          { id: 'expenses_card', visible: true, order: 1 },
+          { id: 'routines', visible: true, order: 2, customLabel: '<b>Daily Habits</b>' },
+          { id: 'ai_copilot_card', visible: true, order: 3 },
+        ],
+        moduleShortcuts: [
+          { id: 'unreleased_ai', visible: true, order: 0 },
+          { id: 'notes', visible: true, order: 1 },
+          { id: 'files', visible: true, order: 2 },
+        ],
+        favoriteFolderIds: [
+          'd831dc3b-e1b6-4fd2-892f-382a3928ea4e',
+          'not-a-valid-uuid',
+          'd831dc3b-e1b6-4fd2-892f-382a3928ea4e', // duplicate
+        ],
+      };
+
+      const migrated = sanitizeAndMigrateHomeLayout(malformed);
+      expect(migrated.density).toBe('compact');
+
+      // Unapproved widget IDs filtered out, approved routines widget kept with sanitized label
+      expect(migrated.widgets.some((w) => (w.id as string) === 'vault_secret_card')).toBe(false);
+      expect(migrated.widgets.some((w) => (w.id as string) === 'expenses_card')).toBe(false);
+      expect(migrated.widgets.some((w) => (w.id as string) === 'ai_copilot_card')).toBe(false);
+      const habits = migrated.widgets.find((w) => w.id === 'routines');
+      expect(habits?.customLabel).toBe('Daily Habits');
+
+      // Missing approved widgets were automatically restored to maintain a complete layout
+      expect(migrated.widgets.length).toBe(7);
+      expect(migrated.widgets.map((w) => w.order)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+
+      // Unapproved module shortcuts filtered out
+      expect(migrated.moduleShortcuts.some((s) => (s.id as string) === 'unreleased_ai')).toBe(false);
+      expect(migrated.moduleShortcuts.length).toBe(10);
+      expect(migrated.moduleShortcuts.map((s) => s.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+      // Favorite folders deduplicated and invalid UUIDs stripped
+      expect(migrated.favoriteFolderIds).toEqual(['d831dc3b-e1b6-4fd2-892f-382a3928ea4e']);
+    });
+
+    it('provides accessible reordering for widgets and module shortcuts with boundary safety', async () => {
+      const { getDefaultHomeLayout, reorderWidgets, reorderModuleShortcuts } = await import(
+        './home.js'
+      );
+      const layout = getDefaultHomeLayout();
+
+      // Initial: tasks is order 0, routines is order 1
+      expect(layout.widgets[0]?.id).toBe('tasks');
+      expect(layout.widgets[1]?.id).toBe('routines');
+
+      // Move routines UP -> routines becomes 0, tasks becomes 1
+      const movedUp = reorderWidgets(layout.widgets, 'routines', 'up');
+      expect(movedUp[0]?.id).toBe('routines');
+      expect(movedUp[0]?.order).toBe(0);
+      expect(movedUp[1]?.id).toBe('tasks');
+      expect(movedUp[1]?.order).toBe(1);
+
+      // Moving top item UP does not crash or wrap
+      const boundaryUp = reorderWidgets(movedUp, 'routines', 'up');
+      expect(boundaryUp[0]?.id).toBe('routines');
+
+      // Move tasks DOWN
+      const movedDown = reorderWidgets(movedUp, 'tasks', 'down');
+      expect(movedDown[1]?.id).toBe('upcoming_summary');
+      expect(movedDown[2]?.id).toBe('tasks');
+
+      // Reorder module shortcuts: Move files above notes
+      // Initially: notes is order 4, files is order 5
+      expect(layout.moduleShortcuts[4]?.id).toBe('notes');
+      expect(layout.moduleShortcuts[5]?.id).toBe('files');
+
+      const reorderedShortcuts = reorderModuleShortcuts(layout.moduleShortcuts, 'files', 'up');
+      expect(reorderedShortcuts[4]?.id).toBe('files');
+      expect(reorderedShortcuts[5]?.id).toBe('notes');
+    });
+
+    it('enforces privacy for recent items: strips journal body previews and excludes vault content', async () => {
+      const { filterRecentItemsForPrivacy } = await import('./home.js');
+      type RecentItemEntry = Parameters<typeof filterRecentItemsForPrivacy>[0][number];
+
+      const rawItems: RecentItemEntry[] = [
+        {
+          id: 'note-1',
+          type: 'note',
+          title: 'Architecture Decision',
+          updatedAt: '2026-10-17T12:00:00Z',
+          bodyPreview: 'Public note content preview',
+        },
+        {
+          id: 'journal-1',
+          type: 'journal',
+          title: 'Secret Personal Thoughts',
+          updatedAt: '2026-10-17T13:00:00Z',
+          bodyPreview: 'Private reflection text that must never leak to Today',
+        },
+        {
+          id: 'task-1',
+          type: 'task',
+          title: 'Review pull request',
+          updatedAt: '2026-10-17T14:00:00Z',
+        },
+      ];
+
+      const safe = filterRecentItemsForPrivacy(rawItems, { hideJournalSnippets: true });
+      expect(safe.length).toBe(3);
+
+      const note = safe.find((i) => i.id === 'note-1')!;
+      expect(note.bodyPreview).toBe('Public note content preview');
+
+      const journal = safe.find((i) => i.id === 'journal-1')!;
+      expect(journal.bodyPreview).toBeNull(); // Strictly redacted!
+      expect(journal.title).toBe('Journal entry'); // Sensitive title redacted when requested!
+    });
+  });
 });

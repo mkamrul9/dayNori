@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 30 — Today home and personal customization — 2026-10-18
+
+- **Today Organizer Dashboard (`apps/web`, `apps/mobile`):**
+  - Built calm, focused Today view connecting authenticated domain entities across web and mobile without demo-seed pollution.
+  - Implemented today's routine occurrences checklist with independent status actions (Done, Skip, Reopen, and Undo toast).
+  - Implemented tasks due today with collapsible overdue task section displaying explicit count and deadlines.
+  - Integrated upcoming 7-day priority summary and quick capture action bar.
+  - Added optional recent items summary across notes, tasks, routines, and files with strict privacy redaction.
+  - Added optional favorite folders section with safe fallback for unpinned or deleted folders.
+  - Integrated daily reflection prompt without body snippet preview leaks.
+- **Versioned Personalization Metadata (`packages/domain`, `packages/contracts`):**
+  - Modeled `HomeLayout` (version 1) holding widget visibility/order, bounded custom labels, density (`comfortable` / `compact`), module shortcuts, and favorite folder IDs.
+  - Defined approved closed registries (`APPROVED_HOME_WIDGET_IDS`, `APPROVED_MODULE_SHORTCUT_IDS`) rejecting unapproved identifiers (`vault`, `expenses`, `rooms`, `ai_copilot`).
+  - Implemented `validateCustomLabel` bounding labels (1-40 chars) and stripping `<script>`, `<style>`, and HTML tags to prevent XSS.
+  - Implemented accessible `reorderWidgets` and `reorderModuleShortcuts` Move Up/Down alternatives to drag-and-drop.
+  - Implemented safe migration (`sanitizeAndMigrateHomeLayout`) dropping unreleased modules and restoring missing approved cards.
+- **Persistence, Concurrency & Preference Preservation (`apps/api`, `packages/api-client`):**
+  - Integrated `homeLayout` into `DisplayPreferencesSchema` and `UpdatePreferencesRequestSchema`.
+  - Enforced optimistic revision checks on preference updates with HTTP 409 Conflict handling for concurrent edits.
+  - Implemented repository-layer partial merging to guarantee that changing layout or density never wipes unrelated preferences (`quietHours`, `theme`, privacy settings).
+  - Maintained strict non-destruction invariant: restoring default layout resets presentation metadata only and never touches canonical tasks, routines, notes, files, or folders.
+- **Privacy Redactions:**
+  - Implemented `filterRecentItemsForPrivacy` ensuring journal items have body preview stripped and generic title fallback, while completely excluding vault items from the Today home.
+- **Automated Verification:**
+  - Added 13 integration tests in `tests/integration/phase30-today-home.test.ts` verifying all personalization journeys, concurrency conflicts, and privacy boundaries.
+
 ## Defect repairs (Phase 28/29 notification foundation and PWA safety) — 2026-10-17
 
 - **Push Subscription Account Binding & Logout Cleanup (`apps/web`, `apps/api`, `infra/supabase`):**

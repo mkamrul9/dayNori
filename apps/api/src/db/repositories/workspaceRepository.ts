@@ -237,6 +237,13 @@ export async function updateProfilePreferences(
   // Atomic revision predicate in UPDATE: ($7::bigint IS NULL OR revision = $7::bigint)
   // Ensures race conditions between two concurrent updates serialize, where only the
   // transaction matching the actual committed revision succeeds, and concurrent updates return conflict.
+  const currentPrefs = (current.preferences && typeof current.preferences === 'object')
+    ? (current.preferences as Record<string, unknown>)
+    : {};
+  const mergedPrefs = params.preferences
+    ? { ...currentPrefs, ...params.preferences }
+    : null;
+
   const updatedRes = await client.query<ProfileRecord>(
     `UPDATE app.profiles
      SET display_name = COALESCE($2, display_name),
@@ -254,7 +261,7 @@ export async function updateProfilePreferences(
       params.preferredLocale || null,
       params.timeZone || null,
       params.weekStart || null,
-      params.preferences ? JSON.stringify(params.preferences) : null,
+      mergedPrefs ? JSON.stringify(mergedPrefs) : null,
       params.expectedRevision !== undefined ? params.expectedRevision : null,
     ]
   );

@@ -38,14 +38,22 @@ import {
   type RoutineFrequency,
   type Weekday,
   type RoutineOccurrenceStatus,
-  type RoutineOccurrence,
   type RoutineTemplateRule,
   type RoutineOccurrenceTransition,
+  getDefaultHomeLayout,
+  sanitizeAndMigrateHomeLayout,
+  reorderWidgets,
+  validateCustomLabel,
+  filterRecentItemsForPrivacy,
+  DEFAULT_WIDGET_LABELS,
+  type HomeLayout,
+  type HomeWidgetId,
+  type RecentItemEntry,
 } from '@daynori/domain';
 
 export const TodayView: React.FC = () => {
   const liveRegionId = useId();
-  const { themeMode } = useShell();
+  const { themeMode, setTheme } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user } = useAuth();
 
@@ -74,6 +82,16 @@ export const TodayView: React.FC = () => {
   const [routines, setRoutines] = useState<RoutineRecord[]>([]);
   const [occurrences, setOccurrences] = useState<RoutineOccurrenceRecord[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [recentItems, setRecentItems] = useState<RecentItemEntry[]>([]);
+  const [workspaceFolders, setWorkspaceFolders] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Phase 30 Customization & Personalization State
+  const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => getDefaultHomeLayout());
+  const [preferencesRevision, setPreferencesRevision] = useState<number>(0);
+  const [isCustomizing, setIsCustomizing] = useState(false);
+  const [isOverdueExpanded, setIsOverdueExpanded] = useState(false);
+  const [isSavingLayout, setIsSavingLayout] = useState(false);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
   // Editor & History modal states
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -92,7 +110,6 @@ export const TodayView: React.FC = () => {
   } | null>(null);
 
   // Simulation & Feedback states
-  const [showEmptyState, setShowEmptyState] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
@@ -116,7 +133,7 @@ export const TodayView: React.FC = () => {
     return () => clearInterval(interval);
   }, [undoToast]);
 
-  // Load and initialize data from IndexedDB & Sync Engine
+  // Load and initialize data from IndexedDB, API & Sync Engine
   const loadData = useCallback(async () => {
     if (!workspaceId) {
       setIsLoading(false);
@@ -133,10 +150,11 @@ export const TodayView: React.FC = () => {
         localRepoRef.current = repo;
       }
 
+      const client = createApiClient({
+        baseUrl: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+      });
+
       if (!syncEngineRef.current) {
-        const client = createApiClient({
-          baseUrl: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
-        });
         const engine = createWebSyncEngine({
           repository: localRepoRef.current,
           apiClient: client,
@@ -158,6 +176,36 @@ export const TodayView: React.FC = () => {
       }
 
       const repo = localRepoRef.current;
+
+      // 1. Load preferences (HomeLayout and display preferences)
+      try {
+        const prefRes = await client.getUserPreferences().catch(() => null);
+        if (prefRes?.data?.preferences?.homeLayout) {
+          setHomeLayout(sanitizeAndMigrateHomeLayout(prefRes.data.preferences.homeLayout));
+          setPreferencesRevision(prefRes.data.revision);
+        } else {
+          // Fall back to local repository snapshot
+          const snapshot = await repo.getPreferenceSnapshot(user?.id || 'anonymous');
+          if (snapshot?.preferences?.homeLayout) {
+            setHomeLayout(sanitizeAndMigrateHomeLayout(snapshot.preferences.homeLayout));
+            setPreferencesRevision(snapshot.revision);
+          }
+        }
+      } catch {
+        // Keep default home layout on preference fetch error
+      }
+
+      // 2. Load workspace folders for Favorite Folders card
+      try {
+        const folderRes = await client.listFolders(workspaceId).catch(() => null);
+        if (folderRes?.data) {
+          setWorkspaceFolders(folderRes.data.map((f) => ({ id: f.id, name: f.name })));
+        }
+      } catch {
+        // Non-blocking for offline
+      }
+
+      // 3. Load routines and occurrences
       const loadedRoutines = await repo.listRoutines(workspaceId);
       const loadedOccurrences = await repo.listRoutineOccurrences(
         workspaceId,
@@ -166,7 +214,7 @@ export const TodayView: React.FC = () => {
         addCalendarDays(todayDate, 7)
       );
 
-      // Generate missing occurrences for each routine using its scheduling timezone and applicable schedule rule
+      // Generate missing occurrences for each routine
       const updatedOccurrences = [...loadedOccurrences];
       for (const r of loadedRoutines) {
         const routineDate = getCalendarDateInTimezone(currentNow, r.timezone);
@@ -236,19 +284,66 @@ export const TodayView: React.FC = () => {
         }
       }
 
-      // Load tasks due today or overdue
+      // 4. Load tasks
       const allTasks = await repo.listTasks(workspaceId);
-      const refDate = new Date();
-      const todayTasks = allTasks.filter(
-        (t) =>
-          t.deletedAt === null &&
-          (isTaskDueToday({ deadline: t.deadline }, refDate, viewingTimezone) ||
-            isTaskOverdue({ status: t.status, deadline: t.deadline }, refDate, viewingTimezone))
-      );
+
+      // 5. Load recent items across canonical types (with privacy redaction)
+      try {
+        const notes = await repo.listNotes(workspaceId);
+        const files = await repo.listFiles(workspaceId);
+        const journalEntries = await repo.listJournalEntries(workspaceId, { includeDeleted: false });
+
+        const rawRecent: RecentItemEntry[] = [
+          ...notes.map((n) => ({
+            id: n.id,
+            type: 'note' as const,
+            title: n.title,
+            updatedAt: n.updatedAt,
+            folderId: n.folderId,
+          })),
+          ...allTasks.map((t) => ({
+            id: t.id,
+            type: 'task' as const,
+            title: t.title,
+            updatedAt: t.updatedAt,
+            folderId: t.folderId,
+          })),
+          ...loadedRoutines.map((r) => ({
+            id: r.id,
+            type: 'routine' as const,
+            title: r.title,
+            updatedAt: r.updatedAt,
+            folderId: r.folderId,
+          })),
+          ...files.map((f) => ({
+            id: f.id,
+            type: 'file' as const,
+            title: f.fileName,
+            updatedAt: f.updatedAt,
+            folderId: f.folderId,
+          })),
+          ...journalEntries.map((j) => ({
+            id: j.id,
+            type: 'journal' as const,
+            title: j.title || 'Journal entry',
+            updatedAt: j.updatedAt,
+            folderId: j.folderId,
+            bodyPreview: 'redacted',
+          })),
+        ];
+
+        rawRecent.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        const privacyFiltered = filterRecentItemsForPrivacy(rawRecent.slice(0, 5), {
+          hideJournalSnippets: true,
+        });
+        setRecentItems(privacyFiltered);
+      } catch {
+        // Non-blocking
+      }
 
       setRoutines(loadedRoutines);
       setOccurrences(updatedOccurrences);
-      setTasks(todayTasks);
+      setTasks(allTasks);
       setIsLoading(false);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : String(err));
@@ -310,7 +405,56 @@ export const TodayView: React.FC = () => {
     };
   }, [loadData]);
 
-  // Today's paired routine items: routines active today with their occurrence evaluated in their scheduling zone
+  // Filter tasks due today vs overdue
+  const tasksDueToday = useMemo(() => {
+    const refDate = new Date();
+    return tasks.filter(
+      (t) =>
+        t.deletedAt === null &&
+        isTaskDueToday({ deadline: t.deadline }, refDate, viewingTimezone)
+    );
+  }, [tasks, viewingTimezone]);
+
+  const overdueTasks = useMemo(() => {
+    const refDate = new Date();
+    return tasks.filter(
+      (t) =>
+        t.deletedAt === null &&
+        isTaskOverdue({ status: t.status, deadline: t.deadline }, refDate, viewingTimezone)
+    );
+  }, [tasks, viewingTimezone]);
+
+  // Upcoming 7-day summary metrics
+  const upcomingSummary = useMemo(() => {
+    const in7Days = addCalendarDays(todayDate, 7);
+    const upcomingTaskCount = tasks.filter((t) => {
+      if (t.deletedAt !== null || t.status === 'completed' || !t.deadline) return false;
+      const refDate = new Date();
+      if (isTaskDueToday({ deadline: t.deadline }, refDate, viewingTimezone)) return false;
+      if (isTaskOverdue({ status: t.status, deadline: t.deadline }, refDate, viewingTimezone))
+        return false;
+      let dStr: string | null = null;
+      if (t.deadline.type === 'date') {
+        dStr = t.deadline.date;
+      } else if (t.deadline.type === 'timed') {
+        dStr = getCalendarDateInTimezone(new Date(t.deadline.timestamp), viewingTimezone);
+      }
+      if (!dStr) return false;
+      return dStr > todayDate && dStr <= in7Days;
+    }).length;
+
+    const upcomingRoutineCount = occurrences.filter(
+      (o) => o.scheduledDate > todayDate && o.scheduledDate <= in7Days && o.status !== 'cancelled'
+    ).length;
+
+    return {
+      upcomingTaskCount,
+      upcomingRoutineCount,
+      totalUpcoming: upcomingTaskCount + upcomingRoutineCount,
+    };
+  }, [tasks, occurrences, todayDate, viewingTimezone]);
+
+  // Today's paired routine items
   const todayRoutineItems = useMemo(() => {
     return routines
       .map((routine) => {
@@ -421,7 +565,6 @@ export const TodayView: React.FC = () => {
       completedBy: user?.id || null,
       history: updatedHistory,
       updatedAt: nowIso,
-      // Keep authoritative serverRevision (do NOT increment locally)
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
@@ -464,7 +607,7 @@ export const TodayView: React.FC = () => {
         changedAt: nowIso,
         transitionedAt: nowIso,
         actorId: user?.id || null,
-        reason: null,
+        reason: 'User skipped occurrence',
       },
     ];
 
@@ -475,7 +618,6 @@ export const TodayView: React.FC = () => {
       completedBy: null,
       history: updatedHistory,
       updatedAt: nowIso,
-      // Keep authoritative serverRevision
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
@@ -525,7 +667,6 @@ export const TodayView: React.FC = () => {
       completedBy: null,
       history: updatedHistory,
       updatedAt: nowIso,
-      // Keep authoritative serverRevision
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === occurrenceId ? updated : o)));
@@ -546,7 +687,6 @@ export const TodayView: React.FC = () => {
     const occ = occurrences.find((o) => o.id === undoToast.occurrenceId);
     if (!occ) return;
 
-    // Use a revision-protected compensating transition that preserves audit trail
     const targetStatus = undoToast.previousStatus;
     const nowIso = new Date().toISOString();
     const compensatingTransition: RoutineOccurrenceTransition = {
@@ -567,7 +707,6 @@ export const TodayView: React.FC = () => {
       completedBy: targetStatus === 'done' ? user?.id || null : null,
       history: [...occ.history, compensatingTransition],
       updatedAt: nowIso,
-      // Keep authoritative serverRevision
     };
 
     setOccurrences((prev) => prev.map((o) => (o.id === undoToast.occurrenceId ? restored : o)));
@@ -591,7 +730,6 @@ export const TodayView: React.FC = () => {
     announce(`Undid change for ${undoToast.routineTitle}.`);
   };
 
-  // Toggle routine pause/resume
   const handleTogglePauseRoutine = async (routineId: string) => {
     const routine = routines.find((r) => r.id === routineId);
     if (!routine) return;
@@ -601,7 +739,6 @@ export const TodayView: React.FC = () => {
       ...routine,
       isPaused: newPaused,
       updatedAt: new Date().toISOString(),
-      // Keep authoritative serverRevision
     };
 
     setRoutines((prev) => prev.map((r) => (r.id === routineId ? updated : r)));
@@ -615,13 +752,11 @@ export const TodayView: React.FC = () => {
       await localRepoRef.current.upsertRoutine(updated);
     }
 
-    announce(
-      newPaused ? `Paused routine "${routine.title}".` : `Resumed routine "${routine.title}".`
-    );
+    announce(newPaused ? `Paused ${routine.title}.` : `Resumed ${routine.title}.`);
   };
 
-  // Save routine from RoutineDetailEditor
   const handleSaveRoutine = async (formData: {
+    id?: string;
     title: string;
     details: string | null;
     frequency: RoutineFrequency;
@@ -634,15 +769,26 @@ export const TodayView: React.FC = () => {
     isPaused: boolean;
   }) => {
     if (!workspaceId) return;
-
     const nowIso = new Date().toISOString();
 
-    if (editingRoutine) {
-      // Update routine
-      const nextScheduleRev = editingRoutine.scheduleRevision + 1;
+    if (formData.id) {
+      const existing = routines.find((r) => r.id === formData.id);
+      if (!existing) return;
+
+      const scheduleChanged =
+        existing.frequency !== formData.frequency ||
+        JSON.stringify(existing.weekdays) !== JSON.stringify(formData.weekdays) ||
+        existing.timezone !== formData.timezone ||
+        existing.scheduledTime !== formData.scheduledTime ||
+        existing.activeFrom !== formData.activeFrom ||
+        existing.activeTo !== formData.activeTo;
+
+      const newScheduleRevision = scheduleChanged
+        ? existing.scheduleRevision + 1
+        : existing.scheduleRevision;
 
       const updated: RoutineRecord = {
-        ...editingRoutine,
+        ...existing,
         title: formData.title,
         details: formData.details,
         frequency: formData.frequency,
@@ -653,42 +799,39 @@ export const TodayView: React.FC = () => {
         activeTo: formData.activeTo,
         effectiveDate: formData.effectiveDate,
         isPaused: formData.isPaused,
-        scheduleRevision: nextScheduleRev,
-        // Keep authoritative serverRevision
+        scheduleRevision: newScheduleRevision,
         updatedAt: nowIso,
       };
 
-      // Schedule reconciliation for future occurrences
-      const domainOccurrences: RoutineOccurrence[] = occurrences.map((o) => ({
+      const domainOccurrences = occurrences.map((o) => ({
         ...o,
         revision: o.serverRevision,
       }));
-      const rule: RoutineTemplateRule = {
-        id: updated.id,
-        workspaceId: updated.workspaceId,
-        folderId: updated.folderId,
-        title: updated.title,
-        details: updated.details,
-        frequency: updated.frequency,
-        weekdays: updated.weekdays,
-        timezone: updated.timezone,
-        scheduledTime: updated.scheduledTime,
-        activeFrom: updated.activeFrom,
-        activeTo: updated.activeTo,
-        isPaused: updated.isPaused,
-        isArchived: updated.isArchived,
-        scheduleRevision: updated.scheduleRevision,
-        effectiveDate: updated.effectiveDate,
-      };
-
-      const { retained, cancelledOccurrences } = reconcileOccurrencesOnScheduleChange(
-        domainOccurrences,
-        rule,
-        formData.effectiveDate
-      );
+      const { retained, modifiedOccurrences, cancelledOccurrences } =
+        reconcileOccurrencesOnScheduleChange(
+          domainOccurrences,
+          updated,
+          formData.effectiveDate
+        );
 
       const reconciledOccurrences: RoutineOccurrenceRecord[] = [
         ...retained.map((o) => ({
+          id: o.id,
+          workspaceId: o.workspaceId,
+          routineId: o.routineId,
+          scheduledDate: o.scheduledDate,
+          scheduleRevision: o.scheduleRevision,
+          plannedInstant: o.plannedInstant,
+          timezone: o.timezone,
+          status: o.status,
+          completedAt: o.completedAt,
+          completedBy: o.completedBy,
+          history: o.history,
+          serverRevision: o.serverRevision,
+          createdAt: o.createdAt,
+          updatedAt: o.updatedAt,
+        })),
+        ...modifiedOccurrences.map((o) => ({
           id: o.id,
           workspaceId: o.workspaceId,
           routineId: o.routineId,
@@ -739,7 +882,6 @@ export const TodayView: React.FC = () => {
 
       announce(`Updated routine "${updated.title}".`);
     } else {
-      // Create new routine
       const newId = crypto.randomUUID();
       const newRoutine: RoutineRecord = {
         id: newId,
@@ -795,14 +937,12 @@ export const TodayView: React.FC = () => {
       setRoutines((prev) => [...prev, newRoutine]);
       setOccurrences((prev) => [...prev, ...newOccs]);
 
-      // Save pending occurrences locally so they are visible immediately
       if (localRepoRef.current) {
         for (const o of newOccs) {
           await localRepoRef.current.upsertRoutineOccurrence(o);
         }
       }
 
-      // Save routine to SyncEngine - DO NOT queue completeOccurrence!
       if (syncEngineRef.current) {
         await syncEngineRef.current.saveRoutine(newRoutine, 'createRoutine');
       } else if (localRepoRef.current) {
@@ -825,7 +965,6 @@ export const TodayView: React.FC = () => {
       status: newStatus,
       completedAt: newStatus === 'completed' ? nowIso : null,
       updatedAt: nowIso,
-      // Keep authoritative serverRevision
     };
 
     setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
@@ -865,14 +1004,112 @@ export const TodayView: React.FC = () => {
     );
   };
 
-  const handleSimulateLoading = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 600);
+  // Phase 30: Personalization Handlers
+  const handleToggleWidget = (id: HomeWidgetId) => {
+    setHomeLayout((prev) => {
+      const updated = {
+        ...prev,
+        widgets: prev.widgets.map((w) => (w.id === id ? { ...w, visible: !w.visible } : w)),
+      };
+      announce(`Toggled visibility for ${DEFAULT_WIDGET_LABELS[id]}.`);
+      return updated;
+    });
   };
 
-  const handleSimulateError = () => {
-    setErrorMessage('Simulated error: Failed to sync offline routine occurrences.');
+  const handleMoveWidget = (id: HomeWidgetId, direction: 'up' | 'down') => {
+    setHomeLayout((prev) => {
+      const reordered = reorderWidgets(prev.widgets, id, direction);
+      const newIdx = reordered.find((w) => w.id === id)?.order ?? 0;
+      announce(`Moved ${DEFAULT_WIDGET_LABELS[id]} ${direction} to position ${newIdx + 1}.`);
+      return { ...prev, widgets: reordered };
+    });
   };
+
+  const handleLabelChange = (id: HomeWidgetId, label: string) => {
+    const validated = validateCustomLabel(label);
+    setHomeLayout((prev) => ({
+      ...prev,
+      widgets: prev.widgets.map((w) => (w.id === id ? { ...w, customLabel: validated } : w)),
+    }));
+  };
+
+  const handleToggleFavoriteFolder = (folderId: string) => {
+    setHomeLayout((prev) => {
+      const exists = prev.favoriteFolderIds.includes(folderId);
+      const updated = exists
+        ? prev.favoriteFolderIds.filter((id) => id !== folderId)
+        : [...prev.favoriteFolderIds, folderId];
+      return { ...prev, favoriteFolderIds: updated };
+    });
+  };
+
+  const handleDensityChange = (density: 'comfortable' | 'compact') => {
+    setHomeLayout((prev) => ({ ...prev, density }));
+    announce(`Density changed to ${density}.`);
+  };
+
+  const handleRestoreDefaults = () => {
+    const defaults = getDefaultHomeLayout();
+    setHomeLayout(defaults);
+    announce('Restored default home layout. All user items and routines remain intact.');
+  };
+
+  const handleSavePreferences = async () => {
+    if (!workspaceId) return;
+    setIsSavingLayout(true);
+    setSaveSuccessMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const client = createApiClient({
+        baseUrl: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+      });
+
+      const res = await client.updateUserPreferences({
+        preferences: {
+          homeLayout,
+          compactMode: homeLayout.density === 'compact',
+        },
+        expectedRevision: preferencesRevision,
+      });
+
+      if (res.data) {
+        setPreferencesRevision(res.data.revision);
+        if (localRepoRef.current) {
+          await localRepoRef.current.savePreferenceSnapshot({
+            userId: user?.id || 'anonymous',
+            preferences: { homeLayout },
+            schemaVersion: 1,
+            revision: res.data.revision,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        setSaveSuccessMessage('Home customization saved successfully.');
+        announce('Home customization saved successfully.');
+        setIsCustomizing(false);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('conflict') || msg.includes('revision')) {
+        setErrorMessage(
+          'Preference revision conflict: layout was modified on another device. Please refresh to load latest changes.'
+        );
+      } else {
+        setErrorMessage(`Failed to save preferences: ${msg}`);
+      }
+      announce('Failed to save layout preferences.');
+    } finally {
+      setIsSavingLayout(false);
+    }
+  };
+
+  const visibleWidgets = useMemo(() => {
+    return [...homeLayout.widgets]
+      .filter((w) => w.visible)
+      .sort((a, b) => a.order - b.order);
+  }, [homeLayout.widgets]);
+
+  const cardPadding = homeLayout.density === 'compact' ? spacing.sm : spacing.base;
 
   return (
     <div
@@ -975,6 +1212,16 @@ export const TodayView: React.FC = () => {
             </div>
 
             <Button
+              id="customize-today-btn"
+              variant="secondary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => setIsCustomizing(true)}
+            >
+              ⚙️ Customize Today
+            </Button>
+
+            <Button
               id="create-routine-btn"
               variant="primary"
               size="compact"
@@ -988,93 +1235,27 @@ export const TodayView: React.FC = () => {
             </Button>
           </div>
         </div>
-
-        {/* State Simulation Controls (preserved for testability) */}
-        <div
-          role="region"
-          aria-label="State simulation controls"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: `${spacing.xs}px`,
-            padding: `${spacing.sm}px`,
-            backgroundColor: palette.surfaceRaised,
-            borderRadius: `${radii.card}px`,
-            border: `1px solid ${palette.border.subtle}`,
-            marginTop: `${spacing.sm}px`,
-            alignItems: 'center',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '12px',
-              fontWeight: 700,
-              color: palette.text.secondary,
-              marginRight: `${spacing.xs}px`,
-            }}
-          >
-            Demo States:
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowEmptyState((v) => !v)}
-            style={{
-              padding: '4px 10px',
-              fontSize: '12px',
-              borderRadius: '4px',
-              border: `1px solid ${palette.border.subtle}`,
-              backgroundColor: showEmptyState ? palette.action.primary : palette.surface,
-              color: showEmptyState ? '#ffffff' : palette.text.primary,
-              cursor: 'pointer',
-              minHeight: '32px',
-              fontWeight: 500,
-            }}
-          >
-            {showEmptyState ? 'Show Content' : 'Simulate Empty'}
-          </button>
-          <button
-            type="button"
-            onClick={handleSimulateLoading}
-            style={{
-              padding: '4px 10px',
-              fontSize: '12px',
-              borderRadius: '4px',
-              border: `1px solid ${palette.border.subtle}`,
-              backgroundColor: palette.surface,
-              color: palette.text.primary,
-              cursor: 'pointer',
-              minHeight: '32px',
-              fontWeight: 500,
-            }}
-          >
-            Simulate Loading
-          </button>
-          <button
-            type="button"
-            onClick={handleSimulateError}
-            style={{
-              padding: '4px 10px',
-              fontSize: '12px',
-              borderRadius: '4px',
-              border: `1px solid ${palette.border.subtle}`,
-              backgroundColor: palette.surface,
-              color: palette.text.primary,
-              cursor: 'pointer',
-              minHeight: '32px',
-              fontWeight: 500,
-            }}
-          >
-            Simulate Error
-          </button>
-        </div>
       </section>
+
+      {/* Success Notification */}
+      {saveSuccessMessage && (
+        <div style={{ marginBottom: `${spacing.base}px` }}>
+          <Feedback
+            severity="success"
+            title="Saved"
+            message={saveSuccessMessage}
+            themeMode={themeMode}
+            onDismiss={() => setSaveSuccessMessage(null)}
+          />
+        </div>
+      )}
 
       {/* Error / Retry Banner */}
       {errorMessage && (
         <div style={{ marginBottom: `${spacing.base}px` }}>
           <Feedback
             severity="danger"
-            title="Synchronization Alert"
+            title="Notification"
             message={errorMessage}
             themeMode={themeMode}
             onDismiss={() => setErrorMessage(null)}
@@ -1093,6 +1274,42 @@ export const TodayView: React.FC = () => {
               Retry
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Undo Toast */}
+      {undoToast && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: `${spacing.base}px`,
+            padding: `${spacing.sm}px ${spacing.base}px`,
+            backgroundColor: palette.surfaceRaised,
+            borderRadius: `${radii.card}px`,
+            border: `1px solid ${palette.action.primary}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span style={{ fontSize: '13px', color: palette.text.primary, fontWeight: 500 }}>
+            Updated {undoToast.routineTitle}.
+          </span>
+          <button
+            type="button"
+            id="undo-routine-btn"
+            onClick={handleUndo}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: palette.action.primary,
+              fontWeight: 700,
+              cursor: 'pointer',
+              padding: '4px 8px',
+            }}
+          >
+            Undo
+          </button>
         </div>
       )}
 
@@ -1127,303 +1344,817 @@ export const TodayView: React.FC = () => {
           />
           <span>Refreshing Today content...</span>
         </div>
-      ) : showEmptyState || (todayRoutineItems.length === 0 && tasks.length === 0) ? (
+      ) : visibleWidgets.length === 0 ? (
         <EmptyState
           id="today-empty-state"
-          title="All caught up for today"
-          description="You have no pending tasks or routines scheduled for today. Create a routine to build consistent habits!"
-          actionLabel="Create Routine"
-          onAction={() => {
-            setEditingRoutine(null);
-            setIsEditorOpen(true);
-          }}
+          title="All cards hidden"
+          description="You have hidden all cards on your Today home. Customize your home to enable cards."
+          actionLabel="Customize Home"
+          onAction={() => setIsCustomizing(true)}
           themeMode={themeMode}
           icon="☀️"
         />
       ) : (
+        /* Render Customizable Cards in Configured Order */
         <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-          {/* Card 1: Today's Daily Routine Checklist */}
-          <Card themeMode={themeMode}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: `${spacing.xs}px`,
-                flexWrap: 'wrap',
-                gap: `${spacing.xs}px`,
-              }}
-            >
-              <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: `${typography.webScale.sectionHeading}px`,
-                    color: palette.text.primary,
-                    fontWeight: 700,
-                  }}
-                >
-                  Today&apos;s Routines
-                </h2>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    color: palette.text.secondary,
-                  }}
-                >
-                  Gentle daily habit checklist · Independent from one-off tasks
-                </span>
-              </div>
+          {visibleWidgets.map((widget) => {
+            const cardTitle = widget.customLabel || DEFAULT_WIDGET_LABELS[widget.id];
 
-              {/* Gentle Progress Counter */}
-              <div
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: palette.action.primary,
-                }}
-              >
-                {progress.completedCount} of {progress.totalScheduled} completed
-              </div>
-            </div>
-
-            {/* Gentle Progress Bar */}
-            {progress.totalScheduled > 0 && (
-              <div
-                style={{
-                  width: '100%',
-                  height: '6px',
-                  backgroundColor: palette.surfaceRaised,
-                  borderRadius: `${radii.pill}px`,
-                  overflow: 'hidden',
-                  margin: `${spacing.xs}px 0 ${spacing.sm}px 0`,
-                }}
-              >
-                <div
-                  style={{
-                    width: `${progress.completionRate}%`,
-                    height: '100%',
-                    backgroundColor: palette.action.primary,
-                    borderRadius: `${radii.pill}px`,
-                    transition: 'width 250ms ease',
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Routine Checklist Items */}
-            <div role="list" aria-label="Today's routines checklist">
-              {todayRoutineItems.length === 0 ? (
-                <div
-                  style={{
-                    padding: `${spacing.md}px 0`,
-                    color: palette.text.secondary,
-                    fontSize: '13px',
-                    textAlign: 'center',
-                  }}
-                >
-                  No routines scheduled for today.
-                </div>
-              ) : (
-                todayRoutineItems.map(({ routine, occurrence, routineDate }) => (
-                  <RoutineRow
-                    key={routine.id}
-                    routine={{
-                      id: routine.id,
-                      title: routine.title,
-                      details: routine.details,
-                      frequency: routine.frequency,
-                      weekdays: routine.weekdays,
-                      timezone: routine.timezone,
-                      scheduledTime: routine.scheduledTime,
-                      isPaused: routine.isPaused,
-                      isArchived: routine.isArchived,
-                    }}
-                    occurrence={occurrence}
-                    viewingDate={routineDate}
-                    themeMode={themeMode}
-                    onComplete={handleCompleteOccurrence}
-                    onSkip={handleSkipOccurrence}
-                    onReopen={handleReopenOccurrence}
-                    onEdit={(id) => {
-                      const r = routines.find((item) => item.id === id);
-                      if (r) {
-                        setEditingRoutine(r);
-                        setIsEditorOpen(true);
-                      }
-                    }}
-                    onViewHistory={(id) => {
-                      const r = routines.find((item) => item.id === id);
-                      if (r) {
-                        void handleOpenHistory(r);
-                      }
-                    }}
-                    onTogglePause={handleTogglePauseRoutine}
-                  />
-                ))
-              )}
-            </div>
-
-            <div
-              style={{
-                marginTop: `${spacing.sm}px`,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingRoutine(null);
-                  setIsEditorOpen(true);
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: palette.action.primary,
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: 0,
-                  minHeight: '32px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                }}
-              >
-                + Add another routine
-              </button>
-
-              <span style={{ fontSize: '11px', color: palette.text.secondary }}>
-                Yesterday&apos;s completions preserved in History
-              </span>
-            </div>
-          </Card>
-
-          {/* Card 2: Tasks Due Today (Strictly Separate from Routines) */}
-          <Card themeMode={themeMode}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: `${spacing.sm}px`,
-              }}
-            >
-              <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: `${typography.webScale.sectionHeading}px`,
-                    color: palette.text.primary,
-                    fontWeight: 700,
-                  }}
-                >
-                  Tasks Due Today
-                </h2>
-                <span style={{ fontSize: '12px', color: palette.text.secondary }}>
-                  One-off tasks and project action items
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: palette.text.secondary,
-                }}
-              >
-                {tasks.filter((t) => t.status === 'completed').length} of {tasks.length} done
-              </span>
-            </div>
-
-            <div role="list" aria-label="Tasks due today">
-              {tasks.length === 0 ? (
-                <div
-                  style={{
-                    padding: `${spacing.md}px 0`,
-                    color: palette.text.secondary,
-                    fontSize: '13px',
-                    textAlign: 'center',
-                  }}
-                >
-                  No tasks due today.
-                </div>
-              ) : (
-                tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      minHeight: `${touchTargets.webMin}px`,
-                      padding: `${spacing.xs}px 0`,
-                      borderBottom: `1px solid ${palette.border.subtle}`,
-                      gap: `${spacing.sm}px`,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      id={`check-${task.id}`}
-                      checked={task.status === 'completed'}
-                      onChange={() => toggleTask(task.id)}
-                      aria-label={`Mark "${task.title}" as ${task.status === 'completed' ? 'incomplete' : 'complete'}`}
+            // 1. Tasks Card
+            if (widget.id === 'tasks') {
+              return (
+                <Card key={widget.id} themeMode={themeMode}>
+                  <div style={{ padding: `${cardPadding}px` }}>
+                    <div
                       style={{
-                        width: '20px',
-                        height: '20px',
-                        cursor: 'pointer',
-                        accentColor: palette.action.primary,
-                      }}
-                    />
-                    <label
-                      htmlFor={`check-${task.id}`}
-                      style={{
-                        flex: 1,
-                        cursor: 'pointer',
-                        fontSize: `${typography.webScale.body}px`,
-                        color:
-                          task.status === 'completed'
-                            ? palette.text.secondary
-                            : palette.text.primary,
-                        textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: `${spacing.sm}px`,
                       }}
                     >
-                      {task.title}
-                    </label>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: `${radii.pill}px`,
-                        backgroundColor: palette.surfaceRaised,
-                        color: palette.text.secondary,
-                        border: `1px solid ${palette.border.subtle}`,
-                      }}
-                    >
-                      {task.priority}
-                    </span>
+                      <div>
+                        <h2
+                          id="tasks-card-heading"
+                          style={{
+                            margin: 0,
+                            fontSize: `${typography.webScale.sectionHeading}px`,
+                            color: palette.text.primary,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {cardTitle}
+                        </h2>
+                        <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                          One-off tasks and deadlines due today
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: palette.text.secondary,
+                        }}
+                      >
+                        {tasksDueToday.filter((t) => t.status === 'completed').length} of{' '}
+                        {tasksDueToday.length} done
+                      </span>
+                    </div>
+
+                    {/* Tasks Due Today List */}
+                    <div role="list" aria-label="Tasks due today">
+                      {tasksDueToday.length === 0 ? (
+                        <div
+                          style={{
+                            padding: `${spacing.sm}px 0`,
+                            color: palette.text.secondary,
+                            fontSize: '13px',
+                          }}
+                        >
+                          No tasks due today.
+                        </div>
+                      ) : (
+                        tasksDueToday.map((task) => (
+                          <div
+                            key={task.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              minHeight: `${touchTargets.webMin}px`,
+                              padding: `${spacing.xs}px 0`,
+                              borderBottom: `1px solid ${palette.border.subtle}`,
+                              gap: `${spacing.sm}px`,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              id={`check-${task.id}`}
+                              checked={task.status === 'completed'}
+                              onChange={() => toggleTask(task.id)}
+                              aria-label={`Mark "${task.title}" as ${task.status === 'completed' ? 'incomplete' : 'complete'}`}
+                              style={{
+                                width: '20px',
+                                height: '20px',
+                                cursor: 'pointer',
+                                accentColor: palette.action.primary,
+                              }}
+                            />
+                            <label
+                              htmlFor={`check-${task.id}`}
+                              style={{
+                                flex: 1,
+                                cursor: 'pointer',
+                                fontSize: `${typography.webScale.body}px`,
+                                color:
+                                  task.status === 'completed'
+                                    ? palette.text.secondary
+                                    : palette.text.primary,
+                                textDecoration:
+                                  task.status === 'completed' ? 'line-through' : 'none',
+                              }}
+                            >
+                              {task.title}
+                            </label>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: `${radii.pill}px`,
+                                backgroundColor: palette.surfaceRaised,
+                                color: palette.text.secondary,
+                                border: `1px solid ${palette.border.subtle}`,
+                              }}
+                            >
+                              {task.priority}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Collapsible Overdue Tasks Group */}
+                    {overdueTasks.length > 0 && (
+                      <div style={{ marginTop: `${spacing.sm}px` }}>
+                        <button
+                          type="button"
+                          id="toggle-overdue-btn"
+                          onClick={() => setIsOverdueExpanded((v) => !v)}
+                          aria-expanded={isOverdueExpanded}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: `${spacing.xs}px`,
+                            background: 'none',
+                            border: 'none',
+                            color: palette.status.danger,
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            padding: '4px 0',
+                          }}
+                        >
+                          <span>{isOverdueExpanded ? '▼' : '▶'}</span>
+                          <span>
+                            {overdueTasks.length} overdue task{overdueTasks.length === 1 ? '' : 's'}
+                          </span>
+                        </button>
+
+                        {isOverdueExpanded && (
+                          <div
+                            role="list"
+                            aria-label="Overdue tasks"
+                            style={{
+                              marginTop: `${spacing.xs}px`,
+                              paddingLeft: `${spacing.base}px`,
+                              borderLeft: `2px solid ${palette.status.danger}`,
+                            }}
+                          >
+                            {overdueTasks.map((task) => (
+                              <div
+                                key={task.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  minHeight: '36px',
+                                  padding: '4px 0',
+                                  gap: `${spacing.sm}px`,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  id={`check-overdue-${task.id}`}
+                                  checked={task.status === 'completed'}
+                                  onChange={() => toggleTask(task.id)}
+                                  aria-label={`Mark overdue "${task.title}" as complete`}
+                                  style={{
+                                    width: '18px',
+                                    height: '18px',
+                                    cursor: 'pointer',
+                                    accentColor: palette.action.primary,
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`check-overdue-${task.id}`}
+                                  style={{
+                                    flex: 1,
+                                    fontSize: '13px',
+                                    color: palette.text.primary,
+                                  }}
+                                >
+                                  {task.title}
+                                </label>
+                                <span style={{ fontSize: '11px', color: palette.status.danger }}>
+                                  Overdue
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: `${spacing.md}px` }}>
+                      <Link
+                        href="/plan"
+                        style={{
+                          color: palette.action.primary,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          minHeight: '32px',
+                        }}
+                      >
+                        View all tasks in Plan →
+                      </Link>
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
+                </Card>
+              );
+            }
 
-            <div style={{ marginTop: `${spacing.md}px` }}>
-              <Link
-                href="/plan"
-                style={{
-                  color: palette.action.primary,
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  minHeight: '36px',
-                }}
-              >
-                View all tasks in Plan →
-              </Link>
-            </div>
-          </Card>
+            // 2. Routines Card
+            if (widget.id === 'routines') {
+              return (
+                <Card key={widget.id} themeMode={themeMode}>
+                  <div style={{ padding: `${cardPadding}px` }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: `${spacing.xs}px`,
+                        flexWrap: 'wrap',
+                        gap: `${spacing.xs}px`,
+                      }}
+                    >
+                      <div>
+                        <h2
+                          id="routines-card-heading"
+                          style={{
+                            margin: 0,
+                            fontSize: `${typography.webScale.sectionHeading}px`,
+                            color: palette.text.primary,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {cardTitle}
+                        </h2>
+                        <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                          Gentle daily habit checklist · Independent completion
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: palette.action.primary,
+                        }}
+                      >
+                        {progress.completedCount} of {progress.totalScheduled} completed
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    {progress.totalScheduled > 0 && (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '6px',
+                          backgroundColor: palette.surfaceRaised,
+                          borderRadius: `${radii.pill}px`,
+                          overflow: 'hidden',
+                          margin: `${spacing.xs}px 0 ${spacing.sm}px 0`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${progress.completionRate}%`,
+                            height: '100%',
+                            backgroundColor: palette.action.primary,
+                            borderRadius: `${radii.pill}px`,
+                            transition: 'width 250ms ease',
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Routine Checklist Items */}
+                    <div role="list" aria-label="Today's routines checklist">
+                      {todayRoutineItems.length === 0 ? (
+                        <div
+                          style={{
+                            padding: `${spacing.md}px 0`,
+                            color: palette.text.secondary,
+                            fontSize: '13px',
+                            textAlign: 'center',
+                          }}
+                        >
+                          No routines scheduled for today.
+                        </div>
+                      ) : (
+                        todayRoutineItems.map(({ routine, occurrence, routineDate }) => (
+                          <RoutineRow
+                            key={routine.id}
+                            routine={{
+                              id: routine.id,
+                              title: routine.title,
+                              details: routine.details,
+                              frequency: routine.frequency,
+                              weekdays: routine.weekdays,
+                              timezone: routine.timezone,
+                              scheduledTime: routine.scheduledTime,
+                              isPaused: routine.isPaused,
+                              isArchived: routine.isArchived,
+                            }}
+                            occurrence={occurrence}
+                            viewingDate={routineDate}
+                            themeMode={themeMode}
+                            onComplete={handleCompleteOccurrence}
+                            onSkip={handleSkipOccurrence}
+                            onReopen={handleReopenOccurrence}
+                            onEdit={(id) => {
+                              const r = routines.find((item) => item.id === id);
+                              if (r) {
+                                setEditingRoutine(r);
+                                setIsEditorOpen(true);
+                              }
+                            }}
+                            onViewHistory={(id) => {
+                              const r = routines.find((item) => item.id === id);
+                              if (r) {
+                                void handleOpenHistory(r);
+                              }
+                            }}
+                            onTogglePause={handleTogglePauseRoutine}
+                          />
+                        ))
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: `${spacing.sm}px`,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRoutine(null);
+                          setIsEditorOpen(true);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: palette.action.primary,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: 0,
+                          minHeight: '32px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        + Add another routine
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+
+            // 3. Upcoming Summary Card (Next 7 Days)
+            if (widget.id === 'upcoming_summary') {
+              return (
+                <Card key={widget.id} themeMode={themeMode}>
+                  <div style={{ padding: `${cardPadding}px` }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: `${spacing.xs}px`,
+                      }}
+                    >
+                      <div>
+                        <h2
+                          id="upcoming-card-heading"
+                          style={{
+                            margin: 0,
+                            fontSize: `${typography.webScale.sectionHeading}px`,
+                            color: palette.text.primary,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {cardTitle}
+                        </h2>
+                        <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                          Lookahead for the coming week
+                        </span>
+                      </div>
+                      <Link
+                        href="/plan"
+                        style={{
+                          fontSize: '13px',
+                          color: palette.action.primary,
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Open Plan →
+                      </Link>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: `${spacing.base}px`,
+                        marginTop: `${spacing.sm}px`,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: '140px',
+                          padding: `${spacing.sm}px`,
+                          backgroundColor: palette.surfaceRaised,
+                          borderRadius: `${radii.sm}px`,
+                          border: `1px solid ${palette.border.subtle}`,
+                        }}
+                      >
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: palette.action.primary }}>
+                          {upcomingSummary.upcomingTaskCount}
+                        </div>
+                        <div style={{ fontSize: '12px', color: palette.text.secondary }}>
+                          Tasks in next 7 days
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: '140px',
+                          padding: `${spacing.sm}px`,
+                          backgroundColor: palette.surfaceRaised,
+                          borderRadius: `${radii.sm}px`,
+                          border: `1px solid ${palette.border.subtle}`,
+                        }}
+                      >
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: palette.action.primary }}>
+                          {upcomingSummary.upcomingRoutineCount}
+                        </div>
+                        <div style={{ fontSize: '12px', color: palette.text.secondary }}>
+                          Scheduled routines
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+
+            // 4. Quick Capture Card
+            if (widget.id === 'quick_capture') {
+              return (
+                <Card key={widget.id} themeMode={themeMode}>
+                  <div style={{ padding: `${cardPadding}px` }}>
+                    <h2
+                      id="quick-capture-heading"
+                      style={{
+                        margin: 0,
+                        fontSize: `${typography.webScale.sectionHeading}px`,
+                        color: palette.text.primary,
+                        fontWeight: 700,
+                        marginBottom: `${spacing.xs}px`,
+                      }}
+                    >
+                      {cardTitle}
+                    </h2>
+                    <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                      Quickly capture ideas and items directly into your inbox
+                    </span>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: `${spacing.xs}px`,
+                        marginTop: `${spacing.sm}px`,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <Link
+                        href="/plan?create=task"
+                        id="quick-capture-task"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: `${radii.sm}px`,
+                          backgroundColor: palette.surfaceRaised,
+                          border: `1px solid ${palette.border.subtle}`,
+                          color: palette.text.primary,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>✓</span> New Task
+                      </Link>
+
+                      <Link
+                        href="/library?create=note"
+                        id="quick-capture-note"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: `${radii.sm}px`,
+                          backgroundColor: palette.surfaceRaised,
+                          border: `1px solid ${palette.border.subtle}`,
+                          color: palette.text.primary,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>📝</span> New Note
+                      </Link>
+
+                      <button
+                        type="button"
+                        id="quick-capture-routine"
+                        onClick={() => {
+                          setEditingRoutine(null);
+                          setIsEditorOpen(true);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: `${radii.sm}px`,
+                          backgroundColor: palette.surfaceRaised,
+                          border: `1px solid ${palette.border.subtle}`,
+                          color: palette.text.primary,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>🔄</span> Routine
+                      </button>
+
+                      <Link
+                        href="/journal"
+                        id="quick-capture-journal"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: `${radii.sm}px`,
+                          backgroundColor: palette.surfaceRaised,
+                          border: `1px solid ${palette.border.subtle}`,
+                          color: palette.text.primary,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>📖</span> Write Journal
+                      </Link>
+
+                      <Link
+                        href="/library"
+                        id="quick-capture-file"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: `${radii.sm}px`,
+                          backgroundColor: palette.surfaceRaised,
+                          border: `1px solid ${palette.border.subtle}`,
+                          color: palette.text.primary,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>📁</span> Upload File
+                      </Link>
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+
+            // 5. Journal Reflection Card (No body preview!)
+            if (widget.id === 'journal_prompt') {
+              return (
+                <Card key={widget.id} themeMode={themeMode}>
+                  <div style={{ padding: `${cardPadding}px` }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: `${spacing.xs}px`,
+                      }}
+                    >
+                      <div>
+                        <h2
+                          id="journal-card-heading"
+                          style={{
+                            margin: 0,
+                            fontSize: `${typography.webScale.sectionHeading}px`,
+                            color: palette.text.primary,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {cardTitle}
+                        </h2>
+                        <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                          Take a quiet moment to write about your day
+                        </span>
+                      </div>
+                      <Link
+                        href="/journal"
+                        id="write-journal-today-btn"
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: `${radii.sm}px`,
+                          backgroundColor: palette.action.primary,
+                          color: '#ffffff',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          minHeight: '32px',
+                        }}
+                      >
+                        Write reflection →
+                      </Link>
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+
+            // 6. Recent Items Card
+            if (widget.id === 'recent_items') {
+              return (
+                <Card key={widget.id} themeMode={themeMode}>
+                  <div style={{ padding: `${cardPadding}px` }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: `${spacing.sm}px`,
+                      }}
+                    >
+                      <h2
+                        id="recent-items-heading"
+                        style={{
+                          margin: 0,
+                          fontSize: `${typography.webScale.sectionHeading}px`,
+                          color: palette.text.primary,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {cardTitle}
+                      </h2>
+                      <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                        Recently updated
+                      </span>
+                    </div>
+
+                    <div role="list" aria-label="Recent items">
+                      {recentItems.length === 0 ? (
+                        <div style={{ fontSize: '13px', color: palette.text.secondary, padding: '4px 0' }}>
+                          No recent items found.
+                        </div>
+                      ) : (
+                        recentItems.map((item) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: `${spacing.xs}px 0`,
+                              borderBottom: `1px solid ${palette.border.subtle}`,
+                            }}
+                          >
+                            <span style={{ fontSize: '13px', color: palette.text.primary, fontWeight: 500 }}>
+                              {item.title}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                textTransform: 'uppercase',
+                                padding: '2px 6px',
+                                borderRadius: `${radii.pill}px`,
+                                backgroundColor: palette.surfaceRaised,
+                                color: palette.text.secondary,
+                              }}
+                            >
+                              {item.type}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+
+            // 7. Favorite Folders Card
+            if (widget.id === 'favorite_folders') {
+              const activeFavs = workspaceFolders.filter((f) =>
+                homeLayout.favoriteFolderIds.includes(f.id)
+              );
+
+              return (
+                <Card key={widget.id} themeMode={themeMode}>
+                  <div style={{ padding: `${cardPadding}px` }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: `${spacing.sm}px`,
+                      }}
+                    >
+                      <h2
+                        id="favorite-folders-heading"
+                        style={{
+                          margin: 0,
+                          fontSize: `${typography.webScale.sectionHeading}px`,
+                          color: palette.text.primary,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {cardTitle}
+                      </h2>
+                      <Link
+                        href="/library"
+                        style={{ fontSize: '12px', color: palette.action.primary, textDecoration: 'none' }}
+                      >
+                        Browse all →
+                      </Link>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: `${spacing.xs}px`, flexWrap: 'wrap' }}>
+                      {activeFavs.length === 0 ? (
+                        <div style={{ fontSize: '13px', color: palette.text.secondary, padding: '4px 0' }}>
+                          No favorite folders pinned yet. Use Customize Today to pin your key folders.
+                        </div>
+                      ) : (
+                        activeFavs.map((f) => (
+                          <Link
+                            key={f.id}
+                            href={`/library?folderId=${f.id}`}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: `${radii.sm}px`,
+                              backgroundColor: palette.surfaceRaised,
+                              border: `1px solid ${palette.border.subtle}`,
+                              color: palette.text.primary,
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <span>📁</span> {f.name}
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+
+            return null;
+          })}
         </div>
       )}
 
@@ -1448,80 +2179,368 @@ export const TodayView: React.FC = () => {
                   scheduledTime: editingRoutine.scheduledTime,
                   activeFrom: editingRoutine.activeFrom,
                   activeTo: editingRoutine.activeTo,
-                  effectiveDate: editingRoutine.effectiveDate,
+                  effectiveDate: editingRoutine.effectiveDate ?? todayDate,
                   isPaused: editingRoutine.isPaused,
                 }
-              : null
+              : undefined
           }
-          todayDate={todayDate}
           defaultTimezone={viewingTimezone}
+          todayDate={todayDate}
           themeMode={themeMode}
         />
       )}
 
-      {/* Routine History Viewer Modal */}
+      {/* Routine History Modal */}
       {historyRoutine && (
         <RoutineHistoryViewer
           isOpen={Boolean(historyRoutine)}
-          onClose={() => {
-            setHistoryRoutine(null);
-            setHistoryOccurrences([]);
-          }}
+          onClose={() => setHistoryRoutine(null)}
           routineTitle={historyRoutine.title}
-          occurrences={historyOccurrences
-            .filter((o) => o.routineId === historyRoutine.id)
-            .map((o) => ({
-              ...o,
-              scheduleRevision: o.scheduleRevision,
-            }))}
+          occurrences={historyOccurrences.map((o) => ({
+            id: o.id,
+            routineId: o.routineId,
+            scheduledDate: o.scheduledDate,
+            scheduleRevision: o.scheduleRevision,
+            plannedInstant: o.plannedInstant,
+            timezone: o.timezone,
+            status: o.status,
+            completedAt: o.completedAt,
+            completedBy: o.completedBy,
+            history: o.history,
+          }))}
           themeMode={themeMode}
-          onReopenOccurrence={handleReopenOccurrence}
-          onCompleteOccurrence={handleCompleteOccurrence}
         />
       )}
 
-      {/* Floating Reversible Undo Toast */}
-      {undoToast && (
+      {/* Phase 30: Customize Today Modal */}
+      {isCustomizing && (
         <div
-          role="status"
-          aria-live="polite"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="customization-modal-title"
           style={{
             position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            backgroundColor: palette.surfaceRaised,
-            color: palette.text.primary,
-            border: `1px solid ${palette.border.strong}`,
-            borderRadius: `${radii.card}px`,
-            padding: `${spacing.sm}px ${spacing.base}px`,
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
-            gap: `${spacing.md}px`,
-            zIndex: 9999,
-            animation: 'daynori-fade-in 150ms ease',
+            justifyContent: 'center',
+            padding: `${spacing.base}px`,
+            zIndex: 1000,
           }}
         >
-          <span style={{ fontSize: '13px', fontWeight: 500 }}>
-            Updated <strong>{undoToast.routineTitle}</strong>
-          </span>
-          <button
-            type="button"
-            onClick={handleUndo}
+          <div
             style={{
-              padding: '4px 12px',
-              borderRadius: `${radii.sm}px`,
-              border: `1px solid ${palette.action.primary}`,
-              backgroundColor: palette.action.primary,
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              minHeight: '28px',
+              backgroundColor: palette.surface,
+              borderRadius: `${radii.card}px`,
+              border: `1px solid ${palette.border.subtle}`,
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: `${spacing.lg}px`,
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: `${spacing.base}px`,
             }}
           >
-            Undo
-          </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2
+                id="customization-modal-title"
+                style={{
+                  margin: 0,
+                  fontSize: `${typography.webScale.sectionHeading}px`,
+                  color: palette.text.primary,
+                  fontWeight: 700,
+                }}
+              >
+                Customize Today
+              </h2>
+              <button
+                type="button"
+                id="close-customization-btn"
+                onClick={() => setIsCustomizing(false)}
+                aria-label="Close customization modal"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  color: palette.text.secondary,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '13px', color: palette.text.secondary }}>
+              Rearrange cards, rename custom labels, toggle visibility, and configure display options.
+            </p>
+
+            {/* Widget Reordering & Visibility */}
+            <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+                Cards & Ordering
+              </legend>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
+                {[...homeLayout.widgets]
+                  .sort((a, b) => a.order - b.order)
+                  .map((widget, idx, arr) => (
+                    <div
+                      key={widget.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: `${spacing.xs}px ${spacing.sm}px`,
+                        backgroundColor: palette.surfaceRaised,
+                        borderRadius: `${radii.sm}px`,
+                        border: `1px solid ${palette.border.subtle}`,
+                        gap: `${spacing.sm}px`,
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: `${spacing.xs}px`,
+                          cursor: 'pointer',
+                          flex: 1,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          id={`toggle-widget-${widget.id}`}
+                          checked={widget.visible}
+                          onChange={() => handleToggleWidget(widget.id)}
+                          style={{ width: '18px', height: '18px', accentColor: palette.action.primary }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: palette.text.primary }}>
+                          {DEFAULT_WIDGET_LABELS[widget.id]}
+                        </span>
+                      </label>
+
+                      {/* Custom Label Input */}
+                      <input
+                        type="text"
+                        id={`label-input-${widget.id}`}
+                        placeholder={DEFAULT_WIDGET_LABELS[widget.id]}
+                        value={widget.customLabel || ''}
+                        onChange={(e) => handleLabelChange(widget.id, e.target.value)}
+                        maxLength={40}
+                        aria-label={`Custom label for ${DEFAULT_WIDGET_LABELS[widget.id]}`}
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 8px',
+                          borderRadius: `${radii.sm}px`,
+                          border: `1px solid ${palette.border.subtle}`,
+                          backgroundColor: palette.surface,
+                          color: palette.text.primary,
+                          width: '160px',
+                        }}
+                      />
+
+                      {/* Accessible Reorder Controls */}
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          type="button"
+                          id={`move-up-${widget.id}`}
+                          onClick={() => handleMoveWidget(widget.id, 'up')}
+                          disabled={idx === 0}
+                          aria-label={`Move ${DEFAULT_WIDGET_LABELS[widget.id]} up`}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                            opacity: idx === 0 ? 0.4 : 1,
+                            backgroundColor: palette.surface,
+                            border: `1px solid ${palette.border.subtle}`,
+                            borderRadius: '4px',
+                            color: palette.text.primary,
+                          }}
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          id={`move-down-${widget.id}`}
+                          onClick={() => handleMoveWidget(widget.id, 'down')}
+                          disabled={idx === arr.length - 1}
+                          aria-label={`Move ${DEFAULT_WIDGET_LABELS[widget.id]} down`}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            cursor: idx === arr.length - 1 ? 'not-allowed' : 'pointer',
+                            opacity: idx === arr.length - 1 ? 0.4 : 1,
+                            backgroundColor: palette.surface,
+                            border: `1px solid ${palette.border.subtle}`,
+                            borderRadius: '4px',
+                            color: palette.text.primary,
+                          }}
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </fieldset>
+
+            {/* Display Density */}
+            <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+                Layout Density
+              </legend>
+              <div style={{ display: 'flex', gap: `${spacing.base}px` }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: palette.text.primary, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="density"
+                    id="density-comfortable"
+                    value="comfortable"
+                    checked={homeLayout.density === 'comfortable'}
+                    onChange={() => handleDensityChange('comfortable')}
+                  />
+                  Comfortable
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: palette.text.primary, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="density"
+                    id="density-compact"
+                    value="compact"
+                    checked={homeLayout.density === 'compact'}
+                    onChange={() => handleDensityChange('compact')}
+                  />
+                  Compact
+                </label>
+              </div>
+            </fieldset>
+
+            {/* Theme Selection */}
+            <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+                Theme
+              </legend>
+              <div style={{ display: 'flex', gap: `${spacing.base}px` }}>
+                {(['light', 'dark'] as const).map((mode) => (
+                  <label
+                    key={mode}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '13px',
+                      color: palette.text.primary,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="theme"
+                      id={`theme-${mode}`}
+                      value={mode}
+                      checked={themeMode === mode}
+                      onChange={() => setTheme(mode)}
+                    />
+                    {mode}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {/* Favorite Folders Selection */}
+            {workspaceFolders.length > 0 && (
+              <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+                <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+                  Pin Favorite Folders
+                </legend>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {workspaceFolders.map((folder) => (
+                    <label
+                      key={folder.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '13px',
+                        color: palette.text.primary,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`fav-folder-${folder.id}`}
+                        checked={homeLayout.favoriteFolderIds.includes(folder.id)}
+                        onChange={() => handleToggleFavoriteFolder(folder.id)}
+                        style={{ width: '16px', height: '16px', accentColor: palette.action.primary }}
+                      />
+                      <span>📁 {folder.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            {/* Action Buttons */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: `${spacing.sm}px`,
+                paddingTop: `${spacing.base}px`,
+                borderTop: `1px solid ${palette.border.subtle}`,
+                flexWrap: 'wrap',
+                gap: `${spacing.sm}px`,
+              }}
+            >
+              <button
+                type="button"
+                id="restore-defaults-btn"
+                onClick={handleRestoreDefaults}
+                style={{
+                  background: 'none',
+                  border: `1px solid ${palette.border.subtle}`,
+                  borderRadius: `${radii.sm}px`,
+                  padding: '6px 12px',
+                  fontSize: '13px',
+                  color: palette.text.secondary,
+                  cursor: 'pointer',
+                }}
+              >
+                Restore Defaults
+              </button>
+
+              <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                <Button
+                  id="cancel-customization-btn"
+                  variant="secondary"
+                  size="compact"
+                  themeMode={themeMode}
+                  onClick={() => setIsCustomizing(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  id="save-customization-btn"
+                  variant="primary"
+                  size="compact"
+                  themeMode={themeMode}
+                  onClick={handleSavePreferences}
+                  disabled={isSavingLayout}
+                >
+                  {isSavingLayout ? 'Saving...' : 'Save Preferences'}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

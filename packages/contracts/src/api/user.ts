@@ -18,6 +18,62 @@ export const QuietHoursPreferenceSchema = z
   .strict();
 export type QuietHoursPreference = z.infer<typeof QuietHoursPreferenceSchema>;
 
+export const HomeWidgetIdSchema = z.enum([
+  'tasks',
+  'routines',
+  'upcoming_summary',
+  'quick_capture',
+  'journal_prompt',
+  'recent_items',
+  'favorite_folders',
+]);
+export type HomeWidgetId = z.infer<typeof HomeWidgetIdSchema>;
+
+export const HomeWidgetConfigSchema = z
+  .object({
+    id: HomeWidgetIdSchema,
+    visible: z.boolean(),
+    order: z.number().int().nonnegative(),
+    customLabel: z.string().max(40).nullable().optional(),
+  })
+  .strict();
+export type HomeWidgetConfig = z.infer<typeof HomeWidgetConfigSchema>;
+
+export const ModuleShortcutIdSchema = z.enum([
+  'today',
+  'plan',
+  'library',
+  'journal',
+  'notes',
+  'tasks',
+  'routines',
+  'calendar',
+  'files',
+  'knowledge',
+]);
+export type ModuleShortcutId = z.infer<typeof ModuleShortcutIdSchema>;
+
+export const ModuleShortcutConfigSchema = z
+  .object({
+    id: ModuleShortcutIdSchema,
+    visible: z.boolean(),
+    order: z.number().int().nonnegative(),
+    customLabel: z.string().max(40).nullable().optional(),
+  })
+  .strict();
+export type ModuleShortcutConfig = z.infer<typeof ModuleShortcutConfigSchema>;
+
+export const HomeLayoutSchema = z
+  .object({
+    version: z.literal(1).default(1),
+    density: z.enum(['comfortable', 'compact']).default('comfortable'),
+    widgets: z.array(HomeWidgetConfigSchema),
+    moduleShortcuts: z.array(ModuleShortcutConfigSchema),
+    favoriteFolderIds: z.array(z.string().uuid()).default([]),
+  })
+  .strict();
+export type HomeLayout = z.infer<typeof HomeLayoutSchema>;
+
 export const DisplayPreferencesSchema = z
   .object({
     theme: ThemePreferenceSchema.default('system'),
@@ -25,6 +81,7 @@ export const DisplayPreferencesSchema = z
     journalPreviewHidden: z.boolean().default(true),
     suppressBodySnippets: z.boolean().default(true),
     quietHours: QuietHoursPreferenceSchema.optional(),
+    homeLayout: HomeLayoutSchema.optional(),
   })
   .strict();
 export type DisplayPreferences = z.infer<typeof DisplayPreferencesSchema>;
@@ -49,7 +106,7 @@ export const UpdatePreferencesRequestSchema = z
     preferredLocale: z.string().trim().min(2).max(35).optional(),
     timeZone: z.string().trim().min(1).max(64).optional(),
     weekStart: WeekStartSchema.optional(),
-    preferences: DisplayPreferencesSchema.optional(),
+    preferences: DisplayPreferencesSchema.partial().optional(),
     expectedRevision: z.number().int().nonnegative().optional(),
   })
   .strict();

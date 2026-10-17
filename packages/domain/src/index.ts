@@ -10,3 +10,4 @@ export * from './files.js';
 export * from './crypto.js';
 export * from './calendar.js';
 export * from './reminders.js';
+export * from './home.js';

@@ -165,11 +165,12 @@ describe('Android Mobile Authentication & Session Lifecycle (Phase 09 Hardened)'
         preferredLocale: params.preferredLocale || 'en',
         timeZone: params.timeZone || 'UTC',
         weekStart: params.weekStart || ('monday' as const),
-        preferences: params.preferences || {
+        preferences: {
           theme: 'system' as const,
           compactMode: false,
           journalPreviewHidden: true,
           suppressBodySnippets: true,
+          ...(params.preferences || {}),
         },
         preferencesSchemaVersion: 1,
         revision: (params.expectedRevision || 1) + 1,

@@ -4,6 +4,8 @@ import {
   UpdatePreferencesRequestSchema,
   ProfileResponseSchema,
   type ProfileResponse,
+  type QuietHoursPreference,
+  type HomeLayout,
 } from '@daynori/contracts';
 import { validateIanaTimeZone, validateLocale, validateWeekStart } from '@daynori/domain';
 import { withUserContext, getProfile, updateProfilePreferences } from '../../db/index.js';
@@ -41,6 +43,8 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
           compactMode: Boolean(profile.preferences?.compactMode),
           journalPreviewHidden: profile.preferences?.journalPreviewHidden !== false,
           suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
+          quietHours: (profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
+          homeLayout: (profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
         },
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),
@@ -117,6 +121,8 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
           compactMode: Boolean(profile.preferences?.compactMode),
           journalPreviewHidden: profile.preferences?.journalPreviewHidden !== false,
           suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
+          quietHours: (profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
+          homeLayout: (profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
         },
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),
