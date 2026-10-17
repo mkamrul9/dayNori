@@ -1,7 +1,9 @@
-// Daynori Service Worker (Phase 29: Web Reminders & Reviewed PWA Shell)
+// Daynori Service Worker (Phase 29/30: Web Reminders & Reviewed PWA Shell)
 const CACHE_VERSION = 'daynori-static-v1';
+
+// Strict allowlist: immutable public static assets only.
+// Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.
 const ALLOWLISTED_STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/offline.html',
   '/favicon.ico',
@@ -9,7 +11,7 @@ const ALLOWLISTED_STATIC_ASSETS = [
 
 /**
  * Checks if a request URL matches the strict public static asset allowlist.
- * Excludes authenticated HTML, Next.js RSC payloads, private APIs, and signed capabilities.
+ * Excludes all authenticated HTML, Next.js RSC payloads, private APIs, and capability-bearing URLs.
  */
 function isAllowlistedStaticAsset(url) {
   try {
@@ -20,22 +22,42 @@ function isAllowlistedStaticAsset(url) {
 
     const path = parsed.pathname;
 
-    // Strict Exclusions
-    if (path.startsWith('/v1/') || path.startsWith('/api/') || path.startsWith('/auth/')) {
+    // Strict Exclusions: private APIs, auth routes, signed URLs, downloads
+    if (
+      path.startsWith('/v1/') ||
+      path.startsWith('/api/') ||
+      path.startsWith('/auth/') ||
+      path.startsWith('/attachments/') ||
+      path.includes('/signed/') ||
+      path.includes('/download/')
+    ) {
       return false;
     }
+
+    // Exclude Next.js RSC / prefetch streams
     if (parsed.searchParams.has('_rsc')) {
       return false;
     }
-    if (path.includes('/signed/') || path.includes('/download/')) {
+
+    // Exclude capability-bearing query parameters
+    if (
+      parsed.searchParams.has('token') ||
+      parsed.searchParams.has('signature') ||
+      parsed.searchParams.has('sig') ||
+      parsed.searchParams.has('auth') ||
+      parsed.searchParams.has('key') ||
+      parsed.searchParams.has('secret') ||
+      parsed.searchParams.has('credential')
+    ) {
       return false;
     }
 
+    // Public static asset files (must have no query parameters)
     if (ALLOWLISTED_STATIC_ASSETS.includes(path)) {
-      return true;
+      return !parsed.search;
     }
 
-    // Allow Next.js static asset bundles
+    // Allow Next.js immutable static build bundles
     if (path.startsWith('/_next/static/')) {
       return true;
     }
@@ -55,8 +77,6 @@ self.addEventListener('install', (event) => {
       });
     })
   );
-  // Avoid disruptive reloads during user edits
-  self.skipWaiting();
 });
 
 // 2. Activate Lifecycle: clean up only old daynori-static-v* caches without touching unrelated origin caches
@@ -76,6 +96,13 @@ self.addEventListener('activate', (event) => {
       })
       .then(() => self.clients.claim())
   );
+});
+
+// Upgrade message listener: safely skip waiting upon explicit message
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // 3. Fetch Handler: strict allowlist caching policy
@@ -105,26 +132,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Allowlisted public static assets: Cache-first with network fallback
-  if (isAllowlistedStaticAsset(req.url)) {
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) {
-          return cached;
-        }
-        return fetch(req).then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone));
-          }
-          return response;
-        });
-      })
-    );
-    return;
-  }
-
-  // Navigation requests: Network-first, falling back to clean offline shell
+  // Navigation requests: Network-first, falling back to clean offline shell.
+  // NEVER cache HTML responses from navigation in static CacheStorage.
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req).catch(() => {
@@ -141,12 +150,40 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+
+  // Allowlisted public static assets: Cache-first with network fallback
+  if (isAllowlistedStaticAsset(req.url)) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) {
+          return cached;
+        }
+        return fetch(req).then((response) => {
+          if (
+            response &&
+            response.status === 200 &&
+            response.type === 'basic' &&
+            !response.headers.get('set-cookie') &&
+            !response.headers.get('cache-control')?.includes('no-store') &&
+            !response.headers.get('cache-control')?.includes('private')
+          ) {
+            const clone = response.clone();
+            event.waitUntil(
+              caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone))
+            );
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
 });
 
-// 4. Push Event Handling: bounded generic display text
+// 4. Push Event Handling: enforce generic display text to prevent private information leakage
 self.addEventListener('push', (event) => {
-  let title = 'Daynori Reminder';
-  let body = 'You have a scheduled reminder';
+  const title = 'Daynori Reminder';
+  const body = 'You have a scheduled reminder';
   let data = {
     destination: 'plan',
     timestamp: Date.now(),
@@ -156,21 +193,12 @@ self.addEventListener('push', (event) => {
     try {
       const payload = event.data.json();
       if (payload && typeof payload === 'object') {
-        if (typeof payload.title === 'string' && payload.title.length <= 100) {
-          title = payload.title;
-        }
-        if (typeof payload.body === 'string' && payload.body.length <= 300) {
-          body = payload.body;
-        }
         if (payload.data && typeof payload.data === 'object') {
           data = payload.data;
         }
       }
     } catch {
-      const rawText = event.data.text();
-      if (rawText && rawText.length <= 100) {
-        body = rawText;
-      }
+      // Malformed or raw text data: do NOT use as notification body; retain generic default
     }
   }
 
@@ -186,7 +214,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, notificationOptions));
 });
 
-// 5. Notification Click Handling: safe focus / open client
+// 5. Notification Click Handling: safe client focus/navigation carrying validated target identity
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -198,7 +226,16 @@ self.addEventListener('notificationclick', (event) => {
     destination = 'plan';
   }
 
-  const targetPath = '/' + destination;
+  // Build target URL carrying validated identifiers so the client can reauthorize and open the source item
+  const params = new URLSearchParams();
+  if (data.instanceId) params.set('reminderInstanceId', String(data.instanceId));
+  if (data.deliveryGeneration) params.set('deliveryGeneration', String(data.deliveryGeneration));
+  if (data.itemId || data.targetId) params.set('targetId', String(data.itemId || data.targetId));
+  if (data.targetType) params.set('targetType', String(data.targetType));
+  if (data.workspaceId) params.set('workspaceId', String(data.workspaceId));
+
+  const queryString = params.toString();
+  const targetPath = '/' + destination + (queryString ? '?' + queryString : '');
   const targetUrl = new URL(targetPath, self.location.origin).href;
 
   event.waitUntil(

@@ -302,7 +302,7 @@ export function materializeReminderOccurrences(params: {
   // 3. Generic recurrent schedules (daily, weekdays, weekly)
   const tz = rule.timezone && isValidIanaTimezone(rule.timezone) ? rule.timezone : 'UTC';
   const timeStr = rule.scheduleTime || '09:00';
-  let currentDateStr = getCalendarDateTimeParts(now, tz).date;
+  const currentDateStr = getCalendarDateTimeParts(now, tz).date;
 
   for (let i = 0; i < horizonDays; i++) {
     const candidateDate = addCalendarDays(currentDateStr, i);

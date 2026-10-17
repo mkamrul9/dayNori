@@ -15,6 +15,7 @@ import {
 export interface ReminderAgendaViewProps {
   workspaceId: string | null;
   isAuthenticated: boolean;
+  userId?: string | null;
   apiClient?: DaynoriApiClient | null;
   themeMode?: 'light' | 'dark';
   onNavigateToItem?: (targetType: string, targetId: string) => void;
@@ -23,6 +24,7 @@ export interface ReminderAgendaViewProps {
 export function ReminderAgendaView({
   workspaceId,
   isAuthenticated,
+  userId,
   apiClient,
   themeMode = 'light',
   onNavigateToItem,
@@ -32,6 +34,7 @@ export function ReminderAgendaView({
   const [capability, setCapability] = useState<WebPushCapabilityState | null>(null);
   const [instances, setInstances] = useState<ReminderInstance[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasCachedData, setHasCachedData] = useState<boolean>(false);
   const [isMutatingPush, setIsMutatingPush] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -41,25 +44,90 @@ export function ReminderAgendaView({
     message: string;
   } | null>(null);
 
+  const activeWorkspaceIdRef = React.useRef<string | null>(workspaceId);
+
+  // Clear instances immediately on workspace or auth changes to prevent account leakage
+  useEffect(() => {
+    activeWorkspaceIdRef.current = workspaceId;
+    setInstances([]);
+    setHasCachedData(false);
+  }, [workspaceId, isAuthenticated]);
+
   // Load browser capability state
   const refreshCapability = useCallback(async () => {
     const cap = await getWebPushCapabilityStateAsync();
     setCapability(cap);
   }, []);
 
-  // Load reminder instances from API or local cache
+  // Load reminder instances from API or account-scoped local cache
   const loadInstances = useCallback(async () => {
-    if (!apiClient || !workspaceId || !isAuthenticated) {
+    if (!workspaceId || !isAuthenticated) {
+      setInstances([]);
       setIsLoading(false);
       return;
     }
 
+    const targetWsId = workspaceId;
+    const cacheKey = `daynori_agenda_cache_${targetWsId}`;
+
     try {
       setIsLoading(true);
-      const res = await apiClient.listReminderInstances(workspaceId);
-      setInstances(res.data);
-    } catch {
-      // In offline mode or network failure, retain existing state
+      if (apiClient && navigator.onLine) {
+        const res = await apiClient.listReminderInstances(targetWsId);
+        // Guard against race condition: if workspace changed while fetching, discard result
+        if (activeWorkspaceIdRef.current !== targetWsId) return;
+
+        setInstances(res.data);
+        setHasCachedData(true);
+        // Persist account-scoped cache
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(res.data));
+          } catch {
+            // Storage full / restricted
+          }
+        }
+      } else {
+        // Offline: try reading account-scoped local cache
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem(cacheKey);
+          if (raw) {
+            const cached: ReminderInstance[] = JSON.parse(raw);
+            if (activeWorkspaceIdRef.current === targetWsId) {
+              setInstances(cached);
+              setHasCachedData(true);
+            }
+          } else {
+            setInstances([]);
+            setHasCachedData(false);
+          }
+        }
+      }
+    } catch (err: unknown) {
+      // In network failure, attempt reading account cache
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          try {
+            const cached: ReminderInstance[] = JSON.parse(raw);
+            if (activeWorkspaceIdRef.current === targetWsId) {
+              setInstances(cached);
+              setHasCachedData(true);
+            }
+          } catch {
+            setInstances([]);
+            setHasCachedData(false);
+          }
+        } else {
+          setInstances([]);
+          setHasCachedData(false);
+        }
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({
+        severity: 'warning',
+        message: `Could not reach reminder service: ${msg}. Showing local status.`,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -93,7 +161,7 @@ export function ReminderAgendaView({
     setIsMutatingPush(true);
     setFeedback(null);
     try {
-      const updated = await subscribeWebPushAsync(apiClient);
+      const updated = await subscribeWebPushAsync(apiClient, userId || undefined);
       setCapability(updated);
       if (updated.isSubscribed) {
         setFeedback({
@@ -146,7 +214,11 @@ export function ReminderAgendaView({
       {!isOnline && (
         <Feedback
           severity="warning"
-          message="Operating offline. Displaying locally cached agenda reminders. Server status will synchronize once reconnected."
+          message={
+            hasCachedData
+              ? 'Operating offline. Displaying locally cached reminders saved from your last connection.'
+              : 'Operating offline. No cached reminders found for this account. Reminders will synchronize when reconnected.'
+          }
           themeMode={themeMode}
         />
       )}

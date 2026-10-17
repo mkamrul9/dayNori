@@ -1300,6 +1300,7 @@ export default function PlanPage() {
         <ReminderAgendaView
           workspaceId={workspaceId}
           isAuthenticated={Boolean(user && workspaceId)}
+          userId={user?.id}
           apiClient={apiClientRef.current || createApiClient({ baseUrl: '/api' })}
           themeMode={themeMode}
           onNavigateToItem={handleNavigateReminderTarget}

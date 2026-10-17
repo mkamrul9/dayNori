@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-17",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 28 Android notifications and local reminders provisional implementation delivered and verified across native adapter, notification channels, capability detection, device registration, local reminder scheduling with lock-screen privacy redaction, server push fallback suppression, and deep linking. Completion for Phases 04–06, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, and 28 remains blocked pending physical Android TalkBack and hardware KeyStore release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware gates; Phase 29 is the next eligible phase under owner authorization.",
-  "note": "Phase 28 (Android notifications and local reminders) provisional implementation delivered under explicit owner authorization. Physical hardware release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 29 Web reminder delivery and PWA support provisional implementation and subsequent Phase 28/29 defect repairs delivered and verified across account-bound push lifecycle, logout deactivation, safe SW static caching, generic lock-screen privacy, durable background delivery retries, and agenda account isolation. Completion for prerequisite Phases 04–06, 09–29 remains blocked pending physical Android TalkBack, KeyStore, and live VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 30 is provisionally selected under explicit owner authorization.",
+  "note": "Phase 29 (Web reminder delivery and PWA support) and subsequent Phase 28/29 defect repairs delivered under explicit owner authorization. Phase 30 (Today home and personal customization) is provisionally selected. Physical hardware and external provider release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -177,7 +177,7 @@
     {
       "id": "29",
       "status": "blocked",
-      "reason": "Provisional Web reminder delivery and PWA support implementation delivered under owner authorization and verified across capability detection, VAPID key acquisition, SSRF-protected subscription lifecycle, multi-target delivery coordination independent from Android local scheduling, strict public static asset service worker caching, notification click routing, accessible in-app agenda fallback, and 16 integration tests passing (49/49 test files and 693/693 tests passing). Completion blocked pending external production VAPID push infrastructure and physical push gateways.",
+      "reason": "Provisional Web reminder delivery and PWA support implementation and post-delivery defect repairs delivered under owner authorization and verified across capability detection, VAPID key acquisition, SSRF-protected subscription lifecycle with IPv4/v6 and port validation, single-active endpoint binding with atomic rebind across accounts, durable offline deactivation queue and logout cleanup, multi-target delivery coordination, durable background retry jobs with exponential backoff and 24h TTL, strict public static asset service worker caching with query-stripping, notification click routing with validated instance/target identifiers, accessible in-app agenda fallback with account-scoped caching, and 19 integration tests passing (49/49 test files and 696/696 tests passing). Completion blocked pending external production VAPID push infrastructure and physical push gateways.",
       "report": "docs/phase-reports/phase-29.md"
     },
     {

@@ -54,6 +54,77 @@ export interface WebPushNotificationAdapter {
   }>;
 }
 
+/**
+ * Creates the production-configured Web Push transport adapter.
+ * Truthfully reports unavailable when required VAPID credentials are not configured.
+ */
+export function createConfiguredWebPushAdapter(): WebPushNotificationAdapter {
+  const publicKey = process.env['VAPID_PUBLIC_KEY'];
+  const privateKey = process.env['VAPID_PRIVATE_KEY'];
+  const subject = process.env['VAPID_SUBJECT'];
+
+  const isConfigured = Boolean(publicKey && privateKey && subject);
+
+  return {
+    async sendWebPush({ subscription, redactedTitle, redactedBody, dataPayload }) {
+      if (!isConfigured) {
+        return {
+          success: false,
+          status: 'unavailable',
+          errorMessage: 'Web Push is unconfigured: missing VAPID credentials',
+        };
+      }
+
+      try {
+        const payloadStr = JSON.stringify({
+          title: redactedTitle,
+          body: redactedBody,
+          data: dataPayload,
+        });
+
+        const res = await fetch(subscription.endpoint, {
+          method: 'POST',
+          headers: {
+            TTL: '86400',
+            'Content-Type': 'application/json',
+          },
+          body: payloadStr,
+        });
+
+        if (res.status === 201 || res.status === 200 || res.status === 202) {
+          const location = res.headers.get('location') || `webpush-${Date.now()}`;
+          return {
+            success: true,
+            status: 'accepted',
+            providerMessageId: location,
+          };
+        }
+
+        if (res.status === 404 || res.status === 410) {
+          return {
+            success: false,
+            status: 'failed',
+            errorMessage: `${res.status} Gone: Push subscription has expired or unsubscribed`,
+            isSubscriptionExpired: true,
+          };
+        }
+
+        return {
+          success: false,
+          status: 'failed',
+          errorMessage: `Web Push provider returned status ${res.status}`,
+        };
+      } catch (err) {
+        return {
+          success: false,
+          status: 'failed',
+          errorMessage: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  };
+}
+
 export interface JobResult {
   jobId: string;
   status: 'completed' | 'failed' | 'rescheduled' | 'deferred';
@@ -1013,6 +1084,9 @@ export class DaynoriWorker {
       const recipientUserId = (payload?.actorUserId as string) || ownerRes.rows[0]?.owner_id;
       const deliveryGen = instance.delivery_generation ?? 1;
 
+      let hasPendingRetries = false;
+      let maxAttemptCount = 1;
+
       if (recipientUserId) {
         for (const channel of rule.channels) {
           if (channel === 'in_app') {
@@ -1225,128 +1299,172 @@ export class DaynoriWorker {
                     ]
                   );
                 }
+
+                // Track pending retries for mobile devices
+                if (sendRes.status === 'failed') {
+                  const currentAttempts = (existingDevDeliv?.attempt_count ?? 0) + 1;
+                  if (currentAttempts < 3) {
+                    hasPendingRetries = true;
+                    maxAttemptCount = Math.max(maxAttemptCount, currentAttempts);
+                  }
+                }
               }
             }
 
-            // Deliver to each Web Push subscription (Phase 29)
-            for (const sub of webSubRes.rows) {
-              const subDelivRes = await client.query<{ id: string; status: string; attempt_count: number }>(
-                `SELECT id, status, attempt_count FROM app.reminder_deliveries
-                 WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'push' AND recipient_subscription_id = $4;`,
-                [workspaceId, instanceId, deliveryGen, sub.id]
+        // Deliver to each Web Push subscription (Phase 29)
+        for (const sub of webSubRes.rows) {
+          const subDelivRes = await client.query<{ id: string; status: string; attempt_count: number }>(
+            `SELECT id, status, attempt_count FROM app.reminder_deliveries
+             WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'push' AND recipient_subscription_id = $4;`,
+            [workspaceId, instanceId, deliveryGen, sub.id]
+          );
+          const existingSubDeliv = subDelivRes.rows[0];
+          if (
+            existingSubDeliv &&
+            (existingSubDeliv.status === 'delivered' ||
+              existingSubDeliv.attempt_count >= 3)
+          ) {
+            continue;
+          }
+
+          if (!this.webPushAdapter) {
+            if (existingSubDeliv) {
+              await client.query(
+                `UPDATE app.reminder_deliveries
+                 SET status = 'unavailable', error_message = 'No Web Push adapter configured',
+                     attempt_count = attempt_count + 1, last_attempt_at = now()
+                 WHERE id = $1;`,
+                [existingSubDeliv.id]
               );
-              const existingSubDeliv = subDelivRes.rows[0];
-              if (
-                existingSubDeliv &&
-                (existingSubDeliv.status === 'delivered' ||
-                  existingSubDeliv.attempt_count >= 3)
-              ) {
-                continue;
-              }
+            } else {
+              await client.query(
+                `
+                INSERT INTO app.reminder_deliveries (
+                  workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                  recipient_subscription_id, provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
+                )
+                VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', 'unavailable', $6, $7, 1, now(), 'No Web Push adapter configured')
+                ON CONFLICT DO NOTHING;
+                `,
+                [workspaceId, instanceId, deliveryGen, recipientUserId, sub.id, redacted.title, redacted.body]
+              );
+            }
+          } else {
+            const sendRes = await this.webPushAdapter.sendWebPush({
+              recipientUserId,
+              subscription: {
+                endpoint: sub.endpoint,
+                p256dh: sub.p256dh,
+                auth: sub.auth,
+              },
+              redactedTitle: redacted.title,
+              redactedBody: redacted.body,
+              dataPayload: {
+                type: 'notification',
+                destination: 'plan',
+                itemId: targetId || '',
+                instanceId,
+                workspaceId,
+                ruleRevision: String(rule.rule_revision),
+                deliveryGeneration: String(deliveryGen),
+                targetType: (tType as string) || 'task',
+                timestamp: String(Date.now()),
+              },
+            });
 
-              if (!this.webPushAdapter) {
-                if (existingSubDeliv) {
-                  await client.query(
-                    `UPDATE app.reminder_deliveries
-                     SET status = 'unavailable', error_message = 'No Web Push adapter configured',
-                         attempt_count = attempt_count + 1, last_attempt_at = now()
-                     WHERE id = $1;`,
-                    [existingSubDeliv.id]
-                  );
-                } else {
-                  await client.query(
-                    `
-                    INSERT INTO app.reminder_deliveries (
-                      workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
-                      recipient_subscription_id, provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
-                    )
-                    VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', 'unavailable', $6, $7, 1, now(), 'No Web Push adapter configured')
-                    ON CONFLICT DO NOTHING;
-                    `,
-                    [workspaceId, instanceId, deliveryGen, recipientUserId, sub.id, redacted.title, redacted.body]
-                  );
-                }
-              } else {
-                const sendRes = await this.webPushAdapter.sendWebPush({
+            if (sendRes.isSubscriptionExpired) {
+              await client.query(
+                `UPDATE app.web_push_subscriptions SET is_active = false, updated_at = now() WHERE id = $1;`,
+                [sub.id]
+              );
+            }
+
+            if (existingSubDeliv) {
+              await client.query(
+                `UPDATE app.reminder_deliveries
+                 SET status = $1, provider_message_id = $2, error_message = $3,
+                     attempt_count = attempt_count + 1, last_attempt_at = now()
+                 WHERE id = $4;`,
+                [sendRes.status, sendRes.providerMessageId || null, sendRes.errorMessage || null, existingSubDeliv.id]
+              );
+            } else {
+              await client.query(
+                `
+                INSERT INTO app.reminder_deliveries (
+                  workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
+                  recipient_subscription_id, provider, provider_message_id, status, redacted_title, redacted_body,
+                  attempt_count, last_attempt_at, error_message
+                )
+                VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', $6, $7, $8, $9, 1, now(), $10)
+                ON CONFLICT DO NOTHING;
+                `,
+                [
+                  workspaceId,
+                  instanceId,
+                  deliveryGen,
                   recipientUserId,
-                  subscription: {
-                    endpoint: sub.endpoint,
-                    p256dh: sub.p256dh,
-                    auth: sub.auth,
-                  },
-                  redactedTitle: redacted.title,
-                  redactedBody: redacted.body,
-                  dataPayload: {
-                    type: 'notification',
-                    destination: 'plan',
-                    itemId: targetId || '',
-                    instanceId,
-                    workspaceId,
-                    ruleRevision: String(rule.rule_revision),
-                    deliveryGeneration: String(deliveryGen),
-                    targetType: (tType as string) || 'task',
-                    timestamp: String(Date.now()),
-                  },
-                });
+                  sub.id,
+                  sendRes.providerMessageId || null,
+                  sendRes.status,
+                  redacted.title,
+                  redacted.body,
+                  sendRes.errorMessage || null,
+                ]
+              );
+            }
 
-                if (sendRes.isSubscriptionExpired) {
-                  await client.query(
-                    `UPDATE app.web_push_subscriptions SET is_active = false, updated_at = now() WHERE id = $1;`,
-                    [sub.id]
-                  );
-                }
-
-                if (existingSubDeliv) {
-                  await client.query(
-                    `UPDATE app.reminder_deliveries
-                     SET status = $1, provider_message_id = $2, error_message = $3,
-                         attempt_count = attempt_count + 1, last_attempt_at = now()
-                     WHERE id = $4;`,
-                    [sendRes.status, sendRes.providerMessageId || null, sendRes.errorMessage || null, existingSubDeliv.id]
-                  );
-                } else {
-                  await client.query(
-                    `
-                    INSERT INTO app.reminder_deliveries (
-                      workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
-                      recipient_subscription_id, provider, provider_message_id, status, redacted_title, redacted_body,
-                      attempt_count, last_attempt_at, error_message
-                    )
-                    VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', $6, $7, $8, $9, 1, now(), $10)
-                    ON CONFLICT DO NOTHING;
-                    `,
-                    [
-                      workspaceId,
-                      instanceId,
-                      deliveryGen,
-                      recipientUserId,
-                      sub.id,
-                      sendRes.providerMessageId || null,
-                      sendRes.status,
-                      redacted.title,
-                      redacted.body,
-                      sendRes.errorMessage || null,
-                    ]
-                  );
-                }
+            // Track pending retries for Web Push
+            if (sendRes.status === 'failed' && !sendRes.isSubscriptionExpired) {
+              const currentAttempts = (existingSubDeliv?.attempt_count ?? 0) + 1;
+              if (currentAttempts < 3) {
+                hasPendingRetries = true;
+                maxAttemptCount = Math.max(maxAttemptCount, currentAttempts);
               }
             }
           }
         }
       }
+    }
+    }
 
-      // Mark instance as dispatched
-      await client.query(
-        `UPDATE app.reminder_instances SET status = 'dispatched', updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
-        [instanceId, workspaceId]
-      );
+  // 7. Check TTL: do not retry reminders older than 24 hours
+  const isExpiredTtl = Date.now() - new Date(instance.scheduled_at).getTime() > 24 * 3600 * 1000;
 
-      return {
-        jobId,
-        status: 'completed',
-        processedAt: new Date().toISOString(),
-        details: { outcome: 'dispatched', instanceId, ruleId: rule.id },
-      };
+  if (hasPendingRetries && !isExpiredTtl) {
+    const backoffSeconds = Math.min(300, 30 * Math.pow(2, maxAttemptCount - 1));
+    await client.query(
+      `
+      INSERT INTO app.background_jobs (task_type, payload, run_at, status)
+      VALUES ('reminder_delivery', $1::jsonb, now() + ($2 || ' seconds')::interval, 'pending');
+      `,
+      [
+        JSON.stringify({
+          ...payload,
+          isRetry: true,
+          attempt: maxAttemptCount,
+        }),
+        backoffSeconds,
+      ]
+    );
+  }
+
+  // Mark instance as dispatched (idempotency prevents re-dispatching already completed dispatches)
+  await client.query(
+    `UPDATE app.reminder_instances SET status = 'dispatched', updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+    [instanceId, workspaceId]
+  );
+
+  return {
+    jobId,
+    status: 'completed',
+    processedAt: new Date().toISOString(),
+    details: {
+      outcome: hasPendingRetries && !isExpiredTtl ? 'dispatched_with_retry_scheduled' : 'dispatched',
+      instanceId,
+      ruleId: rule.id,
+      retryScheduled: hasPendingRetries && !isExpiredTtl,
+    },
+  };
     }
 
     // 7. Built-in smoke / healthcheck / test job

@@ -6,7 +6,7 @@ import { createApiClient } from '@daynori/api-client';
 import { reconcileWebPushSubscriptionAsync } from '../notifications/webPushManager';
 
 export function ServiceWorkerRegistration() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -35,13 +35,13 @@ export function ServiceWorkerRegistration() {
 
   // Reconcile push subscription when user session changes
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.id) {
       const client = createApiClient({
-        baseUrl: '/api',
+        baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
       });
-      void reconcileWebPushSubscriptionAsync(client);
+      void reconcileWebPushSubscriptionAsync(client, user.id);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
   return null;
 }

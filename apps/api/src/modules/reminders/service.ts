@@ -1339,6 +1339,7 @@ export async function listDeviceSchedules(
 /**
  * Validates that a Web Push endpoint URL is HTTPS and does not target
  * private, internal, or loopback network addresses (SSRF prevention).
+ * Disallows credentials, non-standard ports, IPv4 variants (octal/hex/dword), and IPv6 private spaces.
  */
 export function assertValidPushEndpoint(endpoint: string): void {
   try {
@@ -1346,23 +1347,80 @@ export function assertValidPushEndpoint(endpoint: string): void {
     if (url.protocol !== 'https:') {
       throw new ValidationError('Push notification endpoint must use HTTPS');
     }
+    if (url.username || url.password) {
+      throw new ValidationError('Push notification endpoint must not contain authentication credentials');
+    }
+    if (url.port && url.port !== '443') {
+      throw new ValidationError('Push notification endpoint must use default HTTPS port 443');
+    }
+
     const hostname = url.hostname.toLowerCase();
+
+    // Disallow loopback / internal suffixes
     if (
       hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
+      hostname.endsWith('.localhost') ||
       hostname.endsWith('.local') ||
       hostname.endsWith('.internal') ||
       hostname.endsWith('.test') ||
-      /^10\./.test(hostname) ||
-      /^172\.(1[6-9]|2[0-9]|3[01])\./.test(hostname) ||
-      /^192\.168\./.test(hostname) ||
-      /^169\.254\./.test(hostname) ||
-      /^0\./.test(hostname)
+      hostname.endsWith('.example') ||
+      hostname.endsWith('.invalid')
     ) {
       throw new ValidationError(
         'Push notification endpoint points to a disallowed, private, or loopback network address'
       );
+    }
+
+    // Disallow pure numeric integer or hex hostname representations
+    if (/^\d+$/.test(hostname) || /^0x[0-9a-f]+$/i.test(hostname)) {
+      throw new ValidationError(
+        'Push notification endpoint points to a disallowed, private, or loopback network address'
+      );
+    }
+
+    // IPv4 dotted notation (decimal, octal, or hex octets)
+    const octetPattern = '(?:0x[0-9a-f]+|0[0-7]+|\\d+)';
+    const ipv4Regex = new RegExp(`^(${octetPattern})\\.(${octetPattern})\\.(${octetPattern})\\.(${octetPattern})$`, 'i');
+    const ipv4Match = hostname.match(ipv4Regex);
+    if (ipv4Match) {
+      const parseOctet = (str: string): number => {
+        if (/^0x/i.test(str)) return parseInt(str, 16);
+        if (str.startsWith('0') && str.length > 1) return parseInt(str, 8);
+        return parseInt(str, 10);
+      };
+      const o0 = parseOctet(ipv4Match[1]!);
+      const o1 = parseOctet(ipv4Match[2]!);
+
+      if (
+        o0 === 0 || // 0.0.0.0/8
+        o0 === 10 || // 10.0.0.0/8
+        o0 === 127 || // 127.0.0.0/8
+        (o0 === 169 && o1 === 254) || // 169.254.0.0/16
+        (o0 === 172 && o1 >= 16 && o1 <= 31) || // 172.16.0.0/12
+        (o0 === 192 && o1 === 168) || // 192.168.0.0/16
+        o0 >= 224 // 224.0.0.0/4 multicast & reserved
+      ) {
+        throw new ValidationError(
+          'Push notification endpoint points to a disallowed, private, or loopback network address'
+        );
+      }
+    }
+
+    // IPv6 bracketed or colon-delimited representation
+    if (hostname.includes(':')) {
+      const ipv6Clean = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+      if (
+        ipv6Clean === '::1' ||
+        ipv6Clean === '::' ||
+        ipv6Clean.startsWith('fe80:') ||
+        ipv6Clean.startsWith('fc') ||
+        ipv6Clean.startsWith('fd') ||
+        ipv6Clean.includes('::ffff:')
+      ) {
+        throw new ValidationError(
+          'Push notification endpoint points to a disallowed, private, or loopback network address'
+        );
+      }
     }
   } catch (err) {
     if (err instanceof ValidationError) throw err;
@@ -1371,18 +1429,45 @@ export function assertValidPushEndpoint(endpoint: string): void {
 }
 
 /**
+ * Validates that client subscription public key and auth secret match expected formats.
+ */
+export function assertValidSubscriptionKeys(p256dh: string, auth: string): void {
+  try {
+    if (!p256dh || !auth) {
+      throw new ValidationError('Subscription p256dh and auth keys are required');
+    }
+    const p256dhBytes = Buffer.from(p256dh.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    if (p256dhBytes.length < 32) {
+      throw new ValidationError('Malformed p256dh subscription key');
+    }
+    const authBytes = Buffer.from(auth.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    if (authBytes.length < 8) {
+      throw new ValidationError('Malformed auth secret');
+    }
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
+    throw new ValidationError('Invalid subscription key format');
+  }
+}
+
+/**
  * Returns the VAPID public key for Web Push client subscription.
+ * In production, requires VAPID_PUBLIC_KEY; in test environments, falls back to standard test key.
  */
 export function getVapidPublicKey(): string {
-  return (
-    process.env['VAPID_PUBLIC_KEY'] ||
-    // Standard test public key (base64url uncompressed P-256 point)
-    'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXY5CEvHg84'
-  );
+  if (process.env['VAPID_PUBLIC_KEY']) {
+    return process.env['VAPID_PUBLIC_KEY'];
+  }
+  if (process.env['NODE_ENV'] === 'test' || process.env['VITEST']) {
+    return 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXY5CEvHg84';
+  }
+  throw new ValidationError('VAPID_UNCONFIGURED: Web Push VAPID public key is not configured');
 }
 
 /**
  * Registers or updates a browser Web Push subscription for a user.
+ * Deactivates any existing active subscription for this endpoint belonging to OTHER users,
+ * ensuring strict 1-to-1 account binding per browser subscription.
  */
 export async function registerWebPushSubscription(
   client: PoolClient,
@@ -1390,7 +1475,15 @@ export async function registerWebPushSubscription(
   input: RegisterWebPushSubscriptionRequest
 ): Promise<WebPushSubscription> {
   assertValidPushEndpoint(input.endpoint);
+  assertValidSubscriptionKeys(input.p256dh, input.auth);
 
+  // 1. Deactivate this endpoint for ANY other user account (account rebinding)
+  await client.query(
+    `SELECT app.rebind_web_push_endpoint($1, $2::uuid);`,
+    [input.endpoint, userId]
+  );
+
+  // 2. Upsert the subscription under the authenticated user
   const upsertRes = await client.query<WebPushSubscriptionDbRow>(
     `
     INSERT INTO app.web_push_subscriptions (

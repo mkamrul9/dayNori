@@ -1,4 +1,4 @@
-import { DaynoriWorker } from './worker.js';
+import { DaynoriWorker, createConfiguredWebPushAdapter } from './worker.js';
 import pg from 'pg';
 
 const databaseUrl = process.env['DATABASE_URL'];
@@ -13,6 +13,7 @@ if (databaseUrl) {
 }
 
 const worker = new DaynoriWorker(pool);
+worker.setWebPushAdapter(createConfiguredWebPushAdapter());
 
 // Register built-in smoke task
 worker.registerHandler('smoke', async (jobId) => {

@@ -551,11 +551,11 @@ describe('Phase 28: Android Notifications and Local Reminders Suite', () => {
         [deviceId, userAId]
       );
 
-      let sentPayload: any = null;
+      let sentPayload: Parameters<PushNotificationAdapter['sendPushNotification']>[0] | null = null;
       const testPushAdapter: PushNotificationAdapter = {
         sendPushNotification: async (req) => {
           sentPayload = req;
-          return { status: 'delivered', providerMessageId: 'fcm_msg_fallback_999' };
+          return { success: true, status: 'delivered', providerMessageId: 'fcm_msg_fallback_999' };
         },
       };
       worker.setPushAdapter(testPushAdapter);
@@ -653,7 +653,7 @@ describe('Phase 28: Android Notifications and Local Reminders Suite', () => {
         scheduledAt: new Date(Date.now() + 3600000).toISOString(),
         ruleRevision: 1,
       });
-      const id2 = await scheduleLocalReminderAsync(null, {
+      const _id2 = await scheduleLocalReminderAsync(null, {
         instanceId: crypto.randomUUID(),
         workspaceId: personalWorkspaceAId,
         title: 'Cancel test 2',

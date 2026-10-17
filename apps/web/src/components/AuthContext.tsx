@@ -2,7 +2,9 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { AuthSession, SignInResponse, SignUpResponse } from '@daynori/contracts';
+import { createApiClient } from '@daynori/api-client';
 import { OfflineFileCache } from '../data/offlineFileCache.js';
+import { cleanupWebPushOnSignOutAsync } from '../notifications/webPushManager';
 
 export interface AuthUser {
   id: string;
@@ -432,6 +434,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (currentWsId) {
       void OfflineFileCache.clearWorkspace(currentWsId).catch(() => {});
+    }
+
+    // Clean up browser push subscription on backend and reset bound account state
+    try {
+      const client = createApiClient({
+        baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+      });
+      void cleanupWebPushOnSignOutAsync(client).catch(() => {});
+    } catch {
+      // Ignore
     }
 
     // Reset client state immediately

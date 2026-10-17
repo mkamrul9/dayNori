@@ -662,7 +662,7 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
     });
 
     it('worker defers delivery during quiet hours and preserves the pending job at rescheduleRunAt', async () => {
-      const updRes = await adminPool.query(
+      const _updRes = await adminPool.query(
         `
         UPDATE app.profiles
         SET preferences = jsonb_set(
@@ -721,7 +721,7 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
 
         // Start worker and process through polling lifecycle
         worker.start(adminPool);
-        let jobResult: any = null;
+        let jobResult: { jobId?: string } | null = null;
         for (let attempt = 0; attempt < 10; attempt++) {
           jobResult = await worker.pollAndProcessNextJob(adminPool);
           if (jobResult?.jobId === dbJobId) break;

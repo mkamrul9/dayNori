@@ -24,6 +24,7 @@ export default function SettingsPage() {
 
   const {
     isAuthenticated,
+    user,
     workspaceId,
     preferences,
     loadPreferences,
@@ -668,7 +669,10 @@ export default function SettingsPage() {
         <ReminderAgendaView
           workspaceId={workspaceId}
           isAuthenticated={isAuthenticated}
-          apiClient={createApiClient({ baseUrl: '/api' })}
+          userId={user?.id}
+          apiClient={createApiClient({
+            baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+          })}
           themeMode={themeMode}
         />
 

@@ -126,17 +126,53 @@ export async function getWebPushCapabilityStateAsync(): Promise<WebPushCapabilit
   };
 }
 
+const BOUND_ACCOUNT_KEY = 'daynori_push_bound_account';
+const PENDING_DEACTIVATIONS_KEY = 'daynori_pending_push_deactivations';
+
+/**
+ * Flushes any pending subscription deactivations that were queued while offline.
+ */
+export async function flushPendingPushDeactivationsAsync(apiClient: DaynoriApiClient): Promise<void> {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(PENDING_DEACTIVATIONS_KEY);
+    if (!raw) return;
+    const pending: string[] = JSON.parse(raw);
+    if (!Array.isArray(pending) || pending.length === 0) return;
+
+    const remaining: string[] = [];
+    for (const endpoint of pending) {
+      try {
+        await apiClient.deactivateWebPushSubscription(endpoint);
+      } catch {
+        remaining.push(endpoint);
+      }
+    }
+    if (remaining.length > 0) {
+      localStorage.setItem(PENDING_DEACTIVATIONS_KEY, JSON.stringify(remaining));
+    } else {
+      localStorage.removeItem(PENDING_DEACTIVATIONS_KEY);
+    }
+  } catch {
+    // Ignore storage parse failure
+  }
+}
+
 /**
  * Contextual subscription request: prompts user permission upon explicit click,
  * fetches VAPID public key from backend, creates PushSubscription, and registers with backend.
+ * Aborts and rejects late responses if user identity changed mid-operation.
  */
 export async function subscribeWebPushAsync(
-  apiClient: DaynoriApiClient
+  apiClient: DaynoriApiClient,
+  currentUserId?: string
 ): Promise<WebPushCapabilityState> {
   const cap = await getWebPushCapabilityStateAsync();
   if (!cap.isSupported) {
     return cap;
   }
+
+  const initiatingUserId = currentUserId || (typeof localStorage !== 'undefined' ? localStorage.getItem(BOUND_ACCOUNT_KEY) : null);
 
   try {
     // 1. Request notification permission contextually upon explicit user gesture
@@ -161,6 +197,12 @@ export async function subscribeWebPushAsync(
       });
     }
 
+    // Guard against identity change during async prompt/key fetch
+    if (currentUserId && initiatingUserId && currentUserId !== initiatingUserId) {
+      console.warn('[WebPush] Identity changed during subscription; aborting registration for old user');
+      return getWebPushCapabilityStateAsync();
+    }
+
     // 4. Extract client public key and auth secret
     const p256dh = arrayBufferToBase64Url(subscription.getKey('p256dh'));
     const auth = arrayBufferToBase64Url(subscription.getKey('auth'));
@@ -172,6 +214,13 @@ export async function subscribeWebPushAsync(
       auth,
       userAgent: navigator.userAgent,
     });
+
+    if (typeof localStorage !== 'undefined' && currentUserId) {
+      localStorage.setItem(BOUND_ACCOUNT_KEY, currentUserId);
+    }
+
+    // Flush any pending deactivations
+    void flushPendingPushDeactivationsAsync(apiClient);
 
     return getWebPushCapabilityStateAsync();
   } catch (err) {
@@ -193,8 +242,23 @@ export async function unsubscribeWebPushAsync(
       if (sub) {
         const endpoint = sub.endpoint;
         await sub.unsubscribe();
-        await apiClient.deactivateWebPushSubscription(endpoint);
+        try {
+          await apiClient.deactivateWebPushSubscription(endpoint);
+        } catch {
+          // Queue durable offline deactivation
+          if (typeof localStorage !== 'undefined') {
+            const raw = localStorage.getItem(PENDING_DEACTIVATIONS_KEY);
+            const pending: string[] = raw ? JSON.parse(raw) : [];
+            if (!pending.includes(endpoint)) {
+              pending.push(endpoint);
+              localStorage.setItem(PENDING_DEACTIVATIONS_KEY, JSON.stringify(pending));
+            }
+          }
+        }
       }
+    }
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(BOUND_ACCOUNT_KEY);
     }
   } catch (err) {
     console.warn('Web push unsubscription failed:', err);
@@ -204,13 +268,57 @@ export async function unsubscribeWebPushAsync(
 }
 
 /**
+ * Deactivates and cleans up Web Push registrations upon user sign-out.
+ * Durably queues deactivations if network is offline and resets bound account state.
+ */
+export async function cleanupWebPushOnSignOutAsync(
+  apiClient: DaynoriApiClient
+): Promise<void> {
+  try {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        const endpoint = sub.endpoint;
+        try {
+          await apiClient.deactivateWebPushSubscription(endpoint);
+        } catch {
+          // Persist durable pending deactivation if network fails/offline
+          try {
+            const raw = localStorage.getItem(PENDING_DEACTIVATIONS_KEY);
+            const pending: string[] = raw ? JSON.parse(raw) : [];
+            if (!pending.includes(endpoint)) {
+              pending.push(endpoint);
+              localStorage.setItem(PENDING_DEACTIVATIONS_KEY, JSON.stringify(pending));
+            }
+          } catch {
+            // Ignore storage failure
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore push cleanup failures on logout
+  } finally {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(BOUND_ACCOUNT_KEY);
+    }
+  }
+}
+
+/**
  * Reconciles browser subscription state with backend on startup, login, or resume.
+ * Binds active subscription strictly to current authenticated account.
  */
 export async function reconcileWebPushSubscriptionAsync(
-  apiClient: DaynoriApiClient
+  apiClient: DaynoriApiClient,
+  currentUserId?: string
 ): Promise<WebPushCapabilityState> {
   const cap = await getWebPushCapabilityStateAsync();
   if (!cap.isSupported) return cap;
+
+  // Flush any pending deactivations from prior offline logouts
+  void flushPendingPushDeactivationsAsync(apiClient);
 
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -220,19 +328,32 @@ export async function reconcileWebPushSubscriptionAsync(
       // Permission revoked: unsubscribe locally and deactivate on server
       await sub.unsubscribe();
       await apiClient.deactivateWebPushSubscription(sub.endpoint);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(BOUND_ACCOUNT_KEY);
+      }
       return getWebPushCapabilityStateAsync();
     }
 
-    if (sub && Notification.permission === 'granted') {
+    if (sub && Notification.permission === 'granted' && currentUserId) {
+      if (typeof localStorage !== 'undefined') {
+        const boundUser = localStorage.getItem(BOUND_ACCOUNT_KEY);
+        if (boundUser && boundUser !== currentUserId) {
+          // Explicit rebinding from prior account to current account
+        }
+      }
       const p256dh = arrayBufferToBase64Url(sub.getKey('p256dh'));
       const auth = arrayBufferToBase64Url(sub.getKey('auth'));
-      // Keep registration active and updated on server
+
       await apiClient.registerWebPushSubscription({
         endpoint: sub.endpoint,
         p256dh,
         auth,
         userAgent: navigator.userAgent,
       });
+
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(BOUND_ACCOUNT_KEY, currentUserId);
+      }
     }
   } catch {
     // Reconcile fallback

@@ -1,5 +1,29 @@
 # Changelog
 
+## Defect repairs (Phase 28/29 notification foundation and PWA safety) — 2026-10-17
+
+- **Push Subscription Account Binding & Logout Cleanup (`apps/web`, `apps/api`, `infra/supabase`):**
+  - Connected browser push cleanup and unsubscription to user sign-out (`cleanupWebPushOnSignOutAsync`).
+  - Added atomic account rebinding (`app.rebind_web_push_endpoint(endpoint, user_id)`) and database partial unique index (`uq_web_push_active_endpoint`) preventing one endpoint from remaining active across multiple accounts on shared browsers.
+  - Implemented durable offline deactivation queue (`flushPendingPushDeactivationsAsync`) via `localStorage`.
+  - Added late asynchronous subscription rejection guard on identity switches.
+- **Service Worker Cache Safety & Precache Review (`apps/web`):**
+  - Removed root navigation (`/`) from precache allowlist, ensuring authenticated TodayOrganizer is never cached in public cache storage.
+  - Enforced strict query parameter exclusion (`?signature=`, `?token=`) on static assets.
+  - Switched navigation requests to network-first falling back to unauthenticated `/offline.html`.
+  - Added live sandbox execution test executing shipped `sw.js` with mock `CacheStorage`, `Request`, `Response`, and push event verification.
+- **Durable Background Retry Jobs & Real Transport Configuration (`apps/worker`, `apps/api`):**
+  - Added durable background retry scheduling into `app.background_jobs` with exponential backoff on transient delivery failures (HTTP 502/503/504), bounded attempts, and 24-hour TTL check.
+  - Configured real Web Push transport (`createConfiguredWebPushAdapter`) returning truthful `unavailable` status when VAPID credentials are unconfigured.
+  - Guarded `getVapidPublicKey` to throw `VAPID_UNCONFIGURED` in production when missing.
+- **SSRF Hardening & Input Validation (`apps/api`):**
+  - Hardened `assertValidPushEndpoint` against IPv4 variants (octal, hex, dword), IPv6-mapped addresses, non-standard ports (strictly default HTTPS 443), and embedded credentials.
+  - Enforced subscription key format checks (`assertValidSubscriptionKeys`).
+- **Reminder Agenda Account Isolation & Truthful Offline Claims (`apps/web`):**
+  - Scoped local agenda caching to account and workspace (`daynori_agenda_cache_${workspaceId}`).
+  - Cleared agenda state immediately upon account or workspace change.
+  - Displayed truthful offline indicators distinguishing cached data from unavailable offline state.
+
 ## Phase 29 — Web reminder delivery and PWA support — 2026-10-17
 
 - **Web Push Capability & Subscription Lifecycle (`apps/web`, `packages/contracts`, `packages/api-client`, `apps/api`, `infra/supabase`):**

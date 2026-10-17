@@ -88,25 +88,28 @@ Delivered Web Push reminder notification support and a reviewed, privacy-safe PW
 | Capability Detection | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (returns graceful unsupported state in non-browser Node context) |
 | VAPID Public Key API | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (returns public key with Cache-Control headers) |
 | Subscription Registration | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (persists endpoint, p256dh, auth, userAgent linked to user) |
-| SSRF Endpoint Rejection | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (blocks loopback, RFC1918 private IPs, localhost, and insecure HTTP) |
+| SSRF Endpoint Rejection | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (blocks loopback, RFC1918 private IPs, octal/hex/dword IP variants, IPv6-mapped, non-standard ports, credentials, localhost, and insecure HTTP) |
+| Single Active Endpoint Binding | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (deactivates prior account binding via app.rebind_web_push_endpoint, enforced by partial unique index) |
+| Durable Offline Deactivation Queue | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (flushes pending deactivations from prior offline logouts via flushPendingPushDeactivationsAsync) |
 | Idempotent Re-registration | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (updates existing subscription without duplicate database rows) |
 | User Subscription Scoping | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (queries scoped strictly to authenticated user) |
 | Subscription Deactivation | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (deactivates subscription on unsubscribe request) |
 | Independent Delivery Coordination | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (Android local schedule acknowledgment suppresses Android push only; web push receives alert independently) |
 | Expired Subscription (410 Gone) | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (marks subscription is_active = false and records failed delivery) |
-| Transient Error Bounded Retry | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (retries delivery with incremented attempt_count and provider message ID) |
+| Persisted Background Retry Polling | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (schedules durable background retry job in app.background_jobs, polled and processed by worker with exponential backoff) |
 | SW Static Allowlist Caching | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (caches /offline.html, /manifest.json, /favicon.ico under daynori-static-v1) |
 | SW Private Route Exclusion | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (strictly excludes HTML navigation, Next.js RSC, and private APIs from cache) |
 | Safe Notification Click Navigation | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (restricts destinations to allowlisted same-origin paths: plan, settings, etc.) |
 | Privacy-Minimizing Push Display | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (displays bounded generic title and body: Daynori Reminder) |
-| Synthetic Private Canary Check | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (validates private canary URLs are classified as non-cacheable) |
+| Shipped Service Worker Sandbox Execution | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (executes shipped sw.js verifying CacheStorage, fetch canary exclusion, push privacy, and click target URL) |
+| Reminder Agenda Account Isolation | Automated integration test | `tests/integration/phase29-web-reminders.test.ts` | Pass (scopes cached reminders strictly to current workspace/account, truth-telling on offline state) |
 
 ## Verification Commands and Results
 
 - **Environment**: Node v24.11.1, pnpm 9.15.5, Vitest 4.1.11, TypeScript 5.7.3.
 - **Unit and Integration Suites**:
-  - `npx vitest run tests/integration/phase29-web-reminders.test.ts`: 16 passed (16 tests, 743ms).
-  - `npx vitest run --no-file-parallelism tests/integration/phase27-reminders.test.ts tests/integration/phase28-android-notifications.test.ts tests/integration/phase29-web-reminders.test.ts`: 51 passed (51 tests).
+  - `npx vitest run tests/integration/phase29-web-reminders.test.ts`: 19 passed (19 tests, 930ms).
+  - `npx vitest run tests/integration/phase28-android-notifications.test.ts`: 16 passed (16 tests, 1011ms).
   - `pnpm test`: Full repository test suite executed with `fileParallelism: false`.
 - **Typecheck**:
   - `pnpm --filter @daynori/web typecheck`: 0 errors.

@@ -152,7 +152,7 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
       isExactAlarmPermitted: false, // Invariant: ordinary best-effort reminders, no restricted exact alarms
       details,
     };
-  } catch (err) {
+  } catch {
     return {
       status: 'undetermined',
       canDeliverLocally: false,
