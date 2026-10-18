@@ -1,21 +1,23 @@
 # Changelog
 
-## Phase 38 — Controlled private beta (Local Preparation) — 2026-10-19
+## Phase 38 — Controlled private beta & Lifecycle Hardening — 2026-10-19
 
-- **Beta Environment Configuration & Validation (`infra/deployment/beta`):**
-  - Added `beta.env.example` defining isolated database (`daynori_beta`), least-privilege runtime role (`daynori_runtime`), private S3 assets bucket, 100MB workspace quotas, 10MB file limit, reauth limits, and telemetry redaction.
-  - Implemented executable validator `validate-beta-env.mjs` auditing candidate beta environments against security invariants (fails closed on missing secrets or placeholder values).
-- **Personal Organizer Scope Feature Flags (`infra/deployment/beta/feature-flags.json`):**
-  - Confined beta access to verified personal organizer scope: core notes, tasks, routines, journals, files, search, and local portability.
-  - Strictly disabled collaborative rooms, public view links, billing, AI assistants, and external calendar sync.
-- **Operations & Android Signing Runbooks (`infra/deployment/beta`):**
-  - Authored `beta-operations.md` establishing forward-fix migration policy, emergency rollback runbook, worker blob purge mechanics, redacted telemetry invariants, P0-P3 incident alerting routing, and in-app feedback intake.
-  - Authored `android-release-signing.md` establishing reproducible build and external keystore signing procedure for Android internal beta (APK/AAB), version metadata (`0.1.0-beta.1`, versionCode 1), and `apksigner` checksum verification without committing signing keys to Git.
-- **Automated Beta Smoke Runner & Observation Protocol (`infra/deployment/beta`):**
-  - Implemented `beta-smoke-check.mjs` verifying health endpoint, unauthenticated mutation rejection, cross-participant multi-tenant isolation, and public deletion compliance against Fastify API and PostgreSQL (4/4 checks passed).
-  - Authored `beta-observation-protocol.md` defining tester cohort coverage matrix (Android 10–15, desktop and mobile browsers), core organizer participant scenarios, P0–P3 bug severity definitions, immediate beta stop criteria (confirmed data loss or cross-tenant exposure), and explicit widening exit gates.
+- **Lifecycle State Machine & Deletion Coordination:**
+  - Fixed account and workspace deletion state machine: "processing" is strictly distinguished from "completed"; `completedAt` is omitted while background storage or provider purges remain pending.
+  - Hardened worker entry point: missing required adapters (`provider_user_purge`, `deletion_verification_email`, `blob_purge`) fail explicitly; database connection pool reads `DATABASE_URL` as well as `DB_*` / `PG*` variables.
+  - Coordinated completion: overall account and public deletion completion requires both provider purge and storage purge completion.
+  - Privileged functions & authorization hardening (Migration 00039): enabled RLS on `app.workspace_deletions`, added integrity triggers on deletion requests, bound `app.record_deletion_tombstone` strictly to verified entity IDs and caller context, added negative tests for forged callers, cross-user, and cross-workspace requests.
+- **Truly Disposable Disaster Recovery Drill (`scripts/disaster-recovery-drill.mjs`):**
+  - Replaced hardcoded target databases with uniquely named disposable source (`daynori_dr_src_<hex>`) and target (`daynori_dr_dst_<hex>`) databases and isolated per-run artifact directories (`artifacts/dr-runs/dr_<ts>_<hex>`).
+  - Switched to argument-based process execution (`execFileSync`) with `-v ON_ERROR_STOP=1` to fail immediately on SQL errors; validated database targets before destructive operations; automatic cleanup on failure paths.
+- **Controlled Private Beta Backend Enforcement & Scoping (`apps/api/src/modules/beta`):**
+  - Backend enforcement of `BETA_ACCESS_MODE=private_invitation_only`: uninvited authenticated users are blocked from organizer endpoints; atomic invitation claiming (`/v1/beta/claim-invitation`) with `FOR UPDATE` locking, expiration, revocation, reuse, and seat limit verification.
+  - Global `onRequest` and route preHandler barriers return HTTP 403 (`ApiErrorCode.FORBIDDEN`) on direct calls to unreleased modules (`/v1/expenses`, `/v1/vault`, `/v1/rooms`, `/v1/ai`, `/v1/billing`).
+  - Environment validator (`validate-beta-env.mjs`): strictly validates `BETA_ALLOW_PUBLIC_SIGNUP=false`, positive integer bounds for workspace quota and seat limits, placeholder credentials, and aligns `REAUTH_SECRET` contract.
+  - Smoke runner (`beta-smoke-check.mjs`): separated local integration checks from explicit remote deployment target checks (`TARGET_URL`), strictly asserting HTTP 403/404 isolation responses.
+  - Android release signing in `build.gradle` reconciled with external keystore environment variables and project properties.
 - **Release Gate Status:**
-  - Prepared under explicit provisional authorization; execution, deployment, tester invitations, and store submission remain explicitly **BLOCKED** pending owner-supplied staging/beta target, external signing credentials, push provider service accounts, and invited participant cohort.
+  - Prepared under explicit provisional authorization; execution, deployment, tester invitations, physical Android hardware checks, and store submission remain explicitly **BLOCKED**.
 
 ## Phase 37 — Core quality and usability release gate — 2026-10-18
 

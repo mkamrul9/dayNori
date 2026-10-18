@@ -181,9 +181,9 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
   });
 
   // --------------------------------------------------------------------------
-  // Benchmark 1: Local Save & Mutation Acknowledgment (Target: p95 <= 100ms local budget)
+  // Benchmark 1: API Save & Mutation Acknowledgment Latency (Target: p95 <= 100ms)
   // --------------------------------------------------------------------------
-  it('Benchmark 1: local input/mutation save acknowledgment adheres to latency budget', async () => {
+  it('Benchmark 1: API save and mutation acknowledgment round-trip adheres to latency budget', async () => {
     const latencies: number[] = [];
     const iterations = 50;
 
@@ -220,9 +220,9 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
   });
 
   // --------------------------------------------------------------------------
-  // Benchmark 2: 10,000-Record Keyset Pagination & Memory Stability
+  // Benchmark 2: 10,000-Record Keyset Pagination Throughput & Server Memory Stability
   // --------------------------------------------------------------------------
-  it('Benchmark 2: queries 10,000-record dataset with virtualized keyset pagination under 50ms per page', async () => {
+  it('Benchmark 2: queries 10,000-record database dataset with keyset pagination under 150ms per page', async () => {
     const admin = await adminPool.connect();
 
     try {
@@ -274,14 +274,14 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
     // Paginated page retrieval adheres to sub-150ms p95 budget for 10k items
     expect(stats.p95).toBeLessThan(150);
     expect(stats.mean).toBeLessThan(80);
-    // Virtualized pagination prevents heap bloat (< 25MB growth for 1000 item inspections)
+    // Server keyset pagination prevents heap bloat (< 25MB growth for 1000 item inspections)
     expect(heapGrowthMb).toBeLessThan(25);
   });
 
   // --------------------------------------------------------------------------
-  // Benchmark 3: Concurrency Stress (100 operations across concurrent active users)
+  // Benchmark 3: Concurrency Stress (100 operations across 20 concurrent client connections)
   // --------------------------------------------------------------------------
-  it('Benchmark 3: satisfies p95 <= 300ms read and p95 <= 500ms mutation budgets under 100 concurrent operations', async () => {
+  it('Benchmark 3: satisfies p95 <= 300ms read and p95 <= 500ms mutation budgets under 100 operations via 20 concurrent connections', async () => {
     const totalOperations = 100;
     const workerCount = 20; // 20 concurrent client connections simulating 100 operations
     const operationsPerWorker = totalOperations / workerCount;

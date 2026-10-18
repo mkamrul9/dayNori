@@ -10,7 +10,9 @@ describe('Real Disposable Disaster Recovery Drill & Deletion Ledger Replay', () 
     expect(report.backupDurationMs).toBeGreaterThan(0);
     expect(report.restoreDurationMs).toBeGreaterThan(0);
     expect(report.commands.pgDump).toContain('pg_dump');
-    expect(report.commands.psqlRestore).toContain('daynori_restore_drill');
+    expect(report.commands.psqlRestore).toContain('daynori_dr_dst_');
+    expect(report.disposableTargetDb).toMatch(/^daynori_dr_dst_[a-f0-9]+$/);
+    expect(report.disposableSourceDb).toMatch(/^daynori_dr_src_[a-f0-9]+$/);
     expect(report.limitations.length).toBeGreaterThan(0);
   }, 60000);
 });

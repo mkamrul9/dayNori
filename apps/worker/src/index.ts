@@ -1,19 +1,31 @@
-import { DaynoriWorker, createConfiguredWebPushAdapter } from './worker.js';
-import pg from 'pg';
+import {
+  DaynoriWorker,
+  createConfiguredWebPushAdapter,
+  createConfiguredAuthProvider,
+  createConfiguredDeletionEmailAdapter,
+  createConfiguredStorageService,
+  createWorkerDatabasePool,
+} from './worker.js';
 
-const databaseUrl = process.env['DATABASE_URL'];
-let pool: pg.Pool | undefined;
+const pool = createWorkerDatabasePool();
+const worker = new DaynoriWorker(pool);
 
-if (databaseUrl) {
-  pool = new pg.Pool({
-    connectionString: databaseUrl,
-    max: 10,
-    idleTimeoutMillis: 30000,
-  });
+worker.setWebPushAdapter(createConfiguredWebPushAdapter());
+
+const authProvider = createConfiguredAuthProvider();
+if (authProvider) {
+  worker.setAuthProvider(authProvider);
 }
 
-const worker = new DaynoriWorker(pool);
-worker.setWebPushAdapter(createConfiguredWebPushAdapter());
+const deletionEmailAdapter = createConfiguredDeletionEmailAdapter();
+if (deletionEmailAdapter) {
+  worker.setDeletionEmailAdapter(deletionEmailAdapter);
+}
+
+const storageService = createConfiguredStorageService();
+if (storageService) {
+  worker.setStorageService(storageService);
+}
 
 // Register built-in smoke task
 worker.registerHandler('smoke', async (jobId) => {
@@ -28,7 +40,7 @@ console.log(`Daynori Worker running (polling every ${pollIntervalMs}ms)...`);
 const shutdown = async () => {
   console.log('Stopping Daynori Worker...');
   worker.stop();
-  if (pool) {
+  if (pool && typeof pool.end === 'function') {
     await pool.end();
   }
   process.exit(0);

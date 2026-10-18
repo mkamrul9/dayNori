@@ -54,8 +54,8 @@ export class OutboxDeletionEmailDelivery implements DeletionEmailDelivery {
 
   async sendVerificationEmail(toEmail: string, requestId: string, token: string): Promise<void> {
     await this.pool.query(
-      `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
-       VALUES ('deletion_verification_email', $1, 'pending', now(), now());`,
+      `INSERT INTO app.background_jobs (task_type, payload, run_at, status, created_at, updated_at)
+       VALUES ('deletion_verification_email', $1, now(), 'pending', now(), now());`,
       [JSON.stringify({ toEmail, requestId, token })]
     );
   }
@@ -193,6 +193,7 @@ export class DeletionService {
     userEmail?: string
   ): Promise<{
     deletionId: string;
+    status?: string;
     alreadyCompleted: boolean;
     completedAt?: string;
     storagePaths: string[];
@@ -220,14 +221,25 @@ export class DeletionService {
 
     const deletion = delRes.rows[0]!;
 
-    // Idempotent retry: if already completed or processing, return success
-    if (deletion.status === 'completed' || deletion.status === 'processing') {
+    // Idempotent retry: distinguish completed from processing
+    if (deletion.status === 'completed') {
       return {
         deletionId: deletion.id,
+        status: 'completed',
         alreadyCompleted: true,
         completedAt: deletion.completed_at
           ? deletion.completed_at.toISOString()
-          : new Date().toISOString(),
+          : undefined,
+        storagePaths: [],
+      };
+    }
+
+    if (deletion.status === 'processing') {
+      return {
+        deletionId: deletion.id,
+        status: 'processing',
+        alreadyCompleted: false,
+        completedAt: undefined,
         storagePaths: [],
       };
     }
@@ -310,7 +322,9 @@ export class DeletionService {
 
     return {
       deletionId: deletion.id,
+      status: 'processing',
       alreadyCompleted: false,
+      completedAt: undefined,
       storagePaths,
     };
   }
@@ -336,13 +350,24 @@ export class DeletionService {
       );
     });
 
-    if (txResult.alreadyCompleted) {
+    if (txResult.alreadyCompleted || txResult.status === 'completed') {
       return {
         success: true,
         deletionId: txResult.deletionId,
         status: 'completed',
         completedAt: txResult.completedAt || new Date().toISOString(),
         message: 'Account and associated personal data have been permanently erased.',
+      };
+    }
+
+    if (txResult.status === 'processing' && txResult.storagePaths.length === 0) {
+      return {
+        success: true,
+        deletionId: txResult.deletionId,
+        status: 'processing',
+        completedAt: undefined,
+        message:
+          'Account relational data permanently erased; external provider and storage cleanup jobs are running in background.',
       };
     }
 
@@ -382,7 +407,7 @@ export class DeletionService {
       success: true,
       deletionId: txResult.deletionId,
       status: 'processing',
-      completedAt: new Date().toISOString(),
+      completedAt: undefined,
       message:
         'Account relational data permanently erased; external provider and storage cleanup jobs are running in background.',
     };
@@ -406,13 +431,24 @@ export class DeletionService {
       userEmail
     );
 
-    if (txResult.alreadyCompleted) {
+    if (txResult.alreadyCompleted || txResult.status === 'completed') {
       return {
         success: true,
         deletionId: txResult.deletionId,
         status: 'completed',
         completedAt: txResult.completedAt || new Date().toISOString(),
         message: 'Account and associated personal data have been permanently erased.',
+      };
+    }
+
+    if (txResult.status === 'processing' && txResult.storagePaths.length === 0) {
+      return {
+        success: true,
+        deletionId: txResult.deletionId,
+        status: 'processing',
+        completedAt: undefined,
+        message:
+          'Account relational data permanently erased; external provider and storage cleanup jobs are running in background.',
       };
     }
 
@@ -446,7 +482,7 @@ export class DeletionService {
       success: true,
       deletionId: txResult.deletionId,
       status: 'processing',
-      completedAt: new Date().toISOString(),
+      completedAt: undefined,
       message:
         'Account relational data permanently erased; external provider and storage cleanup jobs are running in background.',
     };
@@ -580,16 +616,16 @@ export class DeletionService {
     // 10. Enqueue durable blob purge background job before external effects
     if (storagePaths.length > 0) {
       await client.query(
-        `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
-         VALUES ('blob_purge', $1, 'pending', now(), now());`,
+        `INSERT INTO app.background_jobs (task_type, payload, run_at, status, created_at, updated_at)
+         VALUES ('blob_purge', $1, now(), 'pending', now(), now());`,
         [JSON.stringify({ storagePaths, bucket: PRIVATE_ASSETS_BUCKET, deletionId })]
       );
     }
 
     // 11. Enqueue durable provider user purge background job
     await client.query(
-      `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
-       VALUES ('provider_user_purge', $1, 'pending', now(), now());`,
+      `INSERT INTO app.background_jobs (task_type, payload, run_at, status, created_at, updated_at)
+       VALUES ('provider_user_purge', $1, now(), 'pending', now(), now());`,
       [JSON.stringify({ userId, userEmail: email, reason, deletionId })]
     );
 
@@ -744,14 +780,21 @@ export class DeletionService {
 
     const delRes = await client.query<{ id: string }>(
       `INSERT INTO app.workspace_deletions (
-        workspace_id, requested_by, session_hash, status, object_deletion_manifest, confirmed_at
+        workspace_id, requested_by, session_hash, status, object_deletion_manifest
       )
-      VALUES ($1, $2, $3, 'processing', $4, now())
+      VALUES ($1, $2, $3, 'pending_confirmation', $4)
       RETURNING id;`,
       [workspaceId, userId, sessionHash, JSON.stringify(storagePaths)]
     );
 
     const deletionId = delRes.rows[0]!.id;
+
+    await client.query(
+      `UPDATE app.workspace_deletions
+       SET status = 'processing', confirmed_at = now(), updated_at = now()
+       WHERE id = $1;`,
+      [deletionId]
+    );
 
     // 5. Invalidate reminders & background jobs
     await client.query(
@@ -772,8 +815,8 @@ export class DeletionService {
     // 6. Enqueue durable blob purge background job
     if (storagePaths.length > 0) {
       await client.query(
-        `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
-         VALUES ('blob_purge', $1, 'pending', now(), now());`,
+        `INSERT INTO app.background_jobs (task_type, payload, run_at, status, created_at, updated_at)
+         VALUES ('blob_purge', $1, now(), 'pending', now(), now());`,
         [
           JSON.stringify({
             storagePaths,
@@ -851,7 +894,7 @@ export class DeletionService {
       deletionId,
       workspaceId,
       status: allPurged ? 'completed' : 'processing',
-      completedAt: new Date().toISOString(),
+      completedAt: allPurged ? new Date().toISOString() : undefined,
     };
   }
 
@@ -902,7 +945,7 @@ export class DeletionService {
       deletionId,
       workspaceId,
       status: allPurged ? 'completed' : 'processing',
-      completedAt: new Date().toISOString(),
+      completedAt: allPurged ? new Date().toISOString() : undefined,
     };
   }
 
@@ -1119,8 +1162,8 @@ export class DeletionService {
     // Email has no active user account: record suppression tombstone and mark completed
     const accountHash = crypto.createHash('sha256').update(`account:${row.email}`).digest('hex');
     await client.query(
-      `SELECT app.record_deletion_tombstone('account', gen_random_uuid(), $1, 'public_web_verified_deletion');`,
-      [accountHash]
+      `SELECT app.record_deletion_tombstone('account', $1, $2, 'public_web_verified_deletion');`,
+      [requestId, accountHash]
     );
 
     await client.query(

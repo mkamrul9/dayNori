@@ -159,6 +159,11 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
     worker = new DaynoriWorker(runtimePool, {
       storageService: memoryStorage as unknown as StorageServiceContract,
       defaultBucket: PRIVATE_ASSETS_BUCKET,
+      deletionEmailAdapter: defaultEmailDelivery,
+      authProvider: {
+        deleteUser: async () => {},
+        revokeUserSessions: async () => {},
+      },
     });
     worker.start();
 
@@ -226,7 +231,7 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
     if (server) await server.close();
     if (adminPool) await adminPool.end();
     if (runtimePool) await runtimePool.end();
-  });
+  }, 30000);
 
   describe('1. Deletion Confirmation, Session Binding & Scope Verification', () => {
     let confirmationToken: string;
@@ -311,12 +316,18 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
       // Confirm with Session 1
       const confirmRes = await clientAuthorSession1.confirmAccountDeletion({ confirmationToken });
       expect(confirmRes.success).toBe(true);
-      expect(confirmRes.status).toBe('completed');
+      expect(confirmRes.status).toBe('processing');
+      expect(confirmRes.completedAt).toBeUndefined();
 
-      // Duplicate retry with same token returns idempotent success rather than crashing
+      // Duplicate retry with same token returns idempotent processing status rather than crashing or claiming completed premature
       const retryRes = await clientAuthorSession1.confirmAccountDeletion({ confirmationToken });
       expect(retryRes.success).toBe(true);
-      expect(retryRes.status).toBe('completed');
+      expect(retryRes.status).toBe('processing');
+      expect(retryRes.completedAt).toBeUndefined();
+
+      // Drain queued background jobs (blob_purge & provider_user_purge)
+      await worker.pollAndProcessNextJob(runtimePool);
+      await worker.pollAndProcessNextJob(runtimePool);
     });
   });
 
@@ -538,6 +549,10 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
       const admin = await adminPool.connect();
       try {
         await admin.query(
+          `DELETE FROM app.public_deletion_requests WHERE email_hash = encode(sha256($1::bytea), 'hex');`,
+          [publicTargetEmail.toLowerCase().trim()]
+        );
+        await admin.query(
           `INSERT INTO app.profiles (id, display_name)
            VALUES ($1, 'Public Deletion User')
            ON CONFLICT (id) DO NOTHING;`,
@@ -633,6 +648,11 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
       expect(res.success).toBe(true);
       expect(res.message).toContain('confirmation email with deletion instructions');
 
+      // Poll and process until deletion_verification_email is dispatched
+      while (await worker.pollAndProcessNextJob(runtimePool)) {
+        if (defaultEmailDelivery.getLastDispatch(publicTargetEmail)) break;
+      }
+
       const dispatch = defaultEmailDelivery.getLastDispatch(publicTargetEmail);
       expect(dispatch).toBeDefined();
       expect(dispatch?.toEmail).toBe(publicTargetEmail);
@@ -672,6 +692,16 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
 
     it('successfully verifies and permanently deletes realistic synthetic account, workspaces, files, and jobs', async () => {
       const dispatch = defaultEmailDelivery.getLastDispatch(publicTargetEmail)!;
+
+      const adminPre = await adminPool.connect();
+      try {
+        await adminPre.query(
+          `UPDATE app.background_jobs SET status = 'pending', run_at = now() + interval '1 hour' WHERE id = $1;`,
+          [publicTargetJobId]
+        );
+      } finally {
+        adminPre.release();
+      }
 
       const res = await clientStranger.verifyPublicDeletionRequest({
         requestId: dispatch.requestId,
@@ -818,7 +848,11 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
         // 3. User initiates and executes account deletion
         // Simulating the actual deletion:
         await admin.query(
-          `INSERT INTO app.account_deletions (user_id, session_hash, status, created_at, updated_at) VALUES ($1, 'drill_session_hash', 'processing', now(), now());`,
+          `INSERT INTO app.account_deletions (user_id, session_hash, status, created_at, updated_at) VALUES ($1, 'drill_session_hash', 'pending_confirmation', now(), now());`,
+          [drillUserId]
+        );
+        await admin.query(
+          `UPDATE app.account_deletions SET status = 'processing', updated_at = now() WHERE user_id = $1;`,
           [drillUserId]
         );
         await admin.query(
@@ -1027,6 +1061,115 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
           );
         })
       ).rejects.toThrow(/UNAUTHORIZED/);
+    });
+
+    it('rejects recording tombstone for victim even when an unrelated public deletion request is processing', async () => {
+      const unrelatedUserId = crypto.randomUUID();
+      const unrelatedEmail = `unrelated.${crypto.randomUUID().slice(0, 8)}@example.test`;
+      const unrelatedEmailHash = crypto.createHash('sha256').update(unrelatedEmail).digest('hex');
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(
+          `INSERT INTO app.profiles (id, display_name) VALUES ($1, 'Unrelated User') ON CONFLICT DO NOTHING;`,
+          [unrelatedUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.public_deletion_requests (email, email_hash, target_user_id, verification_token_hash, status, expires_at)
+           VALUES ($1, $2, $3, 'dummy_hash', 'pending_verification', now() + interval '1 hour');`,
+          [unrelatedEmail, unrelatedEmailHash, null]
+        );
+        // Advance the unrelated request to processing
+        await admin.query(
+          `UPDATE app.public_deletion_requests
+           SET target_user_id = $1, status = 'processing'
+           WHERE email = $2;`,
+          [unrelatedUserId, unrelatedEmail]
+        );
+      } finally {
+        admin.release();
+      }
+
+      // Caller has NO user context (null caller), attempting to record tombstone for victimUserId
+      const runtimeClient = await runtimePool.connect();
+      try {
+        await expect(
+          runtimeClient.query(
+            `SELECT app.record_deletion_tombstone('account', $1, 'forged_hash', 'exploiting_unrelated_status');`,
+            [victimUserId]
+          )
+        ).rejects.toThrow(/UNAUTHORIZED: Recording account tombstone requires/);
+
+        // Also test attempting to record tombstone for victimWsId
+        await expect(
+          runtimeClient.query(
+            `SELECT app.record_deletion_tombstone('workspace', $1, 'forged_hash', 'exploiting_unrelated_status');`,
+            [victimWsId]
+          )
+        ).rejects.toThrow(/UNAUTHORIZED: Recording workspace tombstone requires/);
+      } finally {
+        runtimeClient.release();
+      }
+    });
+
+    it('rejects forging app.account_deletions state directly via runtime pool', async () => {
+      await withUserContext(runtimePool, userStrangerId, async (client) => {
+        // Attempting to directly insert status = 'processing' must be rejected by trigger
+        await expect(
+          client.query(
+            `INSERT INTO app.account_deletions (user_id, session_hash, status)
+             VALUES ($1, 'fake_session_hash', 'processing');`,
+            [userStrangerId]
+          )
+        ).rejects.toThrow(/UNAUTHORIZED: Initial account deletion requests must be pending_confirmation/);
+      });
+
+      await withUserContext(runtimePool, userStrangerId, async (client) => {
+        // Attempting to directly insert status = 'completed' must be rejected by trigger
+        await expect(
+          client.query(
+            `INSERT INTO app.account_deletions (user_id, session_hash, status)
+             VALUES ($1, 'fake_session_hash', 'completed');`,
+            [userStrangerId]
+          )
+        ).rejects.toThrow(/UNAUTHORIZED: Initial account deletion requests must be pending_confirmation/);
+      });
+    });
+
+    it('rejects forging app.workspace_deletions state directly via runtime pool', async () => {
+      await withUserContext(runtimePool, userStrangerId, async (client) => {
+        // Attempting to directly insert status = 'processing' or 'completed' must be rejected by trigger
+        await expect(
+          client.query(
+            `INSERT INTO app.workspace_deletions (workspace_id, requested_by, session_hash, status)
+             VALUES ($1, $2, 'fake_session_hash', 'processing');`,
+            [victimWsId, userStrangerId]
+          )
+        ).rejects.toThrow(/UNAUTHORIZED: Initial workspace deletion requests must be pending_confirmation/);
+      });
+    });
+
+    it('rejects forging app.public_deletion_requests state directly via runtime pool', async () => {
+      const runtimeClient = await runtimePool.connect();
+      try {
+        // Direct insert with status other than pending_verification must be rejected
+        await expect(
+          runtimeClient.query(
+            `INSERT INTO app.public_deletion_requests (email, email_hash, status)
+             VALUES ('forged@example.test', encode(sha256('forged@example.test'::bytea), 'hex'), 'processing');`
+          )
+        ).rejects.toThrow(/UNAUTHORIZED: Initial public deletion requests must be pending_verification/);
+
+        // Direct insert with non-null target_user_id must be rejected
+        await expect(
+          runtimeClient.query(
+            `INSERT INTO app.public_deletion_requests (email, email_hash, target_user_id, status)
+             VALUES ('forged@example.test', encode(sha256('forged@example.test'::bytea), 'hex'), $1, 'pending_verification');`,
+            [victimUserId]
+          )
+        ).rejects.toThrow(/UNAUTHORIZED: Initial public deletion requests must be pending_verification/);
+      } finally {
+        runtimeClient.release();
+      }
     });
   });
 });

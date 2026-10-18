@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import pg from 'pg';
 import {
   isTimeInQuietHours,
   calculateNextQuietHoursEnd,
@@ -7,6 +8,7 @@ import {
 
 export interface DatabasePool {
   connect(): Promise<DatabaseClient>;
+  end?(): Promise<void>;
 }
 
 export interface DatabaseClient {
@@ -163,6 +165,129 @@ export function createConfiguredWebPushAdapter(options?: {
       }
     },
   };
+}
+
+export function createWorkerDatabasePool(): DatabasePool | undefined {
+  const databaseUrl = process.env['DATABASE_URL'];
+  if (databaseUrl) {
+    return new pg.Pool({
+      connectionString: databaseUrl,
+      max: Number(process.env['DB_POOL_MAX'] || 10),
+      idleTimeoutMillis: 30000,
+    });
+  }
+
+  const host = process.env['DB_HOST'] || process.env['PGHOST'];
+  if (host) {
+    return new pg.Pool({
+      host,
+      port: Number(process.env['DB_PORT'] || process.env['PGPORT'] || 5432),
+      database: process.env['DB_NAME'] || process.env['PGDATABASE'] || 'daynori_test',
+      user: process.env['DB_USER'] || process.env['PGUSER'] || 'daynori_runtime',
+      password: process.env['DB_PASSWORD'] || process.env['PGPASSWORD'] || '',
+      max: Number(process.env['DB_POOL_MAX'] || 10),
+      idleTimeoutMillis: 30000,
+    });
+  }
+
+  return undefined;
+}
+
+export function createConfiguredAuthProvider(): AuthProviderContract | undefined {
+  const supabaseUrl = process.env['SUPABASE_URL'];
+  const serviceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+
+  if (supabaseUrl && serviceRoleKey) {
+    return {
+      async revokeUserSessions(userId: string) {
+        const checkRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+        });
+        if (checkRes.status === 404) return;
+        if (!checkRes.ok) {
+          const errText = await checkRes.text().catch(() => '');
+          throw new Error(`Provider session check failed: HTTP ${checkRes.status} - ${errText}`);
+        }
+        const updateRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({
+            user_metadata: { sessions_revoked_at: new Date().toISOString() },
+          }),
+        });
+        if (!updateRes.ok && updateRes.status !== 204) {
+          const errText = await updateRes.text().catch(() => '');
+          throw new Error(
+            `Provider session revocation failed: HTTP ${updateRes.status} - ${errText}`
+          );
+        }
+      },
+      async deleteUser(userId: string) {
+        const res = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+        });
+        if (res.ok || res.status === 204) return;
+        if (res.status === 404) {
+          const checkRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: serviceRoleKey,
+              Authorization: `Bearer ${serviceRoleKey}`,
+            },
+          });
+          if (checkRes.status === 404) return;
+          throw new Error(
+            `Provider user deletion returned 404 but user '${userId}' still exists`
+          );
+        }
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Provider user deletion failed: HTTP ${res.status} - ${errText}`);
+      },
+    };
+  }
+
+  if (process.env['AUTH_PROVIDER_ADAPTER'] === 'capture') {
+    return {
+      async revokeUserSessions() {},
+      async deleteUser() {},
+    };
+  }
+
+  return undefined;
+}
+
+export function createConfiguredDeletionEmailAdapter():
+  | DeletionEmailAdapterContract
+  | undefined {
+  if (process.env['DELETION_EMAIL_ADAPTER'] === 'capture') {
+    return {
+      async sendVerificationEmail(toEmail, requestId, token) {
+        console.log(
+          `[Capture Email] Verification email dispatched to ${toEmail} for request ${requestId} (token length: ${token.length})`
+        );
+      },
+    };
+  }
+  return undefined;
+}
+
+export function createConfiguredStorageService(): StorageServiceContract | undefined {
+  return undefined;
 }
 
 export interface JobResult {
@@ -391,11 +516,11 @@ export class DaynoriWorker {
             SELECT id
             FROM app.background_jobs
             WHERE (
-                status = 'pending' AND run_at <= now()
+                status = 'pending' AND (run_at IS NULL OR run_at <= now())
             ) OR (
                 status = 'running' AND leased_until < now()
             )
-            ORDER BY run_at ASC
+            ORDER BY COALESCE(run_at, created_at) ASC
             LIMIT 1
             FOR UPDATE SKIP LOCKED
         )
@@ -1629,6 +1754,11 @@ export class DaynoriWorker {
     if (taskType === 'blob_purge' || taskType === 'account_deletion_purge') {
       const storagePaths = (payload?.storagePaths as string[]) || [];
       const bucket = (payload?.bucket as string | undefined) || this.defaultBucket;
+      const deletionId = (payload?.deletionId || payload?.workspaceDeletionId) as
+        | string
+        | undefined;
+      const deletionType =
+        (payload?.deletionType as string) || (payload?.workspaceDeletionId ? 'workspace' : 'account');
       let purgedCount = 0;
 
       if (!this.storageService) {
@@ -1664,6 +1794,43 @@ export class DaynoriWorker {
         }
       }
 
+      // Check if all background cleanup jobs for this deletion have completed
+      if (client && deletionId) {
+        const otherJobs = await client.query<{ count: string }>(
+          `SELECT count(*) as count FROM app.background_jobs
+           WHERE (payload->>'deletionId' = $1 OR payload->>'workspaceDeletionId' = $1)
+             AND task_type IN ('blob_purge', 'provider_user_purge')
+             AND status != 'completed'
+             AND id != $2;`,
+          [deletionId, jobId]
+        );
+        const remainingCount = parseInt(otherJobs.rows[0]?.count || '0', 10);
+        if (remainingCount === 0) {
+          if (deletionType === 'account') {
+            await client.query(
+              `UPDATE app.account_deletions
+               SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
+               WHERE id = $1;`,
+              [deletionId]
+            );
+          } else if (deletionType === 'public') {
+            await client.query(
+              `UPDATE app.public_deletion_requests
+               SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
+               WHERE id = $1;`,
+              [deletionId]
+            );
+          } else if (deletionType === 'workspace') {
+            await client.query(
+              `UPDATE app.workspace_deletions
+               SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
+               WHERE id = $1;`,
+              [deletionId]
+            );
+          }
+        }
+      }
+
       return {
         jobId,
         status: 'completed',
@@ -1672,6 +1839,8 @@ export class DaynoriWorker {
           taskType,
           purgedCount,
           totalPaths: storagePaths.length,
+          deletionId,
+          deletionType,
         },
       };
     }
@@ -1686,30 +1855,44 @@ export class DaynoriWorker {
         throw new Error('provider_user_purge requires userId in payload');
       }
 
-      if (this.authProvider) {
-        if (this.authProvider.revokeUserSessions) {
-          await this.authProvider.revokeUserSessions(targetUserId);
-        }
-        if (this.authProvider.deleteUser) {
-          await this.authProvider.deleteUser(targetUserId);
-        }
+      if (!this.authProvider) {
+        throw new Error('provider_user_purge cannot proceed: authProvider is not configured');
       }
 
+      if (this.authProvider.revokeUserSessions) {
+        await this.authProvider.revokeUserSessions(targetUserId);
+      }
+      if (this.authProvider.deleteUser) {
+        await this.authProvider.deleteUser(targetUserId);
+      }
+
+      // Check if all background cleanup jobs for this deletion have completed
       if (client && deletionId) {
-        if (deletionType === 'account') {
-          await client.query(
-            `UPDATE app.account_deletions
-             SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
-             WHERE id = $1;`,
-            [deletionId]
-          );
-        } else if (deletionType === 'public') {
-          await client.query(
-            `UPDATE app.public_deletion_requests
-             SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
-             WHERE id = $1;`,
-            [deletionId]
-          );
+        const otherJobs = await client.query<{ count: string }>(
+          `SELECT count(*) as count FROM app.background_jobs
+           WHERE (payload->>'deletionId' = $1 OR payload->>'workspaceDeletionId' = $1)
+             AND task_type IN ('blob_purge', 'provider_user_purge')
+             AND status != 'completed'
+             AND id != $2;`,
+          [deletionId, jobId]
+        );
+        const remainingCount = parseInt(otherJobs.rows[0]?.count || '0', 10);
+        if (remainingCount === 0) {
+          if (deletionType === 'account') {
+            await client.query(
+              `UPDATE app.account_deletions
+               SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
+               WHERE id = $1;`,
+              [deletionId]
+            );
+          } else if (deletionType === 'public') {
+            await client.query(
+              `UPDATE app.public_deletion_requests
+               SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
+               WHERE id = $1;`,
+              [deletionId]
+            );
+          }
         }
       }
 
@@ -1738,9 +1921,13 @@ export class DaynoriWorker {
         );
       }
 
-      if (this.deletionEmailAdapter) {
-        await this.deletionEmailAdapter.sendVerificationEmail(toEmail, requestId, token);
+      if (!this.deletionEmailAdapter) {
+        throw new Error(
+          'deletion_verification_email cannot proceed: deletionEmailAdapter is not configured'
+        );
       }
+
+      await this.deletionEmailAdapter.sendVerificationEmail(toEmail, requestId, token);
 
       return {
         jobId,

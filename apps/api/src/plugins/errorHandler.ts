@@ -20,6 +20,14 @@ export class ForbiddenError extends Error {
   }
 }
 
+export class ExplicitForbiddenError extends Error {
+  public statusCode = 403;
+  constructor(message = 'Access forbidden') {
+    super(message);
+    this.name = 'ExplicitForbiddenError';
+  }
+}
+
 export class ValidationError extends Error {
   constructor(message = 'Validation failed') {
     super(message);
@@ -252,6 +260,24 @@ export function createErrorHandler(logger: SafeLogger) {
         },
       };
       return reply.status(error.statusCode || 401).send(body);
+    }
+
+    // 5.5. Explicit Forbidden (403) for intentional beta/feature gate rejections
+    if (
+      error instanceof ExplicitForbiddenError ||
+      (typeof error === 'object' &&
+        error !== null &&
+        'statusCode' in error &&
+        (error as { statusCode?: unknown }).statusCode === 403)
+    ) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: ApiErrorCode.FORBIDDEN,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(403).send(body);
     }
 
     // 6. Not Found or Forbidden (consistently return 404 to avoid leaking object existence)

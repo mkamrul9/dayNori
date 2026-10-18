@@ -17,7 +17,12 @@ import { createApiClient } from '../../../packages/api-client/dist/index.js';
 const fetch = globalThis.fetch;
 
 async function runBetaSmokeChecks() {
-  console.log('=== RUNNING PHASE 38 BETA AUTOMATED SMOKE CHECKS ===\n');
+  const targetUrl = process.env['TARGET_URL'] || process.argv[2];
+  if (targetUrl) {
+    console.log(`=== RUNNING PHASE 38 BETA DEPLOYMENT SMOKE CHECKS (TARGET: ${targetUrl}) ===\n`);
+  } else {
+    console.log('=== [LOCAL INTEGRATION COVERAGE] RUNNING PHASE 38 SYNTHETIC SMOKE CHECKS ===\n');
+  }
   const results = [];
   function record(name, pass, details) {
     results.push({ name, pass, details });
@@ -134,18 +139,26 @@ async function runBetaSmokeChecks() {
       },
     });
 
-    // User B tries to read User A's note -> must fail 403 or 404
+    // User B tries to read User A's note -> must fail with expected 403 or 404 authorization error
     let isolationViolated = false;
+    let isolationStatus = 0;
     try {
       await clientB.getNote(wsA, noteA.data.note.id);
       isolationViolated = true;
-    } catch {
-      isolationViolated = false;
+    } catch (err) {
+      isolationStatus = err?.statusCode || err?.status || 0;
+      if (isolationStatus === 403 || isolationStatus === 404) {
+        isolationViolated = false;
+      } else {
+        isolationViolated = true;
+      }
     }
     record(
       'Cross-Participant Tenant Isolation',
       !isolationViolated,
-      'Participant B strictly denied read access to Participant A workspace item'
+      isolationViolated
+        ? `Expected HTTP 403 or 404 isolation response, received: ${isolationStatus}`
+        : `Participant B strictly denied read access with HTTP ${isolationStatus}`
     );
 
     // 4. Public Deletion Access Boundary

@@ -9,13 +9,19 @@ import {
   PublicDeletionRequestSubmissionSchema,
   VerifyPublicDeletionRequestBodySchema,
 } from '@daynori/contracts';
-import { DeletionService } from '../../modules/lifecycle/deletionService.js';
+import {
+  DeletionService,
+  OutboxDeletionEmailDelivery,
+} from '../../modules/lifecycle/deletionService.js';
 import { AuthError } from '../../auth/jwt.js';
 import { withUserContext } from '../../db/index.js';
 
-const deletionService = new DeletionService();
-
-export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: Pool): void {
+export function registerAuthenticatedDeletionRoutes(
+  app: FastifyInstance,
+  pool: Pool,
+  customDeletionService?: DeletionService
+): void {
+  const service = customDeletionService || new DeletionService(new OutboxDeletionEmailDelivery(pool));
   // 1. Request account deletion
   app.post('/v1/auth/account-deletion/request', async (request, reply) => {
     if (!request.actor) {
@@ -24,7 +30,7 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
 
     const body = RequestAccountDeletionBodySchema.parse(request.body || {});
     const res = await withUserContext(pool, request.actor.userId, async (client) => {
-      return deletionService.requestAccountDeletion(
+      return service.requestAccountDeletion(
         client,
         request.actor!.userId,
         request.rawToken || '',
@@ -42,7 +48,7 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
     }
 
     const body = ConfirmAccountDeletionBodySchema.parse(request.body || {});
-    const res = await deletionService.confirmAccountDeletionWithPool(
+    const res = await service.confirmAccountDeletionWithPool(
       pool,
       request.actor!.userId,
       request.rawToken || '',
@@ -60,7 +66,7 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
 
     const body = CancelAccountDeletionBodySchema.parse(request.body || {});
     const res = await withUserContext(pool, request.actor.userId, async (client) => {
-      return deletionService.cancelAccountDeletion(
+      return service.cancelAccountDeletion(
         client,
         request.actor!.userId,
         undefined,
@@ -77,7 +83,7 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
     }
 
     const res = await withUserContext(pool, request.actor.userId, async (client) => {
-      return deletionService.getAccountDeletionStatus(client, request.actor!.userId);
+      return service.getAccountDeletionStatus(client, request.actor!.userId);
     });
     return reply.status(200).send(res);
   });
@@ -91,7 +97,7 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
     const params = z.object({ workspaceId: z.string().uuid() }).parse(request.params);
     const body = RequestWorkspaceDeletionBodySchema.parse(request.body || {});
 
-    const res = await deletionService.deleteSingleWorkspaceWithPool(
+    const res = await service.deleteSingleWorkspaceWithPool(
       pool,
       request.actor!.userId,
       params.workspaceId,
@@ -103,18 +109,24 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
   });
 }
 
-export function registerPublicDeletionRoutes(app: FastifyInstance, pool: Pool): void {
+export function registerPublicDeletionRoutes(
+  app: FastifyInstance,
+  pool: Pool,
+  customDeletionService?: DeletionService
+): void {
+  const service = customDeletionService || new DeletionService(new OutboxDeletionEmailDelivery(pool));
+
   // Public, unauthenticated deletion request resource (Google Play policy compliance)
   app.post('/v1/public/account-deletion-request', async (request, reply) => {
     const body = PublicDeletionRequestSubmissionSchema.parse(request.body || {});
-    const res = await deletionService.submitPublicDeletionRequest(pool, body.email, body.reason);
+    const res = await service.submitPublicDeletionRequest(pool, body.email, body.reason);
     return reply.status(200).send(res);
   });
 
   // Verify and process public deletion request
   app.post('/v1/public/account-deletion-request/verify', async (request, reply) => {
     const body = VerifyPublicDeletionRequestBodySchema.parse(request.body || {});
-    const res = await deletionService.verifyPublicDeletionRequest(
+    const res = await service.verifyPublicDeletionRequest(
       pool,
       body.requestId,
       body.verificationToken

@@ -26,10 +26,13 @@ export function getReauthSecret(): string {
   if (testSecretOverride) {
     return testSecretOverride;
   }
-  const secret = process.env['REAUTH_SIGNING_SECRET'] || process.env['SUPABASE_JWT_SECRET'];
+  const secret =
+    process.env['REAUTH_SIGNING_SECRET'] ||
+    process.env['REAUTH_SECRET'] ||
+    process.env['SUPABASE_JWT_SECRET'];
   if (!secret) {
     throw new Error(
-      'CONFIG_ERROR: REAUTH_SIGNING_SECRET or SUPABASE_JWT_SECRET is required. Refusing to issue or verify reauthentication proof.'
+      'CONFIG_ERROR: REAUTH_SIGNING_SECRET, REAUTH_SECRET, or SUPABASE_JWT_SECRET is required. Refusing to issue or verify reauthentication proof.'
     );
   }
   return secret;
@@ -115,8 +118,9 @@ export class SupabaseReauthAuthenticator implements ReauthAuthenticator {
       );
     }
 
-    const res = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}/logout`, {
-      method: 'POST',
+    // Check user existence in auth provider
+    const checkRes = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}`, {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         apikey: adminKey,
@@ -124,17 +128,38 @@ export class SupabaseReauthAuthenticator implements ReauthAuthenticator {
       },
     });
 
-    if (res.ok || res.status === 204) {
-      return;
-    }
-    if (res.status === 404) {
-      // User already absent in auth provider
+    if (checkRes.status === 404) {
+      // User is confirmed absent
       return;
     }
 
-    const errorBody = await res.text().catch(() => '');
+    if (!checkRes.ok) {
+      const errText = await checkRes.text().catch(() => '');
+      throw new Error(
+        `Provider session revocation check failed for user '${userId}': HTTP ${checkRes.status} ${checkRes.statusText} - ${errText}`
+      );
+    }
+
+    // Invalidate refresh tokens and session cache via admin user update
+    const updateRes = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: adminKey,
+        Authorization: `Bearer ${adminKey}`,
+      },
+      body: JSON.stringify({
+        user_metadata: { sessions_revoked_at: new Date().toISOString() },
+      }),
+    });
+
+    if (updateRes.ok || updateRes.status === 204) {
+      return;
+    }
+
+    const errorBody = await updateRes.text().catch(() => '');
     throw new Error(
-      `Provider session revocation failed for user '${userId}': HTTP ${res.status} ${res.statusText} - ${errorBody}`
+      `Provider session revocation failed for user '${userId}': HTTP ${updateRes.status} ${updateRes.statusText} - ${errorBody}`
     );
   }
 
@@ -161,9 +186,25 @@ export class SupabaseReauthAuthenticator implements ReauthAuthenticator {
     if (res.ok || res.status === 204) {
       return;
     }
+
     if (res.status === 404) {
-      // User already deleted in auth provider
-      return;
+      // Must verify that user is actually absent in auth provider via GET /admin/users/{userId}
+      // rather than assuming any 404 response proves absent
+      const checkRes = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: adminKey,
+          Authorization: `Bearer ${adminKey}`,
+        },
+      });
+      if (checkRes.status === 404) {
+        // Confirmed absent
+        return;
+      }
+      throw new Error(
+        `Provider user deletion returned 404 but user '${userId}' still exists in provider (GET returned HTTP ${checkRes.status})`
+      );
     }
 
     const errorBody = await res.text().catch(() => '');

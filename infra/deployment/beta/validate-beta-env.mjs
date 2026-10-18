@@ -25,15 +25,28 @@ export function validateBetaEnvironment(env = process.env) {
       `BETA_ACCESS_MODE must be 'private_invitation_only', found: '${env.BETA_ACCESS_MODE || 'unset'}'`
     );
   }
-  if (env.BETA_ALLOW_PUBLIC_SIGNUP === 'true') {
+  if (env.BETA_ALLOW_PUBLIC_SIGNUP !== 'false') {
     errors.push(
-      'BETA_ALLOW_PUBLIC_SIGNUP must be false; public registration is forbidden in beta.'
+      `BETA_ALLOW_PUBLIC_SIGNUP must be explicitly 'false'; public registration is forbidden in beta (found: '${env.BETA_ALLOW_PUBLIC_SIGNUP ?? 'unset'}').`
     );
   }
   const inviteSecret = env.BETA_INVITATION_SECRET || '';
   if (!inviteSecret || inviteSecret.includes('replace_with_') || inviteSecret.length < 32) {
     errors.push(
       'BETA_INVITATION_SECRET must be configured with at least 32 characters of high-entropy secret.'
+    );
+  }
+  const maxSeatsRaw = env.BETA_MAX_SEATS || env.BETA_SEAT_LIMIT;
+  const maxSeats = Number(maxSeatsRaw);
+  if (
+    !maxSeatsRaw ||
+    isNaN(maxSeats) ||
+    !Number.isInteger(maxSeats) ||
+    maxSeats <= 0 ||
+    maxSeats > 100
+  ) {
+    errors.push(
+      `BETA_MAX_SEATS must be a positive integer between 1 and 100 (found: '${maxSeatsRaw ?? 'unset'}').`
     );
   }
 
@@ -47,30 +60,40 @@ export function validateBetaEnvironment(env = process.env) {
   if (!env.DB_NAME || env.DB_NAME === 'postgres') {
     errors.push(`DB_NAME must target an isolated database, not '${env.DB_NAME || 'unset'}'.`);
   }
+  if (env.DB_PASSWORD?.includes('replace_with_') || env.PGPASSWORD?.includes('replace_with_')) {
+    errors.push('Placeholder credentials detected in database configuration.');
+  }
 
   // 3. Storage and quota boundaries
   if (!env.STORAGE_PRIVATE_BUCKET) {
     errors.push('STORAGE_PRIVATE_BUCKET must be explicitly specified.');
   }
-  const quotaBytes = parseInt(env.STORAGE_QUOTA_BYTES_PER_WORKSPACE || '0', 10);
-  if (!quotaBytes || quotaBytes <= 0 || quotaBytes > 500 * 1024 * 1024) {
-    warnings.push(
-      `STORAGE_QUOTA_BYTES_PER_WORKSPACE should be bounded to a conservative beta limit (100MB suggested, found: ${quotaBytes}).`
+  const quotaRaw = env.STORAGE_QUOTA_BYTES_PER_WORKSPACE;
+  const quotaBytes = Number(quotaRaw);
+  if (
+    !quotaRaw ||
+    isNaN(quotaBytes) ||
+    !Number.isInteger(quotaBytes) ||
+    quotaBytes <= 0 ||
+    quotaBytes > 500 * 1024 * 1024
+  ) {
+    errors.push(
+      `STORAGE_QUOTA_BYTES_PER_WORKSPACE must be a positive integer bounded to at most 500MB (found: '${quotaRaw ?? 'unset'}').`
     );
   }
 
   // 4. Privacy & Telemetry
   if (env.REDACT_TELEMETRY !== 'true') {
     errors.push(
-      'REDACT_TELEMETRY must be set to "true" to prevent personal journal/note content from leaking into telemetry.'
+      `REDACT_TELEMETRY must be explicitly set to 'true' to prevent personal journal/note content from leaking into telemetry (found: '${env.REDACT_TELEMETRY ?? 'unset'}').`
     );
   }
 
   // 5. Reauthentication & Token security
-  const reauthSecret = env.REAUTH_SECRET || '';
+  const reauthSecret = env.REAUTH_SECRET || env.REAUTH_SIGNING_SECRET || '';
   if (!reauthSecret || reauthSecret.includes('replace_with_') || reauthSecret.length < 32) {
     errors.push(
-      'REAUTH_SECRET must be configured with at least 32 characters for portable export and account deletion.'
+      'REAUTH_SECRET or REAUTH_SIGNING_SECRET must be configured with at least 32 characters for portable export and account deletion.'
     );
   }
 

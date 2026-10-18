@@ -36,6 +36,9 @@ import {
 } from './routes/v1/deletion.js';
 import { registerSyncRoutes } from './modules/sync/index.js';
 import { storageTransferPlugin } from './modules/files/storageTransfer.js';
+import { registerBetaRoutes } from './routes/v1/beta.js';
+import { BetaAccessService } from './modules/beta/betaAccessService.js';
+import { ExplicitForbiddenError } from './plugins/errorHandler.js';
 
 export interface ServerOptions {
   runtimePool?: Pool;
@@ -135,6 +138,23 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
     return reply.status(200).send(payload);
   });
 
+  // Global barrier for unreleased feature scope (expenses, vault, rooms, ai, billing)
+  // Rejects direct calls with 403 Forbidden before router matching
+  app.addHook('onRequest', async (request) => {
+    const url = request.url;
+    if (
+      url.startsWith('/v1/expenses') ||
+      url.startsWith('/v1/vault') ||
+      url.startsWith('/v1/rooms') ||
+      url.startsWith('/v1/ai') ||
+      url.startsWith('/v1/billing')
+    ) {
+      throw new ExplicitForbiddenError(
+        'This module is unavailable in beta until release gate requirements are verified.'
+      );
+    }
+  });
+
   // 1. Unauthenticated Foundation Routes
   registerHealthRoutes(app, runtimePool, Boolean(verifier));
   registerOpenApiRoutes(app);
@@ -145,8 +165,51 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
   if (verifier) {
     const authenticate = createAuthMiddleware(verifier, runtimePool);
 
+    const betaAccessService = new BetaAccessService(runtimePool);
+
     app.register(async (authScope) => {
       authScope.addHook('preHandler', authenticate);
+
+      // Enforce private beta boundaries and unreleased feature scope
+      authScope.addHook('preHandler', async (request) => {
+        const url = request.url;
+
+        // 1. Unreleased feature scope barriers (403 Forbidden on direct access)
+        if (
+          url.startsWith('/v1/expenses') ||
+          url.startsWith('/v1/vault') ||
+          url.startsWith('/v1/rooms') ||
+          url.startsWith('/v1/ai') ||
+          url.startsWith('/v1/billing')
+        ) {
+          throw new ExplicitForbiddenError(
+            'This module is unavailable in beta until release gate requirements are verified.'
+          );
+        }
+
+        // 2. Private invitation-only enrollment enforcement
+        const accessMode = process.env['BETA_ACCESS_MODE'];
+        if (accessMode === 'private_invitation_only') {
+          // Exempt invitation claiming and account deletion routes
+          if (
+            url.startsWith('/v1/beta/claim-invitation') ||
+            url.startsWith('/v1/auth/account-deletion')
+          ) {
+            return;
+          }
+
+          if (request.actor?.userId) {
+            const isEnrolled = await betaAccessService.isUserEnrolled(request.actor.userId);
+            if (!isEnrolled) {
+              throw new ExplicitForbiddenError(
+                'Private beta access requires an active invitation enrollment. Claim an invitation at /v1/beta/claim-invitation.'
+              );
+            }
+          }
+        }
+      });
+
+      registerBetaRoutes(authScope, runtimePool);
       registerWorkspaceRoutes(authScope, runtimePool);
       registerUserRoutes(authScope, runtimePool);
       registerMemberRoutes(authScope, runtimePool);

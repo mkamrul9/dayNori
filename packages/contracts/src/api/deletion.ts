@@ -74,7 +74,7 @@ export const RequestWorkspaceDeletionResponseSchema = z.object({
   deletionId: z.string().uuid(),
   workspaceId: z.string().uuid(),
   status: z.string(),
-  completedAt: z.string().datetime(),
+  completedAt: z.string().datetime().optional(),
 });
 export type RequestWorkspaceDeletionResponse = z.infer<
   typeof RequestWorkspaceDeletionResponseSchema
