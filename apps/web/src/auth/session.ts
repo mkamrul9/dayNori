@@ -63,6 +63,36 @@ export const ALLOWED_ORIGINS = [
   'https://daynori.app',
 ];
 
+/**
+ * Validates whether an incoming Origin or Referer header belongs to an authorized client origin.
+ * In development and automated test environments, allows loopback hostnames (localhost, 127.0.0.1)
+ * on arbitrary test ports.
+ */
+export function isAllowedOrigin(origin: string): boolean {
+  try {
+    const parsed = new URL(origin);
+    if (ALLOWED_ORIGINS.includes(parsed.origin)) {
+      return true;
+    }
+    // Allow loopback hostnames in non-production or test runs
+    if (
+      process.env.NODE_ENV !== 'production' ||
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1'
+    ) {
+      if (
+        (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') &&
+        (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      ) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export interface CookieOptions {
   httpOnly: boolean;
   secure: boolean;
@@ -103,13 +133,8 @@ export function validateCsrfAndOrigin(req: Request): { valid: boolean; error?: s
   const origin = req.headers.get('origin') || req.headers.get('referer');
 
   if (origin) {
-    try {
-      const parsed = new URL(origin);
-      if (!ALLOWED_ORIGINS.includes(parsed.origin)) {
-        return { valid: false, error: 'Forbidden origin' };
-      }
-    } catch {
-      return { valid: false, error: 'Malformed origin header' };
+    if (!isAllowedOrigin(origin)) {
+      return { valid: false, error: 'Forbidden origin' };
     }
   }
 

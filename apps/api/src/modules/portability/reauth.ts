@@ -105,34 +105,100 @@ export class SupabaseReauthAuthenticator implements ReauthAuthenticator {
   }
 
   async revokeUserSessions(userId: string): Promise<void> {
-    try {
-      const adminKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || this.supabaseAnonKey;
-      await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}/logout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: adminKey,
-          Authorization: `Bearer ${adminKey}`,
-        },
-      });
-    } catch {
-      // Best-effort provider-side session revocation
+    const adminKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+    if (!adminKey) {
+      if (process.env.NODE_ENV === 'test' || !process.env['SUPABASE_URL']) {
+        return;
+      }
+      throw new Error(
+        'CONFIG_ERROR: SUPABASE_SERVICE_ROLE_KEY is required for administrative provider session revocation'
+      );
     }
+
+    const res = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: adminKey,
+        Authorization: `Bearer ${adminKey}`,
+      },
+    });
+
+    if (res.ok || res.status === 204) {
+      return;
+    }
+    if (res.status === 404) {
+      // User already absent in auth provider
+      return;
+    }
+
+    const errorBody = await res.text().catch(() => '');
+    throw new Error(
+      `Provider session revocation failed for user '${userId}': HTTP ${res.status} ${res.statusText} - ${errorBody}`
+    );
   }
 
   async deleteUser(userId: string): Promise<void> {
+    const adminKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+    if (!adminKey) {
+      if (process.env.NODE_ENV === 'test' || !process.env['SUPABASE_URL']) {
+        return;
+      }
+      throw new Error(
+        'CONFIG_ERROR: SUPABASE_SERVICE_ROLE_KEY is required for administrative provider user deletion'
+      );
+    }
+
+    const res = await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: adminKey,
+        Authorization: `Bearer ${adminKey}`,
+      },
+    });
+
+    if (res.ok || res.status === 204) {
+      return;
+    }
+    if (res.status === 404) {
+      // User already deleted in auth provider
+      return;
+    }
+
+    const errorBody = await res.text().catch(() => '');
+    throw new Error(
+      `Provider user deletion failed for user '${userId}': HTTP ${res.status} ${res.statusText} - ${errorBody}`
+    );
+  }
+
+  async getUserByEmail(email: string): Promise<{ id: string; email: string } | null> {
+    const adminKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+    if (!adminKey) {
+      return null;
+    }
     try {
-      const adminKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || this.supabaseAnonKey;
-      await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: adminKey,
-          Authorization: `Bearer ${adminKey}`,
-        },
-      });
+      const res = await fetch(
+        `${this.supabaseUrl}/auth/v1/admin/users?query=${encodeURIComponent(email)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: adminKey,
+            Authorization: `Bearer ${adminKey}`,
+          },
+        }
+      );
+      if (!res.ok) {
+        return null;
+      }
+      const data = (await res.json().catch(() => null)) as {
+        users?: Array<{ id: string; email: string }>;
+      } | null;
+      const user = data?.users?.find((u) => u.email.toLowerCase() === email.toLowerCase());
+      return user ? { id: user.id, email: user.email } : null;
     } catch {
-      // Best-effort provider-side user deletion
+      return null;
     }
   }
 }

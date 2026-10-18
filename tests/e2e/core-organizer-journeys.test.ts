@@ -21,7 +21,7 @@ import { DaynoriWorker, type StorageServiceContract } from '../../apps/worker/sr
 import { type NoteDocument, type HomeLayout } from '@daynori/domain';
 import type { CalendarTaskDeadlineItem } from '@daynori/contracts';
 
-describe('Phase 37: Core Quality and Usability Release Gate — Core Application Journeys', () => {
+describe('Phase 37: Core Organizer Journeys — API, Domain, and Database Integration (Synthetic Auth & In-Memory Storage)', () => {
   let adminPool: Pool;
   let runtimePool: Pool;
   let migrator: Migrator;

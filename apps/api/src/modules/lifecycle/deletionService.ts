@@ -14,6 +14,7 @@ import { NotFoundError, ForbiddenError, ValidationError } from '../../plugins/er
 import { getActiveAuthenticator, verifyReauthTicket } from '../portability/reauth.js';
 import { getDefaultStorageProvider } from '../files/storageAdapter.js';
 import { PRIVATE_ASSETS_BUCKET } from '../files/service.js';
+import { withUserContext } from '../../db/index.js';
 
 export const DELETION_DISCLOSURE =
   'Your notes, tasks, routines, journal entries, uploaded files, and account profile will be permanently deleted upon confirmation. Data cannot be recovered after completion. Transient backup snapshots rotate out within 30 days. Cryptographic tombstones are retained in the suppression ledger for 90 days solely to prevent unintentional reactivation during disaster recovery drills.';
@@ -23,7 +24,12 @@ export interface DeletionEmailDelivery {
 }
 
 export class InMemoryDeletionEmailDelivery implements DeletionEmailDelivery {
-  private dispatches: Array<{ toEmail: string; requestId: string; token: string; timestamp: string }> = [];
+  private dispatches: Array<{
+    toEmail: string;
+    requestId: string;
+    token: string;
+    timestamp: string;
+  }> = [];
 
   async sendVerificationEmail(toEmail: string, requestId: string, token: string): Promise<void> {
     this.dispatches.push({ toEmail, requestId, token, timestamp: new Date().toISOString() });
@@ -40,6 +46,18 @@ export class InMemoryDeletionEmailDelivery implements DeletionEmailDelivery {
 
   clear(): void {
     this.dispatches = [];
+  }
+}
+
+export class OutboxDeletionEmailDelivery implements DeletionEmailDelivery {
+  constructor(private pool: Pool | PoolClient) {}
+
+  async sendVerificationEmail(toEmail: string, requestId: string, token: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
+       VALUES ('deletion_verification_email', $1, 'pending', now(), now());`,
+      [JSON.stringify({ toEmail, requestId, token })]
+    );
   }
 }
 
@@ -100,15 +118,85 @@ export class DeletionService {
   }
 
   /**
-   * Confirm and immediately execute full account deletion.
+   * Attempts immediate external provider session revocation, user deletion, and storage blob purge outside the DB transaction.
+   * Never throws; returns inspectable results so calling code can record truthful completion.
    */
-  async confirmAccountDeletion(
+  async performExternalCleanup(
+    userId: string,
+    storagePaths: string[]
+  ): Promise<{
+    providerRevocationSuccess: boolean;
+    providerDeletionSuccess: boolean;
+    storagePurgeSuccess: boolean;
+    allSucceeded: boolean;
+    lastError?: string;
+  }> {
+    let providerRevocationSuccess = true;
+    let providerDeletionSuccess = true;
+    let storagePurgeSuccess = true;
+    let lastError: string | undefined;
+
+    const authenticator = getActiveAuthenticator();
+    if (authenticator.revokeUserSessions) {
+      try {
+        await authenticator.revokeUserSessions(userId);
+      } catch (err) {
+        providerRevocationSuccess = false;
+        lastError = `Provider session revocation failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
+
+    if (authenticator.deleteUser) {
+      try {
+        await authenticator.deleteUser(userId);
+      } catch (err) {
+        providerDeletionSuccess = false;
+        if (!lastError) {
+          lastError = `Provider user deletion failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+    }
+
+    const storageProvider = getDefaultStorageProvider();
+    for (const p of storagePaths) {
+      try {
+        await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, p);
+      } catch (err) {
+        storagePurgeSuccess = false;
+        if (!lastError) {
+          lastError = `Storage purge failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+    }
+
+    const allSucceeded =
+      providerRevocationSuccess && providerDeletionSuccess && storagePurgeSuccess;
+    return {
+      providerRevocationSuccess,
+      providerDeletionSuccess,
+      storagePurgeSuccess,
+      allSucceeded,
+      lastError,
+    };
+  }
+
+  /**
+   * Transactional phase: validates request, transitions status to 'processing',
+   * purges relational data, records suppression tombstones, and enqueues durable
+   * blob_purge and provider_user_purge background jobs.
+   */
+  async executeAccountDeletionTransaction(
     client: PoolClient | Pool,
     userId: string,
     sessionToken: string,
     confirmationToken: string,
     userEmail?: string
-  ): Promise<ConfirmAccountDeletionResponse> {
+  ): Promise<{
+    deletionId: string;
+    alreadyCompleted: boolean;
+    completedAt?: string;
+    storagePaths: string[];
+  }> {
     // 1. Find pending deletion
     const delRes = await client.query<{
       id: string;
@@ -132,14 +220,15 @@ export class DeletionService {
 
     const deletion = delRes.rows[0]!;
 
-    // Idempotent retry: if already completed, return success
-    if (deletion.status === 'completed') {
+    // Idempotent retry: if already completed or processing, return success
+    if (deletion.status === 'completed' || deletion.status === 'processing') {
       return {
-        success: true,
         deletionId: deletion.id,
-        status: 'completed',
-        completedAt: deletion.completed_at ? deletion.completed_at.toISOString() : new Date().toISOString(),
-        message: 'Account and associated personal data have been permanently erased.',
+        alreadyCompleted: true,
+        completedAt: deletion.completed_at
+          ? deletion.completed_at.toISOString()
+          : new Date().toISOString(),
+        storagePaths: [],
       };
     }
 
@@ -148,7 +237,9 @@ export class DeletionService {
     }
 
     if (deletion.status !== 'pending_confirmation') {
-      throw new ValidationError(`Account deletion cannot be confirmed from status '${deletion.status}'`);
+      throw new ValidationError(
+        `Account deletion cannot be confirmed from status '${deletion.status}'`
+      );
     }
 
     // Verify confirmation token
@@ -167,7 +258,9 @@ export class DeletionService {
 
     // Verify cancellation deadline freshness
     if (new Date(deletion.cancellation_deadline).getTime() < Date.now()) {
-      throw new ValidationError('Deletion confirmation deadline has expired; please request deletion again');
+      throw new ValidationError(
+        'Deletion confirmation deadline has expired; please request deletion again'
+      );
     }
 
     // Atomic transition: pending_confirmation -> processing
@@ -180,46 +273,182 @@ export class DeletionService {
     );
 
     if (updateRes.rows.length === 0) {
-      // Race condition / duplicate confirmation
       const raceRes = await client.query<{ status: string; completed_at: Date | null }>(
         `SELECT status, completed_at FROM app.account_deletions WHERE id = $1;`,
         [deletion.id]
       );
-      if (raceRes.rows[0]?.status === 'completed') {
+      if (raceRes.rows[0]?.status === 'completed' || raceRes.rows[0]?.status === 'processing') {
         return {
-          success: true,
           deletionId: deletion.id,
-          status: 'completed',
+          alreadyCompleted: true,
           completedAt: raceRes.rows[0].completed_at?.toISOString() || new Date().toISOString(),
-          message: 'Account and associated personal data have been permanently erased.',
+          storagePaths: [],
         };
       }
-      throw new ValidationError('Concurrent deletion confirmation in progress or already processed');
+      throw new ValidationError(
+        'Concurrent deletion confirmation in progress or already processed'
+      );
     }
 
-    // Execute direct account purge
+    // Execute direct relational account purge + enqueue cleanup jobs
     const storagePaths = await this.executeDirectAccountPurge(
       client,
       userId,
       userEmail,
       'user_account_deleted',
-      sessionToken
+      sessionToken,
+      deletion.id
     );
 
-    // Mark deletion completed
+    // Save deletion manifest while remaining in 'processing' status
     await client.query(
       `UPDATE app.account_deletions
-       SET status = 'completed', object_deletion_manifest = $1, completed_at = now(), updated_at = now()
+       SET object_deletion_manifest = $1, updated_at = now()
        WHERE id = $2;`,
       [JSON.stringify(storagePaths), deletion.id]
     );
 
     return {
-      success: true,
       deletionId: deletion.id,
-      status: 'completed',
+      alreadyCompleted: false,
+      storagePaths,
+    };
+  }
+
+  /**
+   * Durable account deletion: executes database transaction first, commits,
+   * then performs external provider/storage cleanup outside the transaction.
+   */
+  async confirmAccountDeletionWithPool(
+    pool: Pool,
+    userId: string,
+    sessionToken: string,
+    confirmationToken: string,
+    userEmail?: string
+  ): Promise<ConfirmAccountDeletionResponse> {
+    const txResult = await withUserContext(pool, userId, async (client) => {
+      return this.executeAccountDeletionTransaction(
+        client,
+        userId,
+        sessionToken,
+        confirmationToken,
+        userEmail
+      );
+    });
+
+    if (txResult.alreadyCompleted) {
+      return {
+        success: true,
+        deletionId: txResult.deletionId,
+        status: 'completed',
+        completedAt: txResult.completedAt || new Date().toISOString(),
+        message: 'Account and associated personal data have been permanently erased.',
+      };
+    }
+
+    // Irreversible external effects executed OUTSIDE the database transaction
+    const cleanup = await this.performExternalCleanup(userId, txResult.storagePaths);
+
+    if (cleanup.allSucceeded) {
+      await withUserContext(pool, userId, async (client) => {
+        await client.query(
+          `UPDATE app.account_deletions
+           SET status = 'completed', completed_at = now(), updated_at = now()
+           WHERE id = $1;`,
+          [txResult.deletionId]
+        );
+      });
+
+      return {
+        success: true,
+        deletionId: txResult.deletionId,
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        message: 'Account and associated personal data have been permanently erased.',
+      };
+    }
+
+    // Cleanup incomplete or failed: remain in 'processing' with last_error persisted for background retries
+    await withUserContext(pool, userId, async (client) => {
+      await client.query(
+        `UPDATE app.account_deletions
+         SET last_error = $1, updated_at = now()
+         WHERE id = $2;`,
+        [cleanup.lastError || 'External provider or storage cleanup pending', txResult.deletionId]
+      );
+    });
+
+    return {
+      success: true,
+      deletionId: txResult.deletionId,
+      status: 'processing',
       completedAt: new Date().toISOString(),
-      message: 'Account and associated personal data have been permanently erased.',
+      message:
+        'Account relational data permanently erased; external provider and storage cleanup jobs are running in background.',
+    };
+  }
+
+  /**
+   * Confirm and immediately execute full account deletion.
+   */
+  async confirmAccountDeletion(
+    client: PoolClient | Pool,
+    userId: string,
+    sessionToken: string,
+    confirmationToken: string,
+    userEmail?: string
+  ): Promise<ConfirmAccountDeletionResponse> {
+    const txResult = await this.executeAccountDeletionTransaction(
+      client,
+      userId,
+      sessionToken,
+      confirmationToken,
+      userEmail
+    );
+
+    if (txResult.alreadyCompleted) {
+      return {
+        success: true,
+        deletionId: txResult.deletionId,
+        status: 'completed',
+        completedAt: txResult.completedAt || new Date().toISOString(),
+        message: 'Account and associated personal data have been permanently erased.',
+      };
+    }
+
+    const cleanup = await this.performExternalCleanup(userId, txResult.storagePaths);
+
+    if (cleanup.allSucceeded) {
+      await client.query(
+        `UPDATE app.account_deletions
+         SET status = 'completed', completed_at = now(), updated_at = now()
+         WHERE id = $1;`,
+        [txResult.deletionId]
+      );
+
+      return {
+        success: true,
+        deletionId: txResult.deletionId,
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        message: 'Account and associated personal data have been permanently erased.',
+      };
+    }
+
+    await client.query(
+      `UPDATE app.account_deletions
+       SET last_error = $1, updated_at = now()
+       WHERE id = $2;`,
+      [cleanup.lastError || 'External provider or storage cleanup pending', txResult.deletionId]
+    );
+
+    return {
+      success: true,
+      deletionId: txResult.deletionId,
+      status: 'processing',
+      completedAt: new Date().toISOString(),
+      message:
+        'Account relational data permanently erased; external provider and storage cleanup jobs are running in background.',
     };
   }
 
@@ -231,7 +460,8 @@ export class DeletionService {
     userId: string,
     userEmail?: string,
     reason = 'account_deletion',
-    sessionToken?: string
+    sessionToken?: string,
+    deletionId?: string
   ): Promise<string[]> {
     const email = userEmail || '';
 
@@ -332,18 +562,19 @@ export class DeletionService {
       .createHash('sha256')
       .update(`account:${userId}:${email}`)
       .digest('hex');
-    await client.query(
-      `SELECT app.record_deletion_tombstone('account', $1, $2, $3);`,
-      [userId, accountHash, reason]
-    );
+    await client.query(`SELECT app.record_deletion_tombstone('account', $1, $2, $3);`, [
+      userId,
+      accountHash,
+      reason,
+    ]);
 
     // 9. Record revoked session tokens
     if (sessionToken) {
       const tokenHash = crypto.createHash('sha256').update(sessionToken).digest('hex');
-      await client.query(
-        `SELECT app.record_revoked_token($1, $2, 'account_deletion');`,
-        [tokenHash, userId]
-      );
+      await client.query(`SELECT app.record_revoked_token($1, $2, 'account_deletion');`, [
+        tokenHash,
+        userId,
+      ]);
     }
 
     // 10. Enqueue durable blob purge background job before external effects
@@ -351,38 +582,18 @@ export class DeletionService {
       await client.query(
         `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
          VALUES ('blob_purge', $1, 'pending', now(), now());`,
-        [JSON.stringify({ storagePaths, bucket: PRIVATE_ASSETS_BUCKET })]
+        [JSON.stringify({ storagePaths, bucket: PRIVATE_ASSETS_BUCKET, deletionId })]
       );
     }
 
-    // 11. Revoke identity provider sessions and delete provider user
-    const authenticator = getActiveAuthenticator();
-    if (authenticator.revokeUserSessions) {
-      try {
-        await authenticator.revokeUserSessions(userId);
-      } catch {
-        // provider revocation best-effort
-      }
-    }
-    if (authenticator.deleteUser) {
-      try {
-        await authenticator.deleteUser(userId);
-      } catch {
-        // provider deletion best-effort
-      }
-    }
+    // 11. Enqueue durable provider user purge background job
+    await client.query(
+      `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
+       VALUES ('provider_user_purge', $1, 'pending', now(), now());`,
+      [JSON.stringify({ userId, userEmail: email, reason, deletionId })]
+    );
 
-    // 12. Purge private storage objects synchronously (durable background job guarantees completion)
-    const storageProvider = getDefaultStorageProvider();
-    for (const p of storagePaths) {
-      try {
-        await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, p);
-      } catch {
-        // Handled durably by the enqueued blob_purge background job
-      }
-    }
-
-    // 13. Purge profile, memberships, devices, and user audit rows via Security Definer procedure
+    // 12. Purge profile, memberships, devices, and user audit rows via Security Definer procedure
     await client.query('SELECT app.purge_user_profile($1);', [userId]);
 
     return storagePaths;
@@ -459,16 +670,18 @@ export class DeletionService {
   }
 
   /**
-   * Delete a single workspace (leaving caller user account intact).
+   * Transactional phase: validates ownership, reauth, creates workspace_deletions in 'processing',
+   * invalidates reminders/jobs, enqueues blob_purge job, records suppression tombstone,
+   * and purges workspace relational rows via Security Definer procedure.
    */
-  async deleteSingleWorkspace(
+  async executeWorkspaceDeletionTransaction(
     client: PoolClient | Pool,
     userId: string,
     workspaceId: string,
     sessionToken: string,
     options: { password?: string; reauthTicket?: string; reason?: string },
     userEmail?: string
-  ): Promise<RequestWorkspaceDeletionResponse> {
+  ): Promise<{ deletionId: string; storagePaths: string[] }> {
     // 1. Verify workspace exists and user is owner
     const ws = await client.query<{ id: string; owner_id: string }>(
       `SELECT id, owner_id FROM app.workspaces WHERE id = $1;`,
@@ -524,19 +737,21 @@ export class DeletionService {
     );
     storagePaths.push(...importsRes.rows.map((r) => r.storage_path));
 
-    // 4. Create deletion record
+    // 4. Create deletion record in 'processing' status
     const sessionHash = sessionToken
       ? crypto.createHash('sha256').update(sessionToken).digest('hex').substring(0, 32)
       : 'unspecified_session';
 
     const delRes = await client.query<{ id: string }>(
       `INSERT INTO app.workspace_deletions (
-        workspace_id, requested_by, session_hash, status, object_deletion_manifest, confirmed_at, completed_at
+        workspace_id, requested_by, session_hash, status, object_deletion_manifest, confirmed_at
       )
-      VALUES ($1, $2, $3, 'completed', $4, now(), now())
+      VALUES ($1, $2, $3, 'processing', $4, now())
       RETURNING id;`,
       [workspaceId, userId, sessionHash, JSON.stringify(storagePaths)]
     );
+
+    const deletionId = delRes.rows[0]!.id;
 
     // 5. Invalidate reminders & background jobs
     await client.query(
@@ -559,7 +774,13 @@ export class DeletionService {
       await client.query(
         `INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
          VALUES ('blob_purge', $1, 'pending', now(), now());`,
-        [JSON.stringify({ storagePaths, bucket: PRIVATE_ASSETS_BUCKET })]
+        [
+          JSON.stringify({
+            storagePaths,
+            bucket: PRIVATE_ASSETS_BUCKET,
+            workspaceDeletionId: deletionId,
+          }),
+        ]
       );
     }
 
@@ -573,21 +794,114 @@ export class DeletionService {
     // 8. Purge workspace rows using Security Definer procedure
     await client.query('SELECT app.purge_owned_workspace($1, $2);', [workspaceId, userId]);
 
-    // 9. Purge storage objects synchronously
+    return { deletionId, storagePaths };
+  }
+
+  /**
+   * Delete single workspace using pool: executes transaction inside withUserContext,
+   * commits, then attempts storage cleanup outside the transaction.
+   */
+  async deleteSingleWorkspaceWithPool(
+    pool: Pool,
+    userId: string,
+    workspaceId: string,
+    sessionToken: string,
+    options: { password?: string; reauthTicket?: string; reason?: string },
+    userEmail?: string
+  ): Promise<RequestWorkspaceDeletionResponse> {
+    const { deletionId, storagePaths } = await withUserContext(pool, userId, async (client) => {
+      return this.executeWorkspaceDeletionTransaction(
+        client,
+        userId,
+        workspaceId,
+        sessionToken,
+        options,
+        userEmail
+      );
+    });
+
     const storageProvider = getDefaultStorageProvider();
+    let allPurged = true;
     for (const p of storagePaths) {
       try {
         await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, p);
       } catch {
-        // worker cleanup
+        allPurged = false;
       }
+    }
+
+    if (allPurged) {
+      await withUserContext(pool, userId, async (client) => {
+        await client.query(
+          `UPDATE app.workspace_deletions SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1;`,
+          [deletionId]
+        );
+      });
+    } else {
+      await withUserContext(pool, userId, async (client) => {
+        await client.query(
+          `UPDATE app.workspace_deletions SET last_error = 'Storage blob purge in progress by background worker', updated_at = now() WHERE id = $1;`,
+          [deletionId]
+        );
+      });
     }
 
     return {
       success: true,
-      deletionId: delRes.rows[0]!.id,
+      deletionId,
       workspaceId,
-      status: 'completed',
+      status: allPurged ? 'completed' : 'processing',
+      completedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Delete a single workspace (leaving caller user account intact).
+   */
+  async deleteSingleWorkspace(
+    client: PoolClient | Pool,
+    userId: string,
+    workspaceId: string,
+    sessionToken: string,
+    options: { password?: string; reauthTicket?: string; reason?: string },
+    userEmail?: string
+  ): Promise<RequestWorkspaceDeletionResponse> {
+    const { deletionId, storagePaths } = await this.executeWorkspaceDeletionTransaction(
+      client,
+      userId,
+      workspaceId,
+      sessionToken,
+      options,
+      userEmail
+    );
+
+    const storageProvider = getDefaultStorageProvider();
+    let allPurged = true;
+    for (const p of storagePaths) {
+      try {
+        await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, p);
+      } catch {
+        allPurged = false;
+      }
+    }
+
+    if (allPurged) {
+      await client.query(
+        `UPDATE app.workspace_deletions SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1;`,
+        [deletionId]
+      );
+    } else {
+      await client.query(
+        `UPDATE app.workspace_deletions SET last_error = 'Storage blob purge in progress by background worker', updated_at = now() WHERE id = $1;`,
+        [deletionId]
+      );
+    }
+
+    return {
+      success: true,
+      deletionId,
+      workspaceId,
+      status: allPurged ? 'completed' : 'processing',
       completedAt: new Date().toISOString(),
     };
   }
@@ -689,10 +1003,28 @@ export class DeletionService {
     }
 
     if (row.status === 'expired' || new Date(row.expires_at).getTime() < Date.now()) {
-      await client.query(`UPDATE app.public_deletion_requests SET status = 'expired' WHERE id = $1;`, [
-        requestId,
-      ]);
-      throw new ValidationError('Verification token has expired; please submit a new deletion request');
+      await client.query(
+        `UPDATE app.public_deletion_requests SET status = 'expired' WHERE id = $1;`,
+        [requestId]
+      );
+      throw new ValidationError(
+        'Verification token has expired; please submit a new deletion request'
+      );
+    }
+
+    // Atomic status transition: pending_verification -> processing
+    const updateRes = await client.query<{ id: string }>(
+      `UPDATE app.public_deletion_requests
+       SET status = 'processing', updated_at = now()
+       WHERE id = $1 AND status = 'pending_verification'
+       RETURNING id;`,
+      [requestId]
+    );
+
+    if (updateRes.rows.length === 0 && row.status !== 'processing') {
+      throw new ValidationError(
+        'Concurrent public deletion verification in progress or already processed'
+      );
     }
 
     // Resolve user ID associated with this email
@@ -724,23 +1056,75 @@ export class DeletionService {
     }
 
     if (targetUserId) {
-      await this.executeDirectAccountPurge(
-        client,
-        targetUserId,
-        row.email,
-        'public_web_verified_deletion'
-      );
-    } else {
-      const accountHash = crypto.createHash('sha256').update(`account:${row.email}`).digest('hex');
+      // Record target_user_id on public deletion request to authorize privileged cleanup procedures
       await client.query(
-        `SELECT app.record_deletion_tombstone('account', gen_random_uuid(), $1, 'public_web_verified_deletion');`,
-        [accountHash]
+        `UPDATE app.public_deletion_requests SET target_user_id = $1 WHERE id = $2;`,
+        [targetUserId, requestId]
       );
+
+      // Relational database purge + durable background jobs
+      let storagePaths: string[];
+      if ('connect' in client && typeof (client as Pool).connect === 'function') {
+        storagePaths = await withUserContext(client as Pool, targetUserId, async (scopedClient) => {
+          return this.executeDirectAccountPurge(
+            scopedClient,
+            targetUserId!,
+            row.email,
+            'public_web_verified_deletion',
+            undefined,
+            requestId
+          );
+        });
+      } else {
+        await client.query("SELECT set_config('app.current_user_id', $1, true);", [targetUserId]);
+        storagePaths = await this.executeDirectAccountPurge(
+          client,
+          targetUserId,
+          row.email,
+          'public_web_verified_deletion',
+          undefined,
+          requestId
+        );
+      }
+
+      // External provider and storage cleanup outside transaction
+      const cleanup = await this.performExternalCleanup(targetUserId, storagePaths);
+
+      if (cleanup.allSucceeded) {
+        await client.query(
+          `UPDATE app.public_deletion_requests SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1;`,
+          [requestId]
+        );
+        return {
+          success: true,
+          status: 'completed',
+          message:
+            'Account ownership verified. All personal data and accounts associated with this email have been permanently deleted.',
+        };
+      }
+
+      await client.query(
+        `UPDATE app.public_deletion_requests SET last_error = $1, updated_at = now() WHERE id = $2;`,
+        [cleanup.lastError || 'External provider cleanup pending', requestId]
+      );
+
+      return {
+        success: true,
+        status: 'processing',
+        message:
+          'Account ownership verified. Personal data erased; external provider cleanup is in progress.',
+      };
     }
 
-    // Mark public request completed
+    // Email has no active user account: record suppression tombstone and mark completed
+    const accountHash = crypto.createHash('sha256').update(`account:${row.email}`).digest('hex');
     await client.query(
-      `UPDATE app.public_deletion_requests SET status = 'completed', completed_at = now() WHERE id = $1;`,
+      `SELECT app.record_deletion_tombstone('account', gen_random_uuid(), $1, 'public_web_verified_deletion');`,
+      [accountHash]
+    );
+
+    await client.query(
+      `UPDATE app.public_deletion_requests SET status = 'completed', completed_at = now(), updated_at = now() WHERE id = $1;`,
       [requestId]
     );
 
@@ -748,7 +1132,7 @@ export class DeletionService {
       success: true,
       status: 'completed',
       message:
-        'Account ownership verified. All personal data and accounts associated with this email have been permanently deleted.',
+        'Account ownership verified. No active account found for this email; cryptographic suppression tombstone has been recorded.',
     };
   }
 

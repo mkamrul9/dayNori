@@ -27,7 +27,7 @@ export const ConfirmAccountDeletionResponseSchema = z.object({
   success: z.boolean(),
   deletionId: z.string().uuid(),
   status: z.string(),
-  completedAt: z.string().datetime(),
+  completedAt: z.string().datetime().optional(),
   message: z.string(),
 });
 export type ConfirmAccountDeletionResponse = z.infer<typeof ConfirmAccountDeletionResponseSchema>;
@@ -97,16 +97,11 @@ export const VerifyPublicDeletionRequestBodySchema = z.object({
   requestId: z.string().uuid(),
   verificationToken: z.string().min(1),
 });
-export type VerifyPublicDeletionRequestBody = z.infer<
-  typeof VerifyPublicDeletionRequestBodySchema
->;
+export type VerifyPublicDeletionRequestBody = z.infer<typeof VerifyPublicDeletionRequestBodySchema>;
 
 export const VerifyPublicDeletionResponseSchema = z.object({
   success: z.boolean(),
-  status: z.enum(['completed', 'verified', 'not_found']),
+  status: z.enum(['completed', 'verified', 'processing', 'not_found']),
   message: z.string(),
 });
-export type VerifyPublicDeletionResponse = z.infer<
-  typeof VerifyPublicDeletionResponseSchema
->;
-
+export type VerifyPublicDeletionResponse = z.infer<typeof VerifyPublicDeletionResponseSchema>;

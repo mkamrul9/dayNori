@@ -203,11 +203,22 @@ export interface ScannerServiceContract {
   ): Promise<{ isClean: boolean; threatName?: string }>;
 }
 
+export interface AuthProviderContract {
+  revokeUserSessions?(userId: string): Promise<void>;
+  deleteUser?(userId: string): Promise<void>;
+}
+
+export interface DeletionEmailAdapterContract {
+  sendVerificationEmail(toEmail: string, requestId: string, token: string): Promise<void>;
+}
+
 export interface DaynoriWorkerOptions {
   storageService?: StorageServiceContract;
   scannerService?: ScannerServiceContract;
   pushAdapter?: PushNotificationAdapter;
   webPushAdapter?: WebPushNotificationAdapter;
+  authProvider?: AuthProviderContract;
+  deletionEmailAdapter?: DeletionEmailAdapterContract;
   defaultBucket?: string;
   workerId?: string;
 }
@@ -223,6 +234,8 @@ export class DaynoriWorker {
   private scannerService?: ScannerServiceContract;
   private pushAdapter?: PushNotificationAdapter;
   private webPushAdapter?: WebPushNotificationAdapter;
+  private authProvider?: AuthProviderContract;
+  private deletionEmailAdapter?: DeletionEmailAdapterContract;
   private defaultBucket: string = 'files';
 
   constructor(pool?: DatabasePool, options?: DaynoriWorkerOptions) {
@@ -242,9 +255,23 @@ export class DaynoriWorker {
     if (options?.webPushAdapter) {
       this.webPushAdapter = options.webPushAdapter;
     }
+    if (options?.authProvider) {
+      this.authProvider = options.authProvider;
+    }
+    if (options?.deletionEmailAdapter) {
+      this.deletionEmailAdapter = options.deletionEmailAdapter;
+    }
     if (options?.defaultBucket) {
       this.defaultBucket = options.defaultBucket;
     }
+  }
+
+  setAuthProvider(provider: AuthProviderContract): void {
+    this.authProvider = provider;
+  }
+
+  setDeletionEmailAdapter(adapter: DeletionEmailAdapterContract): void {
+    this.deletionEmailAdapter = adapter;
   }
 
   setPushAdapter(adapter: PushNotificationAdapter): void {
@@ -1617,7 +1644,8 @@ export class DaynoriWorker {
           const status = errorObj?.status || errorObj?.statusCode;
           const code = errorObj?.code;
           const name = errorObj?.name;
-          const message = typeof errorObj?.message === 'string' ? errorObj.message.toLowerCase() : '';
+          const message =
+            typeof errorObj?.message === 'string' ? errorObj.message.toLowerCase() : '';
           const isNotFound =
             status === 404 ||
             code === 'NoSuchKey' ||
@@ -1644,6 +1672,84 @@ export class DaynoriWorker {
           taskType,
           purgedCount,
           totalPaths: storagePaths.length,
+        },
+      };
+    }
+
+    // Built-in: Identity Provider User Purge (Phase 36 / 37)
+    if (taskType === 'provider_user_purge') {
+      const targetUserId = payload?.userId as string | undefined;
+      const deletionId = payload?.deletionId as string | undefined;
+      const deletionType = (payload?.deletionType as string) || 'account';
+
+      if (!targetUserId) {
+        throw new Error('provider_user_purge requires userId in payload');
+      }
+
+      if (this.authProvider) {
+        if (this.authProvider.revokeUserSessions) {
+          await this.authProvider.revokeUserSessions(targetUserId);
+        }
+        if (this.authProvider.deleteUser) {
+          await this.authProvider.deleteUser(targetUserId);
+        }
+      }
+
+      if (client && deletionId) {
+        if (deletionType === 'account') {
+          await client.query(
+            `UPDATE app.account_deletions
+             SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
+             WHERE id = $1;`,
+            [deletionId]
+          );
+        } else if (deletionType === 'public') {
+          await client.query(
+            `UPDATE app.public_deletion_requests
+             SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
+             WHERE id = $1;`,
+            [deletionId]
+          );
+        }
+      }
+
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: {
+          taskType,
+          userId: targetUserId,
+          deletionId,
+          deletionType,
+        },
+      };
+    }
+
+    // Built-in: Deletion Verification Email Dispatch (Phase 36 / 37)
+    if (taskType === 'deletion_verification_email') {
+      const toEmail = payload?.toEmail as string | undefined;
+      const requestId = payload?.requestId as string | undefined;
+      const token = payload?.token as string | undefined;
+
+      if (!toEmail || !requestId || !token) {
+        throw new Error(
+          'deletion_verification_email requires toEmail, requestId, and token in payload'
+        );
+      }
+
+      if (this.deletionEmailAdapter) {
+        await this.deletionEmailAdapter.sendVerificationEmail(toEmail, requestId, token);
+      }
+
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: {
+          taskType,
+          toEmail,
+          requestId,
         },
       };
     }

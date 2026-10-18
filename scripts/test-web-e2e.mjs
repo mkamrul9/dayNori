@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
+import { buildServer } from '../apps/api/dist/server.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifactsDir = path.join(root, 'artifacts', 'web-e2e');
@@ -19,6 +21,7 @@ if (!browserExe) {
   process.exit(1);
 }
 
+const apiPort = 3001;
 const serverPort = 3105;
 const cdpPort = 9225;
 const userDataDir = path.join(root, 'artifacts', 'local', 'edge-e2e-profile');
@@ -26,8 +29,15 @@ fs.mkdirSync(userDataDir, { recursive: true });
 
 console.log('=== STARTING PHASE 05 RESPONSIVE WEB SHELL E2E TEST ===');
 console.log(`Browser: ${browserExe}`);
+console.log(`API Port: ${apiPort}`);
 console.log(`Server Port: ${serverPort}`);
 console.log(`CDP Port: ${cdpPort}`);
+
+// 0. Start Fastify API Server on port 3001
+console.log('\n[0/6] Launching Fastify API server...');
+const apiServer = buildServer({ allowUnauthenticatedStartup: true });
+await apiServer.listen({ port: apiPort, host: '127.0.0.1' });
+console.log(`✓ Fastify API server ready at http://127.0.0.1:${apiPort}`);
 
 // 1. Start Next.js Production Server
 console.log('\n[1/6] Launching Next.js production server...');
@@ -811,14 +821,15 @@ try {
   await captureScreenshot('account-deletion-desktop.png');
 
   // Submit synthetic deletion request
+  const testDeletionEmail = `synthetic.e2e.${Date.now()}@example.test`;
   await evaluate(`(() => {
     const input = document.querySelector('#deletion-email') || document.querySelector('input[type="email"]');
     if (input) {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
       if (setter) {
-        setter.call(input, 'synthetic.e2e.user@example.test');
+        setter.call(input, '${testDeletionEmail}');
       } else {
-        input.value = 'synthetic.e2e.user@example.test';
+        input.value = '${testDeletionEmail}';
       }
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -830,16 +841,38 @@ try {
     const submitBtn = document.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.click();
   })()`);
-  await new Promise((r) => setTimeout(r, 800));
+  await new Promise((r) => setTimeout(r, 1200));
 
   const postSubmitState = await evaluate(`document.body.innerText`);
+  const hasSuccessFeedback =
+    postSubmitState.includes('Request Received') ||
+    postSubmitState.includes('confirmation email with deletion instructions has been dispatched');
+  const hasNoSubmissionError =
+    !postSubmitState.includes('Submission Error') &&
+    !postSubmitState.includes('CSRF token mismatch') &&
+    !postSubmitState.includes('Failed to submit deletion request');
+
+  // Verify resulting persisted request in Postgres
+  const pgClient = new pg.Client({
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: Number(process.env.DB_PORT || 5432),
+    database: process.env.DB_NAME || 'daynori_test',
+    user: process.env.DB_USER || 'daynori_runtime',
+    password: process.env.DB_PASSWORD || '',
+  });
+  await pgClient.connect();
+  const dbCheck = await pgClient.query(
+    'SELECT id, status FROM app.public_deletion_requests WHERE email = $1;',
+    [testDeletionEmail]
+  );
+  await pgClient.end();
+  const persistedInDb =
+    (dbCheck.rowCount ?? 0) > 0 && dbCheck.rows[0]?.status === 'pending_verification';
+
   record(
-    'Phase 37 Public Deletion Submission feedback',
-    postSubmitState.includes('confirmation') ||
-      postSubmitState.includes('dispatched') ||
-      postSubmitState.includes('Account & Data Deletion') ||
-      postSubmitState.includes('Option 2'),
-    'Enumeration-safe disclosure feedback returned'
+    'Phase 37 Public Deletion Submission feedback & DB persistence',
+    hasSuccessFeedback && hasNoSubmissionError && persistedInDb,
+    'Enumeration-safe disclosure feedback returned without CSRF rejection and request record persisted in database'
   );
 
   // B. Plan Workflows (Deadlines & Upcoming Tasks)
@@ -905,4 +938,5 @@ try {
   ws.close();
   browser.kill();
   server.kill();
+  await apiServer.close().catch(() => {});
 }

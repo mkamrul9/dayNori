@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { generateKeyPair, SignJWT, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
-import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
+import { buildServer, JwtVerifier, SafeLogger } from '../../apps/api/src/index.js';
 import {
   createAdminPool,
   createRuntimePool,
@@ -106,6 +106,11 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
       jwtVerifier: verifier,
       allowUnauthenticatedStartup: false,
       rateLimitOptions: { windowMs: 60000, maxRequests: 50000 },
+      logger: new SafeLogger((e) => {
+        if (e.level === 'error') {
+          process.stderr.write(JSON.stringify(e) + '\n');
+        }
+      }),
     });
 
     const address = await server.listen({ port: 0, host: '127.0.0.1' });
@@ -284,7 +289,9 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
     const mutationLatencies: number[] = [];
 
     // Warmup
-    await client.getUserPreferences();
+    for (let w = 0; w < 5; w++) {
+      await client.getUserPreferences();
+    }
 
     // 100 reads across concurrent workers
     const readWorkers = Array.from({ length: workerCount }, async () => {

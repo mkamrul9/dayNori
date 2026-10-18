@@ -42,15 +42,13 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
     }
 
     const body = ConfirmAccountDeletionBodySchema.parse(request.body || {});
-    const res = await withUserContext(pool, request.actor.userId, async (client) => {
-      return deletionService.confirmAccountDeletion(
-        client,
-        request.actor!.userId,
-        request.rawToken || '',
-        body.confirmationToken,
-        request.actor!.email
-      );
-    });
+    const res = await deletionService.confirmAccountDeletionWithPool(
+      pool,
+      request.actor!.userId,
+      request.rawToken || '',
+      body.confirmationToken,
+      request.actor!.email
+    );
     return reply.status(200).send(res);
   });
 
@@ -93,16 +91,14 @@ export function registerAuthenticatedDeletionRoutes(app: FastifyInstance, pool: 
     const params = z.object({ workspaceId: z.string().uuid() }).parse(request.params);
     const body = RequestWorkspaceDeletionBodySchema.parse(request.body || {});
 
-    const res = await withUserContext(pool, request.actor.userId, async (client) => {
-      return deletionService.deleteSingleWorkspace(
-        client,
-        request.actor!.userId,
-        params.workspaceId,
-        request.rawToken || '',
-        body,
-        request.actor!.email
-      );
-    });
+    const res = await deletionService.deleteSingleWorkspaceWithPool(
+      pool,
+      request.actor!.userId,
+      params.workspaceId,
+      request.rawToken || '',
+      body,
+      request.actor!.email
+    );
     return reply.status(200).send(res);
   });
 }
@@ -126,4 +122,3 @@ export function registerPublicDeletionRoutes(app: FastifyInstance, pool: Pool): 
     return reply.status(200).send(res);
   });
 }
-

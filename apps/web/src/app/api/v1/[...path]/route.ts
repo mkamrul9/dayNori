@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   ACCESS_COOKIE_NAME,
+  isAllowedOrigin,
   parseCookies,
   validateCsrfAndOrigin,
 } from '../../../../auth/session.js';
@@ -13,6 +14,8 @@ const API_URL =
 async function handleProxy(req: Request, pathSegments: string[]): Promise<NextResponse> {
   const method = req.method.toUpperCase();
   const isMutating = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
+  const targetPath = pathSegments.join('/');
+  const isPublic = targetPath.startsWith('public/');
 
   // Check for Authorization header first, otherwise read from HTTP-only cookie
   let token: string | null = null;
@@ -24,19 +27,28 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
     token = cookieMap[ACCESS_COOKIE_NAME] || null;
   }
 
-  // If mutating and using cookie auth, enforce double-submit CSRF protection
+  // Mutating requests protection:
+  // For authenticated cookie-based mutations: enforce double-submit CSRF and origin validation.
+  // For anonymous public endpoints: enforce origin validation if Origin/Referer header is present.
   if (isMutating && !authHeader) {
-    const csrfCheck = validateCsrfAndOrigin(req);
-    if (!csrfCheck.valid) {
-      return NextResponse.json(
-        { error: { message: csrfCheck.error || 'CSRF validation failed', code: 'FORBIDDEN' } },
-        { status: 403 }
-      );
+    if (isPublic) {
+      const origin = req.headers.get('origin') || req.headers.get('referer');
+      if (origin && !isAllowedOrigin(origin)) {
+        return NextResponse.json(
+          { error: { message: 'Forbidden origin', code: 'FORBIDDEN' } },
+          { status: 403 }
+        );
+      }
+    } else {
+      const csrfCheck = validateCsrfAndOrigin(req);
+      if (!csrfCheck.valid) {
+        return NextResponse.json(
+          { error: { message: csrfCheck.error || 'CSRF validation failed', code: 'FORBIDDEN' } },
+          { status: 403 }
+        );
+      }
     }
   }
-
-  const targetPath = pathSegments.join('/');
-  const isPublic = targetPath.startsWith('public/');
 
   if (!token && !isPublic) {
     return NextResponse.json(

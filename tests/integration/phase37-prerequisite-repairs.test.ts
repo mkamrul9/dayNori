@@ -3,7 +3,11 @@ import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
-import { createAdminPool, createRuntimePool, withUserContext } from '../../apps/api/src/db/index.js';
+import {
+  createAdminPool,
+  createRuntimePool,
+  withUserContext,
+} from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
 import {
@@ -376,10 +380,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
       // Test under real daynori_runtime pool with user context set to userAuthorId
       await withUserContext(runtimePool, userAuthorId, async (runtimeClient) => {
         // 1. SELECT items created by author: must return 0 rows (no creator bypass!)
-        const selectRes = await runtimeClient.query(
-          `SELECT id FROM app.items WHERE id = $1;`,
-          [noteInSharedWsId]
-        );
+        const selectRes = await runtimeClient.query(`SELECT id FROM app.items WHERE id = $1;`, [
+          noteInSharedWsId,
+        ]);
         expect(selectRes.rows.length).toBe(0);
 
         // 2. UPDATE item created by author: must update 0 rows
@@ -397,10 +400,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
         expect(deleteRes.rows.length).toBe(0);
 
         // 4. Tags created by author: must also return 0 rows
-        const tagRes = await runtimeClient.query(
-          `SELECT id FROM app.tags WHERE id = $1;`,
-          [tagInSharedWsId]
-        );
+        const tagRes = await runtimeClient.query(`SELECT id FROM app.tags WHERE id = $1;`, [
+          tagInSharedWsId,
+        ]);
         expect(tagRes.rows.length).toBe(0);
       });
     });
@@ -420,10 +422,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
 
       await withUserContext(runtimePool, userAuthorId, async (runtimeClient) => {
         // 1. SELECT must succeed for viewer
-        const selectRes = await runtimeClient.query(
-          `SELECT id FROM app.items WHERE id = $1;`,
-          [noteInSharedWsId]
-        );
+        const selectRes = await runtimeClient.query(`SELECT id FROM app.items WHERE id = $1;`, [
+          noteInSharedWsId,
+        ]);
         expect(selectRes.rows.length).toBe(1);
 
         // 2. UPDATE must update 0 rows for viewer (editor role required)
@@ -446,10 +447,7 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
       await withUserContext(runtimePool, userAuthorId, async (runtimeClient) => {
         // Runtime UPDATE on mutation_receipts is revoked
         await expect(
-          runtimeClient.query(
-            `UPDATE app.mutation_receipts SET actor_user_id = $1;`,
-            [userOwnerId]
-          )
+          runtimeClient.query(`UPDATE app.mutation_receipts SET actor_user_id = $1;`, [userOwnerId])
         ).rejects.toThrow();
       });
     });
@@ -529,6 +527,13 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
   });
 
   describe('4. Enumeration-Safe Public Deletion Flow with Abuse Control', () => {
+    const publicTargetWsId = crypto.randomUUID();
+    const publicTargetNoteId = crypto.randomUUID();
+    const publicTargetFileId = crypto.randomUUID();
+    const publicTargetFilePath = `files/${publicTargetWsId}/public_doc.pdf`;
+    const publicTargetExportPath = `exports/${publicTargetWsId}/archive.zip`;
+    const publicTargetJobId = crypto.randomUUID();
+
     beforeAll(async () => {
       const admin = await adminPool.connect();
       try {
@@ -538,6 +543,80 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
            ON CONFLICT (id) DO NOTHING;`,
           [publicTargetUserId]
         );
+        try {
+          await admin.query(
+            `INSERT INTO auth.users (id, email)
+             VALUES ($1, $2)
+             ON CONFLICT (id) DO NOTHING;`,
+            [publicTargetUserId, publicTargetEmail]
+          );
+        } catch {
+          // auth schema may be absent in pure unit runs
+        }
+        await admin.query(
+          `INSERT INTO app.workspaces (id, owner_id, name, kind)
+           VALUES ($1, $2, 'Public Target Workspace', 'personal');`,
+          [publicTargetWsId, publicTargetUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.workspace_memberships (workspace_id, user_id, role)
+           VALUES ($1, $2, 'owner');`,
+          [publicTargetWsId, publicTargetUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by)
+           VALUES ($1, $2, 'note', $3, $3);`,
+          [publicTargetNoteId, publicTargetWsId, publicTargetUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count, purpose)
+           VALUES ($1, $2, 'Public Deletion Note', '{"type":"doc"}'::jsonb, 'Content to be purged', 4, 21, 'standard');`,
+          [publicTargetNoteId, publicTargetWsId]
+        );
+        await admin.query(
+          `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by)
+           VALUES ($1, $2, 'file', $3, $3);`,
+          [publicTargetFileId, publicTargetWsId, publicTargetUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.file_items (id, workspace_id, file_name, declared_mime_type, detected_mime_type, byte_size, sha256_checksum, object_path, quarantine_status, created_by)
+           VALUES ($1, $2, 'public_doc.pdf', 'application/pdf', 'application/pdf', 1024, 'abc123hash', $3, 'verified', $4);`,
+          [publicTargetFileId, publicTargetWsId, publicTargetFilePath, publicTargetUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.workspace_exports (id, workspace_id, user_id, session_hash, status, storage_path, expires_at)
+           VALUES ($1, $2, $3, 'test_export_session_hash', 'completed', $4, now() + interval '7 days');`,
+          [crypto.randomUUID(), publicTargetWsId, publicTargetUserId, publicTargetExportPath]
+        );
+        await admin.query(
+          `INSERT INTO app.background_jobs (id, task_type, payload, status)
+           VALUES ($1, 'reminder_delivery', jsonb_build_object('workspaceId', $2::text, 'userId', $3::text), 'pending');`,
+          [publicTargetJobId, publicTargetWsId, publicTargetUserId]
+        );
+
+        await memoryStorage.putObject(
+          PRIVATE_ASSETS_BUCKET,
+          publicTargetFilePath,
+          Buffer.from('file data')
+        );
+        await memoryStorage.putObject(
+          PRIVATE_ASSETS_BUCKET,
+          publicTargetExportPath,
+          Buffer.from('export data')
+        );
+
+        // Configure test authenticator to resolve synthetic user email without external Supabase
+        setReauthAuthenticator({
+          verifyPassword: async () => ({ success: true }),
+          revokeUserSessions: async () => {},
+          deleteUser: async () => {},
+          getUserByEmail: async (email) => {
+            if (email.toLowerCase() === publicTargetEmail.toLowerCase()) {
+              return { id: publicTargetUserId, email: publicTargetEmail };
+            }
+            return null;
+          },
+        });
       } finally {
         admin.release();
       }
@@ -591,7 +670,7 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
       ).rejects.toThrow();
     });
 
-    it('successfully verifies and permanently deletes account upon providing valid token', async () => {
+    it('successfully verifies and permanently deletes realistic synthetic account, workspaces, files, and jobs', async () => {
       const dispatch = defaultEmailDelivery.getLastDispatch(publicTargetEmail)!;
 
       const res = await clientStranger.verifyPublicDeletionRequest({
@@ -610,6 +689,47 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
         ]);
         expect(pRes.rows.length).toBe(0);
 
+        // Verify owned workspace is purged
+        const wsRes = await admin.query(`SELECT id FROM app.workspaces WHERE id = $1;`, [
+          publicTargetWsId,
+        ]);
+        expect(wsRes.rows.length).toBe(0);
+
+        // Verify items are purged
+        const itemRes = await admin.query(`SELECT id FROM app.items WHERE id = $1;`, [
+          publicTargetNoteId,
+        ]);
+        expect(itemRes.rows.length).toBe(0);
+
+        // Verify file items are purged
+        const fileRes = await admin.query(`SELECT id FROM app.file_items WHERE id = $1;`, [
+          publicTargetFileId,
+        ]);
+        expect(fileRes.rows.length).toBe(0);
+
+        // Verify exports are purged
+        const expRes = await admin.query(
+          `SELECT id FROM app.workspace_exports WHERE user_id = $1;`,
+          [publicTargetUserId]
+        );
+        expect(expRes.rows.length).toBe(0);
+
+        // Verify storage blobs purged
+        expect(
+          await memoryStorage.getObject(PRIVATE_ASSETS_BUCKET, publicTargetFilePath)
+        ).toBeNull();
+        expect(
+          await memoryStorage.getObject(PRIVATE_ASSETS_BUCKET, publicTargetExportPath)
+        ).toBeNull();
+
+        // Verify jobs in owned workspace marked as failed with purge explanation
+        const jobRes = await admin.query<{ status: string; last_error: string }>(
+          `SELECT status, last_error FROM app.background_jobs WHERE id = $1;`,
+          [publicTargetJobId]
+        );
+        expect(jobRes.rows[0]?.status).toBe('failed');
+        expect(jobRes.rows[0]?.last_error).toContain('Purged due to account deletion');
+
         // Verify tombstone in suppression ledger
         const tombstone = await admin.query(
           `SELECT id, reason FROM app.deletion_suppression_ledger
@@ -622,8 +742,8 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
     });
   });
 
-  describe('5. Real Isolated Backup/Restore Drill with Independent Ledger Preservation', () => {
-    it('executes isolated database and object restore drill, sanitizing restored entities via ledger', async () => {
+  describe('5. Simulated In-Memory Backup/Restore Demonstration with Independent Ledger Preservation', () => {
+    it('executes simulated database and object restore drill, sanitizing restored entities via ledger', async () => {
       const drillUserId = crypto.randomUUID();
       const drillEmail = 'drill.user@example.test';
       const drillWsId = crypto.randomUUID();
@@ -668,18 +788,47 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
         // 2. Capture isolated backup snapshot (metadata + storage)
         const snapshotDatabaseRows = {
           profile: { id: drillUserId, email: drillEmail, display_name: 'Drill Target User' },
-          workspace: { id: drillWsId, owner_id: drillUserId, name: 'Drill Target Workspace', kind: 'personal' },
+          workspace: {
+            id: drillWsId,
+            owner_id: drillUserId,
+            name: 'Drill Target Workspace',
+            kind: 'personal',
+          },
           membership: { workspace_id: drillWsId, user_id: drillUserId, role: 'owner' },
-          item: { id: drillNoteId, workspace_id: drillWsId, kind: 'note', created_by: drillUserId, updated_by: drillUserId },
-          note: { id: drillNoteId, workspace_id: drillWsId, title: 'Confidential Drill Note', plain_text: 'Must not resurrect' },
+          item: {
+            id: drillNoteId,
+            workspace_id: drillWsId,
+            kind: 'note',
+            created_by: drillUserId,
+            updated_by: drillUserId,
+          },
+          note: {
+            id: drillNoteId,
+            workspace_id: drillWsId,
+            title: 'Confidential Drill Note',
+            plain_text: 'Must not resurrect',
+          },
         };
-        const snapshotStorageObject = await memoryStorage.getObject(PRIVATE_ASSETS_BUCKET, drillStoragePath);
+        const snapshotStorageObject = await memoryStorage.getObject(
+          PRIVATE_ASSETS_BUCKET,
+          drillStoragePath
+        );
         expect(snapshotStorageObject).not.toBeNull();
 
         // 3. User initiates and executes account deletion
         // Simulating the actual deletion:
-        await admin.query(`SELECT app.record_deletion_tombstone('account', $1, 'hash_drill_acc', 'user_account_deleted');`, [drillUserId]);
-        await admin.query(`SELECT app.record_deletion_tombstone('workspace', $1, 'hash_drill_ws', 'account_deletion');`, [drillWsId]);
+        await admin.query(
+          `INSERT INTO app.account_deletions (user_id, session_hash, status, created_at, updated_at) VALUES ($1, 'drill_session_hash', 'processing', now(), now());`,
+          [drillUserId]
+        );
+        await admin.query(
+          `SELECT app.record_deletion_tombstone('account', $1, 'hash_drill_acc', 'user_account_deleted');`,
+          [drillUserId]
+        );
+        await admin.query(
+          `SELECT app.record_deletion_tombstone('workspace', $1, 'hash_drill_ws', 'account_deletion');`,
+          [drillWsId]
+        );
         await admin.query(`SELECT app.purge_owned_workspace($1, $2);`, [drillWsId, drillUserId]);
         await admin.query(`DELETE FROM app.profiles WHERE id = $1;`, [drillUserId]);
         await memoryStorage.deleteObject(PRIVATE_ASSETS_BUCKET, drillStoragePath);
@@ -691,24 +840,43 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
         ];
 
         // 5. Simulate disaster recovery database & storage snapshot restore (older state restored)
-        await admin.query(
-          `INSERT INTO app.profiles (id, display_name) VALUES ($1, $2);`,
-          [snapshotDatabaseRows.profile.id, snapshotDatabaseRows.profile.display_name]
-        );
+        await admin.query(`INSERT INTO app.profiles (id, display_name) VALUES ($1, $2);`, [
+          snapshotDatabaseRows.profile.id,
+          snapshotDatabaseRows.profile.display_name,
+        ]);
         await admin.query(
           `INSERT INTO app.workspaces (id, owner_id, name, kind) VALUES ($1, $2, $3, $4);`,
-          [snapshotDatabaseRows.workspace.id, snapshotDatabaseRows.workspace.owner_id, snapshotDatabaseRows.workspace.name, snapshotDatabaseRows.workspace.kind]
+          [
+            snapshotDatabaseRows.workspace.id,
+            snapshotDatabaseRows.workspace.owner_id,
+            snapshotDatabaseRows.workspace.name,
+            snapshotDatabaseRows.workspace.kind,
+          ]
         );
         await admin.query(
           `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by) VALUES ($1, $2, $3, $4, $5);`,
-          [snapshotDatabaseRows.item.id, snapshotDatabaseRows.item.workspace_id, snapshotDatabaseRows.item.kind, snapshotDatabaseRows.item.created_by, snapshotDatabaseRows.item.updated_by]
+          [
+            snapshotDatabaseRows.item.id,
+            snapshotDatabaseRows.item.workspace_id,
+            snapshotDatabaseRows.item.kind,
+            snapshotDatabaseRows.item.created_by,
+            snapshotDatabaseRows.item.updated_by,
+          ]
         );
-        await memoryStorage.putObject(PRIVATE_ASSETS_BUCKET, drillStoragePath, snapshotStorageObject!);
+        await memoryStorage.putObject(
+          PRIVATE_ASSETS_BUCKET,
+          drillStoragePath,
+          snapshotStorageObject!
+        );
 
         // Verify entities were resurrected in the restored snapshot
-        const resProfile = await admin.query(`SELECT id FROM app.profiles WHERE id = $1;`, [drillUserId]);
+        const resProfile = await admin.query(`SELECT id FROM app.profiles WHERE id = $1;`, [
+          drillUserId,
+        ]);
         expect(resProfile.rows.length).toBe(1);
-        expect(await memoryStorage.getObject(PRIVATE_ASSETS_BUCKET, drillStoragePath)).not.toBeNull();
+        expect(
+          await memoryStorage.getObject(PRIVATE_ASSETS_BUCKET, drillStoragePath)
+        ).not.toBeNull();
 
         // 6. Apply independent external ledger barrier to the restored database
         for (const entry of independentLedger) {
@@ -756,11 +924,109 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
         );
         expect(verifyRestoredWorkspaces.rows.length).toBe(0);
 
-        const verifyRestoredStorage = await memoryStorage.getObject(PRIVATE_ASSETS_BUCKET, drillStoragePath);
+        const verifyRestoredStorage = await memoryStorage.getObject(
+          PRIVATE_ASSETS_BUCKET,
+          drillStoragePath
+        );
         expect(verifyRestoredStorage).toBeNull();
       } finally {
         admin.release();
       }
+    });
+  });
+
+  describe('6. Privileged Database Functions Negative Authorization & Security Definer Audit', () => {
+    const victimUserId = crypto.randomUUID();
+    const victimWsId = crypto.randomUUID();
+
+    beforeAll(async () => {
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(
+          `INSERT INTO app.profiles (id, display_name) VALUES ($1, 'Negative Test Victim') ON CONFLICT DO NOTHING;`,
+          [victimUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.workspaces (id, owner_id, name, kind) VALUES ($1, $2, 'Negative Test Victim Workspace', 'personal');`,
+          [victimWsId, victimUserId]
+        );
+        await admin.query(
+          `INSERT INTO app.workspace_memberships (workspace_id, user_id, role) VALUES ($1, $2, 'owner');`,
+          [victimWsId, victimUserId]
+        );
+      } finally {
+        admin.release();
+      }
+    });
+
+    it('prevents another actor from purging a user profile', async () => {
+      // Caller is stranger, attempting to purge victim's profile
+      await expect(
+        withUserContext(runtimePool, userStrangerId, async (client) => {
+          return client.query(`SELECT app.purge_user_profile($1);`, [victimUserId]);
+        })
+      ).rejects.toThrow(/UNAUTHORIZED/);
+    });
+
+    it('prevents an unauthenticated actor from purging a user profile without an active authorized deletion', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await expect(
+          client.query(`SELECT app.purge_user_profile($1);`, [victimUserId])
+        ).rejects.toThrow(
+          /UNAUTHORIZED: Profile purge requires an active authorized deletion request/
+        );
+      } finally {
+        client.release();
+      }
+    });
+
+    it('prevents another actor from purging an owned workspace', async () => {
+      // Caller is stranger, attempting to purge victim's personal workspace
+      await expect(
+        withUserContext(runtimePool, userStrangerId, async (client) => {
+          return client.query(`SELECT app.purge_owned_workspace($1, $2);`, [
+            victimWsId,
+            victimUserId,
+          ]);
+        })
+      ).rejects.toThrow(/UNAUTHORIZED/);
+    });
+
+    it('prevents purging an owned workspace with a forged owner ID', async () => {
+      // Caller is stranger, passing stranger ID as owner of victim's workspace
+      await expect(
+        withUserContext(runtimePool, userStrangerId, async (client) => {
+          return client.query(`SELECT app.purge_owned_workspace($1, $2);`, [
+            victimWsId,
+            userStrangerId,
+          ]);
+        })
+      ).rejects.toThrow(/UNAUTHORIZED/);
+    });
+
+    it('prevents another actor from forging a deletion suppression tombstone', async () => {
+      // Caller is stranger, attempting to forge tombstone for victim
+      await expect(
+        withUserContext(runtimePool, userStrangerId, async (client) => {
+          return client.query(
+            `SELECT app.record_deletion_tombstone('account', $1, 'forged_hash', 'malicious_actor');`,
+            [victimUserId]
+          );
+        })
+      ).rejects.toThrow(/UNAUTHORIZED/);
+    });
+
+    it('prevents another actor from revoking session tokens of another user', async () => {
+      // Caller is stranger, attempting to revoke victim's session tokens
+      await expect(
+        withUserContext(runtimePool, userStrangerId, async (client) => {
+          return client.query(
+            `SELECT app.record_revoked_token('forged_token_hash', $1, 'malicious_revocation');`,
+            [victimUserId]
+          );
+        })
+      ).rejects.toThrow(/UNAUTHORIZED/);
     });
   });
 });
