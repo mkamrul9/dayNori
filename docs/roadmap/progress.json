@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-18",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 36 Account deletion backup and recovery lifecycle provisional implementation delivered under explicit owner authorization and verified across reauthentication enforcement, session token revocation, device subscription invalidation, collaborative shared content reassignment, dual-layer storage purge, worker blob purge jobs, suppression ledger, disaster recovery restore drill, Google Play policy compliance web resource, Web AccountDeletionDialog, Mobile MobileAccountDeletionSheet, and 20 integration tests (58/58 test files and 842/842 tests passing). Completion for prerequisite Phases 04–06, 09–36 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 37 (Core quality and usability release gate) will be considered once gates or explicit owner authorization are established.",
-  "note": "Phase 36 (Account deletion backup and recovery lifecycle) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 37 Core quality and usability release gate verification delivered under explicit owner authorization and verified across prerequisite repairs (strict membership RLS, deletion session and cancellation checks, durable blob purge, enumeration-safe public verification), 13 end-to-end organizer journeys, Browser E2E suite (50/50 passed), 4 performance release gate benchmarks, and full monorepo suite (60/60 test files and 874/874 tests passing). Release gate decision is explicitly blocked pending physical Android TalkBack hardware, native KeyStore enclave verification, production VAPID/FCM push delivery, and store deployment credentials. Next phase pointer is set to null per release gate specifications; Phase 38 (Controlled private beta) remains blocked until release gates are fulfilled.",
+  "note": "Phase 37 (Core quality and usability release gate) verification delivered under explicit owner authorization. Physical hardware, live push provider, and store release gates remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -224,7 +224,9 @@
     },
     {
       "id": "37",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Core quality, usability, end-to-end organizer journeys, performance budgets, and security boundaries verified in automated and synthetic environments (60/60 test files and 874/874 tests passing, 50/50 browser E2E assertions passing). Release gate decision is explicitly blocked pending physical Android TalkBack hardware, native KeyStore signing, live VAPID/FCM push notification delivery, and production store credentials.",
+      "report": "docs/phase-reports/phase-37.md"
     },
     {
       "id": "38",

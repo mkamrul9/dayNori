@@ -35,7 +35,10 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
     }
   }
 
-  if (!token) {
+  const targetPath = pathSegments.join('/');
+  const isPublic = targetPath.startsWith('public/');
+
+  if (!token && !isPublic) {
     return NextResponse.json(
       { error: { message: 'Authentication required', code: 'UNAUTHENTICATED' } },
       { status: 401 }
@@ -43,13 +46,14 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
   }
 
   const incomingUrl = new URL(req.url);
-  const targetPath = pathSegments.join('/');
   const targetUrl = `${API_URL}/v1/${targetPath}${incomingUrl.search}`;
 
   const forwardHeaders: Record<string, string> = {
     Accept: req.headers.get('accept') || 'application/json, application/zip, */*',
-    Authorization: `Bearer ${token}`,
   };
+  if (token) {
+    forwardHeaders['Authorization'] = `Bearer ${token}`;
+  }
 
   const contentType = req.headers.get('content-type');
   if (contentType) {

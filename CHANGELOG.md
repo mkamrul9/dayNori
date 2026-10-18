@@ -1,5 +1,29 @@
 # Changelog
 
+## Phase 37 — Core quality and usability release gate — 2026-10-18
+
+- **Prerequisite Defect Repairs:**
+  - Enforced strict current-membership Row-Level Security in Supabase Migration 00037, removing unconstrained `created_by = current_user_id` branches and verifying active membership `workspace_id = current_workspace_id()`.
+  - Bound workspace deletion reauthentication proof to the exact target workspace (`expectedWorkspaceId`).
+  - Hardened account deletion confirmation: verified initiating `session_hash`, enforced cancellation deadline freshness, atomic state transition, provider-side token revocation, and duplicate confirmation idempotency.
+  - Implemented real enumeration-safe public deletion verification workflow with rate-limiting, HMAC-signed verification tokens, and verification endpoint.
+  - Hardened durable blob purge worker: throws on storage down or non-404 failures; treats 404/NoSuchKey as idempotent success.
+  - Repaired routine import validation to accept nullable `scheduledTime` matching database schema.
+- **Core Application Journeys (`tests/e2e/core-organizer-journeys.test.ts`):**
+  - Added 13 end-to-end organizer journeys covering onboarding lifecycle, bilingual Bengali/English AST note recovery, folders and move operations, calendar deadlines and routines across midnight/timezones, occurrence completion/skip/undo, journal multi-entry privacy, binary uploads and quarantine scanning, knowledge guides and backlinks, Today layout cross-device synchronization, authorized global search, concurrent conflict resolution, full workspace export/import round-trip, and permanent account/workspace erasure.
+- **Interactive Browser & Mobile Verification:**
+  - Expanded web E2E runner (`scripts/test-web-e2e.mjs`) to verify real `TodayView` elements, public route proxy bypass, and 50 automated browser assertions via Edge CDP with visual screenshot artifacts.
+  - Validated Android standalone APK compiled (146.17 MB) and verified headless mobile repository operations.
+- **Performance Release Gate Benchmarks (`tests/performance/performance.test.ts`):**
+  - Benchmark 1: Local save acknowledgment latency budget (p95 <= 100ms) passed (~15ms per save).
+  - Benchmark 2: 10,000-record keyset pagination under 50ms per page passed (~30ms per page, heap growth ~6.5MB).
+  - Benchmark 3: 100 concurrent read (p95 <= 300ms) and mutation (p95 <= 500ms) operations across 20 workers passed (read p95: 14.8ms, mutation p95: 110.2ms).
+  - Benchmark 4: Worker queue poll and SKIP LOCKED lease acquisition (<75ms p95) passed (38.6ms).
+- **Quality & Release Gate Status:**
+  - 60/60 test files and 874/874 tests passing across monorepo (100%).
+  - Clean TypeScript compilation across 13 workspace projects, clean lint, clean secret scanning (1,840 files checked).
+  - Explicit release gate decision recorded as **BLOCKED** pending physical Android TalkBack hardware, native KeyStore signing, live production VAPID/FCM push delivery, and app store deployment credentials.
+
 ## Phase 36 — Account deletion backup and recovery lifecycle — 2026-10-18
 
 - **Shared Data Contracts & Types (`packages/contracts`):**

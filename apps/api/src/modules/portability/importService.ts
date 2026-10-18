@@ -9,10 +9,22 @@ import type {
   ImportDuplicateItem,
 } from '@daynori/contracts';
 import { parseZipArchive } from './zipArchive.js';
-import { getDefaultStorageProvider, type StorageProviderContract } from '../files/storageAdapter.js';
+import {
+  getDefaultStorageProvider,
+  type StorageProviderContract,
+} from '../files/storageAdapter.js';
 import { PRIVATE_ASSETS_BUCKET } from '../files/service.js';
-import { insertChange, lockWorkspaceSyncState, updateWorkspaceSyncSeq } from '../sync/repository.js';
-import { NotFoundError, ForbiddenError, ValidationError, ConflictError } from '../../plugins/errorHandler.js';
+import {
+  insertChange,
+  lockWorkspaceSyncState,
+  updateWorkspaceSyncSeq,
+} from '../sync/repository.js';
+import {
+  NotFoundError,
+  ForbiddenError,
+  ValidationError,
+  ConflictError,
+} from '../../plugins/errorHandler.js';
 
 export const IMPORT_PREVIEW_TTL_SECONDS = 15 * 60; // 15 minutes
 
@@ -65,7 +77,11 @@ const ExportedTaskSchema = z.object({
   priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
   status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).optional(),
   deadlineType: z.enum(['none', 'date', 'timed']).optional(),
-  deadlineDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  deadlineDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
   deadlineTime: z.string().nullable().optional(),
   deadlineZone: z.string().nullable().optional(),
   completedAt: z.string().nullable().optional(),
@@ -78,7 +94,11 @@ const ExportedRoutineSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(1).max(255),
   frequency: z.enum(['daily', 'weekdays']).optional(),
-  scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  scheduledTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .nullable()
+    .optional(),
   activeInterval: z.unknown().optional(),
   targetCount: z.number().int().positive().optional(),
   weekdays: z.array(z.number()).optional(),
@@ -104,7 +124,11 @@ const ExportedCalendarSchema = z.object({
   title: z.string().min(1).max(255),
   details: z.string().nullable().optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
   isAllDay: z.boolean().optional(),
   startAt: z.string().nullable().optional(),
   endAt: z.string().nullable().optional(),
@@ -126,7 +150,9 @@ const ExportedFileItemSchema = z.object({
 /**
  * Validates that folder parent-child hierarchy has no cycles and is within safe depth.
  */
-function assertValidFolderHierarchy(folders: Array<{ id: string; parentId?: string | null }>): void {
+function assertValidFolderHierarchy(
+  folders: Array<{ id: string; parentId?: string | null }>
+): void {
   const parentMap = new Map<string, string>();
   for (const f of folders) {
     if (f.parentId) {
@@ -149,7 +175,9 @@ function assertValidFolderHierarchy(folders: Array<{ id: string; parentId?: stri
         throw new ValidationError('MALFORMED_IMPORT: Folder hierarchy exceeds maximum depth limit');
       }
       if (visited.has(current)) {
-        throw new ValidationError(`MALFORMED_IMPORT: Circular folder hierarchy detected at "${current}"`);
+        throw new ValidationError(
+          `MALFORMED_IMPORT: Circular folder hierarchy detected at "${current}"`
+        );
       }
       visited.add(current);
     }
@@ -173,7 +201,10 @@ export async function validateAndPreviewImport(
     `SELECT role FROM app.workspace_memberships WHERE workspace_id = $1 AND user_id = $2;`,
     [workspaceId, actorUserId]
   );
-  if (!roleCheck.rows[0] || (roleCheck.rows[0].role !== 'owner' && roleCheck.rows[0].role !== 'editor')) {
+  if (
+    !roleCheck.rows[0] ||
+    (roleCheck.rows[0].role !== 'owner' && roleCheck.rows[0].role !== 'editor')
+  ) {
     throw new ForbiddenError('You do not have editor permission to import into this workspace');
   }
 
@@ -219,7 +250,9 @@ export async function validateAndPreviewImport(
       const parsed = z.array(ExportedFolderSchema).parse(raw);
       assertValidFolderHierarchy(parsed);
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: metadata/folders.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: metadata/folders.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -230,7 +263,9 @@ export async function validateAndPreviewImport(
       const raw = JSON.parse(notesBuf.toString('utf8'));
       z.array(ExportedNoteSchema).parse(raw);
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: notes/notes.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: notes/notes.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -241,7 +276,9 @@ export async function validateAndPreviewImport(
       const raw = JSON.parse(tasksBuf.toString('utf8'));
       z.array(ExportedTaskSchema).parse(raw);
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: tasks/tasks.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: tasks/tasks.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -252,7 +289,9 @@ export async function validateAndPreviewImport(
       const raw = JSON.parse(routinesBuf.toString('utf8'));
       z.array(ExportedRoutineSchema).parse(raw);
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: routines/routines.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: routines/routines.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -263,7 +302,9 @@ export async function validateAndPreviewImport(
       const raw = JSON.parse(journalBuf.toString('utf8'));
       z.array(ExportedJournalSchema).parse(raw);
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: journal/journal.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: journal/journal.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -274,7 +315,9 @@ export async function validateAndPreviewImport(
       const raw = JSON.parse(calBuf.toString('utf8'));
       z.array(ExportedCalendarSchema).parse(raw);
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: calendar/calendar.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: calendar/calendar.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -284,7 +327,9 @@ export async function validateAndPreviewImport(
     try {
       z.array(ExportedTagSchema).parse(JSON.parse(tagsBuf.toString('utf8')));
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: metadata/tags.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: metadata/tags.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -293,7 +338,9 @@ export async function validateAndPreviewImport(
     try {
       z.array(ExportedSavedViewSchema).parse(JSON.parse(viewsBuf.toString('utf8')));
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: metadata/saved_views.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: metadata/saved_views.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -305,7 +352,9 @@ export async function validateAndPreviewImport(
     try {
       filesList = z.array(ExportedFileItemSchema).parse(JSON.parse(filesBuf.toString('utf8')));
     } catch (err) {
-      throw new ValidationError(`MALFORMED_IMPORT: attachments/files.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ValidationError(
+        `MALFORMED_IMPORT: attachments/files.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
 
     const manifestChecksums = manifest.checksums || {};
@@ -314,7 +363,9 @@ export async function validateAndPreviewImport(
       if (f.binaryPath) {
         const binData = parsedFiles.get(f.binaryPath);
         if (!binData) {
-          throw new ValidationError(`MALFORMED_IMPORT: Referenced binary file missing from archive: "${f.binaryPath}"`);
+          throw new ValidationError(
+            `MALFORMED_IMPORT: Referenced binary file missing from archive: "${f.binaryPath}"`
+          );
         }
 
         // Verify checksum against actual bytes
@@ -343,7 +394,9 @@ export async function validateAndPreviewImport(
       const sha = crypto.createHash('sha256').update(buf).digest('hex');
       const expectedSha = manifest.checksums?.[path];
       if (expectedSha && expectedSha !== sha) {
-        throw new ValidationError(`INTEGRITY_CHECK_FAILED: Archive binary "${path}" checksum mismatch`);
+        throw new ValidationError(
+          `INTEGRITY_CHECK_FAILED: Archive binary "${path}" checksum mismatch`
+        );
       }
     }
   }
@@ -359,8 +412,6 @@ export async function validateAndPreviewImport(
   const currentStored = usageRes.rows[0] ? Number(usageRes.rows[0].stored_bytes) : 0;
   const maxStorage = usageRes.rows[0] ? Number(usageRes.rows[0].max_storage_bytes) : 1073741824; // 1 GiB default
   const availableBytes = Math.max(0, maxStorage - currentStored);
-
-
 
   // 7. Duplicate Detection
   const duplicates: ImportDuplicateItem[] = [];
@@ -434,7 +485,11 @@ export async function validateAndPreviewImport(
       title?: string;
       updatedAt?: string;
     }>;
-    const existingJournals = await client.query<{ id: string; entry_date: string | Date; updated_at: Date }>(
+    const existingJournals = await client.query<{
+      id: string;
+      entry_date: string | Date;
+      updated_at: Date;
+    }>(
       `SELECT j.id, j.entry_date::text as entry_date, j.updated_at
        FROM app.journal_entries j
        JOIN app.items i ON i.id = j.id AND i.workspace_id = j.workspace_id
@@ -443,7 +498,9 @@ export async function validateAndPreviewImport(
     );
     const existingMap = new Map(
       existingJournals.rows.map((r) => [
-        typeof r.entry_date === 'string' ? r.entry_date : (r.entry_date as Date).toISOString().split('T')[0],
+        typeof r.entry_date === 'string'
+          ? r.entry_date
+          : (r.entry_date as Date).toISOString().split('T')[0],
         r,
       ])
     );
@@ -568,7 +625,9 @@ export async function executeConfirmedImport(
   }
 
   if (importRecord.status !== 'preview_ready') {
-    throw new ValidationError(`Import session cannot be executed from state "${importRecord.status}"`);
+    throw new ValidationError(
+      `Import session cannot be executed from state "${importRecord.status}"`
+    );
   }
 
   if (Date.now() > importRecord.expires_at.getTime()) {
@@ -605,13 +664,18 @@ export async function executeConfirmedImport(
   }
 
   // 4. Load archive from storage
-  const archiveBuffer = await storageProvider.getObject(PRIVATE_ASSETS_BUCKET, importRecord.storage_path);
+  const archiveBuffer = await storageProvider.getObject(
+    PRIVATE_ASSETS_BUCKET,
+    importRecord.storage_path
+  );
   if (!archiveBuffer) {
     throw new NotFoundError('Import archive payload missing from storage');
   }
 
   const parsedFiles = parseZipArchive(archiveBuffer);
-  const duplicateMap = new Map((importRecord.detected_duplicates || []).map((d) => [d.importedId, d]));
+  const duplicateMap = new Map(
+    (importRecord.detected_duplicates || []).map((d) => [d.importedId, d])
+  );
 
   // ID Remapping dictionary: maps original exported ID -> newly minted UUID
   const idMap = new Map<string, string>();
@@ -774,7 +838,9 @@ export async function executeConfirmedImport(
           continue;
         } else if (duplicateStrategy === 'overwrite_if_newer') {
           const importedDate = n.updatedAt ? new Date(n.updatedAt).getTime() : 0;
-          const existingDate = isDup.existingUpdatedAt ? new Date(isDup.existingUpdatedAt).getTime() : 0;
+          const existingDate = isDup.existingUpdatedAt
+            ? new Date(isDup.existingUpdatedAt).getTime()
+            : 0;
           if (importedDate > existingDate) {
             targetNoteId = isDup.existingId;
             idMap.set(n.id, isDup.existingId);
@@ -816,7 +882,14 @@ export async function executeConfirmedImport(
           `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, is_pinned, is_archived, security_scope)
            VALUES ($1, $2, $3, 'note', $4, $4, $5, $6, 'standard')
            ON CONFLICT (workspace_id, id) DO NOTHING;`,
-          [targetNoteId, workspaceId, targetFolderId, actorUserId, Boolean(n.isPinned), Boolean(n.isArchived)]
+          [
+            targetNoteId,
+            workspaceId,
+            targetFolderId,
+            actorUserId,
+            Boolean(n.isPinned),
+            Boolean(n.isArchived),
+          ]
         );
 
         await client.query(
@@ -873,7 +946,9 @@ export async function executeConfirmedImport(
           continue;
         } else if (duplicateStrategy === 'overwrite_if_newer') {
           const importedDate = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
-          const existingDate = isDup.existingUpdatedAt ? new Date(isDup.existingUpdatedAt).getTime() : 0;
+          const existingDate = isDup.existingUpdatedAt
+            ? new Date(isDup.existingUpdatedAt).getTime()
+            : 0;
           if (importedDate > existingDate) {
             targetTaskId = isDup.existingId;
             idMap.set(t.id, isDup.existingId);
@@ -1028,7 +1103,9 @@ export async function executeConfirmedImport(
           continue;
         } else if (duplicateStrategy === 'overwrite_if_newer') {
           const importedDate = j.updatedAt ? new Date(j.updatedAt).getTime() : 0;
-          const existingDate = isDup.existingUpdatedAt ? new Date(isDup.existingUpdatedAt).getTime() : 0;
+          const existingDate = isDup.existingUpdatedAt
+            ? new Date(isDup.existingUpdatedAt).getTime()
+            : 0;
           if (importedDate > existingDate) {
             targetJournalId = isDup.existingId;
             idMap.set(j.id, isDup.existingId);
@@ -1062,7 +1139,11 @@ export async function executeConfirmedImport(
             workspaceId,
           ]
         );
-        createdChanges.push({ entityType: 'journal_entry', entityId: targetJournalId, action: 'updated' });
+        createdChanges.push({
+          entityType: 'journal_entry',
+          entityId: targetJournalId,
+          action: 'updated',
+        });
       } else {
         await client.query(
           `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
@@ -1089,7 +1170,11 @@ export async function executeConfirmedImport(
           ]
         );
         importedCounts.journal++;
-        createdChanges.push({ entityType: 'journal_entry', entityId: targetJournalId, action: 'created' });
+        createdChanges.push({
+          entityType: 'journal_entry',
+          entityId: targetJournalId,
+          action: 'created',
+        });
       }
     }
   }
@@ -1122,7 +1207,16 @@ export async function executeConfirmedImport(
         `INSERT INTO app.calendar_events (id, workspace_id, title, details, all_day, start_date, end_date, timezone)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [newCalId, workspaceId, c.title, c.details || null, Boolean(c.isAllDay), c.startDate, c.endDate, c.timezone || 'UTC']
+        [
+          newCalId,
+          workspaceId,
+          c.title,
+          c.details || null,
+          Boolean(c.isAllDay),
+          c.startDate,
+          c.endDate,
+          c.timezone || 'UTC',
+        ]
       );
       importedCounts.calendar++;
       createdChanges.push({ entityType: 'calendar_event', entityId: newCalId, action: 'created' });
@@ -1168,7 +1262,8 @@ export async function executeConfirmedImport(
         }
       }
 
-      const finalObjectPath = storagePath || `workspaces/${workspaceId}/files/${newFileId}/${f.fileName}`;
+      const finalObjectPath =
+        storagePath || `workspaces/${workspaceId}/files/${newFileId}/${f.fileName}`;
       await client.query(
         `INSERT INTO app.file_items (id, workspace_id, folder_id, file_name, declared_mime_type, detected_mime_type, byte_size, sha256_checksum, object_path, quarantine_status, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'verified', $10)
@@ -1192,7 +1287,15 @@ export async function executeConfirmedImport(
           `INSERT INTO app.file_versions (file_id, workspace_id, version, object_path, byte_size, sha256_checksum, detected_mime_type, created_by)
            VALUES ($1, $2, '1', $3, $4, $5, $6, $7)
            ON CONFLICT DO NOTHING;`,
-          [newFileId, workspaceId, storagePath, f.byteSize, f.sha256, f.detectedMimeType || f.declaredMimeType, actorUserId]
+          [
+            newFileId,
+            workspaceId,
+            storagePath,
+            f.byteSize,
+            f.sha256,
+            f.detectedMimeType || f.declaredMimeType,
+            actorUserId,
+          ]
         );
       }
 
@@ -1214,7 +1317,10 @@ export async function executeConfirmedImport(
   const itemTagsJson = parsedFiles.get('metadata/item_tags.json');
   if (itemTagsJson) {
     try {
-      const itemTags = JSON.parse(itemTagsJson.toString('utf8')) as Array<{ itemId: string; tagId: string }>;
+      const itemTags = JSON.parse(itemTagsJson.toString('utf8')) as Array<{
+        itemId: string;
+        tagId: string;
+      }>;
       for (const it of itemTags) {
         const mappedItemId = resolveId(it.itemId);
         const mappedTagId = resolveId(it.tagId);
@@ -1275,7 +1381,14 @@ export async function executeConfirmedImport(
             `INSERT INTO app.routine_occurrences (id, workspace_id, routine_id, scheduled_date, status, completed_at, timezone)
              VALUES ($1, $2, $3, $4, $5, $6, 'UTC')
              ON CONFLICT DO NOTHING;`,
-            [newOccId, workspaceId, mappedRoutineId, occ.occurrenceDate, occ.status || 'pending', occ.completedAt || null]
+            [
+              newOccId,
+              workspaceId,
+              mappedRoutineId,
+              occ.occurrenceDate,
+              occ.status || 'pending',
+              occ.completedAt || null,
+            ]
           );
         }
       }

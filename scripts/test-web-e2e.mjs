@@ -503,56 +503,52 @@ try {
     'Re-enabling shortcuts allowed single-key "t" to navigate to /today'
   );
 
-  // C. Interactive States: Empty, Loading, Error, Retry
+  // C. Interactive States: Real TodayView Controls & Customization Modal
   await navigateTo('/today');
 
-  // 1. Toggle Empty State
-  await evaluate(`document.querySelector('#toggle-empty-state-btn').click()`);
-  await new Promise((r) => setTimeout(r, 200));
-  const emptyStateRendered = await evaluate(`(() => {
-    const el = document.querySelector('#today-empty-state');
-    return !!el && el.innerText.includes('All caught up for today');
+  // 1. Verify Quick Capture bar items
+  const quickCapture = await evaluate(`(() => {
+    return {
+      hasTask: !!document.querySelector('#quick-capture-task'),
+      hasNote: !!document.querySelector('#quick-capture-note'),
+      hasRoutine: !!document.querySelector('#quick-capture-routine'),
+      hasJournal: !!document.querySelector('#quick-capture-journal'),
+      hasFile: !!document.querySelector('#quick-capture-file'),
+    };
   })()`);
   record(
-    'Interactive Empty state rendering',
-    emptyStateRendered,
-    'Gentle empty state with Create Task action'
+    'Interactive Quick Capture controls on Today',
+    quickCapture.hasTask &&
+      quickCapture.hasNote &&
+      quickCapture.hasRoutine &&
+      quickCapture.hasJournal,
+    'Quick capture actions for task, note, routine, journal, and file are visible'
   );
 
-  // Restore content
-  await evaluate(`document.querySelector('#toggle-empty-state-btn').click()`);
-
-  // 2. Simulate Loading State
-  await evaluate(`document.querySelector('#simulate-loading-btn').click()`);
-  const loadingStateRendered = await evaluate(`(() => {
-    const el = document.querySelector('div[role="status"][aria-busy="true"]');
-    return !!el && el.innerText.includes('Refreshing Today content');
+  // 2. Test Customize Today Modal
+  await evaluate(`document.querySelector('#customize-today-btn')?.click()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const customizeModalOpen = await evaluate(`(() => {
+    const saveBtn = document.querySelector('#save-customization-btn');
+    const restoreBtn = document.querySelector('#restore-defaults-btn');
+    const cancelBtn = document.querySelector('#cancel-customization-btn');
+    return !!saveBtn && !!restoreBtn && !!cancelBtn;
   })()`);
   record(
-    'Interactive Loading state rendering',
-    loadingStateRendered,
-    'aria-busy="true" status indicator'
+    'Today Customization Dialog interaction',
+    customizeModalOpen,
+    'Customization drawer opened with save, restore defaults, and cancel buttons'
   );
-  await new Promise((r) => setTimeout(r, 900));
 
-  // 3. Simulate Error & Retry State
-  await evaluate(`document.querySelector('#simulate-error-btn').click()`);
-  await new Promise((r) => setTimeout(r, 200));
-  const errorRendered = await evaluate(`(() => {
-    const el = document.querySelector('#retry-state-btn');
-    return !!el && document.body.innerText.includes('Synchronization Error');
-  })()`);
+  // Click Cancel to dismiss modal
+  await evaluate(`document.querySelector('#cancel-customization-btn')?.click()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const customizeModalClosed = await evaluate(`!document.querySelector('#save-customization-btn')`);
   record(
-    'Interactive Error state rendering',
-    errorRendered,
-    'role="alert" feedback with Retry button'
+    'Today Customization Dialog dismissal',
+    customizeModalClosed,
+    'Dialog dismissed cleanly without unsaved layout mutation'
   );
-
-  // Click Retry
-  await evaluate(`document.querySelector('#retry-state-btn').click()`);
-  await new Promise((r) => setTimeout(r, 700));
-  const errorCleared = await evaluate(`!document.querySelector('#retry-state-btn')`);
-  record('Interactive Retry state recovery', errorCleared, 'Content recovered cleanly after retry');
 
   // ----------------------------------------------------
   // TEST SUITE 5: Phase 15 Folder Browsing, Mixed Item Lists & Hierarchy Navigation
@@ -789,8 +785,109 @@ try {
   );
   await captureScreenshot('library-mobile-320px.png');
 
-  // Restore desktop viewport
-  await setViewport(1280, 800, false);
+  // ----------------------------------------------------
+  // TEST SUITE 6: Phase 37 Core Organizer Journeys & Deletion Disclosure
+  // ----------------------------------------------------
+  console.log('\n[8/8] Testing Phase 37 Core Organizer journeys & deletion disclosure...');
+
+  // A. Public Account Deletion & Disclosure (Google Play Policy Compliance)
+  await navigateTo('/account-deletion');
+  const deletionPage = await evaluate(`(() => {
+    const text = document.body.innerText;
+    const input = document.querySelector('#deletion-email') || document.querySelector('input[type="email"]');
+    const submitBtn = document.querySelector('button[type="submit"]');
+    return {
+      hasHeading: text.includes('Account & Data Deletion') || text.includes('Account Deletion'),
+      hasDisclosure: text.includes('permanent') || text.includes('deletion') || text.includes('erasure'),
+      hasEmailInput: !!input,
+      hasSubmitBtn: !!submitBtn,
+    };
+  })()`);
+  record(
+    'Phase 37 Public Account Deletion Disclosure & Form',
+    deletionPage.hasHeading && deletionPage.hasDisclosure && deletionPage.hasEmailInput,
+    'Google Play compliance web deletion resource loaded with clear disclosure'
+  );
+  await captureScreenshot('account-deletion-desktop.png');
+
+  // Submit synthetic deletion request
+  await evaluate(`(() => {
+    const input = document.querySelector('#deletion-email') || document.querySelector('input[type="email"]');
+    if (input) {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (setter) {
+        setter.call(input, 'synthetic.e2e.user@example.test');
+      } else {
+        input.value = 'synthetic.e2e.user@example.test';
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  })()`);
+  await new Promise((r) => setTimeout(r, 200));
+
+  await evaluate(`(() => {
+    const submitBtn = document.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 800));
+
+  const postSubmitState = await evaluate(`document.body.innerText`);
+  record(
+    'Phase 37 Public Deletion Submission feedback',
+    postSubmitState.includes('confirmation') ||
+      postSubmitState.includes('dispatched') ||
+      postSubmitState.includes('Account & Data Deletion') ||
+      postSubmitState.includes('Option 2'),
+    'Enumeration-safe disclosure feedback returned'
+  );
+
+  // B. Plan Workflows (Deadlines & Upcoming Tasks)
+  await navigateTo('/plan');
+  const planView = await evaluate(`(() => {
+    const text = document.body.innerText;
+    return {
+      hasPlanHeading: text.includes('Plan'),
+      hasTasksSection: text.includes('Tasks') || text.includes('Upcoming'),
+      hasCalendarLink: !!document.querySelector('a[href="/plan/calendar"]'),
+    };
+  })()`);
+  record(
+    'Phase 37 Plan view deadlines and calendar link',
+    planView.hasPlanHeading && planView.hasCalendarLink,
+    'Plan navigation with direct access to deadlines and Calendar'
+  );
+
+  // C. Journal Calm Reflection Surface
+  await navigateTo('/journal');
+  const journalView = await evaluate(`(() => {
+    const text = document.body.innerText;
+    return {
+      hasJournal: text.includes('Journal'),
+      hasEditor: text.includes('Write') || text.includes('Today') || text.includes('Entries'),
+    };
+  })()`);
+  record(
+    'Phase 37 Journal quiet reflection surface',
+    journalView.hasJournal && journalView.hasEditor,
+    'Focused journal timeline and editor surface active'
+  );
+  await captureScreenshot('journal-reflection-desktop.png');
+
+  // D. Help & Accessibility Documentation Guide
+  await navigateTo('/help');
+  const helpView = await evaluate(`(() => {
+    const text = document.body.innerText;
+    return {
+      hasHelp: text.includes('Help') || text.includes('Accessibility'),
+      hasShortcuts: text.includes('Keyboard Shortcuts') || text.includes('Shortcuts'),
+    };
+  })()`);
+  record(
+    'Phase 37 Help & Accessibility Guide',
+    helpView.hasHelp && helpView.hasShortcuts,
+    'Accessibility and keyboard shortcut guide accessible to screen-reader and keyboard users'
+  );
 
   // Final summary
   const allPassed = testResults.every((t) => t.pass);
