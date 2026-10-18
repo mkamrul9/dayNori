@@ -515,6 +515,7 @@ export async function listActiveItemsForBootstrap(
     note_plain_text: string | null;
     note_word_count: string | number | null;
     note_char_count: string | number | null;
+    note_purpose: string | null;
   }>(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by, i.created_at, i.updated_at, i.deleted_at,
             i.display_order, i.revision, i.rank, i.is_archived, i.is_pinned, i.security_scope,
@@ -523,7 +524,8 @@ export async function listActiveItemsForBootstrap(
             COALESCE(n.document, j.document) as note_document,
             COALESCE(n.plain_text, j.plain_text) as note_plain_text,
             COALESCE(n.word_count, j.word_count) as note_word_count,
-            COALESCE(n.char_count, j.char_count) as note_char_count
+            COALESCE(n.char_count, j.char_count) as note_char_count,
+            n.purpose as note_purpose
      FROM app.items i
      LEFT JOIN app.folders f ON f.workspace_id = i.workspace_id AND f.id = i.id
      LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
@@ -534,31 +536,35 @@ export async function listActiveItemsForBootstrap(
     [workspaceId]
   );
 
-  return res.rows.map((r) => ({
-    id: r.id,
-    workspaceId: r.workspace_id,
-    folderId: r.folder_id,
-    kind: r.kind,
-    createdBy: r.created_by,
-    updatedBy: r.updated_by,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-    deletedAt: r.deleted_at,
-    displayOrder: r.display_order,
-    revision: Number(r.revision),
-    rank: r.rank,
-    isArchived: r.is_archived,
-    isPinned: r.is_pinned,
-    securityScope: r.security_scope,
-    name: r.folder_name ?? r.note_title ?? undefined,
-    color: r.folder_color,
-    icon: r.folder_icon,
-    title: r.note_title ?? r.folder_name ?? undefined,
-    document: r.note_document ?? undefined,
-    plainText: r.note_plain_text ?? undefined,
-    wordCount: r.note_word_count !== null ? Number(r.note_word_count) : undefined,
-    charCount: r.note_char_count !== null ? Number(r.note_char_count) : undefined,
-  }));
+  return res.rows.map((r) => {
+    const isKnowledge = r.note_purpose && r.note_purpose !== 'standard';
+    return {
+      id: r.id,
+      workspaceId: r.workspace_id,
+      folderId: r.folder_id,
+      kind: isKnowledge ? 'knowledge' : r.kind,
+      createdBy: r.created_by,
+      updatedBy: r.updated_by,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      deletedAt: r.deleted_at,
+      displayOrder: r.display_order,
+      revision: Number(r.revision),
+      rank: r.rank,
+      isArchived: r.is_archived,
+      isPinned: r.is_pinned,
+      securityScope: r.security_scope,
+      purpose: r.note_purpose || 'standard',
+      name: r.folder_name ?? r.note_title ?? undefined,
+      color: r.folder_color,
+      icon: r.folder_icon,
+      title: r.note_title ?? r.folder_name ?? undefined,
+      document: r.note_document ?? undefined,
+      plainText: r.note_plain_text ?? undefined,
+      wordCount: r.note_word_count !== null ? Number(r.note_word_count) : undefined,
+      charCount: r.note_char_count !== null ? Number(r.note_char_count) : undefined,
+    };
+  });
 }
 
 export async function listActiveFilesForBootstrap(

@@ -28,6 +28,8 @@ export const SavedViewSchema = z.object({
   filter: KnowledgeSavedViewFilterSchema,
   rank: z.string().default('0'),
   isPinned: z.boolean().default(false),
+  isShared: z.boolean().default(false),
+  revision: z.number().int().nonnegative().default(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -44,6 +46,7 @@ export const CreateSavedViewRequestSchema = z
     filter: KnowledgeSavedViewFilterSchema.optional().default({}),
     rank: z.string().optional().default('0'),
     isPinned: z.boolean().optional().default(false),
+    isShared: z.boolean().optional().default(false),
   })
   .strict();
 export type CreateSavedViewRequest = z.input<typeof CreateSavedViewRequestSchema>;
@@ -57,6 +60,8 @@ export const UpdateSavedViewRequestSchema = z
     filter: KnowledgeSavedViewFilterSchema.optional(),
     rank: z.string().optional(),
     isPinned: z.boolean().optional(),
+    isShared: z.boolean().optional(),
+    expectedRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type UpdateSavedViewRequest = z.input<typeof UpdateSavedViewRequestSchema>;

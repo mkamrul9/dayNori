@@ -3,6 +3,7 @@ import type {
   SyncPushRequest,
   SyncCommandType,
   NoteDocument,
+  NotePurpose,
   TaskPriority,
   TaskStatus,
   TaskDeadline,
@@ -343,7 +344,10 @@ export class SyncEngine {
 
     const isFolder =
       item.kind === 'folder' || (command !== undefined && command.includes('Folder'));
-    const isNote = item.kind === 'note' || (command !== undefined && command.includes('Note'));
+    const isNote =
+      item.kind === 'note' ||
+      item.kind === 'knowledge' ||
+      (command !== undefined && (command.includes('Note') || command.includes('Knowledge')));
     const isTask =
       item.kind === 'task' ||
       item.kind === 'todo' ||
@@ -431,6 +435,10 @@ export class SyncEngine {
             securityScope: item.securityScope,
             isArchived: item.isArchived,
             isPinned: item.isPinned,
+            purpose:
+              (options?.payload?.['purpose'] as string | undefined) ||
+              item.purpose ||
+              (item.kind === 'knowledge' ? 'guide' : 'standard'),
             ...(draft?.payload?.['document'] ? { document: draft.payload['document'] } : {}),
             ...(draft?.payload?.['plainText'] ? { plainText: draft.payload['plainText'] } : {}),
             ...(options?.payload || {}),
@@ -1732,10 +1740,26 @@ export class SyncEngine {
             deletedAt = null;
           }
 
+          const rawPurpose =
+            typeof data.purpose === 'string'
+              ? data.purpose
+              : existing?.purpose;
+          const notePurpose: NotePurpose | undefined =
+            rawPurpose && ['standard', 'guide', 'cheatsheet', 'reference'].includes(rawPurpose)
+              ? (rawPurpose as NotePurpose)
+              : undefined;
+
+          // If note has a knowledge purpose, classify header as knowledge
+          const finalKind =
+            (kind === 'note' || change.entityType === 'note') && notePurpose && notePurpose !== 'standard'
+              ? 'knowledge'
+              : kind;
+
           const header: ItemHeaderRecord = {
             id: change.entityId,
             workspaceId: this.namespace.workspaceId,
-            kind,
+            kind: finalKind,
+            purpose: notePurpose,
             folderId,
             rank,
             isArchived,
@@ -1753,7 +1777,7 @@ export class SyncEngine {
 
           changesToApply.push(header);
 
-          if (kind === 'note' || change.entityType === 'note') {
+          if (kind === 'note' || finalKind === 'knowledge' || change.entityType === 'note') {
             const doc =
               (data.document as Record<string, unknown> | undefined) ||
               (typeof data.documentJson === 'string'
@@ -1775,6 +1799,7 @@ export class SyncEngine {
                 plainText,
                 wordCount,
                 charCount,
+                purpose: notePurpose || 'standard',
                 serverRevision: change.revision,
                 createdAt,
                 updatedAt,

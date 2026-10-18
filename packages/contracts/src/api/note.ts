@@ -94,11 +94,15 @@ export type NoteDocument = z.infer<typeof NoteDocumentSchema>;
 
 // --- Note Entity & Requests ---
 
+export const NotePurposeSchema = z.enum(['standard', 'guide', 'cheatsheet', 'reference']);
+export type NotePurpose = z.infer<typeof NotePurposeSchema>;
+
 export const NoteSchema = z.object({
   id: z.string().uuid(),
   workspaceId: z.string().uuid(),
   folderId: z.string().uuid().nullable(),
   title: z.string().max(255),
+  purpose: NotePurposeSchema.default('standard'),
   document: NoteDocumentSchema,
   plainText: z.string(),
   wordCount: z.number().int().nonnegative(),
@@ -119,6 +123,7 @@ export const CreateNoteRequestSchema = z
     id: z.string().uuid().optional(),
     folderId: z.string().uuid().nullable().optional(),
     title: z.string().max(255).optional(),
+    purpose: NotePurposeSchema.optional(),
     document: NoteDocumentSchema.optional(),
     plainText: z.string().optional(),
     rank: z.string().optional(),
@@ -126,12 +131,13 @@ export const CreateNoteRequestSchema = z
     securityScope: SecurityScopeSchema.optional().default('standard'),
   })
   .strict();
-export type CreateNoteRequest = z.infer<typeof CreateNoteRequestSchema>;
+export type CreateNoteRequest = z.input<typeof CreateNoteRequestSchema>;
 
 export const UpdateNoteRequestSchema = z
   .object({
     folderId: z.string().uuid().nullable().optional(),
     title: z.string().max(255).optional(),
+    purpose: NotePurposeSchema.optional(),
     document: NoteDocumentSchema.optional(),
     plainText: z.string().optional(),
     rank: z.string().optional(),

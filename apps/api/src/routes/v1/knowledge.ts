@@ -101,7 +101,7 @@ export function registerKnowledgeRoutes(app: FastifyInstance, runtimePool: Pool)
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return getSavedView(client, params.workspaceId, params.viewId);
+        return getSavedView(client, params.workspaceId, actor.userId, params.viewId);
       }
     );
 
@@ -128,7 +128,7 @@ export function registerKnowledgeRoutes(app: FastifyInstance, runtimePool: Pool)
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return updateSavedView(client, params.workspaceId, params.viewId, body);
+        return updateSavedView(client, params.workspaceId, actor.userId, params.viewId, body);
       }
     );
 
@@ -154,7 +154,7 @@ export function registerKnowledgeRoutes(app: FastifyInstance, runtimePool: Pool)
         if (!auth.rows[0]?.has_access) {
           throw new NotFoundError('Workspace not found or unauthorized');
         }
-        return deleteSavedView(client, params.workspaceId, params.viewId);
+        return deleteSavedView(client, params.workspaceId, actor.userId, params.viewId);
       }
     );
 

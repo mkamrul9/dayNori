@@ -46,17 +46,19 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
 
   const handleCopy = useCallback(
     async (entry: QuickReferenceEntry) => {
+      if (!onCopyText) {
+        AccessibilityInfo.announceForAccessibility?.('Clipboard is unavailable.');
+        return;
+      }
       try {
-        if (onCopyText) {
-          await onCopyText(entry.copyableText);
-        }
+        await onCopyText(entry.copyableText);
         setCopiedId(entry.id);
-        AccessibilityInfo.announceForAccessibility(`Copied ${entry.label} to clipboard.`);
+        AccessibilityInfo.announceForAccessibility?.(`Copied ${entry.label} to clipboard.`);
         setTimeout(() => {
           setCopiedId((prev) => (prev === entry.id ? null : prev));
         }, 2000);
       } catch {
-        AccessibilityInfo.announceForAccessibility('Failed to copy to clipboard.');
+        AccessibilityInfo.announceForAccessibility?.('Failed to copy to clipboard.');
       }
     },
     [onCopyText]

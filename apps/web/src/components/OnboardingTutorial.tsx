@@ -207,20 +207,11 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    // Persist skip locally immediately
-    if (draftKey && typeof window !== 'undefined') {
-      try {
-        window.localStorage.removeItem(draftKey);
-      } catch {
-        // ignore
-      }
-    }
+    let currentOnboarding = getDefaultOnboardingState();
+    let targetRevision = authoritativeRevision;
 
     try {
       const client = createWebApiClient({ csrfToken });
-      let currentOnboarding = getDefaultOnboardingState();
-      let targetRevision = authoritativeRevision;
-
       try {
         const prefRes = await client.getUserPreferences();
         if (prefRes?.data) {
@@ -232,8 +223,44 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
       } catch {
         // Fall back gracefully
       }
+    } catch {}
 
-      const updatedOnboarding = skipOnboarding(currentOnboarding);
+    const updatedOnboarding = skipOnboarding(currentOnboarding);
+
+    // Persist skip locally immediately before network
+    if (draftKey && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            step: 'completed',
+            skipped: true,
+            selectedInterests,
+            updatedAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    const pendingKey = user?.id ? `daynori:preferences:pending:${user.id}` : null;
+    if (pendingKey && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(
+          pendingKey,
+          JSON.stringify({
+            preferences: {
+              onboarding: updatedOnboarding,
+            },
+            expectedRevision: targetRevision,
+          })
+        );
+      } catch {}
+    }
+
+    try {
+      const client = createWebApiClient({ csrfToken });
 
       // Concurrency retry loop
       let retries = 2;
@@ -247,6 +274,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
             expectedRevision: targetRevision,
           });
           synced = true;
+          if (pendingKey && typeof window !== 'undefined') {
+            window.localStorage.removeItem(pendingKey);
+          }
         } catch (err: unknown) {
           if (retries > 0 && err instanceof Error && (err.message.includes('conflict') || err.message.includes('409'))) {
             retries--;
@@ -478,10 +508,40 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
 
       if (draftKey && typeof window !== 'undefined') {
         try {
-          window.localStorage.removeItem(draftKey);
+          window.localStorage.setItem(
+            draftKey,
+            JSON.stringify({
+              step: 'completed',
+              skipped: false,
+              selectedInterests,
+              createdSampleItemIds: createdItemIds,
+              createdFolderId,
+              updatedAt: new Date().toISOString(),
+            })
+          );
         } catch {
           // ignore
         }
+      }
+
+      const pendingKey = user?.id ? `daynori:preferences:pending:${user.id}` : null;
+      if (!synced && pendingKey && typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(
+            pendingKey,
+            JSON.stringify({
+              preferences: {
+                homeLayout: updatedLayout,
+                onboarding: updatedOnboarding,
+              },
+              expectedRevision: targetRevision,
+            })
+          );
+        } catch {}
+      } else if (synced && pendingKey && typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(pendingKey);
+        } catch {}
       }
 
       setLiveAnnouncement('Tutorial completed! Welcome to your Daynori workspace.');

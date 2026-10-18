@@ -7,6 +7,7 @@ import {
   sanitizeInertString,
 } from './notes.js';
 
+export type NotePurpose = 'standard' | 'guide' | 'cheatsheet' | 'reference';
 export type KnowledgePresetKind = 'guide' | 'cheatsheet' | 'reference';
 
 export interface KnowledgePresetMetadata {
@@ -322,39 +323,69 @@ export function extractQuickReferenceSections(doc: NoteDocument): QuickReference
       };
     } else if (block.type === 'bullet_list' || block.type === 'ordered_list') {
       for (const item of block.items) {
-        const fullText = item.content
-          .map((c) => ('text' in c ? c.text : ''))
-          .join('')
-          .trim();
-        if (!fullText) continue;
-
-        // Try extracting "Label: Code (Description)" format
-        const colonIdx = fullText.indexOf(':');
-        if (colonIdx > 0 && colonIdx < fullText.length - 1) {
-          const label = fullText.slice(0, colonIdx).trim();
-          let rest = fullText.slice(colonIdx + 1).trim();
-          let description: string | undefined;
-
-          // Check for trailing parentheses
-          const parenMatch = rest.match(/\(([^)]+)\)$/);
-          if (parenMatch && parenMatch.index !== undefined) {
-            description = parenMatch[1]?.trim();
-            rest = rest.slice(0, parenMatch.index).trim();
+        // If item.content has structured inlines from createCheatsheetDocument:
+        // inlines[0]: { type: 'text', text: `${label}: `, marks: ['bold'] }
+        // inlines[1]: { type: 'text', text: codeOrValue }
+        // inlines[2]: { type: 'text', text: ` (${description})` }
+        const inlines = item.content;
+        if (
+          inlines.length >= 2 &&
+          inlines[0] &&
+          'text' in inlines[0] &&
+          inlines[0].text.endsWith(': ') &&
+          (inlines[0].marks?.includes('bold') || inlines.length === 2 || inlines.length === 3)
+        ) {
+          const label = inlines[0].text.replace(/:\s*$/, '').trim();
+          const codeOrValue = 'text' in inlines[1]! ? inlines[1]!.text : '';
+          let description: string | undefined = undefined;
+          if (
+            inlines[2] &&
+            'text' in inlines[2] &&
+            inlines[2].text.trim().startsWith('(') &&
+            inlines[2].text.trim().endsWith(')')
+          ) {
+            description = inlines[2].text.trim().slice(1, -1).trim();
           }
+          currentSection.entries.push({
+            id: item.id || generateUuid(),
+            label,
+            codeOrValue,
+            description,
+            copyableText: cleanTextForClipboard(codeOrValue),
+          });
+          continue;
+        }
 
-          const copyableText = cleanTextForClipboard(rest);
+        // Map inlines to text preserving hard breaks as \n
+        const fullText = item.content
+          .map((c) => (c.type === 'hard_break' ? '\n' : 'text' in c ? c.text : ''))
+          .join('');
+        if (!fullText.trim()) continue;
+
+        // Try extracting "Label: Code" format without corrupting parentheses or URLs
+        const isUrl = /^https?:\/\//i.test(fullText.trim());
+        const colonIdx = isUrl ? -1 : fullText.indexOf(':');
+        if (
+          colonIdx > 0 &&
+          colonIdx <= 50 &&
+          colonIdx < fullText.length - 1 &&
+          !fullText.slice(colonIdx).startsWith('://')
+        ) {
+          const label = fullText.slice(0, colonIdx).trim();
+          const rest = fullText.slice(colonIdx + 1).replace(/^\s+/, '');
+          // Do NOT strip trailing parentheses from code like console.log(value) or func()
           currentSection.entries.push({
             id: item.id || generateUuid(),
             label,
             codeOrValue: rest,
-            description,
-            copyableText,
+            description: undefined,
+            copyableText: cleanTextForClipboard(rest),
           });
         } else {
           // Plain list item without colon
           currentSection.entries.push({
             id: item.id || generateUuid(),
-            label: fullText,
+            label: fullText.trim(),
             codeOrValue: fullText,
             copyableText: cleanTextForClipboard(fullText),
           });
@@ -363,7 +394,7 @@ export function extractQuickReferenceSections(doc: NoteDocument): QuickReference
     } else if (block.type === 'checklist') {
       for (const item of block.items) {
         const itemText = item.content
-          .map((c) => ('text' in c ? c.text : ''))
+          .map((c) => (c.type === 'hard_break' ? '\n' : 'text' in c ? c.text : ''))
           .join('')
           .trim();
         if (itemText) {
@@ -377,15 +408,20 @@ export function extractQuickReferenceSections(doc: NoteDocument): QuickReference
     } else if (block.type === 'paragraph') {
       const pText =
         block.content
-          ?.map((c) => ('text' in c ? c.text : ''))
-          .join('')
-          .trim() || '';
-      // If paragraph contains backticked code or colon pattern
-      if (pText.includes(':')) {
-        const colonIdx = pText.indexOf(':');
+          ?.map((c) => (c.type === 'hard_break' ? '\n' : 'text' in c ? c.text : ''))
+          .join('') || '';
+      // If paragraph contains colon pattern without being a URL
+      const isUrl = /^https?:\/\//i.test(pText.trim());
+      const colonIdx = isUrl ? -1 : pText.indexOf(':');
+      if (
+        colonIdx > 0 &&
+        colonIdx <= 40 &&
+        colonIdx < pText.length - 1 &&
+        !pText.slice(colonIdx).startsWith('://')
+      ) {
         const label = pText.slice(0, colonIdx).trim();
-        const value = pText.slice(colonIdx + 1).trim();
-        if (label.length > 0 && value.length > 0 && label.length <= 40) {
+        const value = pText.slice(colonIdx + 1).replace(/^\s+/, '');
+        if (label.length > 0 && value.length > 0) {
           currentSection.entries.push({
             id: block.id || generateUuid(),
             label,
@@ -405,20 +441,20 @@ export function extractQuickReferenceSections(doc: NoteDocument): QuickReference
  * Cleans extracted text for clipboard copying:
  * - Strips leading/trailing markdown code fences or backticks
  * - Normalizes Unicode line endings and strips control characters
- * - Ensures clean, pure text-only capture without unintended formatting
+ * - Preserves meaningful leading indentation, tabs, and trailing newlines
  */
 export function cleanTextForClipboard(rawText: string): string {
-  let cleaned = rawText.trim();
-  // Strip code block fences with optional language tag
+  let cleaned = rawText;
+  // Strip code block fences with optional language tag without trimming inner spaces or newlines
   const fenceMatch = cleaned.match(/^```[a-zA-Z0-9_-]*\r?\n([\s\S]*?)\r?\n?```$/);
   if (fenceMatch && fenceMatch[1] !== undefined) {
-    cleaned = fenceMatch[1].trim();
+    cleaned = fenceMatch[1];
   } else if (cleaned.startsWith('```') && cleaned.endsWith('```') && cleaned.length >= 6) {
-    cleaned = cleaned.slice(3, -3).trim();
+    cleaned = cleaned.slice(3, -3);
   } else if (cleaned.startsWith('`') && cleaned.endsWith('`') && cleaned.length >= 2) {
-    cleaned = cleaned.slice(1, -1).trim();
+    cleaned = cleaned.slice(1, -1);
   }
-  // Remove ASCII control codes except standard tab and newline
+  // Remove ASCII control codes except standard tab (0x09), line feed (0x0A), and carriage return (0x0D)
   // eslint-disable-next-line no-control-regex
   cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   return cleaned;
@@ -522,13 +558,15 @@ export function matchesKnowledgeFilter(
   item: {
     title: string;
     kind?: string;
+    purpose?: string;
     plainText?: string;
     folderId: string | null;
     isPinned?: boolean;
     isArchived?: boolean;
     tags?: string[];
   },
-  filter: KnowledgeSavedViewFilter
+  filter: KnowledgeSavedViewFilter,
+  folderHierarchy?: Map<string, { parentId: string | null }>
 ): boolean {
   // 1. Archive check
   if (filter.isArchived !== undefined && Boolean(item.isArchived) !== filter.isArchived) {
@@ -541,8 +579,28 @@ export function matchesKnowledgeFilter(
   }
 
   // 3. Topic folder check
-  if (filter.folderId !== undefined && item.folderId !== filter.folderId) {
-    return false;
+  if (filter.folderId !== undefined) {
+    if (filter.folderId === null) {
+      if (item.folderId !== null) return false;
+    } else {
+      let matchesFolder = item.folderId === filter.folderId;
+      if (!matchesFolder && folderHierarchy && item.folderId) {
+        let curr: string | null = item.folderId;
+        const visited = new Set<string>();
+        while (curr && !visited.has(curr)) {
+          visited.add(curr);
+          const parent: string | null = folderHierarchy.get(curr)?.parentId ?? null;
+          if (parent === filter.folderId) {
+            matchesFolder = true;
+            break;
+          }
+          curr = parent;
+        }
+      }
+      if (!matchesFolder) {
+        return false;
+      }
+    }
   }
 
   // 4. Tags check (must include all filter tagNames if specified)
@@ -554,12 +612,18 @@ export function matchesKnowledgeFilter(
     }
   }
 
-  // 5. Preset kind check (checks tags or title convention for 'guide'/'cheatsheet')
+  // 5. Preset kind check
+  // ONLY notes or knowledge records can match knowledge presets ('guide', 'cheatsheet', 'reference')
+  // Files (e.g. "Guide photo.png"), tasks, or folders must NEVER match preset kinds.
   if (filter.presetKind && filter.presetKind !== 'all') {
+    const isNoteOrKnowledge = item.kind === 'note' || item.kind === 'knowledge' || !item.kind;
+    if (!isNoteOrKnowledge) {
+      return false;
+    }
     const itemTags = new Set((item.tags || []).map((t) => t.toLowerCase()));
-    const titleLower = item.title.toLowerCase();
-    const matchesPreset = itemTags.has(filter.presetKind) || titleLower.includes(filter.presetKind);
-    if (!matchesPreset) {
+    const matchesAuthoritativePurpose = item.purpose === filter.presetKind;
+    const matchesTag = itemTags.has(filter.presetKind);
+    if (!matchesAuthoritativePurpose && !matchesTag) {
       return false;
     }
   }
@@ -575,6 +639,51 @@ export function matchesKnowledgeFilter(
   }
 
   return true;
+}
+
+/**
+ * Sorts knowledge items according to saved view criteria with stable tie-breaking.
+ */
+export function sortKnowledgeItems<
+  T extends {
+    id?: string;
+    title: string;
+    rank?: string;
+    isPinned?: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+  },
+>(
+  items: T[],
+  sortBy: 'title' | 'updatedAt' | 'createdAt' | 'rank' = 'updatedAt',
+  sortOrder: 'asc' | 'desc' = 'desc'
+): T[] {
+  return [...items].sort((a, b) => {
+    // Pinned items float to top if present
+    if (a.isPinned !== b.isPinned) {
+      return a.isPinned ? -1 : 1;
+    }
+    let cmp = 0;
+    if (sortBy === 'title') {
+      cmp = a.title.localeCompare(b.title);
+    } else if (sortBy === 'createdAt') {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      cmp = aTime - bTime;
+    } else if (sortBy === 'rank') {
+      cmp = (a.rank || '').localeCompare(b.rank || '');
+    } else {
+      // 'updatedAt' default
+      const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      cmp = aTime - bTime;
+    }
+    if (cmp !== 0) {
+      return sortOrder === 'asc' ? cmp : -cmp;
+    }
+    // Stable tie-breaking on id
+    return (a.id || '').localeCompare(b.id || '');
+  });
 }
 
 // --- Item Links & Backlinks ---

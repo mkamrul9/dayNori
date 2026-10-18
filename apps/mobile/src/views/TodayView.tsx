@@ -42,6 +42,7 @@ import {
   DEFAULT_MODULE_LABELS,
   UnsupportedLayoutVersionError,
   shouldShowOnboarding,
+  type OnboardingState,
   type HomeLayout,
   type HomeWidgetId,
   type ModuleShortcutId,
@@ -349,7 +350,41 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 }
               }
             }
-            if (shouldShowOnboarding(prefRes.data.preferences?.onboarding)) {
+            let pendingOnboarding: unknown = undefined;
+            try {
+              const snap = await repository.getPreferenceSnapshot(userId || 'anonymous');
+              const snapPending = snap?.preferences?.['_pendingPreferences'] as Record<string, unknown> | undefined;
+              if (snapPending?.['onboarding']) {
+                pendingOnboarding = snapPending['onboarding'];
+              }
+              if (snapPending && apiClient) {
+                const expectedRev = (snap?.preferences?.['_pendingExpectedRevision'] as number | undefined) ?? prefRes.data.revision;
+                void apiClient
+                  .updateUserPreferences({
+                    preferences: snapPending,
+                    expectedRevision: expectedRev,
+                  })
+                  .then(async (res) => {
+                    if (res?.data) {
+                      const clean = { ...snap?.preferences };
+                      delete clean['_pendingPreferences'];
+                      delete clean['_pendingExpectedRevision'];
+                      await repository.savePreferenceSnapshot({
+                        userId: userId || 'anonymous',
+                        preferences: clean,
+                        schemaVersion: 1,
+                        revision: res.data.revision,
+                        updatedAt: new Date().toISOString(),
+                      });
+                      setPreferencesRevision(res.data.revision);
+                    }
+                  })
+                  .catch(() => {});
+              }
+            } catch {}
+
+            const effectiveOnboarding = (pendingOnboarding || prefRes.data.preferences?.onboarding) as OnboardingState | undefined;
+            if (shouldShowOnboarding(effectiveOnboarding)) {
               onTriggerOnboarding?.();
             }
           }
@@ -415,7 +450,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 .catch(() => {});
             }
 
-            if (shouldShowOnboarding((snapPrefs as any)?.onboarding)) {
+            const effectiveOnb = (pendingPrefs?.['onboarding'] || snapPrefs.onboarding) as OnboardingState | undefined;
+            if (shouldShowOnboarding(effectiveOnb)) {
               onTriggerOnboarding?.();
             }
           }

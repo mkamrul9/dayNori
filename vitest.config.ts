@@ -20,6 +20,7 @@ export default defineConfig({
       'expo-file-system': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-file-system.ts'),
       'expo-document-picker': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-document-picker.ts'),
       'expo-notifications': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-notifications.ts'),
+      'expo-clipboard': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-clipboard.ts'),
     },
   },
   test: {

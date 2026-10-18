@@ -17,6 +17,7 @@ import type {
   JournalEntry,
   FileItem,
   CalendarEvent,
+  NotePurpose,
 } from '@daynori/contracts';
 import {
   lockWorkspaceSyncState,
@@ -1136,6 +1137,14 @@ export class SyncService {
                 `Entity with ID ${cmd.entityId} already exists in this workspace.`
               );
             }
+            const rawPurpose = cmd.payload['purpose'];
+            const notePurpose: NotePurpose =
+              typeof rawPurpose === 'string' &&
+              ['standard', 'guide', 'cheatsheet', 'reference'].includes(rawPurpose)
+                ? (rawPurpose as NotePurpose)
+                : cmd.payload['kind'] === 'knowledge'
+                  ? 'guide'
+                  : 'standard';
             const note = await createNote(
               client,
               cmd.workspaceId,
@@ -1149,6 +1158,7 @@ export class SyncService {
                     : typeof cmd.payload['parentId'] === 'string'
                       ? cmd.payload['parentId']
                       : null,
+                purpose: notePurpose,
                 document: cmd.payload['document']
                   ? validateNoteDocument(cmd.payload['document'])
                   : undefined,
@@ -1168,6 +1178,12 @@ export class SyncService {
             break;
           }
           case 'updateNote': {
+            const rawPurpose = cmd.payload['purpose'];
+            const updatePurpose: NotePurpose | undefined =
+              typeof rawPurpose === 'string' &&
+              ['standard', 'guide', 'cheatsheet', 'reference'].includes(rawPurpose)
+                ? (rawPurpose as NotePurpose)
+                : undefined;
             const note = await updateNote(
               client,
               cmd.workspaceId,
@@ -1182,6 +1198,7 @@ export class SyncService {
                     : cmd.payload['folderId'] === null
                       ? null
                       : undefined,
+                purpose: updatePurpose,
                 document: cmd.payload['document']
                   ? validateNoteDocument(cmd.payload['document'])
                   : undefined,
@@ -2703,7 +2720,8 @@ export class SyncService {
 
       const newRevision = 1;
       const seq = syncState.nextChangeSeq;
-      const kind = typeof cmd.payload['kind'] === 'string' ? cmd.payload['kind'] : 'note';
+      const rawKind = typeof cmd.payload['kind'] === 'string' ? cmd.payload['kind'] : 'note';
+      const kind = rawKind === 'knowledge' ? 'note' : rawKind;
 
       if (kind === 'journal_entry') {
         const error = {
@@ -2946,19 +2964,24 @@ export class SyncService {
               : undefined,
           'Untitled'
         );
+        const rawPurpose = cmd.payload['purpose'];
+        const notePurpose = ['standard', 'guide', 'cheatsheet', 'reference'].includes(rawPurpose as string)
+          ? (rawPurpose as string)
+          : (rawKind === 'knowledge' ? 'guide' : 'standard');
         const wc = calculateWordCount(pt);
         const cc = calculateCharCount(pt);
         await client.query(
-          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count, purpose)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (workspace_id, id) DO UPDATE SET
              title = EXCLUDED.title,
              document = EXCLUDED.document,
              plain_text = EXCLUDED.plain_text,
              word_count = EXCLUDED.word_count,
              char_count = EXCLUDED.char_count,
+             purpose = EXCLUDED.purpose,
              updated_at = now();`,
-          [cmd.entityId, cmd.workspaceId, noteTitle, JSON.stringify(doc), pt, wc, cc]
+          [cmd.entityId, cmd.workspaceId, noteTitle, JSON.stringify(doc), pt, wc, cc, notePurpose]
         );
       }
 
@@ -2978,6 +3001,10 @@ export class SyncService {
           : {}),
         ...(kind === 'note'
           ? {
+              purpose:
+                ['standard', 'guide', 'cheatsheet', 'reference'].includes(cmd.payload['purpose'] as string)
+                  ? (cmd.payload['purpose'] as string)
+                  : (rawKind === 'knowledge' ? 'guide' : 'standard'),
               title:
                 typeof cmd.payload['title'] === 'string'
                   ? cmd.payload['title']
@@ -3319,18 +3346,20 @@ export class SyncService {
         }
 
         if (
-          existingItem.kind === 'note' &&
+          (existingItem.kind === 'note' || existingItem.kind === 'knowledge') &&
           ('title' in cmd.payload ||
             'document' in cmd.payload ||
             'plainText' in cmd.payload ||
-            'name' in cmd.payload)
+            'name' in cmd.payload ||
+            'purpose' in cmd.payload)
         ) {
           const curNoteRes = await client.query<{
             title: string;
             document: NoteDocument;
             plain_text: string;
+            purpose: string;
           }>(
-            `SELECT title, document, plain_text FROM app.notes WHERE workspace_id = $1 AND id = $2;`,
+            `SELECT title, document, plain_text, purpose FROM app.notes WHERE workspace_id = $1 AND id = $2;`,
             [cmd.workspaceId, cmd.entityId]
           );
           const curNote = curNoteRes.rows[0];
@@ -3353,19 +3382,25 @@ export class SyncService {
             rawTitle !== undefined
               ? resolveNoteTitle(String(rawTitle), 'Untitled')
               : (curNote?.title ?? 'Untitled');
+          const rawPurpose = cmd.payload['purpose'];
+          const notePurpose =
+            typeof rawPurpose === 'string' && ['standard', 'guide', 'cheatsheet', 'reference'].includes(rawPurpose)
+              ? rawPurpose
+              : (curNote?.purpose || 'standard');
           const wc = calculateWordCount(pt);
           const cc = calculateCharCount(pt);
           await client.query(
-            `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count, purpose)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT (workspace_id, id) DO UPDATE SET
                title = EXCLUDED.title,
                document = EXCLUDED.document,
                plain_text = EXCLUDED.plain_text,
                word_count = EXCLUDED.word_count,
                char_count = EXCLUDED.char_count,
+               purpose = EXCLUDED.purpose,
                updated_at = now();`,
-            [cmd.entityId, cmd.workspaceId, title, JSON.stringify(doc), pt, wc, cc]
+            [cmd.entityId, cmd.workspaceId, title, JSON.stringify(doc), pt, wc, cc, notePurpose]
           );
         }
 
@@ -3381,11 +3416,12 @@ export class SyncService {
         changeData = {
           ...(hasFolderId ? { folderId } : {}),
           ...(rank !== undefined ? { rank } : {}),
-          ...(existingItem.kind === 'note'
+          ...(existingItem.kind === 'note' || existingItem.kind === 'knowledge'
             ? {
                 ...('title' in cmd.payload ? { title: cmd.payload['title'] } : {}),
                 ...('document' in cmd.payload ? { document: cmd.payload['document'] } : {}),
                 ...('plainText' in cmd.payload ? { plainText: cmd.payload['plainText'] } : {}),
+                ...('purpose' in cmd.payload ? { purpose: cmd.payload['purpose'] } : {}),
               }
             : {}),
         };

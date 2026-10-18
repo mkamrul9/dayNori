@@ -32,15 +32,18 @@ import {
   createGuideDocument,
   createCheatsheetDocument,
   matchesKnowledgeFilter,
+  sortKnowledgeItems,
   type NoteDocument,
+  type NotePurpose,
   type KnowledgeSavedViewFilter,
   type SavedView,
   type ResolvedItemLink,
 } from '@daynori/domain';
-import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
+import type { DaynoriApiClient } from '@daynori/api-client';
 import type { ItemHeaderRecord, SyncEngine, FileRecord } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
+import { createWebApiClient } from '../../data/webApiClient';
 import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../../data/indexedDbRepository';
 import { createWebSyncEngine } from '../../data/syncAdapter';
 import { OfflineFileCache, computeBufferSha256 } from '../../data/offlineFileCache';
@@ -70,6 +73,13 @@ export interface LibraryItemRecord {
   metadata?: string;
   archivedAt?: string | null;
   trashedAt?: string | null;
+  purpose?: NotePurpose;
+  tags?: string[];
+  isPinned?: boolean;
+  isArchived?: boolean;
+  plainText?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type LibraryTypeFilter = 'all' | 'notes' | 'knowledge' | 'files' | 'tasks';
@@ -80,7 +90,7 @@ export default function LibraryPage() {
   const liveRegionId = useId();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
-  const { workspaceId, user } = useAuth();
+  const { workspaceId, user, csrfToken } = useAuth();
 
   // Core Data State - Workspaces start empty by default
   const [folders, setFolders] = useState<FolderNode[]>([]);
@@ -110,6 +120,7 @@ export default function LibraryPage() {
     document?: NoteDocument;
     isNew: boolean;
     kind?: 'note' | 'knowledge';
+    purpose?: NotePurpose;
     conflict?: {
       serverRevision: number;
       serverTitle?: string;
@@ -266,9 +277,7 @@ export default function LibraryPage() {
     const consent = getTrustedDeviceConsent();
     setHasConsent(consent);
 
-    const client = createApiClient({
-      baseUrl: '/api',
-    });
+    const client = createWebApiClient({ csrfToken });
     apiClientRef.current = client;
 
     async function initStorageAndSync() {
@@ -357,6 +366,12 @@ export default function LibraryPage() {
                   revision: h.serverRevision,
                   archivedAt: h.isArchived ? h.updatedAt : null,
                   trashedAt: h.deletedAt ?? null,
+                  purpose: h.purpose,
+                  isPinned: h.isPinned,
+                  isArchived: h.isArchived,
+                  tags: h.tags,
+                  createdAt: h.createdAt,
+                  updatedAt: h.updatedAt,
                 });
               }
             }
@@ -575,46 +590,56 @@ export default function LibraryPage() {
 
   // Items in current view (filtered by type, search, or active saved view)
   const currentItems = useMemo(() => {
-    return items
-      .filter((item) => {
-        if (item.trashedAt) return false;
-        if (!showArchived && item.archivedAt) return false;
+    const activeView = activeSavedViewId
+      ? savedViews.find((v) => v.id === activeSavedViewId)
+      : null;
 
-        if (activeSavedViewId) {
-          const activeView = savedViews.find((v) => v.id === activeSavedViewId);
-          if (activeView) {
-            return matchesKnowledgeFilter(
-              {
-                title: item.title,
-                kind: item.kind,
-                folderId: item.folderId,
-                isPinned: Boolean((item as { isPinned?: boolean }).isPinned),
-              },
-              activeView.filter
-            );
-          }
-        }
+    const filtered = items.filter((item) => {
+      if (item.trashedAt) return false;
+      if (!showArchived && item.archivedAt) return false;
 
-        if (item.folderId !== currentFolderId) return false;
+      if (activeView) {
+        return matchesKnowledgeFilter(
+          {
+            title: item.title,
+            kind: item.kind,
+            folderId: item.folderId,
+            isPinned: Boolean(item.isPinned),
+            isArchived: Boolean(item.isArchived || item.archivedAt),
+            purpose: item.purpose,
+            tags: item.tags,
+            plainText: item.plainText,
+          },
+          activeView.filter,
+          folderMap
+        );
+      }
 
-        // Module filter matching
-        if (typeFilter !== 'all') {
-          if (typeFilter === 'notes' && item.kind !== 'note') return false;
-          if (typeFilter === 'knowledge' && item.kind !== 'knowledge') return false;
-          if (typeFilter === 'files' && item.kind !== 'file') return false;
-          if (typeFilter === 'tasks' && item.kind !== 'task' && item.kind !== 'routine')
-            return false;
-        }
+      if (item.folderId !== currentFolderId) return false;
 
-        // Search query match
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          if (!item.title.toLowerCase().includes(q)) return false;
-        }
+      // Module filter matching
+      if (typeFilter !== 'all') {
+        if (typeFilter === 'notes' && item.kind !== 'note') return false;
+        if (typeFilter === 'knowledge' && item.kind !== 'knowledge') return false;
+        if (typeFilter === 'files' && item.kind !== 'file') return false;
+        if (typeFilter === 'tasks' && item.kind !== 'task' && item.kind !== 'routine')
+          return false;
+      }
 
-        return true;
-      })
-      .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
+      // Search query match
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (!item.title.toLowerCase().includes(q)) return false;
+      }
+
+      return true;
+    });
+
+    if (activeView?.filter.sortBy) {
+      return sortKnowledgeItems(filtered, activeView.filter.sortBy, activeView.filter.sortOrder);
+    }
+
+    return filtered.sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
   }, [
     items,
     currentFolderId,
@@ -1468,6 +1493,7 @@ export default function LibraryPage() {
         document: doc,
         isNew: true,
         kind: 'knowledge',
+        purpose: preset,
         conflict: null,
       });
       announce(`Opened new ${preset} editor`);
@@ -1477,18 +1503,7 @@ export default function LibraryPage() {
 
   const handleOpenQuickReference = useCallback(
     async (item: LibraryItemRecord) => {
-      let doc: NoteDocument = {
-        version: 1,
-        type: 'doc',
-        content: [
-          {
-            id: generateUuid(),
-            type: 'heading',
-            level: 1,
-            content: [{ type: 'text', text: item.title }],
-          },
-        ],
-      };
+      let doc: NoteDocument | undefined;
 
       if (localRepoRef.current) {
         try {
@@ -1499,6 +1514,22 @@ export default function LibraryPage() {
         } catch {
           /* ignore fallback */
         }
+      }
+
+      if (!doc && apiClientRef.current && workspaceId && isOnline) {
+        try {
+          const res = await apiClientRef.current.getNote(workspaceId, item.id);
+          if (res.data?.document) {
+            doc = res.data.document;
+          }
+        } catch {
+          /* ignore fallback */
+        }
+      }
+
+      if (!doc) {
+        announce('Note content is unavailable offline.');
+        return;
       }
 
       let links: ResolvedItemLink[] = [];
@@ -1522,7 +1553,7 @@ export default function LibraryPage() {
       setActiveQuickRefLinks(links);
       announce(`Opened quick reference for ${item.title}`);
     },
-    [workspaceId, announce]
+    [workspaceId, isOnline, announce]
   );
 
   const handleCreateSavedView = useCallback(async () => {
@@ -1545,14 +1576,14 @@ export default function LibraryPage() {
         filter,
       });
       if (res.data) {
-        setSavedViews((prev) => [...prev, res.data!]);
+        setSavedViews((prev) => [...prev, res.data]);
         setActiveSavedViewId(res.data.id);
         setIsSaveViewDialogOpen(false);
         setNewViewName('');
         announce(`Saved view ${res.data.name} created`);
       }
-    } catch {
-      announce('Failed to create saved view');
+    } catch (err: unknown) {
+      announce((err as { message?: string })?.message || 'Failed to create saved view');
     }
   }, [newViewName, workspaceId, typeFilter, searchQuery, currentFolderId, announce]);
 
@@ -1605,6 +1636,17 @@ export default function LibraryPage() {
           }
         }
 
+        if (!doc && apiClientRef.current && workspaceId && isOnline) {
+          try {
+            const res = await apiClientRef.current.getNote(workspaceId, item.id);
+            if (res.data?.document) {
+              doc = res.data.document;
+            }
+          } catch {
+            /* ignore fallback */
+          }
+        }
+
         setEditingNote({
           id: item.id,
           title: item.title,
@@ -1612,6 +1654,7 @@ export default function LibraryPage() {
           document: doc,
           isNew: false,
           kind: item.kind === 'knowledge' ? 'knowledge' : 'note',
+          purpose: item.purpose,
           conflict: conflictInfo,
         });
         announce(`Opened note ${item.title}`);

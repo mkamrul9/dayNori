@@ -276,27 +276,10 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
 
       const updatedOnboarding = skipOnboarding(currentOnboarding);
 
-      // 3. Persist locally to repository immediately
-      if (repository && userId) {
-        const snap = await repository.getPreferenceSnapshot(userId).catch(() => null);
-        const existingPrefs = snap?.preferences || {};
-        const cleanPrefs = { ...existingPrefs };
-        delete cleanPrefs['onboardingDraft'];
-        cleanPrefs['onboarding'] = updatedOnboarding;
-
-        await repository.savePreferenceSnapshot({
-          userId,
-          preferences: cleanPrefs,
-          schemaVersion: 1,
-          revision: snap?.revision || 1,
-          updatedAt: new Date().toISOString(),
-        }).catch(() => {});
-      }
-
-      // 4. Concurrency retry loop for remote API
+      // 3. Concurrency retry loop for remote API
+      let synced = false;
       if (apiClient) {
         let retries = 2;
-        let synced = false;
         while (retries >= 0 && !synced) {
           try {
             await apiClient.updateUserPreferences({
@@ -318,6 +301,39 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
             }
           }
         }
+      }
+
+      // 4. Persist locally to repository with pending queue if not synced
+      if (repository && userId) {
+        const snap = await repository.getPreferenceSnapshot(userId).catch(() => null);
+        const existingPrefs = snap?.preferences || {};
+        const cleanPrefs = { ...existingPrefs };
+        delete cleanPrefs['onboardingDraft'];
+        cleanPrefs['onboarding'] = updatedOnboarding;
+        if (!synced) {
+          cleanPrefs['_pendingPreferences'] = {
+            ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}),
+            onboarding: updatedOnboarding,
+          };
+          cleanPrefs['_pendingExpectedRevision'] = targetRevision;
+        } else {
+          const pending = { ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}) };
+          delete pending['onboarding'];
+          if (Object.keys(pending).length === 0) {
+            delete cleanPrefs['_pendingPreferences'];
+            delete cleanPrefs['_pendingExpectedRevision'];
+          } else {
+            cleanPrefs['_pendingPreferences'] = pending;
+          }
+        }
+
+        await repository.savePreferenceSnapshot({
+          userId,
+          preferences: cleanPrefs,
+          schemaVersion: 1,
+          revision: snap?.revision || 1,
+          updatedAt: new Date().toISOString(),
+        }).catch(() => {});
       }
 
       AccessibilityInfo.announceForAccessibility?.('Tutorial skipped. Welcome to Daynori.');
@@ -535,9 +551,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
       };
 
       // 6. Concurrency retry loop for remote API
+      let synced = false;
       if (apiClient) {
         let retries = 2;
-        let synced = false;
         while (retries >= 0 && !synced) {
           try {
             await apiClient.updateUserPreferences({
@@ -570,7 +586,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
         }
       }
 
-      // 7. Persist to local repository
+      // 7. Persist to local repository with pending queue if not synced
       if (repository && userId) {
         const snap = await repository.getPreferenceSnapshot(userId).catch(() => null);
         const existingPrefs = snap?.preferences || {};
@@ -578,6 +594,24 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
         delete cleanPrefs['onboardingDraft'];
         cleanPrefs['homeLayout'] = updatedLayout;
         cleanPrefs['onboarding'] = updatedOnboarding;
+        if (!synced) {
+          cleanPrefs['_pendingPreferences'] = {
+            ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}),
+            homeLayout: updatedLayout,
+            onboarding: updatedOnboarding,
+          };
+          cleanPrefs['_pendingExpectedRevision'] = targetRevision;
+        } else {
+          const pending = { ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}) };
+          delete pending['onboarding'];
+          delete pending['homeLayout'];
+          if (Object.keys(pending).length === 0) {
+            delete cleanPrefs['_pendingPreferences'];
+            delete cleanPrefs['_pendingExpectedRevision'];
+          } else {
+            cleanPrefs['_pendingPreferences'] = pending;
+          }
+        }
 
         await repository.savePreferenceSnapshot({
           userId,

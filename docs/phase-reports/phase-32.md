@@ -7,10 +7,10 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 - **Phase ID/specification:** [32 — Knowledge guides and cheatsheet organization](../roadmap/phases/32-knowledge-guides-and-cheatsheet-organization.md)
 - **Status:** `blocked` (Software implementation, canonical NoteDocument AST v1 presets, topic folder organization without duplicate bodies, saved views with non-destructive multi-view filtering, Web QuickReferenceView, Mobile MobileQuickReferenceView, clean plain-text clipboard boundaries, safe internal item links and reverse backlinks with honest unavailable target notices, cross-tenant isolation, and 12 integration tests verified locally; completion status recorded as `blocked` in `docs/roadmap/progress.json` due to prerequisite physical Android TalkBack / KeyStore hardware gates and external production provider push services).
 - **Contributor and report date:** Antigravity (Google DeepMind), 2026-10-18.
-- **Base Git revision and branch:** `main`.
+- **Base Git revision and branch:** `59a2e6b: fix(organizer): repair Phase 21 and Phase 22 organizer defects` on `main`.
 - **Prerequisites:**
-  - [Phase 12 — Organization folders, tags, and item metadata](phase-12.md): Folder hierarchy and item links foundation.
-  - [Phase 14 — Typed note domain and persistence](phase-14.md): Canonical `NoteDocument` AST v1.
+  - [Phase 17 — Offline persistence and synchronization](phase-17.md): Canonical synchronization and durable item storage.
+  - [Phase 15 — Rich text, Markdown, and block structures](phase-15.md): Canonical `NoteDocument` AST v1.
   - [Phase 21 — Folder browsing and library interfaces](phase-21.md): Web and mobile library browsing.
 - **Included scope:**
   - **Canonical Note Presets (`packages/domain/src/knowledge.ts`)**:

@@ -4,6 +4,7 @@ import type { LocalRepositoryPort, SyncEngine, FileRecord } from '@daynori/sync'
 import type { DaynoriApiClient } from '@daynori/api-client';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 import {
   MobileOfflineFileCache,
   computeMobileBufferSha256,
@@ -42,6 +43,7 @@ import {
   createGuideDocument,
   createCheatsheetDocument,
   matchesKnowledgeFilter,
+  sortKnowledgeItems,
   type NoteDocument,
   type SavedView,
   type ResolvedItemLink,
@@ -83,6 +85,10 @@ export interface MobileLibraryRecord {
   folderId: string | null;
   rank: string;
   revision: number;
+  purpose?: string;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  tags?: string[];
   metadata?: string;
   archivedAt?: string | null;
   trashedAt?: string | null;
@@ -153,6 +159,7 @@ export const SAMPLE_MOBILE_ITEMS: MobileLibraryRecord[] = [
     id: '88888888-8888-4888-8888-888888888888',
     title: 'TypeScript reference handbook',
     kind: 'knowledge',
+    purpose: 'reference',
     folderId: '22222222-2222-4222-8222-222222222222',
     rank: '00001000',
     revision: 1,
@@ -362,9 +369,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               id: item.id,
               title: item.name || item.title || 'Item',
               kind: item.kind as MobileLibraryRecord['kind'],
+              purpose: item.purpose ?? undefined,
               folderId: item.folderId,
               rank: item.rank,
               revision: item.serverRevision,
+              isPinned: item.isPinned,
+              isArchived: item.isArchived,
+              tags: item.tags,
               metadata: `${item.kind.toUpperCase()} • rev ${item.serverRevision}`,
               archivedAt: item.isArchived ? new Date().toISOString() : null,
               trashedAt: item.deletedAt,
@@ -594,36 +605,51 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   // Filtered items in current folder
   const currentItems = useMemo(() => {
-    return items
-      .filter((item) => {
-        if (item.trashedAt) return false;
+    const filtered = items.filter((item) => {
+      if (item.trashedAt) return false;
 
-        if (activeSavedViewId) {
-          const activeView = savedViews.find((v) => v.id === activeSavedViewId);
-          if (activeView) {
-            return matchesKnowledgeFilter(
-              {
-                title: item.title,
-                kind: item.kind,
-                folderId: item.folderId,
-                isPinned: Boolean((item as { isPinned?: boolean }).isPinned),
-              },
-              activeView.filter
-            );
-          }
+      if (activeSavedViewId) {
+        const activeView = savedViews.find((v) => v.id === activeSavedViewId);
+        if (activeView) {
+          return matchesKnowledgeFilter(
+            {
+              title: item.title,
+              kind: item.kind,
+              purpose: item.purpose,
+              folderId: item.folderId,
+              isPinned: Boolean(item.isPinned),
+              isArchived: Boolean(item.isArchived || item.archivedAt),
+              tags: item.tags,
+            },
+            activeView.filter,
+            folderMap
+          );
         }
+      }
 
-        if (item.folderId !== currentFolderId) return false;
+      if (item.folderId !== currentFolderId) return false;
 
-        // Apply module filters
-        if (activeFilter === 'notes' && item.kind !== 'note') return false;
-        if (activeFilter === 'knowledge' && item.kind !== 'knowledge') return false;
-        if (activeFilter === 'files' && item.kind !== 'file') return false;
+      // Apply module filters
+      if (activeFilter === 'notes' && item.kind !== 'note') return false;
+      if (activeFilter === 'knowledge' && item.kind !== 'knowledge') return false;
+      if (activeFilter === 'files' && item.kind !== 'file') return false;
 
-        return true;
-      })
-      .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
-  }, [items, currentFolderId, activeFilter, activeSavedViewId, savedViews]);
+      return true;
+    });
+
+    if (activeSavedViewId) {
+      const activeView = savedViews.find((v) => v.id === activeSavedViewId);
+      if (activeView && activeView.filter.sortBy) {
+        return sortKnowledgeItems(
+          filtered,
+          activeView.filter.sortBy,
+          activeView.filter.sortOrder || 'desc'
+        );
+      }
+    }
+
+    return filtered.sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
+  }, [items, currentFolderId, activeFilter, activeSavedViewId, savedViews, folderMap]);
 
   // Counts of items per folder
   const folderCounts = useMemo(() => {
@@ -965,18 +991,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleOpenQuickReference = async (item: MobileLibraryRecord) => {
-    let doc: NoteDocument = {
-      version: 1,
-      type: 'doc',
-      content: [
-        {
-          id: generateUuid(),
-          type: 'heading',
-          level: 1,
-          content: [{ type: 'text', text: item.title }],
-        },
-      ],
-    };
+    let doc: NoteDocument | null = null;
 
     const repo =
       repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
@@ -987,12 +1002,28 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           doc = loaded.document;
         }
       } catch {
-        /* fallback */
+        /* fallback to remote */
       }
     }
 
+    if (!doc && apiClient && workspaceId && !isOffline) {
+      try {
+        const res = await apiClient.getNote(workspaceId, item.id);
+        if (res.data?.document) {
+          doc = res.data.document;
+        }
+      } catch {
+        /* failed to load */
+      }
+    }
+
+    if (!doc) {
+      setLocalStatus('Note content is not downloaded or could not be loaded.');
+      return;
+    }
+
     let links: ResolvedItemLink[] = [];
-    if (apiClient && workspaceId) {
+    if (apiClient && workspaceId && !isOffline) {
       try {
         const res = await apiClient.getItemResolvedLinks(workspaceId, item.id);
         if (res.data) {
@@ -1458,6 +1489,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           document={activeQuickRef.document}
           themeMode={themeMode}
           links={activeQuickRefLinks}
+          onCopyText={async (text) => {
+            await Clipboard.setStringAsync(text);
+          }}
           onEditNote={() => {
             const it = items.find((i) => i.id === activeQuickRef.id) ?? {
               id: activeQuickRef.id,
@@ -1470,15 +1504,93 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             setActiveQuickRef(null);
             void handleOpenNote(it);
           }}
-          onNavigateToItem={(targetId) => {
-            const target = items.find((i) => i.id === targetId);
-            if (target) {
+          onNavigateToItem={async (targetId) => {
+            let target = items.find((i) => i.id === targetId);
+
+            const targetFolder = folders.find((f) => f.id === targetId);
+            if (targetFolder) {
               setActiveQuickRef(null);
-              if (target.kind === 'knowledge') {
-                void handleOpenQuickReference(target);
-              } else {
-                void handleOpenNote(target);
+              setCurrentFolderId(targetFolder.id);
+              return;
+            }
+
+            if (!target) {
+              const repo =
+                repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+              if (repo && workspaceId) {
+                try {
+                  const header = await repo.getItemHeader(workspaceId, targetId);
+                  if (header && !header.deletedAt && header.securityScope !== 'vault') {
+                    target = {
+                      id: header.id,
+                      title: header.name || header.title || 'Item',
+                      kind: header.kind as MobileLibraryRecord['kind'],
+                      purpose: header.purpose ?? undefined,
+                      folderId: header.folderId,
+                      rank: header.rank,
+                      revision: header.serverRevision,
+                      isPinned: header.isPinned,
+                      isArchived: header.isArchived,
+                      tags: header.tags,
+                    };
+                  }
+                } catch {
+                  /* fallback */
+                }
               }
+            }
+
+            if (!target && apiClient && workspaceId && !isOffline) {
+              try {
+                try {
+                  const noteRes = await apiClient.getNote(workspaceId, targetId);
+                  if (noteRes.data) {
+                    target = {
+                      id: noteRes.data.id,
+                      title: noteRes.data.title,
+                      kind:
+                        noteRes.data.purpose && noteRes.data.purpose !== 'standard'
+                          ? 'knowledge'
+                          : 'note',
+                      purpose: noteRes.data.purpose,
+                      folderId: noteRes.data.folderId,
+                      rank: '00001000',
+                      revision: noteRes.data.revision,
+                    };
+                  }
+                } catch {
+                  const fileRes = await apiClient.getFileMetadata(workspaceId, targetId);
+                  if (fileRes.data) {
+                    target = {
+                      id: fileRes.data.id,
+                      title: fileRes.data.fileName,
+                      kind: 'file',
+                      folderId: fileRes.data.folderId,
+                      rank: '00001000',
+                      revision: Number(fileRes.data.version) || 1,
+                    };
+                  }
+                }
+              } catch {
+                /* failed to fetch */
+              }
+            }
+
+            if (!target) {
+              setLocalStatus('Linked item could not be found or access is unauthorized.');
+              return;
+            }
+
+            setActiveQuickRef(null);
+            if (target.kind === 'file') {
+              void handleOpenFile(target);
+            } else if (
+              target.kind === 'knowledge' ||
+              (target.purpose && target.purpose !== 'standard')
+            ) {
+              void handleOpenQuickReference(target);
+            } else {
+              void handleOpenNote(target);
             }
           }}
         />

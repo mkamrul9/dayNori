@@ -6,6 +6,7 @@ import type {
   UpdateNoteRequest,
   NoteListQuery,
   NoteDocument,
+  NotePurpose,
 } from '@daynori/contracts';
 import {
   resolveNoteTitle,
@@ -44,6 +45,7 @@ interface NoteDbRow {
   plain_text: string;
   word_count: number;
   char_count: number;
+  purpose?: string | null;
 }
 
 function mapRowToNote(r: NoteDbRow): Note {
@@ -56,6 +58,7 @@ function mapRowToNote(r: NoteDbRow): Note {
     plainText: r.plain_text,
     wordCount: Number(r.word_count),
     charCount: Number(r.char_count),
+    purpose: (r.purpose as NotePurpose) || 'standard',
     rank: r.rank,
     isArchived: r.is_archived,
     isPinned: r.is_pinned,
@@ -117,6 +120,7 @@ export async function createNote(
   const title = resolveNoteTitle(input.title, 'Untitled', plainText);
   const wordCount = calculateWordCount(plainText);
   const charCount = calculateCharCount(plainText);
+  const purpose: NotePurpose = input.purpose || 'standard';
 
   // 3. Acquire workspace row-lock
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
@@ -133,10 +137,10 @@ export async function createNote(
   // 5. Insert into app.notes
   const noteRes = await client.query<NoteDbRow>(
     `INSERT INTO app.notes (
-      id, workspace_id, title, document, plain_text, word_count, char_count
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-    RETURNING id, workspace_id, title, document, plain_text, word_count, char_count, created_at, updated_at;`,
-    [noteId, workspaceId, title, JSON.stringify(document), plainText, wordCount, charCount]
+      id, workspace_id, title, document, plain_text, word_count, char_count, purpose
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING id, workspace_id, title, document, plain_text, word_count, char_count, purpose, created_at, updated_at;`,
+    [noteId, workspaceId, title, JSON.stringify(document), plainText, wordCount, charCount, purpose]
   );
 
   const noteRow = noteRes.rows[0]!;
@@ -153,6 +157,7 @@ export async function createNote(
     operationId: operationId || crypto.randomUUID(),
     changeData: {
       kind: 'note',
+      purpose,
       title,
       document,
       plainText,
@@ -187,6 +192,7 @@ export async function createNote(
     isArchived: false,
     isPinned,
     securityScope,
+    purpose,
     revision: 1,
     createdAt: noteRow.created_at.toISOString(),
     updatedAt: noteRow.updated_at.toISOString(),
@@ -204,7 +210,7 @@ export async function getNote(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
             i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
             i.is_archived, i.is_pinned, i.security_scope,
-            n.title, n.document, n.plain_text, n.word_count, n.char_count
+            n.title, n.document, n.plain_text, n.word_count, n.char_count, n.purpose
      FROM app.items i
      JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
      WHERE i.workspace_id = $1 AND i.id = $2;`,
@@ -316,7 +322,7 @@ export async function listNotes(
     SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
            i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
            i.is_archived, i.is_pinned, i.security_scope,
-           n.title, n.document, n.plain_text, n.word_count, n.char_count
+           n.title, n.document, n.plain_text, n.word_count, n.char_count, n.purpose
     FROM app.items i
     JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
     ${whereClause}
@@ -361,7 +367,7 @@ export async function updateNote(
     `SELECT i.id, i.workspace_id, i.folder_id, i.kind, i.created_by, i.updated_by,
             i.created_at, i.updated_at, i.deleted_at, i.revision, i.rank,
             i.is_archived, i.is_pinned, i.security_scope,
-            n.title, n.document, n.plain_text, n.word_count, n.char_count
+            n.title, n.document, n.plain_text, n.word_count, n.char_count, n.purpose
      FROM app.items i
      JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
      WHERE i.workspace_id = $1 AND i.id = $2
@@ -430,6 +436,7 @@ export async function updateNote(
   const newRank = input.rank !== undefined ? input.rank : current.rank;
   const newIsPinned = input.isPinned !== undefined ? input.isPinned : current.is_pinned;
   const newIsArchived = input.isArchived !== undefined ? input.isArchived : current.is_archived;
+  const newPurpose: NotePurpose = input.purpose !== undefined ? input.purpose : ((current.purpose as NotePurpose) || 'standard');
   const nextRevision = currentRevision + 1;
 
   // 6. Update app.items
@@ -463,6 +470,7 @@ export async function updateNote(
          plain_text = $5,
          word_count = $6,
          char_count = $7,
+         purpose = $8,
          updated_at = now()
      WHERE workspace_id = $1 AND id = $2
      RETURNING updated_at;`,
@@ -474,6 +482,7 @@ export async function updateNote(
       newPlainText,
       newWordCount,
       newCharCount,
+      newPurpose,
     ]
   );
 
@@ -491,6 +500,7 @@ export async function updateNote(
     operationId: operationId || crypto.randomUUID(),
     changeData: {
       kind: 'note',
+      purpose: newPurpose,
       title: newTitle,
       document: newDocument,
       plainText: newPlainText,
@@ -525,6 +535,7 @@ export async function updateNote(
     isArchived: newIsArchived,
     isPinned: newIsPinned,
     securityScope: current.security_scope,
+    purpose: newPurpose,
     revision: nextRevision,
     createdAt: current.created_at.toISOString(),
     updatedAt,

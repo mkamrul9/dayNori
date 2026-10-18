@@ -51,6 +51,7 @@ import {
   DEFAULT_MODULE_LABELS,
   UnsupportedLayoutVersionError,
   shouldShowOnboarding,
+  type OnboardingState,
   type HomeLayout,
   type HomeWidgetId,
   type ModuleShortcutId,
@@ -287,8 +288,46 @@ export const TodayView: React.FC = () => {
             }
           }
 
+          let localDraftCompletedOrSkipped = false;
+          if (typeof window !== 'undefined' && user?.id) {
+            const rawDraft = window.localStorage.getItem(`daynori:onboarding:${user.id}`);
+            if (rawDraft) {
+              try {
+                const parsed = JSON.parse(rawDraft);
+                if (parsed.step === 'completed' || parsed.skipped) {
+                  localDraftCompletedOrSkipped = true;
+                }
+              } catch {}
+            }
+            const pendingKey = `daynori:preferences:pending:${user.id}`;
+            const rawPending = window.localStorage.getItem(pendingKey);
+            if (rawPending) {
+              try {
+                const pending = JSON.parse(rawPending);
+                if (pending?.preferences?.onboarding) {
+                  const onb = pending.preferences.onboarding;
+                  if (onb.step === 'completed') {
+                    localDraftCompletedOrSkipped = true;
+                  }
+                }
+                void client
+                  .updateUserPreferences({
+                    preferences: pending.preferences,
+                    expectedRevision: pending.expectedRevision ?? prefRes.data.revision,
+                  })
+                  .then((res) => {
+                    if (res?.data) {
+                      window.localStorage.removeItem(pendingKey);
+                      setPreferencesRevision(res.data.revision);
+                    }
+                  })
+                  .catch(() => {});
+              } catch {}
+            }
+          }
+
           // Trigger skippable first-use onboarding tutorial on fresh account sign-in
-          if (shouldShowOnboarding(prefRes.data.preferences?.onboarding)) {
+          if (!localDraftCompletedOrSkipped && shouldShowOnboarding(prefRes.data.preferences?.onboarding)) {
             openModal('onboarding');
           }
         } else {
@@ -305,6 +344,21 @@ export const TodayView: React.FC = () => {
                   setHasUnsupportedVersion(true);
                 }
               }
+            }
+            let localDraftCompletedOrSkipped = false;
+            if (typeof window !== 'undefined' && user?.id) {
+              const rawDraft = window.localStorage.getItem(`daynori:onboarding:${user.id}`);
+              if (rawDraft) {
+                try {
+                  const parsed = JSON.parse(rawDraft);
+                  if (parsed.step === 'completed' || parsed.skipped) {
+                    localDraftCompletedOrSkipped = true;
+                  }
+                } catch {}
+              }
+            }
+            if (!localDraftCompletedOrSkipped && shouldShowOnboarding(snapshot.preferences?.onboarding as OnboardingState | undefined)) {
+              openModal('onboarding');
             }
           }
         }

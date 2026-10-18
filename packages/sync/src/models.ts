@@ -5,7 +5,7 @@
  * and preference snapshots as specified in the Phase 11 roadmap.
  */
 
-import { type NoteDocument, validateNoteDocument } from '@daynori/domain';
+import { type NoteDocument, validateNoteDocument, type NotePurpose } from '@daynori/domain';
 import type {
   TaskPriority,
   TaskStatus,
@@ -32,8 +32,10 @@ export interface ItemHeaderRecord {
   isPinned: boolean;
   securityScope: 'standard' | 'vault';
   serverRevision: number;
+  purpose?: NotePurpose;
   title?: string;
   name?: string;
+  tags?: string[];
   color?: string | null;
   icon?: string | null;
   parentId?: string | null;
@@ -210,11 +212,17 @@ export function validateItemHeaderRecord(input: unknown): ItemHeaderRecord {
         : assertNonEmptyString(r.deletedAt, 'deletedAt', 64),
   };
 
+  if (typeof r.purpose === 'string' && ['standard', 'guide', 'cheatsheet', 'reference'].includes(r.purpose)) {
+    res.purpose = r.purpose as NotePurpose;
+  }
   if (typeof r.title === 'string') {
     res.title = r.title;
   }
   if (typeof r.name === 'string') {
     res.name = r.name;
+  }
+  if (Array.isArray(r.tags)) {
+    res.tags = r.tags.map(String);
   }
   if (typeof r.color === 'string' || r.color === null) {
     res.color = r.color;
@@ -365,6 +373,7 @@ export interface NoteRecord {
   plainText: string;
   wordCount: number;
   charCount: number;
+  purpose?: NotePurpose;
   serverRevision: number;
   createdAt: string;
   updatedAt: string;
@@ -378,6 +387,11 @@ export function validateNoteRecord(input: unknown): NoteRecord {
   const r = input as Record<string, unknown>;
   const doc = validateNoteDocument(r.document);
 
+  const purpose: NotePurpose =
+    typeof r.purpose === 'string' && ['standard', 'guide', 'cheatsheet', 'reference'].includes(r.purpose)
+      ? (r.purpose as NotePurpose)
+      : 'standard';
+
   return {
     id: assertNonEmptyString(r.id, 'id'),
     workspaceId: assertNonEmptyString(r.workspaceId, 'workspaceId'),
@@ -387,6 +401,7 @@ export function validateNoteRecord(input: unknown): NoteRecord {
     plainText: typeof r.plainText === 'string' ? r.plainText : '',
     wordCount: typeof r.wordCount === 'number' ? r.wordCount : 0,
     charCount: typeof r.charCount === 'number' ? r.charCount : 0,
+    purpose,
     serverRevision: typeof r.serverRevision === 'number' ? r.serverRevision : 1,
     createdAt: assertNonEmptyString(r.createdAt, 'createdAt', 64),
     updatedAt: assertNonEmptyString(r.updatedAt, 'updatedAt', 64),

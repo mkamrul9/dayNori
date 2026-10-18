@@ -529,5 +529,152 @@ describe('Phase 32: Knowledge Guides, Cheatsheets, and Saved Views Suite', () =>
       // Cleanup injected link
       await adminPool.query('DELETE FROM app.item_links WHERE target_item_id = $1;', [bobNoteId]);
     });
+
+    it('regression: matchesKnowledgeFilter prevents "Guide photo.png" file from matching guide preset', () => {
+      const fileItem = {
+        title: 'Guide photo.png',
+        kind: 'file',
+        folderId: null,
+        isPinned: false,
+        isArchived: false,
+      };
+      const guideFilter: KnowledgeSavedViewFilter = {
+        presetKind: 'guide',
+      };
+      expect(matchesKnowledgeFilter(fileItem, guideFilter)).toBe(false);
+
+      const guideNote = {
+        title: 'Renamed Manual',
+        kind: 'note',
+        purpose: 'guide',
+        folderId: null,
+        isPinned: false,
+        isArchived: false,
+      };
+      expect(matchesKnowledgeFilter(guideNote, guideFilter)).toBe(true);
+    });
+
+    it('regression: cleanTextForClipboard and extractQuickReferenceSections preserve code syntax faithfully', () => {
+      const doc = createCheatsheetDocument({
+        title: 'Debugging Cheatsheet',
+        sections: [
+          {
+            title: 'Syntax',
+            entries: [
+              { label: 'Print statement', codeOrValue: '  console.log(value)' },
+              { label: 'Run command', codeOrValue: 'pnpm run dev --port 3000' },
+            ],
+          },
+        ],
+      });
+      const sections = extractQuickReferenceSections(doc);
+      expect(sections.length).toBeGreaterThan(0);
+      const syntaxEntry = sections.flatMap((s) => s.entries).find((e) => e.codeOrValue.includes('console.log'));
+      expect(syntaxEntry).toBeDefined();
+      expect(syntaxEntry?.codeOrValue).toContain('console.log(value)');
+      expect(syntaxEntry?.codeOrValue).not.toBe('console.log');
+
+      const cleaned = cleanTextForClipboard('  console.log(value)\n');
+      expect(cleaned).toBe('  console.log(value)\n');
+    });
+
+    it('regression: durable note purpose survives updates, renames, and folder moves', async () => {
+      const noteId = crypto.randomUUID();
+      const created = await clientA.createNote(workspaceAId, {
+        id: noteId,
+        title: 'Initial Guide Title',
+        purpose: 'guide',
+        document: createGuideDocument({ title: 'Initial Guide Title' }),
+      });
+      expect(created.data.purpose).toBe('guide');
+
+      // Rename to a title without "guide"
+      const renamed = await clientA.updateNote(workspaceAId, noteId, {
+        title: 'Deployment Handbook',
+        baseRevision: 1,
+      });
+      expect(renamed.data.title).toBe('Deployment Handbook');
+      expect(renamed.data.purpose).toBe('guide');
+
+      // Fetch fresh from server
+      const fetched = await clientA.getNote(workspaceAId, noteId);
+      expect(fetched.data.purpose).toBe('guide');
+      expect(fetched.data.id).toBe(noteId);
+    });
+
+    it('regression: personal saved views are private to owner and support revision conflicts', async () => {
+      const view = await clientA.createSavedView(workspaceAId, {
+        name: 'Alice Private View',
+        isShared: false,
+        filter: { presetKind: 'guide' },
+      });
+      expect(view.data.revision).toBe(1);
+
+      // User B lists saved views in workspace B -> must not see Alice's personal view
+      const bViews = await clientB.listSavedViews(workspaceBId);
+      expect(bViews.data.find((v) => v.id === view.data.id)).toBeUndefined();
+
+      // Conflict handling: updating with wrong expectedRevision must throw
+      await expect(
+        clientA.updateSavedView(workspaceAId, view.data.id, {
+          name: 'Updated Name',
+          expectedRevision: 999,
+        })
+      ).rejects.toThrow();
+
+      // Updating with correct expectedRevision succeeds
+      const updated = await clientA.updateSavedView(workspaceAId, view.data.id, {
+        name: 'Updated Name',
+        expectedRevision: 1,
+      });
+      expect(updated.data.revision).toBe(2);
+    });
+
+    it('regression: resolved links isolate vault items and vault sources', async () => {
+      // Create a vault item in Workspace A
+      const vaultNoteId = crypto.randomUUID();
+      await adminPool.query(
+        `INSERT INTO app.items (id, workspace_id, kind, security_scope, created_by, updated_by)
+         VALUES ($1, $2, 'note', 'vault', $3, $3);`,
+        [vaultNoteId, workspaceAId, userAId]
+      );
+      await adminPool.query(
+        `INSERT INTO app.notes (id, workspace_id, title, plain_text, document)
+         VALUES ($1, $2, 'Top Secret Vault Note', 'classified', '{"type":"doc","version":1,"content":[]}'::jsonb);`,
+        [vaultNoteId, workspaceAId]
+      );
+
+      // Ordinary public note in Workspace A
+      const pubNoteId = crypto.randomUUID();
+      await clientA.createNote(workspaceAId, {
+        id: pubNoteId,
+        title: 'Public Knowledge',
+        document: createGuideDocument({ title: 'Public Knowledge' }),
+      });
+
+      // Link pubNote to vaultNote
+      await adminPool.query('ALTER TABLE app.item_links DISABLE TRIGGER ALL;');
+      try {
+        await adminPool.query(
+          `INSERT INTO app.item_links (id, workspace_id, source_item_id, target_item_id, link_type, created_by)
+           VALUES ($1, $2, $3, $4, 'references', $5);`,
+          [crypto.randomUUID(), workspaceAId, pubNoteId, vaultNoteId, userAId]
+        );
+      } finally {
+        await adminPool.query('ALTER TABLE app.item_links ENABLE TRIGGER ALL;');
+      }
+
+      // Checking links for pubNote: vault target must be unavailable, reason unauthorized, title redacted
+      const pubLinks = await clientA.getItemResolvedLinks(workspaceAId, pubNoteId);
+      const vaultLink = pubLinks.data.find((l) => l.targetId === vaultNoteId);
+      expect(vaultLink).toBeDefined();
+      expect(vaultLink?.isAvailable).toBe(false);
+      expect(vaultLink?.unavailableReason).toBe('unauthorized');
+      expect(vaultLink?.target.title).toBe('Unavailable Item');
+
+      // Checking links for vaultNote: must return empty array to prevent side-channel link discovery
+      const vaultLinks = await clientA.getItemResolvedLinks(workspaceAId, vaultNoteId);
+      expect(vaultLinks.data).toEqual([]);
+    });
   });
 });
