@@ -67,6 +67,13 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
    - `node scripts/validate-planning.mjs`: Validated successfully with schema compliance.
    - `git diff --check`: No whitespace or git diff errors.
 
+## Subsequent Software Repairs (Mobile Offline Preference Durability)
+
+- **Durable Pending Preferences**:
+  - In `apps/mobile/src/views/TodayView.tsx`, offline preference updates previously guessed a revision increment without storing a durable outbound mutation.
+  - Fixed to preserve the authoritative server revision, store pending layout/display adjustments in `_pendingPreferences` within the local preference snapshot, and immediately apply pending edits to the local UI.
+  - Upon reconnection or refresh, pending preferences are submitted to the API with authoritative `expectedRevision`, handling 409 conflicts and refreshing Today presentation without requiring manual page reload.
+
 ## Blocked gates and hardware dependencies
 
 - **Physical Android TalkBack & Native KeyStore**: Provisional mobile implementation verified in headless test environment; formal physical screen-reader and device hardware verification remain recorded as blocked gates.

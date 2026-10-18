@@ -54,6 +54,7 @@ export default function App() {
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [notificationCapability, setNotificationCapability] = useState<NotificationCapabilityState | null>(null);
 
   // Production encrypted repository and sync engine state
@@ -474,6 +475,7 @@ export default function App() {
             workspaceId={userNamespace?.workspaceId ?? null}
             userId={userNamespace?.userId ?? null}
             isOnline={isOnline}
+            refreshTrigger={refreshTrigger}
           />
         )}
 
@@ -592,7 +594,7 @@ export default function App() {
               }
             }}
             onOpenGallery={() => setActiveModal('gallery')}
-            onOpenOnboarding={() => setActiveModal('onboarding')}
+            onOpenOnboarding={() => setActiveModal('onboarding-replay')}
             onClose={() => setActiveModal('none')}
           />
         </View>
@@ -613,14 +615,18 @@ export default function App() {
 
       {/* Onboarding Tutorial Sheet (Phase 31 First-Use Discovery) */}
       <OnboardingSheet
-        visible={activeModal === 'onboarding'}
+        visible={activeModal === 'onboarding' || activeModal === 'onboarding-replay'}
         onClose={() => setActiveModal('none')}
         themeMode={themeMode}
         apiClient={apiClient ?? undefined}
         repository={repository ?? undefined}
         workspaceId={userNamespace?.workspaceId ?? null}
         userId={userNamespace?.userId ?? null}
-        onComplete={() => setActiveModal('none')}
+        isReplay={activeModal === 'onboarding-replay'}
+        onComplete={() => {
+          setActiveModal('none');
+          setRefreshTrigger((prev) => prev + 1);
+        }}
       />
     </SafeAreaView>
   );

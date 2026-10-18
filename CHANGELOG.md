@@ -1,5 +1,24 @@
 # Changelog
 
+## Defect repairs (Phase 29 push transport, Phase 30 preference concurrency, Phase 31 onboarding recovery) — 2026-10-18
+
+- **Web Push Transport & RFC 8188 Interoperability (`apps/worker`):**
+  - Repaired host destination check in `assertSafePushEndpointNetworkDestination` using `net.isIP` to separate IP literals from DNS hostnames, resolving valid public push destinations (e.g. `fcm.googleapis.com`, `push.services.mozilla.com`) while retaining loopback/private/link-local/carrier-grade NAT rejection on all resolved IP addresses.
+  - Implemented direct address binding in `defaultPushTransport` to eliminate DNS rebinding risks while enforcing TLS SNI hostname verification and redirect denial.
+  - Aligned `encryptWebPushPayload` strictly with RFC 8188 Section 2 (zero-length Additional Authenticated Data for `aes128gcm` records).
+  - Added `decryptWebPushPayload` helper verifying compliant authenticated decryption, Unicode payload preservation, and payload bounds.
+- **Onboarding Persistence, Recovery, and Concurrency (`packages/domain`, `apps/web`, `apps/mobile`):**
+  - Added `validateOnboardingState`, `getInitialOnboardingStepIndex`, and `mergeOnboardingState` to `@daynori/domain`.
+  - Enabled resumable draft progress hydration from account-scoped storage (`daynori:onboarding:${userId}` on web, local repository snapshot on mobile) and authoritative server preferences.
+  - Intermediate step and selection changes persist immediately on Next/Back navigation and interest toggling.
+  - Made sample folder, note, and task creation strictly opt-in (defaults to `false`) and verified existence before inserting, preventing duplicated or overwritten user data.
+  - Wired replay mode cleanly into web `AppModals` (`'onboarding-replay'`) and mobile `SettingsView` without creating starter items or modifying completion timestamps.
+  - Handled 409 revision collisions on completion and skip with automatic state merging and local draft cleanup.
+- **Mobile Offline Preference Durability (`apps/mobile`):**
+  - Preserved authoritative server revisions in `TodayView.tsx`, storing pending modifications in `_pendingPreferences` in local preference snapshot when offline.
+  - Applied pending preferences immediately to local UI and synchronized with API upon reconnection.
+  - Added `refreshTrigger` prop to refresh Today presentation upon onboarding or customization completion without manual reload.
+
 ## Phase 31 — First-use tutorial and progressive discovery — 2026-10-18
 
 - **First-Use Onboarding Engine (`packages/domain`, `packages/contracts`):**

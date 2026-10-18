@@ -110,6 +110,7 @@ Delivered Web Push reminder notification support and a reviewed, privacy-safe PW
 - **Unit and Integration Suites**:
   - `npx vitest run tests/integration/phase29-web-reminders.test.ts`: 19 passed (19 tests, 930ms).
   - `npx vitest run tests/integration/phase28-android-notifications.test.ts`: 16 passed (16 tests, 1011ms).
+  - `npx vitest run tests/integration/prerequisite-repairs.test.ts`: 9 passed (9 tests, 33ms).
   - `pnpm test`: Full repository test suite executed with `fileParallelism: false`.
 - **Typecheck**:
   - `pnpm --filter @daynori/web typecheck`: 0 errors.
@@ -117,6 +118,16 @@ Delivered Web Push reminder notification support and a reviewed, privacy-safe PW
   - `pnpm --filter @daynori/api typecheck`: 0 errors.
 - **Planning Validation**:
   - `node scripts/validate-planning.mjs`: Pass.
+
+## Subsequent Software Repairs (Transport and Encryption Interoperability)
+
+- **Public Hostname Destination Validation**:
+  - Discovered and repaired issue where `isDisallowedIpv4(hostname)` was called directly on ordinary DNS names (e.g. `fcm.googleapis.com`), causing valid public endpoints to be rejected as malformed IPv4 before DNS resolution.
+  - Replaced with standard `net.isIP(hostname)` to separate IP literals from DNS hostnames. Public hostnames resolve through DNS, and each resolved address is validated against private, loopback, link-local, and reserved ranges.
+  - Connections in `defaultPushTransport` bind directly to the validated IP address result while setting TLS SNI servername to the original hostname, preventing DNS rebinding vulnerabilities while preserving TLS certificate validation and redirect denial.
+- **RFC 8188 Zero-Length AAD Encryption Interoperability**:
+  - Fixed `encryptWebPushPayload` to conform strictly to RFC 8188 Section 2, which requires zero-length Additional Authenticated Data (AAD) for `aes128gcm` records.
+  - Added `decryptWebPushPayload` helper to verify compliant authenticated decryption, Unicode payload preservation, and payload bounds.
 
 ## Unresolved gates
 

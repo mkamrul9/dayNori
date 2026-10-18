@@ -120,6 +120,7 @@ export interface TodayViewProps {
   workspaceId?: string | null;
   userId?: string | null;
   isOnline?: boolean;
+  refreshTrigger?: number;
 }
 
 const DEFAULT_TODAY = '2026-10-14';
@@ -219,6 +220,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   workspaceId,
   userId,
   isOnline: _isOnline = true,
+  refreshTrigger = 0,
 }) => {
   const palette = colors[themeMode];
   const isProduction = Boolean(repository && workspaceId);
@@ -367,13 +369,18 @@ export const TodayView: React.FC<TodayViewProps> = ({
           }
           if (snapshot) {
             setPreferencesRevision(snapshot.revision);
-            const snapTz = (snapshot.preferences as Record<string, unknown> | undefined)?.timeZone;
+            const snapPrefs = (snapshot.preferences as Record<string, unknown> | undefined) || {};
+            const snapTz = snapPrefs.timeZone;
             if (typeof snapTz === 'string' && snapTz) {
               setViewingTimezone(snapTz);
             }
-            if (snapshot.preferences?.homeLayout) {
+
+            const pendingPrefs = snapPrefs['_pendingPreferences'] as Record<string, unknown> | undefined;
+            const effectiveLayout = (pendingPrefs?.['homeLayout'] || snapPrefs.homeLayout) as HomeLayout | undefined;
+
+            if (effectiveLayout) {
               try {
-                setHomeLayout(sanitizeAndMigrateHomeLayout(snapshot.preferences.homeLayout));
+                setHomeLayout(sanitizeAndMigrateHomeLayout(effectiveLayout));
                 setHasUnsupportedVersion(false);
               } catch (err) {
                 if (err instanceof UnsupportedLayoutVersionError) {
@@ -381,7 +388,34 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 }
               }
             }
-            if (shouldShowOnboarding((snapshot.preferences as any)?.onboarding)) {
+
+            // If online and pending preference changes exist, perform durable outbound sync
+            if (pendingPrefs && apiClient) {
+              const expectedRev = (snapPrefs['_pendingExpectedRevision'] as number | undefined) ?? snapshot.revision;
+              void apiClient
+                .updateUserPreferences({
+                  preferences: pendingPrefs,
+                  expectedRevision: expectedRev,
+                })
+                .then(async (res) => {
+                  if (res?.data) {
+                    const cleanPrefs = { ...snapPrefs };
+                    delete cleanPrefs['_pendingPreferences'];
+                    delete cleanPrefs['_pendingExpectedRevision'];
+                    await repository.savePreferenceSnapshot({
+                      userId: userId || 'anonymous',
+                      preferences: cleanPrefs,
+                      schemaVersion: 1,
+                      revision: res.data.revision,
+                      updatedAt: new Date().toISOString(),
+                    });
+                    setPreferencesRevision(res.data.revision);
+                  }
+                })
+                .catch(() => {});
+            }
+
+            if (shouldShowOnboarding((snapPrefs as any)?.onboarding)) {
               onTriggerOnboarding?.();
             }
           }
@@ -583,7 +617,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       setErrorMessage(err instanceof Error ? err.message : String(err));
       setIsLoading(false);
     }
-  }, [repository, workspaceId, userId, yesterdayDate, todayDate, currentNow, viewingTimezone, apiClient]);
+  }, [repository, workspaceId, userId, yesterdayDate, todayDate, currentNow, viewingTimezone, apiClient, refreshTrigger]);
 
   useEffect(() => {
     if (isProduction) {
@@ -1105,7 +1139,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
       forceOverwriteRevision !== undefined ? forceOverwriteRevision : preferencesRevision;
 
     try {
-      let newRevision = targetRevision + 1;
+      let isSynced = false;
+      let newRevision = targetRevision;
 
       // 1. If online and apiClient available, submit to server
       if (apiClient) {
@@ -1121,6 +1156,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             newRevision = res.data.revision;
             setPreferencesRevision(newRevision);
             setConflictState(null);
+            isSynced = true;
           }
         } catch (err: unknown) {
           const isConflict =
@@ -1154,13 +1190,25 @@ export const TodayView: React.FC<TodayViewProps> = ({
         }
       }
 
-      // 2. Persist to local repository snapshot, merging with existing preferences
+      // 2. Persist to local repository snapshot, retaining separate local and authoritative server state
       const existingSnapshot = await repository.getPreferenceSnapshot(userId || 'anonymous');
-      const mergedPreferences = {
-        ...existingSnapshot?.preferences,
+      const existingPrefs = (existingSnapshot?.preferences as Record<string, unknown> | undefined) || {};
+      const mergedPreferences: Record<string, unknown> = {
+        ...existingPrefs,
         homeLayout,
         compactMode: homeLayout.density === 'compact',
       };
+
+      if (!isSynced) {
+        mergedPreferences['_pendingPreferences'] = {
+          homeLayout,
+          compactMode: homeLayout.density === 'compact',
+        };
+        mergedPreferences['_pendingExpectedRevision'] = targetRevision;
+      } else {
+        delete mergedPreferences['_pendingPreferences'];
+        delete mergedPreferences['_pendingExpectedRevision'];
+      }
 
       await repository.savePreferenceSnapshot({
         userId: userId || 'anonymous',

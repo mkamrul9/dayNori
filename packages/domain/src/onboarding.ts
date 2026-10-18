@@ -174,6 +174,101 @@ export function resetOnboardingForReplay(current: OnboardingState): OnboardingSt
   };
 }
 
+const VALID_INTERESTS: Set<OnboardingInterest> = new Set(['notes', 'planning', 'journal', 'files']);
+const VALID_STEPS: Set<OnboardingStep> = new Set(['capture', 'planning', 'organize', 'completed']);
+
+/**
+ * Validates untrusted or persisted onboarding state.
+ */
+export function validateOnboardingState(input: unknown): OnboardingState {
+  if (!input || typeof input !== 'object') {
+    return getDefaultOnboardingState();
+  }
+  const obj = input as Record<string, unknown>;
+
+  const step: OnboardingStep =
+    typeof obj['step'] === 'string' && VALID_STEPS.has(obj['step'] as OnboardingStep)
+      ? (obj['step'] as OnboardingStep)
+      : 'capture';
+
+  const completed = typeof obj['completed'] === 'boolean' ? obj['completed'] : false;
+  const skipped = typeof obj['skipped'] === 'boolean' ? obj['skipped'] : false;
+  const completedAt = typeof obj['completedAt'] === 'string' ? obj['completedAt'] : null;
+  const skippedAt = typeof obj['skippedAt'] === 'string' ? obj['skippedAt'] : null;
+
+  const rawInterests = Array.isArray(obj['selectedInterests']) ? obj['selectedInterests'] : [];
+  const selectedInterests: OnboardingInterest[] = rawInterests
+    .filter((i): i is OnboardingInterest => typeof i === 'string' && VALID_INTERESTS.has(i as OnboardingInterest))
+    .slice(0, 4);
+
+  const rawItemIds = Array.isArray(obj['createdSampleItemIds']) ? obj['createdSampleItemIds'] : [];
+  const createdSampleItemIds: string[] = rawItemIds
+    .filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 128)
+    .slice(0, 20);
+
+  const createdFolderId =
+    typeof obj['createdFolderId'] === 'string' && obj['createdFolderId'].length <= 128
+      ? obj['createdFolderId']
+      : null;
+
+  return {
+    version: 1,
+    step,
+    completed,
+    completedAt,
+    skipped,
+    skippedAt,
+    selectedInterests: selectedInterests.length > 0 ? selectedInterests : ['notes', 'planning', 'journal', 'files'],
+    createdSampleItemIds,
+    createdFolderId,
+  };
+}
+
+/**
+ * Derives initial step index (0-2) from onboarding state and replay flag.
+ */
+export function getInitialOnboardingStepIndex(state?: OnboardingState | null, isReplay = false): number {
+  if (isReplay || !state) return 0;
+  switch (state.step) {
+    case 'capture':
+      return 0;
+    case 'planning':
+      return 1;
+    case 'organize':
+      return 2;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Merges two onboarding states (e.g., local optimistic draft and server state on conflict).
+ */
+export function mergeOnboardingState(local: OnboardingState, server: OnboardingState): OnboardingState {
+  const mergedCompleted = local.completed || server.completed;
+  const mergedSkipped = !mergedCompleted && (local.skipped || server.skipped);
+
+  // Union created items
+  const createdSampleItemIds = Array.from(
+    new Set([...(server.createdSampleItemIds || []), ...(local.createdSampleItemIds || [])])
+  );
+
+  return {
+    version: 1,
+    step: mergedCompleted || mergedSkipped ? 'completed' : local.step || server.step || 'capture',
+    completed: mergedCompleted,
+    completedAt: server.completedAt || local.completedAt || (mergedCompleted ? new Date().toISOString() : null),
+    skipped: mergedSkipped,
+    skippedAt: server.skippedAt || local.skippedAt || (mergedSkipped ? new Date().toISOString() : null),
+    selectedInterests:
+      local.selectedInterests && local.selectedInterests.length > 0
+        ? local.selectedInterests
+        : server.selectedInterests,
+    createdSampleItemIds,
+    createdFolderId: server.createdFolderId || local.createdFolderId || null,
+  };
+}
+
 /**
  * Configures visible module shortcuts according to selected interests.
  * Crucial invariant: configuring interests updates presentation visibility only;

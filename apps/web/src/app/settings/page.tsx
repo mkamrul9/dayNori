@@ -687,7 +687,7 @@ export default function SettingsPage() {
             variant="secondary"
             size="compact"
             themeMode={themeMode}
-            onClick={() => openModal('onboarding')}
+            onClick={() => openModal('onboarding-replay')}
             id="replay-onboarding-btn"
           >
             ✨ Replay Onboarding Tutorial

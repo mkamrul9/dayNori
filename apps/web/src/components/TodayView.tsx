@@ -102,7 +102,7 @@ function getRecentItemHref(item: RecentItemEntry): string {
 
 export const TodayView: React.FC = () => {
   const liveRegionId = useId();
-  const { themeMode, themePreference, setTheme, openModal } = useShell();
+  const { themeMode, themePreference, setTheme, openModal, activeModal } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user, csrfToken, preferences: authPreferences } = useAuth();
 
@@ -528,6 +528,18 @@ export const TodayView: React.FC = () => {
       }
     };
   }, [loadData]);
+
+  // Refresh Today layout and shortcut presentation when onboarding or replay finishes
+  const prevModalRef = useRef(activeModal);
+  useEffect(() => {
+    if (
+      (prevModalRef.current === 'onboarding' || prevModalRef.current === 'onboarding-replay') &&
+      activeModal === null
+    ) {
+      void loadData();
+    }
+    prevModalRef.current = activeModal;
+  }, [activeModal, loadData]);
 
   // Filter tasks due today vs overdue
   const tasksDueToday = useMemo(() => {

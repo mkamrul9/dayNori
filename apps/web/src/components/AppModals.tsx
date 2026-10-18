@@ -445,8 +445,9 @@ export const AppModals: React.FC = () => {
 
       {/* 7. Onboarding Tutorial Dialog */}
       <OnboardingTutorial
-        isOpen={activeModal === 'onboarding'}
+        isOpen={activeModal === 'onboarding' || activeModal === 'onboarding-replay'}
         onClose={closeModal}
+        isReplay={activeModal === 'onboarding-replay'}
       />
     </>
   );

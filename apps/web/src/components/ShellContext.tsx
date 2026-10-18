@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
 
-export type ShellModal = 'search' | 'create' | 'help' | 'account' | 'onboarding' | null;
+export type ShellModal = 'search' | 'create' | 'help' | 'account' | 'onboarding' | 'onboarding-replay' | null;
 export type ThemePreference = 'system' | 'light' | 'dark';
 
 export interface ShellContextType {

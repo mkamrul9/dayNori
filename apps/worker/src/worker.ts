@@ -58,15 +58,21 @@ import {
   encryptWebPushPayload,
   createVapidAuthHeader,
   assertSafePushEndpointNetworkDestination,
+  defaultPushTransport,
+  type PushTransportFn,
+  type PushDnsLookupFn,
 } from './crypto/webPushEncryption.js';
 
 /**
  * Creates the production-configured Web Push transport adapter.
  * Enforces RFC 8291 payload encryption (aes128gcm), RFC 8292 VAPID signing (ES256),
- * and network-level SSRF / safe destination verification.
+ * and network-level SSRF / safe destination verification with direct address binding.
  * Truthfully reports unavailable when required VAPID credentials are not configured.
  */
-export function createConfiguredWebPushAdapter(): WebPushNotificationAdapter {
+export function createConfiguredWebPushAdapter(options?: {
+  lookup?: PushDnsLookupFn;
+  transport?: PushTransportFn;
+}): WebPushNotificationAdapter {
   const publicKey = process.env['VAPID_PUBLIC_KEY'];
   const privateKey = process.env['VAPID_PRIVATE_KEY'];
   const subject = process.env['VAPID_SUBJECT'] || 'mailto:security@daynori.com';
@@ -85,7 +91,10 @@ export function createConfiguredWebPushAdapter(): WebPushNotificationAdapter {
 
       try {
         // 1. Enforce safe outbound network destination (DNS resolution & private address guards)
-        await assertSafePushEndpointNetworkDestination(subscription.endpoint);
+        const safeDestination = await assertSafePushEndpointNetworkDestination(
+          subscription.endpoint,
+          { lookup: options?.lookup }
+        );
 
         const payloadStr = JSON.stringify({
           title: redactedTitle,
@@ -108,7 +117,8 @@ export function createConfiguredWebPushAdapter(): WebPushNotificationAdapter {
           subject: subject!,
         });
 
-        const res = await fetch(subscription.endpoint, {
+        const transport = options?.transport || defaultPushTransport;
+        const res = await transport(subscription.endpoint, {
           method: 'POST',
           headers: {
             TTL: '86400',
@@ -117,12 +127,12 @@ export function createConfiguredWebPushAdapter(): WebPushNotificationAdapter {
             Authorization: vapidHeader,
           },
           body: encryptedBody,
-          redirect: 'error',
-          signal: AbortSignal.timeout(10_000),
+          timeoutMs: 10_000,
+          validatedAddresses: safeDestination.resolvedAddresses,
         });
 
         if (res.status === 201 || res.status === 200 || res.status === 202) {
-          const location = res.headers.get('location') || `webpush-${Date.now()}`;
+          const location = res.location || res.headers['location'] || `webpush-${Date.now()}`;
           return {
             success: true,
             status: 'accepted',

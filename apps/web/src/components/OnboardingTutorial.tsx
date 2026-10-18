@@ -15,6 +15,9 @@ import {
   getSampleFolderId,
   getSampleNoteId,
   getSampleTaskId,
+  validateOnboardingState,
+  getInitialOnboardingStepIndex,
+  mergeOnboardingState,
   type OnboardingInterest,
   type OnboardingStep,
   type OnboardingState,
@@ -48,16 +51,20 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
     'journal',
     'files',
   ]);
-  const [createStarterFolder, setCreateStarterFolder] = useState(true);
-  const [createStarterNote, setCreateStarterNote] = useState(true);
-  const [createStarterTask, setCreateStarterTask] = useState(true);
+  // Phase 31 repair: Starter content creation is an explicit opt-in choice
+  const [createStarterFolder, setCreateStarterFolder] = useState(false);
+  const [createStarterNote, setCreateStarterNote] = useState(false);
+  const [createStarterTask, setCreateStarterTask] = useState(false);
 
+  const [authoritativeRevision, setAuthoritativeRevision] = useState<number | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
 
   const currentStep: OnboardingStep = TUTORIAL_STEPS[currentStepIndex] || 'capture';
   const meta = ONBOARDING_STEP_METADATA[currentStep];
+
+  const draftKey = user?.id ? `daynori:onboarding:${user.id}` : null;
 
   // Announce step change to assistive technologies
   useEffect(() => {
@@ -66,51 +73,161 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
     }
   }, [isOpen, currentStepIndex, meta.announcement]);
 
-  // Reset to first step when dialog opens
+  // Hydrate stored step and selections on open
   useEffect(() => {
-    if (isOpen) {
-      setCurrentStepIndex(0);
-      setErrorMessage(null);
+    if (!isOpen) return;
+
+    let isMounted = true;
+    setErrorMessage(null);
+
+    async function hydrate() {
+      if (isReplay) {
+        // Replay always starts at step 0, but hydrates user's current interests
+        setCurrentStepIndex(0);
+        if (csrfToken) {
+          try {
+            const client = createWebApiClient({ csrfToken });
+            const prefRes = await client.getUserPreferences();
+            if (isMounted && prefRes?.data) {
+              setAuthoritativeRevision(prefRes.data.revision);
+              const onb = prefRes.data.preferences?.onboarding;
+              if (onb?.selectedInterests && Array.isArray(onb.selectedInterests) && onb.selectedInterests.length > 0) {
+                setSelectedInterests(onb.selectedInterests);
+              }
+            }
+          } catch {
+            // graceful fallback
+          }
+        }
+        return;
+      }
+
+      // Normal resume: check local account-scoped draft first
+      let localDraft: Partial<OnboardingState> | null = null;
+      if (draftKey && typeof window !== 'undefined') {
+        try {
+          const raw = window.localStorage.getItem(draftKey);
+          if (raw) localDraft = JSON.parse(raw);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (localDraft?.selectedInterests && localDraft.selectedInterests.length > 0) {
+        setSelectedInterests(localDraft.selectedInterests);
+      }
+      if (localDraft?.step) {
+        setCurrentStepIndex(getInitialOnboardingStepIndex(localDraft as OnboardingState, false));
+      }
+
+      // Fetch authoritative server preferences
+      if (csrfToken) {
+        try {
+          const client = createWebApiClient({ csrfToken });
+          const prefRes = await client.getUserPreferences();
+          if (isMounted && prefRes?.data) {
+            setAuthoritativeRevision(prefRes.data.revision);
+            const serverOnboarding = prefRes.data.preferences?.onboarding;
+            if (serverOnboarding) {
+              const validated = validateOnboardingState(serverOnboarding);
+              if (!localDraft?.step && validated.step && validated.step !== 'completed') {
+                setCurrentStepIndex(getInitialOnboardingStepIndex(validated, false));
+              }
+              if (!localDraft?.selectedInterests && validated.selectedInterests.length > 0) {
+                setSelectedInterests(validated.selectedInterests);
+              }
+            }
+          }
+        } catch {
+          // Non-blocking offline fallback
+        }
+      }
     }
-  }, [isOpen]);
+
+    void hydrate();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, isReplay, draftKey, csrfToken]);
+
+  // Persist draft on step or selection change
+  const persistDraft = useCallback(
+    (stepIdx: number, interests: OnboardingInterest[]) => {
+      if (isReplay || !draftKey || typeof window === 'undefined') return;
+      const stepName = TUTORIAL_STEPS[stepIdx] || 'capture';
+      try {
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            step: stepName,
+            selectedInterests: interests,
+            updatedAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // non-blocking
+      }
+    },
+    [isReplay, draftKey]
+  );
 
   const handleInterestToggle = (interest: OnboardingInterest) => {
     setSelectedInterests((prev) => {
+      let nextInterests: OnboardingInterest[];
       if (prev.includes(interest)) {
-        // Keep at least one interest selected
         if (prev.length === 1) return prev;
-        return prev.filter((i) => i !== interest);
+        nextInterests = prev.filter((i) => i !== interest);
+      } else {
+        nextInterests = [...prev, interest];
       }
-      return [...prev, interest];
+      persistDraft(currentStepIndex, nextInterests);
+      return nextInterests;
     });
   };
 
   const handleNext = () => {
     if (currentStepIndex < TUTORIAL_STEPS.length - 1) {
-      setCurrentStepIndex((prev) => prev + 1);
+      const nextIdx = currentStepIndex + 1;
+      setCurrentStepIndex(nextIdx);
+      persistDraft(nextIdx, selectedInterests);
     }
   };
 
   const handleBack = () => {
     if (currentStepIndex > 0) {
-      setCurrentStepIndex((prev) => prev - 1);
+      const prevIdx = currentStepIndex - 1;
+      setCurrentStepIndex(prevIdx);
+      persistDraft(prevIdx, selectedInterests);
     }
   };
 
   const handleSkip = useCallback(async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setErrorMessage(null);
+
+    // Persist skip locally immediately
+    if (draftKey && typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(draftKey);
+      } catch {
+        // ignore
+      }
+    }
+
     try {
       const client = createWebApiClient({ csrfToken });
       let currentOnboarding = getDefaultOnboardingState();
-      let currentLayout = getDefaultHomeLayout();
+      let targetRevision = authoritativeRevision;
+
       try {
         const prefRes = await client.getUserPreferences();
-        if (prefRes?.data?.preferences?.onboarding) {
-          currentOnboarding = prefRes.data.preferences.onboarding as OnboardingState;
-        }
-        if (prefRes?.data?.preferences?.homeLayout) {
-          currentLayout = prefRes.data.preferences.homeLayout as HomeLayout;
+        if (prefRes?.data) {
+          targetRevision = prefRes.data.revision;
+          if (prefRes.data.preferences?.onboarding) {
+            currentOnboarding = validateOnboardingState(prefRes.data.preferences.onboarding);
+          }
         }
       } catch {
         // Fall back gracefully
@@ -118,136 +235,259 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
 
       const updatedOnboarding = skipOnboarding(currentOnboarding);
 
-      await client.updateUserPreferences({
-        preferences: {
-          homeLayout: currentLayout,
-          onboarding: updatedOnboarding,
-        },
-      });
+      // Concurrency retry loop
+      let retries = 2;
+      let synced = false;
+      while (retries >= 0 && !synced) {
+        try {
+          await client.updateUserPreferences({
+            preferences: {
+              onboarding: updatedOnboarding,
+            },
+            expectedRevision: targetRevision,
+          });
+          synced = true;
+        } catch (err: unknown) {
+          if (retries > 0 && err instanceof Error && (err.message.includes('conflict') || err.message.includes('409'))) {
+            retries--;
+            const latest = await client.getUserPreferences().catch(() => null);
+            if (latest?.data) {
+              targetRevision = latest.data.revision;
+            }
+          } else {
+            break; // Allow closing even if preference persistence is offline
+          }
+        }
+      }
 
       setLiveAnnouncement('Tutorial skipped. Welcome to Daynori.');
       onClose();
     } catch {
-      // Allow closing even if preference persistence is offline
       onClose();
     } finally {
       setIsSubmitting(false);
     }
-  }, [csrfToken, onClose]);
+  }, [isSubmitting, draftKey, csrfToken, authoritativeRevision, onClose]);
 
   const handleFinish = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setErrorMessage(null);
 
     const client = createWebApiClient({ csrfToken });
     let currentOnboarding = getDefaultOnboardingState();
-    let currentLayout = getDefaultHomeLayout();
+    let currentLayout: HomeLayout | undefined = undefined;
+    let targetRevision = authoritativeRevision;
+
     try {
       const prefRes = await client.getUserPreferences();
-      if (prefRes?.data?.preferences?.onboarding) {
-        currentOnboarding = prefRes.data.preferences.onboarding as OnboardingState;
-      }
-      if (prefRes?.data?.preferences?.homeLayout) {
-        currentLayout = prefRes.data.preferences.homeLayout as HomeLayout;
+      if (prefRes?.data) {
+        targetRevision = prefRes.data.revision;
+        if (prefRes.data.preferences?.onboarding) {
+          currentOnboarding = validateOnboardingState(prefRes.data.preferences.onboarding);
+        }
+        if (prefRes.data.preferences?.homeLayout) {
+          currentLayout = prefRes.data.preferences.homeLayout as HomeLayout;
+        }
       }
     } catch {
-      // Fall back gracefully
+      // Offline fallback
+    }
+
+    if (isReplay) {
+      // Replay must never create starter samples, reset user personalization, or delete content
+      const preservedOnboarding: OnboardingState = {
+        ...currentOnboarding,
+        selectedInterests,
+      };
+      const updatedLayout = currentLayout
+        ? deriveModuleShortcutsFromInterests(selectedInterests, currentLayout)
+        : deriveModuleShortcutsFromInterests(selectedInterests, getDefaultHomeLayout());
+
+      try {
+        await client.updateUserPreferences({
+          preferences: {
+            homeLayout: updatedLayout,
+            onboarding: preservedOnboarding,
+          },
+          expectedRevision: targetRevision,
+        });
+      } catch {
+        // non-blocking
+      }
+
+      setLiveAnnouncement('Tutorial replay completed.');
+      onClose();
+      setIsSubmitting(false);
+      return;
     }
 
     const createdItemIds = [...(currentOnboarding.createdSampleItemIds || [])];
     let createdFolderId = currentOnboarding.createdFolderId || null;
 
     try {
-      if (workspaceId && user?.id && !isReplay) {
-        // 1. Create sample folder if opted in and not already created
+      if (workspaceId && user?.id) {
+        // 1. Idempotent sample folder creation
         if (createStarterFolder && !createdFolderId) {
+          const sampleFolderId = getSampleFolderId(workspaceId, user.id);
           try {
-            const sampleFolderId = getSampleFolderId(workspaceId, user.id);
-            const folderRes = await client.createFolder(workspaceId, {
-              id: sampleFolderId,
-              name: SAMPLE_STARTER_TEMPLATE.folderName,
-              securityScope: 'standard',
-            });
-            if (folderRes.data?.id) {
-              createdFolderId = folderRes.data.id;
+            const existingFolder = await client.getFolder(workspaceId, sampleFolderId).catch(() => null);
+            if (existingFolder?.data?.id) {
+              createdFolderId = existingFolder.data.id;
+            } else {
+              const folderRes = await client.createFolder(workspaceId, {
+                id: sampleFolderId,
+                name: SAMPLE_STARTER_TEMPLATE.folderName,
+                securityScope: 'standard',
+              });
+              if (folderRes.data?.id) {
+                createdFolderId = folderRes.data.id;
+              }
             }
-          } catch (err) {
-            console.warn('[Onboarding] Starter folder creation skipped/failed:', err);
+          } catch {
+            // Verify if already created concurrently
+            const existingFolder = await client.getFolder(workspaceId, sampleFolderId).catch(() => null);
+            if (existingFolder?.data?.id) {
+              createdFolderId = existingFolder.data.id;
+            } else {
+              setErrorMessage('Failed to create sample folder. Please retry or continue.');
+              setIsSubmitting(false);
+              return;
+            }
           }
         }
 
-        // 2. Create sample note if opted in
+        // 2. Idempotent sample note creation
         const sampleNoteId = getSampleNoteId(workspaceId, user.id);
         if (createStarterNote && !createdItemIds.includes(sampleNoteId)) {
           try {
-            await client.createNote(workspaceId, {
-              id: sampleNoteId,
-              title: SAMPLE_STARTER_TEMPLATE.noteTitle,
-              folderId: createdFolderId ?? undefined,
-              securityScope: 'standard',
-              document: {
-                type: 'doc',
-                version: 1,
-                content: [
-                  {
-                    type: 'paragraph',
-                    content: [{ type: 'text', text: SAMPLE_STARTER_TEMPLATE.noteSnippet }],
-                  },
-                ],
-              },
-            });
-            createdItemIds.push(sampleNoteId);
-          } catch (err) {
-            console.warn('[Onboarding] Starter note creation skipped/failed:', err);
+            const existingNote = await client.getNote(workspaceId, sampleNoteId).catch(() => null);
+            if (existingNote?.data?.id) {
+              createdItemIds.push(sampleNoteId);
+            } else {
+              await client.createNote(workspaceId, {
+                id: sampleNoteId,
+                title: SAMPLE_STARTER_TEMPLATE.noteTitle,
+                folderId: createdFolderId ?? undefined,
+                securityScope: 'standard',
+                document: {
+                  type: 'doc',
+                  version: 1,
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [{ type: 'text', text: SAMPLE_STARTER_TEMPLATE.noteSnippet }],
+                    },
+                  ],
+                },
+              });
+              createdItemIds.push(sampleNoteId);
+            }
+          } catch {
+            const existingNote = await client.getNote(workspaceId, sampleNoteId).catch(() => null);
+            if (existingNote?.data?.id) {
+              createdItemIds.push(sampleNoteId);
+            } else {
+              setErrorMessage('Failed to create sample note. Please retry or continue.');
+              setIsSubmitting(false);
+              return;
+            }
           }
         }
 
-        // 3. Create sample task if opted in
+        // 3. Idempotent sample task creation
         const sampleTaskId = getSampleTaskId(workspaceId, user.id);
         if (createStarterTask && !createdItemIds.includes(sampleTaskId)) {
           try {
-            await client.createTask(workspaceId, {
-              id: sampleTaskId,
-              title: SAMPLE_STARTER_TEMPLATE.taskTitle,
-              folderId: createdFolderId ?? undefined,
-              status: 'todo',
-              priority: 'normal',
-              isPinned: false,
-              securityScope: 'standard',
-              tags: [],
-              deadline: { type: 'none' },
-              subtaskOrder: 0,
-            });
-            createdItemIds.push(sampleTaskId);
-          } catch (err) {
-            console.warn('[Onboarding] Starter task creation skipped/failed:', err);
+            const existingTask = await client.getTask(workspaceId, sampleTaskId).catch(() => null);
+            if (existingTask?.data?.id) {
+              createdItemIds.push(sampleTaskId);
+            } else {
+              await client.createTask(workspaceId, {
+                id: sampleTaskId,
+                title: SAMPLE_STARTER_TEMPLATE.taskTitle,
+                folderId: createdFolderId ?? undefined,
+                status: 'todo',
+                priority: 'normal',
+                isPinned: false,
+                securityScope: 'standard',
+                tags: [],
+                deadline: { type: 'none' },
+                subtaskOrder: 0,
+              });
+              createdItemIds.push(sampleTaskId);
+            }
+          } catch {
+            const existingTask = await client.getTask(workspaceId, sampleTaskId).catch(() => null);
+            if (existingTask?.data?.id) {
+              createdItemIds.push(sampleTaskId);
+            } else {
+              setErrorMessage('Failed to create sample task. Please retry or continue.');
+              setIsSubmitting(false);
+              return;
+            }
           }
         }
       }
 
       // 4. Personalize home layout shortcuts based on chosen interests
-      const updatedLayout = deriveModuleShortcutsFromInterests(selectedInterests, currentLayout);
+      const baseLayout = currentLayout || getDefaultHomeLayout();
+      let updatedLayout = deriveModuleShortcutsFromInterests(selectedInterests, baseLayout);
 
       // 5. Complete onboarding state
-      const updatedOnboarding: OnboardingState = {
+      let updatedOnboarding: OnboardingState = {
         ...completeOnboarding(currentOnboarding),
         selectedInterests,
         createdSampleItemIds: createdItemIds,
         createdFolderId,
       };
 
-      await client.updateUserPreferences({
-        preferences: {
-          homeLayout: updatedLayout,
-          onboarding: updatedOnboarding,
-        },
-      });
+      // 6. Concurrency retry loop with explicit conflict resolution
+      let retries = 2;
+      let synced = false;
+      while (retries >= 0 && !synced) {
+        try {
+          await client.updateUserPreferences({
+            preferences: {
+              homeLayout: updatedLayout,
+              onboarding: updatedOnboarding,
+            },
+            expectedRevision: targetRevision,
+          });
+          synced = true;
+        } catch (err: unknown) {
+          if (retries > 0 && err instanceof Error && (err.message.includes('conflict') || err.message.includes('409'))) {
+            retries--;
+            const latest = await client.getUserPreferences().catch(() => null);
+            if (latest?.data) {
+              targetRevision = latest.data.revision;
+              if (latest.data.preferences?.homeLayout) {
+                updatedLayout = deriveModuleShortcutsFromInterests(
+                  selectedInterests,
+                  latest.data.preferences.homeLayout as HomeLayout
+                );
+              }
+              const serverOnb = validateOnboardingState(latest.data.preferences?.onboarding);
+              updatedOnboarding = mergeOnboardingState(updatedOnboarding, serverOnb);
+            }
+          } else {
+            break; // Retain offline/optimistic completion
+          }
+        }
+      }
+
+      if (draftKey && typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(draftKey);
+        } catch {
+          // ignore
+        }
+      }
 
       setLiveAnnouncement('Tutorial completed! Welcome to your Daynori workspace.');
       onClose();
     } catch (err: unknown) {
       console.warn('[Onboarding] Finish error:', err);
-      // Non-blocking completion
       onClose();
     } finally {
       setIsSubmitting(false);

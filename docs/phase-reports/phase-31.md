@@ -65,6 +65,25 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 5. **Planning & Roadmap Validation**:
    - `node scripts/validate-planning.mjs`: Passed (64 phases, 22 mapped requirements, 194 markdown files verified).
 
+## Subsequent Software Repairs (Persistence, Recovery, and Concurrency)
+
+- **Interrupted Onboarding Resumption**:
+  - `OnboardingTutorial` and `OnboardingSheet` now hydrate stored step progress and user selections from account-scoped storage (`daynori:onboarding:${userId}` on web, local repository preference snapshot on mobile) and authoritative server preferences via `getInitialOnboardingStepIndex` and `validateOnboardingState`.
+  - Next/Back navigation and interest toggle selections persist intermediate draft progress immediately, allowing seamless resumption after app closure or reload.
+- **Offline Skip & Completion Durability**:
+  - Skip and completion actions persist intent locally before reporting UI success.
+  - Skips and completions send `expectedRevision` to avoid overwriting newer server customizations, loop on HTTP 409 conflict to merge state, and never write default layouts over existing user customizations.
+  - Skipping grants immediate access to home while setting `skipped: true` to prevent repetitive tutorial dialog displays on subsequent refreshes.
+- **Replay Safety & Real Caller Integration**:
+  - Replay mode is explicitly wired through real callers (`AppModals` via `'onboarding-replay'`, mobile `App` navigation from Settings).
+  - Replay hydrates user's existing interests, starts at step 0, never creates sample content, and strictly preserves existing completion timestamps and user personalization.
+- **Starter Content Idempotency & Explicit Opt-In**:
+  - Sample folder, note, and task switches default to `false` (explicit opt-in).
+  - Before creating sample items, the workflow verifies if an item with the deterministic UUID already exists in the workspace. If present, it adopts the existing ID without duplicate inserts, never overwriting user-edited content.
+  - Failures during sample creation surface honest error feedback without silently marking setup complete.
+- **Concurrency Conflict Merging (`mergeOnboardingState`)**:
+  - Merges concurrent edits across devices without losing layout customizations, selected interests, or starter-item tracking.
+
 ## Blocked gates and hardware dependencies
 
 - **Physical Android TalkBack & Native KeyStore**: Provisional mobile implementation verified in automated headless test suites; physical TalkBack screen-reader gesture navigation and physical KeyStore hardware verification remain recorded as blocked gates.
