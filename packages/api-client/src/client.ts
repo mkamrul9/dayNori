@@ -188,6 +188,7 @@ import {
   AccountDeletionStatusResponseSchema,
   RequestWorkspaceDeletionResponseSchema,
   PublicDeletionRequestResponseSchema,
+  VerifyPublicDeletionResponseSchema,
   type RequestAccountDeletionBody,
   type RequestAccountDeletionResponse,
   type ConfirmAccountDeletionBody,
@@ -199,6 +200,8 @@ import {
   type RequestWorkspaceDeletionResponse,
   type PublicDeletionRequestSubmission,
   type PublicDeletionRequestResponse,
+  type VerifyPublicDeletionRequestBody,
+  type VerifyPublicDeletionResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -2134,6 +2137,22 @@ export class DaynoriApiClient {
       options
     );
     return PublicDeletionRequestResponseSchema.parse(raw);
+  }
+
+  async verifyPublicDeletionRequest(
+    body: VerifyPublicDeletionRequestBody,
+    options?: RequestOptions
+  ): Promise<VerifyPublicDeletionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/public/account-deletion-request/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return VerifyPublicDeletionResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

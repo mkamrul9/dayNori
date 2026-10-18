@@ -1598,19 +1598,40 @@ export class DaynoriWorker {
       };
     }
 
-    // Built-in: Storage Blob Purge Job (Phase 36)
+    // Built-in: Storage Blob Purge Job (Phase 36 / 37)
     if (taskType === 'blob_purge' || taskType === 'account_deletion_purge') {
       const storagePaths = (payload?.storagePaths as string[]) || [];
       const bucket = (payload?.bucket as string | undefined) || this.defaultBucket;
       let purgedCount = 0;
 
-      if (this.storageService) {
-        for (const sp of storagePaths) {
-          try {
-            await this.storageService.deleteObject(bucket, sp);
+      if (!this.storageService) {
+        throw new Error('Blob purge cannot proceed: storageService is unavailable');
+      }
+
+      for (const sp of storagePaths) {
+        try {
+          await this.storageService.deleteObject(bucket, sp);
+          purgedCount++;
+        } catch (err: unknown) {
+          const errorObj = err as Record<string, unknown> | undefined;
+          const status = errorObj?.status || errorObj?.statusCode;
+          const code = errorObj?.code;
+          const name = errorObj?.name;
+          const message = typeof errorObj?.message === 'string' ? errorObj.message.toLowerCase() : '';
+          const isNotFound =
+            status === 404 ||
+            code === 'NoSuchKey' ||
+            code === 'NotFound' ||
+            name === 'NotFound' ||
+            message.includes('not found') ||
+            message.includes('does not exist');
+
+          if (isNotFound) {
             purgedCount++;
-          } catch {
-            // best-effort cleanup
+          } else {
+            throw new Error(
+              `Blob purge failed for object '${sp}': ${err instanceof Error ? err.message : String(err)}`
+            );
           }
         }
       }

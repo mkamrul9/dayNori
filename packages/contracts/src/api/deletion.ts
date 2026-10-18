@@ -92,3 +92,21 @@ export const PublicDeletionRequestResponseSchema = z.object({
   disclosure: z.string(),
 });
 export type PublicDeletionRequestResponse = z.infer<typeof PublicDeletionRequestResponseSchema>;
+
+export const VerifyPublicDeletionRequestBodySchema = z.object({
+  requestId: z.string().uuid(),
+  verificationToken: z.string().min(1),
+});
+export type VerifyPublicDeletionRequestBody = z.infer<
+  typeof VerifyPublicDeletionRequestBodySchema
+>;
+
+export const VerifyPublicDeletionResponseSchema = z.object({
+  success: z.boolean(),
+  status: z.enum(['completed', 'verified', 'not_found']),
+  message: z.string(),
+});
+export type VerifyPublicDeletionResponse = z.infer<
+  typeof VerifyPublicDeletionResponseSchema
+>;
+

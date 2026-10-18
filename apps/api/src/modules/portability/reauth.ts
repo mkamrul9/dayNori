@@ -41,6 +41,9 @@ export interface ReauthAuthenticator {
     email?: string;
     password: string;
   }): Promise<{ success: boolean; error?: string }>;
+  getUserByEmail?(email: string): Promise<{ id: string; email: string } | null>;
+  revokeUserSessions?(userId: string): Promise<void>;
+  deleteUser?(userId: string): Promise<void>;
 }
 
 /**
@@ -98,6 +101,38 @@ export class SupabaseReauthAuthenticator implements ReauthAuthenticator {
         success: false,
         error: err instanceof Error ? err.message : 'Auth provider error during reauthentication',
       };
+    }
+  }
+
+  async revokeUserSessions(userId: string): Promise<void> {
+    try {
+      const adminKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || this.supabaseAnonKey;
+      await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: adminKey,
+          Authorization: `Bearer ${adminKey}`,
+        },
+      });
+    } catch {
+      // Best-effort provider-side session revocation
+    }
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    try {
+      const adminKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || this.supabaseAnonKey;
+      await fetch(`${this.supabaseUrl}/auth/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: adminKey,
+          Authorization: `Bearer ${adminKey}`,
+        },
+      });
+    } catch {
+      // Best-effort provider-side user deletion
     }
   }
 }
@@ -268,7 +303,13 @@ export function assertValidReauthentication(params: {
   }
 
   // 7. Bound to workspaceId if specified
-  if (
+  if (params.expectedPurpose === 'workspace_deletion') {
+    if (!params.expectedWorkspaceId || claims.workspaceId !== params.expectedWorkspaceId) {
+      throw new Error(
+        'REAUTHENTICATION_MISMATCH: Reauthentication token is not bound to the target workspace'
+      );
+    }
+  } else if (
     params.expectedWorkspaceId &&
     claims.workspaceId &&
     claims.workspaceId !== '00000000-0000-0000-0000-000000000000' &&

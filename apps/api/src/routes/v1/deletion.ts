@@ -7,6 +7,7 @@ import {
   CancelAccountDeletionBodySchema,
   RequestWorkspaceDeletionBodySchema,
   PublicDeletionRequestSubmissionSchema,
+  VerifyPublicDeletionRequestBodySchema,
 } from '@daynori/contracts';
 import { DeletionService } from '../../modules/lifecycle/deletionService.js';
 import { AuthError } from '../../auth/jwt.js';
@@ -113,4 +114,16 @@ export function registerPublicDeletionRoutes(app: FastifyInstance, pool: Pool): 
     const res = await deletionService.submitPublicDeletionRequest(pool, body.email, body.reason);
     return reply.status(200).send(res);
   });
+
+  // Verify and process public deletion request
+  app.post('/v1/public/account-deletion-request/verify', async (request, reply) => {
+    const body = VerifyPublicDeletionRequestBodySchema.parse(request.body || {});
+    const res = await deletionService.verifyPublicDeletionRequest(
+      pool,
+      body.requestId,
+      body.verificationToken
+    );
+    return reply.status(200).send(res);
+  });
 }
+
