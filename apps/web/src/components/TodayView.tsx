@@ -50,6 +50,7 @@ import {
   DEFAULT_WIDGET_LABELS,
   DEFAULT_MODULE_LABELS,
   UnsupportedLayoutVersionError,
+  shouldShowOnboarding,
   type HomeLayout,
   type HomeWidgetId,
   type ModuleShortcutId,
@@ -101,7 +102,7 @@ function getRecentItemHref(item: RecentItemEntry): string {
 
 export const TodayView: React.FC = () => {
   const liveRegionId = useId();
-  const { themeMode, themePreference, setTheme } = useShell();
+  const { themeMode, themePreference, setTheme, openModal } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user, csrfToken, preferences: authPreferences } = useAuth();
 
@@ -284,6 +285,11 @@ export const TodayView: React.FC = () => {
                 setHasUnsupportedVersion(true);
               }
             }
+          }
+
+          // Trigger skippable first-use onboarding tutorial on fresh account sign-in
+          if (shouldShowOnboarding(prefRes.data.preferences?.onboarding)) {
+            openModal('onboarding');
           }
         } else {
           // Fall back to local repository snapshot

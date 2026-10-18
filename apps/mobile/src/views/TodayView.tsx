@@ -41,6 +41,7 @@ import {
   DEFAULT_WIDGET_LABELS,
   DEFAULT_MODULE_LABELS,
   UnsupportedLayoutVersionError,
+  shouldShowOnboarding,
   type HomeLayout,
   type HomeWidgetId,
   type ModuleShortcutId,
@@ -106,6 +107,7 @@ export interface TodayViewProps {
   onNavigateToJournal: () => void;
   onNavigateToLibrary?: (folderId?: string) => void;
   onOpenCreate: () => void;
+  onTriggerOnboarding?: () => void;
   testID?: string;
   todayDate?: string;
   initialRoutines?: MobileRoutineItem[];
@@ -204,6 +206,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onNavigateToJournal,
   onNavigateToLibrary,
   onOpenCreate,
+  onTriggerOnboarding,
   testID = 'today-view',
   todayDate: todayDateProp = DEFAULT_TODAY,
   initialRoutines = DEFAULT_ROUTINES,
@@ -344,6 +347,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 }
               }
             }
+            if (shouldShowOnboarding(prefRes.data.preferences?.onboarding)) {
+              onTriggerOnboarding?.();
+            }
           }
         } catch {
           // Fall back to local snapshot if offline
@@ -374,6 +380,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   setHasUnsupportedVersion(true);
                 }
               }
+            }
+            if (shouldShowOnboarding((snapshot.preferences as any)?.onboarding)) {
+              onTriggerOnboarding?.();
             }
           }
         } catch {

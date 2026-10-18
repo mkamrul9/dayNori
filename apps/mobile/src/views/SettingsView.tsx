@@ -12,6 +12,7 @@ export interface SettingsViewProps {
   isAuthenticated: boolean;
   onToggleAuth: () => void;
   onOpenGallery: () => void;
+  onOpenOnboarding?: () => void;
   onClose: () => void;
   testID?: string;
   devReviewMode?: boolean;
@@ -32,6 +33,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   isAuthenticated,
   onToggleAuth,
   onOpenGallery,
+  onOpenOnboarding,
   onClose,
   testID = 'settings-view',
   devReviewMode = false,
@@ -461,7 +463,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </MobileCard>
       </View>
 
-      {/* Section 6: Preserved Phase 04 Component Gallery Destination */}
+      {/* Section 6: Tutorial & Getting Started */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Tutorial & Getting Started
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Review the first-use guide, customize your preferred module shortcuts, or explore starter templates:
+          </Text>
+          <MobileButton
+            testID="btn-replay-tutorial"
+            variant="secondary"
+            themeMode={themeMode}
+            onPress={onOpenOnboarding}
+            accessibilityLabel="Replay Onboarding Tutorial"
+          >
+            📖 Replay Onboarding Tutorial &rarr;
+          </MobileButton>
+        </MobileCard>
+      </View>
+
+      {/* Section 7: Preserved Phase 04 Component Gallery Destination */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Review & Architecture

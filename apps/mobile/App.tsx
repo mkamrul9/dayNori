@@ -32,6 +32,7 @@ import { SettingsView } from './src/views/SettingsView';
 import { SearchSheet } from './src/views/SearchSheet';
 import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
+import { OnboardingSheet } from './src/views/OnboardingSheet';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -466,6 +467,7 @@ export default function App() {
               setCurrentTab('library');
             }}
             onOpenCreate={() => setActiveModal('create')}
+            onTriggerOnboarding={() => setActiveModal('onboarding')}
             repository={repository ?? undefined}
             syncEngine={syncEngine ?? undefined}
             apiClient={apiClient ?? undefined}
@@ -590,6 +592,7 @@ export default function App() {
               }
             }}
             onOpenGallery={() => setActiveModal('gallery')}
+            onOpenOnboarding={() => setActiveModal('onboarding')}
             onClose={() => setActiveModal('none')}
           />
         </View>
@@ -607,6 +610,18 @@ export default function App() {
           />
         </View>
       )}
+
+      {/* Onboarding Tutorial Sheet (Phase 31 First-Use Discovery) */}
+      <OnboardingSheet
+        visible={activeModal === 'onboarding'}
+        onClose={() => setActiveModal('none')}
+        themeMode={themeMode}
+        apiClient={apiClient ?? undefined}
+        repository={repository ?? undefined}
+        workspaceId={userNamespace?.workspaceId ?? null}
+        userId={userNamespace?.userId ?? null}
+        onComplete={() => setActiveModal('none')}
+      />
     </SafeAreaView>
   );
 }

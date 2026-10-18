@@ -7,6 +7,7 @@ import { Button, Dialog, Feedback, ListRow, TextField } from '@daynori/ui-web';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
+import { OnboardingTutorial } from './OnboardingTutorial';
 
 export const AppModals: React.FC = () => {
   const router = useRouter();
@@ -441,6 +442,12 @@ export const AppModals: React.FC = () => {
 
       {/* 6. Accessible Auth Modal */}
       <AuthModal />
+
+      {/* 7. Onboarding Tutorial Dialog */}
+      <OnboardingTutorial
+        isOpen={activeModal === 'onboarding'}
+        onClose={closeModal}
+      />
     </>
   );
 };

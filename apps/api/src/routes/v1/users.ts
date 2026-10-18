@@ -6,6 +6,7 @@ import {
   type ProfileResponse,
   type QuietHoursPreference,
   type HomeLayout,
+  type OnboardingState,
 } from '@daynori/contracts';
 import { validateIanaTimeZone, validateLocale, validateWeekStart } from '@daynori/domain';
 import { withUserContext, getProfile, updateProfilePreferences } from '../../db/index.js';
@@ -45,6 +46,7 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
           suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
           quietHours: (profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
           homeLayout: (profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
+          onboarding: (profile.preferences?.onboarding as OnboardingState | undefined) || undefined,
         },
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),
@@ -123,6 +125,7 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
           suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
           quietHours: (profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
           homeLayout: (profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
+          onboarding: (profile.preferences?.onboarding as OnboardingState | undefined) || undefined,
         },
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),

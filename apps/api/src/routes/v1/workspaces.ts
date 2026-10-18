@@ -10,6 +10,9 @@ import {
   type WorkspaceListResponse,
   type WorkspaceResponse,
   type ProvisionWorkspaceResponse,
+  type QuietHoursPreference,
+  type HomeLayout,
+  type OnboardingState,
 } from '@daynori/contracts';
 import {
   withUserContext,
@@ -61,6 +64,9 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
               compactMode: Boolean(result.profile.preferences?.compactMode),
               journalPreviewHidden: result.profile.preferences?.journalPreviewHidden !== false,
               suppressBodySnippets: result.profile.preferences?.suppressBodySnippets !== false,
+              quietHours: (result.profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
+              homeLayout: (result.profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
+              onboarding: (result.profile.preferences?.onboarding as OnboardingState | undefined) || undefined,
             },
             preferencesSchemaVersion: result.profile.preferences_schema_version,
             revision: Number(result.profile.revision),

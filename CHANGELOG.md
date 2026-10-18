@@ -1,5 +1,29 @@
 # Changelog
 
+## Phase 31 — First-use tutorial and progressive discovery — 2026-10-18
+
+- **First-Use Onboarding Engine (`packages/domain`, `packages/contracts`):**
+  - Modeled `OnboardingState` (version 1) supporting skippable progression across `capture`, `planning`, `organize`, and `completed` steps.
+  - Implemented `deriveModuleShortcutsFromInterests` configuring visible module shortcuts matching chosen goals (`notes`, `planning`, `journal`, `files`) while preserving underlying data authorization and capabilities.
+  - Implemented deterministic starter content UUID generators (`getSampleFolderId`, `getSampleNoteId`, `getSampleTaskId`) using SHA-256 (RFC 4122 v5) for complete mathematical idempotency across retries, reloads, and multi-device sync without duplicate item creation.
+  - Enforced replay preservation invariant (`resetOnboardingForReplay`): Keeps tracked sample item and folder IDs intact so replaying the tutorial never re-creates sample items or removes user content.
+- **Web Onboarding Experience (`apps/web`):**
+  - Built 3-step accessible tutorial dialog with screen-reader live announcements (`aria-live="polite"`), step progress bar, and keyboard focus trapping.
+  - Step 1 (Capture & Focus): Selected goals with transparency disclaimer ("Visibility changes presentation, not authorization").
+  - Step 2 (Organization & Contextual Permissions): Explains one-time Upcoming Tasks vs recurring Daily Routines, highlighting that permissions (microphone, push notifications, Google Drive) are deferred until those features are actively used.
+  - Step 3 (Starter Setup): Opt-in creation of personal starter folder, sample note, and sample task.
+  - Integrated automatic launch on first sign-in in `TodayView` when `shouldShowOnboarding` is true.
+  - Added "Replay Onboarding Tutorial" action in web Settings page (`/settings`).
+- **Mobile Onboarding Experience (`apps/mobile`):**
+  - Built `OnboardingSheet` bottom modal using accessible primitives with TalkBack announcements (`AccessibilityInfo.announceForAccessibility`), 48dp minimum touch targets, WCAG 2.2 AA token compliance, and Android hardware back handler.
+  - Added `'onboarding'` to `ActiveModal` in mobile navigation types.
+  - Integrated automatic first-use trigger in mobile `TodayView` and wired into `App.tsx`.
+  - Added "Tutorial & Getting Started" section with "Replay Onboarding Tutorial" action in mobile `SettingsView`.
+- **API & Preference Concurrency (`apps/api`):**
+  - Updated `apps/api/src/routes/v1/users.ts` and `apps/api/src/routes/v1/workspaces.ts` to map and persist `onboarding` preferences with revision concurrency control.
+- **Automated Verification:**
+  - Added 10 integration tests in `tests/integration/phase31-onboarding.test.ts` verifying fresh account baseline, goal selection shortcut derivation, deterministic starter generation, skippable onboarding, replay safety without duplication, and multi-device conflict resolution.
+
 ## Phase 30 — Today home and personal customization — 2026-10-18
 
 - **Today Organizer Dashboard (`apps/web`, `apps/mobile`):**

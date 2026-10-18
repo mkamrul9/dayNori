@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-18",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 30 Today home and personal customization provisional implementation delivered under explicit owner authorization and verified across pure domain invariants, Web TodayView, Mobile TodayView, versioned HomeLayout schemas, bounded label sanitization, optimistic revision conflict handling (HTTP 409), privacy redaction for journal/vault items, and 13 end-to-end integration tests (50/50 test files and 714/714 tests passing). Completion for prerequisite Phases 04–06, 09–30 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 31 will be considered once gates or explicit owner authorization are established.",
-  "note": "Phase 30 (Today home and personal customization) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 31 First-use tutorial and progressive discovery provisional implementation delivered under explicit owner authorization and verified across pure domain onboarding state machine, Web OnboardingTutorial, Mobile OnboardingSheet, deterministic starter item generation, preferences synchronization, and 10 end-to-end integration tests (52/52 test files and 732/732 tests passing). Completion for prerequisite Phases 04–06, 09–31 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 32 will be considered once gates or explicit owner authorization are established.",
+  "note": "Phase 31 (First-use tutorial and progressive discovery) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -188,7 +188,9 @@
     },
     {
       "id": "31",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional first-use tutorial and progressive discovery implementation delivered under owner authorization and verified across pure domain state machine, Web OnboardingTutorial dialog, Mobile OnboardingSheet, deterministic starter item creation, skippable onboarding, replay invariants, preferences synchronization, and 10 end-to-end integration tests (52/52 test files and 732/732 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-31.md"
     },
     {
       "id": "32",

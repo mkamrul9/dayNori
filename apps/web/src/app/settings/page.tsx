@@ -20,6 +20,7 @@ export default function SettingsPage() {
     setLanguage,
     shortcutsEnabled,
     setShortcutsEnabled,
+    openModal,
   } = useShell();
 
   const {
@@ -666,7 +667,34 @@ export default function SettingsPage() {
           )}
         </Card>
 
-        {/* 6. Browser Reminders & Web Push (Phase 29) */}
+        {/* 6. First-Use Tutorial & Progressive Discovery (Phase 31) */}
+        <Card themeMode={themeMode} id="onboarding">
+          <h2
+            style={{
+              margin: '0 0 4px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Tutorial & Getting Started
+          </h2>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
+            Review the 3-step walkthrough introducing quick capture, task planning vs daily routines,
+            and folder organization. Replaying never duplicates starter items or removes existing data.
+          </p>
+
+          <Button
+            variant="secondary"
+            size="compact"
+            themeMode={themeMode}
+            onClick={() => openModal('onboarding')}
+            id="replay-onboarding-btn"
+          >
+            ✨ Replay Onboarding Tutorial
+          </Button>
+        </Card>
+
+        {/* 7. Browser Reminders & Web Push (Phase 29) */}
         <ReminderAgendaView
           workspaceId={workspaceId}
           isAuthenticated={isAuthenticated}

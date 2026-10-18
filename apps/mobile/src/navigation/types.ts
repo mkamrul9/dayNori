@@ -3,7 +3,7 @@ import type { MobileTab } from '@daynori/ui-mobile';
 
 export type PlanSubView = 'tasks' | 'routines' | 'calendar';
 export type LibraryFilter = 'all' | 'notes' | 'knowledge' | 'files';
-export type ActiveModal = 'none' | 'search' | 'create' | 'settings' | 'gallery';
+export type ActiveModal = 'none' | 'search' | 'create' | 'settings' | 'gallery' | 'onboarding';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

@@ -75,6 +75,29 @@ export const HomeLayoutSchema = z
   .strict();
 export type HomeLayout = z.infer<typeof HomeLayoutSchema>;
 
+export const OnboardingInterestSchema = z.enum(['notes', 'planning', 'journal', 'files']);
+export type OnboardingInterest = z.infer<typeof OnboardingInterestSchema>;
+
+export const OnboardingStepSchema = z.enum(['capture', 'planning', 'organize', 'completed']);
+export type OnboardingStep = z.infer<typeof OnboardingStepSchema>;
+
+export const OnboardingStateSchema = z
+  .object({
+    version: z.literal(1).default(1),
+    step: OnboardingStepSchema.default('capture'),
+    completed: z.boolean().default(false),
+    completedAt: z.string().datetime().nullable().optional(),
+    skipped: z.boolean().default(false),
+    skippedAt: z.string().datetime().nullable().optional(),
+    selectedInterests: z
+      .array(OnboardingInterestSchema)
+      .default(['notes', 'planning', 'journal', 'files']),
+    createdSampleItemIds: z.array(z.string().uuid()).default([]),
+    createdFolderId: z.string().uuid().nullable().optional(),
+  })
+  .strict();
+export type OnboardingState = z.infer<typeof OnboardingStateSchema>;
+
 export const DisplayPreferencesSchema = z
   .object({
     theme: ThemePreferenceSchema.default('system'),
@@ -83,6 +106,7 @@ export const DisplayPreferencesSchema = z
     suppressBodySnippets: z.boolean().default(true),
     quietHours: QuietHoursPreferenceSchema.optional(),
     homeLayout: HomeLayoutSchema.optional(),
+    onboarding: OnboardingStateSchema.optional(),
   })
   .strict();
 export type DisplayPreferences = z.infer<typeof DisplayPreferencesSchema>;
