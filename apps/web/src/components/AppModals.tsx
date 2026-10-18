@@ -3,14 +3,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
-import { Button, Dialog, Feedback, ListRow, TextField, SyncDiagnosticsDialog, RecoveryExportDialog } from '@daynori/ui-web';
-import { exportRecoveryData, getRedactedSyncDiagnostics, type RedactedSyncDiagnostics, type RecoveryExport } from '@daynori/sync';
+import { Button, Dialog, Feedback, ListRow, TextField, SyncDiagnosticsDialog, RecoveryExportDialog, ConflictReviewDialog } from '@daynori/ui-web';
+import { exportRecoveryData, getRedactedSyncDiagnostics, type RedactedSyncDiagnostics, type RecoveryExport, type ConflictRecord, type FileRecord } from '@daynori/sync';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
 import { createWebApiClient } from '../data/webApiClient';
 import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
+import { getActiveWebSyncEngine, createWebSyncEngine } from '../data/syncAdapter';
+import { OfflineFileCache } from '../data/offlineFileCache';
 import { highlightMatch, searchDownloadedRecords } from '@daynori/domain';
 import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 
@@ -56,34 +58,46 @@ export const AppModals: React.FC = () => {
     setTotalCount(0);
     setStartDate('');
     setEndDate('');
+    setSyncDiagnostics(null);
+    setRecoveryExport(null);
+    setActiveConflict(null);
   }, [user?.id, workspaceId]);
 
   const [syncDiagnostics, setSyncDiagnostics] = useState<RedactedSyncDiagnostics | null>(null);
   const [recoveryExport, setRecoveryExport] = useState<RecoveryExport | null>(null);
+  const [activeConflict, setActiveConflict] = useState<ConflictRecord | null>(null);
 
   const loadDiagnostics = React.useCallback(async () => {
     if (!workspaceId || !user?.id) return;
     try {
+      const activeEngine = getActiveWebSyncEngine();
+      if (activeEngine) {
+        const diag = await activeEngine.getDiagnostics();
+        setSyncDiagnostics(getRedactedSyncDiagnostics(diag));
+        return;
+      }
+
       if (!localRepoRef.current) {
         localRepoRef.current = new IndexedDbLocalRepository();
         await localRepoRef.current.initialize({ workspaceId, userId: user.id });
       }
       const pending = await localRepoRef.current.getPendingMutations(workspaceId, user.id);
       const conflicts = await localRepoRef.current.listConflicts(workspaceId);
+      const cursor = await localRepoRef.current.getCursor(workspaceId, user.id);
       const activeConflicts = conflicts.filter((c) => !c.resolved);
       const rawDiag = {
         workspaceId,
         userId: user.id,
         deviceId: 'web-browser',
-        isLeader: true,
+        isLeader: false,
         networkStatus: typeof navigator !== 'undefined' && !navigator.onLine ? ('offline' as const) : ('online' as const),
         cloudSyncStatus: activeConflicts.length > 0 ? ('conflict' as const) : pending.length > 0 ? ('saved_locally' as const) : ('synced' as const),
         queueLength: pending.length,
-        inFlightCount: pending.filter((m) => m.status === 'pending').length,
+        inFlightCount: 0,
         failedCount: pending.filter((m) => m.status === 'failed').length,
-        lastSyncedAt: new Date().toISOString(),
-        lastSyncSequence: 0,
-        accessEpoch: null,
+        lastSyncedAt: cursor?.lastSyncedAt || null,
+        lastSyncSequence: cursor?.lastServerRevision ?? 0,
+        accessEpoch: cursor?.epoch || null,
         consecutiveFailures: 0,
         activeConflictsCount: activeConflicts.length,
       };
@@ -105,12 +119,97 @@ export const AppModals: React.FC = () => {
         workspaceId,
         userId: user.id,
         deviceId: 'web-browser',
+        checkAttachmentCached: (f: FileRecord) =>
+          OfflineFileCache.hasBinary(
+            user.id,
+            workspaceId,
+            f.id,
+            Number(f.version) || 1
+          ),
       });
       setRecoveryExport(exportData);
     } catch {
       // fallback on error
     }
   }, [workspaceId, user?.id]);
+
+  const handleSyncNow = React.useCallback(async () => {
+    const engine = getActiveWebSyncEngine();
+    if (engine) {
+      await engine.syncNow();
+      await loadDiagnostics();
+    }
+  }, [loadDiagnostics]);
+
+  useEffect(() => {
+    const engine = getActiveWebSyncEngine();
+    if (!engine) return;
+    const unsub = engine.onEvent((evt) => {
+      if (evt.type === 'conflict_detected') {
+        setActiveConflict(evt.conflict);
+      } else if (evt.type === 'conflict_resolved') {
+        setActiveConflict((prev) => (prev?.id === evt.conflictId ? null : prev));
+      }
+    });
+    return unsub;
+  }, [workspaceId, user?.id]);
+
+  const handleOpenConflictReview = React.useCallback(async () => {
+    if (!workspaceId) return;
+    const engine = getActiveWebSyncEngine();
+    if (engine) {
+      const conflicts = engine.getConflicts();
+      if (conflicts.length > 0) {
+        setActiveConflict(conflicts[0] ?? null);
+        openModal('conflict-review');
+        return;
+      }
+    }
+    if (!localRepoRef.current && user?.id) {
+      localRepoRef.current = new IndexedDbLocalRepository();
+      await localRepoRef.current.initialize({ workspaceId, userId: user.id });
+    }
+    if (localRepoRef.current) {
+      const persisted = await localRepoRef.current.listConflicts(workspaceId);
+      const unresolved = persisted.filter((c) => !c.resolved);
+      if (unresolved.length > 0) {
+        setActiveConflict(unresolved[0] ?? null);
+        openModal('conflict-review');
+      }
+    }
+  }, [workspaceId, user?.id, openModal]);
+
+  const handleResolveConflict = React.useCallback(
+    async (
+      resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge',
+      customPayload?: Record<string, unknown>
+    ) => {
+      if (!activeConflict) return;
+      let engine = getActiveWebSyncEngine();
+      if (!engine && user?.id && workspaceId) {
+        if (!localRepoRef.current) {
+          localRepoRef.current = new IndexedDbLocalRepository();
+          await localRepoRef.current.initialize({ workspaceId, userId: user.id });
+        }
+        const client = createWebApiClient({ csrfToken });
+        engine = createWebSyncEngine({
+          repository: localRepoRef.current,
+          apiClient: client,
+          namespace: { userId: user.id, workspaceId },
+        });
+      }
+      if (engine) {
+        await engine.resolveConflict(activeConflict.id, resolution, customPayload);
+        await engine.syncNow();
+      }
+      setActiveConflict(null);
+      if (activeModal === 'conflict-review') {
+        closeModal();
+      }
+      await loadDiagnostics();
+    },
+    [activeConflict, activeModal, closeModal, loadDiagnostics, user?.id, workspaceId, csrfToken]
+  );
 
   useEffect(() => {
     if (activeModal === 'sync-diagnostics') {
@@ -1110,10 +1209,12 @@ export const AppModals: React.FC = () => {
         onClose={closeModal}
         diagnostics={syncDiagnostics}
         onRefresh={loadDiagnostics}
+        onSyncNow={handleSyncNow}
         onOpenRecoveryExport={() => {
           void loadRecoveryExport();
           openModal('recovery-export');
         }}
+        onReviewConflicts={handleOpenConflictReview}
         themeMode={themeMode}
       />
 
@@ -1122,6 +1223,18 @@ export const AppModals: React.FC = () => {
         isOpen={activeModal === 'recovery-export'}
         onClose={closeModal}
         exportData={recoveryExport}
+        themeMode={themeMode}
+      />
+
+      {/* 10. Phase 34 Conflict Review Dialog */}
+      <ConflictReviewDialog
+        isOpen={activeModal === 'conflict-review' || (activeConflict !== null && activeModal === null)}
+        onClose={() => {
+          setActiveConflict(null);
+          if (activeModal === 'conflict-review') closeModal();
+        }}
+        conflict={activeConflict}
+        onResolve={handleResolveConflict}
         themeMode={themeMode}
       />
     </>

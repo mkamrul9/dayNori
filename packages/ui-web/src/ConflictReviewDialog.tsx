@@ -20,8 +20,72 @@ export interface ConflictReviewDialogProps {
     serverState?: Record<string, unknown>;
     baseState?: Record<string, unknown>;
   } | null;
-  onResolve: (resolution: 'keep_server' | 'keep_local' | 'save_copy', customPayload?: Record<string, unknown>) => Promise<void> | void;
+  onResolve: (
+    resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge',
+    customPayload?: Record<string, unknown>
+  ) => Promise<void> | void;
   themeMode?: 'light' | 'dark';
+}
+
+function extractStructuredDocumentText(doc: unknown): string {
+  if (!doc) return '';
+  if (typeof doc === 'string') return doc;
+  if (typeof doc !== 'object') return String(doc);
+  const d = doc as Record<string, unknown>;
+  if (typeof d.text === 'string') return d.text;
+  if (Array.isArray(d.content)) {
+    const parts = d.content.map(extractStructuredDocumentText).filter(Boolean);
+    return parts.join('\n');
+  }
+  return '';
+}
+
+function formatPayloadSummary(payload: Record<string, unknown> | undefined): string {
+  if (!payload) return '';
+  let text =
+    (payload['plainText'] as string | undefined) ??
+    (payload['details'] as string | undefined) ??
+    '';
+  if (!text && payload['document']) {
+    text = extractStructuredDocumentText(payload['document']);
+    if (!text) {
+      try {
+        text = JSON.stringify(payload['document'], null, 2);
+      } catch {
+        text = '[Structured document]';
+      }
+    }
+  }
+
+  const structuredParts: string[] = [];
+  if (payload['status']) structuredParts.push(`Status: ${String(payload['status'])}`);
+  if (payload['priority']) structuredParts.push(`Priority: ${String(payload['priority'])}`);
+  if (payload['deadline']) {
+    const dl = payload['deadline'];
+    if (typeof dl === 'object' && dl !== null && 'targetDate' in dl) {
+      structuredParts.push(`Deadline: ${(dl as Record<string, unknown>).targetDate}`);
+    } else {
+      structuredParts.push(`Deadline: ${JSON.stringify(dl)}`);
+    }
+  }
+  if (payload['schedule']) structuredParts.push(`Schedule: ${JSON.stringify(payload['schedule'])}`);
+  if (payload['frequency']) structuredParts.push(`Frequency: ${String(payload['frequency'])}`);
+  if (payload['timeZone'] || payload['timezone']) {
+    structuredParts.push(`Timezone: ${String(payload['timeZone'] || payload['timezone'])}`);
+  }
+  if (payload['entryDate']) structuredParts.push(`Date: ${String(payload['entryDate'])}`);
+  if (payload['mood']) structuredParts.push(`Mood: ${String(payload['mood'])}`);
+  if (payload['folderId']) structuredParts.push(`Folder: ${String(payload['folderId'])}`);
+  if (payload['parentId']) structuredParts.push(`Parent: ${String(payload['parentId'])}`);
+  if (Array.isArray(payload['tags']) && payload['tags'].length > 0) {
+    structuredParts.push(`Tags: ${payload['tags'].join(', ')}`);
+  }
+
+  const structuredSummary = structuredParts.join('\n');
+  if (text && structuredSummary) {
+    return `${structuredSummary}\n\n${text}`;
+  }
+  return text || structuredSummary;
 }
 
 export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
@@ -33,6 +97,7 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
 }) => {
   const palette = colors[themeMode];
   const [isResolving, setIsResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'side_by_side' | 'local' | 'server' | 'base'>('side_by_side');
 
   if (!conflict) return null;
@@ -57,26 +122,25 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
     (conflict.baseState?.['name'] as string | undefined) ??
     'Untitled (Base)';
 
-  const localBody =
-    (conflict.localPayload['plainText'] as string | undefined) ??
-    (conflict.localPayload['details'] as string | undefined) ??
-    '';
+  const localBody = formatPayloadSummary(conflict.localPayload);
+  const serverBody = isEditVsDelete
+    ? '[Entity deleted on server]'
+    : formatPayloadSummary(conflict.serverState);
+  const baseBody = formatPayloadSummary(conflict.baseState);
 
-  const serverBody =
-    (conflict.serverState?.['plainText'] as string | undefined) ??
-    (conflict.serverState?.['details'] as string | undefined) ??
-    (isEditVsDelete ? '[Entity deleted on server]' : '');
+  const isTaskConflict =
+    conflict.entityType === 'task' || conflict.entityType === 'todo';
 
-  const baseBody =
-    (conflict.baseState?.['plainText'] as string | undefined) ??
-    (conflict.baseState?.['details'] as string | undefined) ??
-    '';
-
-  const handleAction = async (resolution: 'keep_server' | 'keep_local' | 'save_copy') => {
+  const handleAction = async (resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge') => {
     setIsResolving(true);
+    setResolveError(null);
     try {
       await onResolve(resolution);
       onClose();
+    } catch (err: unknown) {
+      setResolveError(
+        err instanceof Error ? err.message : 'Resolution failed. Both versions have been preserved.'
+      );
     } finally {
       setIsResolving(false);
     }
@@ -297,6 +361,16 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
             >
               {isEditVsDelete ? 'Restore & Apply Edits' : 'Keep Local Edits'}
             </Button>
+            {isTaskConflict && (
+              <Button
+                variant="secondary"
+                themeMode={themeMode}
+                disabled={isResolving}
+                onClick={() => void handleAction('merge')}
+              >
+                Merge Non-Conflicting Fields
+              </Button>
+            )}
             <Button
               variant="primary"
               themeMode={themeMode}
@@ -306,6 +380,16 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
               Keep Both (Separate Copy)
             </Button>
           </div>
+
+          {resolveError && (
+            <div style={{ width: '100%', marginTop: '6px' }}>
+              <Feedback
+                severity="danger"
+                message={resolveError}
+                themeMode={themeMode}
+              />
+            </div>
+          )}
 
           <Button variant="secondary" themeMode={themeMode} onClick={onClose} disabled={isResolving}>
             Cancel Review

@@ -15,6 +15,7 @@ import {
   FileUploadDialog,
   FilePreviewDialog,
   QuickReferenceView,
+  ConflictReviewDialog,
   type BreadcrumbItem,
   type FileItemRecord,
   type UploadExecutionResult,
@@ -40,7 +41,7 @@ import {
   type ResolvedItemLink,
 } from '@daynori/domain';
 import type { DaynoriApiClient } from '@daynori/api-client';
-import type { ItemHeaderRecord, SyncEngine, FileRecord } from '@daynori/sync';
+import type { ItemHeaderRecord, SyncEngine, FileRecord, ConflictRecord } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { createWebApiClient } from '../../data/webApiClient';
@@ -109,6 +110,7 @@ export default function LibraryPage() {
   const [localSaveStatus, setLocalSaveStatus] = useState<string>('Checking storage...');
   const [cloudSyncStatus, setCloudSyncStatus] = useState<string>('Checking sync...');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  const [activeConflict, setActiveConflict] = useState<ConflictRecord | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -326,8 +328,10 @@ export default function LibraryPage() {
               }
             } else if (evt.type === 'conflict_detected') {
               setConflictMessage(evt.conflict.conflictReason);
+              setActiveConflict(evt.conflict);
             } else if (evt.type === 'conflict_resolved') {
               setConflictMessage(null);
+              setActiveConflict((prev) => (prev?.id === evt.conflictId ? null : prev));
             }
           });
 
@@ -2161,7 +2165,7 @@ export default function LibraryPage() {
   );
 
   const handleResolveConflict = useCallback(
-    async (resolution: 'keep_server' | 'keep_local' | 'save_copy') => {
+    async (resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge') => {
       if (!editingNote) return;
       try {
         if (syncEngineRef.current) {
@@ -2177,6 +2181,77 @@ export default function LibraryPage() {
       }
     },
     [editingNote, isOnline, announce]
+  );
+
+  const handleResolveActiveConflict = useCallback(
+    async (
+      resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge',
+      customPayload?: Record<string, unknown>
+    ) => {
+      if (!activeConflict) return;
+      try {
+        if (syncEngineRef.current) {
+          await syncEngineRef.current.resolveConflict(
+            activeConflict.id,
+            resolution,
+            customPayload
+          );
+          if (isOnline) {
+            await syncEngineRef.current.syncNow();
+          }
+        }
+        setActiveConflict(null);
+        setConflictMessage(null);
+        announce(`Resolved conflict with option: ${resolution}`);
+        if (localRepoRef.current && workspaceId) {
+          const headers = await localRepoRef.current.listItemHeaders(workspaceId);
+          const loadedFolders: FolderNode[] = [];
+          const loadedItems: LibraryItemRecord[] = [];
+          for (const h of headers) {
+            if (h.deletedAt && !showArchived) continue;
+            if (h.kind === 'folder') {
+              loadedFolders.push({
+                id: h.id,
+                name: h.name ?? 'Untitled Folder',
+                parentId: h.parentId ?? h.folderId ?? null,
+                color: h.color ?? null,
+                icon: h.icon ?? '📁',
+                rank: h.rank ?? '00001000',
+                scope: h.securityScope === 'vault' ? 'private' : 'workspace',
+                revision: h.serverRevision,
+                archivedAt: h.isArchived ? h.updatedAt : null,
+                trashedAt: h.deletedAt ?? null,
+              });
+            } else {
+              loadedItems.push({
+                id: h.id,
+                title: h.name ?? 'Untitled Item',
+                kind: (h.kind as LibraryItemRecord['kind']) ?? 'note',
+                folderId: h.folderId ?? null,
+                rank: h.rank ?? '00001000',
+                scope: h.securityScope === 'vault' ? 'private' : 'workspace',
+                revision: h.serverRevision,
+                archivedAt: h.isArchived ? h.updatedAt : null,
+                trashedAt: h.deletedAt ?? null,
+                purpose: h.purpose,
+                isPinned: h.isPinned,
+                isArchived: h.isArchived,
+                tags: h.tags,
+                createdAt: h.createdAt,
+                updatedAt: h.updatedAt,
+              });
+            }
+          }
+          setFolders(loadedFolders);
+          setItems(loadedItems);
+        }
+      } catch (err) {
+        announce(
+          `Failed to resolve conflict: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    },
+    [activeConflict, isOnline, announce, workspaceId, showArchived]
   );
 
   const handleDeleteNote = useCallback(async () => {
@@ -2464,6 +2539,24 @@ export default function LibraryPage() {
           <Feedback
             severity="warning"
             message={`Conflict detected: ${conflictMessage}. Local intent preserved until resolved.`}
+            actionLabel="Review Conflict"
+            onAction={async () => {
+              if (activeConflict) return;
+              if (syncEngineRef.current) {
+                const conflicts = syncEngineRef.current.getConflicts();
+                if (conflicts.length > 0) {
+                  setActiveConflict(conflicts[0] ?? null);
+                  return;
+                }
+              }
+              if (localRepoRef.current && workspaceId) {
+                const persisted = await localRepoRef.current.listConflicts(workspaceId);
+                const unresolved = persisted.filter((c) => !c.resolved);
+                if (unresolved.length > 0) {
+                  setActiveConflict(unresolved[0] ?? null);
+                }
+              }
+            }}
             onDismiss={() => setConflictMessage(null)}
           />
         </div>
@@ -3531,6 +3624,15 @@ export default function LibraryPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* Conflict Review Dialog */}
+      <ConflictReviewDialog
+        isOpen={activeConflict !== null}
+        onClose={() => setActiveConflict(null)}
+        conflict={activeConflict}
+        onResolve={handleResolveActiveConflict}
+        themeMode={themeMode}
+      />
     </div>
   );
 }

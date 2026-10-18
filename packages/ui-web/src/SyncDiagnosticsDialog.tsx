@@ -12,6 +12,7 @@ export interface SyncDiagnosticsDialogProps {
   diagnostics: RedactedSyncDiagnostics | null;
   onSyncNow?: () => Promise<void> | void;
   onOpenRecoveryExport?: () => void;
+  onReviewConflicts?: () => void;
   onRefresh?: () => Promise<void> | void;
   themeMode?: 'light' | 'dark';
 }
@@ -22,6 +23,7 @@ export const SyncDiagnosticsDialog: React.FC<SyncDiagnosticsDialogProps> = ({
   diagnostics,
   onSyncNow,
   onOpenRecoveryExport,
+  onReviewConflicts,
   onRefresh,
   themeMode = 'light',
 }) => {
@@ -178,6 +180,15 @@ export const SyncDiagnosticsDialog: React.FC<SyncDiagnosticsDialogProps> = ({
                 onClick={onOpenRecoveryExport}
               >
                 Export Recovery Data
+              </Button>
+            )}
+            {onReviewConflicts && diagnostics.activeConflictsCount > 0 && (
+              <Button
+                variant="primary"
+                themeMode={themeMode}
+                onClick={onReviewConflicts}
+              >
+                Review Conflicts ({diagnostics.activeConflictsCount})
               </Button>
             )}
           </div>

@@ -109,7 +109,7 @@ export interface LocalRepositoryPort {
   saveConflict(conflict: ConflictRecord, updatedMutation?: PendingMutationRecord): Promise<void>;
   resolveConflictTransaction(
     conflictId: string,
-    resolution: 'keep_server' | 'keep_local' | 'custom' | 'save_copy',
+    resolution: 'keep_server' | 'keep_local' | 'custom' | 'save_copy' | 'merge',
     updatedHeader?: ItemHeaderRecord,
     newMutation?: PendingMutationRecord,
     removeOperationId?: string,

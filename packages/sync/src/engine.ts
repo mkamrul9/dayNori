@@ -34,7 +34,11 @@ import type {
 } from './models.js';
 import { type SyncTransportPort, classifySyncError } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
-import { MAX_OFFLINE_HORIZON_MS } from './recovery.js';
+import {
+  MAX_OFFLINE_HORIZON_MS,
+  validateFolderMovePolicy,
+  mergeTaskFields,
+} from './recovery.js';
 
 export interface SaveItemOptions {
   dependencyOperationIds?: string[];
@@ -412,6 +416,27 @@ export class SyncEngine {
             determinedCommand === 'createCalendarEvent'
           ? 'create'
           : 'update';
+
+    if (isFolder && action !== 'delete') {
+      const targetParentId =
+        item.parentId !== undefined
+          ? item.parentId
+          : item.folderId !== undefined
+            ? item.folderId
+            : null;
+      const allHeaders = await this.repository.listItemHeaders(this.namespace.workspaceId);
+      const existingFolders = allHeaders
+        .filter((h) => (h.kind === 'folder' || !h.kind) && h.deletedAt === null)
+        .map((h) => ({ id: h.id, parentId: h.parentId ?? h.folderId ?? null }));
+      const validation = validateFolderMovePolicy({
+        folderId: item.id,
+        targetParentId,
+        existingFolders,
+      });
+      if (!validation.valid) {
+        throw new Error(validation.reason || 'Invalid folder move policy');
+      }
+    }
 
     // Typed metadata only - do NOT leak unpersisted feature bodies into server metadata sync payload
     const mutationPayload: Record<string, unknown> = isFolder
@@ -1666,6 +1691,8 @@ export class SyncEngine {
         const journalEntriesToApply: JournalEntryRecord[] = [];
         const calendarEventsToApply: CalendarEventRecord[] = [];
 
+        const incomingChangesMap = new Map(pullRes.data.changes.map((c) => [c.entityId, c]));
+
         for (const change of pullRes.data.changes) {
           totalChanges++;
           const data = (change.data || {}) as Record<string, unknown>;
@@ -1764,11 +1791,24 @@ export class SyncEngine {
               data.parentId !== null && data.parentId !== undefined ? String(data.parentId) : null;
           }
 
-          // Re-parent to root if parent folder was deleted or missing
+          // Re-parent to root ONLY if parent folder was confirmed deleted
           if (folderId !== null) {
-            const parentFolder = await this.repository.getItemHeader(this.namespace.workspaceId, folderId);
-            if (!parentFolder || parentFolder.deletedAt !== null) {
-              folderId = null;
+            const incomingParent = incomingChangesMap.get(folderId);
+            if (incomingParent) {
+              if (incomingParent.isTombstone) {
+                folderId = null; // Confirmed deleted in this incoming page
+              }
+              // Else: incomingParent is active, so parent is arriving or updated in this page. Keep folderId.
+            } else {
+              const parentFolder = await this.repository.getItemHeader(
+                this.namespace.workspaceId,
+                folderId
+              );
+              if (parentFolder && parentFolder.deletedAt !== null) {
+                folderId = null; // Confirmed deleted in local repository
+              }
+              // If parentFolder does NOT exist locally yet, it is not-yet-loaded.
+              // Distinguish not-yet-loaded parents from confirmed deletion; do not silently move to Inbox/root.
             }
           }
 
@@ -1804,11 +1844,41 @@ export class SyncEngine {
           if (change.isTombstone) {
             deletedAt = new Date().toISOString();
             // Edit-versus-delete detection: item was deleted on server, but edited locally while offline.
-            // Keep item deleted locally, but preserve the offline edit as a recoverable conflict!
+            // Keep item deleted locally, but preserve all unconfirmed offline edits and drafts as a recoverable conflict!
             const pendingForEntity = await this.getPendingForEntity(change.entityId);
             const unconfirmedPending = pendingForEntity.filter((m) => m.status !== 'failed');
-            const firstPending = unconfirmedPending[0];
-            if (firstPending) {
+            if (unconfirmedPending.length > 0) {
+              const draft = await this.repository.getDraft(
+                this.namespace.workspaceId,
+                this.namespace.userId,
+                change.entityId
+              );
+              const existingNote = await this.repository.getNote(
+                this.namespace.workspaceId,
+                change.entityId
+              );
+              const existingTask = await this.repository.getTask(
+                this.namespace.workspaceId,
+                change.entityId
+              );
+              const existingJournal = await this.repository.getJournalEntry(
+                this.namespace.workspaceId,
+                change.entityId
+              );
+
+              const latestLocalPayload: Record<string, unknown> = {
+                ...(existingNote ? { ...existingNote } : {}),
+                ...(existingTask ? { ...existingTask } : {}),
+                ...(existingJournal ? { ...existingJournal } : {}),
+                ...(draft?.payload || {}),
+              };
+              for (const m of unconfirmedPending) {
+                Object.assign(latestLocalPayload, m.payload);
+              }
+
+              const firstPending = unconfirmedPending[0];
+              if (!firstPending) continue;
+
               const conflictRecord: ConflictRecord = {
                 id: this.generateId(),
                 entityId: change.entityId,
@@ -1816,7 +1886,7 @@ export class SyncEngine {
                 operationId: firstPending.operationId,
                 workspaceId: this.namespace.workspaceId,
                 userId: this.namespace.userId,
-                localPayload: firstPending.payload,
+                localPayload: latestLocalPayload,
                 baseRevision: firstPending.baseRevision,
                 serverRevision: change.revision,
                 serverState: {
@@ -1830,8 +1900,13 @@ export class SyncEngine {
               };
               this.activeConflicts.set(conflictRecord.entityId, conflictRecord);
               this.activeConflicts.set(conflictRecord.id, conflictRecord);
-              firstPending.status = 'failed';
-              firstPending.lastError = conflictRecord.conflictReason;
+
+              for (const p of unconfirmedPending) {
+                p.status = 'failed';
+                p.lastError = conflictRecord.conflictReason;
+                await this.repository.enqueueMutation(p);
+              }
+
               await this.repository.saveConflict(conflictRecord, firstPending);
               this.itemStates.set(change.entityId, {
                 savedOnDevice: true,
@@ -2606,6 +2681,22 @@ export class SyncEngine {
           p.command !== 'restoreFolder' &&
           p.command !== 'restoreNote'
         ) {
+          const allPendingForEntity = pending.filter(
+            (m) => m.entityId === p.entityId && m.status !== 'failed'
+          );
+          const draft = await this.repository.getDraft(
+            this.namespace.workspaceId,
+            this.namespace.userId,
+            p.entityId
+          );
+          const latestLocalPayload: Record<string, unknown> = {
+            ...(p.payload || {}),
+            ...(draft?.payload || {}),
+          };
+          for (const m of allPendingForEntity) {
+            Object.assign(latestLocalPayload, m.payload);
+          }
+
           const conflictRecord: ConflictRecord = {
             id: this.generateId(),
             entityId: p.entityId,
@@ -2613,7 +2704,7 @@ export class SyncEngine {
             operationId: p.operationId,
             workspaceId: this.namespace.workspaceId,
             userId: this.namespace.userId,
-            localPayload: p.payload,
+            localPayload: latestLocalPayload,
             baseRevision: p.baseRevision,
             serverRevision: sItem.serverRevision,
             serverState: {
@@ -2627,8 +2718,12 @@ export class SyncEngine {
           };
           this.activeConflicts.set(conflictRecord.entityId, conflictRecord);
           this.activeConflicts.set(conflictRecord.id, conflictRecord);
-          p.status = 'failed';
-          p.lastError = conflictRecord.conflictReason;
+
+          for (const m of allPendingForEntity) {
+            m.status = 'failed';
+            m.lastError = conflictRecord.conflictReason;
+            await this.repository.enqueueMutation(m);
+          }
           await this.repository.saveConflict(conflictRecord, p);
           this.itemStates.set(p.entityId, {
             savedOnDevice: true,
@@ -2637,7 +2732,10 @@ export class SyncEngine {
           });
           this.emit({ type: 'conflict_detected', conflict: conflictRecord });
         } else {
-          p.baseRevision = sItem.serverRevision;
+          // Invariant: Never overwrite p.baseRevision in place!
+          // Preserving immutable operation IDs and their original command payload/revision envelope
+          // guarantees that a lost-response retry remains compatible with existing server receipts,
+          // and prevents turning a stale edit into a silent overwrite.
           await this.repository.enqueueMutation(p);
         }
       }
@@ -2655,12 +2753,24 @@ export class SyncEngine {
    */
   async resolveConflict(
     conflictId: string,
-    resolution: 'keep_local' | 'keep_server' | 'custom' | 'save_copy',
+    resolution: 'keep_local' | 'keep_server' | 'custom' | 'save_copy' | 'merge',
     customPayload?: Record<string, unknown>
   ): Promise<void> {
-    const conflict =
+    let conflict =
       this.activeConflicts.get(conflictId) ||
-      Array.from(this.activeConflicts.values()).find((c) => c.id === conflictId);
+      Array.from(this.activeConflicts.values()).find(
+        (c) => c.id === conflictId || c.entityId === conflictId
+      );
+    if (!conflict) {
+      const persisted = await this.repository.listConflicts(this.namespace.workspaceId);
+      conflict = persisted.find(
+        (c) => !c.resolved && (c.id === conflictId || c.entityId === conflictId)
+      );
+      if (conflict) {
+        this.activeConflicts.set(conflict.entityId, conflict);
+        this.activeConflicts.set(conflict.id, conflict);
+      }
+    }
     if (!conflict) {
       throw new Error(`Conflict ${conflictId} not found`);
     }
@@ -2830,9 +2940,26 @@ export class SyncEngine {
         cloudSyncStatus: 'saved_locally',
         pendingOperationId: copyOpId,
       });
-    } else if (resolution === 'keep_local' || resolution === 'custom') {
-      const payload =
+    } else if (resolution === 'keep_local' || resolution === 'custom' || resolution === 'merge') {
+      let payload =
         resolution === 'custom' && customPayload ? customPayload : conflict.localPayload;
+
+      if (resolution === 'merge') {
+        if (conflict.entityType === 'task' || conflict.entityType === 'todo') {
+          const baseTask = (conflict.baseState as TaskRecord | undefined) || null;
+          const localTask = conflict.localPayload as Partial<TaskRecord>;
+          const serverTask = (conflict.serverState as Partial<TaskRecord>) || {};
+          const { merged, conflictingFields } = mergeTaskFields(baseTask, localTask, serverTask);
+          if (conflictingFields.length > 0 && !customPayload) {
+            throw new Error(
+              `Cannot automatically merge task fields: conflicting edits in ${conflictingFields.join(', ')}`
+            );
+          }
+          payload = customPayload
+            ? { ...merged, ...customPayload }
+            : (merged as Record<string, unknown>);
+        }
+      }
 
       // Invariant: Never reuse the rejected operation ID or baseRevision!
       // Mint a fresh operation ID with baseRevision equal to the current serverRevision.
@@ -2869,7 +2996,7 @@ export class SyncEngine {
       // Atomic conflict resolution transaction: marks resolved, removes old op, enqueues replacement
       await this.repository.resolveConflictTransaction(
         conflict.id,
-        resolution,
+        resolution === 'merge' ? 'custom' : resolution,
         undefined,
         newMutation,
         conflict.operationId

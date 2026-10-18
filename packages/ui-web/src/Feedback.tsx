@@ -17,6 +17,8 @@ export interface FeedbackProps {
   title?: string;
   message: string;
   themeMode?: ThemeMode;
+  actionLabel?: string;
+  onAction?: () => void;
   onDismiss?: () => void;
 }
 
@@ -25,6 +27,8 @@ export const Feedback: React.FC<FeedbackProps> = ({
   title,
   message,
   themeMode = 'light',
+  actionLabel,
+  onAction,
   onDismiss,
 }) => {
   const palette = colors[themeMode];
@@ -99,6 +103,31 @@ export const Feedback: React.FC<FeedbackProps> = ({
           <span>{message}</span>
         </div>
       </div>
+
+      {actionLabel && onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          style={{
+            background: palette.surface,
+            color: palette.text.primary,
+            border: `1px solid ${border}`,
+            borderRadius: `${radii.sm}px`,
+            padding: `${spacing.xs}px ${spacing.sm}px`,
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            minHeight: `${touchTargets.webMin}px`,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {actionLabel}
+        </button>
+      )}
 
       {onDismiss && (
         <button

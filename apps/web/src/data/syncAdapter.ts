@@ -16,6 +16,16 @@ export interface WebSyncAdapterOptions {
   pollIntervalMs?: number;
 }
 
+let activeWebSyncEngine: SyncEngine | null = null;
+
+export function getActiveWebSyncEngine(): SyncEngine | null {
+  return activeWebSyncEngine;
+}
+
+export function setActiveWebSyncEngine(engine: SyncEngine | null): void {
+  activeWebSyncEngine = engine;
+}
+
 /**
  * Creates and initializes a SyncEngine instance configured specifically for
  * the Web environment (with BroadcastChannel multi-tab coordination).
@@ -46,5 +56,7 @@ export function createWebSyncEngine(options: WebSyncAdapterOptions): SyncEngine 
     pollIntervalMs: options.pollIntervalMs ?? 30000,
   };
 
-  return new SyncEngine(engineOptions);
+  const engine = new SyncEngine(engineOptions);
+  activeWebSyncEngine = engine;
+  return engine;
 }

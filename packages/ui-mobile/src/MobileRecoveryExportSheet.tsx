@@ -6,11 +6,20 @@ import { MobileButton } from './MobileButton.js';
 import { MobileFeedback } from './MobileFeedback.js';
 import { MobileModalSheet } from './MobileModalSheet.js';
 
+export type MobileExportActionResult =
+  | { status: 'success' }
+  | { status: 'cancelled' }
+  | { status: 'unavailable'; error?: string }
+  | { status: 'failure'; error?: string };
+
 export interface MobileRecoveryExportSheetProps {
   visible: boolean;
   onClose: () => void;
   exportData: RecoveryExport | null;
-  onShareOrCopy?: (jsonString: string) => Promise<void> | void;
+  onShareOrCopy?: (
+    jsonString: string,
+    actionType?: 'copy' | 'share'
+  ) => Promise<MobileExportActionResult | void> | MobileExportActionResult | void;
   themeMode?: ThemeMode;
   testID?: string;
 }
@@ -25,18 +34,49 @@ export const MobileRecoveryExportSheet: React.FC<MobileRecoveryExportSheetProps>
 }) => {
   const palette = colors[themeMode];
   const [showJson, setShowJson] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [actionStatus, setActionStatus] = useState<
+    'idle' | 'success' | 'cancelled' | 'unavailable' | 'failure'
+  >('idle');
+  const [actionError, setActionError] = useState<string | null>(null);
 
   if (!exportData) return null;
 
   const jsonString = JSON.stringify(exportData, null, 2);
 
-  const handleAction = async () => {
-    if (onShareOrCopy) {
-      await onShareOrCopy(jsonString);
+  const handleAction = async (actionType: 'copy' | 'share' = 'share') => {
+    if (!onShareOrCopy) {
+      setActionStatus('unavailable');
+      setActionError('Platform sharing and clipboard capabilities are not available in this environment.');
+      return;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+
+    try {
+      const result = await onShareOrCopy(jsonString, actionType);
+      if (result && typeof result === 'object' && 'status' in result) {
+        if (result.status === 'success') {
+          setActionStatus('success');
+          setActionError(null);
+          setTimeout(() => setActionStatus('idle'), 2500);
+        } else if (result.status === 'cancelled') {
+          setActionStatus('cancelled');
+          setActionError(null);
+          setTimeout(() => setActionStatus('idle'), 2500);
+        } else if (result.status === 'unavailable') {
+          setActionStatus('unavailable');
+          setActionError(result.error || 'Export capability is unavailable.');
+        } else {
+          setActionStatus('failure');
+          setActionError(result.error || 'Failed to export recovery data.');
+        }
+      } else {
+        setActionStatus('success');
+        setActionError(null);
+        setTimeout(() => setActionStatus('idle'), 2500);
+      }
+    } catch (err: unknown) {
+      setActionStatus('failure');
+      setActionError(err instanceof Error ? err.message : 'Export failed.');
+    }
   };
 
   return (
@@ -54,6 +94,31 @@ export const MobileRecoveryExportSheet: React.FC<MobileRecoveryExportSheetProps>
           message="Exported recovery data is unencrypted plain text JSON. Store it safely. Passwords, auth tokens, and vault items are excluded."
           themeMode={themeMode}
         />
+
+        {actionStatus === 'unavailable' && (
+          <MobileFeedback
+            severity="warning"
+            title="Export Unavailable"
+            message={actionError || 'Sharing capability is not available.'}
+            themeMode={themeMode}
+          />
+        )}
+        {actionStatus === 'failure' && (
+          <MobileFeedback
+            severity="danger"
+            title="Export Failed"
+            message={actionError || 'Could not export recovery data.'}
+            themeMode={themeMode}
+          />
+        )}
+        {actionStatus === 'cancelled' && (
+          <MobileFeedback
+            severity="info"
+            title="Export Cancelled"
+            message="Export sharing was dismissed. Your local recovery data is preserved."
+            themeMode={themeMode}
+          />
+        )}
 
         {/* Summary Card */}
         <View style={[styles.card, { backgroundColor: palette.surfaceRaised, borderColor: palette.border.subtle }]}>
@@ -103,10 +168,10 @@ export const MobileRecoveryExportSheet: React.FC<MobileRecoveryExportSheetProps>
           <MobileButton
             variant="primary"
             themeMode={themeMode}
-            onPress={() => void handleAction()}
+            onPress={() => void handleAction('share')}
             accessibilityLabel="Export or copy recovery data"
           >
-            {copied ? 'Export Copied / Shared!' : 'Copy / Share Recovery JSON'}
+            {actionStatus === 'success' ? 'Export Copied / Shared!' : 'Copy / Share Recovery JSON'}
           </MobileButton>
 
           <MobileButton variant="subtle" themeMode={themeMode} onPress={onClose} accessibilityLabel="Close export dialog">

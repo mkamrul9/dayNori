@@ -9,6 +9,8 @@ import {
   JournalEditor,
   RouteAnnouncer,
   TextField,
+  Feedback,
+  ConflictReviewDialog,
 } from '@daynori/ui-web';
 import {
   generateInitialRank,
@@ -115,6 +117,7 @@ export default function JournalPage() {
   const [entries, setEntries] = useState<JournalEntryRecord[]>([]);
   const [pendingDraft, setPendingDraft] = useState<DraftRecord | null>(null);
   const [activeConflict, setActiveConflict] = useState<ConflictRecord | null>(null);
+  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
 
   // Active writing surface state
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -270,11 +273,13 @@ export default function JournalPage() {
                 setCloudSyncStatus('Sync error');
                 break;
             }
-          } else if (
-            evt.type === 'sync_completed' ||
-            evt.type === 'conflict_detected' ||
-            evt.type === 'conflict_resolved'
-          ) {
+          } else if (evt.type === 'sync_completed') {
+            void reloadEntries();
+          } else if (evt.type === 'conflict_detected') {
+            setActiveConflict(evt.conflict);
+            void reloadEntries();
+          } else if (evt.type === 'conflict_resolved') {
+            setActiveConflict((prev) => (prev?.id === evt.conflictId ? null : prev));
             void reloadEntries();
           }
         });
@@ -669,15 +674,19 @@ export default function JournalPage() {
 
   // Conflict resolution handler
   const handleResolveConflict = useCallback(
-    async (resolution: 'keep_server' | 'keep_local' | 'save_copy') => {
+    async (
+      resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge',
+      customPayload?: Record<string, unknown>
+    ) => {
       const engine = syncEngineRef.current;
       const repo = localRepoRef.current;
       const currentNamespace = activeNamespaceRef.current;
       if (!engine || !repo || !currentNamespace || !activeConflict) return;
 
       try {
-        await engine.resolveConflict(activeConflict.id, resolution);
+        await engine.resolveConflict(activeConflict.id, resolution, customPayload);
         setActiveConflict(null);
+        setIsConflictDialogOpen(false);
         await reloadEntries();
         announce(`Conflict resolved with ${resolution.replace('_', ' ')}.`);
       } catch (err) {
@@ -1029,6 +1038,20 @@ export default function JournalPage() {
           </Button>
         </div>
       </div>
+
+      {/* Conflict Notice Banner */}
+      {activeConflict && (
+        <div style={{ marginBottom: `${spacing.base}px` }}>
+          <Feedback
+            severity="warning"
+            message={`Conflict detected: ${activeConflict.conflictReason}. Local intent preserved until resolved.`}
+            actionLabel="Review Conflict"
+            onAction={() => setIsConflictDialogOpen(true)}
+            onDismiss={() => setActiveConflict(null)}
+            themeMode={themeMode}
+          />
+        </div>
+      )}
 
       {/* Recoverable Draft Notice Banner */}
       {pendingDraft && (
@@ -1529,6 +1552,15 @@ export default function JournalPage() {
           })}
         </div>
       )}
+
+      {/* Conflict Review Dialog */}
+      <ConflictReviewDialog
+        isOpen={isConflictDialogOpen && !!activeConflict}
+        onClose={() => setIsConflictDialogOpen(false)}
+        conflict={activeConflict}
+        onResolve={handleResolveConflict}
+        themeMode={themeMode}
+      />
     </main>
   );
 }

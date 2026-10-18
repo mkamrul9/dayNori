@@ -816,8 +816,9 @@ describe('Phase 34: Conflict Recovery & Offline Hardening Integration Tests', ()
         expect(p).not.toHaveProperty('password');
       }
 
-      // Verify vault plaintext was masked
-      const vaultDraft = exportResult.drafts.find((d) => d.title === 'Vault Secure Note');
+      // Verify vault title and plaintext was masked
+      const vaultDraft = exportResult.drafts.find((d) => d.entityType === 'vault_entry');
+      expect(vaultDraft?.title).toBe('[Vault item excluded]');
       expect(vaultDraft?.payload['plainText']).toBeUndefined();
       expect(vaultDraft?.payload['_masked']).toBe(true);
 
@@ -930,6 +931,337 @@ describe('Phase 34: Conflict Recovery & Offline Hardening Integration Tests', ()
       expect(conflicts[0].id).toBe(conflictId);
 
       await sqliteRepo.close();
+    });
+  });
+
+  describe('10. Phase 34 Hardened Defect Verifications', () => {
+    it('preserves user text with password/secret words, strips nested credentials in arrays, and checks attachment cache', async () => {
+      const repo = new IndexedDbLocalRepository();
+      const testWsId = crypto.randomUUID();
+      const testUserId = crypto.randomUUID();
+      await repo.initialize({ workspaceId: testWsId, userId: testUserId });
+
+      // Save draft with user text mentioning secret and password, and nested array with tokens
+      await repo.saveDraft({
+        id: crypto.randomUUID(),
+        workspaceId: testWsId,
+        userId: testUserId,
+        entityType: 'note',
+        entityId: null,
+        title: 'My password reset guide',
+        savedAt: new Date().toISOString(),
+        payload: {
+          title: 'My password reset guide',
+          userNotes: 'Remember to reset password using your secret questions.',
+          tokens: [
+            {
+              authtoken: 'leak-token-123',
+              sessionid: 'leak-session-456',
+              userDescription: 'This note is safe and should remain',
+            },
+          ],
+        },
+      });
+
+      // Save file records with mock attachment status
+      const cachedFileId = crypto.randomUUID();
+      const uncachedFileId = crypto.randomUUID();
+      await repo.saveItemTransaction(
+        {
+          id: cachedFileId,
+          workspaceId: testWsId,
+          kind: 'file',
+          folderId: null,
+          rank: '00001000',
+          isArchived: false,
+          isPinned: false,
+          securityScope: 'standard',
+          serverRevision: 1,
+          name: 'cached_document.pdf',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          deletedAt: null,
+        },
+        {
+          operationId: crypto.randomUUID(),
+          deviceId: 'device-test-defects',
+          workspaceId: testWsId,
+          userId: testUserId,
+          entityType: 'file',
+          entityId: cachedFileId,
+          action: 'create',
+          command: 'createItem',
+          commandVersion: 1,
+          schemaVersion: 1,
+          payload: { name: 'cached_document.pdf' },
+          baseRevision: 0,
+          dependencyOperationIds: [],
+          clientTimestamp: new Date().toISOString(),
+          retryCount: 0,
+          status: 'pending',
+          lastError: null,
+        }
+      );
+      await repo.saveItemTransaction(
+        {
+          id: uncachedFileId,
+          workspaceId: testWsId,
+          kind: 'file',
+          folderId: null,
+          rank: '00002000',
+          isArchived: false,
+          isPinned: false,
+          securityScope: 'standard',
+          serverRevision: 1,
+          name: 'metadata_only.pdf',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          deletedAt: null,
+        },
+        {
+          operationId: crypto.randomUUID(),
+          deviceId: 'device-test-defects',
+          workspaceId: testWsId,
+          userId: testUserId,
+          entityType: 'file',
+          entityId: uncachedFileId,
+          action: 'create',
+          command: 'createItem',
+          commandVersion: 1,
+          schemaVersion: 1,
+          payload: { name: 'metadata_only.pdf' },
+          baseRevision: 0,
+          dependencyOperationIds: [],
+          clientTimestamp: new Date().toISOString(),
+          retryCount: 0,
+          status: 'pending',
+          lastError: null,
+        }
+      );
+
+      await repo.upsertFile({
+        id: cachedFileId,
+        workspaceId: testWsId,
+        folderId: null,
+        fileName: 'cached_document.pdf',
+        declaredMimeType: 'application/pdf',
+        detectedMimeType: 'application/pdf',
+        byteSize: 1024,
+        sha256Checksum: 'a'.repeat(64),
+        version: '1',
+        quarantineStatus: 'verified',
+        createdBy: testUserId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await repo.upsertFile({
+        id: uncachedFileId,
+        workspaceId: testWsId,
+        folderId: null,
+        fileName: 'metadata_only.pdf',
+        declaredMimeType: 'application/pdf',
+        detectedMimeType: 'application/pdf',
+        byteSize: 2048,
+        sha256Checksum: 'b'.repeat(64),
+        version: '1',
+        quarantineStatus: 'verified',
+        createdBy: testUserId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const exportResult = await exportRecoveryData({
+        workspaceId: testWsId,
+        userId: testUserId,
+        repository: repo,
+        deviceId: 'device-test-defects',
+        checkAttachmentCached: (f) => f.id === cachedFileId,
+      });
+
+      // Notice should document emergency recovery dump format and intentional limits
+      expect(exportResult.notice).toContain('emergency local draft dump, NOT a full or portable backup');
+      expect(exportResult.notice).toContain('vault plaintexts and private metadata are strictly excluded');
+
+      // User text should be preserved
+      const draft = exportResult.drafts[0];
+      expect(draft.title).toBe('My password reset guide');
+      expect(draft.payload['userNotes']).toBe('Remember to reset password using your secret questions.');
+
+      // Tokens inside array must be stripped, while safe array content is kept
+      const tokenArray = draft.payload['tokens'] as Array<Record<string, unknown>>;
+      expect(tokenArray).toBeDefined();
+      expect(tokenArray.length).toBe(1);
+      expect(tokenArray[0]['authtoken']).toBeUndefined();
+      expect(tokenArray[0]['sessionid']).toBeUndefined();
+      expect(tokenArray[0]['userDescription']).toBe('This note is safe and should remain');
+
+      // Attachment cache inspection
+      const cachedAttachment = exportResult.attachments.files.find((f) => f.id === cachedFileId);
+      const uncachedAttachment = exportResult.attachments.files.find((f) => f.id === uncachedFileId);
+      expect(cachedAttachment?.availability).toBe('locally_cached');
+      expect(cachedAttachment?.isBinaryCachedLocally).toBe(true);
+      expect(uncachedAttachment?.availability).toBe('metadata_only');
+      expect(uncachedAttachment?.isBinaryCachedLocally).toBe(false);
+
+      await repo.close();
+    });
+
+    it('enforces validateFolderMovePolicy in saveItem and rejects circular parent cycles', async () => {
+      const repo = new IndexedDbLocalRepository();
+      const testWsId = crypto.randomUUID();
+      const testUserId = crypto.randomUUID();
+      await repo.initialize({ workspaceId: testWsId, userId: testUserId });
+
+      const syncEngine = new SyncEngine({
+        deviceId: 'device-cycle-test',
+        namespace: { workspaceId: testWsId, userId: testUserId },
+        repository: repo,
+        transport: {
+          push: async () => ({ data: { results: [] } }),
+          pull: async () => ({
+            data: {
+              changes: [],
+              nextCursor: { lastServerRevision: 0, epoch: '1' },
+              serverTimestamp: new Date().toISOString(),
+              hasMore: false,
+            },
+          }),
+        },
+      });
+
+      const folderAId = crypto.randomUUID();
+      const folderBId = crypto.randomUUID();
+
+      const folderA: ItemHeaderRecord = {
+        id: folderAId,
+        workspaceId: testWsId,
+        kind: 'folder',
+        folderId: null,
+        rank: '00001000',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        name: 'Folder A',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      };
+
+      const folderB: ItemHeaderRecord = {
+        id: folderBId,
+        workspaceId: testWsId,
+        kind: 'folder',
+        folderId: null,
+        parentId: folderAId,
+        rank: '00002000',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard',
+        serverRevision: 1,
+        name: 'Folder B',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+      };
+
+      // Create folder A
+      await syncEngine.saveItem(folderA);
+
+      // Create folder B under folder A
+      await syncEngine.saveItem(folderB);
+
+      // Try moving folder A under folder B (circular cycle A -> B -> A)
+      const circularFolderA: ItemHeaderRecord = {
+        ...folderA,
+        parentId: folderBId,
+      };
+      await expect(syncEngine.saveItem(circularFolderA)).rejects.toThrow(/circular|cycle/i);
+
+      await repo.close();
+    });
+
+    it('supports 3-way task conflict merging via resolveConflict merge option', async () => {
+      const repo = new IndexedDbLocalRepository();
+      const testWsId = crypto.randomUUID();
+      const testUserId = crypto.randomUUID();
+      await repo.initialize({ workspaceId: testWsId, userId: testUserId });
+
+      const syncEngine = new SyncEngine({
+        deviceId: 'device-merge-test',
+        namespace: { workspaceId: testWsId, userId: testUserId },
+        repository: repo,
+        transport: {
+          push: async () => ({ data: { results: [] } }),
+          pull: async () => ({
+            data: {
+              changes: [],
+              nextCursor: { lastServerRevision: 0, epoch: '1' },
+              serverTimestamp: new Date().toISOString(),
+              hasMore: false,
+            },
+          }),
+        },
+      });
+
+      const taskId = crypto.randomUUID();
+      const conflictId = crypto.randomUUID();
+
+      const conflictRecord = {
+        id: conflictId,
+        workspaceId: testWsId,
+        userId: testUserId,
+        entityType: 'task',
+        entityId: taskId,
+        operationId: crypto.randomUUID(),
+        baseRevision: 1,
+        serverRevision: 2,
+        conflictReason: 'Concurrent task edit',
+        detectedAt: new Date().toISOString(),
+        resolved: false,
+        baseState: {
+          id: taskId,
+          title: 'Initial Task',
+          priority: 'low',
+          status: 'todo',
+          deadline: null,
+        },
+        localPayload: {
+          id: taskId,
+          title: 'Initial Task',
+          priority: 'high', // local changed priority
+          status: 'todo',
+          deadline: null,
+        },
+        serverState: {
+          id: taskId,
+          title: 'Initial Task',
+          priority: 'low',
+          status: 'in_progress', // server changed status
+          deadline: null,
+        },
+      };
+
+      await repo.saveConflict(conflictRecord);
+
+      // Resolve conflict via 'merge'
+      await syncEngine.resolveConflict(conflictId, 'merge');
+
+      // Verify mutation enqueued with merged disjoint fields
+      const pending = await repo.getPendingMutations(testWsId, testUserId);
+      const mergeMutation = pending.find((m) => m.entityId === taskId);
+      expect(mergeMutation).toBeDefined();
+      expect(mergeMutation?.payload['priority']).toBe('high');
+      expect(mergeMutation?.payload['status']).toBe('in_progress');
+
+      // Verify conflict is resolved
+      const resolvedConflict = await repo.getConflict(testWsId, conflictId);
+      expect(resolvedConflict?.resolved).toBe(true);
+
+      const remainingUnresolved = await repo.listConflicts(testWsId);
+      expect(remainingUnresolved.length).toBe(0);
+
+      await repo.close();
     });
   });
 });

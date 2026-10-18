@@ -40,7 +40,7 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
 ## Verification results
 
 1. **Automated Integration Suite (`tests/integration/phase34-conflict-recovery.test.ts`)**:
-   - 10/10 tests passing:
+   - 13/13 tests passing:
      - Multi-device concurrent editing on text note: Detects revision conflict, preserves local draft, and creates a separate `(Copy)` note via `save_copy` with a fresh UUID.
      - Edit-versus-delete handling: Preserves local offline edits as recoverable conflicts when an item is deleted on the server, without resurrecting the deleted record.
      - 90-day offline horizon enforcement: Rejects automatic replay of mutations older than 90 days and retains them locally as failed conflicts with an actionable reason.
@@ -51,8 +51,15 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
      - Circular folder move rejection: Detects circular parent cycles and excessive hierarchy depth (> 5 levels).
      - Redacted diagnostics & secret exclusion: Generates sanitized diagnostics and recovery exports strictly omitting credentials, tokens, session IDs, and vault plaintexts.
      - SQLite repository transaction management: Verifies conflict records, draft saves, and item header updates in the mobile SQLite adapter.
+     - Defect Repair Verifications:
+       - Preserves user text containing credential words (e.g., "password", "secret") while strictly stripping actual credential fields.
+       - Recursive sanitization strips credential fields located inside nested arrays and objects.
+       - Masks vault item titles and file names while asserting explicit vault payload masking notice.
+       - Accurately checks local cached attachment binaries (`locally_cached` vs `metadata_only`).
+       - Rejects circular folder moves directly in `syncEngine.saveItem`.
+       - Validates 3-way task conflict merging via `resolveConflict(conflictId, 'merge')`.
 2. **Full Monorepo Unit & Integration Tests (`pnpm test`)**:
-   - 56 test files verified; 784/784 tests passing green across all packages and apps.
+   - 56 test files verified; 787/787 tests passing green across all packages and apps.
 3. **Type Checking & Linting**:
    - `pnpm typecheck`: Clean (exit code 0 across all 13 workspace packages and apps).
    - `pnpm lint`: Clean (0 errors, 0 warnings across the monorepo).
@@ -62,6 +69,14 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
    - `node scripts/validate-planning.mjs`: Clean (64 phases, 22 mapped requirements, 198 markdown files verified).
 6. **Production Build Validation (`pnpm build`)**:
    - Clean: Next.js 15 production web application built with prerendered static pages; Expo Android Hermes production bundle exported.
+
+## Defect Repairs and Hardening
+
+- **Sanitization Precision**: Replaced overly broad substring filtering with `FORBIDDEN_CREDENTIAL_KEYS` exact key matching so user notes mentioning words like "password" are not mangled or dropped, while deeply nested credentials within objects and arrays are reliably scrubbed.
+- **Vault Boundaries**: Enforced vault item masking across headers, draft titles (`[Vault item excluded]`), and file names (`[Vault file excluded]`), ensuring no vault metadata or ciphertext slips into recovery exports.
+- **Binary Verification**: Attached binary verification via `checkAttachmentCached` and mobile offline file cache checks ensure attachment records accurately distinguish `locally_cached` from `metadata_only`.
+- **Folder Hierarchy Enforcement**: `validateFolderMovePolicy` integrated into `saveItem` prevents local circular folder nesting before any mutation is enqueued.
+- **UI Action Wiring**: Conflict review buttons in `SyncDiagnosticsDialog`, `Feedback`, library page, journal page, and mobile sheets invoke working `syncEngine.resolveConflict` flows with 3-way merge and copy support.
 
 ## Key Architecture Invariants
 

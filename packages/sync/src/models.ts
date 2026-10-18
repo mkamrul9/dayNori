@@ -99,6 +99,7 @@ export interface ConflictRecord {
   baseRevision: number;
   serverRevision: number;
   serverState?: Record<string, unknown>;
+  baseState?: Record<string, unknown>;
   conflictReason: string;
   detectedAt: string;
   resolved: boolean;
@@ -357,6 +358,10 @@ export function validateConflictRecord(input: unknown): ConflictRecord {
     serverState:
       r.serverState && typeof r.serverState === 'object'
         ? (r.serverState as Record<string, unknown>)
+        : undefined,
+    baseState:
+      r.baseState && typeof r.baseState === 'object'
+        ? (r.baseState as Record<string, unknown>)
         : undefined,
     conflictReason: assertNonEmptyString(r.conflictReason, 'conflictReason', 500),
     detectedAt: assertNonEmptyString(r.detectedAt, 'detectedAt', 64),

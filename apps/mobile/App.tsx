@@ -4,12 +4,21 @@ import {
   BackHandler,
   Linking,
   SafeAreaView,
+  Share,
   StatusBar,
   StyleSheet,
   View,
 } from 'react-native';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
-import { MobileHeader, MobileNavigationBar, MobileSyncDiagnosticsSheet, MobileRecoveryExportSheet, type MobileTab } from '@daynori/ui-mobile';
+import {
+  MobileHeader,
+  MobileNavigationBar,
+  MobileSyncDiagnosticsSheet,
+  MobileRecoveryExportSheet,
+  MobileConflictReviewSheet,
+  type MobileExportActionResult,
+  type MobileTab,
+} from '@daynori/ui-mobile';
 import { parseDeepLinkUrl, type DeepLinkPayload } from '@daynori/contracts';
 
 import { defaultAuthAdapter } from './src/auth/authAdapter';
@@ -18,8 +27,13 @@ import { SqliteLocalRepository } from './src/data/sqliteRepository.js';
 import { createMobileSyncEngine } from './src/data/syncAdapter.js';
 import { defaultSecureStorage } from './src/auth/secureStorage.js';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
-import type { SyncEngine } from '@daynori/sync';
-import { exportRecoveryData, getRedactedSyncDiagnostics, type RedactedSyncDiagnostics, type RecoveryExport } from '@daynori/sync';
+import type { SyncEngine, ConflictRecord, FileRecord } from '@daynori/sync';
+import {
+  exportRecoveryData,
+  getRedactedSyncDiagnostics,
+  type RedactedSyncDiagnostics,
+  type RecoveryExport,
+} from '@daynori/sync';
 import { MobileOfflineFileCache } from './src/data/offlineFileCache.js';
 import { ExpoFileSystemOfflineStorageAdapter } from './src/data/expoFileSystemStorageAdapter.js';
 
@@ -94,15 +108,43 @@ export default function App() {
 
   const palette = colors[themeMode];
 
-  // Sync Diagnostics and Recovery Export state (Phase 34)
+  // Sync Diagnostics, Recovery Export, and Conflict Review state (Phase 34)
   const [syncDiagnostics, setSyncDiagnostics] = useState<RedactedSyncDiagnostics | null>(null);
   const [recoveryExport, setRecoveryExport] = useState<RecoveryExport | null>(null);
+  const [activeConflict, setActiveConflict] = useState<ConflictRecord | null>(null);
+  const sessionGenRef = useRef(0);
+
+  // Reset diagnostics and recovery export on session / workspace change
+  useEffect(() => {
+    sessionGenRef.current += 1;
+    setSyncDiagnostics(null);
+    setRecoveryExport(null);
+    setActiveConflict(null);
+  }, [userNamespace?.userId, userNamespace?.workspaceId]);
+
+  // Listen for conflict_detected from active sync engine
+  useEffect(() => {
+    if (!syncEngine) return;
+    const unsub = syncEngine.onEvent((evt) => {
+      if (evt.type === 'conflict_detected') {
+        setActiveConflict(evt.conflict);
+      } else if (evt.type === 'conflict_resolved') {
+        setActiveConflict((prev) => (prev?.id === evt.conflictId ? null : prev));
+      }
+    });
+    return () => {
+      unsub();
+    };
+  }, [syncEngine]);
 
   const loadDiagnostics = async () => {
     if (!syncEngine || !userNamespace) return;
+    const gen = sessionGenRef.current;
     try {
       const diag = await syncEngine.getDiagnostics();
-      setSyncDiagnostics(getRedactedSyncDiagnostics(diag));
+      if (sessionGenRef.current === gen) {
+        setSyncDiagnostics(getRedactedSyncDiagnostics(diag));
+      }
     } catch {
       // fallback
     }
@@ -110,16 +152,49 @@ export default function App() {
 
   const loadRecoveryExport = async () => {
     if (!repository || !userNamespace) return;
+    const gen = sessionGenRef.current;
     try {
       const exportData = await exportRecoveryData({
         repository,
         workspaceId: userNamespace.workspaceId,
         userId: userNamespace.userId,
         deviceId: 'android-device',
+        checkAttachmentCached: (f: FileRecord) =>
+          MobileOfflineFileCache.hasBinary(
+            userNamespace.userId,
+            userNamespace.workspaceId,
+            f.id,
+            Number(f.version) || 1
+          ),
       });
-      setRecoveryExport(exportData);
+      if (sessionGenRef.current === gen) {
+        setRecoveryExport(exportData);
+      }
     } catch {
       // fallback
+    }
+  };
+
+  const handleShareOrCopyRecovery = async (
+    jsonString: string,
+    _actionType: 'copy' | 'share' = 'share'
+  ): Promise<MobileExportActionResult> => {
+    try {
+      const shareResult = await Share.share({
+        title: 'Daynori Recovery Export',
+        message: jsonString,
+      });
+      if (shareResult.action === Share.sharedAction) {
+        return { status: 'success' };
+      } else if (shareResult.action === Share.dismissedAction) {
+        return { status: 'cancelled' };
+      }
+      return { status: 'success' };
+    } catch (err: unknown) {
+      return {
+        status: 'failure',
+        error: err instanceof Error ? err.message : 'Share failed',
+      };
     }
   };
 
@@ -738,6 +813,23 @@ export default function App() {
         visible={activeModal === 'recovery-export'}
         onClose={() => setActiveModal('none')}
         exportData={recoveryExport}
+        onShareOrCopy={handleShareOrCopyRecovery}
+        themeMode={themeMode}
+      />
+
+      {/* Phase 34 Conflict Review Sheet */}
+      <MobileConflictReviewSheet
+        visible={activeModal === 'conflict-review' && activeConflict !== null}
+        onClose={() => setActiveModal('none')}
+        conflict={activeConflict}
+        onResolve={async (resolution, customPayload) => {
+          if (syncEngine && activeConflict) {
+            await syncEngine.resolveConflict(activeConflict.id, resolution, customPayload);
+            setActiveConflict(null);
+            setActiveModal('none');
+            await loadDiagnostics();
+          }
+        }}
         themeMode={themeMode}
       />
     </SafeAreaView>

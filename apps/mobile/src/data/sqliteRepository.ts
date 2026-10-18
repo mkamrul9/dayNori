@@ -2080,7 +2080,7 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
 
   async resolveConflictTransaction(
     conflictId: string,
-    _resolution: 'keep_server' | 'keep_local' | 'custom' | 'save_copy',
+    _resolution: 'keep_server' | 'keep_local' | 'custom' | 'save_copy' | 'merge',
     updatedHeader?: ItemHeaderRecord,
     newMutation?: PendingMutationRecord,
     removeOperationId?: string,
