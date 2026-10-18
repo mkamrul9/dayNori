@@ -67,6 +67,8 @@ export interface PlanViewProps {
   isOnline?: boolean;
   userTimezone?: string;
   isDemo?: boolean;
+  targetTaskId?: string | null;
+  onClearTarget?: () => void;
 }
 
 export const SAMPLE_MOBILE_TASKS: TaskRecord[] = [
@@ -202,10 +204,21 @@ export const PlanView: React.FC<PlanViewProps> = ({
   isOnline: _isOnline = true,
   userTimezone = 'UTC',
   isDemo,
+  targetTaskId,
+  onClearTarget,
 }) => {
   const palette = colors[themeMode];
   const [activeSubView, setActiveSubView] = useState<PlanSubView>(initialSubView);
   const [taskFilter, setTaskFilter] = useState<MobileTaskFilter>('all');
+
+  // Handle arrival navigation from search
+  useEffect(() => {
+    if (targetTaskId) {
+      setActiveSubView('tasks');
+      setTaskFilter('all');
+      onClearTarget?.();
+    }
+  }, [targetTaskId, onClearTarget]);
 
   // Confine synthetic sample tasks to explicit demo/test environments
   const isDemoOrTest =

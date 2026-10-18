@@ -84,6 +84,13 @@ export default function App() {
   // Link deduplication timestamp
   const lastLinkRef = useRef<{ url: string; time: number } | null>(null);
 
+  // Canonical result navigation targets from SearchSheet
+  const [targetLibraryItemId, setTargetLibraryItemId] = useState<string | null>(null);
+  const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
+  const [targetTaskId, setTargetTaskId] = useState<string | null>(null);
+  const [targetJournalEntryId, setTargetJournalEntryId] = useState<string | null>(null);
+  const [targetJournalDate, setTargetJournalDate] = useState<string | null>(null);
+
   const palette = colors[themeMode];
 
   // 1. Subscribe to Auth Adapter changes
@@ -489,6 +496,8 @@ export default function App() {
             workspaceId={userNamespace?.workspaceId ?? null}
             userId={userNamespace?.userId ?? null}
             isOnline={isOnline}
+            targetTaskId={targetTaskId}
+            onClearTarget={() => setTargetTaskId(null)}
           />
         )}
 
@@ -504,6 +513,12 @@ export default function App() {
             userId={userNamespace?.userId ?? null}
             isOnline={isOnline}
             apiClient={apiClient ?? undefined}
+            targetItemId={targetLibraryItemId}
+            targetFolderId={targetFolderId}
+            onClearTarget={() => {
+              setTargetLibraryItemId(null);
+              setTargetFolderId(null);
+            }}
           />
         )}
 
@@ -518,6 +533,12 @@ export default function App() {
             workspaceId={userNamespace?.workspaceId ?? null}
             userId={userNamespace?.userId ?? null}
             isOnline={isOnline}
+            targetEntryId={targetJournalEntryId}
+            targetDate={targetJournalDate}
+            onClearTarget={() => {
+              setTargetJournalEntryId(null);
+              setTargetJournalDate(null);
+            }}
           />
         )}
       </View>
@@ -536,6 +557,32 @@ export default function App() {
         themeMode={themeMode}
         initialQuery={searchQuery}
         onQueryChange={setSearchQuery}
+        workspaceId={userNamespace?.workspaceId}
+        userId={userNamespace?.userId}
+        apiClient={apiClient ?? undefined}
+        localRepository={repository ?? undefined}
+        onSelectItem={(item) => {
+          setActiveModal('none');
+          if (item.displayType === 'note' || item.displayType === 'knowledge') {
+            setCurrentTab('library');
+            setTargetLibraryItemId(item.id);
+          } else if (item.displayType === 'file') {
+            setCurrentTab('library');
+            setLibraryFilter('files');
+            setTargetLibraryItemId(item.id);
+          } else if (item.displayType === 'folder') {
+            setCurrentTab('library');
+            setTargetFolderId(item.id);
+          } else if (item.displayType === 'task') {
+            setCurrentTab('plan');
+            setPlanSubView('tasks');
+            setTargetTaskId(item.id);
+          } else if (item.displayType === 'journal') {
+            setCurrentTab('journal');
+            setTargetJournalEntryId(item.id);
+            setTargetJournalDate((item.metadata?.entryDate as string) || null);
+          }
+        }}
       />
 
       {/* Create Sheet */}

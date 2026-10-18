@@ -326,6 +326,42 @@ export default function JournalPage() {
     [announce]
   );
 
+  // Handle URL query parameters (?date=..., ?entryId=..., ?create=true)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    const entryIdParam = params.get('entryId');
+    const createParam = params.get('create');
+
+    if (dateParam) {
+      setSelectedDate(dateParam);
+    }
+
+    if (createParam === 'true') {
+      handleOpenNewEntry(dateParam || selectedDate);
+      return;
+    }
+
+    if (entryIdParam) {
+      const match = entries.find((e) => e.id === entryIdParam);
+      if (match) {
+        handleEditEntry(match);
+      } else if (localRepoRef.current && workspaceId) {
+        void (async () => {
+          try {
+            const entry = await localRepoRef.current?.getJournalEntry(workspaceId, entryIdParam);
+            if (entry) {
+              handleEditEntry(entry);
+            }
+          } catch {
+            /* ignore */
+          }
+        })();
+      }
+    }
+  }, [entries, handleEditEntry, handleOpenNewEntry, selectedDate, workspaceId]);
+
   // Recover an existing draft
   const handleRecoverDraft = useCallback(() => {
     if (!pendingDraft?.payload) return;

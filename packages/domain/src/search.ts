@@ -38,6 +38,7 @@ export interface SearchDownloadedRecordsInput {
       folderId: string | null;
       securityScope: 'standard' | 'vault';
       deletedAt: string | null;
+      isArchived?: boolean;
       createdAt: string;
       updatedAt: string;
     }>;
@@ -92,6 +93,20 @@ export interface SearchDownloadedRecordsInput {
   };
 }
 
+/**
+ * Shared journal privacy redaction policy across server and client local search.
+ * By default, journal previews and body snippets are suppressed unless the user
+ * explicitly configures both settings to false.
+ */
+export function shouldRedactJournalSnippet(preferences?: {
+  journalPreviewHidden?: boolean;
+  suppressBodySnippets?: boolean;
+}): boolean {
+  const hidePreview = preferences?.journalPreviewHidden ?? true;
+  const suppressSnippets = preferences?.suppressBodySnippets ?? true;
+  return hidePreview || suppressSnippets;
+}
+
 export interface HighlightSegment {
   text: string;
   match: boolean;
@@ -109,6 +124,9 @@ export function escapeRegex(str: string): string {
  */
 export function highlightMatch(text: string, query: string): HighlightSegment[] {
   if (!text) return [];
+  if (text === '[Private journal entry]') {
+    return [{ text, match: false }];
+  }
   const trimmed = query.trim();
   if (!trimmed) {
     return [{ text, match: false }];
@@ -238,9 +256,53 @@ export function searchDownloadedRecords(input: SearchDownloadedRecordsInput): {
   const lowerQ = q.toLowerCase();
   const tokens = lowerQ.split(/\s+/).filter(Boolean);
 
+  const hasSpecificTypeFilter = Boolean(
+    query.types && query.types.length > 0 && !query.types.includes('all')
+  );
+  if (
+    !q &&
+    !hasSpecificTypeFilter &&
+    !query.folderId &&
+    !query.tagNames?.length &&
+    !query.startDate &&
+    !query.endDate
+  ) {
+    return {
+      data: [],
+      totalCount: 0,
+      coverage: 'offline_limited',
+    };
+  }
+
+  const normStart = query.startDate
+    ? /^\d{4}-\d{2}-\d{2}$/.test(query.startDate)
+      ? `${query.startDate}T00:00:00.000Z`
+      : query.startDate
+    : undefined;
+  const normEnd = query.endDate
+    ? /^\d{4}-\d{2}-\d{2}$/.test(query.endDate)
+      ? `${query.endDate}T23:59:59.999Z`
+      : query.endDate
+    : undefined;
+
   const folderMap = new Map<string, { id: string; name: string; parentId: string | null }>();
   for (const f of items.folders || []) {
     folderMap.set(f.id, f);
+  }
+
+  let allowedFolderIds: Set<string> | null = null;
+  if (query.folderId) {
+    allowedFolderIds = new Set<string>([query.folderId]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const f of items.folders || []) {
+        if (f.parentId && allowedFolderIds.has(f.parentId) && !allowedFolderIds.has(f.id)) {
+          allowedFolderIds.add(f.id);
+          added = true;
+        }
+      }
+    }
   }
 
   const notesMap = new Map<string, NoteItem>();
@@ -276,15 +338,24 @@ export function searchDownloadedRecords(input: SearchDownloadedRecordsInput): {
     // Invariant: strict vault exclusion
     if (header.securityScope === 'vault') continue;
 
-    // Invariant: exclude trash unless requested
-    if (header.deletedAt !== null && !query.includeArchived) continue;
+    // Trash is ALWAYS excluded from regular search
+    if (header.deletedAt !== null) continue;
 
-    // Filter by folder if specified
-    if (query.folderId && header.folderId !== query.folderId) continue;
+    // Archive filtering: exclude archived unless requested
+    if (!query.includeArchived && header.isArchived) continue;
+
+    // Filter by folder hierarchy (direct or descendants)
+    if (
+      allowedFolderIds &&
+      (!header.folderId || !allowedFolderIds.has(header.folderId)) &&
+      !allowedFolderIds.has(header.id)
+    ) {
+      continue;
+    }
 
     // Filter by date range
-    if (query.startDate && header.createdAt < query.startDate) continue;
-    if (query.endDate && header.createdAt > query.endDate) continue;
+    if (normStart && header.createdAt < normStart) continue;
+    if (normEnd && header.createdAt > normEnd) continue;
 
     let displayType: DomainSearchResultItem['displayType'] = 'note';
     let title = '';
@@ -316,13 +387,6 @@ export function searchDownloadedRecords(input: SearchDownloadedRecordsInput): {
       bodyText = journal.plainText;
       tags = journal.tags || [];
       metadata = { entryDate: journal.entryDate };
-
-      // Apply journal privacy redaction
-      const shouldRedact =
-        preferences?.suppressBodySnippets ?? preferences?.journalPreviewHidden ?? true;
-      if (shouldRedact) {
-        bodyText = '[Private journal entry]';
-      }
     } else if (header.kind === 'file_item' || header.kind === 'file') {
       const file = filesMap.get(header.id);
       if (!file) continue;
@@ -345,12 +409,13 @@ export function searchDownloadedRecords(input: SearchDownloadedRecordsInput): {
       if (!query.types.includes(displayType)) continue;
     }
 
-    // Filter by tagNames
+    // Filter by tagNames: all specified tags must match (case-insensitive)
     if (query.tagNames && query.tagNames.length > 0) {
-      const itemTagLower = tags.map((t) => t.toLowerCase());
-      const hasAllTags = query.tagNames.every((t: string) =>
-        itemTagLower.includes(t.toLowerCase())
+      const uniqueQueryTags = Array.from(
+        new Set(query.tagNames.map((t) => t.toLowerCase().trim()).filter(Boolean))
       );
+      const itemTagLower = tags.map((t) => t.toLowerCase());
+      const hasAllTags = uniqueQueryTags.every((t) => itemTagLower.includes(t));
       if (!hasAllTags) continue;
     }
 
@@ -397,11 +462,11 @@ export function searchDownloadedRecords(input: SearchDownloadedRecordsInput): {
     }
 
     const folderPath = buildFolderPath(header.folderId, folderMap);
-    const snippet =
-      displayType === 'journal' &&
-      (preferences?.suppressBodySnippets ?? preferences?.journalPreviewHidden ?? true)
-        ? '[Private journal entry]'
-        : extractSearchSnippet(bodyText, q);
+    const isJournalRedacted =
+      displayType === 'journal' && shouldRedactJournalSnippet(preferences);
+    const snippet = isJournalRedacted
+      ? '[Private journal entry]'
+      : extractSearchSnippet(bodyText, q);
 
     matchingItems.push({
       item: {

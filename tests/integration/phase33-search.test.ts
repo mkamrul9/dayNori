@@ -271,65 +271,158 @@ describe('Phase 33: Global Authorized Search and Filters (Integration & Performa
       expect(resSecret.meta.totalCount).toBe(0);
     });
 
-    it('excludes trash items by default and includes them only when includeArchived is true', async () => {
-      const task = await clientA.createTask(workspaceAId, {
-        title: 'Trash Candidate Task',
-        details: 'This task will be deleted',
+    it('strictly separates Archive from Trash: default search excludes both, includeArchived includes only archived records and never trash', async () => {
+      // 1. Task that is archived (is_archived = true, deleted_at IS NULL)
+      const archivedTask = await clientA.createTask(workspaceAId, {
+        title: 'Archived Roadmap Task',
+        details: 'Completed sprint goal archived for historical tracking',
       });
+      await withTenantContext(
+        runtimePool,
+        { userId: userAId, workspaceId: workspaceAId },
+        async (client) => {
+          await client.query(`UPDATE app.items SET is_archived = true WHERE id = $1;`, [
+            archivedTask.data.id,
+          ]);
+        }
+      );
 
-      // Move task to trash
+      // 2. Task that is trashed (deleted_at IS NOT NULL, is_archived = false)
+      const trashedTask = await clientA.createTask(workspaceAId, {
+        title: 'Trashed Scrap Task',
+        details: 'Accidental duplicate to be purged',
+      });
       await withTenantContext(
         runtimePool,
         { userId: userAId, workspaceId: workspaceAId },
         async (client) => {
           await client.query(`UPDATE app.items SET deleted_at = now() WHERE id = $1;`, [
-            task.data.id,
+            trashedTask.data.id,
           ]);
         }
       );
 
-      // Default search: excluded
-      const resDefault = await clientA.searchWorkspace(workspaceAId, { q: 'Trash Candidate' });
-      expect(resDefault.data.some((i) => i.id === task.data.id)).toBe(false);
+      // 3. Task that is both archived and trashed
+      const bothTask = await clientA.createTask(workspaceAId, {
+        title: 'Archived and Trashed Task',
+        details: 'Archived item subsequently deleted',
+      });
+      await withTenantContext(
+        runtimePool,
+        { userId: userAId, workspaceId: workspaceAId },
+        async (client) => {
+          await client.query(
+            `UPDATE app.items SET is_archived = true, deleted_at = now() WHERE id = $1;`,
+            [bothTask.data.id]
+          );
+        }
+      );
 
-      // With includeArchived = true: included
-      const resArchived = await clientA.searchWorkspace(workspaceAId, {
-        q: 'Trash Candidate',
+      // Default search: BOTH archived and trashed are excluded
+      const resDefaultArchived = await clientA.searchWorkspace(workspaceAId, { q: 'Archived Roadmap' });
+      expect(resDefaultArchived.data.some((i) => i.id === archivedTask.data.id)).toBe(false);
+
+      const resDefaultTrashed = await clientA.searchWorkspace(workspaceAId, { q: 'Trashed Scrap' });
+      expect(resDefaultTrashed.data.some((i) => i.id === trashedTask.data.id)).toBe(false);
+
+      const resDefaultBoth = await clientA.searchWorkspace(workspaceAId, { q: 'Archived and Trashed' });
+      expect(resDefaultBoth.data.some((i) => i.id === bothTask.data.id)).toBe(false);
+
+      // Search with includeArchived: true
+      // -> Archived record IS included
+      const resWithArchived = await clientA.searchWorkspace(workspaceAId, {
+        q: 'Archived Roadmap',
         includeArchived: true,
       });
-      expect(resArchived.data.some((i) => i.id === task.data.id)).toBe(true);
+      expect(resWithArchived.data.some((i) => i.id === archivedTask.data.id)).toBe(true);
 
-      // Restore task from trash
+      // -> Trashed record is STILL EXCLUDED (never returned by search)
+      const resWithTrashed = await clientA.searchWorkspace(workspaceAId, {
+        q: 'Trashed Scrap',
+        includeArchived: true,
+      });
+      expect(resWithTrashed.data.some((i) => i.id === trashedTask.data.id)).toBe(false);
+
+      // -> Both archived & trashed is STILL EXCLUDED due to trash policy
+      const resWithBoth = await clientA.searchWorkspace(workspaceAId, {
+        q: 'Archived and Trashed',
+        includeArchived: true,
+      });
+      expect(resWithBoth.data.some((i) => i.id === bothTask.data.id)).toBe(false);
+
+      // Restore trashed task from trash
       await withTenantContext(
         runtimePool,
         { userId: userAId, workspaceId: workspaceAId },
         async (client) => {
           await client.query(`UPDATE app.items SET deleted_at = NULL WHERE id = $1;`, [
-            task.data.id,
+            trashedTask.data.id,
           ]);
         }
       );
 
-      // Default search after restoration: included again
-      const resRestored = await clientA.searchWorkspace(workspaceAId, { q: 'Trash Candidate' });
-      expect(resRestored.data.some((i) => i.id === task.data.id)).toBe(true);
+      // Default search after restoration: included
+      const resRestored = await clientA.searchWorkspace(workspaceAId, { q: 'Trashed Scrap' });
+      expect(resRestored.data.some((i) => i.id === trashedTask.data.id)).toBe(true);
+    });
+
+    it('indexes and searches canonical production file records with kind = file', async () => {
+      const fileId = crypto.randomUUID();
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(`
+          INSERT INTO app.items (id, workspace_id, kind, security_scope, created_by, updated_by)
+          VALUES ('${fileId}', '${workspaceAId}', 'file', 'standard', '${userAId}', '${userAId}');
+
+          INSERT INTO app.file_items (id, workspace_id, file_name, declared_mime_type, detected_mime_type, byte_size, sha256_checksum, object_path, created_by)
+          VALUES ('${fileId}', '${workspaceAId}', 'quarterly_financial_report.pdf', 'application/pdf', 'application/pdf', 2048, 'hash123', 'reports/${fileId}.pdf', '${userAId}');
+        `);
+      } finally {
+        admin.release();
+      }
+
+      // Search by file name keyword
+      const resFile = await clientA.searchWorkspace(workspaceAId, { q: 'quarterly_financial_report' });
+      expect(resFile.data.some((i) => i.id === fileId)).toBe(true);
+      const fileItem = resFile.data.find((i) => i.id === fileId)!;
+      expect(fileItem.displayType).toBe('file');
+      expect(fileItem.metadata?.mimeType).toBe('application/pdf');
+
+      // Search with type filter 'file'
+      const resFiltered = await clientA.searchWorkspace(workspaceAId, {
+        q: 'quarterly',
+        types: ['file'],
+      });
+      expect(resFiltered.data.some((i) => i.id === fileId)).toBe(true);
     });
   });
 
   describe('3. Journal Privacy Preferences & Masked Snippets', () => {
-    it('redacts journal snippets when user has journalPreviewHidden enabled', async () => {
-      // Alice has journalPreviewHidden = true
+    it('redacts journal snippets while keeping body searchable when journalPreviewHidden is true and suppressBodySnippets is false', async () => {
+      // Ensure Alice's profile preferences has journalPreviewHidden: true and suppressBodySnippets: false
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(`
+          UPDATE app.profiles
+          SET preferences = '{"journalPreviewHidden": true, "suppressBodySnippets": false}'::jsonb
+          WHERE id = '${userAId}';
+        `);
+      } finally {
+        admin.release();
+      }
+
       const journalEntry = await clientA.createJournalEntry(workspaceAId, {
         entryDate: '2026-10-18',
         title: 'Deep Midnight Musings',
         plainText: 'Extremely private feelings that must not leak into search previews.',
       });
 
-      const resAlice = await clientA.searchWorkspace(workspaceAId, { q: 'Musings' });
+      // Search by body keyword 'private feelings'
+      const resAlice = await clientA.searchWorkspace(workspaceAId, { q: 'private feelings' });
       expect(resAlice.data.length).toBe(1);
       expect(resAlice.data[0]!.id).toBe(journalEntry.data.id);
       expect(resAlice.data[0]!.displayType).toBe('journal');
-      // Snippet MUST be redacted
+      // Snippet MUST be masked to '[Private journal entry]' and NEVER leak private text
       expect(resAlice.data[0]!.snippet).toBe('[Private journal entry]');
       expect(resAlice.data[0]!.snippet).not.toContain('Extremely private feelings');
     });
@@ -519,79 +612,307 @@ describe('Phase 33: Global Authorized Search and Filters (Integration & Performa
       expect(localResult.data[0]!.id).toBe('h1');
       expect(localResult.data.some((i) => i.id === 'h2-vault')).toBe(false);
     });
+
+    it('enforces Archive vs Trash separation and journal privacy masking in client-side local search', () => {
+      const records = {
+        headers: [
+          {
+            id: 'h-active',
+            workspaceId: 'ws-local-1',
+            kind: 'note' as const,
+            folderId: null,
+            securityScope: 'standard' as const,
+            deletedAt: null,
+            isArchived: false,
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+          {
+            id: 'h-archived',
+            workspaceId: 'ws-local-1',
+            kind: 'note' as const,
+            folderId: null,
+            securityScope: 'standard' as const,
+            deletedAt: null,
+            isArchived: true,
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+          {
+            id: 'h-trashed',
+            workspaceId: 'ws-local-1',
+            kind: 'note' as const,
+            folderId: null,
+            securityScope: 'standard' as const,
+            deletedAt: '2026-10-18T10:30:00Z',
+            isArchived: false,
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+          {
+            id: 'h-journal-private',
+            workspaceId: 'ws-local-1',
+            kind: 'journal_entry' as const,
+            folderId: null,
+            securityScope: 'standard' as const,
+            deletedAt: null,
+            isArchived: false,
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+        ],
+        notes: [
+          {
+            id: 'h-active',
+            workspaceId: 'ws-local-1',
+            title: 'Active Project Plan',
+            plainText: 'Sprint roadmap details.',
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+          {
+            id: 'h-archived',
+            workspaceId: 'ws-local-1',
+            title: 'Archived Project Plan',
+            plainText: 'Historical sprint roadmap.',
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+          {
+            id: 'h-trashed',
+            workspaceId: 'ws-local-1',
+            title: 'Trashed Project Plan',
+            plainText: 'Discarded sprint roadmap.',
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+        ],
+        journalEntries: [
+          {
+            id: 'h-journal-private',
+            workspaceId: 'ws-local-1',
+            entryDate: '2026-10-18',
+            title: 'Quiet Musings',
+            plainText: 'Confidential feelings that must never appear in snippets.',
+            createdAt: '2026-10-18T10:00:00Z',
+            updatedAt: '2026-10-18T10:00:00Z',
+          },
+        ],
+      };
+
+      // Default search: only active note is found; archived and trashed are excluded
+      const defaultRes = searchDownloadedRecords({
+        workspaceId: 'ws-local-1',
+        query: { q: 'Project Plan' },
+        items: records,
+      });
+      expect(defaultRes.data.map((i) => i.id)).toEqual(['h-active']);
+
+      // includeArchived: true -> active and archived are found; trashed is still excluded
+      const archivedRes = searchDownloadedRecords({
+        workspaceId: 'ws-local-1',
+        query: { q: 'Project Plan', includeArchived: true },
+        items: records,
+      });
+      const foundIds = archivedRes.data.map((i) => i.id);
+      expect(foundIds).toContain('h-active');
+      expect(foundIds).toContain('h-archived');
+      expect(foundIds).not.toContain('h-trashed');
+
+      // Journal search with journalPreviewHidden: true and suppressBodySnippets: false
+      const journalRes = searchDownloadedRecords({
+        workspaceId: 'ws-local-1',
+        query: { q: 'Confidential feelings' },
+        items: records,
+        preferences: { journalPreviewHidden: true, suppressBodySnippets: false },
+      });
+      expect(journalRes.data.length).toBe(1);
+      expect(journalRes.data[0]!.id).toBe('h-journal-private');
+      expect(journalRes.data[0]!.snippet).toBe('[Private journal entry]');
+    });
   });
 
   describe('7. Synthetic Multi-Tenant Performance Benchmark', () => {
     it('executes indexed search over 500+ multi-tenant items with verified query plans and latency measurement', async () => {
       const admin = await adminPool.connect();
-      const syntheticBatchSize = 100;
+      const syntheticBatchSize = 520;
       try {
-        // Insert synthetic items in batch
+        // Insert 520 synthetic items across both workspaces
+        const itemRows: string[] = [];
+        const noteRows: string[] = [];
+        const taskRows: string[] = [];
+        const fileRows: string[] = [];
+
         for (let i = 0; i < syntheticBatchSize; i++) {
           const itemId = crypto.randomUUID();
           const targetWs = i % 2 === 0 ? workspaceAId : workspaceBId;
-          const kind = i % 3 === 0 ? 'note' : i % 3 === 1 ? 'todo' : 'file_item';
+          const kind = i % 3 === 0 ? 'note' : i % 3 === 1 ? 'todo' : 'file';
           const title = `Synthetic Benchmark Item ${i} - Architecture Performance Verification`;
           const body = `Generated sample body for load verification index efficiency ${i}`;
 
-          await admin.query(`
-            INSERT INTO app.items (id, workspace_id, kind, security_scope, created_by, updated_by)
-            VALUES ('${itemId}', '${targetWs}', '${kind}', 'standard', '${userAId}', '${userAId}');
-          `);
+          itemRows.push(`('${itemId}', '${targetWs}', '${kind}', 'standard', '${userAId}', '${userAId}')`);
 
           if (kind === 'note') {
-            await admin.query(`
-              INSERT INTO app.notes (id, workspace_id, title, document, plain_text)
-              VALUES ('${itemId}', '${targetWs}', '${title}', '{"version":1,"type":"doc","content":[]}'::jsonb, '${body}');
-            `);
+            noteRows.push(`('${itemId}', '${targetWs}', '${title}', '{"version":1,"type":"doc","content":[]}'::jsonb, '${body}')`);
           } else if (kind === 'todo') {
-            await admin.query(`
-              INSERT INTO app.tasks (id, workspace_id, title, details)
-              VALUES ('${itemId}', '${targetWs}', '${title}', '${body}');
-            `);
+            taskRows.push(`('${itemId}', '${targetWs}', '${title}', '${body}')`);
           } else {
-            await admin.query(`
-              INSERT INTO app.file_items (id, workspace_id, file_name, declared_mime_type, detected_mime_type, byte_size, sha256_checksum, object_path, created_by)
-              VALUES ('${itemId}', '${targetWs}', 'benchmark_file_${i}.pdf', 'application/pdf', 'application/pdf', 1024, 'dummy_hash', 'path/${itemId}.pdf', '${userAId}');
-            `);
+            fileRows.push(`('${itemId}', '${targetWs}', 'benchmark_file_${i}.pdf', 'application/pdf', 'application/pdf', 1024, 'dummy_hash', 'path/${itemId}.pdf', '${userAId}')`);
           }
         }
 
-        // Run ANALYZE to refresh index statistics
-        await admin.query(
-          'ANALYZE app.items; ANALYZE app.notes; ANALYZE app.tasks; ANALYZE app.file_items;'
-        );
-
-        // Warm-up query
-        await clientA.searchWorkspace(workspaceAId, { q: 'Architecture Performance', limit: 20 });
-
-        // Measure search query latency
-        const start = performance.now();
-        const searchRes = await clientA.searchWorkspace(workspaceAId, {
-          q: 'Architecture Performance',
-          limit: 20,
-        });
-        const duration = performance.now() - start;
-
-        expect(searchRes.data.length).toBeGreaterThan(0);
-        expect(duration).toBeLessThan(500); // Verified sub-500ms roundtrip in test suite
-
-        // Query plan inspection via EXPLAIN ANALYZE
-        const explainRes = await admin.query<{ 'QUERY PLAN': string }>(`
-          EXPLAIN (ANALYZE, BUFFERS)
-          SELECT i.id, i.kind, n.title
-          FROM app.items i
-          LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
-          WHERE i.workspace_id = '${workspaceAId}'
-            AND i.security_scope != 'vault'
-            AND i.deleted_at IS NULL
-            AND (n.title ILIKE '%Architecture Performance%' OR to_tsvector('simple', n.title || ' ' || n.plain_text) @@ plainto_tsquery('simple', 'Architecture Performance'))
-          LIMIT 20;
+        await admin.query(`
+          INSERT INTO app.items (id, workspace_id, kind, security_scope, created_by, updated_by)
+          VALUES ${itemRows.join(',\n')};
         `);
 
-        const planText = explainRes.rows.map((r) => r['QUERY PLAN']).join('\n');
-        expect(planText).toBeDefined();
-        expect(planText.length).toBeGreaterThan(0);
+        if (noteRows.length > 0) {
+          await admin.query(`
+            INSERT INTO app.notes (id, workspace_id, title, document, plain_text)
+            VALUES ${noteRows.join(',\n')};
+          `);
+        }
+        if (taskRows.length > 0) {
+          await admin.query(`
+            INSERT INTO app.tasks (id, workspace_id, title, details)
+            VALUES ${taskRows.join(',\n')};
+          `);
+        }
+        if (fileRows.length > 0) {
+          await admin.query(`
+            INSERT INTO app.file_items (id, workspace_id, file_name, declared_mime_type, detected_mime_type, byte_size, sha256_checksum, object_path, created_by)
+            VALUES ${fileRows.join(',\n')};
+          `);
+        }
+
+        // Run ANALYZE to refresh index statistics across all queried tables
+        await admin.query(`
+          ANALYZE app.items;
+          ANALYZE app.notes;
+          ANALYZE app.tasks;
+          ANALYZE app.file_items;
+          ANALYZE app.journal_entries;
+          ANALYZE app.folders;
+          ANALYZE app.item_tags;
+        `);
+
+        // Warm-up queries
+        for (let w = 0; w < 3; w++) {
+          await clientA.searchWorkspace(workspaceAId, { q: 'Architecture Performance', limit: 20 });
+        }
+
+        // Measure API round-trip latencies over multiple sample runs
+        const samples: number[] = [];
+        for (let s = 0; s < 5; s++) {
+          const start = performance.now();
+          const searchRes = await clientA.searchWorkspace(workspaceAId, {
+            q: 'Architecture Performance',
+            limit: 20,
+          });
+          const duration = performance.now() - start;
+          expect(searchRes.data.length).toBeGreaterThan(0);
+          samples.push(duration);
+        }
+
+        samples.sort((a, b) => a - b);
+        const minLatency = samples[0]!;
+        const medianLatency = samples[Math.floor(samples.length / 2)]!;
+        const maxLatency = samples[samples.length - 1]!;
+
+        expect(medianLatency).toBeLessThan(500);
+
+        // Measure database execution time under runtime tenant role with EXPLAIN (ANALYZE, BUFFERS)
+        const pgVersionRes = await admin.query<{ version: string }>('SELECT version();');
+        const pgVersion = pgVersionRes.rows[0]?.version ?? 'PostgreSQL';
+
+        let explainOutput = '';
+        await withTenantContext(
+          runtimePool,
+          { userId: userAId, workspaceId: workspaceAId },
+          async (client) => {
+            const explainRes = await client.query<{ 'QUERY PLAN': string }>(`
+              EXPLAIN (ANALYZE, BUFFERS)
+              SELECT
+                i.id,
+                i.kind,
+                i.security_scope,
+                i.folder_id,
+                i.rank,
+                i.created_at,
+                i.updated_at,
+                n.title as note_title,
+                n.plain_text as note_plain_text,
+                n.purpose as note_purpose,
+                t.title as task_title,
+                t.details as task_details,
+                j.entry_date as journal_entry_date,
+                j.title as journal_title,
+                j.plain_text as journal_plain_text,
+                f.file_name,
+                f.byte_size,
+                f.detected_mime_type,
+                f.declared_mime_type,
+                fol.name as folder_name
+              FROM app.items i
+              LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
+              LEFT JOIN app.tasks t ON t.workspace_id = i.workspace_id AND t.id = i.id
+              LEFT JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
+              LEFT JOIN app.file_items f ON f.workspace_id = i.workspace_id AND f.id = i.id
+              LEFT JOIN app.folders fol ON fol.workspace_id = i.workspace_id AND fol.id = i.id
+              WHERE i.workspace_id = $1
+                AND i.security_scope != 'vault'
+                AND i.deleted_at IS NULL
+                AND i.is_archived = false
+                AND (
+                  (i.kind = 'note' AND (
+                    n.title ILIKE $2 ESCAPE '\\'
+                    OR n.plain_text ILIKE $2 ESCAPE '\\'
+                    OR to_tsvector('simple', n.title || ' ' || n.plain_text) @@ plainto_tsquery('simple', $3)
+                  ))
+                  OR
+                  (i.kind IN ('todo', 'task') AND (
+                    t.title ILIKE $2 ESCAPE '\\'
+                    OR t.details ILIKE $2 ESCAPE '\\'
+                    OR to_tsvector('simple', t.title || ' ' || COALESCE(t.details, '')) @@ plainto_tsquery('simple', $3)
+                  ))
+                  OR
+                  (i.kind = 'journal_entry' AND (
+                    j.title ILIKE $2 ESCAPE '\\'
+                    OR j.plain_text ILIKE $2 ESCAPE '\\'
+                    OR to_tsvector('simple', j.title || ' ' || j.plain_text) @@ plainto_tsquery('simple', $3)
+                  ))
+                  OR
+                  (i.kind IN ('file', 'file_item') AND (
+                    f.file_name ILIKE $2 ESCAPE '\\'
+                  ))
+                  OR
+                  (i.kind = 'folder' AND (
+                    fol.name ILIKE $2 ESCAPE '\\'
+                  ))
+                )
+              ORDER BY i.updated_at DESC
+              LIMIT 20;
+            `, [workspaceAId, '%Architecture Performance%', 'Architecture Performance']);
+
+            explainOutput = explainRes.rows.map((r) => r['QUERY PLAN']).join('\n');
+          }
+        );
+
+        expect(explainOutput).toBeDefined();
+        expect(explainOutput.length).toBeGreaterThan(0);
+
+        // Parse Execution Time from EXPLAIN ANALYZE
+        const execMatch = explainOutput.match(/Execution Time: ([\d.]+) ms/);
+        const planMatch = explainOutput.match(/Planning Time: ([\d.]+) ms/);
+        const dbExecTimeMs = execMatch ? parseFloat(execMatch[1]!) : 0;
+        const dbPlanTimeMs = planMatch ? parseFloat(planMatch[1]!) : 0;
+
+        console.log(`[Phase 33 Benchmark Evidence]`);
+        console.log(`PostgreSQL Engine: ${pgVersion}`);
+        console.log(`Dataset size: ${syntheticBatchSize} synthetic items across 2 workspaces`);
+        console.log(`API Roundtrip Latency (5 samples): Min=${minLatency.toFixed(2)}ms, Median=${medianLatency.toFixed(2)}ms, Max=${maxLatency.toFixed(2)}ms`);
+        console.log(`DB Query Execution Time: ${dbExecTimeMs}ms (Planning: ${dbPlanTimeMs}ms)`);
+        console.log(`EXPLAIN (ANALYZE, BUFFERS) summary:\n${explainOutput}`);
       } finally {
         admin.release();
       }

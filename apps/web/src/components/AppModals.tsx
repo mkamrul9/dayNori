@@ -27,21 +27,56 @@ export const AppModals: React.FC = () => {
   const [coverage, setCoverage] = useState<'complete' | 'offline_limited' | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   const localRepoRef = useRef<IndexedDbLocalRepository | null>(null);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const requestGenRef = useRef(0);
 
-  // Clear search on modal close or account change
+  // Clear search immediately on namespace change
+  useEffect(() => {
+    requestGenRef.current += 1;
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    localRepoRef.current = null;
+    setSearchQuery('');
+    setSelectedType('all');
+    setSearchResults([]);
+    setCoverage(null);
+    setIsOffline(false);
+    setIsLoading(false);
+    setError(null);
+    setOffset(0);
+    setTotalCount(0);
+    setStartDate('');
+    setEndDate('');
+  }, [user?.id, workspaceId]);
+
+  // Clear search on modal close
   useEffect(() => {
     if (activeModal !== 'search') {
+      requestGenRef.current += 1;
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+      }
       setSearchQuery('');
       setSelectedType('all');
       setSearchResults([]);
       setCoverage(null);
       setIsOffline(false);
       setIsLoading(false);
+      setError(null);
+      setOffset(0);
+      setTotalCount(0);
+      setStartDate('');
+      setEndDate('');
     }
-  }, [activeModal, user?.id, workspaceId]);
+  }, [activeModal]);
 
   const searchableDestinations = [
     {
@@ -124,9 +159,7 @@ export const AppModals: React.FC = () => {
       href = `/plan?targetId=${encodeURIComponent(item.id)}&targetType=task${wsParam ? `&${wsParam}` : ''}`;
     } else if (item.displayType === 'journal') {
       const entryDate = (item.metadata?.entryDate as string) || '';
-      href = entryDate
-        ? `/journal?date=${encodeURIComponent(entryDate)}${wsParam ? `&${wsParam}` : ''}`
-        : `/journal${wsParam ? `?${wsParam}` : ''}`;
+      href = `/journal?entryId=${encodeURIComponent(item.id)}${entryDate ? `&date=${encodeURIComponent(entryDate)}` : ''}${wsParam ? `&${wsParam}` : ''}`;
     } else if (item.displayType === 'file') {
       href = `/library?fileId=${encodeURIComponent(item.id)}&type=files${wsParam ? `&${wsParam}` : ''}`;
     } else if (item.displayType === 'folder') {
@@ -141,10 +174,12 @@ export const AppModals: React.FC = () => {
     if (activeModal !== 'search') return;
 
     const trimmedQuery = searchQuery.trim();
-    if (!trimmedQuery && selectedType === 'all') {
+    if (!trimmedQuery && selectedType === 'all' && !startDate && !endDate) {
       setSearchResults([]);
       setCoverage(null);
       setIsLoading(false);
+      setError(null);
+      setTotalCount(0);
       return;
     }
 
@@ -156,8 +191,11 @@ export const AppModals: React.FC = () => {
     const abortController = new AbortController();
     searchAbortControllerRef.current = abortController;
 
+    const currentGen = ++requestGenRef.current;
+
     const timer = setTimeout(async () => {
       setIsLoading(true);
+      setError(null);
 
       const types = selectedType !== 'all' ? [selectedType] : undefined;
 
@@ -168,22 +206,56 @@ export const AppModals: React.FC = () => {
           {
             q: trimmedQuery,
             types,
+            startDate: startDate ? new Date(startDate).toISOString() : undefined,
+            endDate: endDate ? new Date(endDate).toISOString() : undefined,
             limit: 20,
+            offset,
           },
           { signal: abortController.signal }
         );
 
-        if (!abortController.signal.aborted) {
-          setSearchResults(res.data);
-          setCoverage(res.meta.coverage);
-          setTotalCount(res.meta.totalCount);
-          setIsOffline(false);
-          setIsLoading(false);
-        }
-      } catch {
-        if (abortController.signal.aborted) return;
+        if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
 
-        // Fallback to offline search across downloaded items
+        setSearchResults(res.data);
+        setCoverage(res.meta.coverage);
+        setTotalCount(res.meta.totalCount);
+        setIsOffline(false);
+        setIsLoading(false);
+      } catch (err: unknown) {
+        if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+        const errObj = err as { statusCode?: number; code?: string; message?: string };
+        const status = errObj.statusCode ?? 0;
+
+        // Classify errors: Auth/Forbidden vs Validation vs Server vs Network
+        if (status === 401 || status === 403) {
+          setError('Authorization failed: you do not have permission to search this workspace.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        if (status === 400) {
+          setError('Invalid search query or filter parameters.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        if (status >= 500) {
+          setError('Server error occurred during search. Please retry.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Fallback to offline search across downloaded items only for network failure
         try {
           if (!localRepoRef.current) {
             const repo = new IndexedDbLocalRepository();
@@ -195,20 +267,30 @@ export const AppModals: React.FC = () => {
           }
 
           const repo = localRepoRef.current;
-          const [headers, notes, tasks, journals, files] = await Promise.all([
+          const [headers, notes, tasks, journals, files, prefSnapshot] = await Promise.all([
             repo.listItemHeaders(workspaceId),
             repo.listNotes(workspaceId),
             repo.listTasks(workspaceId),
             repo.listJournalEntries(workspaceId),
             repo.listFiles(workspaceId),
+            repo.getPreferenceSnapshot(user?.id || 'anonymous'),
           ]);
+
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+          const displayPrefs = (prefSnapshot?.preferences as Record<string, unknown>)?.displayPreferences as Record<string, unknown> | undefined;
+          const journalPreviewHidden = displayPrefs?.journalPreviewHidden !== undefined ? Boolean(displayPrefs.journalPreviewHidden) : true;
+          const suppressBodySnippets = displayPrefs?.suppressBodySnippets !== undefined ? Boolean(displayPrefs.suppressBodySnippets) : true;
 
           const localRes = searchDownloadedRecords({
             workspaceId,
             query: {
               q: trimmedQuery,
               types,
+              startDate: startDate ? new Date(startDate).toISOString() : undefined,
+              endDate: endDate ? new Date(endDate).toISOString() : undefined,
               limit: 20,
+              offset,
             },
             items: {
               headers,
@@ -218,21 +300,27 @@ export const AppModals: React.FC = () => {
               files,
             },
             preferences: {
-              journalPreviewHidden: true,
-              suppressBodySnippets: true,
+              journalPreviewHidden,
+              suppressBodySnippets,
             },
           });
+
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
 
           setSearchResults(localRes.data);
           setCoverage('offline_limited');
           setTotalCount(localRes.totalCount);
           setIsOffline(true);
         } catch {
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+          setError('Unable to search offline records.');
           setSearchResults([]);
           setCoverage('offline_limited');
           setTotalCount(0);
         } finally {
-          setIsLoading(false);
+          if (!abortController.signal.aborted && currentGen === requestGenRef.current) {
+            setIsLoading(false);
+          }
         }
       }
     }, 180);
@@ -241,7 +329,7 @@ export const AppModals: React.FC = () => {
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [searchQuery, selectedType, workspaceId, csrfToken, activeModal, user?.id]);
+  }, [searchQuery, selectedType, startDate, endDate, offset, workspaceId, csrfToken, activeModal, user?.id, retryTrigger]);
 
   const typeFilters: Array<{ id: SearchItemType; label: string }> = [
     { id: 'all', label: 'All' },
@@ -293,7 +381,7 @@ export const AppModals: React.FC = () => {
     );
   };
 
-  const hasSearchActive = Boolean(searchQuery.trim() || selectedType !== 'all');
+  const hasSearchActive = Boolean(searchQuery.trim() || selectedType !== 'all' || startDate || endDate);
 
   return (
     <>
@@ -314,12 +402,37 @@ export const AppModals: React.FC = () => {
             />
           )}
 
+          {error && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: `${spacing.xs}px`,
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <Feedback severity="danger" message={error} themeMode={themeMode} />
+              </div>
+              <Button
+                variant="secondary"
+                themeMode={themeMode}
+                onClick={() => setRetryTrigger((r) => r + 1)}
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+
           <TextField
             id="search-input"
             label="Search Query"
             placeholder="Search notes, tasks, files, or journal reflections..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setOffset(0);
+            }}
             themeMode={themeMode}
             autoFocus
           />
@@ -342,7 +455,10 @@ export const AppModals: React.FC = () => {
                   key={tf.id}
                   type="button"
                   id={`search-filter-${tf.id}`}
-                  onClick={() => setSelectedType(tf.id)}
+                  onClick={() => {
+                    setSelectedType(tf.id);
+                    setOffset(0);
+                  }}
                   aria-pressed={isSelected}
                   style={{
                     padding: '4px 10px',
@@ -359,6 +475,92 @@ export const AppModals: React.FC = () => {
                 </button>
               );
             })}
+          </div>
+
+          {/* Date Boundary Filters */}
+          <div
+            style={{
+              display: 'flex',
+              gap: `${spacing.sm}px`,
+              alignItems: 'center',
+              marginTop: '4px',
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <label
+                htmlFor="search-start-date"
+                style={{ fontSize: '11px', color: palette.text.muted, display: 'block', marginBottom: '2px' }}
+              >
+                From Date
+              </label>
+              <input
+                id="search-start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setOffset(0);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '4px 8px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                  fontSize: '12px',
+                }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label
+                htmlFor="search-end-date"
+                style={{ fontSize: '11px', color: palette.text.muted, display: 'block', marginBottom: '2px' }}
+              >
+                To Date
+              </label>
+              <input
+                id="search-end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setOffset(0);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '4px 8px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                  fontSize: '12px',
+                }}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setOffset(0);
+                }}
+                style={{
+                  alignSelf: 'flex-end',
+                  marginBottom: '2px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  background: 'transparent',
+                  color: palette.text.muted,
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Dates
+              </button>
+            )}
           </div>
 
           {/* Results List */}
@@ -500,6 +702,41 @@ export const AppModals: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {hasSearchActive && totalCount > 20 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '4px 0',
+                borderTop: `1px solid ${palette.border.subtle}`,
+              }}
+            >
+              <span style={{ fontSize: '11px', color: palette.text.secondary }}>
+                Showing {offset + 1}–{Math.min(offset + 20, totalCount)} of {totalCount}
+              </span>
+              <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                <Button
+                  variant="secondary"
+                  themeMode={themeMode}
+                  disabled={offset === 0 || isLoading}
+                  onClick={() => setOffset((prev) => Math.max(0, prev - 20))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="secondary"
+                  themeMode={themeMode}
+                  disabled={offset + 20 >= totalCount || isLoading}
+                  onClick={() => setOffset((prev) => prev + 20)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div
             style={{

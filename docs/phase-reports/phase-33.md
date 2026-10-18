@@ -38,42 +38,35 @@ Group: Personal organizer and private beta. Status is tracked in [progress.json]
   - **Mobile Search Experience (`apps/mobile/src/views/SearchSheet.tsx`)**:
     - Replaced sample result list with live debounced search querying `apiClient.searchWorkspace`.
     - Offline fallback: Seamlessly falls back to `localRepository` and `searchDownloadedRecords`.
-    - Type filter chips, coverage status badges, empty search states, and accessible item selection routing.
+    - Type filter chips, coverage status badges, empty search states, pagination controls, error classification, and accessible item selection routing.
 
 ## Synthetic performance benchmark and index validation
 
 A synthetic multi-tenant dataset was created and tested in `tests/integration/phase33-search.test.ts`:
 - **Dataset size & distribution**:
-  - Over 500 items distributed across 2 distinct tenant workspaces (notes, tasks, journals, file items, folders, tags).
+  - 520 synthetic items distributed across 2 distinct tenant workspaces (notes, tasks, file items, folders, tags).
   - Varied content lengths: short titles, multiline notes, journal entries, and tag assignments.
-- **Database version**: PostgreSQL 15.8 (Debian) with `pg_trgm` extension.
-- **Index definitions**:
-  - `idx_notes_search_trgm` ON `app.notes USING gin ((title || ' ' || COALESCE(plain_text_summary, '')) gin_trgm_ops)`
-  - `idx_tasks_search_trgm` ON `app.tasks USING gin ((title || ' ' || COALESCE(description, '')) gin_trgm_ops)`
-  - `idx_journal_search_trgm` ON `app.journal_entries USING gin ((title || ' ' || COALESCE(plain_text_summary, '')) gin_trgm_ops)`
-  - `idx_files_search_trgm` ON `app.file_items USING gin (name gin_trgm_ops)`
-  - `idx_folders_search_trgm` ON `app.folders USING gin (name gin_trgm_ops)`
-  - `idx_tags_search_trgm` ON `app.tags USING gin (name gin_trgm_ops)`
-  - `idx_items_search_scope` ON `app.items (workspace_id, security_scope, is_archived)` WHERE `security_scope != 'vault'`
-- **Query plan execution (`EXPLAIN (ANALYZE, BUFFERS)`)**:
-  - Verified Bitmap Index Scan utilizing `idx_items_search_scope` and `idx_notes_search_trgm`.
-  - Zero sequential scans on unindexed tables.
-  - Query latency measured: < 25ms execution time on warm cache across 500+ records.
+- **Database version**: PostgreSQL 16 (Debian/Local) with `pg_trgm` extension.
+- **Query plan execution (`EXPLAIN (ANALYZE, BUFFERS)`) under runtime role (`daynori_runtime`)**:
+  - Verified Bitmap Index Scans utilizing `idx_items_workspace_updated`, `idx_notes_workspace_updated`, `idx_tasks_workspace_parent`, and `idx_file_items_workspace`.
+  - Planning time: ~3.5ms; Database execution time: ~8.6ms on warm cache across 520 records under active Row-Level Security (`withTenantContext`).
+  - API round-trip latency (5 samples): Min=12.2ms, Median=15.1ms, Max=24.8ms (verified well below 500ms).
 
 ## Verification results
 
 1. **Automated Integration Suite (`tests/integration/phase33-search.test.ts`)**:
-   - 11/11 tests passing:
+   - 13/13 tests passing:
      - Multi-tenant workspace isolation: Queries with identical terms in Workspace A and Workspace B only return records from the authorized workspace.
      - Revoked membership & unauthorized workspace rejection: Non-members and users with revoked roles receive HTTP 404 with zero metadata leaked.
      - Strict vault exclusion: Vault items, metadata, snippets, and counts are completely excluded from search results.
-     - Journal privacy preferences: Masked journal entries display `[Private journal entry]` when profile preferences conceal previews.
-     - Soft-deleted & archived item filtering: Deleted items are excluded by default, and included only when requested.
+     - Strict Archive versus Trash separation: Default search excludes both archived and deleted records; `includeArchived: true` includes archived records while strictly retaining Trash exclusion.
+     - Production file records: Full search support for canonical `app.items.kind = 'file'` records and metadata.
+     - Journal privacy preferences: Masked journal entries display `[Private journal entry]` when profile preferences conceal previews (`journalPreviewHidden: true`), while preserving keyword matching on the plain text body.
      - Inert injection handling: Malicious SQL injection payloads (e.g., `' OR '1'='1' --`) are safely treated as inert search terms.
      - Multilingual Unicode search: Verified matching and token highlighting for Bangla (`বাংলা নোট`) and English text.
      - Entity type, folder hierarchy, and tag filtering: Filter combinations restrict results accurately.
-     - Pure client-side local search: Evaluates `searchDownloadedRecords` against offline fixtures with coverage tracking.
-     - Synthetic multi-tenant indexed benchmark: Measures execution plan and latency across 500+ items.
+     - Pure client-side local search: Evaluates `searchDownloadedRecords` against offline fixtures with coverage tracking, archive/trash separation parity, and journal privacy masking.
+     - Synthetic multi-tenant indexed benchmark: Measures execution plan and latency across 520+ items under the runtime tenant role.
 2. **Full Monorepo Integration & Unit Test Suite (`pnpm test`)**:
    - 55/55 test files passed.
    - 772/772 tests passed (including all prior phases: 10, 12-25, 27-32).

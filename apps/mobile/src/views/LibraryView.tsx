@@ -64,6 +64,9 @@ export interface LibraryViewProps {
   syncEngine?: SyncEngine;
   isOnline?: boolean;
   apiClient?: DaynoriApiClient;
+  targetItemId?: string | null;
+  targetFolderId?: string | null;
+  onClearTarget?: () => void;
 }
 
 export interface MobileFolderItem {
@@ -273,6 +276,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   syncEngine,
   isOnline,
   apiClient,
+  targetItemId,
+  targetFolderId,
+  onClearTarget,
 }) => {
   const palette = colors[themeMode];
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>(initialFilter);
@@ -1149,6 +1155,127 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       });
     }
   };
+
+  // Handle target navigation from search or deep links
+  useEffect(() => {
+    if (targetFolderId) {
+      setCurrentFolderId(targetFolderId);
+      onClearTarget?.();
+    }
+  }, [targetFolderId]);
+
+  useEffect(() => {
+    if (!targetItemId || !workspaceId) return;
+    let cancelled = false;
+
+    async function navigateToTarget() {
+      // 1. Check if item already exists in local state
+      const target = items.find((i) => i.id === targetItemId);
+      if (target) {
+        if (target.folderId) setCurrentFolderId(target.folderId);
+        if (target.kind === 'file') {
+          void handleOpenFile(target);
+        } else if (
+          target.kind === 'knowledge' ||
+          (target.purpose && target.purpose !== 'standard')
+        ) {
+          void handleOpenQuickReference(target);
+        } else {
+          void handleOpenNote(target);
+        }
+        onClearTarget?.();
+        return;
+      }
+
+      // 2. Target not in loaded state -> resolve from repository or API
+      const repo =
+        repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+      if (repo) {
+        try {
+          const header = await repo.getItemHeader(workspaceId!, targetItemId!);
+          if (!cancelled && header && !header.deletedAt && header.securityScope !== 'vault') {
+            const resolved: MobileLibraryRecord = {
+              id: header.id,
+              title: header.name || header.title || 'Item',
+              kind: header.kind as MobileLibraryRecord['kind'],
+              purpose: header.purpose ?? undefined,
+              folderId: header.folderId,
+              rank: header.rank,
+              revision: header.serverRevision,
+            };
+            if (resolved.folderId) setCurrentFolderId(resolved.folderId);
+            if (resolved.kind === 'file') {
+              void handleOpenFile(resolved);
+            } else if (
+              resolved.kind === 'knowledge' ||
+              (resolved.purpose && resolved.purpose !== 'standard')
+            ) {
+              void handleOpenQuickReference(resolved);
+            } else {
+              void handleOpenNote(resolved);
+            }
+            onClearTarget?.();
+            return;
+          }
+        } catch {
+          /* fallback to API */
+        }
+      }
+
+      if (apiClient && !isOffline) {
+        try {
+          const noteRes = await apiClient.getNote(workspaceId!, targetItemId!);
+          if (!cancelled && noteRes.data) {
+            const resolved: MobileLibraryRecord = {
+              id: noteRes.data.id,
+              title: noteRes.data.title,
+              kind:
+                noteRes.data.purpose && noteRes.data.purpose !== 'standard'
+                  ? 'knowledge'
+                  : 'note',
+              purpose: noteRes.data.purpose,
+              folderId: noteRes.data.folderId,
+              rank: '00001000',
+              revision: noteRes.data.revision,
+            };
+            if (resolved.folderId) setCurrentFolderId(resolved.folderId);
+            if (resolved.kind === 'knowledge') {
+              void handleOpenQuickReference(resolved);
+            } else {
+              void handleOpenNote(resolved);
+            }
+            onClearTarget?.();
+            return;
+          }
+        } catch {
+          try {
+            const fileRes = await apiClient.getFileMetadata(workspaceId!, targetItemId!);
+            if (!cancelled && fileRes.data) {
+              const fileRecord: MobileLibraryRecord = {
+                id: fileRes.data.id,
+                title: fileRes.data.fileName,
+                kind: 'file',
+                folderId: fileRes.data.folderId,
+                rank: '00001000',
+                revision: Number(fileRes.data.version) || 1,
+              };
+              if (fileRecord.folderId) setCurrentFolderId(fileRecord.folderId);
+              void handleOpenFile(fileRecord);
+              onClearTarget?.();
+            }
+          } catch {
+            /* not found */
+          }
+        }
+      }
+    }
+
+    void navigateToTarget();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetItemId, workspaceId, items, repository, syncEngine, apiClient, isOffline]);
 
   const handlePerformMobileUpload = async (
     file: MobileSelectedFile,

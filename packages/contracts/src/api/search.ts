@@ -12,17 +12,35 @@ export const SearchItemTypeSchema = z.enum([
 ]);
 export type SearchItemType = z.infer<typeof SearchItemTypeSchema>;
 
-export const SearchQuerySchema = z.object({
-  q: z.string().max(200).optional().default(''),
-  types: z.array(SearchItemTypeSchema).optional(),
-  folderId: z.string().uuid().optional(),
-  tagNames: z.array(z.string().min(1).max(50)).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  includeArchived: z.boolean().optional().default(false),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-  offset: z.coerce.number().int().min(0).optional().default(0),
-});
+export const SearchQuerySchema = z
+  .object({
+    q: z.string().max(200).optional().default(''),
+    types: z.array(SearchItemTypeSchema).max(10).optional(),
+    folderId: z.string().uuid().optional(),
+    tagNames: z.array(z.string().min(1).max(50)).max(20).optional(),
+    startDate: z
+      .string()
+      .datetime({ offset: true })
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+      .optional(),
+    endDate: z
+      .string()
+      .datetime({ offset: true })
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+      .optional(),
+    includeArchived: z.boolean().optional().default(false),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+    offset: z.coerce.number().int().min(0).optional().default(0),
+  })
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return new Date(data.startDate).getTime() <= new Date(data.endDate).getTime();
+      }
+      return true;
+    },
+    { message: 'startDate must be before or equal to endDate', path: ['endDate'] }
+  );
 export type SearchQuery = z.infer<typeof SearchQuerySchema>;
 export type SearchQueryInput = z.input<typeof SearchQuerySchema>;
 

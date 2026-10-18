@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import type { SearchQuery, SearchResultItem } from '@daynori/contracts';
-import { extractSearchSnippet, buildFolderPath } from '@daynori/domain';
+import { extractSearchSnippet, buildFolderPath, shouldRedactJournalSnippet } from '@daynori/domain';
 
 interface ProfilePreferences {
   journalPreviewHidden?: boolean;
@@ -16,16 +16,15 @@ export async function executeSearch(
   data: SearchResultItem[];
   totalCount: number;
 }> {
-  // 1. Fetch user preferences to enforce privacy rules for journal previews
+  // 1. Fetch user preferences to enforce shared privacy rules for journal previews
   const prefResult = await client.query<{ preferences: ProfilePreferences }>(
     `SELECT preferences FROM app.profiles WHERE id = $1;`,
     [userId]
   );
   const userPrefs = prefResult.rows[0]?.preferences || {};
-  const shouldRedactJournal =
-    userPrefs.suppressBodySnippets !== false || userPrefs.journalPreviewHidden !== false;
+  const shouldRedactJournal = shouldRedactJournalSnippet(userPrefs);
 
-  // 2. Fetch all folders in workspace to compute canonical breadcrumbs
+  // 2. Fetch all folders in workspace to compute canonical breadcrumbs and subfolder hierarchy
   const folderRows = await client.query<{ id: string; name: string; parent_id: string | null }>(
     `SELECT id, name, parent_id FROM app.folders WHERE workspace_id = $1;`,
     [workspaceId]
@@ -44,29 +43,48 @@ export async function executeSearch(
     `i.workspace_id = $1`,
     // Invariant: strict vault exclusion - no vault rows or aggregate counts
     `i.security_scope != 'vault'`,
+    // Trash retention exclusion: trash is ALWAYS excluded from organizer search
+    `i.deleted_at IS NULL`,
   ];
 
-  // Trash filtering: exclude trash unless explicitly included
+  // Archive filtering: exclude archived items unless explicitly requested
   if (!query.includeArchived) {
-    whereClauses.push(`i.deleted_at IS NULL`);
+    whereClauses.push(`i.is_archived = false`);
   }
 
-  // Folder filtering
+  // Folder filtering with descendant hierarchy support
   if (query.folderId) {
-    whereClauses.push(`(i.folder_id = $${paramIdx} OR i.id = $${paramIdx})`);
-    params.push(query.folderId);
+    const allowedFolderIds = new Set<string>([query.folderId]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const f of folderRows.rows) {
+        if (f.parent_id && allowedFolderIds.has(f.parent_id) && !allowedFolderIds.has(f.id)) {
+          allowedFolderIds.add(f.id);
+          added = true;
+        }
+      }
+    }
+    whereClauses.push(`(i.folder_id = ANY($${paramIdx}) OR i.id = ANY($${paramIdx}))`);
+    params.push(Array.from(allowedFolderIds));
     paramIdx++;
   }
 
-  // Date filtering
+  // Date filtering with normalized time boundaries
   if (query.startDate) {
+    const normStart = /^\d{4}-\d{2}-\d{2}$/.test(query.startDate)
+      ? `${query.startDate}T00:00:00.000Z`
+      : query.startDate;
     whereClauses.push(`i.created_at >= $${paramIdx}`);
-    params.push(query.startDate);
+    params.push(normStart);
     paramIdx++;
   }
   if (query.endDate) {
+    const normEnd = /^\d{4}-\d{2}-\d{2}$/.test(query.endDate)
+      ? `${query.endDate}T23:59:59.999Z`
+      : query.endDate;
     whereClauses.push(`i.created_at <= $${paramIdx}`);
-    params.push(query.endDate);
+    params.push(normEnd);
     paramIdx++;
   }
 
@@ -85,7 +103,7 @@ export async function executeSearch(
       } else if (t === 'journal') {
         typeConditions.push(`i.kind = 'journal_entry'`);
       } else if (t === 'file') {
-        typeConditions.push(`i.kind = 'file_item'`);
+        typeConditions.push(`i.kind IN ('file', 'file_item')`);
       } else if (t === 'folder') {
         typeConditions.push(`i.kind = 'folder'`);
       }
@@ -95,27 +113,31 @@ export async function executeSearch(
     }
   }
 
-  // Tag filtering
+  // Multi-tag matching: item must match all specified tags
   if (query.tagNames && query.tagNames.length > 0) {
-    const lowerTags = query.tagNames.map((t) => t.toLowerCase());
+    const lowerTags = Array.from(
+      new Set(query.tagNames.map((t) => t.toLowerCase().trim()).filter(Boolean))
+    );
     whereClauses.push(`
-      EXISTS (
-        SELECT 1 FROM app.item_tags it_filter
+      (
+        SELECT COUNT(DISTINCT lower(tg_filter.name))
+        FROM app.item_tags it_filter
         JOIN app.tags tg_filter ON tg_filter.workspace_id = it_filter.workspace_id AND tg_filter.id = it_filter.tag_id
         WHERE it_filter.workspace_id = i.workspace_id 
           AND it_filter.item_id = i.id 
           AND tg_filter.deleted_at IS NULL
           AND lower(tg_filter.name) = ANY($${paramIdx})
-      )
+      ) = ${lowerTags.length}
     `);
     params.push(lowerTags);
     paramIdx++;
   }
 
-  // Text search conditions
+  // Text search conditions with literal %, _, \ escaping
   if (q) {
+    const escapedQ = q.replace(/([\\%_])/g, '\\$1');
     const qLikeParam = `$${paramIdx}`;
-    params.push(`%${q}%`);
+    params.push(`%${escapedQ}%`);
     paramIdx++;
 
     const qTsParam = `$${paramIdx}`;
@@ -125,34 +147,34 @@ export async function executeSearch(
     whereClauses.push(`(
       -- Note title, body, or FTS
       (i.kind = 'note' AND (
-        n.title ILIKE ${qLikeParam}
-        OR n.plain_text ILIKE ${qLikeParam}
+        n.title ILIKE ${qLikeParam} ESCAPE '\\'
+        OR n.plain_text ILIKE ${qLikeParam} ESCAPE '\\'
         OR to_tsvector('simple', n.title || ' ' || n.plain_text) @@ plainto_tsquery('simple', ${qTsParam})
       ))
       OR
       -- Task title, details, or FTS
       (i.kind IN ('todo', 'task') AND (
-        t.title ILIKE ${qLikeParam}
-        OR t.details ILIKE ${qLikeParam}
+        t.title ILIKE ${qLikeParam} ESCAPE '\\'
+        OR t.details ILIKE ${qLikeParam} ESCAPE '\\'
         OR to_tsvector('simple', t.title || ' ' || COALESCE(t.details, '')) @@ plainto_tsquery('simple', ${qTsParam})
       ))
       OR
       -- Journal title, plain text, or FTS
       (i.kind = 'journal_entry' AND (
-        j.title ILIKE ${qLikeParam}
-        OR j.plain_text ILIKE ${qLikeParam}
+        j.title ILIKE ${qLikeParam} ESCAPE '\\'
+        OR j.plain_text ILIKE ${qLikeParam} ESCAPE '\\'
         OR to_tsvector('simple', COALESCE(j.title, '') || ' ' || j.plain_text) @@ plainto_tsquery('simple', ${qTsParam})
       ))
       OR
-      -- File item name or FTS
-      (i.kind = 'file_item' AND (
-        f.file_name ILIKE ${qLikeParam}
+      -- File item name or FTS (supports canonical 'file' and legacy 'file_item')
+      (i.kind IN ('file', 'file_item') AND (
+        f.file_name ILIKE ${qLikeParam} ESCAPE '\\'
         OR to_tsvector('simple', f.file_name) @@ plainto_tsquery('simple', ${qTsParam})
       ))
       OR
       -- Folder name
       (i.kind = 'folder' AND (
-        fld.name ILIKE ${qLikeParam}
+        fld.name ILIKE ${qLikeParam} ESCAPE '\\'
       ))
       OR
       -- Matching tag names on item
@@ -162,11 +184,11 @@ export async function executeSearch(
         WHERE it_match.workspace_id = i.workspace_id 
           AND it_match.item_id = i.id 
           AND tg_match.deleted_at IS NULL
-          AND tg_match.name ILIKE ${qLikeParam}
+          AND tg_match.name ILIKE ${qLikeParam} ESCAPE '\\'
       )
     )`);
   } else if (
-    !query.types?.length &&
+    (!query.types?.length || query.types.includes('all')) &&
     !query.folderId &&
     !query.tagNames?.length &&
     !query.startDate &&
@@ -181,7 +203,7 @@ export async function executeSearch(
     ? `
       ORDER BY 
         CASE 
-          WHEN (n.title ILIKE $${paramIdx - 2} OR t.title ILIKE $${paramIdx - 2} OR j.title ILIKE $${paramIdx - 2} OR f.file_name ILIKE $${paramIdx - 2} OR fld.name ILIKE $${paramIdx - 2}) THEN 1
+          WHEN (n.title ILIKE $${paramIdx - 2} ESCAPE '\\' OR t.title ILIKE $${paramIdx - 2} ESCAPE '\\' OR j.title ILIKE $${paramIdx - 2} ESCAPE '\\' OR f.file_name ILIKE $${paramIdx - 2} ESCAPE '\\' OR fld.name ILIKE $${paramIdx - 2} ESCAPE '\\') THEN 1
           ELSE 2
         END ASC,
         i.updated_at DESC,
@@ -269,7 +291,26 @@ export async function executeSearch(
 
   const result = await client.query<SearchDbRow>(sql, params);
 
-  const totalCount = result.rows.length > 0 ? Number(result.rows[0]?.full_count || 0) : 0;
+  let totalCount = result.rows.length > 0 ? Number(result.rows[0]?.full_count || 0) : 0;
+  if (result.rows.length === 0 && offset > 0) {
+    // When offset exceeds matching rows, full_count window function returns 0 rows.
+    // Query actual filtered count while preserving strict workspace and security boundaries.
+    const countSql = `
+      SELECT COUNT(*) AS full_count
+      FROM app.items i
+      LEFT JOIN app.notes n ON n.workspace_id = i.workspace_id AND n.id = i.id
+      LEFT JOIN app.tasks t ON t.workspace_id = i.workspace_id AND t.id = i.id
+      LEFT JOIN app.journal_entries j ON j.workspace_id = i.workspace_id AND j.id = i.id
+      LEFT JOIN app.file_items f ON f.workspace_id = i.workspace_id AND f.id = i.id
+      LEFT JOIN app.folders fld ON fld.workspace_id = i.workspace_id AND fld.id = i.id
+      WHERE ${whereClauses.join(' AND ')};
+    `;
+    const countRes = await client.query<{ full_count: string | number }>(
+      countSql,
+      params.slice(0, paramIdx - 2)
+    );
+    totalCount = Number(countRes.rows[0]?.full_count || 0);
+  }
 
   const data: SearchResultItem[] = result.rows.map((row) => {
     let displayType: SearchResultItem['displayType'] = 'note';
@@ -295,7 +336,7 @@ export async function executeSearch(
       bodyText = shouldRedactJournal ? '[Private journal entry]' : row.journal_plain_text || '';
       metadata = { entryDate: row.journal_entry_date };
       if (row.journal_tags) tags.push(...row.journal_tags);
-    } else if (row.kind === 'file_item') {
+    } else if (row.kind === 'file' || row.kind === 'file_item') {
       displayType = 'file';
       title = row.file_name || 'File';
       const sizeKb = (Number(row.file_byte_size || 0) / 1024).toFixed(1);

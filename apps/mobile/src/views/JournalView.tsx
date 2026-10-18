@@ -52,6 +52,9 @@ export interface JournalViewProps {
   apiClient?: DaynoriApiClient;
   isOnline?: boolean;
   userTimezone?: string;
+  targetEntryId?: string | null;
+  targetDate?: string | null;
+  onClearTarget?: () => void;
 }
 
 export interface LocalJournalItem {
@@ -183,6 +186,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
   apiClient,
   isOnline = true,
   userTimezone: propTimezone,
+  targetEntryId,
+  targetDate,
+  onClearTarget,
 }) => {
   const palette = colors[themeMode];
 
@@ -625,6 +631,109 @@ export const JournalView: React.FC<JournalViewProps> = ({
     setSaveError(null);
     setIsWriting(true);
   }, []);
+
+  // Handle target navigation (e.g. from SearchSheet or deep links)
+  useEffect(() => {
+    if (targetDate) {
+      setSelectedDate(targetDate);
+    }
+    if (!targetEntryId) return;
+
+    // 1. Try finding in loaded entries
+    const existing = entries.find((e) => e.id === targetEntryId);
+    if (existing) {
+      handleEditEntry(existing);
+      onClearTarget?.();
+      return;
+    }
+
+    // 2. Load from repo or API
+    let cancelled = false;
+    async function resolveJournal() {
+      if (repository && workspaceId) {
+        try {
+          const entry = await repository.getJournalEntry(workspaceId, targetEntryId!);
+          if (!cancelled && entry) {
+            const mapped: LocalJournalItem = {
+              id: entry.id,
+              date: entry.entryDate,
+              entryDate: entry.entryDate,
+              title: entry.title || `Reflection (${entry.entryDate})`,
+              snippet: entry.plainText ? entry.plainText.slice(0, 100) : '',
+              plainText: entry.plainText || '',
+              document: entry.document,
+              folderId: entry.folderId,
+              mood: entry.mood,
+              tags: entry.tags,
+              prompts: entry.prompts,
+              timezone: entry.timezone,
+              securityScope: entry.securityScope,
+              isPinned: entry.isPinned,
+              isArchived: entry.isArchived,
+              serverRevision: entry.serverRevision,
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+              deletedAt: entry.deletedAt,
+            };
+            handleEditEntry(mapped);
+            onClearTarget?.();
+            return;
+          }
+        } catch {
+          /* fallback */
+        }
+      }
+
+      if (apiClient && workspaceId && isOnline) {
+        try {
+          const res = await apiClient.getJournalEntry(workspaceId, targetEntryId!);
+          if (!cancelled && res.data) {
+            const mapped: LocalJournalItem = {
+              id: res.data.id,
+              date: res.data.entryDate,
+              entryDate: res.data.entryDate,
+              title: res.data.title || `Reflection (${res.data.entryDate})`,
+              snippet: res.data.plainText ? res.data.plainText.slice(0, 100) : '',
+              plainText: res.data.plainText || '',
+              document: res.data.document,
+              folderId: res.data.folderId,
+              mood: res.data.mood,
+              tags: res.data.tags,
+              prompts: res.data.prompts,
+              timezone: res.data.timezone,
+              securityScope: res.data.securityScope,
+              isPinned: res.data.isPinned,
+              isArchived: res.data.isArchived,
+              serverRevision: res.data.serverRevision,
+              createdAt: res.data.createdAt,
+              updatedAt: res.data.updatedAt,
+              deletedAt: res.data.deletedAt,
+            };
+            handleEditEntry(mapped);
+            onClearTarget?.();
+          }
+        } catch {
+          /* not found */
+        }
+      }
+    }
+
+    void resolveJournal();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    targetEntryId,
+    targetDate,
+    entries,
+    repository,
+    workspaceId,
+    apiClient,
+    isOnline,
+    handleEditEntry,
+    onClearTarget,
+  ]);
 
   // Tag addition & removal
   const handleAddTag = useCallback(() => {

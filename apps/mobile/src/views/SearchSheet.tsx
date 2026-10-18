@@ -48,10 +48,15 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [coverage, setCoverage] = useState<'complete' | 'offline_limited' | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const limit = 20;
 
   const searchAbortRef = useRef<AbortController | null>(null);
+  const requestGenRef = useRef(0);
 
-  // Clear query and results when sheet is opened/closed
+  // Clear query and results when sheet is opened/closed or workspace changes
   useEffect(() => {
     if (!visible) {
       setQuery(initialQuery);
@@ -60,12 +65,27 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
       setCoverage(null);
       setIsOffline(false);
       setIsLoading(false);
+      setError(null);
+      setTotalCount(0);
+      setOffset(0);
+      requestGenRef.current++;
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
+      }
     }
-  }, [visible, initialQuery]);
+  }, [visible, initialQuery, workspaceId]);
 
   const handleQueryChange = (text: string) => {
     setQuery(text);
+    setOffset(0);
+    setError(null);
     if (onQueryChange) onQueryChange(text);
+  };
+
+  const handleTypeSelect = (type: SearchItemType) => {
+    setSelectedType(type);
+    setOffset(0);
+    setError(null);
   };
 
   // Perform search query with debounce
@@ -77,11 +97,14 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
       setSearchResults([]);
       setCoverage(null);
       setIsLoading(false);
+      setError(null);
+      setTotalCount(0);
       return;
     }
 
-    if (!workspaceId && !localRepository) {
-      // Fallback to sample results when no workspace or repository is wired
+    if (!workspaceId) {
+      setSearchResults([]);
+      setIsLoading(false);
       return;
     }
 
@@ -91,30 +114,35 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
     const abortController = new AbortController();
     searchAbortRef.current = abortController;
 
+    const currentGen = ++requestGenRef.current;
+
     const timer = setTimeout(async () => {
       setIsLoading(true);
+      setError(null);
       const types = selectedType !== 'all' ? [selectedType] : undefined;
 
       try {
-        if (apiClient && workspaceId) {
+        if (apiClient) {
           const res = await apiClient.searchWorkspace(
             workspaceId,
             {
               q: trimmed,
               types,
-              limit: 20,
+              limit,
+              offset,
             },
             { signal: abortController.signal }
           );
 
-          if (!abortController.signal.aborted) {
-            setSearchResults(res.data);
-            setCoverage(res.meta.coverage);
-            setIsOffline(false);
-            setIsLoading(false);
-          }
-        } else if (localRepository && workspaceId) {
-          // Local offline search
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+          setSearchResults(res.data);
+          setCoverage(res.meta.coverage);
+          setTotalCount(res.meta.totalCount);
+          setIsOffline(false);
+          setIsLoading(false);
+        } else if (localRepository) {
+          // Pure local offline search
           const [headers, notes, tasks, journals, files] = await Promise.all([
             localRepository.listItemHeaders(workspaceId),
             localRepository.listNotes(workspaceId),
@@ -123,9 +151,11 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
             localRepository.listFiles(workspaceId),
           ]);
 
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
           const localRes = searchDownloadedRecords({
             workspaceId,
-            query: { q: trimmed, types, limit: 20 },
+            query: { q: trimmed, types, limit, offset },
             items: {
               headers,
               notes,
@@ -136,16 +166,47 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
             preferences: { journalPreviewHidden: true, suppressBodySnippets: true },
           });
 
-          if (!abortController.signal.aborted) {
-            setSearchResults(localRes.data);
-            setCoverage('offline_limited');
-            setIsOffline(true);
-            setIsLoading(false);
-          }
+          setSearchResults(localRes.data);
+          setCoverage('offline_limited');
+          setTotalCount(localRes.totalCount);
+          setIsOffline(true);
+          setIsLoading(false);
         }
-      } catch {
-        if (abortController.signal.aborted) return;
-        // Network failed -> fallback to local repository
+      } catch (err: unknown) {
+        if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+        const errObj = err as { statusCode?: number; code?: string; message?: string };
+        const status = errObj.statusCode ?? 0;
+
+        // Classify errors: Auth/Forbidden vs Validation vs Server vs Network
+        if (status === 401 || status === 403) {
+          setError('Authorization failed: you do not have permission to search this workspace.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        if (status === 400) {
+          setError('Invalid search query or parameters.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        if (status >= 500) {
+          setError('Server encountered an error while searching. Please retry.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Network failed (status 0 / NETWORK_ERROR) -> fallback to local repository
         if (localRepository && workspaceId) {
           try {
             const [headers, notes, tasks, journals, files] = await Promise.all([
@@ -156,9 +217,11 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
               localRepository.listFiles(workspaceId),
             ]);
 
+            if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
             const localRes = searchDownloadedRecords({
               workspaceId,
-              query: { q: trimmed, types, limit: 20 },
+              query: { q: trimmed, types, limit, offset },
               items: {
                 headers,
                 notes,
@@ -171,13 +234,19 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
 
             setSearchResults(localRes.data);
             setCoverage('offline_limited');
+            setTotalCount(localRes.totalCount);
             setIsOffline(true);
           } catch {
-            setSearchResults([]);
-            setCoverage('offline_limited');
+            if (currentGen === requestGenRef.current) {
+              setSearchResults([]);
+              setCoverage('offline_limited');
+              setTotalCount(0);
+              setError('Unable to search offline records.');
+            }
           }
         } else {
           setSearchResults([]);
+          setError('Network disconnected and offline storage unavailable.');
         }
         setIsLoading(false);
       }
@@ -187,67 +256,9 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [query, selectedType, workspaceId, apiClient, localRepository, visible]);
+  }, [query, selectedType, offset, workspaceId, apiClient, localRepository, visible]);
 
-  // Fallback sample results if neither apiClient nor localRepository is active
-  const sampleResults: SearchResultItem[] = [
-    {
-      id: 's1',
-      kind: 'todo',
-      displayType: 'task',
-      title: 'Quarterly Architecture Plan',
-      snippet: 'Prioritized architectural milestones',
-      folderPath: 'Workspace > Software',
-      tags: ['architecture'],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 's2',
-      kind: 'file_item',
-      displayType: 'file',
-      title: 'TypeScript Handbook.pdf',
-      snippet: 'PDF document reference guide',
-      folderPath: 'Workspace > Software > Guides',
-      tags: ['docs'],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 's3',
-      kind: 'note',
-      displayType: 'note',
-      title: 'Morning deep work session',
-      snippet: 'Focus routines and notes',
-      folderPath: 'Workspace > Personal',
-      tags: ['routine'],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 's4',
-      kind: 'journal_entry',
-      displayType: 'journal',
-      title: 'Reflections on Architecture',
-      snippet: '[Private journal entry]',
-      folderPath: 'Workspace > Journal',
-      tags: ['reflection'],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  const hasLiveDataSource = Boolean(apiClient || localRepository);
-  const activeResults = hasLiveDataSource
-    ? searchResults
-    : query.trim()
-      ? sampleResults.filter(
-          (r) =>
-            r.title.toLowerCase().includes(query.toLowerCase()) ||
-            r.displayType.toLowerCase().includes(query.toLowerCase()) ||
-            r.folderPath.toLowerCase().includes(query.toLowerCase())
-        )
-      : sampleResults;
+  const activeResults = searchResults;
 
   const typeFilterOptions: Array<{ id: SearchItemType; label: string }> = [
     { id: 'all', label: 'All' },
@@ -288,7 +299,7 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
             return (
               <TouchableOpacity
                 key={opt.id}
-                onPress={() => setSelectedType(opt.id)}
+                onPress={() => handleTypeSelect(opt.id)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
                 style={[
@@ -315,7 +326,18 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
           })}
         </ScrollView>
 
-        {isOffline && (
+        {error && (
+          <View
+            style={[
+              styles.errorBanner,
+              { backgroundColor: palette.status.dangerBg, borderColor: palette.status.dangerBorder },
+            ]}
+          >
+            <Text style={[styles.errorText, { color: palette.status.danger }]}>{error}</Text>
+          </View>
+        )}
+
+        {isOffline && !error && (
           <View style={[styles.offlineBanner, { backgroundColor: palette.surfaceRaised }]}>
             <Text style={[styles.offlineText, { color: palette.text.secondary }]}>
               Limited offline search — showing downloaded items.
@@ -328,7 +350,7 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
             {isLoading
               ? 'Searching...'
               : query.trim() || selectedType !== 'all'
-                ? `Search Results (${activeResults.length})${coverage === 'offline_limited' ? ' (Offline)' : ''}`
+                ? `Search Results (${totalCount || activeResults.length})${coverage === 'offline_limited' ? ' (Offline)' : ''}`
                 : 'Recent & Suggested Items'}
           </Text>
 
@@ -352,11 +374,70 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
                 />
               ))}
 
-              {activeResults.length === 0 && (
+              {activeResults.length === 0 && !error && (
                 <View style={styles.emptyResults}>
                   <Text style={[styles.emptyText, { color: palette.text.muted }]}>
                     No matching items found for "{query}".
                   </Text>
+                </View>
+              )}
+
+              {/* Pagination controls when totalCount exceeds limit */}
+              {totalCount > limit && (
+                <View style={styles.paginationRow}>
+                  <TouchableOpacity
+                    disabled={offset === 0}
+                    onPress={() => setOffset(Math.max(0, offset - limit))}
+                    style={[
+                      styles.pageBtn,
+                      {
+                        backgroundColor: offset === 0 ? palette.surfaceRaised : palette.action.subtle,
+                        borderColor: palette.border.subtle,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Previous search results page"
+                  >
+                    <Text
+                      style={{
+                        color: offset === 0 ? palette.text.muted : palette.text.primary,
+                        fontSize: 12,
+                      }}
+                    >
+                      Previous
+                    </Text>
+                  </TouchableOpacity>
+
+                  <Text style={{ fontSize: 12, color: palette.text.secondary }}>
+                    Page {Math.floor(offset / limit) + 1} of {Math.ceil(totalCount / limit)}
+                  </Text>
+
+                  <TouchableOpacity
+                    disabled={offset + limit >= totalCount}
+                    onPress={() => setOffset(offset + limit)}
+                    style={[
+                      styles.pageBtn,
+                      {
+                        backgroundColor:
+                          offset + limit >= totalCount
+                            ? palette.surfaceRaised
+                            : palette.action.subtle,
+                        borderColor: palette.border.subtle,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Next search results page"
+                  >
+                    <Text
+                      style={{
+                        color:
+                          offset + limit >= totalCount ? palette.text.muted : palette.text.primary,
+                        fontSize: 12,
+                      }}
+                    >
+                      Next
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </>
@@ -417,5 +498,28 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
+  },
+  errorBanner: {
+    padding: spacing.sm,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    marginTop: spacing.xs,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.xs,
+  },
+  pageBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radii.sm,
+    borderWidth: 1,
   },
 });

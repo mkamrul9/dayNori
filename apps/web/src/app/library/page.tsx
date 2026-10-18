@@ -2215,20 +2215,132 @@ export default function LibraryPage() {
     }
   }, [editingNote, items, workspaceId, isOnline, announce]);
 
-  // Handle URL query parameter ?create=note or ?create=file
+  // Handle URL query parameters (?create=note|file, ?type=files, ?noteId=..., ?fileId=..., ?folderId=...)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('create') === 'note') {
-        handleOpenNewNote();
-      } else if (params.get('create') === 'file') {
-        setFileUploadOpen(true);
-      }
-      if (params.get('type') === 'files') {
-        setTypeFilter('files');
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get('create') === 'note') {
+      handleOpenNewNote();
+    } else if (params.get('create') === 'file') {
+      setFileUploadOpen(true);
+    }
+    if (params.get('type') === 'files') {
+      setTypeFilter('files');
+    }
+
+    const folderId = params.get('folderId');
+    if (folderId) {
+      setCurrentFolderId(folderId);
+    }
+
+    const noteId = params.get('noteId');
+    if (noteId) {
+      const existing = items.find((i) => i.id === noteId);
+      if (existing) {
+        void handleOpenItem(existing);
+      } else {
+        // Asynchronously load requested canonical note
+        void (async () => {
+          let foundItem: LibraryItemRecord | null = null;
+          if (localRepoRef.current && workspaceId) {
+            try {
+              const loaded = await localRepoRef.current.getNote(workspaceId, noteId);
+              if (loaded) {
+                foundItem = {
+                  id: loaded.id,
+                  title: loaded.title,
+                  kind: loaded.purpose && loaded.purpose !== 'standard' ? 'knowledge' : 'note',
+                  folderId: loaded.folderId,
+                  rank: '0',
+                  scope: 'workspace',
+                  revision: 1,
+                  purpose: loaded.purpose,
+                  plainText: loaded.plainText,
+                };
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          if (!foundItem && apiClientRef.current && workspaceId && isOnline) {
+            try {
+              const res = await apiClientRef.current.getNote(workspaceId, noteId);
+              if (res.data) {
+                foundItem = {
+                  id: res.data.id,
+                  title: res.data.title,
+                  kind: res.data.purpose && res.data.purpose !== 'standard' ? 'knowledge' : 'note',
+                  folderId: res.data.folderId,
+                  rank: res.data.rank || '0',
+                  scope: 'workspace',
+                  revision: res.data.revision,
+                  purpose: res.data.purpose,
+                };
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          if (foundItem) {
+            void handleOpenItem(foundItem);
+          }
+        })();
       }
     }
-  }, [handleOpenNewNote]);
+
+    const fileId = params.get('fileId');
+    if (fileId) {
+      const existing = items.find((i) => i.id === fileId);
+      if (existing) {
+        void handleOpenItem(existing);
+      } else {
+        // Asynchronously load requested canonical file
+        void (async () => {
+          let fileItem: LibraryItemRecord | null = null;
+          if (localRepoRef.current && workspaceId) {
+            try {
+              const f = await localRepoRef.current.getFile(workspaceId, fileId);
+              if (f) {
+                fileItem = {
+                  id: f.id,
+                  title: f.fileName,
+                  kind: 'file',
+                  folderId: f.folderId,
+                  rank: '0',
+                  scope: 'workspace',
+                  revision: Number(f.version),
+                };
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          if (!fileItem && apiClientRef.current && workspaceId && isOnline) {
+            try {
+              const res = await apiClientRef.current.getFileMetadata(workspaceId, fileId);
+              if (res.data) {
+                fileItem = {
+                  id: res.data.id,
+                  title: res.data.fileName,
+                  kind: 'file',
+                  folderId: res.data.folderId,
+                  rank: '0',
+                  scope: 'workspace',
+                  revision: Number(res.data.version),
+                };
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          if (fileItem) {
+            void handleOpenItem(fileItem);
+          }
+        })();
+      }
+    }
+  }, [handleOpenNewNote, handleOpenItem, items, workspaceId, isOnline]);
 
   return (
     <div
