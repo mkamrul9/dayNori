@@ -740,7 +740,35 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* 9. Storage & Privacy Architecture */}
+        {/* 9. Workspace Portability (Export & Import) (Phase 35) */}
+        <Card themeMode={themeMode} id="workspace-portability">
+          <h2
+            style={{
+              margin: '0 0 4px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Workspace Portability (Export & Import)
+          </h2>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
+            Export your entire workspace into documented open formats (JSON, Markdown, CSV, and attachments) with cryptographic verification, or safely import an archive with duplicate resolution.
+          </p>
+
+          <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap' }}>
+            <Button
+              variant="primary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => openModal('workspace-portability')}
+              id="open-workspace-portability-btn"
+            >
+              📦 Export / Import Workspace
+            </Button>
+          </div>
+        </Card>
+
+        {/* 10. Storage & Privacy Architecture */}
         <Card themeMode={themeMode}>
           <h2
             style={{

@@ -23,3 +23,4 @@ export * from './QuickReferenceView.js';
 export * from './ConflictReviewDialog.js';
 export * from './SyncDiagnosticsDialog.js';
 export * from './RecoveryExportDialog.js';
+export * from './WorkspacePortabilityDialog.js';

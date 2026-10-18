@@ -171,6 +171,17 @@ import {
   SearchResponseSchema,
   type SearchResponse,
   type SearchQueryInput,
+  ReauthenticateResponseSchema,
+  CreateExportResponseSchema,
+  ImportPreviewResponseSchema,
+  ExecuteImportResponseSchema,
+  type ReauthenticateRequest,
+  type ReauthenticateResponse,
+  type CreateExportRequest,
+  type CreateExportResponse,
+  type ImportPreviewResponse,
+  type ExecuteImportRequest,
+  type ExecuteImportResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -1942,6 +1953,78 @@ export class DaynoriApiClient {
     const endpoint = `/v1/workspaces/${encodeURIComponent(workspaceId)}/search${queryString ? `?${queryString}` : ''}`;
     const raw = await this.request<unknown>(endpoint, { method: 'GET' }, options);
     return SearchResponseSchema.parse(raw);
+  }
+
+  // --- Workspace Portability (Export & Import) ---
+
+  async reauthenticate(
+    request: ReauthenticateRequest,
+    options?: RequestOptions
+  ): Promise<ReauthenticateResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/auth/reauthenticate',
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return ReauthenticateResponseSchema.parse(raw);
+  }
+
+  async createWorkspaceExport(
+    workspaceId: string,
+    request: CreateExportRequest,
+    options?: RequestOptions
+  ): Promise<CreateExportResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/export`,
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-reauth-token': request.reauthToken,
+        },
+      },
+      options
+    );
+    return CreateExportResponseSchema.parse(raw);
+  }
+
+  async previewWorkspaceImport(
+    workspaceId: string,
+    archive: { archiveBase64: string },
+    options?: RequestOptions
+  ): Promise<ImportPreviewResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/import/preview`,
+      {
+        method: 'POST',
+        body: JSON.stringify(archive),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return ImportPreviewResponseSchema.parse(raw);
+  }
+
+  async executeWorkspaceImport(
+    workspaceId: string,
+    request: ExecuteImportRequest,
+    options?: RequestOptions
+  ): Promise<ExecuteImportResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/import/execute`,
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return ExecuteImportResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

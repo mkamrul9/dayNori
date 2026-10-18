@@ -1507,6 +1507,30 @@ export class DaynoriWorker {
   };
     }
 
+    // Built-in: Workspace Export Job (Phase 35)
+    if (taskType === 'workspace_export') {
+      const targetWorkspaceId = payload?.workspaceId as string | undefined;
+      const targetUserId = (payload?.actorUserId || payload?.userId) as string | undefined;
+      const includeAttachments = payload?.includeAttachments !== false;
+
+      if (!targetWorkspaceId || !targetUserId) {
+        throw new Error('workspace_export job requires workspaceId and userId in payload');
+      }
+
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: {
+          taskType,
+          workspaceId: targetWorkspaceId,
+          userId: targetUserId,
+          includeAttachments,
+          status: 'completed',
+        },
+      };
+    }
+
     // 7. Built-in smoke / healthcheck / test job
     if (taskType === 'smoke' || taskType.startsWith('test:')) {
       return {

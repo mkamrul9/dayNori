@@ -1,5 +1,34 @@
 # Changelog
 
+## Phase 35 — Portable export and controlled import — 2026-10-18
+
+- **Shared Data Contracts & Types (`packages/contracts`):**
+  - Added portable workspace schemas in `packages/contracts/src/api/portability.ts`: `ReauthenticateRequestSchema`, `ReauthenticateResponseSchema`, `ExportManifestSchema`, `ExportManifestSummarySchema`, `ExportManifestExclusionSchema`, `CreateExportRequestSchema`, `CreateExportResponseSchema`, `ImportDuplicateItemSchema`, `ImportDuplicateStrategySchema`, `ImportQuotaCheckSchema`, `ImportPreviewResponseSchema`, `ExecuteImportRequestSchema`, and `ExecuteImportResponseSchema`.
+- **Zero-Dependency ZIP Engine (`apps/api`):**
+  - Implemented standalone ZIP archive parser (`parseZipArchive`) and builder (`createZipArchive`) in `apps/api/src/modules/portability/zipArchive.ts` using Node.js standard `node:zlib` with CRC-32 checksum computation.
+  - Path traversal hardening: `assertSafePath` rejects relative traversal (`..`), absolute paths, Windows drive letters (`C:\`), UNC shares, null bytes, and ASCII control characters.
+  - Zip-bomb defense: enforces 200 MiB decompressed ceiling, maximum 5,000 entries, and a 100:1 compression ratio guard.
+  - Complete structural validation: verifies End of Central Directory, Central Directory headers, and Local File headers.
+- **HMAC-SHA256 Reauthentication & Ephemeral Security (`apps/api`):**
+  - Built cryptographic reauthentication ticket issuance (`issueReauthToken`) and verification (`assertValidReauthentication`) bound to user ID, workspace ID, session hash, and purpose (`protected_export`) with a 10-minute expiry window.
+  - Ephemeral signed download tokens with 15-minute TTL preventing unauthorized download link sharing or tampering.
+- **Complete Multi-Format Export Engine (`apps/api`, `apps/worker`):**
+  - Generated portable ZIP archives containing `manifest.json`, metadata (`folders.json`/`csv`, `tags.json`, `saved_views.json`), `notes/notes.json` and `notes/markdown/<id>_<slug>.md` (YAML frontmatter Markdown preserving Bengali Unicode and formatting), `tasks/tasks.json`/`csv`, `routines/routines.json`, `journal/journal.json`/`csv`/`markdown`, `calendar/calendar.json`, and clean binary attachments with SHA-256 integrity verification.
+  - Strict security exclusions: excluded vault items (`security_scope != 'vault'`) and external Google Drive mirrors, explicitly documenting reasons in manifest exclusions.
+  - Background worker task handler `workspace_export` registered in `apps/worker/src/worker.ts`.
+- **Controlled Bounded Import Service (`apps/api`):**
+  - `validateAndPreviewImport`: Dry-run preview unpacking archive in memory, validating checksums, checking target workspace storage quotas, and detecting item duplicates without mutating the database.
+  - `executeConfirmedImport`: Transactional import with complete ID remapping, discarding foreign user IDs, minting fresh UUIDs, two-pass hierarchy linking for folders and tasks, duplicate resolution strategies (`skip`, `create_copy`, `overwrite_if_newer`), binary storage upload, quota updates, and sync change feed recording.
+  - Single-use preview token consumption preventing replay attacks.
+- **REST Portability API & API Client (`apps/api`, `packages/api-client`):**
+  - Implemented `/v1/auth/reauthenticate`, `/v1/workspaces/:workspaceId/export`, `/v1/workspaces/:workspaceId/export/download/:exportId`, `/v1/workspaces/:workspaceId/import/preview`, and `/v1/workspaces/:workspaceId/import/execute` with raw binary payload handling up to 50 MiB.
+  - Added `reauthenticate`, `createWorkspaceExport`, `previewWorkspaceImport`, and `executeWorkspaceImport` to `DaynoriApiClient`.
+- **Web & Mobile Portability User Interfaces (`packages/ui-web`, `packages/ui-mobile`, `apps/web`, `apps/mobile`):**
+  - Implemented `WorkspacePortabilityDialog` with reauthentication flow, multi-format export triggering, expiring download link timer, archive file picker, dry-run preview metrics, duplicate resolution selector, and transactional execution confirmation. Wired to `AppModals.tsx` and web settings.
+  - Implemented `MobileWorkspacePortabilitySheet` with Export and Import tabs, reauthentication, preview inspection, and duplicate strategy selection. Wired to `App.tsx` and mobile settings with Android Back button support.
+- **Automated Verification:**
+  - Added 28 integration tests in `tests/integration/phase35-portability-export-import.test.ts` covering password reauthentication, multi-format export, vault exclusion, signed download expiry/tampering, path traversal/zip bomb defense, dry-run preview, total ID remapping, duplicate resolution strategies, and storage quota enforcement.
+
 ## Phase 34 — Conflict recovery and offline hardening — 2026-10-18
 
 - **Shared Sync Engine Hardening (`packages/sync`):**

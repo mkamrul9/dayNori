@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
-import { Button, Dialog, Feedback, ListRow, TextField, SyncDiagnosticsDialog, RecoveryExportDialog, ConflictReviewDialog } from '@daynori/ui-web';
+import { Button, Dialog, Feedback, ListRow, TextField, SyncDiagnosticsDialog, RecoveryExportDialog, ConflictReviewDialog, WorkspacePortabilityDialog } from '@daynori/ui-web';
 import { exportRecoveryData, getRedactedSyncDiagnostics, type RedactedSyncDiagnostics, type RecoveryExport, type ConflictRecord, type FileRecord } from '@daynori/sync';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
@@ -1236,6 +1236,39 @@ export const AppModals: React.FC = () => {
         conflict={activeConflict}
         onResolve={handleResolveConflict}
         themeMode={themeMode}
+      />
+      {/* 11. Phase 35 Workspace Portability Dialog (Export & Import) */}
+      <WorkspacePortabilityDialog
+        isOpen={activeModal === 'workspace-portability'}
+        onClose={closeModal}
+        workspaceId={workspaceId || ''}
+        themeMode={themeMode}
+        onRequestExport={async (password) => {
+          if (!workspaceId) throw new Error('No active workspace selected');
+          const client = createWebApiClient({ csrfToken });
+          const reauthRes = await client.reauthenticate({
+            purpose: 'protected_export',
+            password,
+            sessionBinding: workspaceId,
+          });
+          return await client.createWorkspaceExport(workspaceId, {
+            reauthToken: reauthRes.reauthToken,
+            includeAttachments: true,
+          });
+        }}
+        onPreviewImport={async (archiveBase64) => {
+          if (!workspaceId) throw new Error('No active workspace selected');
+          const client = createWebApiClient({ csrfToken });
+          return await client.previewWorkspaceImport(workspaceId, { archiveBase64 });
+        }}
+        onExecuteImport={async (previewId, duplicateStrategy) => {
+          if (!workspaceId) throw new Error('No active workspace selected');
+          const client = createWebApiClient({ csrfToken });
+          return await client.executeWorkspaceImport(workspaceId, {
+            previewId,
+            duplicateStrategy,
+          });
+        }}
       />
     </>
   );

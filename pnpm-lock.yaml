@@ -294,6 +294,9 @@ importers:
 
   packages/ui-mobile:
     dependencies:
+      '@daynori/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@daynori/design-tokens':
         specifier: workspace:*
         version: link:../design-tokens
@@ -319,6 +322,9 @@ importers:
 
   packages/ui-web:
     dependencies:
+      '@daynori/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@daynori/design-tokens':
         specifier: workspace:*
         version: link:../design-tokens

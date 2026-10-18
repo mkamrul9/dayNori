@@ -25,6 +25,7 @@ export interface SettingsViewProps {
   onRequestNotificationPermission?: () => Promise<void>;
   onOpenSyncDiagnostics?: () => void;
   onOpenRecoveryExport?: () => void;
+  onOpenPortability?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -48,6 +49,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onRequestNotificationPermission,
   onOpenSyncDiagnostics,
   onOpenRecoveryExport,
+  onOpenPortability,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -530,7 +532,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </MobileCard>
       </View>
 
-      {/* Section 8: Preserved Phase 04 Component Gallery Destination */}
+      {/* Section 8: Workspace Portability (Export & Import) (Phase 35) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Workspace Portability (Export & Import)
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Export your workspace data into open formats (JSON, Markdown, CSV, attachments), or preview and import a verified archive.
+          </Text>
+          <MobileButton
+            testID="btn-open-workspace-portability"
+            variant="primary"
+            themeMode={themeMode}
+            onPress={onOpenPortability}
+            accessibilityLabel="Export or Import Workspace"
+          >
+            📦 Export / Import Workspace &rarr;
+          </MobileButton>
+        </MobileCard>
+      </View>
+
+      {/* Section 9: Preserved Phase 04 Component Gallery Destination */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Review & Architecture

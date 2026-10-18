@@ -13,7 +13,8 @@ export type ActiveModal =
   | 'onboarding-replay'
   | 'sync-diagnostics'
   | 'recovery-export'
-  | 'conflict-review';
+  | 'conflict-review'
+  | 'workspace-portability';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

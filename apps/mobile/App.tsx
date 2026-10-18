@@ -16,6 +16,7 @@ import {
   MobileSyncDiagnosticsSheet,
   MobileRecoveryExportSheet,
   MobileConflictReviewSheet,
+  MobileWorkspacePortabilitySheet,
   type MobileExportActionResult,
   type MobileTab,
 } from '@daynori/ui-mobile';
@@ -755,6 +756,7 @@ export default function App() {
               void loadRecoveryExport();
               setActiveModal('recovery-export');
             }}
+            onOpenPortability={() => setActiveModal('workspace-portability')}
             onClose={() => setActiveModal('none')}
           />
         </View>
@@ -831,6 +833,37 @@ export default function App() {
           }
         }}
         themeMode={themeMode}
+      />
+
+      {/* Phase 35 Workspace Portability Sheet */}
+      <MobileWorkspacePortabilitySheet
+        visible={activeModal === 'workspace-portability'}
+        onClose={() => setActiveModal('none')}
+        workspaceId={userNamespace?.workspaceId ?? ''}
+        themeMode={themeMode}
+        onExportWorkspace={async (password) => {
+          if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
+          const reauthRes = await apiClient.reauthenticate({
+            purpose: 'protected_export',
+            password,
+            sessionBinding: userNamespace.workspaceId,
+          });
+          return await apiClient.createWorkspaceExport(userNamespace.workspaceId, {
+            reauthToken: reauthRes.reauthToken,
+            includeAttachments: true,
+          });
+        }}
+        onPreviewImport={async (archiveBase64) => {
+          if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
+          return await apiClient.previewWorkspaceImport(userNamespace.workspaceId, { archiveBase64 });
+        }}
+        onExecuteImport={async (previewId, strategy) => {
+          if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
+          return await apiClient.executeWorkspaceImport(userNamespace.workspaceId, {
+            previewId,
+            duplicateStrategy: strategy,
+          });
+        }}
       />
     </SafeAreaView>
   );
