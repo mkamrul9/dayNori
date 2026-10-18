@@ -14,3 +14,4 @@ export * from './files.js';
 export * from './calendar.js';
 export * from './reminders.js';
 export * from './openapi.js';
+export * from './knowledge.js';

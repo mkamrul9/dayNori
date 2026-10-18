@@ -14,6 +14,7 @@ import {
   StorageUsageBar,
   FileUploadDialog,
   FilePreviewDialog,
+  QuickReferenceView,
   type BreadcrumbItem,
   type FileItemRecord,
   type UploadExecutionResult,
@@ -28,7 +29,13 @@ import {
   generateUuid,
   formatByteSize,
   MAX_FOLDER_DEPTH,
+  createGuideDocument,
+  createCheatsheetDocument,
+  matchesKnowledgeFilter,
   type NoteDocument,
+  type KnowledgeSavedViewFilter,
+  type SavedView,
+  type ResolvedItemLink,
 } from '@daynori/domain';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
 import type { ItemHeaderRecord, SyncEngine, FileRecord } from '@daynori/sync';
@@ -102,12 +109,28 @@ export default function LibraryPage() {
     folderId: string | null;
     document?: NoteDocument;
     isNew: boolean;
+    kind?: 'note' | 'knowledge';
     conflict?: {
       serverRevision: number;
       serverTitle?: string;
       serverDocument?: NoteDocument;
     } | null;
   } | null>(null);
+
+  // Quick Reference View State
+  const [activeQuickRef, setActiveQuickRef] = useState<{
+    id: string;
+    title: string;
+    folderId: string | null;
+    document: NoteDocument;
+  } | null>(null);
+  const [activeQuickRefLinks, setActiveQuickRefLinks] = useState<ResolvedItemLink[]>([]);
+
+  // Saved Views State
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
+  const [isSaveViewDialogOpen, setIsSaveViewDialogOpen] = useState(false);
+  const [newViewName, setNewViewName] = useState('');
 
   // Modals State
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -376,6 +399,16 @@ export default function LibraryPage() {
               /* ignore */
             }
 
+            // Fetch saved views
+            try {
+              const svRes = await client.listSavedViews(workspaceId!);
+              if (svRes.data && !isCancelled) {
+                setSavedViews(svRes.data);
+              }
+            } catch {
+              /* ignore */
+            }
+
             setFolders(loadedFolders);
             setItems(loadedItems);
             setCloudSyncStatus('Synced');
@@ -435,6 +468,15 @@ export default function LibraryPage() {
                 metadata: 'File item',
               }));
             setItems((prev) => [...prev, ...loadedFiles]);
+          }
+
+          try {
+            const svRes = await client.listSavedViews(workspaceId!);
+            if (svRes.data && !isCancelled) {
+              setSavedViews(svRes.data);
+            }
+          } catch {
+            /* ignore */
           }
         } catch {
           if (!isCancelled) {
@@ -531,12 +573,28 @@ export default function LibraryPage() {
       .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
   }, [folders, currentFolderId, showArchived]);
 
-  // Items in current view (filtered by type and search)
+  // Items in current view (filtered by type, search, or active saved view)
   const currentItems = useMemo(() => {
     return items
       .filter((item) => {
         if (item.trashedAt) return false;
         if (!showArchived && item.archivedAt) return false;
+
+        if (activeSavedViewId) {
+          const activeView = savedViews.find((v) => v.id === activeSavedViewId);
+          if (activeView) {
+            return matchesKnowledgeFilter(
+              {
+                title: item.title,
+                kind: item.kind,
+                folderId: item.folderId,
+                isPinned: Boolean((item as { isPinned?: boolean }).isPinned),
+              },
+              activeView.filter
+            );
+          }
+        }
+
         if (item.folderId !== currentFolderId) return false;
 
         // Module filter matching
@@ -557,7 +615,15 @@ export default function LibraryPage() {
         return true;
       })
       .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
-  }, [items, currentFolderId, typeFilter, searchQuery, showArchived]);
+  }, [
+    items,
+    currentFolderId,
+    typeFilter,
+    searchQuery,
+    showArchived,
+    activeSavedViewId,
+    savedViews,
+  ]);
 
   // Pagination calculations
   const totalItems = currentItems.length;
@@ -1381,14 +1447,135 @@ export default function LibraryPage() {
       title: '',
       folderId: currentFolderId,
       isNew: true,
+      kind: 'note',
       conflict: null,
     });
     announce('Opened new note editor');
   }, [currentFolderId, announce]);
 
+  const handleOpenNewPresetNote = useCallback(
+    (preset: 'guide' | 'cheatsheet') => {
+      const newId = generateUuid();
+      const defaultTitle = preset === 'guide' ? 'Untitled Guide' : 'Untitled Cheatsheet';
+      const doc =
+        preset === 'guide'
+          ? createGuideDocument({ title: defaultTitle })
+          : createCheatsheetDocument({ title: defaultTitle });
+      setEditingNote({
+        id: newId,
+        title: defaultTitle,
+        folderId: currentFolderId,
+        document: doc,
+        isNew: true,
+        kind: 'knowledge',
+        conflict: null,
+      });
+      announce(`Opened new ${preset} editor`);
+    },
+    [currentFolderId, announce]
+  );
+
+  const handleOpenQuickReference = useCallback(
+    async (item: LibraryItemRecord) => {
+      let doc: NoteDocument = {
+        version: 1,
+        type: 'doc',
+        content: [
+          {
+            id: generateUuid(),
+            type: 'heading',
+            level: 1,
+            content: [{ type: 'text', text: item.title }],
+          },
+        ],
+      };
+
+      if (localRepoRef.current) {
+        try {
+          const loaded = await localRepoRef.current.getNote(workspaceId || 'ws-local', item.id);
+          if (loaded?.document) {
+            doc = loaded.document;
+          }
+        } catch {
+          /* ignore fallback */
+        }
+      }
+
+      let links: ResolvedItemLink[] = [];
+      if (apiClientRef.current && workspaceId) {
+        try {
+          const res = await apiClientRef.current.getItemResolvedLinks(workspaceId, item.id);
+          if (res.data) {
+            links = res.data;
+          }
+        } catch {
+          /* ignore fallback */
+        }
+      }
+
+      setActiveQuickRef({
+        id: item.id,
+        title: item.title,
+        folderId: item.folderId,
+        document: doc,
+      });
+      setActiveQuickRefLinks(links);
+      announce(`Opened quick reference for ${item.title}`);
+    },
+    [workspaceId, announce]
+  );
+
+  const handleCreateSavedView = useCallback(async () => {
+    if (!newViewName.trim() || !workspaceId || !apiClientRef.current) return;
+    try {
+      const filter: KnowledgeSavedViewFilter = {
+        isArchived: false,
+      };
+      if (typeFilter === 'knowledge') {
+        filter.presetKind = 'all';
+      }
+      if (searchQuery.trim()) {
+        filter.searchQuery = searchQuery.trim();
+      }
+      if (currentFolderId) {
+        filter.folderId = currentFolderId;
+      }
+      const res = await apiClientRef.current.createSavedView(workspaceId, {
+        name: newViewName.trim(),
+        filter,
+      });
+      if (res.data) {
+        setSavedViews((prev) => [...prev, res.data!]);
+        setActiveSavedViewId(res.data.id);
+        setIsSaveViewDialogOpen(false);
+        setNewViewName('');
+        announce(`Saved view ${res.data.name} created`);
+      }
+    } catch {
+      announce('Failed to create saved view');
+    }
+  }, [newViewName, workspaceId, typeFilter, searchQuery, currentFolderId, announce]);
+
+  const handleDeleteSavedView = useCallback(
+    async (id: string) => {
+      if (!workspaceId || !apiClientRef.current) return;
+      try {
+        await apiClientRef.current.deleteSavedView(workspaceId, id);
+        setSavedViews((prev) => prev.filter((v) => v.id !== id));
+        if (activeSavedViewId === id) {
+          setActiveSavedViewId(null);
+        }
+        announce('Saved view removed');
+      } catch {
+        announce('Failed to delete saved view');
+      }
+    },
+    [workspaceId, activeSavedViewId, announce]
+  );
+
   const handleOpenItem = useCallback(
     async (item: LibraryItemRecord) => {
-      if (item.kind === 'note') {
+      if (item.kind === 'note' || item.kind === 'knowledge') {
         let doc: NoteDocument | undefined;
         let conflictInfo: {
           serverRevision: number;
@@ -1424,6 +1611,7 @@ export default function LibraryPage() {
           folderId: item.folderId,
           document: doc,
           isNew: false,
+          kind: item.kind === 'knowledge' ? 'knowledge' : 'note',
           conflict: conflictInfo,
         });
         announce(`Opened note ${item.title}`);
@@ -1812,11 +2000,12 @@ export default function LibraryPage() {
         (existing as { archivedAt?: unknown })?.archivedAt
       );
       const isPinned = Boolean((existing as { isPinned?: boolean })?.isPinned);
+      const itemKind = editingNote.kind || (existing?.kind === 'knowledge' ? 'knowledge' : 'note');
 
       const header: ItemHeaderRecord = {
         id: editingNote.id,
         workspaceId: workspaceId || 'ws-local',
-        kind: 'note',
+        kind: itemKind,
         name: saved.title,
         parentId: targetFolderId,
         folderId: targetFolderId,
@@ -1898,12 +2087,12 @@ export default function LibraryPage() {
             {
               id: editingNote.id,
               title: saved.title,
-              kind: 'note',
+              kind: itemKind,
               folderId: targetFolderId,
               rank: header.rank,
               scope: 'workspace',
               revision: prevRev || 1,
-              metadata: 'Note • Just now',
+              metadata: itemKind === 'knowledge' ? 'Knowledge • Just now' : 'Note • Just now',
             },
             ...prev,
           ]);
@@ -2125,7 +2314,65 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {editingNote ? (
+      {activeQuickRef ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Button
+              variant="subtle"
+              onClick={() => setActiveQuickRef(null)}
+              aria-label="Back to Library"
+            >
+              ← Back to Library
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                const item = items.find((i) => i.id === activeQuickRef.id) ?? {
+                  id: activeQuickRef.id,
+                  title: activeQuickRef.title,
+                  kind: 'knowledge',
+                  folderId: activeQuickRef.folderId,
+                  rank: '00001000',
+                  scope: 'workspace',
+                  revision: 1,
+                };
+                setActiveQuickRef(null);
+                void handleOpenItem(item);
+              }}
+              aria-label={`Edit ${activeQuickRef.title}`}
+            >
+              ✏️ Edit Note
+            </Button>
+          </div>
+          <QuickReferenceView
+            noteId={activeQuickRef.id}
+            title={activeQuickRef.title}
+            document={activeQuickRef.document}
+            themeMode={themeMode}
+            links={activeQuickRefLinks}
+            onEditNote={() => {
+              const item = items.find((i) => i.id === activeQuickRef.id) ?? {
+                id: activeQuickRef.id,
+                title: activeQuickRef.title,
+                kind: 'knowledge',
+                folderId: activeQuickRef.folderId,
+                rank: '00001000',
+                scope: 'workspace',
+                revision: 1,
+              };
+              setActiveQuickRef(null);
+              void handleOpenItem(item);
+            }}
+            onNavigateToItem={(targetId: string) => {
+              const target = items.find((i) => i.id === targetId);
+              if (target) {
+                setActiveQuickRef(null);
+                void handleOpenItem(target);
+              }
+            }}
+          />
+        </div>
+      ) : editingNote ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Button
@@ -2256,6 +2503,22 @@ export default function LibraryPage() {
 
               <Button
                 variant="secondary"
+                onClick={() => handleOpenNewPresetNote('guide')}
+                aria-label="Create new knowledge guide"
+              >
+                + Guide
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => handleOpenNewPresetNote('cheatsheet')}
+                aria-label="Create new cheatsheet"
+              >
+                + Cheatsheet
+              </Button>
+
+              <Button
+                variant="secondary"
                 onClick={() => setFileUploadOpen(true)}
                 aria-label="Upload file to workspace folder"
               >
@@ -2312,6 +2575,113 @@ export default function LibraryPage() {
                 Show Archived
               </label>
             </div>
+          </div>
+
+          {/* Saved Views Bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: spacing.xs,
+              flexWrap: 'wrap',
+              marginBottom: spacing.md,
+              padding: '6px 12px',
+              backgroundColor: palette.surfaceRaised,
+              borderRadius: radii.card,
+              border: `1px solid ${palette.border.subtle}`,
+            }}
+          >
+            <span
+              style={{
+                fontSize: typography.webScale.metadata,
+                fontWeight: '600',
+                color: palette.text.secondary,
+                marginRight: 4,
+              }}
+            >
+              Saved Views:
+            </span>
+            <button
+              type="button"
+              role="button"
+              aria-pressed={activeSavedViewId === null}
+              onClick={() => {
+                setActiveSavedViewId(null);
+                announce('Showing standard folder view');
+              }}
+              style={{
+                padding: '4px 10px',
+                borderRadius: radii.sm,
+                fontSize: typography.webScale.metadata,
+                border: `1px solid ${activeSavedViewId === null ? palette.action.primary : palette.border.subtle}`,
+                backgroundColor:
+                  activeSavedViewId === null ? palette.action.subtle : palette.surface,
+                color: activeSavedViewId === null ? palette.action.primary : palette.text.secondary,
+                cursor: 'pointer',
+                fontWeight: activeSavedViewId === null ? '600' : '400',
+              }}
+            >
+              Default
+            </button>
+            {savedViews.map((sv) => {
+              const isSelected = activeSavedViewId === sv.id;
+              return (
+                <span
+                  key={sv.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    borderRadius: radii.sm,
+                    border: `1px solid ${isSelected ? palette.action.primary : palette.border.subtle}`,
+                    backgroundColor: isSelected ? palette.action.subtle : palette.surface,
+                  }}
+                >
+                  <button
+                    type="button"
+                    role="button"
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      setActiveSavedViewId(sv.id);
+                      announce(`Switched to saved view ${sv.name}`);
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      border: 'none',
+                      background: 'none',
+                      fontSize: typography.webScale.metadata,
+                      color: isSelected ? palette.action.primary : palette.text.primary,
+                      cursor: 'pointer',
+                      fontWeight: isSelected ? '600' : '400',
+                    }}
+                  >
+                    🔖 {sv.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteSavedView(sv.id)}
+                    aria-label={`Delete view ${sv.name}`}
+                    style={{
+                      padding: '4px 6px',
+                      border: 'none',
+                      background: 'none',
+                      color: palette.text.muted,
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </span>
+              );
+            })}
+            <Button
+              variant="subtle"
+              onClick={() => setIsSaveViewDialogOpen(true)}
+              aria-label="Save current filter as view"
+              style={{ padding: '2px 8px', fontSize: typography.webScale.metadata, minHeight: 28 }}
+            >
+              + Save View
+            </Button>
           </div>
 
           {/* Subfolders Section */}
@@ -2539,10 +2909,15 @@ export default function LibraryPage() {
                       border: `1px solid ${palette.border.subtle}`,
                       borderRadius: radii.card,
                       gap: spacing.sm,
-                      cursor: item.kind === 'note' || item.kind === 'file' ? 'pointer' : 'default',
+                      cursor:
+                        item.kind === 'note' || item.kind === 'knowledge' || item.kind === 'file'
+                          ? 'pointer'
+                          : 'default',
                     }}
                     onClick={() => {
-                      if (item.kind === 'note' || item.kind === 'file') {
+                      if (item.kind === 'knowledge') {
+                        void handleOpenQuickReference(item);
+                      } else if (item.kind === 'note' || item.kind === 'file') {
                         void handleOpenItem(item);
                       }
                     }}
@@ -2574,17 +2949,54 @@ export default function LibraryPage() {
                       </div>
                     </div>
 
+                    {item.kind === 'knowledge' && (
+                      <div style={{ display: 'flex', gap: spacing.xs }}>
+                        <Button
+                          variant="primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleOpenQuickReference(item);
+                          }}
+                          aria-label={`Quick reference for ${item.title}`}
+                        >
+                          Quick Ref
+                        </Button>
+                        <Button
+                          variant="subtle"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleOpenItem(item);
+                          }}
+                          aria-label={`Edit ${item.title}`}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    )}
+
                     {item.kind === 'note' && (
-                      <Button
-                        variant="subtle"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleOpenItem(item);
-                        }}
-                        aria-label={`Edit note ${item.title}`}
-                      >
-                        Edit Note
-                      </Button>
+                      <div style={{ display: 'flex', gap: spacing.xs }}>
+                        <Button
+                          variant="subtle"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleOpenQuickReference(item);
+                          }}
+                          aria-label={`Quick reference for ${item.title}`}
+                        >
+                          Quick Ref
+                        </Button>
+                        <Button
+                          variant="subtle"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleOpenItem(item);
+                          }}
+                          aria-label={`Edit note ${item.title}`}
+                        >
+                          Edit Note
+                        </Button>
+                      </div>
                     )}
 
                     {item.kind === 'file' && (
@@ -2927,6 +3339,43 @@ export default function LibraryPage() {
         onToggleOffline={handleToggleOffline}
         onDelete={handleDeleteFile}
       />
+
+      {/* Save Current Filter as View Dialog */}
+      <Dialog
+        isOpen={isSaveViewDialogOpen}
+        onClose={() => setIsSaveViewDialogOpen(false)}
+        title="Save Current Filter as View"
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: spacing.md,
+            padding: spacing.sm,
+            minWidth: 320,
+          }}
+        >
+          <TextField
+            label="View Name"
+            value={newViewName}
+            onChange={(e) => setNewViewName(e.target.value)}
+            placeholder="e.g. Quick Reference Guides, Project Cheatsheets"
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' }}>
+            <Button variant="subtle" onClick={() => setIsSaveViewDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleCreateSavedView}
+              disabled={!newViewName.trim()}
+            >
+              Save View
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

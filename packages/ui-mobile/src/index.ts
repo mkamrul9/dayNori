@@ -15,3 +15,4 @@ export * from './MobileRoutineRow.js';
 export * from './MobileStorageUsageBar.js';
 export * from './MobileFileUploadSheet.js';
 export * from './MobileFilePreviewSheet.js';
+export * from './MobileQuickReferenceView.js';

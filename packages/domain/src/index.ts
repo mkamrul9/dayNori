@@ -12,3 +12,4 @@ export * from './calendar.js';
 export * from './reminders.js';
 export * from './home.js';
 export * from './onboarding.js';
+export * from './knowledge.js';

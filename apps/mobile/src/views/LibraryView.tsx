@@ -24,6 +24,7 @@ import {
   MobileStorageUsageBar,
   MobileFileUploadSheet,
   MobileFilePreviewSheet,
+  MobileQuickReferenceView,
   type MobileBreadcrumbSegment,
   type MobileFileItem,
   type MobileSelectedFile,
@@ -38,7 +39,12 @@ import {
   generateUuid,
   formatByteSize,
   MAX_FOLDER_DEPTH,
+  createGuideDocument,
+  createCheatsheetDocument,
+  matchesKnowledgeFilter,
   type NoteDocument,
+  type SavedView,
+  type ResolvedItemLink,
 } from '@daynori/domain';
 import type { LibraryFilter } from '../navigation/types';
 
@@ -487,12 +493,42 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     folderId: string | null;
     document?: NoteDocument;
     isNew: boolean;
+    kind?: 'note' | 'knowledge';
     conflict?: {
       serverRevision: number;
       serverTitle?: string;
       serverDocument?: NoteDocument;
     } | null;
   } | null>(null);
+
+  // Quick Reference View State
+  const [activeQuickRef, setActiveQuickRef] = useState<{
+    id: string;
+    title: string;
+    folderId: string | null;
+    document: NoteDocument;
+  } | null>(null);
+  const [activeQuickRefLinks, setActiveQuickRefLinks] = useState<ResolvedItemLink[]>([]);
+
+  // Saved Views State
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!apiClient || !workspaceId) return;
+    let isCancelled = false;
+    void apiClient
+      .listSavedViews(workspaceId)
+      .then((res) => {
+        if (res.data && !isCancelled) {
+          setSavedViews(res.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
+  }, [apiClient, workspaceId]);
 
   // Undo Toast State
   const [undoToast, setUndoToast] = useState<{
@@ -561,6 +597,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     return items
       .filter((item) => {
         if (item.trashedAt) return false;
+
+        if (activeSavedViewId) {
+          const activeView = savedViews.find((v) => v.id === activeSavedViewId);
+          if (activeView) {
+            return matchesKnowledgeFilter(
+              {
+                title: item.title,
+                kind: item.kind,
+                folderId: item.folderId,
+                isPinned: Boolean((item as { isPinned?: boolean }).isPinned),
+              },
+              activeView.filter
+            );
+          }
+        }
+
         if (item.folderId !== currentFolderId) return false;
 
         // Apply module filters
@@ -571,7 +623,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         return true;
       })
       .sort((a, b) => compareRanks(a.rank, a.id, b.rank, b.id));
-  }, [items, currentFolderId, activeFilter]);
+  }, [items, currentFolderId, activeFilter, activeSavedViewId, savedViews]);
 
   // Counts of items per folder
   const folderCounts = useMemo(() => {
@@ -889,8 +941,75 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       title: '',
       folderId: currentFolderId,
       isNew: true,
+      kind: 'note',
       conflict: null,
     });
+  };
+
+  const handleOpenNewPreset = (preset: 'guide' | 'cheatsheet') => {
+    const newId = generateUuid();
+    const defaultTitle = preset === 'guide' ? 'Untitled Guide' : 'Untitled Cheatsheet';
+    const doc =
+      preset === 'guide'
+        ? createGuideDocument({ title: defaultTitle })
+        : createCheatsheetDocument({ title: defaultTitle });
+    setEditingNote({
+      id: newId,
+      title: defaultTitle,
+      folderId: currentFolderId,
+      document: doc,
+      isNew: true,
+      kind: 'knowledge',
+      conflict: null,
+    });
+  };
+
+  const handleOpenQuickReference = async (item: MobileLibraryRecord) => {
+    let doc: NoteDocument = {
+      version: 1,
+      type: 'doc',
+      content: [
+        {
+          id: generateUuid(),
+          type: 'heading',
+          level: 1,
+          content: [{ type: 'text', text: item.title }],
+        },
+      ],
+    };
+
+    const repo =
+      repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+    if (repo && workspaceId) {
+      try {
+        const loaded = await repo.getNote(workspaceId, item.id);
+        if (loaded?.document) {
+          doc = loaded.document;
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+
+    let links: ResolvedItemLink[] = [];
+    if (apiClient && workspaceId) {
+      try {
+        const res = await apiClient.getItemResolvedLinks(workspaceId, item.id);
+        if (res.data) {
+          links = res.data;
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+
+    setActiveQuickRef({
+      id: item.id,
+      title: item.title,
+      folderId: item.folderId,
+      document: doc,
+    });
+    setActiveQuickRefLinks(links);
   };
 
   const handleOpenNote = async (item: MobileLibraryRecord) => {
@@ -929,6 +1048,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       folderId: item.folderId,
       document: doc,
       isNew: false,
+      kind: item.kind === 'knowledge' ? 'knowledge' : 'note',
       conflict: conflictInfo,
     });
   };
@@ -1167,6 +1287,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       (existing as { archivedAt?: unknown })?.archivedAt
     );
     const isPinned = Boolean((existing as { isPinned?: boolean })?.isPinned);
+    const itemKind = editingNote.kind || (existing?.kind === 'knowledge' ? 'knowledge' : 'note');
 
     setLocalStatus('Saving locally...');
     try {
@@ -1175,7 +1296,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           {
             id: editingNote.id,
             workspaceId,
-            kind: 'note',
+            kind: itemKind,
             name: saved.title,
             parentId: targetFolderId,
             folderId: targetFolderId,
@@ -1253,11 +1374,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           {
             id: editingNote.id,
             title: saved.title,
-            kind: 'note',
+            kind: itemKind,
             folderId: targetFolderId,
             rank: existing?.rank ?? generateInitialRank(items.length),
             revision: prevRev || 1,
-            metadata: 'Note • Just now',
+            metadata: itemKind === 'knowledge' ? 'Knowledge • Just now' : 'Note • Just now',
           },
           ...prev,
         ]);
@@ -1328,6 +1449,43 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     }
   };
 
+  if (activeQuickRef) {
+    return (
+      <View style={{ flex: 1, backgroundColor: palette.surface }}>
+        <MobileQuickReferenceView
+          noteId={activeQuickRef.id}
+          title={activeQuickRef.title}
+          document={activeQuickRef.document}
+          themeMode={themeMode}
+          links={activeQuickRefLinks}
+          onEditNote={() => {
+            const it = items.find((i) => i.id === activeQuickRef.id) ?? {
+              id: activeQuickRef.id,
+              title: activeQuickRef.title,
+              kind: 'knowledge',
+              folderId: activeQuickRef.folderId,
+              rank: '00001000',
+              revision: 1,
+            };
+            setActiveQuickRef(null);
+            void handleOpenNote(it);
+          }}
+          onNavigateToItem={(targetId) => {
+            const target = items.find((i) => i.id === targetId);
+            if (target) {
+              setActiveQuickRef(null);
+              if (target.kind === 'knowledge') {
+                void handleOpenQuickReference(target);
+              } else {
+                void handleOpenNote(target);
+              }
+            }
+          }}
+        />
+      </View>
+    );
+  }
+
   if (editingNote) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
@@ -1367,7 +1525,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         <Text style={[styles.statusText, { color: palette.text.secondary }]}>
           💾 {localStatus} • ☁️ {isOffline ? 'Offline' : syncStatus}
         </Text>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
+        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Create new note"
@@ -1375,6 +1533,40 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             style={[styles.sampleJourneysBtn, { backgroundColor: palette.action.primary }]}
           >
             <Text style={[styles.sampleJourneysText, { color: palette.action.label }]}>+ Note</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create new guide"
+            onPress={() => handleOpenNewPreset('guide')}
+            style={[
+              styles.sampleJourneysBtn,
+              {
+                backgroundColor: palette.action.subtle,
+                borderWidth: 1,
+                borderColor: palette.action.primary,
+              },
+            ]}
+          >
+            <Text style={[styles.sampleJourneysText, { color: palette.action.primary }]}>
+              + Guide
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create new cheatsheet"
+            onPress={() => handleOpenNewPreset('cheatsheet')}
+            style={[
+              styles.sampleJourneysBtn,
+              {
+                backgroundColor: palette.action.subtle,
+                borderWidth: 1,
+                borderColor: palette.action.primary,
+              },
+            ]}
+          >
+            <Text style={[styles.sampleJourneysText, { color: palette.action.primary }]}>
+              + Cheatsheet
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -1466,6 +1658,74 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           );
         })}
       </View>
+
+      {/* Saved Views Bar */}
+      {savedViews.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: spacing.sm, paddingHorizontal: spacing.sm }}
+          contentContainerStyle={{ flexDirection: 'row', gap: 6 }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Default folder view"
+            onPress={() => setActiveSavedViewId(null)}
+            style={[
+              styles.filterPill,
+              {
+                backgroundColor:
+                  activeSavedViewId === null ? palette.action.subtle : palette.surfaceRaised,
+                borderColor:
+                  activeSavedViewId === null ? palette.action.primary : palette.border.subtle,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.filterPillText,
+                {
+                  color:
+                    activeSavedViewId === null ? palette.action.primary : palette.text.secondary,
+                  fontWeight: activeSavedViewId === null ? '700' : '500',
+                },
+              ]}
+            >
+              Default View
+            </Text>
+          </Pressable>
+          {savedViews.map((sv) => {
+            const isSelected = activeSavedViewId === sv.id;
+            return (
+              <Pressable
+                key={sv.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Saved view ${sv.name}`}
+                onPress={() => setActiveSavedViewId(sv.id)}
+                style={[
+                  styles.filterPill,
+                  {
+                    backgroundColor: isSelected ? palette.action.subtle : palette.surfaceRaised,
+                    borderColor: isSelected ? palette.action.primary : palette.border.subtle,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    {
+                      color: isSelected ? palette.action.primary : palette.text.secondary,
+                      fontWeight: isSelected ? '700' : '500',
+                    },
+                  ]}
+                >
+                  🔖 {sv.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* Storage Usage Bar */}
       <View style={{ marginBottom: spacing.sm, paddingHorizontal: spacing.sm }}>
@@ -1616,9 +1876,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <Pressable
               key={item.id}
               accessibilityRole="button"
-              accessibilityLabel={`Open ${item.kind === 'file' ? 'file' : 'note'} ${item.title}`}
+              accessibilityLabel={`Open ${item.kind === 'file' ? 'file' : item.kind === 'knowledge' ? 'knowledge guide' : 'note'} ${item.title}`}
               onPress={() => {
-                if (item.kind === 'note') {
+                if (item.kind === 'knowledge') {
+                  void handleOpenQuickReference(item);
+                } else if (item.kind === 'note') {
                   void handleOpenNote(item);
                 } else if (item.kind === 'file') {
                   void handleOpenFile(item);
@@ -1638,6 +1900,30 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       </Text>
                     )}
                   </View>
+                  {item.kind === 'knowledge' && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`View quick reference for ${item.title}`}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        void handleOpenQuickReference(item);
+                      }}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 4,
+                        backgroundColor: palette.action.subtle,
+                        borderWidth: 1,
+                        borderColor: palette.action.primary,
+                      }}
+                    >
+                      <Text
+                        style={{ fontSize: 11, fontWeight: '700', color: palette.action.primary }}
+                      >
+                        Quick Ref
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               </MobileCard>
             </Pressable>

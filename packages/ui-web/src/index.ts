@@ -19,3 +19,4 @@ export * from './JournalEditor.js';
 export * from './StorageUsageBar.js';
 export * from './FileUploadDialog.js';
 export * from './FilePreviewDialog.js';
+export * from './QuickReferenceView.js';

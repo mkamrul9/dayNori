@@ -53,6 +53,12 @@ export const ItemTypeBadge: React.FC<ItemTypeBadgeProps> = ({
       label = 'Journal';
       icon = '📖';
       break;
+    case 'knowledge':
+      bg = themeMode === 'dark' ? 'rgba(14, 165, 233, 0.2)' : '#f0f9ff';
+      text = themeMode === 'dark' ? '#7dd3fc' : '#0369a1';
+      label = 'Knowledge';
+      icon = '💡';
+      break;
     default:
       label = kind.charAt(0).toUpperCase() + kind.slice(1);
       break;

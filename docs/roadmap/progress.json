@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-18",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 31 First-use tutorial and progressive discovery provisional implementation delivered under explicit owner authorization and verified across pure domain onboarding state machine, Web OnboardingTutorial, Mobile OnboardingSheet, deterministic starter item generation, preferences synchronization, and 10 end-to-end integration tests (52/52 test files and 732/732 tests passing). Completion for prerequisite Phases 04–06, 09–31 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 32 will be considered once gates or explicit owner authorization are established.",
-  "note": "Phase 31 (First-use tutorial and progressive discovery) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 32 Knowledge guides and cheatsheet organization provisional implementation delivered under explicit owner authorization and verified across canonical NoteDocument AST v1 presets, topic folder organization without duplicate bodies, saved views with non-destructive multi-view filtering, Web QuickReferenceView, Mobile MobileQuickReferenceView, clean plain-text clipboard boundaries, internal item link and reverse backlink resolution with honest unavailable target notices, cross-tenant isolation, and 12 end-to-end integration tests (54/54 test files and 753/753 tests passing). Completion for prerequisite Phases 04–06, 09–32 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 33 will be considered once gates or explicit owner authorization are established.",
+  "note": "Phase 32 (Knowledge guides and cheatsheet organization) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -194,7 +194,9 @@
     },
     {
       "id": "32",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional knowledge guides and cheatsheet organization implementation delivered under owner authorization and verified across canonical NoteDocument AST v1 presets, topic folder organization without duplicate bodies, saved views with non-destructive multi-view filtering, Web QuickReferenceView, Mobile MobileQuickReferenceView, clean plain-text clipboard boundaries, internal item link and reverse backlink resolution with honest unavailable target notices, cross-tenant isolation, and 12 end-to-end integration tests (54/54 test files and 753/753 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-32.md"
     },
     {
       "id": "33",

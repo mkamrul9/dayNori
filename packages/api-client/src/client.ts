@@ -160,6 +160,14 @@ import {
   type DeviceListResponse,
   type DeviceScheduleResponse,
   type DeviceScheduleListResponse,
+  SavedViewResponseSchema,
+  SavedViewListResponseSchema,
+  ResolvedItemLinkListResponseSchema,
+  type CreateSavedViewRequest,
+  type UpdateSavedViewRequest,
+  type SavedViewResponse,
+  type SavedViewListResponse,
+  type ResolvedItemLinkListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -175,7 +183,8 @@ export interface ApiClientOptions {
   baseUrl: string;
   token?: string | (() => Promise<string | null> | string | null);
   csrfToken?: string | (() => Promise<string | null> | string | null);
-  headers?: Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
+  headers?:
+    Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
   fetchFn?: typeof fetch;
   defaultTimeoutMs?: number;
 }
@@ -190,7 +199,8 @@ export class DaynoriApiClient {
   private readonly baseUrl: string;
   private readonly tokenResolver?: string | (() => Promise<string | null> | string | null);
   private readonly csrfTokenResolver?: string | (() => Promise<string | null> | string | null);
-  private readonly headersResolver?: Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
+  private readonly headersResolver?:
+    Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
   private readonly fetch: typeof fetch;
   private readonly defaultTimeoutMs: number;
 
@@ -1777,7 +1787,11 @@ export class DaynoriApiClient {
   // --- Web Push Subscriptions (Phase 29) ---
 
   async getVapidPublicKey(options?: RequestOptions): Promise<VapidPublicKeyResponse> {
-    const raw = await this.request<unknown>('/v1/web-push/vapid-public-key', { method: 'GET' }, options);
+    const raw = await this.request<unknown>(
+      '/v1/web-push/vapid-public-key',
+      { method: 'GET' },
+      options
+    );
     return VapidPublicKeyResponseSchema.parse(raw);
   }
 
@@ -1805,9 +1819,94 @@ export class DaynoriApiClient {
     return raw;
   }
 
-  async listWebPushSubscriptions(options?: RequestOptions): Promise<WebPushSubscriptionListResponse> {
-    const raw = await this.request<unknown>('/v1/web-push/subscriptions', { method: 'GET' }, options);
+  async listWebPushSubscriptions(
+    options?: RequestOptions
+  ): Promise<WebPushSubscriptionListResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/web-push/subscriptions',
+      { method: 'GET' },
+      options
+    );
     return WebPushSubscriptionListResponseSchema.parse(raw);
+  }
+
+  // --- Knowledge & Saved Views (Phase 32) ---
+
+  async listSavedViews(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<SavedViewListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/saved-views`,
+      { method: 'GET' },
+      options
+    );
+    return SavedViewListResponseSchema.parse(raw);
+  }
+
+  async createSavedView(
+    workspaceId: string,
+    data: CreateSavedViewRequest,
+    options?: RequestOptions
+  ): Promise<SavedViewResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/saved-views`,
+      { method: 'POST', body: JSON.stringify(data) },
+      options
+    );
+    return SavedViewResponseSchema.parse(raw);
+  }
+
+  async getSavedView(
+    workspaceId: string,
+    viewId: string,
+    options?: RequestOptions
+  ): Promise<SavedViewResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/saved-views/${encodeURIComponent(viewId)}`,
+      { method: 'GET' },
+      options
+    );
+    return SavedViewResponseSchema.parse(raw);
+  }
+
+  async updateSavedView(
+    workspaceId: string,
+    viewId: string,
+    data: UpdateSavedViewRequest,
+    options?: RequestOptions
+  ): Promise<SavedViewResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/saved-views/${encodeURIComponent(viewId)}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+      options
+    );
+    return SavedViewResponseSchema.parse(raw);
+  }
+
+  async deleteSavedView(
+    workspaceId: string,
+    viewId: string,
+    options?: RequestOptions
+  ): Promise<void> {
+    await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/saved-views/${encodeURIComponent(viewId)}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async getItemResolvedLinks(
+    workspaceId: string,
+    itemId: string,
+    options?: RequestOptions
+  ): Promise<ResolvedItemLinkListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/items/${encodeURIComponent(itemId)}/links/resolved`,
+      { method: 'GET' },
+      options
+    );
+    return ResolvedItemLinkListResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

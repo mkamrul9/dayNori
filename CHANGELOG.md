@@ -19,6 +19,30 @@
   - Applied pending preferences immediately to local UI and synchronized with API upon reconnection.
   - Added `refreshTrigger` prop to refresh Today presentation upon onboarding or customization completion without manual reload.
 
+## Phase 32 — Knowledge guides and cheatsheet organization — 2026-10-18
+
+- **Canonical NoteDocument AST Presets (`packages/domain`):**
+  - Implemented `createGuideDocument` factory composing procedural how-to guides with step-by-step ordered lists and verification checklists into standard `NoteDocument` AST v1.
+  - Implemented `createCheatsheetDocument` factory composing categorized command and syntax cheatsheets with code values and descriptions into standard `NoteDocument` AST v1.
+  - Enforced single canonical note body representation across notes and knowledge items without duplicate tables or secondary stores.
+- **Quick-Reference Browsing & Clean Text Capture (`packages/domain`, `packages/ui-web`, `packages/ui-mobile`):**
+  - Implemented `extractQuickReferenceSections` extracting headings, command/syntax entries, and checklists for rapid scannability.
+  - Implemented `cleanTextForClipboard` stripping Markdown code fences (e.g. ```` ```bash ````), single/triple backticks, and control characters to ensure pure plain-text terminal and editor copying.
+  - Built `QuickReferenceView` (Web) and `MobileQuickReferenceView` (Mobile) with screen-reader live region confirmations (`aria-live="polite"`), checklist toggles, and internal links & backlinks panel.
+- **Saved Views & Non-Destructive Multi-View Filtering (`apps/api`, `packages/contracts`, `packages/domain`):**
+  - Applied migration `00028_saved_views_and_knowledge_organization.sql` introducing `app.saved_views` with workspace tenant isolation, RLS policies, and compound indexes.
+  - Added saved views REST API routes (`POST`, `GET`, `PATCH`, `DELETE`) in `apps/api/src/routes/v1/knowledge.ts`.
+  - Implemented pure filter predicate `matchesKnowledgeFilter` in `@daynori/domain`, enabling one canonical note body to match multiple saved views (presets, tags, topic folders, pins, search queries) non-destructively.
+- **Internal Item Links, Backlinks, and Honest Explanations (`apps/api`, `packages/domain`):**
+  - Implemented link resolution endpoint `GET /v1/workspaces/:workspaceId/items/:itemId/links/resolved` joining forward outgoing links and reverse incoming backlinks with item metadata.
+  - Added `formatUnavailableLinkNotice` providing honest, accessible notices (`"Title" has been moved to trash or deleted`, or `does not exist or could not be found`) with strikethrough styling.
+  - Enforced cross-tenant link creation rejection (HTTP 404) and leak protection, ensuring private titles in other workspaces are never disclosed.
+- **Library Interfaces (`apps/web`, `apps/mobile`):**
+  - Integrated "+ Guide", "+ Cheatsheet", quick reference viewer toggle, saved views bar, and "Save View" dialog on Web (`/library`).
+  - Integrated "+ Guide", "+ Cheatsheet", quick reference viewer, and horizontal saved views scroll list on Mobile (`LibraryView`).
+- **Automated Verification:**
+  - Added 12 integration tests in `tests/integration/phase32-knowledge.test.ts` verifying canonical presets, clean clipboard capture, topic folder relocation, saved views CRUD, multi-view matching without duplication, internal links and reverse backlinks, honest explanations for deleted and dangling targets, and tenant isolation.
+
 ## Phase 31 — First-use tutorial and progressive discovery — 2026-10-18
 
 - **First-Use Onboarding Engine (`packages/domain`, `packages/contracts`):**
