@@ -703,7 +703,44 @@ export default function SettingsPage() {
           themeMode={themeMode}
         />
 
-        {/* 7. Storage & Privacy Architecture */}
+        {/* 8. Sync & Offline Recovery (Phase 34) */}
+        <Card themeMode={themeMode} id="sync-recovery">
+          <h2
+            style={{
+              margin: '0 0 4px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Sync & Offline Recovery
+          </h2>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
+            Inspect sync queue health, active conflicts, and export uncommitted drafts or offline recovery data without exposing sensitive credentials or vault plaintexts.
+          </p>
+
+          <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap' }}>
+            <Button
+              variant="secondary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => openModal('sync-diagnostics')}
+              id="open-sync-diagnostics-btn"
+            >
+              🔄 View Sync Diagnostics
+            </Button>
+            <Button
+              variant="secondary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => openModal('recovery-export')}
+              id="open-recovery-export-btn"
+            >
+              💾 Export Recovery Drafts
+            </Button>
+          </div>
+        </Card>
+
+        {/* 9. Storage & Privacy Architecture */}
         <Card themeMode={themeMode}>
           <h2
             style={{

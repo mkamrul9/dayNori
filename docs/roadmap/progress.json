@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-18",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 33 Global authorized search and filters provisional implementation delivered under explicit owner authorization and verified across PostgreSQL full-text and pg_trgm indexes, Fastify search endpoint, DaynoriApiClient, pure client-side local search with offline coverage indicators, Web search modal, Mobile SearchSheet, strict multi-tenant workspace isolation, vault exclusion, journal privacy redactions, archived/deleted handling, and 11 end-to-end integration tests (55/55 test files and 772/772 tests passing). Completion for prerequisite Phases 04–06, 09–33 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 34 (Conflict recovery and offline hardening) will be considered once gates or explicit owner authorization are established.",
-  "note": "Phase 33 (Global authorized search and filters) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 34 Conflict recovery and offline hardening provisional implementation delivered under explicit owner authorization and verified across 90-day offline horizon checks, edit-versus-delete preservation without resurrection, deleted/missing parent folder recovery, storage quota error classification, 3-way structured field merge, circular hierarchy move validation, side-by-side conflict review on web and mobile, user-controlled local recovery export excluding credentials and vault plaintexts, redacted sync diagnostics, and 10 end-to-end integration tests (56/56 test files and 784/784 tests passing). Completion for prerequisite Phases 04–06, 09–34 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 35 (Portable export and controlled import) will be considered once gates or explicit owner authorization are established.",
+  "note": "Phase 34 (Conflict recovery and offline hardening) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -206,7 +206,9 @@
     },
     {
       "id": "34",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional conflict recovery and offline hardening implementation delivered under owner authorization and verified across 90-day offline horizon checks, edit-versus-delete preservation without resurrection, deleted/missing parent folder recovery, storage quota error classification, 3-way structured field merge, circular hierarchy move validation, side-by-side conflict review on web and mobile, user-controlled local recovery export excluding credentials and vault plaintexts, redacted sync diagnostics, and 10 end-to-end integration tests (56/56 test files and 784/784 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-34.md"
     },
     {
       "id": "35",

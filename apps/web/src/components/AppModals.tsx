@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
-import { Button, Dialog, Feedback, ListRow, TextField } from '@daynori/ui-web';
+import { Button, Dialog, Feedback, ListRow, TextField, SyncDiagnosticsDialog, RecoveryExportDialog } from '@daynori/ui-web';
+import { exportRecoveryData, getRedactedSyncDiagnostics, type RedactedSyncDiagnostics, type RecoveryExport } from '@daynori/sync';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
@@ -15,7 +16,7 @@ import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 
 export const AppModals: React.FC = () => {
   const router = useRouter();
-  const { themeMode, activeModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
+  const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
   const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken } = useAuth();
 
@@ -57,26 +58,68 @@ export const AppModals: React.FC = () => {
     setEndDate('');
   }, [user?.id, workspaceId]);
 
-  // Clear search on modal close
-  useEffect(() => {
-    if (activeModal !== 'search') {
-      requestGenRef.current += 1;
-      if (searchAbortControllerRef.current) {
-        searchAbortControllerRef.current.abort();
+  const [syncDiagnostics, setSyncDiagnostics] = useState<RedactedSyncDiagnostics | null>(null);
+  const [recoveryExport, setRecoveryExport] = useState<RecoveryExport | null>(null);
+
+  const loadDiagnostics = React.useCallback(async () => {
+    if (!workspaceId || !user?.id) return;
+    try {
+      if (!localRepoRef.current) {
+        localRepoRef.current = new IndexedDbLocalRepository();
+        await localRepoRef.current.initialize({ workspaceId, userId: user.id });
       }
-      setSearchQuery('');
-      setSelectedType('all');
-      setSearchResults([]);
-      setCoverage(null);
-      setIsOffline(false);
-      setIsLoading(false);
-      setError(null);
-      setOffset(0);
-      setTotalCount(0);
-      setStartDate('');
-      setEndDate('');
+      const pending = await localRepoRef.current.getPendingMutations(workspaceId, user.id);
+      const conflicts = await localRepoRef.current.listConflicts(workspaceId);
+      const activeConflicts = conflicts.filter((c) => !c.resolved);
+      const rawDiag = {
+        workspaceId,
+        userId: user.id,
+        deviceId: 'web-browser',
+        isLeader: true,
+        networkStatus: typeof navigator !== 'undefined' && !navigator.onLine ? ('offline' as const) : ('online' as const),
+        cloudSyncStatus: activeConflicts.length > 0 ? ('conflict' as const) : pending.length > 0 ? ('saved_locally' as const) : ('synced' as const),
+        queueLength: pending.length,
+        inFlightCount: pending.filter((m) => m.status === 'pending').length,
+        failedCount: pending.filter((m) => m.status === 'failed').length,
+        lastSyncedAt: new Date().toISOString(),
+        lastSyncSequence: 0,
+        accessEpoch: null,
+        consecutiveFailures: 0,
+        activeConflictsCount: activeConflicts.length,
+      };
+      setSyncDiagnostics(getRedactedSyncDiagnostics(rawDiag));
+    } catch {
+      // fallback on error
     }
-  }, [activeModal]);
+  }, [workspaceId, user?.id]);
+
+  const loadRecoveryExport = React.useCallback(async () => {
+    if (!workspaceId || !user?.id) return;
+    try {
+      if (!localRepoRef.current) {
+        localRepoRef.current = new IndexedDbLocalRepository();
+        await localRepoRef.current.initialize({ workspaceId, userId: user.id });
+      }
+      const exportData = await exportRecoveryData({
+        repository: localRepoRef.current,
+        workspaceId,
+        userId: user.id,
+        deviceId: 'web-browser',
+      });
+      setRecoveryExport(exportData);
+    } catch {
+      // fallback on error
+    }
+  }, [workspaceId, user?.id]);
+
+  useEffect(() => {
+    if (activeModal === 'sync-diagnostics') {
+      void loadDiagnostics();
+    } else if (activeModal === 'recovery-export') {
+      void loadRecoveryExport();
+    }
+  }, [activeModal, loadDiagnostics, loadRecoveryExport]);
+
 
   const searchableDestinations = [
     {
@@ -1031,9 +1074,21 @@ export const AppModals: React.FC = () => {
             themeMode={themeMode}
           />
           <ListRow
-            title="❓ Help & Shortcuts"
-            subtitle="Keyboard guide and accessibility details"
-            onClick={() => navigateTo('/help')}
+            title="🔄 Sync Diagnostics"
+            subtitle="Queue status, connection health, and offline metrics"
+            onClick={() => {
+              closeModal();
+              openModal('sync-diagnostics');
+            }}
+            themeMode={themeMode}
+          />
+          <ListRow
+            title="💾 Local Recovery Export"
+            subtitle="Export offline drafts, conflicts, and pending work"
+            onClick={() => {
+              closeModal();
+              openModal('recovery-export');
+            }}
             themeMode={themeMode}
           />
         </div>
@@ -1047,6 +1102,27 @@ export const AppModals: React.FC = () => {
         isOpen={activeModal === 'onboarding' || activeModal === 'onboarding-replay'}
         onClose={closeModal}
         isReplay={activeModal === 'onboarding-replay'}
+      />
+
+      {/* 8. Phase 34 Sync Diagnostics Dialog */}
+      <SyncDiagnosticsDialog
+        isOpen={activeModal === 'sync-diagnostics'}
+        onClose={closeModal}
+        diagnostics={syncDiagnostics}
+        onRefresh={loadDiagnostics}
+        onOpenRecoveryExport={() => {
+          void loadRecoveryExport();
+          openModal('recovery-export');
+        }}
+        themeMode={themeMode}
+      />
+
+      {/* 9. Phase 34 Recovery Export Dialog */}
+      <RecoveryExportDialog
+        isOpen={activeModal === 'recovery-export'}
+        onClose={closeModal}
+        exportData={recoveryExport}
+        themeMode={themeMode}
       />
     </>
   );

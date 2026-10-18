@@ -23,6 +23,8 @@ export interface SettingsViewProps {
   timeZone?: string;
   notificationCapability?: NotificationCapabilityState | null;
   onRequestNotificationPermission?: () => Promise<void>;
+  onOpenSyncDiagnostics?: () => void;
+  onOpenRecoveryExport?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -44,6 +46,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   timeZone = 'UTC',
   notificationCapability = null,
   onRequestNotificationPermission,
+  onOpenSyncDiagnostics,
+  onOpenRecoveryExport,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -489,7 +493,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </MobileCard>
       </View>
 
-      {/* Section 7: Preserved Phase 04 Component Gallery Destination */}
+      {/* Section 7: Sync & Offline Recovery (Phase 34) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Sync & Offline Recovery
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Inspect sync queue health, active conflicts, and export uncommitted drafts or offline recovery data without exposing sensitive credentials or vault plaintexts.
+          </Text>
+          <View style={{ gap: spacing.xs }}>
+            <MobileButton
+              testID="btn-open-sync-diagnostics"
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenSyncDiagnostics}
+              accessibilityLabel="View Sync Diagnostics"
+            >
+              🔄 View Sync Diagnostics &rarr;
+            </MobileButton>
+            <MobileButton
+              testID="btn-open-recovery-export"
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenRecoveryExport}
+              accessibilityLabel="Export Recovery Drafts"
+            >
+              💾 Export Recovery Drafts &rarr;
+            </MobileButton>
+          </View>
+        </MobileCard>
+      </View>
+
+      {/* Section 8: Preserved Phase 04 Component Gallery Destination */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Review & Architecture

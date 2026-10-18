@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 34 — Conflict recovery and offline hardening — 2026-10-18
+
+- **Shared Sync Engine Hardening (`packages/sync`):**
+  - Implemented 90-day offline horizon check in `pushPending`: stale mutations older than `MAX_OFFLINE_HORIZON_MS` (90 days) are rejected from automatic replay and retained locally as recoverable failed conflicts.
+  - Hardened `pullChanges` against edit-versus-delete: when server deletes an item, offline edits are preserved as `ConflictRecord` without resurrecting the deleted item.
+  - Implemented missing/deleted parent recovery: re-parents affected entities to root (`folderId: null`) when parent folder was deleted or missing.
+  - Storage quota classification in `saveItem`: catches `QuotaExceededError` and marks item status as `error` / `needs_attention` without falsely reporting `savedOnDevice`.
+  - Snapshot bootstrap reset hardening: preserves and safely rebases pending operations and drafts across reset and cursor compaction.
+  - Minted new unique operation IDs for each conflict resolution referencing the rejected operation; never reuse rejected IDs or timestamps as winners.
+  - Implemented 3-way disjoint scalar merge for structured Task records (`mergeTaskFields`) and circular hierarchy depth validation (`validateFolderMovePolicy`).
+- **Local Recovery Export & Redacted Diagnostics (`packages/sync`, `packages/ui-web`, `packages/ui-mobile`):**
+  - Added `exportRecoveryData`: exports versioned JSON of drafts, pending mutations, conflicts, and attachment cache status, strictly stripping session tokens, passwords, credentials, capabilities, and masking vault plaintexts.
+  - Added `getRedactedSyncDiagnostics`: redacts private document bodies, filenames, search queries, user/device IDs, and endpoints while providing actionable queue, in-flight, failed, and conflict metrics.
+  - Standardized 5 product sync states: `Saved on this device`, `Syncing`, `Synced`, `Conflict`, and `Needs attention` via `formatSyncStateLabel`.
+- **Web Conflict Review & Diagnostics Interfaces (`packages/ui-web`, `apps/web`):**
+  - Implemented `ConflictReviewDialog` for accessible side-by-side / tabbed comparison of base, local, and server versions with `keep_server`, `keep_local`, and `save_copy` choices.
+  - Implemented `SyncDiagnosticsDialog` and `RecoveryExportDialog` wired to `AppModals.tsx` and `settings/page.tsx`.
+- **Mobile Conflict Review & Diagnostics Sheets (`packages/ui-mobile`, `apps/mobile`):**
+  - Implemented `MobileConflictReviewSheet`, `MobileSyncDiagnosticsSheet`, and `MobileRecoveryExportSheet` with copy/share actions.
+  - Wired sheets to `App.tsx` and `SettingsView.tsx` with Android hardware Back button integration.
+- **Automated Verification:**
+  - Added 10 integration tests in `tests/integration/phase34-conflict-recovery.test.ts` verifying concurrent text note edit conflict with `save_copy`, edit-versus-delete preservation, 90-day horizon rejection, deleted parent re-parenting, quota failure handling, 3-way task scalar field merge, conflicting scalar edit detection, circular folder move rejection, redacted diagnostics / secret exclusion, and SQLite repository transaction management.
+
 ## Phase 33 — Global authorized search and filters — 2026-10-18
 
 - **Server Search & Full-Text/Trigram Indexing (`apps/api`, `infra/supabase`):**

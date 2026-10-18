@@ -34,6 +34,7 @@ import type {
 } from './models.js';
 import { type SyncTransportPort, classifySyncError } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
+import { MAX_OFFLINE_HORIZON_MS } from './recovery.js';
 
 export interface SaveItemOptions {
   dependencyOperationIds?: string[];
@@ -791,11 +792,28 @@ export class SyncEngine {
       );
     } catch (err) {
       // Local transaction failed: cannot show as saved on device
+      const isQuota =
+        (err instanceof Error &&
+          (err.name === 'QuotaExceededError' ||
+            err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+            err.message.toLowerCase().includes('quota') ||
+            err.message.toLowerCase().includes('storage'))) ||
+        (typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: unknown }).code === 'QUOTA_EXCEEDED');
       this.itemStates.set(item.id, {
         savedOnDevice: false,
         cloudSyncStatus: 'error',
-        lastError: err instanceof Error ? err.message : String(err),
+        lastError: isQuota
+          ? 'Local storage quota exceeded. Free up device storage.'
+          : err instanceof Error
+            ? err.message
+            : String(err),
       });
+      if (isQuota) {
+        this.setOverallStatus('error');
+      }
       throw err;
     }
 
@@ -1211,9 +1229,50 @@ export class SyncEngine {
 
     // 1. Topologically sort queue respecting dependencyOperationIds
     const sortedQueue = this.topologicallySortPending(retryable);
-    const batch = sortedQueue.slice(0, 50);
+    const rawBatch = sortedQueue.slice(0, 50);
 
-    const commands: SyncCommand[] = batch.map((m) => {
+    // Filter mutations against 90-day offline horizon: reject automatic replay and retain locally as conflicts
+    const now = Date.now();
+    const validBatch: PendingMutationRecord[] = [];
+    for (const m of rawBatch) {
+      const clientTime = new Date(m.clientTimestamp).getTime();
+      if (!isNaN(clientTime) && now - clientTime > MAX_OFFLINE_HORIZON_MS) {
+        const conflictRecord: ConflictRecord = {
+          id: this.generateId(),
+          entityId: m.entityId,
+          entityType: m.entityType || 'item',
+          operationId: m.operationId,
+          workspaceId: this.namespace.workspaceId,
+          userId: this.namespace.userId,
+          localPayload: m.payload,
+          baseRevision: m.baseRevision,
+          serverRevision: 0,
+          conflictReason:
+            'Operation exceeds 90-day supported offline horizon. Review or export before retrying.',
+          detectedAt: new Date().toISOString(),
+          resolved: false,
+        };
+        this.activeConflicts.set(conflictRecord.entityId, conflictRecord);
+        this.activeConflicts.set(conflictRecord.id, conflictRecord);
+        m.status = 'failed';
+        m.lastError = conflictRecord.conflictReason;
+        await this.repository.saveConflict(conflictRecord, m);
+        this.itemStates.set(m.entityId, {
+          savedOnDevice: true,
+          cloudSyncStatus: 'conflict',
+          lastError: conflictRecord.conflictReason,
+        });
+        this.emit({ type: 'conflict_detected', conflict: conflictRecord });
+      } else {
+        validBatch.push(m);
+      }
+    }
+
+    if (validBatch.length === 0) {
+      return { pushedCount: 0 };
+    }
+
+    const commands: SyncCommand[] = validBatch.map((m) => {
       const isTask = m.entityType === 'task';
       const isCalendar = m.entityType === 'calendar_event';
       const cmdType: SyncCommandType =
@@ -1280,7 +1339,7 @@ export class SyncEngine {
 
     // 2. Transactional acknowledgment handling
     for (const result of pushResponse.data.results) {
-      const origMutation = batch.find((m) => m.operationId === result.operationId);
+      const origMutation = validBatch.find((m) => m.operationId === result.operationId);
       if (!origMutation) continue;
 
       if (result.status === 'accepted') {
@@ -1705,6 +1764,14 @@ export class SyncEngine {
               data.parentId !== null && data.parentId !== undefined ? String(data.parentId) : null;
           }
 
+          // Re-parent to root if parent folder was deleted or missing
+          if (folderId !== null) {
+            const parentFolder = await this.repository.getItemHeader(this.namespace.workspaceId, folderId);
+            if (!parentFolder || parentFolder.deletedAt !== null) {
+              folderId = null;
+            }
+          }
+
           const rank = typeof data.rank === 'string' ? data.rank : existing?.rank || '0';
           const isArchived =
             'isArchived' in data ? Boolean(data.isArchived) : (existing?.isArchived ?? false);
@@ -1736,6 +1803,43 @@ export class SyncEngine {
           let deletedAt = existing?.deletedAt ?? null;
           if (change.isTombstone) {
             deletedAt = new Date().toISOString();
+            // Edit-versus-delete detection: item was deleted on server, but edited locally while offline.
+            // Keep item deleted locally, but preserve the offline edit as a recoverable conflict!
+            const pendingForEntity = await this.getPendingForEntity(change.entityId);
+            const unconfirmedPending = pendingForEntity.filter((m) => m.status !== 'failed');
+            const firstPending = unconfirmedPending[0];
+            if (firstPending) {
+              const conflictRecord: ConflictRecord = {
+                id: this.generateId(),
+                entityId: change.entityId,
+                entityType: change.entityType || 'item',
+                operationId: firstPending.operationId,
+                workspaceId: this.namespace.workspaceId,
+                userId: this.namespace.userId,
+                localPayload: firstPending.payload,
+                baseRevision: firstPending.baseRevision,
+                serverRevision: change.revision,
+                serverState: {
+                  id: change.entityId,
+                  deletedAt: new Date().toISOString(),
+                  isTombstone: true,
+                },
+                conflictReason: 'Item was deleted on the server while being edited offline.',
+                detectedAt: new Date().toISOString(),
+                resolved: false,
+              };
+              this.activeConflicts.set(conflictRecord.entityId, conflictRecord);
+              this.activeConflicts.set(conflictRecord.id, conflictRecord);
+              firstPending.status = 'failed';
+              firstPending.lastError = conflictRecord.conflictReason;
+              await this.repository.saveConflict(conflictRecord, firstPending);
+              this.itemStates.set(change.entityId, {
+                savedOnDevice: true,
+                cloudSyncStatus: 'conflict',
+                lastError: conflictRecord.conflictReason,
+              });
+              this.emit({ type: 'conflict_detected', conflict: conflictRecord });
+            }
           } else if ('restored' in data && data.restored) {
             deletedAt = null;
           }
@@ -2115,6 +2219,16 @@ export class SyncEngine {
         this.lastSyncedAt = newCursorRecord.lastSyncedAt;
         this.accessEpoch = pullRes.data.accessEpoch;
 
+        for (const change of pullRes.data.changes) {
+          if (!this.activeConflicts.has(change.entityId)) {
+            this.itemStates.set(change.entityId, {
+              savedOnDevice: true,
+              cloudSyncStatus: 'synced',
+              lastSyncedRevision: change.revision,
+            });
+          }
+        }
+
         hasMore = pullRes.data.hasMore;
       } catch (err) {
         const classified = classifySyncError(err);
@@ -2427,6 +2541,44 @@ export class SyncEngine {
       }
     }
 
+    // Re-parent items whose parent folder is deleted or missing in snapshot
+    const activeFolderIds = new Set(
+      snapshotItems.filter((i) => i.kind === 'folder' && !i.deletedAt).map((i) => i.id)
+    );
+    for (const item of snapshotItems) {
+      if (item.folderId && !activeFolderIds.has(item.folderId)) {
+        item.folderId = null;
+      }
+      if (item.parentId && !activeFolderIds.has(item.parentId)) {
+        item.parentId = null;
+      }
+    }
+    for (const note of snapshotNotes) {
+      if (note.folderId && !activeFolderIds.has(note.folderId)) {
+        note.folderId = null;
+      }
+    }
+    for (const task of snapshotTasks) {
+      if (task.folderId && !activeFolderIds.has(task.folderId)) {
+        task.folderId = null;
+      }
+    }
+    for (const routine of snapshotRoutines) {
+      if (routine.folderId && !activeFolderIds.has(routine.folderId)) {
+        routine.folderId = null;
+      }
+    }
+    for (const j of snapshotJournalEntries) {
+      if (j.folderId && !activeFolderIds.has(j.folderId)) {
+        j.folderId = null;
+      }
+    }
+    for (const cal of snapshotCalendarEvents) {
+      if (cal.folderId && !activeFolderIds.has(cal.folderId)) {
+        cal.folderId = null;
+      }
+    }
+
     // Atomically install snapshot, replacing obsolete projections while preserving local work
     await this.repository.installBootstrapGeneration(
       snapshotItems,
@@ -2440,6 +2592,56 @@ export class SyncEngine {
       undefined,
       snapshotCalendarEvents
     );
+
+    // Rebase preserved pending mutations against snapshot state or flag edit-vs-delete conflicts
+    const snapshotItemMap = new Map(snapshotItems.map((i) => [i.id, i]));
+    for (const p of pending) {
+      if (p.status === 'failed') continue;
+      const sItem = snapshotItemMap.get(p.entityId);
+      if (sItem) {
+        if (
+          sItem.deletedAt &&
+          p.action !== 'delete' &&
+          p.command !== 'restoreItem' &&
+          p.command !== 'restoreFolder' &&
+          p.command !== 'restoreNote'
+        ) {
+          const conflictRecord: ConflictRecord = {
+            id: this.generateId(),
+            entityId: p.entityId,
+            entityType: p.entityType || 'item',
+            operationId: p.operationId,
+            workspaceId: this.namespace.workspaceId,
+            userId: this.namespace.userId,
+            localPayload: p.payload,
+            baseRevision: p.baseRevision,
+            serverRevision: sItem.serverRevision,
+            serverState: {
+              id: sItem.id,
+              deletedAt: sItem.deletedAt,
+              isTombstone: true,
+            },
+            conflictReason: 'Item was deleted on the server before snapshot bootstrap.',
+            detectedAt: new Date().toISOString(),
+            resolved: false,
+          };
+          this.activeConflicts.set(conflictRecord.entityId, conflictRecord);
+          this.activeConflicts.set(conflictRecord.id, conflictRecord);
+          p.status = 'failed';
+          p.lastError = conflictRecord.conflictReason;
+          await this.repository.saveConflict(conflictRecord, p);
+          this.itemStates.set(p.entityId, {
+            savedOnDevice: true,
+            cloudSyncStatus: 'conflict',
+            lastError: conflictRecord.conflictReason,
+          });
+          this.emit({ type: 'conflict_detected', conflict: conflictRecord });
+        } else {
+          p.baseRevision = sItem.serverRevision;
+          await this.repository.enqueueMutation(p);
+        }
+      }
+    }
 
     this.lastSyncedAt = newCursor.lastSyncedAt;
     this.accessEpoch = bootstrapRes.data.accessEpoch;
@@ -2932,6 +3134,7 @@ export class SyncEngine {
   }): Promise<JournalEntryRecord[]> {
     return this.repository.listJournalEntries(this.namespace.workspaceId, options);
   }
+
 
   // --- Auth & Account Boundary Handlers ---
 

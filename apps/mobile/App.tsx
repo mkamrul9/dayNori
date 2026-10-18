@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
-import { MobileHeader, MobileNavigationBar, type MobileTab } from '@daynori/ui-mobile';
+import { MobileHeader, MobileNavigationBar, MobileSyncDiagnosticsSheet, MobileRecoveryExportSheet, type MobileTab } from '@daynori/ui-mobile';
 import { parseDeepLinkUrl, type DeepLinkPayload } from '@daynori/contracts';
 
 import { defaultAuthAdapter } from './src/auth/authAdapter';
@@ -19,6 +19,7 @@ import { createMobileSyncEngine } from './src/data/syncAdapter.js';
 import { defaultSecureStorage } from './src/auth/secureStorage.js';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
 import type { SyncEngine } from '@daynori/sync';
+import { exportRecoveryData, getRedactedSyncDiagnostics, type RedactedSyncDiagnostics, type RecoveryExport } from '@daynori/sync';
 import { MobileOfflineFileCache } from './src/data/offlineFileCache.js';
 import { ExpoFileSystemOfflineStorageAdapter } from './src/data/expoFileSystemStorageAdapter.js';
 
@@ -92,6 +93,35 @@ export default function App() {
   const [targetJournalDate, setTargetJournalDate] = useState<string | null>(null);
 
   const palette = colors[themeMode];
+
+  // Sync Diagnostics and Recovery Export state (Phase 34)
+  const [syncDiagnostics, setSyncDiagnostics] = useState<RedactedSyncDiagnostics | null>(null);
+  const [recoveryExport, setRecoveryExport] = useState<RecoveryExport | null>(null);
+
+  const loadDiagnostics = async () => {
+    if (!syncEngine || !userNamespace) return;
+    try {
+      const diag = await syncEngine.getDiagnostics();
+      setSyncDiagnostics(getRedactedSyncDiagnostics(diag));
+    } catch {
+      // fallback
+    }
+  };
+
+  const loadRecoveryExport = async () => {
+    if (!repository || !userNamespace) return;
+    try {
+      const exportData = await exportRecoveryData({
+        repository,
+        workspaceId: userNamespace.workspaceId,
+        userId: userNamespace.userId,
+        deviceId: 'android-device',
+      });
+      setRecoveryExport(exportData);
+    } catch {
+      // fallback
+    }
+  };
 
   // 1. Subscribe to Auth Adapter changes
   useEffect(() => {
@@ -642,6 +672,14 @@ export default function App() {
             }}
             onOpenGallery={() => setActiveModal('gallery')}
             onOpenOnboarding={() => setActiveModal('onboarding-replay')}
+            onOpenSyncDiagnostics={() => {
+              void loadDiagnostics();
+              setActiveModal('sync-diagnostics');
+            }}
+            onOpenRecoveryExport={() => {
+              void loadRecoveryExport();
+              setActiveModal('recovery-export');
+            }}
             onClose={() => setActiveModal('none')}
           />
         </View>
@@ -674,6 +712,33 @@ export default function App() {
           setActiveModal('none');
           setRefreshTrigger((prev) => prev + 1);
         }}
+      />
+
+      {/* Phase 34 Sync Diagnostics Sheet */}
+      <MobileSyncDiagnosticsSheet
+        visible={activeModal === 'sync-diagnostics'}
+        onClose={() => setActiveModal('none')}
+        diagnostics={syncDiagnostics}
+        onRefresh={loadDiagnostics}
+        onSyncNow={async () => {
+          if (syncEngine) {
+            await syncEngine.syncNow();
+            await loadDiagnostics();
+          }
+        }}
+        onOpenRecoveryExport={() => {
+          void loadRecoveryExport();
+          setActiveModal('recovery-export');
+        }}
+        themeMode={themeMode}
+      />
+
+      {/* Phase 34 Recovery Export Sheet */}
+      <MobileRecoveryExportSheet
+        visible={activeModal === 'recovery-export'}
+        onClose={() => setActiveModal('none')}
+        exportData={recoveryExport}
+        themeMode={themeMode}
       />
     </SafeAreaView>
   );

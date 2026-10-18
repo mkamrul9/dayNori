@@ -20,3 +20,6 @@ export * from './StorageUsageBar.js';
 export * from './FileUploadDialog.js';
 export * from './FilePreviewDialog.js';
 export * from './QuickReferenceView.js';
+export * from './ConflictReviewDialog.js';
+export * from './SyncDiagnosticsDialog.js';
+export * from './RecoveryExportDialog.js';

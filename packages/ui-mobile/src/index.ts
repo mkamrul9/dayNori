@@ -16,3 +16,6 @@ export * from './MobileStorageUsageBar.js';
 export * from './MobileFileUploadSheet.js';
 export * from './MobileFilePreviewSheet.js';
 export * from './MobileQuickReferenceView.js';
+export * from './MobileConflictReviewSheet.js';
+export * from './MobileSyncDiagnosticsSheet.js';
+export * from './MobileRecoveryExportSheet.js';
