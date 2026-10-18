@@ -474,7 +474,9 @@ export class DaynoriWorker {
         processedAt: new Date().toISOString(),
       };
     } finally {
-      await client.query('RESET app.current_workspace_id; RESET app.current_user_id;').catch(() => {});
+      await client
+        .query('RESET app.current_workspace_id; RESET app.current_user_id;')
+        .catch(() => {});
       client.release();
     }
 
@@ -889,7 +891,8 @@ export class DaynoriWorker {
 
       if (
         ruleRes.rows.length === 0 ||
-        (expectedRuleRevision !== undefined && ruleRes.rows[0]!.rule_revision !== expectedRuleRevision) ||
+        (expectedRuleRevision !== undefined &&
+          ruleRes.rows[0]!.rule_revision !== expectedRuleRevision) ||
         ruleRes.rows[0]!.rule_revision !== instance.rule_revision
       ) {
         await client.query(
@@ -1048,7 +1051,10 @@ export class DaynoriWorker {
       }
 
       // 4. Quiet hours check
-      const profileRes = await client.query<{ preferences: Record<string, unknown>; owner_id: string }>(
+      const profileRes = await client.query<{
+        preferences: Record<string, unknown>;
+        owner_id: string;
+      }>(
         `
         SELECT p.preferences, w.owner_id
         FROM app.profiles p
@@ -1059,8 +1065,7 @@ export class DaynoriWorker {
       );
       const prefs = profileRes.rows[0]?.preferences;
       const qhConfig = prefs?.quietHours as
-        | { enabled: boolean; start: string; end: string; timezone: string }
-        | undefined;
+        { enabled: boolean; start: string; end: string; timezone: string } | undefined;
 
       if (qhConfig && qhConfig.enabled) {
         const inQuietHours = isTimeInQuietHours(new Date(), qhConfig);
@@ -1200,14 +1205,25 @@ export class DaynoriWorker {
                   VALUES ($1, $2, $3, 'push', $4, 'fcm', 'unavailable', $5, $6, 1, now(), 'No registered device or subscription')
                   ON CONFLICT DO NOTHING;
                   `,
-                  [workspaceId, instanceId, deliveryGen, recipientUserId, redacted.title, redacted.body]
+                  [
+                    workspaceId,
+                    instanceId,
+                    deliveryGen,
+                    recipientUserId,
+                    redacted.title,
+                    redacted.body,
+                  ]
                 );
               }
             }
 
             // Deliver to each mobile device
             for (const dev of devRes.rows) {
-              const devDelivRes = await client.query<{ id: string; status: string; attempt_count: number }>(
+              const devDelivRes = await client.query<{
+                id: string;
+                status: string;
+                attempt_count: number;
+              }>(
                 `SELECT id, status, attempt_count FROM app.reminder_deliveries
                  WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'push' AND recipient_device_id = $4;`,
                 [workspaceId, instanceId, deliveryGen, dev.id]
@@ -1252,7 +1268,15 @@ export class DaynoriWorker {
                     VALUES ($1, $2, $3, 'push', $4, $5, $6, 'suppressed_local_schedule', $7, 'Suppressed by device local schedule acknowledgment', 1, now())
                     ON CONFLICT DO NOTHING;
                     `,
-                    [workspaceId, instanceId, deliveryGen, recipientUserId, dev.id, dev.token_type, redacted.title]
+                    [
+                      workspaceId,
+                      instanceId,
+                      deliveryGen,
+                      recipientUserId,
+                      dev.id,
+                      dev.token_type,
+                      redacted.title,
+                    ]
                   );
                 }
               } else if (!this.pushAdapter) {
@@ -1275,7 +1299,16 @@ export class DaynoriWorker {
                     VALUES ($1, $2, $3, 'push', $4, $5, $6, 'unavailable', $7, $8, 1, now(), 'No push adapter configured')
                     ON CONFLICT DO NOTHING;
                     `,
-                    [workspaceId, instanceId, deliveryGen, recipientUserId, dev.id, dev.token_type, redacted.title, redacted.body]
+                    [
+                      workspaceId,
+                      instanceId,
+                      deliveryGen,
+                      recipientUserId,
+                      dev.id,
+                      dev.token_type,
+                      redacted.title,
+                      redacted.body,
+                    ]
                   );
                 }
               } else {
@@ -1311,7 +1344,12 @@ export class DaynoriWorker {
                      SET status = $1, provider_message_id = $2, error_message = $3,
                          attempt_count = attempt_count + 1, last_attempt_at = now()
                      WHERE id = $4;`,
-                    [sendRes.status, sendRes.providerMessageId || null, sendRes.errorMessage || null, existingDevDeliv.id]
+                    [
+                      sendRes.status,
+                      sendRes.providerMessageId || null,
+                      sendRes.errorMessage || null,
+                      existingDevDeliv.id,
+                    ]
                   );
                 } else {
                   await client.query(
@@ -1351,34 +1389,37 @@ export class DaynoriWorker {
               }
             }
 
-        // Deliver to each Web Push subscription (Phase 29)
-        for (const sub of webSubRes.rows) {
-          const subDelivRes = await client.query<{ id: string; status: string; attempt_count: number }>(
-            `SELECT id, status, attempt_count FROM app.reminder_deliveries
+            // Deliver to each Web Push subscription (Phase 29)
+            for (const sub of webSubRes.rows) {
+              const subDelivRes = await client.query<{
+                id: string;
+                status: string;
+                attempt_count: number;
+              }>(
+                `SELECT id, status, attempt_count FROM app.reminder_deliveries
              WHERE workspace_id = $1 AND instance_id = $2 AND delivery_generation = $3 AND channel = 'push' AND recipient_subscription_id = $4;`,
-            [workspaceId, instanceId, deliveryGen, sub.id]
-          );
-          const existingSubDeliv = subDelivRes.rows[0];
-          if (
-            existingSubDeliv &&
-            (existingSubDeliv.status === 'delivered' ||
-              existingSubDeliv.attempt_count >= 3)
-          ) {
-            continue;
-          }
+                [workspaceId, instanceId, deliveryGen, sub.id]
+              );
+              const existingSubDeliv = subDelivRes.rows[0];
+              if (
+                existingSubDeliv &&
+                (existingSubDeliv.status === 'delivered' || existingSubDeliv.attempt_count >= 3)
+              ) {
+                continue;
+              }
 
-          if (!this.webPushAdapter) {
-            if (existingSubDeliv) {
-              await client.query(
-                `UPDATE app.reminder_deliveries
+              if (!this.webPushAdapter) {
+                if (existingSubDeliv) {
+                  await client.query(
+                    `UPDATE app.reminder_deliveries
                  SET status = 'unavailable', error_message = 'No Web Push adapter configured',
                      attempt_count = attempt_count + 1, last_attempt_at = now()
                  WHERE id = $1;`,
-                [existingSubDeliv.id]
-              );
-            } else {
-              await client.query(
-                `
+                    [existingSubDeliv.id]
+                  );
+                } else {
+                  await client.query(
+                    `
                 INSERT INTO app.reminder_deliveries (
                   workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
                   recipient_subscription_id, provider, status, redacted_title, redacted_body, attempt_count, last_attempt_at, error_message
@@ -1386,50 +1427,63 @@ export class DaynoriWorker {
                 VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', 'unavailable', $6, $7, 1, now(), 'No Web Push adapter configured')
                 ON CONFLICT DO NOTHING;
                 `,
-                [workspaceId, instanceId, deliveryGen, recipientUserId, sub.id, redacted.title, redacted.body]
-              );
-            }
-          } else {
-            const sendRes = await this.webPushAdapter.sendWebPush({
-              recipientUserId,
-              subscription: {
-                endpoint: sub.endpoint,
-                p256dh: sub.p256dh,
-                auth: sub.auth,
-              },
-              redactedTitle: redacted.title,
-              redactedBody: redacted.body,
-              dataPayload: {
-                type: 'notification',
-                destination: 'plan',
-                itemId: targetId || '',
-                instanceId,
-                workspaceId,
-                ruleRevision: String(rule.rule_revision),
-                deliveryGeneration: String(deliveryGen),
-                targetType: (tType as string) || 'task',
-                timestamp: String(Date.now()),
-              },
-            });
+                    [
+                      workspaceId,
+                      instanceId,
+                      deliveryGen,
+                      recipientUserId,
+                      sub.id,
+                      redacted.title,
+                      redacted.body,
+                    ]
+                  );
+                }
+              } else {
+                const sendRes = await this.webPushAdapter.sendWebPush({
+                  recipientUserId,
+                  subscription: {
+                    endpoint: sub.endpoint,
+                    p256dh: sub.p256dh,
+                    auth: sub.auth,
+                  },
+                  redactedTitle: redacted.title,
+                  redactedBody: redacted.body,
+                  dataPayload: {
+                    type: 'notification',
+                    destination: 'plan',
+                    itemId: targetId || '',
+                    instanceId,
+                    workspaceId,
+                    ruleRevision: String(rule.rule_revision),
+                    deliveryGeneration: String(deliveryGen),
+                    targetType: (tType as string) || 'task',
+                    timestamp: String(Date.now()),
+                  },
+                });
 
-            if (sendRes.isSubscriptionExpired) {
-              await client.query(
-                `UPDATE app.web_push_subscriptions SET is_active = false, updated_at = now() WHERE id = $1;`,
-                [sub.id]
-              );
-            }
+                if (sendRes.isSubscriptionExpired) {
+                  await client.query(
+                    `UPDATE app.web_push_subscriptions SET is_active = false, updated_at = now() WHERE id = $1;`,
+                    [sub.id]
+                  );
+                }
 
-            if (existingSubDeliv) {
-              await client.query(
-                `UPDATE app.reminder_deliveries
+                if (existingSubDeliv) {
+                  await client.query(
+                    `UPDATE app.reminder_deliveries
                  SET status = $1, provider_message_id = $2, error_message = $3,
                      attempt_count = attempt_count + 1, last_attempt_at = now()
                  WHERE id = $4;`,
-                [sendRes.status, sendRes.providerMessageId || null, sendRes.errorMessage || null, existingSubDeliv.id]
-              );
-            } else {
-              await client.query(
-                `
+                    [
+                      sendRes.status,
+                      sendRes.providerMessageId || null,
+                      sendRes.errorMessage || null,
+                      existingSubDeliv.id,
+                    ]
+                  );
+                } else {
+                  await client.query(
+                    `
                 INSERT INTO app.reminder_deliveries (
                   workspace_id, instance_id, delivery_generation, channel, recipient_user_id,
                   recipient_subscription_id, provider, provider_message_id, status, redacted_title, redacted_body,
@@ -1438,73 +1492,75 @@ export class DaynoriWorker {
                 VALUES ($1, $2, $3, 'push', $4, $5, 'web_push', $6, $7, $8, $9, 1, now(), $10)
                 ON CONFLICT DO NOTHING;
                 `,
-                [
-                  workspaceId,
-                  instanceId,
-                  deliveryGen,
-                  recipientUserId,
-                  sub.id,
-                  sendRes.providerMessageId || null,
-                  sendRes.status,
-                  redacted.title,
-                  redacted.body,
-                  sendRes.errorMessage || null,
-                ]
-              );
-            }
+                    [
+                      workspaceId,
+                      instanceId,
+                      deliveryGen,
+                      recipientUserId,
+                      sub.id,
+                      sendRes.providerMessageId || null,
+                      sendRes.status,
+                      redacted.title,
+                      redacted.body,
+                      sendRes.errorMessage || null,
+                    ]
+                  );
+                }
 
-            // Track pending retries for Web Push
-            if (sendRes.status === 'failed' && !sendRes.isSubscriptionExpired) {
-              const currentAttempts = (existingSubDeliv?.attempt_count ?? 0) + 1;
-              if (currentAttempts < 3) {
-                hasPendingRetries = true;
-                maxAttemptCount = Math.max(maxAttemptCount, currentAttempts);
+                // Track pending retries for Web Push
+                if (sendRes.status === 'failed' && !sendRes.isSubscriptionExpired) {
+                  const currentAttempts = (existingSubDeliv?.attempt_count ?? 0) + 1;
+                  if (currentAttempts < 3) {
+                    hasPendingRetries = true;
+                    maxAttemptCount = Math.max(maxAttemptCount, currentAttempts);
+                  }
+                }
               }
             }
           }
         }
       }
-    }
-    }
 
-  // 7. Check TTL: do not retry reminders older than 24 hours
-  const isExpiredTtl = Date.now() - new Date(instance.scheduled_at).getTime() > 24 * 3600 * 1000;
+      // 7. Check TTL: do not retry reminders older than 24 hours
+      const isExpiredTtl =
+        Date.now() - new Date(instance.scheduled_at).getTime() > 24 * 3600 * 1000;
 
-  if (hasPendingRetries && !isExpiredTtl) {
-    const backoffSeconds = Math.min(300, 30 * Math.pow(2, maxAttemptCount - 1));
-    await client.query(
-      `
+      if (hasPendingRetries && !isExpiredTtl) {
+        const backoffSeconds = Math.min(300, 30 * Math.pow(2, maxAttemptCount - 1));
+        await client.query(
+          `
       INSERT INTO app.background_jobs (task_type, payload, run_at, status)
       VALUES ('reminder_delivery', $1::jsonb, now() + ($2 || ' seconds')::interval, 'pending');
       `,
-      [
-        JSON.stringify({
-          ...payload,
-          isRetry: true,
-          attempt: maxAttemptCount,
-        }),
-        backoffSeconds,
-      ]
-    );
-  }
+          [
+            JSON.stringify({
+              ...payload,
+              isRetry: true,
+              attempt: maxAttemptCount,
+            }),
+            backoffSeconds,
+          ]
+        );
+      }
 
-  // Mark instance as dispatched (idempotency prevents re-dispatching already completed dispatches)
-  await client.query(
-    `UPDATE app.reminder_instances SET status = 'dispatched', updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
-    [instanceId, workspaceId]
-  );
+      // Mark instance as dispatched (idempotency prevents re-dispatching already completed dispatches)
+      await client.query(
+        `UPDATE app.reminder_instances SET status = 'dispatched', updated_at = now() WHERE id = $1 AND workspace_id = $2;`,
+        [instanceId, workspaceId]
+      );
 
-  return {
-    jobId,
-    status: 'completed',
-    processedAt: new Date().toISOString(),
-    details: {
-      outcome: hasPendingRetries && !isExpiredTtl ? 'dispatched_with_retry_scheduled' : 'dispatched',
-      instanceId,
-      ruleId: rule.id,
-      retryScheduled: hasPendingRetries && !isExpiredTtl,
-    },
-  };
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: {
+          outcome:
+            hasPendingRetries && !isExpiredTtl ? 'dispatched_with_retry_scheduled' : 'dispatched',
+          instanceId,
+          ruleId: rule.id,
+          retryScheduled: hasPendingRetries && !isExpiredTtl,
+        },
+      };
     }
 
     // Built-in: Workspace Export Job (Phase 35)
@@ -1538,6 +1594,35 @@ export class DaynoriWorker {
           userId: targetUserId,
           includeAttachments,
           status: 'completed',
+        },
+      };
+    }
+
+    // Built-in: Storage Blob Purge Job (Phase 36)
+    if (taskType === 'blob_purge' || taskType === 'account_deletion_purge') {
+      const storagePaths = (payload?.storagePaths as string[]) || [];
+      const bucket = (payload?.bucket as string | undefined) || this.defaultBucket;
+      let purgedCount = 0;
+
+      if (this.storageService) {
+        for (const sp of storagePaths) {
+          try {
+            await this.storageService.deleteObject(bucket, sp);
+            purgedCount++;
+          } catch {
+            // best-effort cleanup
+          }
+        }
+      }
+
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: {
+          taskType,
+          purgedCount,
+          totalPaths: storagePaths.length,
         },
       };
     }

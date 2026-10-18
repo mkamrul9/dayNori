@@ -17,6 +17,7 @@ import {
   MobileRecoveryExportSheet,
   MobileConflictReviewSheet,
   MobileWorkspacePortabilitySheet,
+  MobileAccountDeletionSheet,
   type MobileExportActionResult,
   type MobileTab,
 } from '@daynori/ui-mobile';
@@ -73,7 +74,8 @@ export default function App() {
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
-  const [notificationCapability, setNotificationCapability] = useState<NotificationCapabilityState | null>(null);
+  const [notificationCapability, setNotificationCapability] =
+    useState<NotificationCapabilityState | null>(null);
 
   // Production encrypted repository and sync engine state
   const [repository, setRepository] = useState<SqliteLocalRepository | null>(null);
@@ -759,6 +761,7 @@ export default function App() {
               setActiveModal('recovery-export');
             }}
             onOpenPortability={() => setActiveModal('workspace-portability')}
+            onOpenAccountDeletion={() => setActiveModal('account-deletion')}
             onClose={() => setActiveModal('none')}
           />
         </View>
@@ -857,7 +860,9 @@ export default function App() {
         }}
         onPreviewImport={async (archiveBase64) => {
           if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
-          return await apiClient.previewWorkspaceImport(userNamespace.workspaceId, { archiveBase64 });
+          return await apiClient.previewWorkspaceImport(userNamespace.workspaceId, {
+            archiveBase64,
+          });
         }}
         onExecuteImport={async (previewId, strategy) => {
           if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
@@ -870,7 +875,12 @@ export default function App() {
           try {
             const res = await DocumentPicker.getDocumentAsync({
               copyToCacheDirectory: true,
-              type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream', '*/*'],
+              type: [
+                'application/zip',
+                'application/x-zip-compressed',
+                'application/octet-stream',
+                '*/*',
+              ],
             });
             if (res.canceled || !res.assets || res.assets.length === 0) {
               return null;
@@ -901,6 +911,26 @@ export default function App() {
           } catch (err) {
             console.error('Failed to download export:', err);
           }
+        }}
+      />
+
+      {/* Phase 36 Account Deletion Sheet */}
+      <MobileAccountDeletionSheet
+        visible={activeModal === 'account-deletion'}
+        onClose={() => setActiveModal('none')}
+        themeMode={themeMode}
+        userEmail={defaultAuthAdapter.getCurrentUser()?.email ?? undefined}
+        onRequestDeletion={async (password) => {
+          if (!apiClient) throw new Error('API client not available');
+          return await apiClient.requestAccountDeletion({ password });
+        }}
+        onConfirmDeletion={async (confirmationToken) => {
+          if (!apiClient) throw new Error('API client not available');
+          return await apiClient.confirmAccountDeletion({ confirmationToken });
+        }}
+        onSuccess={() => {
+          setActiveModal('none');
+          void defaultAuthAdapter.signOut({ createDraft, searchQuery });
         }}
       />
     </SafeAreaView>

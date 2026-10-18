@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-18",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 35 Portable export and controlled import provisional implementation delivered under explicit owner authorization and verified across zero-dependency ZIP engine, path traversal defense, zip bomb prevention, cryptographic HMAC-SHA256 reauthentication, complete workspace multi-format export, explicit vault and Google Drive exclusions, ephemeral signed download links, dry-run bounded import preview, transactional import execution with total ID remapping, duplicate resolution strategies (skip, create_copy, overwrite_if_newer), quota accounting, Web WorkspacePortabilityDialog, Mobile MobileWorkspacePortabilitySheet, and 28 integration tests (57/57 test files and 812/812 tests passing). Completion for prerequisite Phases 04–06, 09–35 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 36 (Notification preferences and quiet hours) will be considered once gates or explicit owner authorization are established.",
-  "note": "Phase 35 (Portable export and controlled import) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 36 Account deletion backup and recovery lifecycle provisional implementation delivered under explicit owner authorization and verified across reauthentication enforcement, session token revocation, device subscription invalidation, collaborative shared content reassignment, dual-layer storage purge, worker blob purge jobs, suppression ledger, disaster recovery restore drill, Google Play policy compliance web resource, Web AccountDeletionDialog, Mobile MobileAccountDeletionSheet, and 20 integration tests (58/58 test files and 842/842 tests passing). Completion for prerequisite Phases 04–06, 09–36 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 37 (Core quality and usability release gate) will be considered once gates or explicit owner authorization are established.",
+  "note": "Phase 36 (Account deletion backup and recovery lifecycle) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -218,7 +218,9 @@
     },
     {
       "id": "36",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional account deletion backup and recovery lifecycle implementation delivered under owner authorization and verified across reauthentication enforcement, session token revocation, device subscription invalidation, collaborative shared content reassignment, dual-layer storage purge, worker blob purge jobs, suppression ledger, disaster recovery restore drill, Google Play policy compliance web resource, Web AccountDeletionDialog, Mobile MobileAccountDeletionSheet, and 20 end-to-end integration tests (58/58 test files and 842/842 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-36.md"
     },
     {
       "id": "37",

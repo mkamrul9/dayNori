@@ -2,7 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
-import { Button, Card, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
+import {
+  Button,
+  Card,
+  Feedback,
+  AccountDeletionDialog,
+  type FeedbackSeverity,
+} from '@daynori/ui-web';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
@@ -33,8 +39,10 @@ export default function SettingsPage() {
     savePreferences,
     provisionPersonalWorkspace,
     openAuthModal,
+    signOut,
   } = useAuth();
 
+  const [isDeletionDialogOpen, setIsDeletionDialogOpen] = useState<boolean>(false);
   const [formTimeZone, setFormTimeZone] = useState<string>('UTC');
   const [formLocale, setFormLocale] = useState<string>('en');
   const [formWeekStart, setFormWeekStart] = useState<'monday' | 'sunday' | 'saturday'>('monday');
@@ -679,8 +687,9 @@ export default function SettingsPage() {
             Tutorial & Getting Started
           </h2>
           <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
-            Review the 3-step walkthrough introducing quick capture, task planning vs daily routines,
-            and folder organization. Replaying never duplicates starter items or removes existing data.
+            Review the 3-step walkthrough introducing quick capture, task planning vs daily
+            routines, and folder organization. Replaying never duplicates starter items or removes
+            existing data.
           </p>
 
           <Button
@@ -715,7 +724,8 @@ export default function SettingsPage() {
             Sync & Offline Recovery
           </h2>
           <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
-            Inspect sync queue health, active conflicts, and export uncommitted drafts or offline recovery data without exposing sensitive credentials or vault plaintexts.
+            Inspect sync queue health, active conflicts, and export uncommitted drafts or offline
+            recovery data without exposing sensitive credentials or vault plaintexts.
           </p>
 
           <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap' }}>
@@ -752,7 +762,9 @@ export default function SettingsPage() {
             Workspace Portability (Export & Import)
           </h2>
           <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
-            Export your entire workspace into documented open formats (JSON, Markdown, CSV, and attachments) with cryptographic verification, or safely import an archive with duplicate resolution.
+            Export your entire workspace into documented open formats (JSON, Markdown, CSV, and
+            attachments) with cryptographic verification, or safely import an archive with duplicate
+            resolution.
           </p>
 
           <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap' }}>
@@ -789,6 +801,57 @@ export default function SettingsPage() {
             themeMode={themeMode}
           />
         </Card>
+
+        {/* 11. Account Deletion & Data Erasure (Phase 36) */}
+        {isAuthenticated && (
+          <Card themeMode={themeMode} id="account-deletion">
+            <h2
+              style={{
+                margin: '0 0 4px 0',
+                fontSize: `${typography.webScale.sectionHeading}px`,
+                color: palette.status.danger,
+              }}
+            >
+              Account Deletion & Data Erasure
+            </h2>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
+              Permanently delete your Daynori account and all associated personal data across notes,
+              tasks, routines, journal entries, and private files. Requires password verification
+              and explicit confirmation.
+            </p>
+
+            <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap' }}>
+              <Button
+                variant="danger"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => setIsDeletionDialogOpen(true)}
+                id="open-account-deletion-btn"
+              >
+                🗑️ Delete Account
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        <AccountDeletionDialog
+          isOpen={isDeletionDialogOpen}
+          onClose={() => setIsDeletionDialogOpen(false)}
+          themeMode={themeMode}
+          userEmail={user?.email}
+          onRequestDeletion={async (password) => {
+            const client = createWebApiClient({ csrfToken });
+            return await client.requestAccountDeletion({ password });
+          }}
+          onConfirmDeletion={async (confirmationToken) => {
+            const client = createWebApiClient({ csrfToken });
+            return await client.confirmAccountDeletion({ confirmationToken });
+          }}
+          onSuccess={async () => {
+            await signOut();
+            window.location.href = '/';
+          }}
+        />
       </div>
     </div>
   );

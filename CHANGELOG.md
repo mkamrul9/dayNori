@@ -1,5 +1,32 @@
 # Changelog
 
+## Phase 36 — Account deletion backup and recovery lifecycle — 2026-10-18
+
+- **Shared Data Contracts & Types (`packages/contracts`):**
+  - Added deletion schemas in `packages/contracts/src/api/deletion.ts`: `RequestAccountDeletionBodySchema`, `RequestAccountDeletionResponseSchema`, `ConfirmAccountDeletionBodySchema`, `ConfirmAccountDeletionResponseSchema`, `CancelAccountDeletionBodySchema`, `CancelAccountDeletionResponseSchema`, `AccountDeletionStatusResponseSchema`, `RequestWorkspaceDeletionBodySchema`, `RequestWorkspaceDeletionResponseSchema`, `PublicDeletionRequestSubmissionSchema`, and `PublicDeletionRequestResponseSchema`.
+  - Added `account_deletion` and `workspace_deletion` purposes to `ReauthenticatePurposeSchema`.
+- **Account & Workspace Deletion Lifecycle (`apps/api`):**
+  - Implemented `DeletionService` in `apps/api/src/modules/lifecycle/deletionService.ts` supporting distinct full account deletion and single workspace deletion.
+  - Added cryptographic two-step confirmation state machine (`app.account_deletions`) with high-entropy confirmation token hashing, 24-hour cancellation deadline, and transparent retention disclosures.
+  - Added immediate token revocation (`app.revoked_tokens`) with SHA-256 session token hashing, invalidating subsequent API calls with HTTP 401 Unauthorized (`TOKEN_REVOKED`).
+  - Added subscription invalidation for Android push tokens (`app.devices`), Web Push subscriptions (`app.web_push_subscriptions`), and scheduled reminders (`app.reminder_instances`, `app.reminder_rules`).
+  - Added collaborative shared content reassignment (`created_by = w.owner_id`) preventing orphaned records when an account is deleted.
+  - Added dual-layer physical storage object purge and background worker `blob_purge` job handler in `apps/worker/src/worker.ts`.
+  - Added `app.deletion_suppression_ledger` storing 90-day content-free cryptographic tombstones to prevent data resurrection during disaster recovery restore drills.
+- **REST Endpoints & Client SDK (`apps/api`, `packages/api-client`):**
+  - Added authenticated endpoints `POST /v1/auth/account-deletion/request`, `POST /v1/auth/account-deletion/confirm`, `POST /v1/auth/account-deletion/cancel`, `GET /v1/auth/account-deletion/status`, and `POST /v1/workspaces/:workspaceId/deletion`.
+  - Added public unauthenticated endpoint `POST /v1/public/account-deletion-request` with enumeration protection and Play Policy compliance.
+  - Added corresponding SDK methods to `DaynoriApiClient`.
+- **Web & Mobile Deletion User Interfaces (`packages/ui-web`, `packages/ui-mobile`, `apps/web`, `apps/mobile`):**
+  - Implemented accessible `AccountDeletionDialog` for Web settings with password reauthentication, retention disclosure, and permanent erasure confirmation.
+  - Implemented accessible `MobileAccountDeletionSheet` for Mobile settings with Android hardware Back button integration.
+  - Implemented dedicated public web resource at `/account-deletion` providing both in-app steps and enumeration-safe email deletion request submission.
+- **Disaster Recovery Runbook & Database Migrations (`docs/engineering`, `infra/supabase`):**
+  - Authored authoritative runbook `docs/engineering/backup-and-recovery.md` documenting dual-layer backup architecture, RPO/RTO objectives, suppression ledger replay, and Google Play compliance.
+  - Migrations `00032_account_deletion_lifecycle_fks.sql`, `00033_revoked_tokens_reason.sql`, `00034_deletion_lifecycle_policies.sql`, `00035_repair_items_reassignment_policy.sql`, and `00036_repair_items_select_policy.sql`.
+- **Automated Verification:**
+  - Added 20 end-to-end integration tests in `tests/integration/phase36-deletion-recovery.test.ts` covering reauthentication enforcement, cancellation lifecycle, account erasure, token revocation, suppression ledger tombstone enforcement, distinct single workspace deletion, disaster recovery restore drill sanitization, worker blob purge jobs, and public deletion request handling (58/58 test files and 842/842 tests passing across the monorepo).
+
 ## Phase 35 — Portable export and controlled import — 2026-10-18
 
 - **Shared Data Contracts & Types (`packages/contracts`):**

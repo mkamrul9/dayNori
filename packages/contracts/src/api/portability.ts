@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const ReauthenticatePurposeSchema = z.enum([
   'protected_export',
   'account_deletion',
+  'workspace_deletion',
 ]);
 export type ReauthenticatePurpose = z.infer<typeof ReauthenticatePurposeSchema>;
 
@@ -77,11 +78,7 @@ export const CreateExportResponseSchema = z.object({
 });
 export type CreateExportResponse = z.infer<typeof CreateExportResponseSchema>;
 
-export const ImportDuplicateStrategySchema = z.enum([
-  'skip',
-  'create_copy',
-  'overwrite_if_newer',
-]);
+export const ImportDuplicateStrategySchema = z.enum(['skip', 'create_copy', 'overwrite_if_newer']);
 export type ImportDuplicateStrategy = z.infer<typeof ImportDuplicateStrategySchema>;
 
 export const ImportDuplicateItemSchema = z.object({

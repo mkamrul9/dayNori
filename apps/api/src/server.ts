@@ -30,6 +30,10 @@ import { registerReminderRoutes } from './routes/v1/reminders.js';
 import { registerKnowledgeRoutes } from './routes/v1/knowledge.js';
 import { registerSearchRoutes } from './routes/v1/search.js';
 import { registerPortabilityRoutes } from './routes/v1/portability.js';
+import {
+  registerAuthenticatedDeletionRoutes,
+  registerPublicDeletionRoutes,
+} from './routes/v1/deletion.js';
 import { registerSyncRoutes } from './modules/sync/index.js';
 import { storageTransferPlugin } from './modules/files/storageTransfer.js';
 
@@ -134,11 +138,12 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
   // 1. Unauthenticated Foundation Routes
   registerHealthRoutes(app, runtimePool, Boolean(verifier));
   registerOpenApiRoutes(app);
+  registerPublicDeletionRoutes(app, runtimePool);
   app.register(storageTransferPlugin);
 
   // 2. Authenticated Routes (/v1/workspaces and sub-resources)
   if (verifier) {
-    const authenticate = createAuthMiddleware(verifier);
+    const authenticate = createAuthMiddleware(verifier, runtimePool);
 
     app.register(async (authScope) => {
       authScope.addHook('preHandler', authenticate);
@@ -158,6 +163,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerSearchRoutes(authScope, runtimePool);
       registerPortabilityRoutes(authScope, runtimePool);
       registerSyncRoutes(authScope, runtimePool);
+      registerAuthenticatedDeletionRoutes(authScope, runtimePool);
     });
   }
 

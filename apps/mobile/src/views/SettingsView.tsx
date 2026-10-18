@@ -26,6 +26,7 @@ export interface SettingsViewProps {
   onOpenSyncDiagnostics?: () => void;
   onOpenRecoveryExport?: () => void;
   onOpenPortability?: () => void;
+  onOpenAccountDeletion?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -50,6 +51,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenSyncDiagnostics,
   onOpenRecoveryExport,
   onOpenPortability,
+  onOpenAccountDeletion,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -449,7 +451,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
               ]}
             >
-              Standard best-effort delivery. Daynori does not claim medical or exact-alarm reliability, complying with Google Play policies for organizer applications.
+              Standard best-effort delivery. Daynori does not claim medical or exact-alarm
+              reliability, complying with Google Play policies for organizer applications.
             </Text>
           </View>
 
@@ -481,7 +484,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               { color: palette.text.secondary, marginBottom: spacing.sm },
             ]}
           >
-            Review the first-use guide, customize your preferred module shortcuts, or explore starter templates:
+            Review the first-use guide, customize your preferred module shortcuts, or explore
+            starter templates:
           </Text>
           <MobileButton
             testID="btn-replay-tutorial"
@@ -507,7 +511,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               { color: palette.text.secondary, marginBottom: spacing.sm },
             ]}
           >
-            Inspect sync queue health, active conflicts, and export uncommitted drafts or offline recovery data without exposing sensitive credentials or vault plaintexts.
+            Inspect sync queue health, active conflicts, and export uncommitted drafts or offline
+            recovery data without exposing sensitive credentials or vault plaintexts.
           </Text>
           <View style={{ gap: spacing.xs }}>
             <MobileButton
@@ -544,7 +549,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               { color: palette.text.secondary, marginBottom: spacing.sm },
             ]}
           >
-            Export your workspace data into open formats (JSON, Markdown, CSV, attachments), or preview and import a verified archive.
+            Export your workspace data into open formats (JSON, Markdown, CSV, attachments), or
+            preview and import a verified archive.
           </Text>
           <MobileButton
             testID="btn-open-workspace-portability"
@@ -558,7 +564,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </MobileCard>
       </View>
 
-      {/* Section 9: Preserved Phase 04 Component Gallery Destination */}
+      {/* Section 9: Account Deletion & Data Erasure (Phase 36) */}
+      {isAuthenticated && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.status.danger }]}>
+            Account Deletion & Data Erasure
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginBottom: spacing.sm },
+              ]}
+            >
+              Permanently delete your Daynori account and erase all notes, tasks, routines, journal
+              entries, and private files. Requires password verification and explicit confirmation.
+            </Text>
+            <MobileButton
+              testID="btn-open-account-deletion"
+              variant="danger"
+              themeMode={themeMode}
+              onPress={onOpenAccountDeletion}
+              accessibilityLabel="Delete Account and Data"
+            >
+              🗑️ Delete Account &rarr;
+            </MobileButton>
+          </MobileCard>
+        </View>
+      )}
+
+      {/* Section 10: Preserved Phase 04 Component Gallery Destination */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Review & Architecture

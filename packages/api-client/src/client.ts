@@ -182,6 +182,23 @@ import {
   type ImportPreviewResponse,
   type ExecuteImportRequest,
   type ExecuteImportResponse,
+  RequestAccountDeletionResponseSchema,
+  ConfirmAccountDeletionResponseSchema,
+  CancelAccountDeletionResponseSchema,
+  AccountDeletionStatusResponseSchema,
+  RequestWorkspaceDeletionResponseSchema,
+  PublicDeletionRequestResponseSchema,
+  type RequestAccountDeletionBody,
+  type RequestAccountDeletionResponse,
+  type ConfirmAccountDeletionBody,
+  type ConfirmAccountDeletionResponse,
+  type CancelAccountDeletionBody,
+  type CancelAccountDeletionResponse,
+  type AccountDeletionStatusResponse,
+  type RequestWorkspaceDeletionBody,
+  type RequestWorkspaceDeletionResponse,
+  type PublicDeletionRequestSubmission,
+  type PublicDeletionRequestResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -2025,6 +2042,98 @@ export class DaynoriApiClient {
       options
     );
     return ExecuteImportResponseSchema.parse(raw);
+  }
+
+  // --- Phase 36: Account & Workspace Deletion Lifecycle ---
+
+  async requestAccountDeletion(
+    body: RequestAccountDeletionBody = {},
+    options?: RequestOptions
+  ): Promise<RequestAccountDeletionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/auth/account-deletion/request`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return RequestAccountDeletionResponseSchema.parse(raw);
+  }
+
+  async confirmAccountDeletion(
+    body: ConfirmAccountDeletionBody,
+    options?: RequestOptions
+  ): Promise<ConfirmAccountDeletionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/auth/account-deletion/confirm`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return ConfirmAccountDeletionResponseSchema.parse(raw);
+  }
+
+  async cancelAccountDeletion(
+    body: CancelAccountDeletionBody = {},
+    options?: RequestOptions
+  ): Promise<CancelAccountDeletionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/auth/account-deletion/cancel`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return CancelAccountDeletionResponseSchema.parse(raw);
+  }
+
+  async getAccountDeletionStatus(options?: RequestOptions): Promise<AccountDeletionStatusResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/auth/account-deletion/status`,
+      { method: 'GET' },
+      options
+    );
+    return AccountDeletionStatusResponseSchema.parse(raw);
+  }
+
+  async deleteWorkspace(
+    workspaceId: string,
+    body: RequestWorkspaceDeletionBody = {},
+    options?: RequestOptions
+  ): Promise<RequestWorkspaceDeletionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/deletion`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return RequestWorkspaceDeletionResponseSchema.parse(raw);
+  }
+
+  async submitPublicDeletionRequest(
+    body: PublicDeletionRequestSubmission,
+    options?: RequestOptions
+  ): Promise<PublicDeletionRequestResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/public/account-deletion-request`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+    return PublicDeletionRequestResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

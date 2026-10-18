@@ -18,6 +18,7 @@ import {
 import {
   issueReauthToken,
   setReauthSecretForTesting,
+  getReauthSecret,
   setReauthAuthenticator,
   type ReauthAuthenticator,
 } from '../../apps/api/src/modules/portability/reauth.js';
@@ -108,7 +109,11 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
 
     setReauthSecretForTesting('daynori-reauth-test-secret-with-sufficient-entropy-32-chars');
     class TestReauthAuthenticator implements ReauthAuthenticator {
-      async verifyPassword(params: { userId: string; email?: string; password?: string }): Promise<{ success: boolean; error?: string }> {
+      async verifyPassword(params: {
+        userId: string;
+        email?: string;
+        password?: string;
+      }): Promise<{ success: boolean; error?: string }> {
         if (!params.password) {
           return { success: false, error: 'Password is required for reauthentication' };
         }
@@ -370,8 +375,12 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
 
     it('rejects export request when reauthentication token is expired (403 Forbidden)', async () => {
       // Create manually expired reauth token (iat and exp in the past)
-      const secret = 'daynori-reauth-test-secret-with-sufficient-entropy-32-chars';
-      const sessionHash = crypto.createHash('sha256').update(tokenUserA).digest('hex').substring(0, 32);
+      const signingKey = getReauthSecret();
+      const sessionHash = crypto
+        .createHash('sha256')
+        .update(tokenUserA)
+        .digest('hex')
+        .substring(0, 32);
       const pastClaims = {
         sub: userAId,
         workspaceId: workspaceAId,
@@ -381,7 +390,7 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
         sessionHash,
       };
       const claimsB64 = Buffer.from(JSON.stringify(pastClaims), 'utf8').toString('base64url');
-      const sig = crypto.createHmac('sha256', secret).update(claimsB64).digest('base64url');
+      const sig = crypto.createHmac('sha256', signingKey).update(claimsB64).digest('base64url');
       const expiredToken = `${claimsB64}.${sig}`;
 
       await expect(
@@ -508,10 +517,10 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
 
     it('rejects download if the ephemeral link timestamp has expired', async () => {
       // Craft expired URL with valid signature for past timestamp
-      const secret = 'daynori-reauth-test-secret-with-sufficient-entropy-32-chars';
+      const signingKey = getReauthSecret();
       const expiredTime = Date.now() - 10000;
       const expiredToken = crypto
-        .createHmac('sha256', secret)
+        .createHmac('sha256', signingKey)
         .update(`${ephemeralExportId}:${workspaceAId}:${userAId}:${expiredTime}`)
         .digest('hex');
 
@@ -671,7 +680,10 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
       // Build a malicious archive with path traversal entry
       const maliciousZip = createZipArchive(
         [
-          { path: 'manifest.json', data: JSON.stringify({ schemaVersion: 1, format: 'daynori-workspace-export-v1' }) },
+          {
+            path: 'manifest.json',
+            data: JSON.stringify({ schemaVersion: 1, format: 'daynori-workspace-export-v1' }),
+          },
           { path: '../../etc/passwd', data: 'root:x:0:0:root:/root:/bin/bash' },
         ],
         { allowUnsafePathsForTesting: true }
@@ -687,7 +699,10 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
     it('rejects an archive attempting absolute filesystem paths (400 Bad Request)', async () => {
       const maliciousZip = createZipArchive(
         [
-          { path: 'manifest.json', data: JSON.stringify({ schemaVersion: 1, format: 'daynori-workspace-export-v1' }) },
+          {
+            path: 'manifest.json',
+            data: JSON.stringify({ schemaVersion: 1, format: 'daynori-workspace-export-v1' }),
+          },
           { path: '/root/exploit.sh', data: '#!/bin/sh\necho hacked' },
         ],
         { allowUnsafePathsForTesting: true }
@@ -711,15 +726,13 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
 
     it('rejects an archive that exceeds safe decompressed byte ceiling (zip bomb defense)', async () => {
       // Test the zip parser directly with a low ceiling to verify defense
-      const dummyEntries: ZipEntry[] = [
-        { path: 'file1.txt', data: Buffer.alloc(1024 * 50, 0x41) },
-      ];
+      const dummyEntries: ZipEntry[] = [{ path: 'file1.txt', data: Buffer.alloc(1024 * 50, 0x41) }];
       const zipBuf = createZipArchive(dummyEntries);
 
       // Should fail if maxTotalBytes option is exceeded
-      expect(() =>
-        parseZipArchive(zipBuf, { maxTotalBytes: 1024 * 10 })
-      ).toThrow(/ZIP_BOMB_DETECTED/);
+      expect(() => parseZipArchive(zipBuf, { maxTotalBytes: 1024 * 10 })).toThrow(
+        /ZIP_BOMB_DETECTED/
+      );
     });
 
     it('rejects an archive with duplicate or ambiguous normalized paths', () => {
@@ -760,9 +773,9 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
         { path: 'notes/huge.txt', data: Buffer.alloc(1024 * 50, 0x42) },
       ];
       const zipBuf = createZipArchive(largeEntry);
-      expect(() =>
-        parseZipArchive(zipBuf, { maxSingleEntryBytes: 1024 * 10 })
-      ).toThrow(/ARCHIVE_LIMIT_EXCEEDED/);
+      expect(() => parseZipArchive(zipBuf, { maxSingleEntryBytes: 1024 * 10 })).toThrow(
+        /ARCHIVE_LIMIT_EXCEEDED/
+      );
     });
   });
 
@@ -857,10 +870,9 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
           id: string;
           parent_id: string | null;
           name: string;
-        }>(
-          `SELECT id, parent_id, name FROM app.folders WHERE workspace_id = $1 ORDER BY name;`,
-          [workspaceBId]
-        );
+        }>(`SELECT id, parent_id, name FROM app.folders WHERE workspace_id = $1 ORDER BY name;`, [
+          workspaceBId,
+        ]);
         expect(foldersRes.rows.length).toBe(2);
 
         const parentFolder = foldersRes.rows.find((f) => f.name.includes('Work Projects'));
@@ -1033,12 +1045,8 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
       });
 
       expect(previewRes.detectedDuplicates.length).toBeGreaterThan(0);
-      expect(
-        previewRes.detectedDuplicates.some((d) => d.entityType === 'note')
-      ).toBe(true);
-      expect(
-        previewRes.detectedDuplicates.some((d) => d.entityType === 'task')
-      ).toBe(true);
+      expect(previewRes.detectedDuplicates.some((d) => d.entityType === 'note')).toBe(true);
+      expect(previewRes.detectedDuplicates.some((d) => d.entityType === 'task')).toBe(true);
     });
 
     it('strategy "skip" preserves existing records and skips duplicates', async () => {
@@ -1123,9 +1131,7 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
           `SELECT plain_text FROM app.notes WHERE workspace_id = $1;`,
           [workspaceBId]
         );
-        expect(
-          notesRes.rows.some((r) => r.plain_text.includes('আমার সোনার বাংলা'))
-        ).toBe(true);
+        expect(notesRes.rows.some((r) => r.plain_text.includes('আমার সোনার বাংলা'))).toBe(true);
       } finally {
         adminCheck.release();
       }

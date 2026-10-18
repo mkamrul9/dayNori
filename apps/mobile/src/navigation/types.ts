@@ -14,7 +14,8 @@ export type ActiveModal =
   | 'sync-diagnostics'
   | 'recovery-export'
   | 'conflict-review'
-  | 'workspace-portability';
+  | 'workspace-portability'
+  | 'account-deletion';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

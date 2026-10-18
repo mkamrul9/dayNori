@@ -112,6 +112,32 @@ export function getReauthAuthenticator(): ReauthAuthenticator {
   return activeAuthenticator;
 }
 
+export function getActiveAuthenticator(): ReauthAuthenticator {
+  return activeAuthenticator;
+}
+
+export function verifyReauthTicket(
+  token: string | undefined | null,
+  params: {
+    expectedUserId: string;
+    expectedWorkspaceId?: string;
+    expectedPurpose: ReauthenticatePurpose;
+    currentSessionToken?: string;
+  }
+): ReauthClaims | null {
+  try {
+    return assertValidReauthentication({
+      token,
+      expectedUserId: params.expectedUserId,
+      expectedWorkspaceId: params.expectedWorkspaceId,
+      expectedPurpose: params.expectedPurpose,
+      currentSessionToken: params.currentSessionToken,
+    });
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Mints an authenticated, cryptographically signed reauthentication ticket bound to
  * verified user, session, workspace, and purpose.
@@ -124,7 +150,9 @@ export function issueReauthToken(params: {
   customTtlSeconds?: number;
 }): { token: string; expiresAt: string } {
   if (!params.sessionToken || typeof params.sessionToken !== 'string') {
-    throw new Error('REAUTHENTICATION_ERROR: Active session token is mandatory to issue reauthentication proof');
+    throw new Error(
+      'REAUTHENTICATION_ERROR: Active session token is mandatory to issue reauthentication proof'
+    );
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -227,12 +255,16 @@ export function assertValidReauthentication(params: {
 
   // 5. Expiry check
   if (now >= claims.exp) {
-    throw new Error('REAUTHENTICATION_EXPIRED: Reauthentication token has expired; re-authenticate to continue');
+    throw new Error(
+      'REAUTHENTICATION_EXPIRED: Reauthentication token has expired; re-authenticate to continue'
+    );
   }
 
   // 6. Bound to userId
   if (claims.sub !== params.expectedUserId) {
-    throw new Error('REAUTHENTICATION_MISMATCH: Reauthentication token belongs to a different user identity');
+    throw new Error(
+      'REAUTHENTICATION_MISMATCH: Reauthentication token belongs to a different user identity'
+    );
   }
 
   // 7. Bound to workspaceId if specified
@@ -242,7 +274,9 @@ export function assertValidReauthentication(params: {
     claims.workspaceId !== '00000000-0000-0000-0000-000000000000' &&
     claims.workspaceId !== params.expectedWorkspaceId
   ) {
-    throw new Error('REAUTHENTICATION_MISMATCH: Reauthentication token is bound to another workspace');
+    throw new Error(
+      'REAUTHENTICATION_MISMATCH: Reauthentication token is bound to another workspace'
+    );
   }
 
   // 8. Bound to purpose
@@ -254,7 +288,9 @@ export function assertValidReauthentication(params: {
 
   // 9. Mandatory session binding
   if (!claims.sessionHash || !params.currentSessionToken) {
-    throw new Error('REAUTHENTICATION_SESSION_REQUIRED: Session binding is required to verify reauthentication');
+    throw new Error(
+      'REAUTHENTICATION_SESSION_REQUIRED: Session binding is required to verify reauthentication'
+    );
   }
 
   const currentHash = crypto
@@ -270,7 +306,9 @@ export function assertValidReauthentication(params: {
     expectedHashBuf.length !== currentHashBuf.length ||
     !crypto.timingSafeEqual(expectedHashBuf, currentHashBuf)
   ) {
-    throw new Error('REAUTHENTICATION_SESSION_MISMATCH: Reauthentication token is bound to a different session');
+    throw new Error(
+      'REAUTHENTICATION_SESSION_MISMATCH: Reauthentication token is bound to a different session'
+    );
   }
 
   return claims;
