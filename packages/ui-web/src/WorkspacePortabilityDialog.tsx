@@ -271,7 +271,11 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                 {exportResult.downloadUrl && (
                   <a
                     id="btn-download-export-link"
-                    href={exportResult.downloadUrl}
+                    href={
+                      exportResult.downloadUrl.startsWith('/v1/')
+                        ? `/api${exportResult.downloadUrl}`
+                        : exportResult.downloadUrl
+                    }
                     download
                     style={{
                       display: 'inline-flex',

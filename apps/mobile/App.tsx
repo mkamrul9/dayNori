@@ -37,6 +37,8 @@ import {
 } from '@daynori/sync';
 import { MobileOfflineFileCache } from './src/data/offlineFileCache.js';
 import { ExpoFileSystemOfflineStorageAdapter } from './src/data/expoFileSystemStorageAdapter.js';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 
 MobileOfflineFileCache.setAdapter(new ExpoFileSystemOfflineStorageAdapter());
 import type { ActiveModal, CreateDraft, LibraryFilter, PlanSubView } from './src/navigation/types';
@@ -863,6 +865,42 @@ export default function App() {
             previewId,
             duplicateStrategy: strategy,
           });
+        }}
+        onPickArchive={async () => {
+          try {
+            const res = await DocumentPicker.getDocumentAsync({
+              copyToCacheDirectory: true,
+              type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream', '*/*'],
+            });
+            if (res.canceled || !res.assets || res.assets.length === 0) {
+              return null;
+            }
+            const asset = res.assets[0];
+            if (!asset) return null;
+            const base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            return { name: asset.name, base64: base64Data };
+          } catch (err) {
+            console.error('Failed to pick document archive:', err);
+            return null;
+          }
+        }}
+        onDownloadExport={async (downloadUrl: string) => {
+          try {
+            const targetPath = `${FileSystem.documentDirectory}daynori-export-${Date.now()}.zip`;
+            const fullUrl = downloadUrl.startsWith('http') ? downloadUrl : downloadUrl;
+            const result = await FileSystem.downloadAsync(fullUrl, targetPath);
+            if (result.status === 200) {
+              await Share.share({
+                title: 'Daynori Export',
+                message: `Export saved to ${result.uri}`,
+                url: result.uri,
+              });
+            }
+          } catch (err) {
+            console.error('Failed to download export:', err);
+          }
         }}
       />
     </SafeAreaView>

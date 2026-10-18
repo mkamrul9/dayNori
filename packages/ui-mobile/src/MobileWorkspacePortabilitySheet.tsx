@@ -20,6 +20,8 @@ export interface MobileWorkspacePortabilitySheetProps {
   onExportWorkspace: (password?: string) => Promise<CreateExportResponse>;
   onPreviewImport: (archiveBase64: string) => Promise<ImportPreviewResponse>;
   onExecuteImport: (previewId: string, strategy: ImportDuplicateStrategy) => Promise<ExecuteImportResponse>;
+  onPickArchive?: () => Promise<{ name: string; base64: string } | null>;
+  onDownloadExport?: (downloadUrl: string) => Promise<void>;
 }
 
 export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilitySheetProps> = ({
@@ -31,6 +33,8 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
   onExportWorkspace,
   onPreviewImport,
   onExecuteImport,
+  onPickArchive,
+  onDownloadExport,
 }) => {
   const palette = colors[themeMode];
   const [activeTab, setActiveTab] = useState<'export' | 'import'>('export');
@@ -200,6 +204,23 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                 <Text style={[styles.expiryText, { color: palette.status.warning }]}>
                   ⏳ Ephemeral link expires: {new Date(exportResult.expiresAt).toLocaleTimeString()}
                 </Text>
+                {exportResult.downloadUrl && onDownloadExport && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <MobileButton
+                      testID="mobile-btn-save-export"
+                      variant="secondary"
+                      themeMode={themeMode}
+                      onPress={() => {
+                        if (exportResult.downloadUrl && onDownloadExport) {
+                          onDownloadExport(exportResult.downloadUrl);
+                        }
+                      }}
+                      accessibilityLabel="Download and save export archive"
+                    >
+                      💾 Save Archive to Device
+                    </MobileButton>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -242,7 +263,16 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                       setIsUploading(true);
                       setImportError(null);
                       try {
-                        const preview = await onPreviewImport('');
+                        let base64Data = '';
+                        if (onPickArchive) {
+                          const asset = await onPickArchive();
+                          if (!asset) {
+                            setIsUploading(false);
+                            return; // User canceled picker
+                          }
+                          base64Data = asset.base64;
+                        }
+                        const preview = await onPreviewImport(base64Data);
                         setImportPreview(preview);
                       } catch (err) {
                         setImportError(err instanceof Error ? err.message : String(err));

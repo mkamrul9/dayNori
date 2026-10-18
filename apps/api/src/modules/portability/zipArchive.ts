@@ -20,12 +20,22 @@ export const DEFAULT_ZIP_OPTIONS: Required<ZipArchiveOptions> = {
   maxCompressionRatio: 100,
 };
 
+const WINDOWS_RESERVED_NAMES = new Set([
+  'CON', 'PRN', 'AUX', 'NUL',
+  'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+  'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+]);
+
 /**
  * Validates that an archive relative path is safe:
  * - Reject path traversal segments (.. or /..)
  * - Reject absolute paths (/foo, \foo, C:\foo)
  * - Reject UNC network paths (\\server\share)
  * - Reject null bytes or ASCII control characters
+ * - Reject platform-specific reserved names (Windows devices: CON, NUL, AUX, COM1-9, etc.)
+ * - Reject invalid characters (<, >, :, ", |, ?, *)
+ * - Reject trailing dots and spaces on filenames
+ * - Reject excessive directory nesting
  */
 export function assertSafePath(rawPath: string): string {
   if (!rawPath || typeof rawPath !== 'string') {
@@ -53,11 +63,36 @@ export function assertSafePath(rawPath: string): string {
     throw new Error(`ARCHIVE_SECURITY_VIOLATION: Absolute path rejected: "${rawPath}"`);
   }
 
-  // Split segments and verify no traversal
+  // Reject repeated consecutive slashes
+  if (normalized.includes('//')) {
+    throw new Error(`ARCHIVE_SECURITY_VIOLATION: Repeated path separator rejected in "${rawPath}"`);
+  }
+
+  // Split segments and verify no traversal and valid names
   const segments = normalized.split('/');
+  if (segments.length > 16) {
+    throw new Error(`ARCHIVE_SECURITY_VIOLATION: Excessive directory nesting depth (${segments.length}) in "${rawPath}"`);
+  }
+
   for (const seg of segments) {
     if (seg === '..' || seg === '.') {
       throw new Error(`ARCHIVE_SECURITY_VIOLATION: Path traversal segment rejected in "${rawPath}"`);
+    }
+
+    // Trailing space or dot check (causes filesystem alias bypasses on Windows)
+    if (seg.endsWith(' ') || seg.endsWith('.')) {
+      throw new Error(`ARCHIVE_SECURITY_VIOLATION: Path segment ending with space or dot rejected: "${seg}"`);
+    }
+
+    // Disallowed filename characters (<, >, :, ", |, ?, *)
+    if (/[<>:"|?*]/.test(seg)) {
+      throw new Error(`ARCHIVE_SECURITY_VIOLATION: Segment contains illegal character in "${seg}"`);
+    }
+
+    // Windows device reserved names check
+    const baseName = (seg.split('.')[0] || '').toUpperCase();
+    if (WINDOWS_RESERVED_NAMES.has(baseName)) {
+      throw new Error(`ARCHIVE_SECURITY_VIOLATION: Platform reserved device name rejected: "${seg}"`);
     }
   }
 
@@ -214,10 +249,16 @@ export function parseZipArchive(
   }
 
   const results = new Map<string, Buffer>();
+  const normalizedPathsSeen = new Set<string>();
   let currentCdOffset = cdOffset;
   let cumulativeDecompressedBytes = 0;
+  const startTime = Date.now();
 
   for (let idx = 0; idx < totalEntries; idx++) {
+    if (Date.now() - startTime > 30000) {
+      throw new Error('ARCHIVE_TIMEOUT: Processing time exceeded 30-second safety limit');
+    }
+
     if (currentCdOffset + 46 > archiveBuffer.length) {
       throw new Error('MALFORMED_ARCHIVE: Truncated central directory header');
     }
@@ -229,6 +270,7 @@ export function parseZipArchive(
       );
     }
 
+    const flags = archiveBuffer.readUInt16LE(currentCdOffset + 8);
     const method = archiveBuffer.readUInt16LE(currentCdOffset + 10);
     const expectedCrc = archiveBuffer.readUInt32LE(currentCdOffset + 16);
     const compressedSize = archiveBuffer.readUInt32LE(currentCdOffset + 20);
@@ -238,9 +280,20 @@ export function parseZipArchive(
     const commentLen = archiveBuffer.readUInt16LE(currentCdOffset + 32);
     const localHeaderOffset = archiveBuffer.readUInt32LE(currentCdOffset + 42);
 
+    // Reject encrypted entries (bit 0 of flags)
+    if ((flags & 0x0001) !== 0) {
+      throw new Error('UNSUPPORTED_ARCHIVE_FEATURE: Encrypted ZIP entries are not permitted');
+    }
+
     if (uncompressedSize > opts.maxSingleEntryBytes) {
       throw new Error(
         `ARCHIVE_LIMIT_EXCEEDED: Entry exceeds single entry limit of ${opts.maxSingleEntryBytes} bytes`
+      );
+    }
+
+    if (cumulativeDecompressedBytes + uncompressedSize > opts.maxTotalBytes) {
+      throw new Error(
+        `ZIP_BOMB_DETECTED: Total decompressed size would exceed safety ceiling of ${opts.maxTotalBytes} bytes`
       );
     }
 
@@ -258,6 +311,13 @@ export function parseZipArchive(
 
     // Path traversal & security assert
     const safePath = assertSafePath(rawPath);
+
+    // Reject duplicate or ambiguous normalized paths
+    const normalizedKey = safePath.toLowerCase();
+    if (results.has(safePath) || normalizedPathsSeen.has(normalizedKey)) {
+      throw new Error(`ARCHIVE_SECURITY_VIOLATION: Duplicate or ambiguous normalized path in archive: "${safePath}"`);
+    }
+    normalizedPathsSeen.add(normalizedKey);
 
     // Read local file header
     if (localHeaderOffset + 30 > archiveBuffer.length) {
@@ -279,19 +339,25 @@ export function parseZipArchive(
 
     const compressedPayload = archiveBuffer.subarray(dataOffset, dataOffset + compressedSize);
 
-    // Decompress payload
+    // Decompress payload with memory-bounded limit
     let decompressed: Buffer;
     if (method === 0) {
       decompressed = compressedPayload;
     } else if (method === 8) {
-      try {
-        decompressed = zlib.inflateRawSync(compressedPayload);
-      } catch (err) {
-        throw new Error(
-          `MALFORMED_ARCHIVE: Failed to decompress "${safePath}": ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
+      if (uncompressedSize === 0) {
+        decompressed = Buffer.alloc(0);
+      } else {
+        try {
+          decompressed = zlib.inflateRawSync(compressedPayload, {
+            maxOutputLength: Math.min(uncompressedSize, opts.maxSingleEntryBytes),
+          });
+        } catch (err) {
+          throw new Error(
+            `MALFORMED_ARCHIVE: Failed to decompress "${safePath}": ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
       }
     } else {
       throw new Error(

@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Pool } from 'pg';
-import crypto from 'node:crypto';
 import {
   ReauthenticateRequestSchema,
   ReauthenticateResponseSchema,
@@ -20,10 +19,11 @@ import { AuthError } from '../../auth/jwt.js';
 import {
   issueReauthToken,
   assertValidReauthentication,
+  getReauthAuthenticator,
 } from '../../modules/portability/reauth.js';
 import {
   generateWorkspaceExport,
-  getEphemeralExport,
+  getDurableExportArchive,
 } from '../../modules/portability/exportService.js';
 import {
   validateAndPreviewImport,
@@ -31,7 +31,6 @@ import {
 } from '../../modules/portability/importService.js';
 import {
   validateResponse,
-  NotFoundError,
   ForbiddenError,
   ValidationError,
 } from '../../plugins/errorHandler.js';
@@ -54,29 +53,56 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
       throw new AuthError('User authentication is required to reauthenticate');
     }
 
-    const body = ReauthenticateRequestSchema.parse(request.body || {});
-    const workspaceId = body.sessionBinding || request.headers['x-workspace-id'] as string;
-
-    if (!workspaceId) {
-      throw new ValidationError('Workspace context (sessionBinding or x-workspace-id header) is required');
+    const currentSession = request.headers['authorization']?.replace(/^bearer\s+/i, '');
+    if (!currentSession) {
+      throw new AuthError('Active session bearer token is required for reauthentication');
     }
 
-    // Verify actor is member of the workspace
-    await withTenantContext(runtimePool, { userId: actor.userId, workspaceId }, async (client) => {
-      const res = await client.query<{ exists: boolean }>(
-        `SELECT app.user_has_workspace_role($1, 'editor') as exists;`,
-        [workspaceId]
-      );
-      if (!res.rows[0]?.exists) {
-        throw new ForbiddenError('You are not authorized for protected operations in this workspace');
-      }
+    const body = ReauthenticateRequestSchema.parse(request.body || {});
+
+    // Reauthentication requires verifying credentials (or password)
+    if (!body.password || typeof body.password !== 'string' || body.password.trim().length === 0) {
+      throw new ValidationError('Password is required for reauthentication');
+    }
+
+    // Verify credentials against authenticating provider
+    const authResult = await getReauthAuthenticator().verifyPassword({
+      userId: actor.userId,
+      email: actor.email,
+      password: body.password,
     });
 
-    // In a test environment or provider flow, we verify password if provided or confirm recent session
-    const currentSession = request.headers['authorization']?.replace(/^bearer\s+/i, '');
+    if (!authResult.success) {
+      throw new AuthError(
+        authResult.error || 'Reauthentication failed: invalid credentials',
+        'REAUTHENTICATION_FAILED',
+        401
+      );
+    }
+
+    const workspaceId = (request.headers['x-workspace-id'] as string) || body.sessionBinding;
+
+    if (body.purpose === 'protected_export') {
+      if (!workspaceId) {
+        throw new ValidationError('Workspace context (x-workspace-id header or sessionBinding) is required for protected export');
+      }
+
+      // Verify actor is editor or owner of the workspace
+      await withTenantContext(runtimePool, { userId: actor.userId, workspaceId }, async (client) => {
+        const res = await client.query<{ exists: boolean }>(
+          `SELECT app.user_has_workspace_role($1, 'editor') as exists;`,
+          [workspaceId]
+        );
+        if (!res.rows[0]?.exists) {
+          throw new ForbiddenError('You are not authorized for protected operations in this workspace');
+        }
+      });
+    }
+
+    const boundWorkspaceId = workspaceId || '00000000-0000-0000-0000-000000000000';
     const { token, expiresAt } = issueReauthToken({
       userId: actor.userId,
-      workspaceId,
+      workspaceId: boundWorkspaceId,
       purpose: body.purpose,
       sessionToken: currentSession,
     });
@@ -86,7 +112,7 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
       expiresAt,
       purpose: body.purpose,
       userId: actor.userId,
-      workspaceId,
+      workspaceId: boundWorkspaceId,
     };
 
     return reply.status(200).send(validateResponse(ReauthenticateResponseSchema, response));
@@ -113,7 +139,7 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
         );
       }
 
-      // Assert recent reauthentication
+      // Assert recent reauthentication bound to current active session
       const currentSession = request.headers['authorization']?.replace(/^bearer\s+/i, '');
       try {
         assertValidReauthentication({
@@ -133,7 +159,7 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
         runtimePool,
         { userId: actor.userId, workspaceId },
         async (client) => {
-          return generateWorkspaceExport(client, workspaceId, actor.userId, includeAttachments);
+          return generateWorkspaceExport(client, workspaceId, actor.userId, includeAttachments, currentSession);
         }
       );
 
@@ -154,41 +180,22 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
       const params = request.params as { workspaceId: string; exportId: string };
       const { workspaceId, exportId } = params;
       const query = request.query as { token?: string; expires?: string };
+      const currentSession = request.headers['authorization']?.replace(/^bearer\s+/i, '');
 
-      if (!query.token || !query.expires) {
-        throw new AuthError('Missing signed download token or expiration');
-      }
-
-      const expires = Number(query.expires);
-      if (Date.now() > expires) {
-        throw new ForbiddenError('EXPIRED_DOWNLOAD_LINK: The export download link has expired');
-      }
-
-      // Validate signature
-      const expectedToken = crypto
-        .createHmac(
-          'sha256',
-          process.env['REAUTH_SIGNING_SECRET'] || 'daynori-reauth-fallback-secret-2026'
-        )
-        .update(`${exportId}:${workspaceId}:${actor.userId}:${expires}`)
-        .digest('hex');
-
-      if (query.token !== expectedToken) {
-        throw new ForbiddenError('UNAUTHORIZED_DOWNLOAD: Invalid download token signature or cross-account reuse');
-      }
-
-      const storedExport = getEphemeralExport(exportId);
-      if (!storedExport) {
-        throw new NotFoundError('Export not found or download link has expired');
-      }
-
-      if (storedExport.workspaceId !== workspaceId) {
-        throw new ForbiddenError('Export belongs to a different workspace');
-      }
-
-      if (storedExport.userId !== actor.userId) {
-        throw new ForbiddenError('Export was generated by a different user');
-      }
+      const { archiveBuffer, fileSizeBytes } = await withTenantContext(
+        runtimePool,
+        { userId: actor.userId, workspaceId },
+        async (client) => {
+          return getDurableExportArchive(
+            client,
+            exportId,
+            actor.userId,
+            query.token,
+            query.expires,
+            currentSession
+          );
+        }
+      );
 
       reply.header('Content-Type', 'application/zip');
       reply.header(
@@ -198,9 +205,9 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
           8
         )}.zip"`
       );
-      reply.header('Content-Length', storedExport.archiveBuffer.length);
+      reply.header('Content-Length', fileSizeBytes);
 
-      return reply.status(200).send(storedExport.archiveBuffer);
+      return reply.status(200).send(archiveBuffer);
     }
   );
 
@@ -216,6 +223,7 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
       }
 
       const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+      const currentSession = request.headers['authorization']?.replace(/^bearer\s+/i, '');
 
       // Check if body is buffer or JSON with base64 data
       let archiveBuffer: Buffer;
@@ -241,7 +249,7 @@ export function registerPortabilityRoutes(app: FastifyInstance, runtimePool: Poo
         runtimePool,
         { userId: actor.userId, workspaceId },
         async (client) => {
-          return validateAndPreviewImport(client, workspaceId, actor.userId, archiveBuffer);
+          return validateAndPreviewImport(client, workspaceId, actor.userId, archiveBuffer, currentSession);
         }
       );
 

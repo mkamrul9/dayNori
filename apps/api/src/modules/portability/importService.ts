@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { PoolClient } from 'pg';
+import { z } from 'zod';
 import type {
   ExportManifest,
   ImportPreviewResponse,
@@ -8,56 +9,164 @@ import type {
   ImportDuplicateItem,
 } from '@daynori/contracts';
 import { parseZipArchive } from './zipArchive.js';
-import { getDefaultStorageProvider } from '../files/storageAdapter.js';
+import { getDefaultStorageProvider, type StorageProviderContract } from '../files/storageAdapter.js';
 import { PRIVATE_ASSETS_BUCKET } from '../files/service.js';
 import { insertChange, lockWorkspaceSyncState, updateWorkspaceSyncSeq } from '../sync/repository.js';
-import { NotFoundError, ForbiddenError, ValidationError } from '../../plugins/errorHandler.js';
+import { NotFoundError, ForbiddenError, ValidationError, ConflictError } from '../../plugins/errorHandler.js';
 
-export interface StoredImportPreview {
-  previewId: string;
-  workspaceId: string;
-  userId: string;
-  archiveBuffer: Buffer;
-  manifest: ExportManifest;
-  parsedFiles: Map<string, Buffer>;
-  detectedDuplicates: ImportDuplicateItem[];
-  requiredBinaryBytes: number;
-  availableStorageBytes: number;
-  createdAt: number;
-  expiresAt: number;
-}
-
-const ephemeralImportStore = new Map<string, StoredImportPreview>();
 export const IMPORT_PREVIEW_TTL_SECONDS = 15 * 60; // 15 minutes
 
-export function getEphemeralImportPreview(previewId: string): StoredImportPreview | undefined {
-  const item = ephemeralImportStore.get(previewId);
-  if (!item) return undefined;
-  if (Date.now() > item.expiresAt) {
-    ephemeralImportStore.delete(previewId);
-    return undefined;
-  }
-  return item;
-}
+// --- Runtime Schemas for Validating Exported Archive Records ---
 
-export function cleanupExpiredImportPreviews(): void {
-  const now = Date.now();
-  for (const [id, item] of ephemeralImportStore.entries()) {
-    if (now > item.expiresAt) {
-      ephemeralImportStore.delete(id);
+const ExportedFolderSchema = z.object({
+  id: z.string().uuid(),
+  parentId: z.string().uuid().nullable().optional(),
+  name: z.string().min(1).max(255),
+  color: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+});
+
+const ExportedTagSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(255),
+  color: z.string().nullable().optional(),
+});
+
+const ExportedSavedViewSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(255),
+  icon: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+  entityType: z.string().min(1),
+  filter: z.unknown(),
+  rank: z.union([z.number(), z.string()]).optional(),
+  isPinned: z.boolean().optional(),
+});
+
+const ExportedNoteSchema = z.object({
+  id: z.string().uuid(),
+  folderId: z.string().uuid().nullable().optional(),
+  title: z.string().min(1).max(255),
+  document: z.unknown(),
+  plainText: z.string().optional(),
+  wordCount: z.number().int().nonnegative().optional(),
+  charCount: z.number().int().nonnegative().optional(),
+  purpose: z.enum(['guide', 'cheatsheet', 'general', 'standard']).optional(),
+  isPinned: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
+  updatedAt: z.string().optional(),
+});
+
+const ExportedTaskSchema = z.object({
+  id: z.string().uuid(),
+  folderId: z.string().uuid().nullable().optional(),
+  title: z.string().min(1).max(255),
+  details: z.string().nullable().optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).optional(),
+  deadlineType: z.enum(['none', 'date', 'timed']).optional(),
+  deadlineDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  deadlineTime: z.string().nullable().optional(),
+  deadlineZone: z.string().nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+  parentId: z.string().uuid().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  updatedAt: z.string().optional(),
+});
+
+const ExportedRoutineSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(255),
+  frequency: z.enum(['daily', 'weekdays']).optional(),
+  scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  activeInterval: z.unknown().optional(),
+  targetCount: z.number().int().positive().optional(),
+  weekdays: z.array(z.number()).optional(),
+  tags: z.array(z.string()).optional(),
+  updatedAt: z.string().optional(),
+});
+
+const ExportedJournalSchema = z.object({
+  id: z.string().uuid(),
+  entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  title: z.string().nullable().optional(),
+  mood: z.string().nullable().optional(),
+  timezone: z.string().optional(),
+  document: z.unknown().optional(),
+  plainText: z.string().optional(),
+  prompts: z.unknown().optional(),
+  tags: z.array(z.string()).optional(),
+  updatedAt: z.string().optional(),
+});
+
+const ExportedCalendarSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(255),
+  details: z.string().nullable().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  isAllDay: z.boolean().optional(),
+  startAt: z.string().nullable().optional(),
+  endAt: z.string().nullable().optional(),
+  timezone: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+const ExportedFileItemSchema = z.object({
+  id: z.string().uuid(),
+  folderId: z.string().uuid().nullable().optional(),
+  fileName: z.string().min(1).max(255),
+  declaredMimeType: z.string(),
+  detectedMimeType: z.string().optional(),
+  byteSize: z.number().int().nonnegative(),
+  sha256: z.string().min(32),
+  binaryPath: z.string().nullable().optional(),
+});
+
+/**
+ * Validates that folder parent-child hierarchy has no cycles and is within safe depth.
+ */
+function assertValidFolderHierarchy(folders: Array<{ id: string; parentId?: string | null }>): void {
+  const parentMap = new Map<string, string>();
+  for (const f of folders) {
+    if (f.parentId) {
+      if (f.id === f.parentId) {
+        throw new ValidationError(`MALFORMED_IMPORT: Folder "${f.id}" cannot be its own parent`);
+      }
+      parentMap.set(f.id, f.parentId);
+    }
+  }
+
+  for (const f of folders) {
+    let current = f.id;
+    const visited = new Set<string>([current]);
+    let depth = 0;
+
+    while (parentMap.has(current)) {
+      current = parentMap.get(current)!;
+      depth++;
+      if (depth > 12) {
+        throw new ValidationError('MALFORMED_IMPORT: Folder hierarchy exceeds maximum depth limit');
+      }
+      if (visited.has(current)) {
+        throw new ValidationError(`MALFORMED_IMPORT: Circular folder hierarchy detected at "${current}"`);
+      }
+      visited.add(current);
     }
   }
 }
 
 /**
  * Validates and previews an uploaded workspace export archive without making
- * any changes to the canonical database.
+ * changes to user data. Stores archive in private storage and records durable preview session.
  */
 export async function validateAndPreviewImport(
   client: PoolClient,
   workspaceId: string,
   actorUserId: string,
-  archiveBuffer: Buffer
+  archiveBuffer: Buffer,
+  sessionToken?: string,
+  storageProvider: StorageProviderContract = getDefaultStorageProvider()
 ): Promise<ImportPreviewResponse> {
   // 1. Check actor permissions
   const roleCheck = await client.query<{ role: string }>(
@@ -68,7 +177,7 @@ export async function validateAndPreviewImport(
     throw new ForbiddenError('You do not have editor permission to import into this workspace');
   }
 
-  // 2. Parse and validate ZIP safety (zip bombs, traversal, size ceilings)
+  // 2. Parse and validate ZIP safety
   let parsedFiles: Map<string, Buffer>;
   try {
     parsedFiles = parseZipArchive(archiveBuffer);
@@ -101,250 +210,408 @@ export async function validateAndPreviewImport(
     );
   }
 
-  const warnings: string[] = [];
-
-  // Pass through manifest exclusions as informative warnings
-  for (const excl of manifest.exclusions || []) {
-    warnings.push(`${excl.category.toUpperCase()}: ${excl.reason}`);
+  // 4. Runtime Schema Validation on Records
+  // Folders
+  const foldersBuf = parsedFiles.get('metadata/folders.json');
+  if (foldersBuf) {
+    try {
+      const raw = JSON.parse(foldersBuf.toString('utf8'));
+      const parsed = z.array(ExportedFolderSchema).parse(raw);
+      assertValidFolderHierarchy(parsed);
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: metadata/folders.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
-  // 4. Verify checksums of attachment binaries present in archive
-  let requiredBinaryBytes = 0;
-  for (const [relativePath, expectedChecksum] of Object.entries(manifest.checksums || {})) {
-    const fileBytes = parsedFiles.get(relativePath);
-    if (!fileBytes) {
-      warnings.push(`ATTACHMENT_MISSING: Declared attachment "${relativePath}" is missing from archive`);
-      continue;
+  // Notes
+  const notesBuf = parsedFiles.get('notes/notes.json');
+  if (notesBuf) {
+    try {
+      const raw = JSON.parse(notesBuf.toString('utf8'));
+      z.array(ExportedNoteSchema).parse(raw);
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: notes/notes.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-    const actualChecksum = crypto.createHash('sha256').update(fileBytes).digest('hex');
-    if (actualChecksum !== expectedChecksum) {
-      throw new ValidationError(
-        `INTEGRITY_CHECK_FAILED: Checksum mismatch for binary "${relativePath}"`
-      );
-    }
-    requiredBinaryBytes += fileBytes.length;
   }
 
-  // 5. Check workspace storage quota
-  const quotaRes = await client.query<{
+  // Tasks
+  const tasksBuf = parsedFiles.get('tasks/tasks.json');
+  if (tasksBuf) {
+    try {
+      const raw = JSON.parse(tasksBuf.toString('utf8'));
+      z.array(ExportedTaskSchema).parse(raw);
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: tasks/tasks.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Routines
+  const routinesBuf = parsedFiles.get('routines/routines.json');
+  if (routinesBuf) {
+    try {
+      const raw = JSON.parse(routinesBuf.toString('utf8'));
+      z.array(ExportedRoutineSchema).parse(raw);
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: routines/routines.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Journal
+  const journalBuf = parsedFiles.get('journal/journal.json');
+  if (journalBuf) {
+    try {
+      const raw = JSON.parse(journalBuf.toString('utf8'));
+      z.array(ExportedJournalSchema).parse(raw);
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: journal/journal.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Calendar
+  const calBuf = parsedFiles.get('calendar/calendar.json');
+  if (calBuf) {
+    try {
+      const raw = JSON.parse(calBuf.toString('utf8'));
+      z.array(ExportedCalendarSchema).parse(raw);
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: calendar/calendar.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Tags & Saved Views
+  const tagsBuf = parsedFiles.get('metadata/tags.json');
+  if (tagsBuf) {
+    try {
+      z.array(ExportedTagSchema).parse(JSON.parse(tagsBuf.toString('utf8')));
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: metadata/tags.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const viewsBuf = parsedFiles.get('metadata/saved_views.json');
+  if (viewsBuf) {
+    try {
+      z.array(ExportedSavedViewSchema).parse(JSON.parse(viewsBuf.toString('utf8')));
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: metadata/saved_views.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // 5. Binary file integrity & verification
+  let totalBinaryBytes = 0;
+  const filesBuf = parsedFiles.get('attachments/files.json');
+  if (filesBuf) {
+    let filesList: z.infer<typeof ExportedFileItemSchema>[];
+    try {
+      filesList = z.array(ExportedFileItemSchema).parse(JSON.parse(filesBuf.toString('utf8')));
+    } catch (err) {
+      throw new ValidationError(`MALFORMED_IMPORT: attachments/files.json validation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    const manifestChecksums = manifest.checksums || {};
+
+    for (const f of filesList) {
+      if (f.binaryPath) {
+        const binData = parsedFiles.get(f.binaryPath);
+        if (!binData) {
+          throw new ValidationError(`MALFORMED_IMPORT: Referenced binary file missing from archive: "${f.binaryPath}"`);
+        }
+
+        // Verify checksum against actual bytes
+        const actualSha = crypto.createHash('sha256').update(binData).digest('hex');
+        if (f.sha256 && f.sha256 !== actualSha) {
+          throw new ValidationError(
+            `INTEGRITY_CHECK_FAILED: SHA-256 checksum mismatch for binary "${f.binaryPath}" (expected ${f.sha256}, calculated ${actualSha})`
+          );
+        }
+
+        const expectedManifestSha = manifestChecksums[f.binaryPath];
+        if (expectedManifestSha && expectedManifestSha !== actualSha) {
+          throw new ValidationError(
+            `INTEGRITY_CHECK_FAILED: Manifest checksum mismatch for binary "${f.binaryPath}"`
+          );
+        }
+
+        totalBinaryBytes += binData.length;
+      }
+    }
+  }
+
+  // Also verify any binary in attachments/binaries/* not in files.json
+  for (const [path, buf] of parsedFiles.entries()) {
+    if (path.startsWith('attachments/binaries/')) {
+      const sha = crypto.createHash('sha256').update(buf).digest('hex');
+      const expectedSha = manifest.checksums?.[path];
+      if (expectedSha && expectedSha !== sha) {
+        throw new ValidationError(`INTEGRITY_CHECK_FAILED: Archive binary "${path}" checksum mismatch`);
+      }
+    }
+  }
+
+  // 6. Quota verification
+  const usageRes = await client.query<{
     stored_bytes: string | number;
-    reserved_bytes: string | number;
     max_storage_bytes: string | number;
   }>(
-    `SELECT stored_bytes, reserved_bytes, max_storage_bytes
-     FROM app.workspace_storage_usage
-     WHERE workspace_id = $1;`,
+    `SELECT stored_bytes, max_storage_bytes FROM app.workspace_storage_usage WHERE workspace_id = $1;`,
     [workspaceId]
   );
+  const currentStored = usageRes.rows[0] ? Number(usageRes.rows[0].stored_bytes) : 0;
+  const maxStorage = usageRes.rows[0] ? Number(usageRes.rows[0].max_storage_bytes) : 1073741824; // 1 GiB default
+  const availableBytes = Math.max(0, maxStorage - currentStored);
 
-  const storedBytes = quotaRes.rows[0] ? Number(quotaRes.rows[0].stored_bytes) : 0;
-  const reservedBytes = quotaRes.rows[0] ? Number(quotaRes.rows[0].reserved_bytes) : 0;
-  const maxStorageBytes = quotaRes.rows[0] ? Number(quotaRes.rows[0].max_storage_bytes) : 100 * 1024 * 1024;
-  const availableStorageBytes = Math.max(0, maxStorageBytes - (storedBytes + reservedBytes));
-  const isQuotaSufficient = requiredBinaryBytes <= availableStorageBytes;
 
-  if (!isQuotaSufficient) {
-    warnings.push(
-      `STORAGE_QUOTA_EXCEEDED: Import requires ${requiredBinaryBytes} bytes, but only ${availableStorageBytes} bytes are available in workspace quota`
+
+  // 7. Duplicate Detection
+  const duplicates: ImportDuplicateItem[] = [];
+
+  if (notesBuf) {
+    const notes = JSON.parse(notesBuf.toString('utf8')) as Array<{
+      id: string;
+      title: string;
+      updatedAt?: string;
+    }>;
+    const existingNotes = await client.query<{ id: string; title: string; updated_at: Date }>(
+      `SELECT n.id, n.title, n.updated_at
+       FROM app.notes n
+       JOIN app.items i ON i.id = n.id AND i.workspace_id = n.workspace_id
+       WHERE n.workspace_id = $1 AND i.deleted_at IS NULL;`,
+      [workspaceId]
     );
-  }
+    const existingMap = new Map(existingNotes.rows.map((r) => [r.title.toLowerCase().trim(), r]));
 
-  // 6. Detect duplicates against existing target workspace items
-  const detectedDuplicates: ImportDuplicateItem[] = [];
-
-  // Existing notes
-  const notesJson = parsedFiles.get('notes/notes.json');
-  if (notesJson) {
-    try {
-      const importedNotes = JSON.parse(notesJson.toString('utf8')) as Array<{
-        id: string;
-        title: string;
-        updatedAt?: string;
-      }>;
-      const existingNotes = await client.query<{ id: string; title: string; updated_at: Date }>(
-        `SELECT n.id, n.title, n.updated_at
-         FROM app.notes n
-         JOIN app.items i ON i.id = n.id AND i.workspace_id = n.workspace_id
-         WHERE n.workspace_id = $1 AND i.deleted_at IS NULL;`,
-        [workspaceId]
-      );
-      const existingMap = new Map(existingNotes.rows.map((r) => [r.title.toLowerCase().trim(), r]));
-
-      for (const inote of importedNotes) {
-        const match = existingMap.get(inote.title.toLowerCase().trim());
-        if (match) {
-          detectedDuplicates.push({
-            entityType: 'note',
-            identifier: inote.title,
-            title: inote.title,
-            existingId: match.id,
-            importedId: inote.id,
-            existingUpdatedAt: match.updated_at.toISOString(),
-            importedUpdatedAt: inote.updatedAt,
-          });
-        }
+    for (const note of notes) {
+      const match = existingMap.get(note.title.toLowerCase().trim());
+      if (match) {
+        duplicates.push({
+          entityType: 'note',
+          identifier: note.title,
+          title: note.title,
+          importedId: note.id,
+          existingId: match.id,
+          existingUpdatedAt: match.updated_at.toISOString(),
+          importedUpdatedAt: note.updatedAt,
+        });
       }
-    } catch {
-      /* ignore parsing error if file is malformed */
     }
   }
 
-  // Existing tasks
-  const tasksJson = parsedFiles.get('tasks/tasks.json');
-  if (tasksJson) {
-    try {
-      const importedTasks = JSON.parse(tasksJson.toString('utf8')) as Array<{
-        id: string;
-        title: string;
-        updatedAt?: string;
-      }>;
-      const existingTasks = await client.query<{ id: string; title: string; updated_at: Date }>(
-        `SELECT t.id, t.title, t.updated_at
-         FROM app.tasks t
-         JOIN app.items i ON i.id = t.id AND i.workspace_id = t.workspace_id
-         WHERE t.workspace_id = $1 AND i.deleted_at IS NULL;`,
-        [workspaceId]
-      );
-      const existingMap = new Map(existingTasks.rows.map((r) => [r.title.toLowerCase().trim(), r]));
+  if (tasksBuf) {
+    const tasks = JSON.parse(tasksBuf.toString('utf8')) as Array<{
+      id: string;
+      title: string;
+      updatedAt?: string;
+    }>;
+    const existingTasks = await client.query<{ id: string; title: string; updated_at: Date }>(
+      `SELECT t.id, t.title, t.updated_at
+       FROM app.tasks t
+       JOIN app.items i ON i.id = t.id AND i.workspace_id = t.workspace_id
+       WHERE t.workspace_id = $1 AND i.deleted_at IS NULL;`,
+      [workspaceId]
+    );
+    const existingMap = new Map(existingTasks.rows.map((r) => [r.title.toLowerCase().trim(), r]));
 
-      for (const itask of importedTasks) {
-        const match = existingMap.get(itask.title.toLowerCase().trim());
-        if (match) {
-          detectedDuplicates.push({
-            entityType: 'task',
-            identifier: itask.title,
-            title: itask.title,
-            existingId: match.id,
-            importedId: itask.id,
-            existingUpdatedAt: match.updated_at.toISOString(),
-            importedUpdatedAt: itask.updatedAt,
-          });
-        }
+    for (const task of tasks) {
+      const match = existingMap.get(task.title.toLowerCase().trim());
+      if (match) {
+        duplicates.push({
+          entityType: 'task',
+          identifier: task.title,
+          title: task.title,
+          importedId: task.id,
+          existingId: match.id,
+          existingUpdatedAt: match.updated_at.toISOString(),
+          importedUpdatedAt: task.updatedAt,
+        });
       }
-    } catch {
-      /* ignore */
     }
   }
 
-  // Existing journal
-  const journalJson = parsedFiles.get('journal/journal.json');
-  if (journalJson) {
-    try {
-      const importedJournal = JSON.parse(journalJson.toString('utf8')) as Array<{
-        id: string;
-        entryDate: string;
-        title?: string;
-        updatedAt?: string;
-      }>;
-      const existingJournal = await client.query<{
-        id: string;
-        entry_date: Date | string;
-        title: string | null;
-        updated_at: Date;
-      }>(
-        `SELECT j.id, j.entry_date, j.title, j.updated_at
-         FROM app.journal_entries j
-         JOIN app.items i ON i.id = j.id AND i.workspace_id = j.workspace_id
-         WHERE j.workspace_id = $1 AND i.deleted_at IS NULL;`,
-        [workspaceId]
-      );
-      const existingDateMap = new Map(
-        existingJournal.rows.map((r) => {
-          const d = r.entry_date instanceof Date ? r.entry_date.toISOString().split('T')[0] : String(r.entry_date);
-          return [d, r];
-        })
-      );
+  if (journalBuf) {
+    const entries = JSON.parse(journalBuf.toString('utf8')) as Array<{
+      id: string;
+      entryDate: string;
+      title?: string;
+      updatedAt?: string;
+    }>;
+    const existingJournals = await client.query<{ id: string; entry_date: string | Date; updated_at: Date }>(
+      `SELECT j.id, j.entry_date::text as entry_date, j.updated_at
+       FROM app.journal_entries j
+       JOIN app.items i ON i.id = j.id AND i.workspace_id = j.workspace_id
+       WHERE j.workspace_id = $1 AND i.deleted_at IS NULL;`,
+      [workspaceId]
+    );
+    const existingMap = new Map(
+      existingJournals.rows.map((r) => [
+        typeof r.entry_date === 'string' ? r.entry_date : (r.entry_date as Date).toISOString().split('T')[0],
+        r,
+      ])
+    );
 
-      for (const ij of importedJournal) {
-        const match = existingDateMap.get(ij.entryDate);
-        if (match) {
-          detectedDuplicates.push({
-            entityType: 'journal',
-            identifier: ij.entryDate,
-            title: ij.title || `Journal ${ij.entryDate}`,
-            existingId: match.id,
-            importedId: ij.id,
-            existingUpdatedAt: match.updated_at.toISOString(),
-            importedUpdatedAt: ij.updatedAt,
-          });
-        }
+    for (const entry of entries) {
+      const match = existingMap.get(entry.entryDate);
+      if (match) {
+        duplicates.push({
+          entityType: 'journal',
+          identifier: entry.entryDate,
+          title: entry.title || `Journal: ${entry.entryDate}`,
+          importedId: entry.id,
+          existingId: match.id,
+          existingUpdatedAt: match.updated_at.toISOString(),
+          importedUpdatedAt: entry.updatedAt,
+        });
       }
-    } catch {
-      /* ignore */
     }
   }
 
-  // 7. Store in ephemeral preview cache
+  // 8. Store uploaded archive in private storage and record durable preview session
   const previewId = crypto.randomUUID();
   const now = Date.now();
-  const expiresAt = now + IMPORT_PREVIEW_TTL_SECONDS * 1000;
+  const expiresAtMs = now + IMPORT_PREVIEW_TTL_SECONDS * 1000;
+  const storagePath = `imports/${workspaceId}/${previewId}.zip`;
 
-  cleanupExpiredImportPreviews();
-  ephemeralImportStore.set(previewId, {
-    previewId,
-    workspaceId,
-    userId: actorUserId,
-    archiveBuffer,
-    manifest,
-    parsedFiles,
-    detectedDuplicates,
-    requiredBinaryBytes,
-    availableStorageBytes,
-    createdAt: now,
-    expiresAt,
+  await storageProvider.putObject(PRIVATE_ASSETS_BUCKET, storagePath, archiveBuffer, {
+    contentType: 'application/zip',
   });
+
+  const sessionHash = sessionToken
+    ? crypto.createHash('sha256').update(sessionToken).digest('hex').substring(0, 32)
+    : 'unspecified_session';
+
+  await client.query(
+    `INSERT INTO app.workspace_imports
+      (id, workspace_id, user_id, session_hash, status, storage_path, manifest, detected_duplicates, required_binary_bytes, expires_at)
+     VALUES
+      ($1, $2, $3, $4, 'preview_ready', $5, $6, $7, $8, $9);`,
+    [
+      previewId,
+      workspaceId,
+      actorUserId,
+      sessionHash,
+      storagePath,
+      JSON.stringify(manifest),
+      JSON.stringify(duplicates),
+      totalBinaryBytes,
+      new Date(expiresAtMs).toISOString(),
+    ]
+  );
+
+  const warnings: string[] = [];
+  const isQuotaSufficient = totalBinaryBytes <= availableBytes;
+  if (!isQuotaSufficient) {
+    warnings.push(
+      `STORAGE_QUOTA_EXCEEDED: Workspace storage quota is insufficient. Required: ${totalBinaryBytes} bytes, Available: ${availableBytes} bytes`
+    );
+  }
 
   return {
     previewId,
     manifestSummary: manifest.summary,
-    detectedDuplicates,
+    detectedDuplicates: duplicates,
     availableDuplicateStrategies: ['skip', 'create_copy', 'overwrite_if_newer'],
     storageQuota: {
-      requiredBytes: requiredBinaryBytes,
-      availableBytes: availableStorageBytes,
+      requiredBytes: totalBinaryBytes,
+      availableBytes,
       isQuotaSufficient,
     },
     warnings,
-    isValid: true,
-    expiresAt: new Date(expiresAt).toISOString(),
+    isValid: isQuotaSufficient,
+    expiresAt: new Date(expiresAtMs).toISOString(),
   };
 }
 
 /**
- * Executes a controlled, bounded import using the confirmed preview and
- * duplicate resolution strategy. All operations run transactionally.
+ * Executes a confirmed workspace import with total ID remapping, duplicate resolution strategies,
+ * atomic storage quota reservation, and durable sync change feed records.
  */
 export async function executeConfirmedImport(
   client: PoolClient,
   workspaceId: string,
   actorUserId: string,
   previewId: string,
-  duplicateStrategy: ImportDuplicateStrategy
+  duplicateStrategy: ImportDuplicateStrategy,
+  storageProvider: StorageProviderContract = getDefaultStorageProvider()
 ): Promise<ExecuteImportResponse> {
-  const preview = getEphemeralImportPreview(previewId);
-  if (!preview) {
-    throw new NotFoundError(
-      'IMPORT_PREVIEW_EXPIRED: The import preview has expired or is invalid. Please upload the archive again to preview.'
-    );
+  // 1. Fetch import session with row lock
+  const res = await client.query<{
+    id: string;
+    workspace_id: string;
+    user_id: string;
+    status: string;
+    storage_path: string;
+    manifest: ExportManifest;
+    detected_duplicates: ImportDuplicateItem[];
+    required_binary_bytes: string | number;
+    execution_result?: ExecuteImportResponse;
+    expires_at: Date;
+  }>(
+    `SELECT id, workspace_id, user_id, status, storage_path, manifest, detected_duplicates, required_binary_bytes, execution_result, expires_at
+     FROM app.workspace_imports
+     WHERE id = $1 AND workspace_id = $2
+     FOR UPDATE;`,
+    [previewId, workspaceId]
+  );
+
+  if (!res.rows[0]) {
+    throw new NotFoundError('Import preview session not found');
   }
 
-  if (preview.workspaceId !== workspaceId) {
-    throw new ForbiddenError('Import preview is bound to a different workspace');
+  const importRecord = res.rows[0];
+
+  // Idempotency: return existing result on retry
+  if (importRecord.status === 'completed' && importRecord.execution_result) {
+    return importRecord.execution_result;
   }
 
-  if (preview.userId !== actorUserId) {
+  if (importRecord.status === 'executing') {
+    throw new ConflictError('Import is currently executing; please await completion');
+  }
+
+  if (importRecord.status !== 'preview_ready') {
+    throw new ValidationError(`Import session cannot be executed from state "${importRecord.status}"`);
+  }
+
+  if (Date.now() > importRecord.expires_at.getTime()) {
+    throw new ValidationError('Import preview has expired. Please upload the archive again.');
+  }
+
+  if (importRecord.user_id !== actorUserId) {
     throw new ForbiddenError('Import preview belongs to a different user identity');
   }
 
-  // Check quota enforcement
-  if (preview.requiredBinaryBytes > preview.availableStorageBytes) {
-    throw new ValidationError(
-      `STORAGE_QUOTA_EXCEEDED: Cannot execute import: required ${preview.requiredBinaryBytes} bytes exceeds available quota of ${preview.availableStorageBytes} bytes`
+  // 2. Mark status = 'executing'
+  await client.query(
+    `UPDATE app.workspace_imports SET status = 'executing', updated_at = now() WHERE id = $1;`,
+    [previewId]
+  );
+
+  // 3. Atomically check and reserve storage quota
+  const requiredBytes = Number(importRecord.required_binary_bytes);
+  if (requiredBytes > 0) {
+    const quotaRes = await client.query<{
+      stored_bytes: string | number;
+      max_storage_bytes: string | number;
+    }>(
+      `SELECT stored_bytes, max_storage_bytes FROM app.workspace_storage_usage WHERE workspace_id = $1 FOR UPDATE;`,
+      [workspaceId]
     );
+    const currentStored = quotaRes.rows[0] ? Number(quotaRes.rows[0].stored_bytes) : 0;
+    const maxStorage = quotaRes.rows[0] ? Number(quotaRes.rows[0].max_storage_bytes) : 1073741824;
+    if (currentStored + requiredBytes > maxStorage) {
+      throw new ValidationError(
+        `STORAGE_QUOTA_EXCEEDED: Cannot execute import: required ${requiredBytes} bytes exceeds storage quota`
+      );
+    }
   }
 
-  const { parsedFiles, detectedDuplicates } = preview;
-  const duplicateMap = new Map(detectedDuplicates.map((d) => [d.importedId, d]));
+  // 4. Load archive from storage
+  const archiveBuffer = await storageProvider.getObject(PRIVATE_ASSETS_BUCKET, importRecord.storage_path);
+  if (!archiveBuffer) {
+    throw new NotFoundError('Import archive payload missing from storage');
+  }
+
+  const parsedFiles = parseZipArchive(archiveBuffer);
+  const duplicateMap = new Map((importRecord.detected_duplicates || []).map((d) => [d.importedId, d]));
 
   // ID Remapping dictionary: maps original exported ID -> newly minted UUID
   const idMap = new Map<string, string>();
@@ -371,7 +638,14 @@ export async function executeConfirmedImport(
   let copiedCounts = 0;
   let overwrittenCounts = 0;
 
-  // 1. Folders
+  // Track created entities for change feed
+  const createdChanges: Array<{
+    entityType: string;
+    entityId: string;
+    action: 'created' | 'updated';
+  }> = [];
+
+  // --- 1. Folders ---
   const foldersJson = parsedFiles.get('metadata/folders.json');
   if (foldersJson) {
     const folders = JSON.parse(foldersJson.toString('utf8')) as Array<{
@@ -382,19 +656,14 @@ export async function executeConfirmedImport(
       icon: string | null;
     }>;
 
-    // Pass 1: Insert all folder items without parents to prevent foreign-key ordering issues
     for (const f of folders) {
       const newFolderId = resolveId(f.id)!;
-
-      // Create base item
       await client.query(
         `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
          VALUES ($1, $2, NULL, 'folder', $3, $3, 'standard')
          ON CONFLICT (workspace_id, id) DO NOTHING;`,
         [newFolderId, workspaceId, actorUserId]
       );
-
-      // Create folder record
       await client.query(
         `INSERT INTO app.folders (id, workspace_id, parent_id, name, color, icon)
          VALUES ($1, $2, NULL, $3, $4, $5)
@@ -402,26 +671,26 @@ export async function executeConfirmedImport(
         [newFolderId, workspaceId, f.name, f.color, f.icon]
       );
       importedCounts.folders++;
+      createdChanges.push({ entityType: 'folder', entityId: newFolderId, action: 'created' });
     }
 
-    // Pass 2: Connect parent folder hierarchies
     for (const f of folders) {
       if (f.parentId) {
         const newFolderId = resolveId(f.id)!;
         const newParentId = resolveId(f.parentId);
         await client.query(
-          `UPDATE app.items SET folder_id = $1 WHERE workspace_id = $2 AND id = $3;`,
-          [newParentId, workspaceId, newFolderId]
+          `UPDATE app.folders SET parent_id = $1 WHERE id = $2 AND workspace_id = $3;`,
+          [newParentId, newFolderId, workspaceId]
         );
         await client.query(
-          `UPDATE app.folders SET parent_id = $1 WHERE workspace_id = $2 AND id = $3;`,
-          [newParentId, workspaceId, newFolderId]
+          `UPDATE app.items SET folder_id = $1 WHERE id = $2 AND workspace_id = $3;`,
+          [newParentId, newFolderId, workspaceId]
         );
       }
     }
   }
 
-  // 2. Tags
+  // --- 2. Tags ---
   const tagsJson = parsedFiles.get('metadata/tags.json');
   if (tagsJson) {
     const tags = JSON.parse(tagsJson.toString('utf8')) as Array<{
@@ -430,16 +699,52 @@ export async function executeConfirmedImport(
       color: string | null;
     }>;
     for (const t of tags) {
+      const newTagId = resolveId(t.id)!;
       await client.query(
         `INSERT INTO app.tags (id, workspace_id, name, color, created_by)
          VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT DO NOTHING;`,
-        [crypto.randomUUID(), workspaceId, t.name, t.color, actorUserId]
+         ON CONFLICT (workspace_id, lower(name)) DO NOTHING;`,
+        [newTagId, workspaceId, t.name, t.color, actorUserId]
       );
     }
   }
 
-  // 3. Notes
+  // --- 3. Saved Views ---
+  const viewsJson = parsedFiles.get('metadata/saved_views.json');
+  if (viewsJson) {
+    const views = JSON.parse(viewsJson.toString('utf8')) as Array<{
+      id: string;
+      name: string;
+      icon: string | null;
+      color: string | null;
+      entityType: string;
+      filter: unknown;
+      rank?: number;
+      isPinned?: boolean;
+    }>;
+    for (const v of views) {
+      const newViewId = resolveId(v.id)!;
+      await client.query(
+        `INSERT INTO app.saved_views (id, workspace_id, user_id, name, icon, color, entity_type, filter, rank, is_pinned)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO NOTHING;`,
+        [
+          newViewId,
+          workspaceId,
+          actorUserId,
+          v.name,
+          v.icon,
+          v.color,
+          v.entityType,
+          JSON.stringify(v.filter || {}),
+          v.rank || 0,
+          Boolean(v.isPinned),
+        ]
+      );
+    }
+  }
+
+  // --- 4. Notes (With Purpose Preserved!) ---
   const notesJson = parsedFiles.get('notes/notes.json');
   if (notesJson) {
     const notes = JSON.parse(notesJson.toString('utf8')) as Array<{
@@ -448,80 +753,94 @@ export async function executeConfirmedImport(
       title: string;
       document: unknown;
       plainText: string;
-      wordCount?: number;
-      charCount?: number;
+      wordCount: number;
+      charCount: number;
+      purpose?: string;
       isPinned?: boolean;
       isArchived?: boolean;
-      purpose?: string;
       updatedAt?: string;
     }>;
 
     for (const n of notes) {
       const isDup = duplicateMap.get(n.id);
+      let targetNoteId = resolveId(n.id)!;
+      let targetTitle = n.title;
+      let isOverwrite = false;
+
       if (isDup) {
         if (duplicateStrategy === 'skip') {
           skippedCounts++;
+          idMap.set(n.id, isDup.existingId); // Map skipped item to existing target ID!
           continue;
         } else if (duplicateStrategy === 'overwrite_if_newer') {
           const importedDate = n.updatedAt ? new Date(n.updatedAt).getTime() : 0;
           const existingDate = isDup.existingUpdatedAt ? new Date(isDup.existingUpdatedAt).getTime() : 0;
           if (importedDate > existingDate) {
-            // Overwrite existing note
-            await client.query(
-              `UPDATE app.notes
-               SET title = $1, document = $2, plain_text = $3, word_count = $4, char_count = $5, updated_at = now()
-               WHERE id = $6 AND workspace_id = $7;`,
-              [
-                n.title,
-                JSON.stringify(n.document || {}),
-                n.plainText || '',
-                n.wordCount || 0,
-                n.charCount || 0,
-                isDup.existingId,
-                workspaceId,
-              ]
-            );
+            targetNoteId = isDup.existingId;
+            idMap.set(n.id, isDup.existingId);
+            isOverwrite = true;
             overwrittenCounts++;
-            continue;
           } else {
             skippedCounts++;
+            idMap.set(n.id, isDup.existingId);
             continue;
           }
         } else if (duplicateStrategy === 'create_copy') {
-          n.title = `${n.title} (Copy)`;
+          targetTitle = `${n.title} (Copy)`;
           copiedCounts++;
         }
       }
 
-      const newNoteId = resolveId(n.id)!;
-      const targetFolderId = n.folderId ? resolveId(n.folderId) : null;
+      const targetFolderId = resolveId(n.folderId);
+      const notePurpose = n.purpose || 'general';
 
-      await client.query(
-        `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, is_pinned, is_archived, security_scope)
-         VALUES ($1, $2, $3, 'note', $4, $4, $5, $6, 'standard')
-         ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [newNoteId, workspaceId, targetFolderId, actorUserId, Boolean(n.isPinned), Boolean(n.isArchived)]
-      );
+      if (isOverwrite) {
+        await client.query(
+          `UPDATE app.notes
+           SET title = $1, document = $2, plain_text = $3, word_count = $4, char_count = $5, purpose = $6, updated_at = now()
+           WHERE id = $7 AND workspace_id = $8;`,
+          [
+            targetTitle,
+            JSON.stringify(n.document || {}),
+            n.plainText || '',
+            n.wordCount || 0,
+            n.charCount || 0,
+            notePurpose,
+            targetNoteId,
+            workspaceId,
+          ]
+        );
+        createdChanges.push({ entityType: 'note', entityId: targetNoteId, action: 'updated' });
+      } else {
+        await client.query(
+          `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, is_pinned, is_archived, security_scope)
+           VALUES ($1, $2, $3, 'note', $4, $4, $5, $6, 'standard')
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [targetNoteId, workspaceId, targetFolderId, actorUserId, Boolean(n.isPinned), Boolean(n.isArchived)]
+        );
 
-      await client.query(
-        `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [
-          newNoteId,
-          workspaceId,
-          n.title,
-          JSON.stringify(n.document || {}),
-          n.plainText || '',
-          n.wordCount || 0,
-          n.charCount || 0,
-        ]
-      );
-      importedCounts.notes++;
+        await client.query(
+          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count, purpose)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [
+            targetNoteId,
+            workspaceId,
+            targetTitle,
+            JSON.stringify(n.document || {}),
+            n.plainText || '',
+            n.wordCount || 0,
+            n.charCount || 0,
+            notePurpose,
+          ]
+        );
+        importedCounts.notes++;
+        createdChanges.push({ entityType: 'note', entityId: targetNoteId, action: 'created' });
+      }
     }
   }
 
-  // 4. Tasks
+  // --- 5. Tasks ---
   const tasksJson = parsedFiles.get('tasks/tasks.json');
   if (tasksJson) {
     const tasks = JSON.parse(tasksJson.toString('utf8')) as Array<{
@@ -543,150 +862,151 @@ export async function executeConfirmedImport(
 
     for (const t of tasks) {
       const isDup = duplicateMap.get(t.id);
+      let targetTaskId = resolveId(t.id)!;
+      let targetTitle = t.title;
+      let isOverwrite = false;
+
       if (isDup) {
         if (duplicateStrategy === 'skip') {
           skippedCounts++;
+          idMap.set(t.id, isDup.existingId);
           continue;
         } else if (duplicateStrategy === 'overwrite_if_newer') {
           const importedDate = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
           const existingDate = isDup.existingUpdatedAt ? new Date(isDup.existingUpdatedAt).getTime() : 0;
           if (importedDate > existingDate) {
-            await client.query(
-              `UPDATE app.tasks
-               SET title = $1, details = $2, priority = $3, status = $4, deadline_type = $5,
-                   deadline_date = $6, deadline_time = $7, deadline_zone = $8, completed_at = $9, updated_at = now()
-               WHERE id = $10 AND workspace_id = $11;`,
-              [
-                t.title,
-                t.details,
-                t.priority || 'normal',
-                t.status || 'todo',
-                t.deadlineType || 'none',
-                t.deadlineDate,
-                t.deadlineTime,
-                t.deadlineZone,
-                t.completedAt,
-                isDup.existingId,
-                workspaceId,
-              ]
-            );
+            targetTaskId = isDup.existingId;
+            idMap.set(t.id, isDup.existingId);
+            isOverwrite = true;
             overwrittenCounts++;
-            continue;
           } else {
             skippedCounts++;
+            idMap.set(t.id, isDup.existingId);
             continue;
           }
         } else if (duplicateStrategy === 'create_copy') {
-          t.title = `${t.title} (Copy)`;
+          targetTitle = `${t.title} (Copy)`;
           copiedCounts++;
         }
       }
 
-      const newTaskId = resolveId(t.id)!;
-      const targetFolderId = t.folderId ? resolveId(t.folderId) : null;
+      const targetFolderId = resolveId(t.folderId);
 
-      await client.query(
-        `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
-         VALUES ($1, $2, $3, 'todo', $4, $4, 'standard')
-         ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [newTaskId, workspaceId, targetFolderId, actorUserId]
-      );
+      if (isOverwrite) {
+        await client.query(
+          `UPDATE app.tasks
+           SET title = $1, details = $2, priority = $3, status = $4, deadline_type = $5,
+               deadline_date = $6, deadline_time = $7, deadline_zone = $8, completed_at = $9, updated_at = now()
+           WHERE id = $10 AND workspace_id = $11;`,
+          [
+            targetTitle,
+            t.details,
+            t.priority || 'normal',
+            t.status || 'todo',
+            t.deadlineType || 'none',
+            t.deadlineDate,
+            t.deadlineTime,
+            t.deadlineZone,
+            t.completedAt,
+            targetTaskId,
+            workspaceId,
+          ]
+        );
+        createdChanges.push({ entityType: 'task', entityId: targetTaskId, action: 'updated' });
+      } else {
+        await client.query(
+          `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
+           VALUES ($1, $2, $3, 'task', $4, $4, 'standard')
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [targetTaskId, workspaceId, targetFolderId, actorUserId]
+        );
 
-      await client.query(
-        `INSERT INTO app.tasks (id, workspace_id, title, details, priority, status, deadline_type, deadline_date, deadline_time, deadline_zone, completed_at, parent_id, tags)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, $12)
-         ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [
-          newTaskId,
-          workspaceId,
-          t.title,
-          t.details,
-          t.priority || 'normal',
-          t.status || 'todo',
-          t.deadlineType || 'none',
-          t.deadlineDate,
-          t.deadlineTime,
-          t.deadlineZone,
-          t.completedAt,
-          t.tags || [],
-        ]
-      );
-      importedCounts.tasks++;
+        await client.query(
+          `INSERT INTO app.tasks (id, workspace_id, title, details, priority, status, deadline_type, deadline_date, deadline_time, deadline_zone, completed_at, parent_id, tags)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, $12)
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [
+            targetTaskId,
+            workspaceId,
+            targetTitle,
+            t.details,
+            t.priority || 'normal',
+            t.status || 'todo',
+            t.deadlineType || 'none',
+            t.deadlineDate,
+            t.deadlineTime,
+            t.deadlineZone,
+            t.completedAt,
+            t.tags || [],
+          ]
+        );
+        importedCounts.tasks++;
+        createdChanges.push({ entityType: 'task', entityId: targetTaskId, action: 'created' });
+      }
     }
 
-    // Connect parent task hierarchies
+    // Pass 2: Connect parent task hierarchies
     for (const t of tasks) {
       if (t.parentId) {
-        const newTaskId = resolveId(t.id)!;
-        const targetParentId = resolveId(t.parentId);
-        await client.query(
-          `UPDATE app.tasks SET parent_id = $1 WHERE workspace_id = $2 AND id = $3;`,
-          [targetParentId, workspaceId, newTaskId]
-        );
+        const targetTaskId = idMap.get(t.id);
+        const targetParentId = idMap.get(t.parentId);
+        if (targetTaskId && targetParentId) {
+          await client.query(
+            `UPDATE app.tasks SET parent_id = $1 WHERE id = $2 AND workspace_id = $3;`,
+            [targetParentId, targetTaskId, workspaceId]
+          );
+        }
       }
     }
   }
 
-  // 5. Routines
+  // --- 6. Routines ---
   const routinesJson = parsedFiles.get('routines/routines.json');
   if (routinesJson) {
     const routines = JSON.parse(routinesJson.toString('utf8')) as Array<{
       id: string;
-      folderId: string | null;
       title: string;
-      details: string | null;
       frequency: string;
+      scheduledTime?: string;
+      timezone?: string;
       weekdays: number[];
-      timezone: string;
-      scheduledTime: string | null;
-      activeFrom: string;
-      activeTo: string | null;
-      isPaused: boolean;
-      isArchived: boolean;
     }>;
 
     for (const r of routines) {
       const newRoutineId = resolveId(r.id)!;
-      const targetFolderId = r.folderId ? resolveId(r.folderId) : null;
-
       await client.query(
         `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
-         VALUES ($1, $2, $3, 'routine', $4, $4, 'standard')
+         VALUES ($1, $2, NULL, 'routine', $3, $3, 'standard')
          ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [newRoutineId, workspaceId, targetFolderId, actorUserId]
+        [newRoutineId, workspaceId, actorUserId]
       );
 
       await client.query(
-        `INSERT INTO app.routines (id, workspace_id, folder_id, title, details, frequency, weekdays, timezone, scheduled_time, active_from, active_to, is_paused, is_archived)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `INSERT INTO app.routines (id, workspace_id, title, frequency, weekdays, timezone, scheduled_time, active_from)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE)
          ON CONFLICT (workspace_id, id) DO NOTHING;`,
         [
           newRoutineId,
           workspaceId,
-          targetFolderId,
           r.title,
-          r.details,
           r.frequency || 'daily',
-          r.weekdays || [],
+          r.weekdays || [1, 2, 3, 4, 5],
           r.timezone || 'UTC',
-          r.scheduledTime ? r.scheduledTime.substring(0, 5) : null,
-          r.activeFrom || new Date().toISOString().split('T')[0],
-          r.activeTo,
-          Boolean(r.isPaused),
-          Boolean(r.isArchived),
+          r.scheduledTime || '09:00',
         ]
       );
       importedCounts.routines++;
+      createdChanges.push({ entityType: 'routine', entityId: newRoutineId, action: 'created' });
     }
   }
 
-  // 6. Journal Entries
+  // --- 7. Journal Entries ---
   const journalJson = parsedFiles.get('journal/journal.json');
   if (journalJson) {
-    const journalEntries = JSON.parse(journalJson.toString('utf8')) as Array<{
+    const entries = JSON.parse(journalJson.toString('utf8')) as Array<{
       id: string;
-      entryDate: string;
       title: string | null;
+      entryDate: string;
       timezone: string;
       document: unknown;
       plainText: string;
@@ -696,154 +1016,137 @@ export async function executeConfirmedImport(
       updatedAt?: string;
     }>;
 
-    for (const j of journalEntries) {
+    for (const j of entries) {
       const isDup = duplicateMap.get(j.id);
+      let targetJournalId = resolveId(j.id)!;
+      let isOverwrite = false;
+
       if (isDup) {
         if (duplicateStrategy === 'skip') {
           skippedCounts++;
+          idMap.set(j.id, isDup.existingId);
           continue;
         } else if (duplicateStrategy === 'overwrite_if_newer') {
           const importedDate = j.updatedAt ? new Date(j.updatedAt).getTime() : 0;
           const existingDate = isDup.existingUpdatedAt ? new Date(isDup.existingUpdatedAt).getTime() : 0;
           if (importedDate > existingDate) {
-            await client.query(
-              `UPDATE app.journal_entries
-               SET title = $1, timezone = $2, document = $3, plain_text = $4, mood = $5, prompts = $6, tags = $7, updated_at = now()
-               WHERE id = $8 AND workspace_id = $9;`,
-              [
-                j.title,
-                j.timezone || 'UTC',
-                JSON.stringify(j.document || {}),
-                j.plainText || '',
-                j.mood,
-                JSON.stringify(j.prompts || []),
-                j.tags || [],
-                isDup.existingId,
-                workspaceId,
-              ]
-            );
+            targetJournalId = isDup.existingId;
+            idMap.set(j.id, isDup.existingId);
+            isOverwrite = true;
             overwrittenCounts++;
-            continue;
           } else {
             skippedCounts++;
+            idMap.set(j.id, isDup.existingId);
             continue;
           }
         } else if (duplicateStrategy === 'create_copy') {
-          j.title = `${j.title || `Journal ${j.entryDate}`} (Copy)`;
-          copiedCounts++;
+          skippedCounts++;
+          idMap.set(j.id, isDup.existingId);
+          continue;
         }
       }
 
-      const newJournalId = resolveId(j.id)!;
+      if (isOverwrite) {
+        await client.query(
+          `UPDATE app.journal_entries
+           SET title = $1, document = $2, plain_text = $3, mood = $4, prompts = $5, tags = $6, updated_at = now()
+           WHERE id = $7 AND workspace_id = $8;`,
+          [
+            j.title,
+            JSON.stringify(j.document || {}),
+            j.plainText || '',
+            j.mood,
+            JSON.stringify(j.prompts || []),
+            j.tags || [],
+            targetJournalId,
+            workspaceId,
+          ]
+        );
+        createdChanges.push({ entityType: 'journal_entry', entityId: targetJournalId, action: 'updated' });
+      } else {
+        await client.query(
+          `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
+           VALUES ($1, $2, NULL, 'journal_entry', $3, $3, 'standard')
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [targetJournalId, workspaceId, actorUserId]
+        );
 
-      await client.query(
-        `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by, security_scope)
-         VALUES ($1, $2, 'journal_entry', $3, $3, 'standard')
-         ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [newJournalId, workspaceId, actorUserId]
-      );
-
-      await client.query(
-        `INSERT INTO app.journal_entries (id, workspace_id, title, entry_date, timezone, document, plain_text, mood, prompts, tags)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [
-          newJournalId,
-          workspaceId,
-          j.title,
-          j.entryDate,
-          j.timezone || 'UTC',
-          JSON.stringify(j.document || {}),
-          j.plainText || '',
-          j.mood,
-          JSON.stringify(j.prompts || []),
-          j.tags || [],
-        ]
-      );
-      importedCounts.journal++;
+        await client.query(
+          `INSERT INTO app.journal_entries (id, workspace_id, title, entry_date, timezone, document, plain_text, mood, prompts, tags)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [
+            targetJournalId,
+            workspaceId,
+            j.title,
+            j.entryDate,
+            j.timezone || 'UTC',
+            JSON.stringify(j.document || {}),
+            j.plainText || '',
+            j.mood,
+            JSON.stringify(j.prompts || []),
+            j.tags || [],
+          ]
+        );
+        importedCounts.journal++;
+        createdChanges.push({ entityType: 'journal_entry', entityId: targetJournalId, action: 'created' });
+      }
     }
   }
 
-  // 7. Calendar Events
+  // --- 8. Calendar Events ---
   const calJson = parsedFiles.get('calendar/calendar.json');
   if (calJson) {
     const events = JSON.parse(calJson.toString('utf8')) as Array<{
       id: string;
-      folderId: string | null;
       title: string;
-      details: string | null;
-      allDay: boolean;
-      startDate: string | null;
+      startDate: string;
       endDate: string | null;
-      startAt: string | null;
-      endAt: string | null;
-      timezone: string;
+      isAllDay: boolean;
+      startTime: string | null;
+      endTime: string | null;
+      details?: string | null;
+      timezone?: string | null;
     }>;
 
     for (const c of events) {
       const newCalId = resolveId(c.id)!;
-      const targetFolderId = c.folderId ? resolveId(c.folderId) : null;
-
       await client.query(
         `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
-         VALUES ($1, $2, $3, 'calendar_event', $4, $4, 'standard')
+         VALUES ($1, $2, NULL, 'calendar_event', $3, $3, 'standard')
          ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [newCalId, workspaceId, targetFolderId, actorUserId]
+        [newCalId, workspaceId, actorUserId]
       );
 
       await client.query(
-        `INSERT INTO app.calendar_events (id, workspace_id, folder_id, title, details, all_day, start_date, end_date, start_at, end_at, timezone)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO app.calendar_events (id, workspace_id, title, details, all_day, start_date, end_date, timezone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (workspace_id, id) DO NOTHING;`,
-        [
-          newCalId,
-          workspaceId,
-          targetFolderId,
-          c.title,
-          c.details,
-          Boolean(c.allDay),
-          c.startDate,
-          c.endDate,
-          c.startAt,
-          c.endAt,
-          c.timezone || 'UTC',
-        ]
+        [newCalId, workspaceId, c.title, c.details || null, Boolean(c.isAllDay), c.startDate, c.endDate, c.timezone || 'UTC']
       );
       importedCounts.calendar++;
+      createdChanges.push({ entityType: 'calendar_event', entityId: newCalId, action: 'created' });
     }
   }
 
-  // 8. Attachments & Files
+  // --- 9. Files and Binaries (Full File Lifecycle) ---
   const filesJson = parsedFiles.get('attachments/files.json');
+  let importedBytes = 0;
   if (filesJson) {
     const files = JSON.parse(filesJson.toString('utf8')) as Array<{
       id: string;
       folderId: string | null;
       fileName: string;
       declaredMimeType: string;
-      detectedMimeType: string;
+      detectedMimeType?: string;
       byteSize: number;
       sha256: string;
       binaryPath: string | null;
     }>;
 
-    const storage = getDefaultStorageProvider();
-    let importedBytes = 0;
-
     for (const f of files) {
       const newFileId = resolveId(f.id)!;
-      const targetFolderId = f.folderId ? resolveId(f.folderId) : null;
-      const newObjectPath = `workspaces/${workspaceId}/files/${newFileId}/${f.fileName}`;
-
-      // Upload binary if present in archive
-      if (f.binaryPath && parsedFiles.has(f.binaryPath)) {
-        const fileBytes = parsedFiles.get(f.binaryPath)!;
-        await storage.putObject(PRIVATE_ASSETS_BUCKET, newObjectPath, fileBytes, {
-          contentType: f.detectedMimeType || 'application/octet-stream',
-          upsert: true,
-        });
-        importedBytes += fileBytes.length;
-      }
+      const targetFolderId = resolveId(f.folderId);
 
       await client.query(
         `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
@@ -852,6 +1155,20 @@ export async function executeConfirmedImport(
         [newFileId, workspaceId, targetFolderId, actorUserId]
       );
 
+      let storagePath = '';
+      if (f.binaryPath) {
+        const binData = parsedFiles.get(f.binaryPath);
+        if (binData) {
+          const freshStorageKey = `${workspaceId}/${newFileId}/${crypto.randomUUID()}_${f.fileName}`;
+          await storageProvider.putObject(PRIVATE_ASSETS_BUCKET, freshStorageKey, binData, {
+            contentType: f.detectedMimeType || f.declaredMimeType,
+          });
+          storagePath = freshStorageKey;
+          importedBytes += binData.length;
+        }
+      }
+
+      const finalObjectPath = storagePath || `workspaces/${workspaceId}/files/${newFileId}/${f.fileName}`;
       await client.query(
         `INSERT INTO app.file_items (id, workspace_id, folder_id, file_name, declared_mime_type, detected_mime_type, byte_size, sha256_checksum, object_path, quarantine_status, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'verified', $10)
@@ -861,15 +1178,26 @@ export async function executeConfirmedImport(
           workspaceId,
           targetFolderId,
           f.fileName,
-          f.declaredMimeType || 'application/octet-stream',
-          f.detectedMimeType || 'application/octet-stream',
-          f.byteSize || 0,
-          f.sha256 || '',
-          newObjectPath,
+          f.declaredMimeType,
+          f.detectedMimeType || f.declaredMimeType,
+          f.byteSize,
+          f.sha256,
+          finalObjectPath,
           actorUserId,
         ]
       );
+
+      if (storagePath) {
+        await client.query(
+          `INSERT INTO app.file_versions (file_id, workspace_id, version, object_path, byte_size, sha256_checksum, detected_mime_type, created_by)
+           VALUES ($1, $2, '1', $3, $4, $5, $6, $7)
+           ON CONFLICT DO NOTHING;`,
+          [newFileId, workspaceId, storagePath, f.byteSize, f.sha256, f.detectedMimeType || f.declaredMimeType, actorUserId]
+        );
+      }
+
       importedCounts.files++;
+      createdChanges.push({ entityType: 'file', entityId: newFileId, action: 'created' });
     }
 
     if (importedBytes > 0) {
@@ -882,12 +1210,100 @@ export async function executeConfirmedImport(
     }
   }
 
-  // 9. Update workspace sync sequence and audit change feed
-  const { nextChangeSeq } = await lockWorkspaceSyncState(client, workspaceId);
-  await updateWorkspaceSyncSeq(client, workspaceId, nextChangeSeq + 1);
+  // --- 9b. Associations (Tags, Links, Routine Occurrences) ---
+  const itemTagsJson = parsedFiles.get('metadata/item_tags.json');
+  if (itemTagsJson) {
+    try {
+      const itemTags = JSON.parse(itemTagsJson.toString('utf8')) as Array<{ itemId: string; tagId: string }>;
+      for (const it of itemTags) {
+        const mappedItemId = resolveId(it.itemId);
+        const mappedTagId = resolveId(it.tagId);
+        if (mappedItemId && mappedTagId) {
+          await client.query(
+            `INSERT INTO app.item_tags (workspace_id, item_id, tag_id, created_by)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT DO NOTHING;`,
+            [workspaceId, mappedItemId, mappedTagId, actorUserId]
+          );
+        }
+      }
+    } catch {
+      // Ignored non-fatal association errors
+    }
+  }
+
+  const itemLinksJson = parsedFiles.get('metadata/item_links.json');
+  if (itemLinksJson) {
+    try {
+      const itemLinks = JSON.parse(itemLinksJson.toString('utf8')) as Array<{
+        sourceItemId: string;
+        targetItemId: string;
+        relationshipKind?: string;
+      }>;
+      for (const il of itemLinks) {
+        const mappedSource = resolveId(il.sourceItemId);
+        const mappedTarget = resolveId(il.targetItemId);
+        if (mappedSource && mappedTarget && mappedSource !== mappedTarget) {
+          await client.query(
+            `INSERT INTO app.item_links (workspace_id, source_item_id, target_item_id, link_type, created_by)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT DO NOTHING;`,
+            [workspaceId, mappedSource, mappedTarget, il.relationshipKind || 'related', actorUserId]
+          );
+        }
+      }
+    } catch {
+      // Ignored non-fatal association errors
+    }
+  }
+
+  const occJson = parsedFiles.get('routines/occurrences.json');
+  if (occJson) {
+    try {
+      const occurrences = JSON.parse(occJson.toString('utf8')) as Array<{
+        id: string;
+        routineId: string;
+        occurrenceDate: string;
+        status?: string;
+        completedAt?: string | null;
+      }>;
+      for (const occ of occurrences) {
+        const mappedRoutineId = resolveId(occ.routineId);
+        if (mappedRoutineId && occ.occurrenceDate) {
+          const newOccId = crypto.randomUUID();
+          await client.query(
+            `INSERT INTO app.routine_occurrences (id, workspace_id, routine_id, scheduled_date, status, completed_at, timezone)
+             VALUES ($1, $2, $3, $4, $5, $6, 'UTC')
+             ON CONFLICT DO NOTHING;`,
+            [newOccId, workspaceId, mappedRoutineId, occ.occurrenceDate, occ.status || 'pending', occ.completedAt || null]
+          );
+        }
+      }
+    } catch {
+      // Ignored non-fatal routine occurrence errors
+    }
+  }
+
+  // --- 10. Durable Sync Feed Emission for Real Synchronization ---
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  let nextSeq = syncState.nextChangeSeq;
+
+  for (const item of createdChanges) {
+    await insertChange(client, {
+      workspaceId,
+      seq: nextSeq++,
+      entityType: item.entityType,
+      entityId: item.entityId,
+      revision: 1,
+      isTombstone: false,
+      operationId: crypto.randomUUID(),
+      changeData: { action: item.action, previewId },
+    });
+  }
+
   await insertChange(client, {
     workspaceId,
-    seq: nextChangeSeq,
+    seq: nextSeq++,
     entityType: 'workspace',
     entityId: workspaceId,
     revision: 1,
@@ -896,10 +1312,9 @@ export async function executeConfirmedImport(
     changeData: { action: 'workspace_imported', previewId, duplicateStrategy, importedCounts },
   });
 
-  // 10. Clean up preview
-  ephemeralImportStore.delete(previewId);
+  await updateWorkspaceSyncSeq(client, workspaceId, nextSeq);
 
-  return {
+  const finalResult: ExecuteImportResponse = {
     success: true,
     workspaceId,
     duplicateStrategy,
@@ -910,4 +1325,25 @@ export async function executeConfirmedImport(
     warnings: [],
     completedAt: new Date().toISOString(),
   };
+
+  // Convert idMap to serializable object
+  const mappingsObj: Record<string, string> = {};
+  for (const [k, v] of idMap.entries()) {
+    mappingsObj[k] = v;
+  }
+
+  // --- 11. Update Durable Import Session State ---
+  await client.query(
+    `UPDATE app.workspace_imports
+     SET status = 'completed',
+         execution_result = $1,
+         entity_mappings = $2,
+         duplicate_strategy = $3,
+         completed_at = now(),
+         updated_at = now()
+     WHERE id = $4;`,
+    [JSON.stringify(finalResult), JSON.stringify(mappingsObj), duplicateStrategy, previewId]
+  );
+
+  return finalResult;
 }

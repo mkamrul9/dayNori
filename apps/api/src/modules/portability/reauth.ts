@@ -7,41 +7,139 @@ export interface ReauthClaims {
   purpose: ReauthenticatePurpose;
   iat: number;
   exp: number;
-  sessionHash?: string;
+  sessionHash: string;
 }
 
 export const REAUTH_MAX_AGE_SECONDS = 10 * 60; // 10 minutes
 
-/**
- * Gets secret key for signing ephemeral reauthentication tokens.
- */
-function getReauthSecret(): string {
-  return (
-    process.env['REAUTH_SIGNING_SECRET'] ||
-    process.env['SUPABASE_JWT_SECRET'] ||
-    'daynori-reauth-fallback-secret-2026'
-  );
+let testSecretOverride: string | null = null;
+
+export function setReauthSecretForTesting(secret: string | null): void {
+  testSecretOverride = secret;
 }
 
 /**
- * Mints an authenticated, cryptographically signed reauthentication ticket.
+ * Gets secret key for signing ephemeral reauthentication tokens.
+ * Fails closed if configuration is missing: no publicly known fallback secrets in production.
+ */
+export function getReauthSecret(): string {
+  if (testSecretOverride) {
+    return testSecretOverride;
+  }
+  const secret = process.env['REAUTH_SIGNING_SECRET'] || process.env['SUPABASE_JWT_SECRET'];
+  if (!secret) {
+    throw new Error(
+      'CONFIG_ERROR: REAUTH_SIGNING_SECRET or SUPABASE_JWT_SECRET is required. Refusing to issue or verify reauthentication proof.'
+    );
+  }
+  return secret;
+}
+
+export interface ReauthAuthenticator {
+  verifyPassword(params: {
+    userId: string;
+    email?: string;
+    password: string;
+  }): Promise<{ success: boolean; error?: string }>;
+}
+
+/**
+ * Default Supabase Auth authenticator that verifies credentials against the active Auth provider.
+ */
+export class SupabaseReauthAuthenticator implements ReauthAuthenticator {
+  private supabaseUrl: string;
+  private supabaseAnonKey: string;
+
+  constructor(supabaseUrl?: string, supabaseAnonKey?: string) {
+    this.supabaseUrl = supabaseUrl || process.env['SUPABASE_URL'] || 'http://127.0.0.1:54321';
+    this.supabaseAnonKey = supabaseAnonKey || process.env['SUPABASE_ANON_KEY'] || '';
+  }
+
+  async verifyPassword(params: {
+    userId: string;
+    email?: string;
+    password: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    if (!params.password || typeof params.password !== 'string' || params.password.length === 0) {
+      return { success: false, error: 'Password is required' };
+    }
+    if (!params.email) {
+      return { success: false, error: 'User email is required for password reauthentication' };
+    }
+
+    try {
+      const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: this.supabaseAnonKey,
+        },
+        body: JSON.stringify({
+          email: params.email.toLowerCase().trim(),
+          password: params.password,
+        }),
+      });
+
+      interface SupabaseTokenResponse {
+        user?: { id?: string };
+        error_description?: string;
+        msg?: string;
+      }
+      const data = (await res.json().catch(() => ({}))) as SupabaseTokenResponse;
+      if (res.ok && data.user?.id === params.userId) {
+        return { success: true };
+      }
+      return {
+        success: false,
+        error: data.error_description || data.msg || 'Invalid credentials for reauthentication',
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Auth provider error during reauthentication',
+      };
+    }
+  }
+}
+
+let activeAuthenticator: ReauthAuthenticator = new SupabaseReauthAuthenticator();
+
+export function setReauthAuthenticator(authenticator: ReauthAuthenticator): void {
+  activeAuthenticator = authenticator;
+}
+
+export function getReauthAuthenticator(): ReauthAuthenticator {
+  return activeAuthenticator;
+}
+
+/**
+ * Mints an authenticated, cryptographically signed reauthentication ticket bound to
+ * verified user, session, workspace, and purpose.
  */
 export function issueReauthToken(params: {
   userId: string;
-  workspaceId: string;
+  workspaceId?: string;
   purpose: ReauthenticatePurpose;
-  sessionToken?: string;
+  sessionToken: string;
+  customTtlSeconds?: number;
 }): { token: string; expiresAt: string } {
-  const now = Math.floor(Date.now() / 1000);
-  const exp = now + REAUTH_MAX_AGE_SECONDS;
+  if (!params.sessionToken || typeof params.sessionToken !== 'string') {
+    throw new Error('REAUTHENTICATION_ERROR: Active session token is mandatory to issue reauthentication proof');
+  }
 
-  const sessionHash = params.sessionToken
-    ? crypto.createHash('sha256').update(params.sessionToken).digest('hex').substring(0, 16)
-    : undefined;
+  const now = Math.floor(Date.now() / 1000);
+  const ttl = params.customTtlSeconds ?? REAUTH_MAX_AGE_SECONDS;
+  const exp = now + ttl;
+
+  const sessionHash = crypto
+    .createHash('sha256')
+    .update(params.sessionToken)
+    .digest('hex')
+    .substring(0, 32);
 
   const claims: ReauthClaims = {
     sub: params.userId,
-    workspaceId: params.workspaceId,
+    workspaceId: params.workspaceId || '00000000-0000-0000-0000-000000000000',
     purpose: params.purpose,
     iat: now,
     exp,
@@ -63,13 +161,13 @@ export function issueReauthToken(params: {
 
 /**
  * Verifies that a reauthentication token is valid, unexpired, and strictly bound
- * to the specified actor, workspace, and purpose.
+ * to the specified actor, workspace, verified session, and purpose.
  * Throws explicit error if invalid or expired.
  */
 export function assertValidReauthentication(params: {
   token: string | undefined | null;
   expectedUserId: string;
-  expectedWorkspaceId: string;
+  expectedWorkspaceId?: string;
   expectedPurpose: ReauthenticatePurpose;
   currentSessionToken?: string;
 }): ReauthClaims {
@@ -107,38 +205,72 @@ export function assertValidReauthentication(params: {
 
   const now = Math.floor(Date.now() / 1000);
 
-  // 1. Check expiration
-  if (claims.exp < now) {
+  // 1. Verify claims structure
+  if (typeof claims.iat !== 'number' || typeof claims.exp !== 'number') {
+    throw new Error('REAUTHENTICATION_INVALID: Token is missing required timestamp claims');
+  }
+
+  // 2. Ordering
+  if (claims.exp <= claims.iat) {
+    throw new Error('REAUTHENTICATION_INVALID: Invalid token timestamps ordering (exp <= iat)');
+  }
+
+  // 3. Reject future timestamps (clock skew > 60s)
+  if (claims.iat > now + 60) {
+    throw new Error('REAUTHENTICATION_INVALID: Token issued in the future');
+  }
+
+  // 4. Maximum age guard
+  if (claims.exp - claims.iat > REAUTH_MAX_AGE_SECONDS) {
+    throw new Error('REAUTHENTICATION_INVALID: Token validity window exceeds 10 minutes');
+  }
+
+  // 5. Expiry check
+  if (now >= claims.exp) {
     throw new Error('REAUTHENTICATION_EXPIRED: Reauthentication token has expired; re-authenticate to continue');
   }
 
-  // 2. Bound to userId
+  // 6. Bound to userId
   if (claims.sub !== params.expectedUserId) {
     throw new Error('REAUTHENTICATION_MISMATCH: Reauthentication token belongs to a different user identity');
   }
 
-  // 3. Bound to workspaceId
-  if (claims.workspaceId !== params.expectedWorkspaceId) {
+  // 7. Bound to workspaceId if specified
+  if (
+    params.expectedWorkspaceId &&
+    claims.workspaceId &&
+    claims.workspaceId !== '00000000-0000-0000-0000-000000000000' &&
+    claims.workspaceId !== params.expectedWorkspaceId
+  ) {
     throw new Error('REAUTHENTICATION_MISMATCH: Reauthentication token is bound to another workspace');
   }
 
-  // 4. Bound to purpose
+  // 8. Bound to purpose
   if (claims.purpose !== params.expectedPurpose) {
     throw new Error(
       `REAUTHENTICATION_PURPOSE_MISMATCH: Token purpose "${claims.purpose}" does not match requested "${params.expectedPurpose}"`
     );
   }
 
-  // 5. Check session binding if present
-  if (claims.sessionHash && params.currentSessionToken) {
-    const currentHash = crypto
-      .createHash('sha256')
-      .update(params.currentSessionToken)
-      .digest('hex')
-      .substring(0, 16);
-    if (claims.sessionHash !== currentHash) {
-      throw new Error('REAUTHENTICATION_SESSION_MISMATCH: Token session binding does not match active session');
-    }
+  // 9. Mandatory session binding
+  if (!claims.sessionHash || !params.currentSessionToken) {
+    throw new Error('REAUTHENTICATION_SESSION_REQUIRED: Session binding is required to verify reauthentication');
+  }
+
+  const currentHash = crypto
+    .createHash('sha256')
+    .update(params.currentSessionToken)
+    .digest('hex')
+    .substring(0, 32);
+
+  const expectedHashBuf = Buffer.from(claims.sessionHash, 'utf8');
+  const currentHashBuf = Buffer.from(currentHash, 'utf8');
+
+  if (
+    expectedHashBuf.length !== currentHashBuf.length ||
+    !crypto.timingSafeEqual(expectedHashBuf, currentHashBuf)
+  ) {
+    throw new Error('REAUTHENTICATION_SESSION_MISMATCH: Reauthentication token is bound to a different session');
   }
 
   return claims;

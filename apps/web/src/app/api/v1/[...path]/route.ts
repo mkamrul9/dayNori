@@ -47,7 +47,7 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
   const targetUrl = `${API_URL}/v1/${targetPath}${incomingUrl.search}`;
 
   const forwardHeaders: Record<string, string> = {
-    Accept: 'application/json',
+    Accept: req.headers.get('accept') || 'application/json, application/zip, */*',
     Authorization: `Bearer ${token}`,
   };
 
@@ -73,9 +73,18 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
 
   let body: BodyInit | undefined = undefined;
   if (isMutating && req.body) {
-    const rawBody = await req.text();
-    if (rawBody.length > 0) {
-      body = rawBody;
+    const reqContentType = req.headers.get('content-type') || '';
+    if (
+      reqContentType.includes('application/zip') ||
+      reqContentType.includes('application/octet-stream') ||
+      reqContentType.includes('application/x-zip-compressed')
+    ) {
+      body = await req.arrayBuffer();
+    } else {
+      const rawBody = await req.text();
+      if (rawBody.length > 0) {
+        body = rawBody;
+      }
     }
   }
 
@@ -85,6 +94,26 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
       headers: forwardHeaders,
       body,
     });
+
+    const resContentType = upstreamRes.headers.get('content-type') || '';
+    const isBinary =
+      resContentType.includes('application/zip') ||
+      resContentType.includes('application/octet-stream') ||
+      resContentType.includes('application/x-zip-compressed');
+
+    if (isBinary) {
+      const buffer = await upstreamRes.arrayBuffer();
+      const headers = new Headers();
+      headers.set('Content-Type', resContentType);
+      const disposition = upstreamRes.headers.get('content-disposition');
+      if (disposition) headers.set('Content-Disposition', disposition);
+      const len = upstreamRes.headers.get('content-length');
+      if (len) headers.set('Content-Length', len);
+      return new NextResponse(buffer, {
+        status: upstreamRes.status,
+        headers,
+      });
+    }
 
     const data = await upstreamRes.json().catch(() => null);
     return NextResponse.json(data ?? {}, {

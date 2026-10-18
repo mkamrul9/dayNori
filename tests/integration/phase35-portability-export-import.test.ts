@@ -15,7 +15,12 @@ import {
   parseZipArchive,
   type ZipEntry,
 } from '../../apps/api/src/modules/portability/zipArchive.js';
-import { issueReauthToken } from '../../apps/api/src/modules/portability/reauth.js';
+import {
+  issueReauthToken,
+  setReauthSecretForTesting,
+  setReauthAuthenticator,
+  type ReauthAuthenticator,
+} from '../../apps/api/src/modules/portability/reauth.js';
 import { PRIVATE_ASSETS_BUCKET } from '../../apps/api/src/modules/files/service.js';
 
 describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', () => {
@@ -100,6 +105,20 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
     publicJwk.alg = 'RS256';
     publicJwk.use = 'sig';
     jwks = { keys: [publicJwk] };
+
+    setReauthSecretForTesting('daynori-reauth-test-secret-with-sufficient-entropy-32-chars');
+    class TestReauthAuthenticator implements ReauthAuthenticator {
+      async verifyPassword(params: { userId: string; email?: string; password?: string }): Promise<{ success: boolean; error?: string }> {
+        if (!params.password) {
+          return { success: false, error: 'Password is required for reauthentication' };
+        }
+        if (params.password === 'CorrectPassword123!') {
+          return { success: true };
+        }
+        return { success: false, error: 'Reauthentication failed: invalid credentials' };
+      }
+    }
+    setReauthAuthenticator(new TestReauthAuthenticator());
 
     tokenUserA = await createToken(userAId);
     tokenUserB = await createToken(userBId);
@@ -230,10 +249,10 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
       `);
 
       await admin.query(`
-        INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count)
+        INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count, purpose)
         VALUES
-          ('${noteAId}', '${workspaceAId}', 'Bangla Project Notes বাংলা নোট 🌟', '{"type": "doc", "content": []}'::jsonb, 'আমার সোনার বাংলা, আমি তোমায় ভালোবাসি। Special export test text.', 12, 65),
-          ('${vaultNoteAId}', '${workspaceAId}', 'Top Secret Vault Note Encrypted', '{"type": "doc"}'::jsonb, 'THIS VAULT NOTE MUST NEVER BE EXPORTED', 7, 38);
+          ('${noteAId}', '${workspaceAId}', 'Bangla Project Notes বাংলা নোট 🌟', '{"type": "doc", "content": []}'::jsonb, 'আমার সোনার বাংলা, আমি তোমায় ভালোবাসি। Special export test text.', 12, 65, 'guide'),
+          ('${vaultNoteAId}', '${workspaceAId}', 'Top Secret Vault Note Encrypted', '{"type": "doc"}'::jsonb, 'THIS VAULT NOTE MUST NEVER BE EXPORTED', 7, 38, 'standard');
       `);
 
       // 5. Tasks: Standard Task & Vault Task
@@ -308,6 +327,7 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
   });
 
   afterAll(async () => {
+    setReauthSecretForTesting(null);
     if (server) await server.close();
     if (adminPool) await adminPool.end();
     if (runtimePool) await runtimePool.end();
@@ -328,15 +348,37 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
       ).rejects.toThrow();
     });
 
+    it('rejects reauthentication with invalid password (401 Unauthorized)', async () => {
+      await expect(
+        clientA.reauthenticate({
+          purpose: 'protected_export',
+          sessionBinding: workspaceAId,
+          password: 'WrongPassword123!',
+        })
+      ).rejects.toThrow(/invalid credentials/i);
+    });
+
+    it('rejects reauthentication when password is missing or empty (400 Bad Request)', async () => {
+      await expect(
+        clientA.reauthenticate({
+          purpose: 'protected_export',
+          sessionBinding: workspaceAId,
+          password: '',
+        })
+      ).rejects.toThrow(/password is required/i);
+    });
+
     it('rejects export request when reauthentication token is expired (403 Forbidden)', async () => {
       // Create manually expired reauth token (iat and exp in the past)
-      const secret = process.env['REAUTH_SIGNING_SECRET'] || 'daynori-reauth-fallback-secret-2026';
+      const secret = 'daynori-reauth-test-secret-with-sufficient-entropy-32-chars';
+      const sessionHash = crypto.createHash('sha256').update(tokenUserA).digest('hex').substring(0, 32);
       const pastClaims = {
         sub: userAId,
         workspaceId: workspaceAId,
         purpose: 'protected_export',
-        iat: Math.floor(Date.now() / 1000) - 3600,
-        exp: Math.floor(Date.now() / 1000) - 1800, // expired 30 mins ago
+        iat: Math.floor(Date.now() / 1000) - 500,
+        exp: Math.floor(Date.now() / 1000) - 100, // expired 100s ago within 10 min window
+        sessionHash,
       };
       const claimsB64 = Buffer.from(JSON.stringify(pastClaims), 'utf8').toString('base64url');
       const sig = crypto.createHmac('sha256', secret).update(claimsB64).digest('base64url');
@@ -356,6 +398,7 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
         userId: userBId,
         workspaceId: workspaceAId,
         purpose: 'protected_export',
+        sessionToken: tokenUserA,
       });
 
       await expect(
@@ -372,6 +415,7 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
         userId: userAId,
         workspaceId: workspaceBId,
         purpose: 'protected_export',
+        sessionToken: tokenUserA,
       });
 
       await expect(
@@ -382,11 +426,29 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
       ).rejects.toThrow(/bound to another workspace/i);
     });
 
-    it('successfully reauthenticates and generates a complete workspace export archive', async () => {
+    it('rejects export when reauth token is presented from a different session (session mismatch)', async () => {
+      const differentSession = await createToken(userAId);
+      const { token: diffSessionToken } = issueReauthToken({
+        userId: userAId,
+        workspaceId: workspaceAId,
+        purpose: 'protected_export',
+        sessionToken: differentSession,
+      });
+
+      await expect(
+        clientA.createWorkspaceExport(workspaceAId, {
+          reauthToken: diffSessionToken,
+          includeAttachments: true,
+        })
+      ).rejects.toThrow(/different session/i);
+    });
+
+    it('successfully reauthenticates with valid password and generates a complete workspace export archive', async () => {
       // 1. Request fresh reauthentication ticket
       const reauthRes = await clientA.reauthenticate({
         purpose: 'protected_export',
         sessionBinding: workspaceAId,
+        password: 'CorrectPassword123!',
       });
 
       expect(reauthRes.reauthToken).toBeDefined();
@@ -446,7 +508,7 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
 
     it('rejects download if the ephemeral link timestamp has expired', async () => {
       // Craft expired URL with valid signature for past timestamp
-      const secret = process.env['REAUTH_SIGNING_SECRET'] || 'daynori-reauth-fallback-secret-2026';
+      const secret = 'daynori-reauth-test-secret-with-sufficient-entropy-32-chars';
       const expiredTime = Date.now() - 10000;
       const expiredToken = crypto
         .createHmac('sha256', secret)
@@ -659,6 +721,49 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
         parseZipArchive(zipBuf, { maxTotalBytes: 1024 * 10 })
       ).toThrow(/ZIP_BOMB_DETECTED/);
     });
+
+    it('rejects an archive with duplicate or ambiguous normalized paths', () => {
+      const duplicateZip = createZipArchive(
+        [
+          { path: 'manifest.json', data: '{"first": true}' },
+          { path: 'manifest.json', data: '{"second": true}' },
+        ],
+        { allowUnsafePathsForTesting: true }
+      );
+      expect(() => parseZipArchive(duplicateZip)).toThrow(/Duplicate or ambiguous normalized path/);
+    });
+
+    it('rejects an archive entry with Windows reserved device name', () => {
+      const reservedZip = createZipArchive(
+        [
+          { path: 'manifest.json', data: '{}' },
+          { path: 'notes/CON.txt', data: 'reserved device name' },
+        ],
+        { allowUnsafePathsForTesting: true }
+      );
+      expect(() => parseZipArchive(reservedZip)).toThrow(/reserved device name/);
+    });
+
+    it('rejects an archive entry containing illegal filename characters', () => {
+      const illegalZip = createZipArchive(
+        [
+          { path: 'manifest.json', data: '{}' },
+          { path: 'notes/bad:name.txt', data: 'illegal character' },
+        ],
+        { allowUnsafePathsForTesting: true }
+      );
+      expect(() => parseZipArchive(illegalZip)).toThrow(/illegal character/);
+    });
+
+    it('enforces memory-bounded decompression before allocating excessive output buffer', () => {
+      const largeEntry: ZipEntry[] = [
+        { path: 'notes/huge.txt', data: Buffer.alloc(1024 * 50, 0x42) },
+      ];
+      const zipBuf = createZipArchive(largeEntry);
+      expect(() =>
+        parseZipArchive(zipBuf, { maxSingleEntryBytes: 1024 * 10 })
+      ).toThrow(/ARCHIVE_LIMIT_EXCEEDED/);
+    });
   });
 
   describe('5. Controlled Bounded Import Preview & Dry Run Guarantee', () => {
@@ -717,12 +822,14 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
 
   describe('6. Round-Trip Import into Clean Target Workspace & ID Remapping', () => {
     let importResult: Awaited<ReturnType<typeof clientB.executeWorkspaceImport>>;
+    let cleanImportPreviewId: string;
 
     it('executes import into Workspace B with ID remapping and complete hierarchy preservation', async () => {
       // 1. Preview archive
       const previewRes = await clientB.previewWorkspaceImport(workspaceBId, {
         archiveBase64: exportZipBuffer.toString('base64'),
       });
+      cleanImportPreviewId = previewRes.previewId;
 
       // 2. Execute import
       importResult = await clientB.executeWorkspaceImport(workspaceBId, {
@@ -776,8 +883,9 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
           title: string;
           plain_text: string;
           created_by: string;
+          purpose: string;
         }>(
-          `SELECT n.id, i.folder_id, n.title, n.plain_text, i.created_by
+          `SELECT n.id, i.folder_id, n.title, n.plain_text, i.created_by, n.purpose
            FROM app.notes n
            JOIN app.items i ON i.id = n.id
            WHERE n.workspace_id = $1;`,
@@ -795,6 +903,8 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
         // Content and Unicode preserved
         expect(importedNote.title).toContain('বাংলা নোট 🌟');
         expect(importedNote.plain_text).toContain('আমার সোনার বাংলা');
+        // Purpose preserved as guide
+        expect(importedNote.purpose).toBe('guide');
 
         // 3. Verify Task
         const tasksRes = await admin.query<{
@@ -888,25 +998,30 @@ describe('Phase 35: Workspace Portability (Export & Import) Integration Tests', 
         const storedSha = crypto.createHash('sha256').update(storedBytes!).digest('hex');
         expect(storedSha).toBe(samplePngSha256);
 
-        // 8. Verify Sync Change Feed advanced and recorded imported items
-        const syncRes = await admin.query<{ count: string }>(
-          `SELECT count(*) FROM app.changes WHERE workspace_id = $1;`,
+        // 8. Verify Sync Change Feed advanced and recorded canonical imported items
+        const syncRes = await admin.query<{ entity_type: string }>(
+          `SELECT entity_type FROM app.changes WHERE workspace_id = $1;`,
           [workspaceBId]
         );
-        expect(Number(syncRes.rows[0]!.count)).toBeGreaterThanOrEqual(1);
+        expect(syncRes.rows.length).toBeGreaterThanOrEqual(1);
+        const changeTypes = syncRes.rows.map((r) => r.entity_type);
+        expect(changeTypes).toContain('note');
+        expect(changeTypes).toContain('task');
+        expect(changeTypes).toContain('folder');
+        expect(changeTypes).toContain('file');
       } finally {
         admin.release();
       }
     });
 
-    it('verifies preview token is consumed and cannot be re-executed', async () => {
-      // Trying to execute again with previously executed previewId must fail
-      await expect(
-        clientB.executeWorkspaceImport(workspaceBId, {
-          previewId: importResult.previewId,
-          duplicateStrategy: 'create_copy',
-        })
-      ).rejects.toThrow();
+    it('verifies idempotent retry: duplicate execution returns original authorized result without duplicate mutations', async () => {
+      const retryResult = await clientB.executeWorkspaceImport(workspaceBId, {
+        previewId: cleanImportPreviewId,
+        duplicateStrategy: 'create_copy',
+      });
+      expect(retryResult.success).toBe(true);
+      expect(retryResult.workspaceId).toBe(workspaceBId);
+      expect(retryResult.importedCounts).toEqual(importResult.importedCounts);
     });
   });
 

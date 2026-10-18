@@ -1511,10 +1511,20 @@ export class DaynoriWorker {
     if (taskType === 'workspace_export') {
       const targetWorkspaceId = payload?.workspaceId as string | undefined;
       const targetUserId = (payload?.actorUserId || payload?.userId) as string | undefined;
+      const targetExportId = payload?.exportId as string | undefined;
       const includeAttachments = payload?.includeAttachments !== false;
 
       if (!targetWorkspaceId || !targetUserId) {
         throw new Error('workspace_export job requires workspaceId and userId in payload');
+      }
+
+      if (targetExportId && client) {
+        await client.query(
+          `UPDATE app.workspace_exports
+           SET status = 'completed', completed_at = now(), updated_at = now()
+           WHERE id = $1 AND workspace_id = $2;`,
+          [targetExportId, targetWorkspaceId]
+        );
       }
 
       return {
@@ -1523,6 +1533,7 @@ export class DaynoriWorker {
         processedAt: new Date().toISOString(),
         details: {
           taskType,
+          exportId: targetExportId,
           workspaceId: targetWorkspaceId,
           userId: targetUserId,
           includeAttachments,
