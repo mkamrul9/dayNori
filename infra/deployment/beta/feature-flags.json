@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": 1,
+  "description": "Daynori Controlled Private Beta Feature Flags — Enforces Personal Organizer Scope",
+  "lastUpdated": "2026-10-18",
+  "environment": "beta",
+  "flags": {
+    "core_personal_organizer": {
+      "enabled": true,
+      "description": "Personal workspace notes, tasks, routines, journal entries, and local folder management."
+    },
+    "local_portability": {
+      "enabled": true,
+      "description": "Zero-dependency ZIP export and complete offline import with duplicate handling."
+    },
+    "account_lifecycle_deletion": {
+      "enabled": true,
+      "description": "Two-phase durable account and workspace erasure with suppression ledger."
+    },
+    "reminders_and_notifications": {
+      "enabled": true,
+      "description": "Local alarms and staged web/mobile push notification delivery."
+    },
+    "global_search": {
+      "enabled": true,
+      "description": "Full-text and trigram workspace search with privacy and suppression boundaries."
+    },
+    "collaborative_rooms": {
+      "enabled": false,
+      "disabledReason": "Reserved for Phase 46+ collaborative expansion; out of scope for Phase 38 personal beta."
+    },
+    "public_item_sharing": {
+      "enabled": false,
+      "disabledReason": "Public anonymous view links disabled to protect beta participant confidentiality."
+    },
+    "billing_and_paid_features": {
+      "enabled": false,
+      "disabledReason": "Reserved for Phase 42; no payments, subscriptions, or credit card intake in beta."
+    },
+    "ai_assistant_integration": {
+      "enabled": false,
+      "disabledReason": "Reserved for Phase 54+ AI exploration; strictly excluded from core personal release."
+    },
+    "third_party_calendar_import": {
+      "enabled": false,
+      "disabledReason": "External Google/Outlook calendar synchronization deferred to post-beta phases."
+    }
+  }
+}

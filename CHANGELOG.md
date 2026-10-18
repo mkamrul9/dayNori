@@ -1,27 +1,44 @@
 # Changelog
 
+## Phase 38 — Controlled private beta (Local Preparation) — 2026-10-19
+
+- **Beta Environment Configuration & Validation (`infra/deployment/beta`):**
+  - Added `beta.env.example` defining isolated database (`daynori_beta`), least-privilege runtime role (`daynori_runtime`), private S3 assets bucket, 100MB workspace quotas, 10MB file limit, reauth limits, and telemetry redaction.
+  - Implemented executable validator `validate-beta-env.mjs` auditing candidate beta environments against security invariants (fails closed on missing secrets or placeholder values).
+- **Personal Organizer Scope Feature Flags (`infra/deployment/beta/feature-flags.json`):**
+  - Confined beta access to verified personal organizer scope: core notes, tasks, routines, journals, files, search, and local portability.
+  - Strictly disabled collaborative rooms, public view links, billing, AI assistants, and external calendar sync.
+- **Operations & Android Signing Runbooks (`infra/deployment/beta`):**
+  - Authored `beta-operations.md` establishing forward-fix migration policy, emergency rollback runbook, worker blob purge mechanics, redacted telemetry invariants, P0-P3 incident alerting routing, and in-app feedback intake.
+  - Authored `android-release-signing.md` establishing reproducible build and external keystore signing procedure for Android internal beta (APK/AAB), version metadata (`0.1.0-beta.1`, versionCode 1), and `apksigner` checksum verification without committing signing keys to Git.
+- **Automated Beta Smoke Runner & Observation Protocol (`infra/deployment/beta`):**
+  - Implemented `beta-smoke-check.mjs` verifying health endpoint, unauthenticated mutation rejection, cross-participant multi-tenant isolation, and public deletion compliance against Fastify API and PostgreSQL (4/4 checks passed).
+  - Authored `beta-observation-protocol.md` defining tester cohort coverage matrix (Android 10–15, desktop and mobile browsers), core organizer participant scenarios, P0–P3 bug severity definitions, immediate beta stop criteria (confirmed data loss or cross-tenant exposure), and explicit widening exit gates.
+- **Release Gate Status:**
+  - Prepared under explicit provisional authorization; execution, deployment, tester invitations, and store submission remain explicitly **BLOCKED** pending owner-supplied staging/beta target, external signing credentials, push provider service accounts, and invited participant cohort.
+
 ## Phase 37 — Core quality and usability release gate — 2026-10-18
 
-- **Prerequisite Defect Repairs:**
-  - Enforced strict current-membership Row-Level Security in Supabase Migration 00037, removing unconstrained `created_by = current_user_id` branches and verifying active membership `workspace_id = current_workspace_id()`.
-  - Bound workspace deletion reauthentication proof to the exact target workspace (`expectedWorkspaceId`).
-  - Hardened account deletion confirmation: verified initiating `session_hash`, enforced cancellation deadline freshness, atomic state transition, provider-side token revocation, and duplicate confirmation idempotency.
-  - Implemented real enumeration-safe public deletion verification workflow with rate-limiting, HMAC-signed verification tokens, and verification endpoint.
-  - Hardened durable blob purge worker: throws on storage down or non-404 failures; treats 404/NoSuchKey as idempotent success.
-  - Repaired routine import validation to accept nullable `scheduledTime` matching database schema.
-- **Core Application Journeys (`tests/e2e/core-organizer-journeys.test.ts`):**
-  - Added 13 end-to-end organizer journeys covering onboarding lifecycle, bilingual Bengali/English AST note recovery, folders and move operations, calendar deadlines and routines across midnight/timezones, occurrence completion/skip/undo, journal multi-entry privacy, binary uploads and quarantine scanning, knowledge guides and backlinks, Today layout cross-device synchronization, authorized global search, concurrent conflict resolution, full workspace export/import round-trip, and permanent account/workspace erasure.
-- **Interactive Browser & Mobile Verification:**
-  - Expanded web E2E runner (`scripts/test-web-e2e.mjs`) to verify real `TodayView` elements, public route proxy bypass, and 50 automated browser assertions via Edge CDP with visual screenshot artifacts.
-  - Validated Android standalone APK compiled (146.17 MB) and verified headless mobile repository operations.
+- **Prerequisite Lifecycle & Authorization Repairs:**
+  - Hardened public deletion form: allowed public anonymous mutations (`public/*`) through Next.js BFF without double-submit CSRF cookie while strictly validating Origin/Referer against `isAllowedOrigin` across local and production origins.
+  - Browser deletion test hardening: replaced superficial page-text assertions with real response validation and database persistence assertions in PostgreSQL `app.public_deletion_requests`. Test fails if request is rejected or fails to reach upstream API.
+  - Provider cleanup & truthful completion: hardened `SupabaseReauthAuthenticator.revokeUserSessions()` and `deleteUser()` to inspect HTTP responses, treat 404/not_found as confirmed absence, throw on 401/network errors, and require service role key in production. `DeletionService` persists retryable provider cleanup alongside storage cleanup and marks erasure complete only when all provider and storage cleanup succeeds.
+  - Transaction & crash recovery: re-architected deletion into durable two-phase execution: database relational purge, outbox cleanup jobs, and suppression tombstones are atomically committed before external provider and storage effects. Handled idempotent retries on `status === 'completed' || status === 'processing'`. Enforced RLS tenant user context in `withUserContext`.
+  - Privileged database functions (Migration 00038): hardened `purge_owned_workspace`, `purge_user_profile`, `reassign_shared_workspace_content`, `record_deletion_tombstone`, and `record_revoked_token` against unauthorized callers. Added verification of caller identity and active authorized deletion records. Added negative tests proving callers cannot purge other users' data or forge suppression entries. Added index `idx_items_keyset` on `app.items(workspace_id, created_at DESC, id DESC) WHERE deleted_at IS NULL`.
+  - Real disposable disaster recovery drill (`scripts/disaster-recovery-drill.mjs`): implemented repeatable recovery drill performing real `pg_dump` of source database, creating isolated database `daynori_restore_drill`, executing `psql` restore, validating separate file object backup/restore, preserving independent deletion ledger, enforcing pre-access suppression barriers under `daynori_runtime` least privilege, and verifying zero data leakage (11.2s run). Corrected `docs/engineering/backup-and-recovery.md` to identify snapshot retention and RTO/RPO targets as proposed target architecture.
+  - Durable email delivery outbox preparation: formalized capture adapter for local testing and prepared durable outbox retry behavior for production. Verification secrets kept out of logs and Git.
+- **Core Application Journeys Classification:**
+  - `tests/e2e/core-organizer-journeys.test.ts` accurately classified as API/Domain/Database integration with synthetic auth and memory storage (13/13 passing).
+  - `scripts/test-web-e2e.mjs` exercises real browser UI and Next.js BFF with persistence and reopen assertions (50/50 passing).
+  - `scripts/test-android-e2e.mjs` verifies APK build and accurately reports release gate `BLOCKED` due to missing physical hardware.
 - **Performance Release Gate Benchmarks (`tests/performance/performance.test.ts`):**
   - Benchmark 1: Local save acknowledgment latency budget (p95 <= 100ms) passed (~15ms per save).
-  - Benchmark 2: 10,000-record keyset pagination under 50ms per page passed (~30ms per page, heap growth ~6.5MB).
-  - Benchmark 3: 100 concurrent read (p95 <= 300ms) and mutation (p95 <= 500ms) operations across 20 workers passed (read p95: 14.8ms, mutation p95: 110.2ms).
-  - Benchmark 4: Worker queue poll and SKIP LOCKED lease acquisition (<75ms p95) passed (38.6ms).
+  - Benchmark 2: 10,000-record keyset pagination with `idx_items_keyset` under 50ms per page passed (~35ms per page, heap growth ~6.5MB).
+  - Benchmark 3: 100 concurrent read (p95 <= 300ms) and mutation (p95 <= 500ms) operations across 20 workers with non-blocking SafeLogger sink passed (read p95: ~25ms, mutation p95: ~120ms).
+  - Benchmark 4: Worker queue poll and SKIP LOCKED lease acquisition (<75ms p95) passed (~38ms).
 - **Quality & Release Gate Status:**
-  - 60/60 test files and 874/874 tests passing across monorepo (100%).
-  - Clean TypeScript compilation across 13 workspace projects, clean lint, clean secret scanning (1,840 files checked).
+  - Full test suite passing (61 test files, 897 tests passing across monorepo).
+  - Clean TypeScript compilation across 13 workspace projects, clean lint, clean secret scanning (1,849 files checked).
   - Explicit release gate decision recorded as **BLOCKED** pending physical Android TalkBack hardware, native KeyStore signing, live production VAPID/FCM push delivery, and app store deployment credentials.
 
 ## Phase 36 — Account deletion backup and recovery lifecycle — 2026-10-18
@@ -144,7 +161,6 @@
   - Persisted skip and completion intent durably in account-scoped offline storage before local dismissal.
   - Replayed pending onboarding preferences automatically on reconnect.
 
-
 - **Web Push Transport & RFC 8188 Interoperability (`apps/worker`):**
   - Repaired host destination check in `assertSafePushEndpointNetworkDestination` using `net.isIP` to separate IP literals from DNS hostnames, resolving valid public push destinations (e.g. `fcm.googleapis.com`, `push.services.mozilla.com`) while retaining loopback/private/link-local/carrier-grade NAT rejection on all resolved IP addresses.
   - Implemented direct address binding in `defaultPushTransport` to eliminate DNS rebinding risks while enforcing TLS SNI hostname verification and redirect denial.
@@ -170,7 +186,7 @@
   - Enforced single canonical note body representation across notes and knowledge items without duplicate tables or secondary stores.
 - **Quick-Reference Browsing & Clean Text Capture (`packages/domain`, `packages/ui-web`, `packages/ui-mobile`):**
   - Implemented `extractQuickReferenceSections` extracting headings, command/syntax entries, and checklists for rapid scannability.
-  - Implemented `cleanTextForClipboard` stripping Markdown code fences (e.g. ```` ```bash ````), single/triple backticks, and control characters to ensure pure plain-text terminal and editor copying.
+  - Implemented `cleanTextForClipboard` stripping Markdown code fences (e.g. ` ```bash `), single/triple backticks, and control characters to ensure pure plain-text terminal and editor copying.
   - Built `QuickReferenceView` (Web) and `MobileQuickReferenceView` (Mobile) with screen-reader live region confirmations (`aria-live="polite"`), checklist toggles, and internal links & backlinks panel.
 - **Saved Views & Non-Destructive Multi-View Filtering (`apps/api`, `packages/contracts`, `packages/domain`):**
   - Applied migration `00028_saved_views_and_knowledge_organization.sql` introducing `app.saved_views` with workspace tenant isolation, RLS policies, and compound indexes.

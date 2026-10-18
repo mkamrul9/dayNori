@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-18",
+  "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 37 Core quality and usability release gate verification delivered under explicit owner authorization and verified across prerequisite repairs (strict membership RLS, deletion session and cancellation checks, durable blob purge, enumeration-safe public verification), 13 end-to-end organizer journeys, Browser E2E suite (50/50 passed), 4 performance release gate benchmarks, and full monorepo suite (60/60 test files and 874/874 tests passing). Release gate decision is explicitly blocked pending physical Android TalkBack hardware, native KeyStore enclave verification, production VAPID/FCM push delivery, and store deployment credentials. Next phase pointer is set to null per release gate specifications; Phase 38 (Controlled private beta) remains blocked until release gates are fulfilled.",
-  "note": "Phase 37 (Core quality and usability release gate) verification delivered under explicit owner authorization. Physical hardware, live push provider, and store release gates remain blocked.",
+  "schedulingDecision": "Phase 37 lifecycle repairs and verification delivered under owner authorization (harden public deletion, provider cleanup, transaction recovery, privileged functions, and real disaster recovery drill). Phase 38 local preparation completed under provisional authorization (beta config template, environment validator, personal organizer feature flags, operations runbook, external keystore signing guide, observation & triage protocol, automated smoke runner). Both Phase 37 and Phase 38 remain explicitly blocked pending owner-supplied deployment targets, external signing credentials, push provider service accounts, physical Android test hardware, and invited participant cohort. Next phase pointer is set to null; stop before Phase 39.",
+  "note": "Phase 37 release gate and Phase 38 private beta remain blocked pending physical hardware, cloud deployment targets, and production credentials.",
   "phases": [
     {
       "id": "00",
@@ -230,7 +230,9 @@
     },
     {
       "id": "38",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Local beta preparation artifacts created and validated under explicit owner authorization (beta configuration, environment validator, personal organizer feature flags, operations runbook, external keystore signing procedure, observation protocol, and smoke test runner). Live cloud deployment, build distribution, tester invitations, and store submission remain explicitly blocked pending owner-supplied target infrastructure, credentials, physical hardware, and participants.",
+      "report": "docs/phase-reports/phase-38.md"
     },
     {
       "id": "39",
