@@ -20,11 +20,9 @@ import {
   getSampleFolderId,
   getSampleNoteId,
   getSampleTaskId,
-  createDeterministicUuid,
   getDefaultHomeLayout,
   type OnboardingInterest,
   type OnboardingState,
-  type HomeLayout,
 } from '@daynori/domain';
 
 describe('Phase 31: First-Use Tutorial & Progressive Discovery Suite', () => {
@@ -170,7 +168,10 @@ describe('Phase 31: First-Use Tutorial & Progressive Discovery Suite', () => {
       const baseLayout = getDefaultHomeLayout();
 
       // Case A: User only wants Notes & Files
-      const notesAndFilesLayout = deriveModuleShortcutsFromInterests(['notes', 'files'], baseLayout);
+      const notesAndFilesLayout = deriveModuleShortcutsFromInterests(
+        ['notes', 'files'],
+        baseLayout
+      );
       const visibleShortcutsA = notesAndFilesLayout.moduleShortcuts
         .filter((s) => s.visible)
         .map((s) => s.id);

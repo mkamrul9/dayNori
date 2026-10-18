@@ -1623,7 +1623,8 @@ describe('Domain Rules and Invariants', () => {
       expect(validateCustomLabel(123)).toBe(null);
 
       // Bounded to 40 characters
-      const longLabel = 'This is a very long label that exceeds forty characters and should be truncated';
+      const longLabel =
+        'This is a very long label that exceeds forty characters and should be truncated';
       const validated = validateCustomLabel(longLabel);
       expect(validated?.length).toBe(40);
     });
@@ -1671,7 +1672,9 @@ describe('Domain Rules and Invariants', () => {
       expect(migrated.widgets.map((w) => w.order)).toEqual([0, 1, 2, 3, 4, 5, 6]);
 
       // Unapproved module shortcuts filtered out
-      expect(migrated.moduleShortcuts.some((s) => (s.id as string) === 'unreleased_ai')).toBe(false);
+      expect(migrated.moduleShortcuts.some((s) => (s.id as string) === 'unreleased_ai')).toBe(
+        false
+      );
       expect(migrated.moduleShortcuts.length).toBe(10);
       expect(migrated.moduleShortcuts.map((s) => s.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
@@ -1680,9 +1683,8 @@ describe('Domain Rules and Invariants', () => {
     });
 
     it('provides accessible reordering for widgets and module shortcuts with boundary safety', async () => {
-      const { getDefaultHomeLayout, reorderWidgets, reorderModuleShortcuts } = await import(
-        './home.js'
-      );
+      const { getDefaultHomeLayout, reorderWidgets, reorderModuleShortcuts } =
+        await import('./home.js');
       const layout = getDefaultHomeLayout();
 
       // Initial: tasks is order 0, routines is order 1
@@ -1751,6 +1753,53 @@ describe('Domain Rules and Invariants', () => {
       const journal = safe.find((i) => i.id === 'journal-1')!;
       expect(journal.bodyPreview).toBeNull(); // Strictly redacted!
       expect(journal.title).toBe('Journal entry'); // Sensitive title redacted when requested!
+    });
+  });
+
+  describe('Phase 33: Search Domain Utilities', () => {
+    it('splits text into safe highlighted segments without regex injection', async () => {
+      const { highlightMatch } = await import('./search.js');
+
+      // Simple match
+      const segs = highlightMatch('Fast distributed database systems', 'database');
+      expect(segs).toEqual([
+        { text: 'Fast distributed ', match: false },
+        { text: 'database', match: true },
+        { text: ' systems', match: false },
+      ]);
+
+      // Special characters in query (must not crash regex)
+      const specialSegs = highlightMatch('Call testFunction() now', 'testFunction()');
+      expect(specialSegs.some((s) => s.match && s.text === 'testFunction()')).toBe(true);
+
+      // Bangla text highlighting
+      const banglaSegs = highlightMatch('আজকের গুরুত্বপূর্ণ কাজ', 'গুরুত্বপূর্ণ');
+      expect(banglaSegs.some((s) => s.match && s.text === 'গুরুত্বপূর্ণ')).toBe(true);
+    });
+
+    it('extracts contextual search snippet with bounded length', async () => {
+      const { extractSearchSnippet } = await import('./search.js');
+
+      const text =
+        'Antigravity is designed to assist software engineers with complex codebases. The search index provides low latency retrieval across millions of records efficiently.';
+      const snippet = extractSearchSnippet(text, 'low latency retrieval', 60);
+
+      expect(snippet).toContain('low latency retrieval');
+      expect(snippet.length).toBeLessThanOrEqual(100);
+    });
+
+    it('builds canonical folder breadcrumbs and gracefully handles root/cycles', async () => {
+      const { buildFolderPath } = await import('./search.js');
+
+      const folderMap = new Map([
+        ['f1', { id: 'f1', name: 'Work', parentId: null }],
+        ['f2', { id: 'f2', name: 'Engineering', parentId: 'f1' }],
+        ['f3', { id: 'f3', name: 'Search', parentId: 'f2' }],
+      ]);
+
+      expect(buildFolderPath(null, folderMap)).toBe('Inbox');
+      expect(buildFolderPath('f3', folderMap)).toBe('Work > Engineering > Search');
+      expect(buildFolderPath('unknown', folderMap)).toBe('Inbox');
     });
   });
 });

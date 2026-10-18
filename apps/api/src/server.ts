@@ -28,6 +28,7 @@ import { registerFileRoutes } from './routes/v1/files.js';
 import { registerCalendarRoutes } from './routes/v1/calendar.js';
 import { registerReminderRoutes } from './routes/v1/reminders.js';
 import { registerKnowledgeRoutes } from './routes/v1/knowledge.js';
+import { registerSearchRoutes } from './routes/v1/search.js';
 import { registerSyncRoutes } from './modules/sync/index.js';
 import { storageTransferPlugin } from './modules/files/storageTransfer.js';
 
@@ -153,6 +154,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerCalendarRoutes(authScope, runtimePool);
       registerReminderRoutes(authScope, runtimePool);
       registerKnowledgeRoutes(authScope, runtimePool);
+      registerSearchRoutes(authScope, runtimePool);
       registerSyncRoutes(authScope, runtimePool);
     });
   }

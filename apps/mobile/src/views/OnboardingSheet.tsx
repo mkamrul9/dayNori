@@ -141,7 +141,8 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
       if (repository && userId) {
         const snap = await repository.getPreferenceSnapshot(userId).catch(() => null);
         if (snap?.preferences) {
-          const rawDraft = snap.preferences['onboardingDraft'] as Partial<OnboardingState> | undefined;
+          const rawDraft = snap.preferences['onboardingDraft'] as
+            Partial<OnboardingState> | undefined;
           if (rawDraft) localDraft = rawDraft;
           else if (snap.preferences.onboarding) {
             const parsed = validateOnboardingState(snap.preferences.onboarding);
@@ -290,7 +291,11 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
             });
             synced = true;
           } catch (err: unknown) {
-            if (retries > 0 && err instanceof Error && (err.message.includes('conflict') || err.message.includes('409'))) {
+            if (
+              retries > 0 &&
+              err instanceof Error &&
+              (err.message.includes('conflict') || err.message.includes('409'))
+            ) {
               retries--;
               const latest = await apiClient.getUserPreferences().catch(() => null);
               if (latest?.data) {
@@ -317,7 +322,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
           };
           cleanPrefs['_pendingExpectedRevision'] = targetRevision;
         } else {
-          const pending = { ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}) };
+          const pending = {
+            ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}),
+          };
           delete pending['onboarding'];
           if (Object.keys(pending).length === 0) {
             delete cleanPrefs['_pendingPreferences'];
@@ -327,13 +334,15 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
           }
         }
 
-        await repository.savePreferenceSnapshot({
-          userId,
-          preferences: cleanPrefs,
-          schemaVersion: 1,
-          revision: snap?.revision || 1,
-          updatedAt: new Date().toISOString(),
-        }).catch(() => {});
+        await repository
+          .savePreferenceSnapshot({
+            userId,
+            preferences: cleanPrefs,
+            schemaVersion: 1,
+            revision: snap?.revision || 1,
+            updatedAt: new Date().toISOString(),
+          })
+          .catch(() => {});
       }
 
       AccessibilityInfo.announceForAccessibility?.('Tutorial skipped. Welcome to Daynori.');
@@ -411,17 +420,19 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
       if (repository && userId) {
         const snap = await repository.getPreferenceSnapshot(userId).catch(() => null);
         const existingPrefs = snap?.preferences || {};
-        await repository.savePreferenceSnapshot({
-          userId,
-          preferences: {
-            ...existingPrefs,
-            homeLayout: updatedLayout,
-            onboarding: preservedOnboarding,
-          },
-          schemaVersion: 1,
-          revision: snap?.revision || 1,
-          updatedAt: new Date().toISOString(),
-        }).catch(() => {});
+        await repository
+          .savePreferenceSnapshot({
+            userId,
+            preferences: {
+              ...existingPrefs,
+              homeLayout: updatedLayout,
+              onboarding: preservedOnboarding,
+            },
+            schemaVersion: 1,
+            revision: snap?.revision || 1,
+            updatedAt: new Date().toISOString(),
+          })
+          .catch(() => {});
       }
 
       AccessibilityInfo.announceForAccessibility?.('Tutorial replay completed.');
@@ -440,7 +451,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
         if (createStarterFolder && !createdFolderId) {
           const sampleFolderId = getSampleFolderId(workspaceId, userId);
           try {
-            const existingFolder = await apiClient.getFolder(workspaceId, sampleFolderId).catch(() => null);
+            const existingFolder = await apiClient
+              .getFolder(workspaceId, sampleFolderId)
+              .catch(() => null);
             if (existingFolder?.data?.id) {
               createdFolderId = existingFolder.data.id;
             } else {
@@ -453,8 +466,10 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                 createdFolderId = folderRes.data.id;
               }
             }
-          } catch (err: unknown) {
-            const existingFolder = await apiClient.getFolder(workspaceId, sampleFolderId).catch(() => null);
+          } catch {
+            const existingFolder = await apiClient
+              .getFolder(workspaceId, sampleFolderId)
+              .catch(() => null);
             if (existingFolder?.data?.id) {
               createdFolderId = existingFolder.data.id;
             } else {
@@ -469,7 +484,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
         const sampleNoteId = getSampleNoteId(workspaceId, userId);
         if (createStarterNote && !createdItemIds.includes(sampleNoteId)) {
           try {
-            const existingNote = await apiClient.getNote(workspaceId, sampleNoteId).catch(() => null);
+            const existingNote = await apiClient
+              .getNote(workspaceId, sampleNoteId)
+              .catch(() => null);
             if (existingNote?.data?.id) {
               createdItemIds.push(sampleNoteId);
             } else {
@@ -491,8 +508,10 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
               });
               createdItemIds.push(sampleNoteId);
             }
-          } catch (err: unknown) {
-            const existingNote = await apiClient.getNote(workspaceId, sampleNoteId).catch(() => null);
+          } catch {
+            const existingNote = await apiClient
+              .getNote(workspaceId, sampleNoteId)
+              .catch(() => null);
             if (existingNote?.data?.id) {
               createdItemIds.push(sampleNoteId);
             } else {
@@ -507,7 +526,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
         const sampleTaskId = getSampleTaskId(workspaceId, userId);
         if (createStarterTask && !createdItemIds.includes(sampleTaskId)) {
           try {
-            const existingTask = await apiClient.getTask(workspaceId, sampleTaskId).catch(() => null);
+            const existingTask = await apiClient
+              .getTask(workspaceId, sampleTaskId)
+              .catch(() => null);
             if (existingTask?.data?.id) {
               createdItemIds.push(sampleTaskId);
             } else {
@@ -525,8 +546,10 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
               });
               createdItemIds.push(sampleTaskId);
             }
-          } catch (err: unknown) {
-            const existingTask = await apiClient.getTask(workspaceId, sampleTaskId).catch(() => null);
+          } catch {
+            const existingTask = await apiClient
+              .getTask(workspaceId, sampleTaskId)
+              .catch(() => null);
             if (existingTask?.data?.id) {
               createdItemIds.push(sampleTaskId);
             } else {
@@ -565,7 +588,11 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
             });
             synced = true;
           } catch (err: unknown) {
-            if (retries > 0 && err instanceof Error && (err.message.includes('conflict') || err.message.includes('409'))) {
+            if (
+              retries > 0 &&
+              err instanceof Error &&
+              (err.message.includes('conflict') || err.message.includes('409'))
+            ) {
               retries--;
               const latest = await apiClient.getUserPreferences().catch(() => null);
               if (latest?.data) {
@@ -602,7 +629,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
           };
           cleanPrefs['_pendingExpectedRevision'] = targetRevision;
         } else {
-          const pending = { ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}) };
+          const pending = {
+            ...((cleanPrefs['_pendingPreferences'] as Record<string, unknown>) || {}),
+          };
           delete pending['onboarding'];
           delete pending['homeLayout'];
           if (Object.keys(pending).length === 0) {
@@ -613,13 +642,15 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
           }
         }
 
-        await repository.savePreferenceSnapshot({
-          userId,
-          preferences: cleanPrefs,
-          schemaVersion: 1,
-          revision: snap?.revision || 1,
-          updatedAt: new Date().toISOString(),
-        }).catch(() => {});
+        await repository
+          .savePreferenceSnapshot({
+            userId,
+            preferences: cleanPrefs,
+            schemaVersion: 1,
+            revision: snap?.revision || 1,
+            updatedAt: new Date().toISOString(),
+          })
+          .catch(() => {});
       }
 
       AccessibilityInfo.announceForAccessibility?.('Tutorial completed. Welcome to Daynori!');
@@ -803,9 +834,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
               ]}
             >
               <Text style={[styles.noticeText, { color: palette.text.secondary }]}>
-                🛡️ <Text style={{ fontWeight: '600' }}>Contextual Permissions:</Text> We do not
-                ask for camera, microphone, or push notification access right now. You will be
-                prompted only when you deliberately use those tools.
+                🛡️ <Text style={{ fontWeight: '600' }}>Contextual Permissions:</Text> We do not ask
+                for camera, microphone, or push notification access right now. You will be prompted
+                only when you deliberately use those tools.
               </Text>
             </View>
           </View>
@@ -846,9 +877,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                       borderColor: createStarterFolder
                         ? palette.action.primary
                         : palette.border.strong,
-                      backgroundColor: createStarterFolder
-                        ? palette.action.primary
-                        : 'transparent',
+                      backgroundColor: createStarterFolder ? palette.action.primary : 'transparent',
                     },
                   ]}
                 >
@@ -876,9 +905,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                   styles.sampleRow,
                   {
                     backgroundColor: createStarterNote ? palette.surface : palette.background,
-                    borderColor: createStarterNote
-                      ? palette.action.primary
-                      : palette.border.subtle,
+                    borderColor: createStarterNote ? palette.action.primary : palette.border.subtle,
                   },
                 ]}
               >
@@ -917,9 +944,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                   styles.sampleRow,
                   {
                     backgroundColor: createStarterTask ? palette.surface : palette.background,
-                    borderColor: createStarterTask
-                      ? palette.action.primary
-                      : palette.border.subtle,
+                    borderColor: createStarterTask ? palette.action.primary : palette.border.subtle,
                   },
                 ]}
               >

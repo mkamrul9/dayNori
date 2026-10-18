@@ -297,7 +297,9 @@ export const TodayView: React.FC = () => {
                 if (parsed.step === 'completed' || parsed.skipped) {
                   localDraftCompletedOrSkipped = true;
                 }
-              } catch {}
+              } catch {
+                /* ignore */
+              }
             }
             const pendingKey = `daynori:preferences:pending:${user.id}`;
             const rawPending = window.localStorage.getItem(pendingKey);
@@ -322,12 +324,17 @@ export const TodayView: React.FC = () => {
                     }
                   })
                   .catch(() => {});
-              } catch {}
+              } catch {
+                /* ignore */
+              }
             }
           }
 
           // Trigger skippable first-use onboarding tutorial on fresh account sign-in
-          if (!localDraftCompletedOrSkipped && shouldShowOnboarding(prefRes.data.preferences?.onboarding)) {
+          if (
+            !localDraftCompletedOrSkipped &&
+            shouldShowOnboarding(prefRes.data.preferences?.onboarding)
+          ) {
             openModal('onboarding');
           }
         } else {
@@ -354,10 +361,15 @@ export const TodayView: React.FC = () => {
                   if (parsed.step === 'completed' || parsed.skipped) {
                     localDraftCompletedOrSkipped = true;
                   }
-                } catch {}
+                } catch {
+                  /* ignore */
+                }
               }
             }
-            if (!localDraftCompletedOrSkipped && shouldShowOnboarding(snapshot.preferences?.onboarding as OnboardingState | undefined)) {
+            if (
+              !localDraftCompletedOrSkipped &&
+              shouldShowOnboarding(snapshot.preferences?.onboarding as OnboardingState | undefined)
+            ) {
               openModal('onboarding');
             }
           }
@@ -467,7 +479,9 @@ export const TodayView: React.FC = () => {
       try {
         const notes = await repo.listNotes(workspaceId);
         const files = await repo.listFiles(workspaceId);
-        const journalEntries = await repo.listJournalEntries(workspaceId, { includeDeleted: false });
+        const journalEntries = await repo.listJournalEntries(workspaceId, {
+          includeDeleted: false,
+        });
 
         const rawRecent: RecentItemEntry[] = [
           ...notes.map((n) => ({
@@ -600,8 +614,7 @@ export const TodayView: React.FC = () => {
     const refDate = new Date();
     return tasks.filter(
       (t) =>
-        t.deletedAt === null &&
-        isTaskDueToday({ deadline: t.deadline }, refDate, viewingTimezone)
+        t.deletedAt === null && isTaskDueToday({ deadline: t.deadline }, refDate, viewingTimezone)
     );
   }, [tasks, viewingTimezone]);
 
@@ -998,11 +1011,7 @@ export const TodayView: React.FC = () => {
         revision: o.serverRevision,
       }));
       const { retained, modifiedOccurrences, cancelledOccurrences } =
-        reconcileOccurrencesOnScheduleChange(
-          domainOccurrences,
-          updated,
-          formData.effectiveDate
-        );
+        reconcileOccurrencesOnScheduleChange(domainOccurrences, updated, formData.effectiveDate);
 
       const reconciledOccurrences: RoutineOccurrenceRecord[] = [
         ...retained.map((o) => ({
@@ -1356,7 +1365,9 @@ export const TodayView: React.FC = () => {
           'Preference conflict: settings were modified on another device. You can keep your unsaved edits or discard them to load latest settings.'
         );
       } else {
-        setErrorMessage(`Failed to save preferences: ${err instanceof Error ? err.message : String(err)}`);
+        setErrorMessage(
+          `Failed to save preferences: ${err instanceof Error ? err.message : String(err)}`
+        );
       }
       announce('Failed to save layout preferences.');
     } finally {
@@ -1381,9 +1392,7 @@ export const TodayView: React.FC = () => {
   };
 
   const visibleWidgets = useMemo(() => {
-    return [...homeLayout.widgets]
-      .filter((w) => w.visible)
-      .sort((a, b) => a.order - b.order);
+    return [...homeLayout.widgets].filter((w) => w.visible).sort((a, b) => a.order - b.order);
   }, [homeLayout.widgets]);
 
   const visibleShortcuts = useMemo(() => {
@@ -1601,8 +1610,7 @@ export const TodayView: React.FC = () => {
           }}
         >
           {visibleShortcuts.map((shortcut) => {
-            const label =
-              shortcut.customLabel || DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id;
+            const label = shortcut.customLabel || DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id;
             const href = MODULE_SHORTCUT_HREFS[shortcut.id] || '/';
             return (
               <Link
@@ -2171,7 +2179,13 @@ export const TodayView: React.FC = () => {
                           border: `1px solid ${palette.border.subtle}`,
                         }}
                       >
-                        <div style={{ fontSize: '20px', fontWeight: 800, color: palette.action.primary }}>
+                        <div
+                          style={{
+                            fontSize: '20px',
+                            fontWeight: 800,
+                            color: palette.action.primary,
+                          }}
+                        >
                           {upcomingSummary.upcomingTaskCount}
                         </div>
                         <div style={{ fontSize: '12px', color: palette.text.secondary }}>
@@ -2189,7 +2203,13 @@ export const TodayView: React.FC = () => {
                           border: `1px solid ${palette.border.subtle}`,
                         }}
                       >
-                        <div style={{ fontSize: '20px', fontWeight: 800, color: palette.action.primary }}>
+                        <div
+                          style={{
+                            fontSize: '20px',
+                            fontWeight: 800,
+                            color: palette.action.primary,
+                          }}
+                        >
                           {upcomingSummary.upcomingRoutineCount}
                         </div>
                         <div style={{ fontSize: '12px', color: palette.text.secondary }}>
@@ -2425,7 +2445,13 @@ export const TodayView: React.FC = () => {
 
                     <div role="list" aria-label="Recent items">
                       {recentItems.length === 0 ? (
-                        <div style={{ fontSize: '13px', color: palette.text.secondary, padding: '4px 0' }}>
+                        <div
+                          style={{
+                            fontSize: '13px',
+                            color: palette.text.secondary,
+                            padding: '4px 0',
+                          }}
+                        >
                           No recent items found.
                         </div>
                       ) : (
@@ -2504,7 +2530,11 @@ export const TodayView: React.FC = () => {
                       </h2>
                       <Link
                         href="/library"
-                        style={{ fontSize: '12px', color: palette.action.primary, textDecoration: 'none' }}
+                        style={{
+                          fontSize: '12px',
+                          color: palette.action.primary,
+                          textDecoration: 'none',
+                        }}
                       >
                         Browse all →
                       </Link>
@@ -2512,8 +2542,15 @@ export const TodayView: React.FC = () => {
 
                     <div style={{ display: 'flex', gap: `${spacing.xs}px`, flexWrap: 'wrap' }}>
                       {activeFavs.length === 0 ? (
-                        <div style={{ fontSize: '13px', color: palette.text.secondary, padding: '4px 0' }}>
-                          No favorite folders pinned yet. Use Customize Today to pin your key folders.
+                        <div
+                          style={{
+                            fontSize: '13px',
+                            color: palette.text.secondary,
+                            padding: '4px 0',
+                          }}
+                        >
+                          No favorite folders pinned yet. Use Customize Today to pin your key
+                          folders.
                         </div>
                       ) : (
                         activeFavs.map((f) => (
@@ -2670,12 +2707,20 @@ export const TodayView: React.FC = () => {
             </div>
 
             <p style={{ margin: 0, fontSize: '13px', color: palette.text.secondary }}>
-              Rearrange cards, rename custom labels, toggle visibility, and configure display options.
+              Rearrange cards, rename custom labels, toggle visibility, and configure display
+              options.
             </p>
 
             {/* Widget Reordering & Visibility */}
             <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+              <legend
+                style={{
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  color: palette.text.primary,
+                  marginBottom: `${spacing.xs}px`,
+                }}
+              >
                 Cards & Ordering
               </legend>
               <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
@@ -2709,9 +2754,15 @@ export const TodayView: React.FC = () => {
                           id={`toggle-widget-${widget.id}`}
                           checked={widget.visible}
                           onChange={() => handleToggleWidget(widget.id)}
-                          style={{ width: '18px', height: '18px', accentColor: palette.action.primary }}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            accentColor: palette.action.primary,
+                          }}
                         />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: palette.text.primary }}>
+                        <span
+                          style={{ fontSize: '13px', fontWeight: 600, color: palette.text.primary }}
+                        >
                           {DEFAULT_WIDGET_LABELS[widget.id]}
                         </span>
                       </label>
@@ -2784,7 +2835,14 @@ export const TodayView: React.FC = () => {
 
             {/* Module Shortcuts Reordering & Visibility */}
             <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+              <legend
+                style={{
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  color: palette.text.primary,
+                  marginBottom: `${spacing.xs}px`,
+                }}
+              >
                 Navigation Shortcuts & Ordering
               </legend>
               <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
@@ -2818,10 +2876,17 @@ export const TodayView: React.FC = () => {
                           id={`toggle-shortcut-${shortcut.id}`}
                           checked={shortcut.visible}
                           onChange={() => handleToggleShortcut(shortcut.id)}
-                          style={{ width: '18px', height: '18px', accentColor: palette.action.primary }}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            accentColor: palette.action.primary,
+                          }}
                         />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: palette.text.primary }}>
-                          {MODULE_SHORTCUT_ICONS[shortcut.id]} {DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id}
+                        <span
+                          style={{ fontSize: '13px', fontWeight: 600, color: palette.text.primary }}
+                        >
+                          {MODULE_SHORTCUT_ICONS[shortcut.id]}{' '}
+                          {DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id}
                         </span>
                       </label>
 
@@ -2893,11 +2958,27 @@ export const TodayView: React.FC = () => {
 
             {/* Display Density */}
             <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+              <legend
+                style={{
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  color: palette.text.primary,
+                  marginBottom: `${spacing.xs}px`,
+                }}
+              >
                 Layout Density
               </legend>
               <div style={{ display: 'flex', gap: `${spacing.base}px` }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: palette.text.primary, cursor: 'pointer' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    color: palette.text.primary,
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="radio"
                     name="density"
@@ -2908,7 +2989,16 @@ export const TodayView: React.FC = () => {
                   />
                   Comfortable
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: palette.text.primary, cursor: 'pointer' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    color: palette.text.primary,
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="radio"
                     name="density"
@@ -2924,7 +3014,14 @@ export const TodayView: React.FC = () => {
 
             {/* Theme Selection */}
             <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-              <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+              <legend
+                style={{
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  color: palette.text.primary,
+                  marginBottom: `${spacing.xs}px`,
+                }}
+              >
                 Theme
               </legend>
               <div style={{ display: 'flex', gap: `${spacing.base}px` }}>
@@ -2958,7 +3055,14 @@ export const TodayView: React.FC = () => {
             {/* Favorite Folders Selection */}
             {workspaceFolders.length > 0 && (
               <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
-                <legend style={{ fontWeight: 700, fontSize: '14px', color: palette.text.primary, marginBottom: `${spacing.xs}px` }}>
+                <legend
+                  style={{
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    color: palette.text.primary,
+                    marginBottom: `${spacing.xs}px`,
+                  }}
+                >
                   Pin Favorite Folders
                 </legend>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -2979,7 +3083,11 @@ export const TodayView: React.FC = () => {
                         id={`fav-folder-${folder.id}`}
                         checked={homeLayout.favoriteFolderIds.includes(folder.id)}
                         onChange={() => handleToggleFavoriteFolder(folder.id)}
-                        style={{ width: '16px', height: '16px', accentColor: palette.action.primary }}
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          accentColor: palette.action.primary,
+                        }}
                       />
                       <span>📁 {folder.name}</span>
                     </label>
@@ -3005,7 +3113,8 @@ export const TodayView: React.FC = () => {
                   ⚠️ Cloud Settings Conflict (revision {conflictState.serverRevision})
                 </div>
                 <div style={{ fontSize: '12px', color: palette.text.secondary }}>
-                  Another device saved preferences since this page was loaded. Your unsaved edits are kept in this form.
+                  Another device saved preferences since this page was loaded. Your unsaved edits
+                  are kept in this form.
                 </div>
                 <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
                   <Button
@@ -3062,7 +3171,8 @@ export const TodayView: React.FC = () => {
                   Restore Defaults
                 </button>
                 <span style={{ fontSize: '11px', color: palette.text.secondary }}>
-                  Applies default card order and shortcut visibility without modifying personal content.
+                  Applies default card order and shortcut visibility without modifying personal
+                  content.
                 </span>
               </div>
 

@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   encryptWebPushPayload,
   decryptWebPushPayload,
-  createVapidAuthHeader,
   assertSafePushEndpointNetworkDestination,
   isDisallowedIpv4,
   isDisallowedIpv6,
@@ -15,10 +14,7 @@ import {
   mergeOnboardingState,
   resetOnboardingForReplay,
   completeOnboarding,
-  skipOnboarding,
-  advanceOnboardingStep,
   getDefaultOnboardingState,
-  TUTORIAL_STEPS,
   type OnboardingState,
 } from '@daynori/domain';
 

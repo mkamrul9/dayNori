@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-18",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 32 Knowledge guides and cheatsheet organization provisional implementation delivered under explicit owner authorization and verified across canonical NoteDocument AST v1 presets, topic folder organization without duplicate bodies, saved views with non-destructive multi-view filtering, Web QuickReferenceView, Mobile MobileQuickReferenceView, clean plain-text clipboard boundaries, internal item link and reverse backlink resolution with honest unavailable target notices, cross-tenant isolation, and 12 end-to-end integration tests (54/54 test files and 753/753 tests passing). Completion for prerequisite Phases 04–06, 09–32 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 33 will be considered once gates or explicit owner authorization are established.",
-  "note": "Phase 32 (Knowledge guides and cheatsheet organization) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
+  "schedulingDecision": "Phase 33 Global authorized search and filters provisional implementation delivered under explicit owner authorization and verified across PostgreSQL full-text and pg_trgm indexes, Fastify search endpoint, DaynoriApiClient, pure client-side local search with offline coverage indicators, Web search modal, Mobile SearchSheet, strict multi-tenant workspace isolation, vault exclusion, journal privacy redactions, archived/deleted handling, and 11 end-to-end integration tests (55/55 test files and 772/772 tests passing). Completion for prerequisite Phases 04–06, 09–33 remains blocked pending physical Android TalkBack, KeyStore, and live production VAPID/push provider release gates. Next phase pointer is set to null per validation rules because prerequisites remain blocked on physical hardware/provider gates; Phase 34 (Conflict recovery and offline hardening) will be considered once gates or explicit owner authorization are established.",
+  "note": "Phase 33 (Global authorized search and filters) provisional implementation delivered under explicit owner authorization. Physical hardware and external provider release gates from earlier phases remain blocked.",
   "phases": [
     {
       "id": "00",
@@ -200,7 +200,9 @@
     },
     {
       "id": "33",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional global authorized search and filters implementation delivered under owner authorization and verified across PostgreSQL full-text and pg_trgm indexes, Fastify search endpoint, DaynoriApiClient, pure client-side local search with offline coverage indicators, Web search modal, Mobile SearchSheet, strict multi-tenant workspace isolation, vault exclusion, journal privacy redactions, archived/deleted handling, and 11 end-to-end integration tests (55/55 test files and 772/772 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-33.md"
     },
     {
       "id": "34",

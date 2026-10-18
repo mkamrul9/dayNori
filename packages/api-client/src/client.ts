@@ -168,6 +168,9 @@ import {
   type SavedViewResponse,
   type SavedViewListResponse,
   type ResolvedItemLinkListResponse,
+  SearchResponseSchema,
+  type SearchResponse,
+  type SearchQueryInput,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -1907,6 +1910,38 @@ export class DaynoriApiClient {
       options
     );
     return ResolvedItemLinkListResponseSchema.parse(raw);
+  }
+
+  // --- Global Authorized Search ---
+
+  async searchWorkspace(
+    workspaceId: string,
+    query: SearchQueryInput,
+    options?: RequestOptions
+  ): Promise<SearchResponse> {
+    const params = new URLSearchParams();
+    if (query.q) params.set('q', query.q);
+    if (query.types && query.types.length > 0) {
+      for (const t of query.types) {
+        params.append('types', t);
+      }
+    }
+    if (query.folderId) params.set('folderId', query.folderId);
+    if (query.tagNames && query.tagNames.length > 0) {
+      for (const tag of query.tagNames) {
+        params.append('tagNames', tag);
+      }
+    }
+    if (query.startDate) params.set('startDate', query.startDate);
+    if (query.endDate) params.set('endDate', query.endDate);
+    if (query.includeArchived) params.set('includeArchived', 'true');
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    if (query.offset !== undefined) params.set('offset', String(query.offset));
+
+    const queryString = params.toString();
+    const endpoint = `/v1/workspaces/${encodeURIComponent(workspaceId)}/search${queryString ? `?${queryString}` : ''}`;
+    const raw = await this.request<unknown>(endpoint, { method: 'GET' }, options);
+    return SearchResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

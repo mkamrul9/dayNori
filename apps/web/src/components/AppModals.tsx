@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
 import { Button, Dialog, Feedback, ListRow, TextField } from '@daynori/ui-web';
@@ -8,15 +8,40 @@ import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
+import { createWebApiClient } from '../data/webApiClient';
+import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
+import { highlightMatch, searchDownloadedRecords } from '@daynori/domain';
+import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 
 export const AppModals: React.FC = () => {
   const router = useRouter();
   const { themeMode, activeModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
-  const { user, isAuthenticated, signOut, openAuthModal } = useAuth();
+  const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken } = useAuth();
 
   const palette = colors[themeMode];
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedType, setSelectedType] = useState<SearchItemType>('all');
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [coverage, setCoverage] = useState<'complete' | 'offline_limited' | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const localRepoRef = useRef<IndexedDbLocalRepository | null>(null);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Clear search on modal close or account change
+  useEffect(() => {
+    if (activeModal !== 'search') {
+      setSearchQuery('');
+      setSelectedType('all');
+      setSearchResults([]);
+      setCoverage(null);
+      setIsOffline(false);
+      setIsLoading(false);
+    }
+  }, [activeModal, user?.id, workspaceId]);
 
   const searchableDestinations = [
     {
@@ -89,6 +114,187 @@ export const AppModals: React.FC = () => {
     router.push(href);
   };
 
+  const navigateToSearchResult = (item: SearchResultItem) => {
+    const wsParam = workspaceId ? `workspaceId=${encodeURIComponent(workspaceId)}` : '';
+    let href = '/today';
+
+    if (item.displayType === 'note' || item.displayType === 'knowledge') {
+      href = `/library?noteId=${encodeURIComponent(item.id)}${wsParam ? `&${wsParam}` : ''}`;
+    } else if (item.displayType === 'task') {
+      href = `/plan?targetId=${encodeURIComponent(item.id)}&targetType=task${wsParam ? `&${wsParam}` : ''}`;
+    } else if (item.displayType === 'journal') {
+      const entryDate = (item.metadata?.entryDate as string) || '';
+      href = entryDate
+        ? `/journal?date=${encodeURIComponent(entryDate)}${wsParam ? `&${wsParam}` : ''}`
+        : `/journal${wsParam ? `?${wsParam}` : ''}`;
+    } else if (item.displayType === 'file') {
+      href = `/library?fileId=${encodeURIComponent(item.id)}&type=files${wsParam ? `&${wsParam}` : ''}`;
+    } else if (item.displayType === 'folder') {
+      href = `/library?folderId=${encodeURIComponent(item.id)}${wsParam ? `&${wsParam}` : ''}`;
+    }
+
+    navigateTo(href);
+  };
+
+  // Debounced search query handler
+  useEffect(() => {
+    if (activeModal !== 'search') return;
+
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery && selectedType === 'all') {
+      setSearchResults([]);
+      setCoverage(null);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!workspaceId) return;
+
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+
+    const timer = setTimeout(async () => {
+      setIsLoading(true);
+
+      const types = selectedType !== 'all' ? [selectedType] : undefined;
+
+      try {
+        const client = createWebApiClient({ csrfToken });
+        const res = await client.searchWorkspace(
+          workspaceId,
+          {
+            q: trimmedQuery,
+            types,
+            limit: 20,
+          },
+          { signal: abortController.signal }
+        );
+
+        if (!abortController.signal.aborted) {
+          setSearchResults(res.data);
+          setCoverage(res.meta.coverage);
+          setTotalCount(res.meta.totalCount);
+          setIsOffline(false);
+          setIsLoading(false);
+        }
+      } catch {
+        if (abortController.signal.aborted) return;
+
+        // Fallback to offline search across downloaded items
+        try {
+          if (!localRepoRef.current) {
+            const repo = new IndexedDbLocalRepository();
+            await repo.initialize({
+              userId: user?.id || 'anonymous',
+              workspaceId,
+            });
+            localRepoRef.current = repo;
+          }
+
+          const repo = localRepoRef.current;
+          const [headers, notes, tasks, journals, files] = await Promise.all([
+            repo.listItemHeaders(workspaceId),
+            repo.listNotes(workspaceId),
+            repo.listTasks(workspaceId),
+            repo.listJournalEntries(workspaceId),
+            repo.listFiles(workspaceId),
+          ]);
+
+          const localRes = searchDownloadedRecords({
+            workspaceId,
+            query: {
+              q: trimmedQuery,
+              types,
+              limit: 20,
+            },
+            items: {
+              headers,
+              notes,
+              tasks,
+              journalEntries: journals,
+              files,
+            },
+            preferences: {
+              journalPreviewHidden: true,
+              suppressBodySnippets: true,
+            },
+          });
+
+          setSearchResults(localRes.data);
+          setCoverage('offline_limited');
+          setTotalCount(localRes.totalCount);
+          setIsOffline(true);
+        } catch {
+          setSearchResults([]);
+          setCoverage('offline_limited');
+          setTotalCount(0);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
+  }, [searchQuery, selectedType, workspaceId, csrfToken, activeModal, user?.id]);
+
+  const typeFilters: Array<{ id: SearchItemType; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'note', label: 'Notes' },
+    { id: 'task', label: 'Tasks' },
+    { id: 'journal', label: 'Journal' },
+    { id: 'file', label: 'Files' },
+    { id: 'knowledge', label: 'Knowledge' },
+  ];
+
+  const getItemIcon = (type: SearchResultItem['displayType']) => {
+    switch (type) {
+      case 'note':
+        return '📝';
+      case 'knowledge':
+        return '📖';
+      case 'task':
+        return '📋';
+      case 'journal':
+        return '🖋️';
+      case 'file':
+        return '📎';
+      case 'folder':
+        return '📁';
+      default:
+        return '📄';
+    }
+  };
+
+  const renderHighlight = (text: string, query: string) => {
+    const segments = highlightMatch(text, query);
+    return segments.map((seg, i) =>
+      seg.match ? (
+        <mark
+          key={i}
+          style={{
+            backgroundColor: palette.action.subtle,
+            color: palette.text.primary,
+            fontWeight: '600',
+            padding: '0 2px',
+            borderRadius: '2px',
+          }}
+        >
+          {seg.text}
+        </mark>
+      ) : (
+        <span key={i}>{seg.text}</span>
+      )
+    );
+  };
+
+  const hasSearchActive = Boolean(searchQuery.trim() || selectedType !== 'all');
+
   return (
     <>
       {/* 1. Global Search Dialog */}
@@ -96,47 +302,78 @@ export const AppModals: React.FC = () => {
         isOpen={activeModal === 'search'}
         onClose={closeModal}
         title="Search Organizer"
-        description="Search across navigation views, tasks, notes, and journal entries."
+        description="Search notes, tasks, files, journal reflections, and folders."
         themeMode={themeMode}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-          <Feedback
-            severity="info"
-            message="Phase 05 Navigation Shell — Search index and authorized queries will be finalized in Phase 33. Shell destinations are searchable below."
-            themeMode={themeMode}
-          />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
+          {isOffline && (
+            <Feedback
+              severity="info"
+              message="Showing downloaded offline results — server index will be queried upon reconnect."
+              themeMode={themeMode}
+            />
+          )}
 
           <TextField
             id="search-input"
             label="Search Query"
-            placeholder="Search views, tasks, folders, or notes..."
+            placeholder="Search notes, tasks, files, or journal reflections..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             themeMode={themeMode}
             autoFocus
           />
 
+          {/* Type Filter Chips */}
+          <div
+            role="toolbar"
+            aria-label="Filter by type"
+            style={{
+              display: 'flex',
+              gap: `${spacing.xs}px`,
+              flexWrap: 'wrap',
+              marginTop: `${spacing.xs}px`,
+            }}
+          >
+            {typeFilters.map((tf) => {
+              const isSelected = selectedType === tf.id;
+              return (
+                <button
+                  key={tf.id}
+                  type="button"
+                  id={`search-filter-${tf.id}`}
+                  onClick={() => setSelectedType(tf.id)}
+                  aria-pressed={isSelected}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: `${radii.sm}px`,
+                    fontSize: '12px',
+                    fontWeight: isSelected ? '600' : '400',
+                    border: `1px solid ${isSelected ? palette.action.primary : palette.border.subtle}`,
+                    backgroundColor: isSelected ? palette.action.subtle : 'transparent',
+                    color: isSelected ? palette.text.primary : palette.text.secondary,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {tf.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Results List */}
           <div
             role="list"
             aria-label="Search results"
             style={{
-              maxHeight: '260px',
+              maxHeight: '320px',
               overflowY: 'auto',
               border: `1px solid ${palette.border.subtle}`,
               borderRadius: `${radii.sm}px`,
+              marginTop: `${spacing.xs}px`,
             }}
           >
-            {filteredDestinations.length > 0 ? (
-              filteredDestinations.map((item) => (
-                <ListRow
-                  key={item.href}
-                  title={`${item.icon} ${item.title}`}
-                  subtitle={item.subtitle}
-                  onClick={() => navigateTo(item.href)}
-                  themeMode={themeMode}
-                />
-              ))
-            ) : (
+            {isLoading ? (
               <div
                 style={{
                   padding: `${spacing.lg}px`,
@@ -144,14 +381,139 @@ export const AppModals: React.FC = () => {
                   color: palette.text.secondary,
                 }}
               >
-                No matching organizer items found.
+                Searching organizer...
+              </div>
+            ) : hasSearchActive ? (
+              searchResults.length > 0 ? (
+                searchResults.map((item) => (
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigateToSearchResult(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigateToSearchResult(item);
+                      }
+                    }}
+                    style={{
+                      padding: `${spacing.sm}px ${spacing.md}px`,
+                      borderBottom: `1px solid ${palette.border.subtle}`,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      backgroundColor: palette.surface,
+                    }}
+                    aria-label={`${item.title}, ${item.displayType}, in ${item.folderPath}`}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span
+                        style={{ fontWeight: '600', color: palette.text.primary, fontSize: '14px' }}
+                      >
+                        {getItemIcon(item.displayType)} {renderHighlight(item.title, searchQuery)}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          textTransform: 'uppercase',
+                          fontWeight: '700',
+                          letterSpacing: '0.5px',
+                          color: palette.text.muted,
+                        }}
+                      >
+                        {item.displayType}
+                      </span>
+                    </div>
+
+                    {item.snippet && (
+                      <p
+                        style={{
+                          fontSize: '12px',
+                          color: palette.text.secondary,
+                          margin: 0,
+                          lineHeight: '1.4',
+                        }}
+                      >
+                        {renderHighlight(item.snippet, searchQuery)}
+                      </p>
+                    )}
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '8px',
+                        fontSize: '11px',
+                        color: palette.text.muted,
+                      }}
+                    >
+                      <span>📁 {item.folderPath}</span>
+                      {item.tags.length > 0 && (
+                        <span>🏷️ {item.tags.map((t) => `#${t}`).join(' ')}</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div
+                  style={{
+                    padding: `${spacing.lg}px`,
+                    textAlign: 'center',
+                    color: palette.text.secondary,
+                  }}
+                >
+                  No matching organizer items found for "{searchQuery}".
+                </div>
+              )
+            ) : (
+              // When no search query is active, show Quick Navigation Destinations
+              <div>
+                <div
+                  style={{
+                    padding: `${spacing.xs}px ${spacing.md}px`,
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    color: palette.text.muted,
+                    letterSpacing: '0.5px',
+                    borderBottom: `1px solid ${palette.border.subtle}`,
+                  }}
+                >
+                  Quick Navigation
+                </div>
+                {filteredDestinations.map((item) => (
+                  <ListRow
+                    key={item.href}
+                    title={`${item.icon} ${item.title}`}
+                    subtitle={item.subtitle}
+                    onClick={() => navigateTo(item.href)}
+                    themeMode={themeMode}
+                  />
+                ))}
               </div>
             )}
           </div>
 
           <div
-            style={{ display: 'flex', justifyContent: 'flex-end', marginTop: `${spacing.sm}px` }}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: `${spacing.xs}px`,
+            }}
           >
+            <span style={{ fontSize: '12px', color: palette.text.muted }}>
+              {hasSearchActive && !isLoading
+                ? `${totalCount} item${totalCount === 1 ? '' : 's'} found (${coverage === 'offline_limited' ? 'offline limited' : 'complete'})`
+                : 'Tip: Press / anywhere to open search'}
+            </span>
             <Button variant="secondary" themeMode={themeMode} onClick={closeModal}>
               Close
             </Button>

@@ -13,3 +13,4 @@ export * from './reminders.js';
 export * from './home.js';
 export * from './onboarding.js';
 export * from './knowledge.js';
+export * from './search.js';

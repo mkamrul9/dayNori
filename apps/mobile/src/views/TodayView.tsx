@@ -253,14 +253,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
   // Clear demo fixtures during authenticated production load
   const [tasks, setTasks] = useState<MobileTaskItem[]>(isProduction ? [] : initialTasks);
-  const [routines, setRoutines] = useState<MobileRoutineItem[]>(isProduction ? [] : initialRoutines);
+  const [routines, setRoutines] = useState<MobileRoutineItem[]>(
+    isProduction ? [] : initialRoutines
+  );
   const [occurrences, setOccurrences] = useState<MobileOccurrenceItem[]>(
     isProduction ? [] : initialOccurrences
   );
   const [recentItems, setRecentItems] = useState<RecentItemEntry[]>([]);
-  const [workspaceFolders, setWorkspaceFolders] = useState<Array<{ id: string; name: string }>>(
-    initialFolders
-  );
+  const [workspaceFolders, setWorkspaceFolders] =
+    useState<Array<{ id: string; name: string }>>(initialFolders);
   const rawTasksRef = useRef<TaskRecord[]>([]);
 
   // Phase 30 Customization & Synchronization State
@@ -353,12 +354,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
             let pendingOnboarding: unknown = undefined;
             try {
               const snap = await repository.getPreferenceSnapshot(userId || 'anonymous');
-              const snapPending = snap?.preferences?.['_pendingPreferences'] as Record<string, unknown> | undefined;
+              const snapPending = snap?.preferences?.['_pendingPreferences'] as
+                Record<string, unknown> | undefined;
               if (snapPending?.['onboarding']) {
                 pendingOnboarding = snapPending['onboarding'];
               }
               if (snapPending && apiClient) {
-                const expectedRev = (snap?.preferences?.['_pendingExpectedRevision'] as number | undefined) ?? prefRes.data.revision;
+                const expectedRev =
+                  (snap?.preferences?.['_pendingExpectedRevision'] as number | undefined) ??
+                  prefRes.data.revision;
                 void apiClient
                   .updateUserPreferences({
                     preferences: snapPending,
@@ -381,9 +385,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   })
                   .catch(() => {});
               }
-            } catch {}
+            } catch {
+              /* ignore */
+            }
 
-            const effectiveOnboarding = (pendingOnboarding || prefRes.data.preferences?.onboarding) as OnboardingState | undefined;
+            const effectiveOnboarding = (pendingOnboarding ||
+              prefRes.data.preferences?.onboarding) as OnboardingState | undefined;
             if (shouldShowOnboarding(effectiveOnboarding)) {
               onTriggerOnboarding?.();
             }
@@ -410,8 +417,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
               setViewingTimezone(snapTz);
             }
 
-            const pendingPrefs = snapPrefs['_pendingPreferences'] as Record<string, unknown> | undefined;
-            const effectiveLayout = (pendingPrefs?.['homeLayout'] || snapPrefs.homeLayout) as HomeLayout | undefined;
+            const pendingPrefs = snapPrefs['_pendingPreferences'] as
+              Record<string, unknown> | undefined;
+            const effectiveLayout = (pendingPrefs?.['homeLayout'] || snapPrefs.homeLayout) as
+              HomeLayout | undefined;
 
             if (effectiveLayout) {
               try {
@@ -426,7 +435,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
             // If online and pending preference changes exist, perform durable outbound sync
             if (pendingPrefs && apiClient) {
-              const expectedRev = (snapPrefs['_pendingExpectedRevision'] as number | undefined) ?? snapshot.revision;
+              const expectedRev =
+                (snapPrefs['_pendingExpectedRevision'] as number | undefined) ?? snapshot.revision;
               void apiClient
                 .updateUserPreferences({
                   preferences: pendingPrefs,
@@ -450,7 +460,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 .catch(() => {});
             }
 
-            const effectiveOnb = (pendingPrefs?.['onboarding'] || snapPrefs.onboarding) as OnboardingState | undefined;
+            const effectiveOnb = (pendingPrefs?.['onboarding'] || snapPrefs.onboarding) as
+              OnboardingState | undefined;
             if (shouldShowOnboarding(effectiveOnb)) {
               onTriggerOnboarding?.();
             }
@@ -605,9 +616,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           })),
         ];
 
-        rawRecent.sort(
-          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        );
+        rawRecent.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         const safeRecent = filterRecentItemsForPrivacy(rawRecent.slice(0, 5), {
           hideJournalSnippets: true,
         });
@@ -653,7 +662,17 @@ export const TodayView: React.FC<TodayViewProps> = ({
       setErrorMessage(err instanceof Error ? err.message : String(err));
       setIsLoading(false);
     }
-  }, [repository, workspaceId, userId, yesterdayDate, todayDate, currentNow, viewingTimezone, apiClient, refreshTrigger]);
+  }, [
+    repository,
+    workspaceId,
+    userId,
+    yesterdayDate,
+    todayDate,
+    currentNow,
+    viewingTimezone,
+    apiClient,
+    refreshTrigger,
+  ]);
 
   useEffect(() => {
     if (isProduction) {
@@ -1228,7 +1247,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
       // 2. Persist to local repository snapshot, retaining separate local and authoritative server state
       const existingSnapshot = await repository.getPreferenceSnapshot(userId || 'anonymous');
-      const existingPrefs = (existingSnapshot?.preferences as Record<string, unknown> | undefined) || {};
+      const existingPrefs =
+        (existingSnapshot?.preferences as Record<string, unknown> | undefined) || {};
       const mergedPreferences: Record<string, unknown> = {
         ...existingPrefs,
         homeLayout,
@@ -1300,9 +1320,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   };
 
   const visibleWidgets = useMemo(() => {
-    return [...homeLayout.widgets]
-      .filter((w) => w.visible)
-      .sort((a, b) => a.order - b.order);
+    return [...homeLayout.widgets].filter((w) => w.visible).sort((a, b) => a.order - b.order);
   }, [homeLayout.widgets]);
 
   const visibleShortcuts = useMemo(() => {
@@ -1322,7 +1340,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
     >
       {/* Date & Restrained Greeting */}
       <View style={styles.greetingHeader}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View
+          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <Text style={[styles.greetingDate, { color: palette.text.secondary }]}>
             {todayDate} · {viewingTimezone}
           </Text>
@@ -1394,11 +1414,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       {/* Production Error State */}
       {isProduction && errorMessage && !isLoading && (
         <View testID="today-production-error" style={styles.errorContainer}>
-          <MobileFeedback
-            severity="danger"
-            message={errorMessage}
-            themeMode={themeMode}
-          />
+          <MobileFeedback severity="danger" message={errorMessage} themeMode={themeMode} />
         </View>
       )}
 
@@ -1420,15 +1436,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
             ⚠️ Settings Conflict Detected
           </Text>
           <Text style={{ fontSize: 12, color: palette.text.secondary }}>
-            Preferences were updated on another device (rev {conflictState.serverRevision}).
-            Your unsaved changes are preserved.
+            Preferences were updated on another device (rev {conflictState.serverRevision}). Your
+            unsaved changes are preserved.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: 4 }}>
-            <MobileButton
-              variant="primary"
-              themeMode={themeMode}
-              onPress={handleKeepMyEdits}
-            >
+            <MobileButton variant="primary" themeMode={themeMode} onPress={handleKeepMyEdits}>
               Keep My Edits
             </MobileButton>
             <MobileButton
@@ -1454,8 +1466,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           }}
         >
           {visibleShortcuts.map((shortcut) => {
-            const label =
-              shortcut.customLabel || DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id;
+            const label = shortcut.customLabel || DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id;
             return (
               <Pressable
                 key={shortcut.id}
@@ -1560,7 +1571,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
                   <MobileCard themeMode={themeMode}>
                     {routines.length === 0 ? (
-                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                      <Text
+                        style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}
+                      >
                         No routines scheduled for today.
                       </Text>
                     ) : (
@@ -1605,7 +1618,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
                   <MobileCard themeMode={themeMode}>
                     {dueTodayTasks.length === 0 ? (
-                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                      <Text
+                        style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}
+                      >
                         No tasks due today.
                       </Text>
                     ) : (
@@ -1633,8 +1648,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         onPress={() => setIsOverdueExpanded((v) => !v)}
                         style={{ paddingVertical: spacing.xs }}
                       >
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: palette.status.danger }}>
-                          {isOverdueExpanded ? '▼' : '▶'} {overdueTasks.length} Overdue Task{overdueTasks.length === 1 ? '' : 's'}
+                        <Text
+                          style={{ fontSize: 12, fontWeight: '700', color: palette.status.danger }}
+                        >
+                          {isOverdueExpanded ? '▼' : '▶'} {overdueTasks.length} Overdue Task
+                          {overdueTasks.length === 1 ? '' : 's'}
                         </Text>
                       </Pressable>
 
@@ -1699,7 +1717,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         onPress={onOpenCreate}
                         style={[styles.quickButton, { borderColor: palette.border.subtle }]}
                       >
-                        <Text style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}>
+                        <Text
+                          style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
+                        >
                           ✓ Task
                         </Text>
                       </Pressable>
@@ -1708,7 +1728,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         onPress={onOpenCreate}
                         style={[styles.quickButton, { borderColor: palette.border.subtle }]}
                       >
-                        <Text style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}>
+                        <Text
+                          style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
+                        >
                           🔄 Routine
                         </Text>
                       </Pressable>
@@ -1717,7 +1739,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         onPress={onNavigateToJournal}
                         style={[styles.quickButton, { borderColor: palette.border.subtle }]}
                       >
-                        <Text style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}>
+                        <Text
+                          style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
+                        >
                           📖 Journal
                         </Text>
                       </Pressable>
@@ -1765,7 +1789,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   </Text>
                   <MobileCard themeMode={themeMode}>
                     {recentItems.length === 0 ? (
-                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                      <Text
+                        style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}
+                      >
                         No recent items recorded.
                       </Text>
                     ) : (
@@ -1793,10 +1819,18 @@ export const TodayView: React.FC<TodayViewProps> = ({
                             borderBottomColor: palette.border.subtle,
                           }}
                         >
-                          <Text style={{ color: palette.text.primary, fontSize: 13, fontWeight: '500' }}>
+                          <Text
+                            style={{ color: palette.text.primary, fontSize: 13, fontWeight: '500' }}
+                          >
                             {item.title}
                           </Text>
-                          <Text style={{ color: palette.text.secondary, fontSize: 11, textTransform: 'uppercase' }}>
+                          <Text
+                            style={{
+                              color: palette.text.secondary,
+                              fontSize: 11,
+                              textTransform: 'uppercase',
+                            }}
+                          >
                             {item.type}
                           </Text>
                         </Pressable>
@@ -1820,7 +1854,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   </Text>
                   <MobileCard themeMode={themeMode}>
                     {activeFavs.length === 0 ? (
-                      <Text style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}>
+                      <Text
+                        style={{ color: palette.text.secondary, fontSize: 13, padding: spacing.sm }}
+                      >
                         No favorite folders pinned.
                       </Text>
                     ) : (
@@ -1839,7 +1875,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                             borderBottomColor: palette.border.subtle,
                           }}
                         >
-                          <Text style={{ color: palette.text.primary, fontSize: 14, fontWeight: '600' }}>
+                          <Text
+                            style={{ color: palette.text.primary, fontSize: 14, fontWeight: '600' }}
+                          >
                             📁 {f.name}
                           </Text>
                         </Pressable>
@@ -1954,7 +1992,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
           testID="mobile-customization-sheet"
         >
           <ScrollView style={{ maxHeight: 400, padding: spacing.sm }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginBottom: spacing.sm }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: '700',
+                color: palette.text.primary,
+                marginBottom: spacing.sm,
+              }}
+            >
               Cards & Ordering
             </Text>
 
@@ -2024,7 +2069,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
               ))}
 
             {/* Module Shortcuts & Ordering */}
-            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginTop: spacing.md, marginBottom: spacing.sm }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: '700',
+                color: palette.text.primary,
+                marginTop: spacing.md,
+                marginBottom: spacing.sm,
+              }}
+            >
               Module Shortcuts & Ordering
             </Text>
 
@@ -2094,7 +2147,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
               ))}
 
             {/* Layout Density */}
-            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginTop: spacing.md, marginBottom: spacing.xs }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: '700',
+                color: palette.text.primary,
+                marginTop: spacing.md,
+                marginBottom: spacing.xs,
+              }}
+            >
               Density
             </Text>
             <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm }}>
@@ -2103,7 +2164,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 onPress={() => handleDensityChange('comfortable')}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
-                <Text style={{ fontSize: 14 }}>{homeLayout.density === 'comfortable' ? '🔘' : '⚪'}</Text>
+                <Text style={{ fontSize: 14 }}>
+                  {homeLayout.density === 'comfortable' ? '🔘' : '⚪'}
+                </Text>
                 <Text style={{ color: palette.text.primary, fontSize: 13 }}>Comfortable</Text>
               </Pressable>
               <Pressable
@@ -2111,7 +2174,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 onPress={() => handleDensityChange('compact')}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
-                <Text style={{ fontSize: 14 }}>{homeLayout.density === 'compact' ? '🔘' : '⚪'}</Text>
+                <Text style={{ fontSize: 14 }}>
+                  {homeLayout.density === 'compact' ? '🔘' : '⚪'}
+                </Text>
                 <Text style={{ color: palette.text.primary, fontSize: 13 }}>Compact</Text>
               </Pressable>
             </View>
@@ -2119,7 +2184,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
             {/* Favorite Folders Picker */}
             {workspaceFolders.length > 0 && (
               <>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, marginTop: spacing.md, marginBottom: spacing.xs }}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: '700',
+                    color: palette.text.primary,
+                    marginTop: spacing.md,
+                    marginBottom: spacing.xs,
+                  }}
+                >
                   Favorite Folders
                 </Text>
                 {workspaceFolders.map((folder) => {
@@ -2129,10 +2202,17 @@ export const TodayView: React.FC<TodayViewProps> = ({
                       key={folder.id}
                       testID={`mobile-toggle-fav-${folder.id}`}
                       onPress={() => handleToggleFavoriteFolder(folder.id)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 4 }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: spacing.xs,
+                        paddingVertical: 4,
+                      }}
                     >
                       <Text style={{ fontSize: 14 }}>{isFav ? '☑' : '☐'}</Text>
-                      <Text style={{ color: palette.text.primary, fontSize: 13 }}>📁 {folder.name}</Text>
+                      <Text style={{ color: palette.text.primary, fontSize: 13 }}>
+                        📁 {folder.name}
+                      </Text>
                     </Pressable>
                   );
                 })}
@@ -2156,11 +2236,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   ⚠️ Cloud Conflict (rev {conflictState.serverRevision})
                 </Text>
                 <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: 4 }}>
-                  <MobileButton
-                    variant="primary"
-                    themeMode={themeMode}
-                    onPress={handleKeepMyEdits}
-                  >
+                  <MobileButton variant="primary" themeMode={themeMode} onPress={handleKeepMyEdits}>
                     Keep My Edits
                   </MobileButton>
                   <MobileButton
@@ -2175,7 +2251,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
             )}
 
             <View style={{ marginTop: spacing.base, gap: spacing.xs }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
                 <MobileButton
                   testID="mobile-restore-defaults-btn"
                   variant="subtle"
@@ -2253,7 +2335,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
             </Text>
 
             {historyOccurrencesList.length === 0 ? (
-              <Text style={{ color: palette.text.muted, fontSize: 13, paddingVertical: spacing.md }}>
+              <Text
+                style={{ color: palette.text.muted, fontSize: 13, paddingVertical: spacing.md }}
+              >
                 No past occurrences found for this routine.
               </Text>
             ) : (

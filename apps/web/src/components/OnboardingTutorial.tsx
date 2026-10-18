@@ -91,7 +91,11 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
             if (isMounted && prefRes?.data) {
               setAuthoritativeRevision(prefRes.data.revision);
               const onb = prefRes.data.preferences?.onboarding;
-              if (onb?.selectedInterests && Array.isArray(onb.selectedInterests) && onb.selectedInterests.length > 0) {
+              if (
+                onb?.selectedInterests &&
+                Array.isArray(onb.selectedInterests) &&
+                onb.selectedInterests.length > 0
+              ) {
                 setSelectedInterests(onb.selectedInterests);
               }
             }
@@ -223,7 +227,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
       } catch {
         // Fall back gracefully
       }
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     const updatedOnboarding = skipOnboarding(currentOnboarding);
 
@@ -256,7 +262,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
             expectedRevision: targetRevision,
           })
         );
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
 
     try {
@@ -278,7 +286,11 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
             window.localStorage.removeItem(pendingKey);
           }
         } catch (err: unknown) {
-          if (retries > 0 && err instanceof Error && (err.message.includes('conflict') || err.message.includes('409'))) {
+          if (
+            retries > 0 &&
+            err instanceof Error &&
+            (err.message.includes('conflict') || err.message.includes('409'))
+          ) {
             retries--;
             const latest = await client.getUserPreferences().catch(() => null);
             if (latest?.data) {
@@ -361,7 +373,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
         if (createStarterFolder && !createdFolderId) {
           const sampleFolderId = getSampleFolderId(workspaceId, user.id);
           try {
-            const existingFolder = await client.getFolder(workspaceId, sampleFolderId).catch(() => null);
+            const existingFolder = await client
+              .getFolder(workspaceId, sampleFolderId)
+              .catch(() => null);
             if (existingFolder?.data?.id) {
               createdFolderId = existingFolder.data.id;
             } else {
@@ -376,7 +390,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
             }
           } catch {
             // Verify if already created concurrently
-            const existingFolder = await client.getFolder(workspaceId, sampleFolderId).catch(() => null);
+            const existingFolder = await client
+              .getFolder(workspaceId, sampleFolderId)
+              .catch(() => null);
             if (existingFolder?.data?.id) {
               createdFolderId = existingFolder.data.id;
             } else {
@@ -486,7 +502,11 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
           });
           synced = true;
         } catch (err: unknown) {
-          if (retries > 0 && err instanceof Error && (err.message.includes('conflict') || err.message.includes('409'))) {
+          if (
+            retries > 0 &&
+            err instanceof Error &&
+            (err.message.includes('conflict') || err.message.includes('409'))
+          ) {
             retries--;
             const latest = await client.getUserPreferences().catch(() => null);
             if (latest?.data) {
@@ -537,11 +557,15 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
               expectedRevision: targetRevision,
             })
           );
-        } catch {}
+        } catch {
+          /* ignore */
+        }
       } else if (synced && pendingKey && typeof window !== 'undefined') {
         try {
           window.localStorage.removeItem(pendingKey);
-        } catch {}
+        } catch {
+          /* ignore */
+        }
       }
 
       setLiveAnnouncement('Tutorial completed! Welcome to your Daynori workspace.');
@@ -691,9 +715,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                           gap: `${spacing.sm}px`,
                           padding: `${spacing.base}px`,
                           borderRadius: `${radii.card}px`,
-                          backgroundColor: isSelected
-                            ? palette.surfaceRaised
-                            : palette.surface,
+                          backgroundColor: isSelected ? palette.surfaceRaised : palette.surface,
                           border: `2px solid ${
                             isSelected ? palette.action.primary : palette.border.subtle
                           }`,
@@ -750,8 +772,8 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 borderRadius: `${radii.sm}px`,
               }}
             >
-              ℹ️ Visibility changes presentation shortcuts only. All core features remain authorized and
-              accessible at any time.
+              ℹ️ Visibility changes presentation shortcuts only. All core features remain authorized
+              and accessible at any time.
             </div>
           </div>
         )}
@@ -809,8 +831,8 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     margin: 0,
                   }}
                 >
-                  Single deadlines, action items, and project checklists. Once marked complete, a task
-                  is finished and won't reappear automatically.
+                  Single deadlines, action items, and project checklists. Once marked complete, a
+                  task is finished and won't reappear automatically.
                 </p>
               </div>
 
@@ -860,8 +882,8 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 borderRadius: `${radii.sm}px`,
               }}
             >
-              💡 Reminders are scheduled per item. Notification permissions are requested only when you
-              explicitly add a reminder.
+              💡 Reminders are scheduled per item. Notification permissions are requested only when
+              you explicitly add a reminder.
             </div>
           </div>
         )}
@@ -912,7 +934,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     onChange={(e) => setCreateStarterFolder(e.target.checked)}
                     style={{ accentColor: palette.action.primary }}
                   />
-                  <span>Create initial folder: <strong>{SAMPLE_STARTER_TEMPLATE.folderName}</strong></span>
+                  <span>
+                    Create initial folder: <strong>{SAMPLE_STARTER_TEMPLATE.folderName}</strong>
+                  </span>
                 </label>
 
                 <label
@@ -933,7 +957,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     onChange={(e) => setCreateStarterNote(e.target.checked)}
                     style={{ accentColor: palette.action.primary }}
                   />
-                  <span>Create sample note: <em>{SAMPLE_STARTER_TEMPLATE.noteTitle}</em></span>
+                  <span>
+                    Create sample note: <em>{SAMPLE_STARTER_TEMPLATE.noteTitle}</em>
+                  </span>
                 </label>
 
                 <label
@@ -954,7 +980,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     onChange={(e) => setCreateStarterTask(e.target.checked)}
                     style={{ accentColor: palette.action.primary }}
                   />
-                  <span>Create sample task: <em>{SAMPLE_STARTER_TEMPLATE.taskTitle}</em></span>
+                  <span>
+                    Create sample task: <em>{SAMPLE_STARTER_TEMPLATE.taskTitle}</em>
+                  </span>
                 </label>
               </div>
             </fieldset>
@@ -969,8 +997,8 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 borderRadius: `${radii.sm}px`,
               }}
             >
-              🔒 Samples are clearly labeled and completely removable. We never silently populate your
-              workspace.
+              🔒 Samples are clearly labeled and completely removable. We never silently populate
+              your workspace.
             </div>
           </div>
         )}

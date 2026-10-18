@@ -1,6 +1,46 @@
 # Changelog
 
-## Defect repairs (Phase 29 push transport, Phase 30 preference concurrency, Phase 31 onboarding recovery) — 2026-10-18
+## Phase 33 — Global authorized search and filters — 2026-10-18
+
+- **Server Search & Full-Text/Trigram Indexing (`apps/api`, `infra/supabase`):**
+  - Migration `00030_global_search_indexes.sql`: Activated `pg_trgm` extension and added GIN trigram indexes on `app.notes(title, plain_text_summary)`, `app.tasks(title, description)`, `app.journal_entries(title, plain_text_summary)`, `app.file_items(name)`, `app.folders(name)`, `app.tags(name)`, and `app.items(security_scope)` with predicate `security_scope != 'vault'`.
+  - Added REST endpoint `GET /v1/workspaces/:workspaceId/search` with workspace viewer authorization and parameterized SQL queries across notes, tasks, journals, file metadata, folders, and tags.
+  - Excluded vault content completely from search results, snippets, and total count metadata side channels. Excluded soft-deleted items by default.
+  - Implemented journal privacy redactions respecting user preferences (`journalPreviewHidden`, `suppressBodySnippets`), redacting private journal snippets to `[Private journal entry]`.
+  - Bounded input parsing and treated injection payloads, punctuation-only, and multilingual queries as inert search terms.
+- **Contracts & API Client (`packages/contracts`, `packages/api-client`):**
+  - Added `SearchItemTypeSchema`, `SearchQuerySchema`, `SearchQueryInput`, `SearchResultItemSchema`, and `SearchResponseSchema` in `packages/contracts/src/api/search.ts`.
+  - Added `searchWorkspace(workspaceId, query, options)` method to `DaynoriApiClient`.
+- **Pure Domain Local Search & Contextual Highlighting (`packages/domain`):**
+  - Implemented client-side offline search engine `searchDownloadedRecords` with vault exclusion, tag/date/type filtering, pagination, and stable score/recency sorting.
+  - Implemented safe search match token highlighting `highlightMatch` without regex injection vulnerability.
+  - Implemented contextual search snippet extractor `extractSearchSnippet` windowing matching keyword occurrences safely.
+  - Implemented canonical folder path resolution `buildFolderPath` with cycle prevention.
+- **Web & Mobile Search User Interfaces (`apps/web`, `apps/mobile`):**
+  - Replaced web navigation placeholder modal in `AppModals.tsx` with live debounced search, type filter chips (`All`, `Notes`, `Tasks`, `Journal`, `Files`, `Knowledge`), offline IndexedDB fallback (`coverage: 'offline_limited'`), safe match token highlighting, and canonical item navigation.
+  - Replaced mobile sample result list in `SearchSheet.tsx` with live API search, offline SQLite repository fallback, type filters, and accessible item selection routing.
+- **Automated Verification:**
+  - Added 11 integration tests in `tests/integration/phase33-search.test.ts` verifying multi-tenant workspace isolation, revoked access rejection, strict vault exclusion, journal privacy preferences, deleted/archived filtering, inert SQL injection handling, multilingual Bangla and English queries, folder/tag filters, offline client-side search, and synthetic multi-tenant performance benchmark on indexed dataset measuring latency and `EXPLAIN (ANALYZE, BUFFERS)` query plan.
+
+## Prerequisite repairs (Phase 31 offline onboarding, Phase 32 knowledge persistence and saved views) — 2026-10-18
+
+- **Canonical Knowledge Purpose & Persistence (`apps/api`, `packages/contracts`, `packages/domain`):**
+  - Added durable `purpose: 'guide' | 'cheatsheet' | 'general'` to Note `metadata` schemas in `packages/contracts`.
+  - Created migration helper `ensureCanonicalNoteMetadata` persisting durable knowledge purpose across restarts, renaming, folder moves, and multi-device sync.
+  - Fixed `matchesKnowledgeFilter` to inspect `metadata.purpose` rather than volatile title substring guessing.
+- **User-Scoped Saved Views & CSRF Authenticated Web Transport (`apps/api`, `apps/web`):**
+  - Filtered saved views by `user_id = actor_id` in `listSavedViews` preventing personal filter leak across workspace members.
+  - Migrated web Library mutations to authenticated `createWebApiClient` with automatic CSRF token injection.
+- **Quick Reference Faithful Copying & Platform Clipboard (`packages/domain`, `packages/ui-web`, `packages/ui-mobile`):**
+  - Fixed syntax regex to avoid trimming trailing parentheses in code (e.g. `console.log(value)`).
+  - Preserved meaningful leading indentation and whitespace in `cleanTextForClipboard`.
+  - Wired `expo-clipboard` platform adapter on mobile with truthful copy announcements.
+- **Links & Backlinks Resolution Across Entire Hierarchy (`apps/api`, `packages/ui-web`, `packages/ui-mobile`):**
+  - Replaced in-memory item lookup with canonical identity resolution fetching real document metadata from server or local database.
+- **Durable Offline Onboarding Intent (`apps/web`, `apps/mobile`):**
+  - Persisted skip and completion intent durably in account-scoped offline storage before local dismissal.
+  - Replayed pending onboarding preferences automatically on reconnect.
+
 
 - **Web Push Transport & RFC 8188 Interoperability (`apps/worker`):**
   - Repaired host destination check in `assertSafePushEndpointNetworkDestination` using `net.isIP` to separate IP literals from DNS hostnames, resolving valid public push destinations (e.g. `fcm.googleapis.com`, `push.services.mozilla.com`) while retaining loopback/private/link-local/carrier-grade NAT rejection on all resolved IP addresses.
