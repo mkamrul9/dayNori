@@ -20,4 +20,5 @@ export * from './customSections.js';
 export * from './vaultLifecycle.js';
 export * from './vaultProviders.js';
 export * from './vaultSessionController.js';
+export * from './vaultSyntheticHarness.js';
 

@@ -35,5 +35,5 @@ export * from './CustomSectionBuilderDialog.js';
 export * from './SchemaMigrationPreviewModal.js';
 export * from './CustomSectionRenderer.js';
 export * from './CustomSectionEntryDialog.js';
-
-
+export * from './VaultUnlockPanel.js';
+export * from './VaultShellView.js';

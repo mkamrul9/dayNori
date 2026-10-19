@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
   Button,
@@ -806,6 +807,42 @@ export default function SettingsPage() {
             >
               📦 Export / Import Workspace
             </Button>
+          </div>
+        </Card>
+
+        {/* Vault — production disabled; development harness only */}
+        <Card themeMode={themeMode}>
+          <h2
+            style={{
+              margin: '0 0 4px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Vault
+          </h2>
+          <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}>
+            Production vault unlock is disabled until Phase 44/45 gates and independent review pass.
+            Account password recovery cannot open vault ciphertext.
+          </p>
+          <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap' }}>
+            <Link href="/vault" style={{ textDecoration: 'none' }}>
+              <Button variant="secondary" size="compact" themeMode={themeMode}>
+                Vault status
+              </Button>
+            </Link>
+            {process.env.NODE_ENV === 'development' ? (
+              <Link href="/dev/vault-harness" style={{ textDecoration: 'none' }}>
+                <Button
+                  variant="subtle"
+                  size="compact"
+                  themeMode={themeMode}
+                  id="open-web-vault-harness-btn"
+                >
+                  Open synthetic vault harness
+                </Button>
+              </Link>
+            ) : null}
           </div>
         </Card>
 

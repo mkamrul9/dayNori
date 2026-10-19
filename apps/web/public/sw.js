@@ -147,6 +147,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Vault surfaces: never put vault HTML/RSC into SW caches (plaintext must not persist).
+  if (url.pathname.startsWith('/vault') || url.pathname.startsWith('/dev/vault-harness')) {
+    return;
+  }
+
   // Navigation requests: Network-first, falling back to clean offline shell.
   // NEVER cache HTML responses from navigation in static CacheStorage.
   if (req.mode === 'navigate') {

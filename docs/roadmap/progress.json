@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-19",
-  "activePhase": "46",
+  "activePhase": "47",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 46 for bounded local development while Phases 44–45 remain blocked. Provisional Android unlock lifecycle + synthetic harness delivered; production vault stays disabled. Physical Android review gates and Phase 45 integration still unmet. Do not start Phase 47 automatically.",
+  "schedulingDecision": "Owner selected Phase 47 for bounded local development while Phases 05/44–46 remain blocked. Provisional web unlock lifecycle harness delivered; production vault stays disabled. Independent review, physical-device evidence, Phase 45 integration, and release gates still unmet. Do not start Phase 48 automatically.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -284,7 +284,9 @@
     },
     {
       "id": "47",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional web unlock lifecycle + synthetic harness delivered under owner-selected Phase 47 while prerequisites remain blocked. Production vault entry disabled. Acceptance blocked pending Phase 45 integration, independent security review, CSP nonce hardening, and prerequisite Phase 44/46 physical/review gates.",
+      "report": "docs/phase-reports/phase-47.md"
     },
     {
       "id": "48",

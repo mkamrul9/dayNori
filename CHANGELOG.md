@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 47 — Provisional web unlock lifecycle harness (blocked) — 2026-10-19
+
+- Added browser vault interfaces reusing `@daynori/domain` session controller; production providers remain unavailable (no silent synthetic fallback).
+- Development-only harness at `/dev/vault-harness`; production `/vault` stays a disabled status page.
+- Cross-tab lock/session signals without sharing keys or plaintext; visibility/idle/account-change locking; CSP headers with documented residual `unsafe-inline`.
+- Tests: `tests/security/phase47-web-vault.test.ts`. Status remains `blocked` pending Phase 45 integration and independent review.
+
 ## Phase 46 — Unlock admission and immediate lock cleanup repair (blocked / provisional) — 2026-10-19
 
 - Reject unlock attempts during cooldown (and other disallowed states) before invoking key providers; require exact pending operation/generation/account binding on completion.
