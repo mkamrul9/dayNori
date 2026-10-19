@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 44 vault cryptography and recovery proof completed as an isolated, verifiable provisional local prototype under owner authorization (AES-256-GCM AEAD, Argon2id memory-hard KDF, AAD context binding, DEK envelope wrapping under VRK, high-entropy 256-bit recovery secret with SHA-256 checksum, WebCrypto vs Node/Android bidirectional interoperability, KDF parameter bounds, RFC 9106 and NIST SP 800-38D published test vectors, and KDF latency benchmarking). Phase 44 is recorded as blocked pending external release gates (independent qualified security review and physical Android hardware evidence). Phase 37 release gate, Phase 38 private beta, and subsequent phases remain blocked. Do not start Phase 45 or enable vault functionality.",
+  "schedulingDecision": "Phase 44 cryptography proof was repaired (RFC 9106 complete vector, strict recovery/envelope/KDF validation, honest Node-only adapter naming, recovery-rewrap limitation, review packet, platform harnesses prepared). Phase 44 remains blocked pending independent qualified security review, recorded browser/Android harness evidence, and attachment-format decision. Phases 37–38 beta/release gates remain blocked. Do not enable vault functionality. Phase 45 implementation is not authorized while the cryptography gate is blocked; preparation-only work may follow in a separate commit.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-44 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -267,7 +267,7 @@
     {
       "id": "44",
       "status": "blocked",
-      "reason": "Provisional vault cryptography and recovery proof delivered under owner authorization and verified across AES-256-GCM AEAD, Argon2id memory-hard KDF (RFC 9106), NIST SP 800-38D test vectors, bidirectional WebCrypto and Android/Node cross-platform interoperability, DEK envelope wrapping, AAD context binding, high-entropy recovery secret with SHA-256 checksum, KDF parameter bounding, latency benchmarks (~264ms production candidate), and 19 automated tests. Completion and production vault implementation remain blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, independent qualified external security audit, and physical Android hardware keystore verification.",
+      "reason": "Repaired isolated vault cryptography prototype verified in Node (RFC 9106 §5.3 complete Argon2id vector, NIST SP 800-38D Appendix C AES-GCM vectors, strict recovery-secret and envelope-profile validation, Node WebCrypto↔createCipheriv wire-format interop only, recovery-rewrap limitation documented, 29 automated tests). Browser/Android harnesses are runnable but unverified here. Completion and production vault implementation remain blocked pending independent qualified security review, recorded browser and physical Android candidate-library evidence, attachment streaming format decision, and prerequisite Phase 37–38 release/beta gates.",
       "report": "docs/phase-reports/phase-44.md"
     },
     {

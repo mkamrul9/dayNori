@@ -1,11 +1,14 @@
 /**
- * KDF Latency and Memory Benchmark (Phase 44)
+ * KDF Latency Benchmark (Phase 44)
  *
- * Measures performance distributions for:
- * 1. Argon2id Candidate Production Settings (m=64MB, t=3, p=1)
- * 2. Argon2id Lightweight Test Settings (m=16MB, t=2, p=1)
- * 3. PBKDF2 Baseline (100,000 iterations)
- * 4. PBKDF2 OWASP Recommendation (600,000 iterations)
+ * Measures wall-clock latency distributions for candidate parameters on the
+ * current Node host. Explicit limitations:
+ * - JavaScript heap delta does NOT measure peak native Argon2 memory.
+ * - Desktop Node latency does NOT establish Android or browser performance.
+ * - A small sample count does NOT prove resistance to affordable password guessing.
+ *
+ * Candidate parameters remain justified for interactive unlock on capable devices;
+ * they are never silently weakened based on this harness.
  */
 
 import crypto from 'node:crypto';
@@ -18,25 +21,50 @@ export interface KdfBenchmarkResult {
   minDurationMs: number;
   maxDurationMs: number;
   avgDurationMs: number;
+  p50DurationMs: number;
   p95DurationMs: number;
-  memoryUsageDeltaKiB: number;
+  /** Node process RSS delta (KiB) around the sample loop — NOT peak native Argon2 memory. */
+  processRssDeltaKiB: number;
+  /** Node JS heapUsed delta (KiB) — NOT peak native Argon2 memory. */
+  jsHeapDeltaKiB: number;
+  limitations: string[];
 }
 
+const BENCHMARK_LIMITATIONS = [
+  'JavaScript heap delta does not measure peak native Argon2 memory allocation.',
+  'process.memoryUsage().rss delta is an approximate host-process signal, not a precise peak-RSS or cgroup measurement.',
+  'Desktop Node latency does not establish Android or browser performance.',
+  'A few latency samples do not prove resistance to affordable offline password guessing.',
+] as const;
+
 export function runKdfBenchmark(samples = 5): KdfBenchmarkResult[] {
+  if (!Number.isInteger(samples) || samples < 1 || samples > 50) {
+    throw new Error('samples must be an integer in [1, 50].');
+  }
+
   const salt = crypto.randomBytes(16);
   const passphrase = 'correct-horse-battery-staple-synthetic-passphrase';
   const results: KdfBenchmarkResult[] = [];
 
-  // Configuration sets
   const configs = [
     {
       name: 'Argon2id Candidate Production',
-      fn: () => deriveKeyArgon2id(passphrase, salt, { memoryKiB: 64 * 1024, passes: 3, parallelism: 1 }),
+      fn: () =>
+        deriveKeyArgon2id(passphrase, salt, {
+          memoryKiB: 64 * 1024,
+          passes: 3,
+          parallelism: 1,
+        }),
       params: { memoryKiB: 65536, passes: 3, parallelism: 1 },
     },
     {
       name: 'Argon2id Test Profile',
-      fn: () => deriveKeyArgon2id(passphrase, salt, { memoryKiB: 16 * 1024, passes: 2, parallelism: 1 }),
+      fn: () =>
+        deriveKeyArgon2id(passphrase, salt, {
+          memoryKiB: 16 * 1024,
+          passes: 2,
+          parallelism: 1,
+        }),
       params: { memoryKiB: 16384, passes: 2, parallelism: 1 },
     },
     {
@@ -53,7 +81,8 @@ export function runKdfBenchmark(samples = 5): KdfBenchmarkResult[] {
 
   for (const config of configs) {
     const durations: number[] = [];
-    let initialMem = process.memoryUsage().heapUsed;
+    const initialHeap = process.memoryUsage().heapUsed;
+    const initialRss = process.memoryUsage().rss;
 
     for (let i = 0; i < samples; i++) {
       const start = performance.now();
@@ -62,16 +91,18 @@ export function runKdfBenchmark(samples = 5): KdfBenchmarkResult[] {
       durations.push(end - start);
     }
 
-    const finalMem = process.memoryUsage().heapUsed;
+    const finalHeap = process.memoryUsage().heapUsed;
+    const finalRss = process.memoryUsage().rss;
     durations.sort((a, b) => a - b);
 
     const sum = durations.reduce((acc, d) => acc + d, 0);
     const avg = sum / durations.length;
-    const min = durations[0];
-    const max = durations[durations.length - 1];
+    const min = durations[0] ?? 0;
+    const max = durations[durations.length - 1] ?? 0;
+    const p50Index = Math.min(Math.floor(durations.length * 0.5), durations.length - 1);
     const p95Index = Math.min(Math.floor(durations.length * 0.95), durations.length - 1);
-    const p95 = durations[p95Index];
-    const memDeltaKiB = Math.max(0, Math.round((finalMem - initialMem) / 1024));
+    const p50 = durations[p50Index] ?? 0;
+    const p95 = durations[p95Index] ?? 0;
 
     results.push({
       algorithm: config.name,
@@ -80,8 +111,11 @@ export function runKdfBenchmark(samples = 5): KdfBenchmarkResult[] {
       minDurationMs: Math.round(min * 10) / 10,
       maxDurationMs: Math.round(max * 10) / 10,
       avgDurationMs: Math.round(avg * 10) / 10,
+      p50DurationMs: Math.round(p50 * 10) / 10,
       p95DurationMs: Math.round(p95 * 10) / 10,
-      memoryUsageDeltaKiB: memDeltaKiB,
+      processRssDeltaKiB: Math.round((finalRss - initialRss) / 1024),
+      jsHeapDeltaKiB: Math.round((finalHeap - initialHeap) / 1024),
+      limitations: [...BENCHMARK_LIMITATIONS],
     });
   }
 

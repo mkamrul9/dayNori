@@ -1,13 +1,13 @@
 # ADR 0043: Vault Cryptography, Key Management, and Recovery Proof
 
 ## Status
-Provisional local proof accepted; production vault implementation and release remain **BLOCKED** pending independent qualified security review and physical Android hardware evidence.
+Provisional local proof repaired and retained; production vault implementation and release remain **BLOCKED** pending independent qualified security review, recorded browser/Android platform harness evidence, and attachment-format decision. An AI review, Node simulation, successful build, or feature flag does **not** satisfy the gate.
 
 ## Context
 Phase 44 evaluates and proves the cryptographic foundation, key hierarchy, envelope format, and recovery mechanics for the Daynori Vault.
 A basic PIN screen or biometric prompt is an access gate, not evidence of encryption. Without client-side authenticated encryption and rigorous key management, server-side data compromises, malicious server updates, or offline database dumps completely expose user content.
 
-This decision establishes an explicit threat model, selects maintained and audited cryptographic primitives, defines strict parameter bounds to prevent denial-of-service, proves cross-platform interoperability across Web Crypto and Android native environments, and specifies recovery and unlock boundaries.
+The initial Phase 44 prototype (`e07c454`) overstated platform evidence and reference-vector attribution, under-validated recovery secrets and envelope fields, and incorrectly claimed that recovery rewrap invalidates prior secrets. This ADR records the repaired contract.
 
 ## Threat Model and Boundaries
 
@@ -16,7 +16,7 @@ This decision establishes an explicit threat model, selects maintained and audit
    - *Mitigation:* Vault item titles, bodies, metadata values, file attachments, and folder labels are encrypted client-side using authenticated encryption (AES-256-GCM). The server only stores opaque ciphertext envelopes and minimal routing identifiers. Decrypted keys never leave client memory.
 2. **Lost or Stolen Devices / Offline Guessing:**
    - The adversary extracts encrypted local SQLite databases or intercepts cloud envelopes.
-   - *Mitigation:* Key derivation uses memory-hard Argon2id (RFC 9106) with minimum 16 MB memory cost and 2 passes (candidate production: 64 MB, 3 passes), preventing cost-effective GPU/ASIC parallel dictionary cracking.
+   - *Mitigation:* Key derivation uses memory-hard Argon2id (RFC 9106) with minimum 16 MB memory cost and 2 passes (candidate production: 64 MB, 3 passes), preventing cost-effective GPU/ASIC parallel dictionary cracking. Candidate parameters are never silently weakened based on desktop Node benchmarks.
 3. **Weak App PIN Resistance:**
    - A 4–6 digit PIN has only 10,000 to 1,000,000 combinations.
    - *Invariant:* A short PIN must **never** be the sole encryption key or direct KDF input protecting an envelope synchronized to or stored on a server.
@@ -25,48 +25,61 @@ This decision establishes an explicit threat model, selects maintained and audit
    - *Requirement:* Mobile quick unlock must use an OS-authentication-bound cryptographic key (e.g. Android Keystore `MasterKey` requiring user biometric authentication for key release). Any biometric enrollment change or hardware lockout forces fallback to the strong vault passphrase.
 5. **Web Execution & Same-Origin XSS:**
    - The browser client is vulnerable to same-origin script injection, malicious extensions, and compromised delivered code from an updated server.
-   - *Boundary:* Plaintext and decrypted keys reside strictly in memory and are never persisted to `localStorage` or `IndexedDB`. However, client-side web cryptography cannot defend against compromised delivered application code or malicious origin scripts. Reliable memory zeroization is not guaranteed by JavaScript engines.
+   - *Boundary:* Plaintext and decrypted keys reside strictly in memory and are never persisted to `localStorage` or `IndexedDB`. Client-side web cryptography cannot defend against compromised delivered application code. Reliable memory zeroization is not guaranteed by JavaScript engines.
 6. **Metadata Leakage:**
    - The server unavoidably observes: user account IDs, workspace IDs, item UUIDs, ciphertext byte sizes, revision numbers, and synchronization timestamps.
    - *Disclosure:* The service does not claim zero-knowledge of tenant activity, only zero-knowledge of content, titles, labels, and file contents.
-7. **Exclusions:**
+7. **Rollback / Replay of older valid versions:**
+   - AAD identity binding prevents cross-item relocation; it does **not** by itself prevent replay of an older valid ciphertext for the same item.
+   - *Requirement:* Trusted client checkpoint / monotonic version acceptance design, with documented fresh-device recovery limits when checkpoints are absent.
+8. **Exclusions:**
    - Rooted/jailbroken operating systems, hardware cold-boot memory attacks, and actively compromised unlocked runtime processes are outside confidentiality guarantees.
 
 ## Decision
 
 1. **Cryptographic Primitives:**
    - **Authenticated Symmetric Encryption:** AES-256-GCM (NIST SP 800-38D) with unique 96-bit CSPRNG nonces and 128-bit authentication tags.
-   - **Key Derivation (KDF):** Argon2id (RFC 9106) candidate production parameters: `memoryKiB: 65536` (64 MB), `passes: 3`, `parallelism: 1`, `saltLength: 16 bytes`.
-   - **Alternative Baseline:** PBKDF2-HMAC-SHA256 (NIST SP 800-132) profiled as a comparative baseline.
-   - **Strict KDF Parameter Bounds:** To prevent denial-of-service / resource exhaustion via crafted envelope metadata, envelopes must enforce:
-     - Argon2id: Memory between 16 MB and 256 MB; passes between 2 and 10; parallelism between 1 and 4; salt >= 16 bytes.
-     - PBKDF2: Iterations between 100,000 and 1,000,000; salt >= 16 bytes.
-2. **Key Hierarchy:**
+   - **Key Derivation (KDF):** Argon2id (RFC 9106) candidate production parameters: `memoryKiB: 65536` (64 MB), `passes: 3`, `parallelism: 1`, `saltLength: 16 bytes`, output exactly 32 bytes.
+   - **Alternative Baseline:** PBKDF2-HMAC-SHA256 (NIST SP 800-132) profiled as a comparative baseline — **not** a silent fallback when Argon2id fails.
+   - **Strict KDF Parameter Bounds:** Argon2id memory 16–256 MB; passes 2–10; parallelism 1–4; salt 16–64 bytes; reject NaN/fractions/wrong types; bound concurrent derivations; never silently downgrade output length.
+   - **Reference vectors isolated:** RFC 9106 §5.3 complete fixture (password, salt, secret, associated data) is computed only via `computeArgon2idReferenceVector`. Low-cost reference parameters must not enter application KDF policy.
+2. **Envelope profile (explicit, single):**
+   - Version `1`, algorithm `AES-256-GCM` only.
+   - Exactly 32-byte keys, 12-byte nonces, 16-byte tags.
+   - Strict base64 encodings; bounded ciphertext/AAD sizes.
+   - Valid UUID `workspaceId`, constrained `itemType`, positive integer `schemaVersion` / `keyVersion`.
+   - Outer `keyVersion` must equal AAD `keyVersion` before decrypt.
+3. **Key Hierarchy:**
    - **Vault Root Key (VRK):** A 256-bit random key generated by client CSPRNG.
-   - **Key Encryption Key (KEK):** Derived from user passphrase via Argon2id. Used to wrap the VRK.
-   - **Data Encryption Key (DEK):** Unique 256-bit AES-GCM key generated per item or file, envelope-wrapped under the VRK.
-   - **Recovery Secret:** A distinct, high-entropy 256-bit random secret (formatted as 68 hex characters with embedded 4-character SHA-256 checksum) that derives a Recovery KEK to wrap the VRK.
-3. **Additional Authenticated Data (AAD) Context Binding:**
-   - Every envelope cryptographically binds an AAD payload containing:
-     `{"workspaceId":"...","itemId":"...","itemType":"...","schemaVersion":1,"keyVersion":1}`.
-   - Ciphertext cannot be moved or replayed into another item or workspace without failing authentication tag verification.
-4. **Cross-Platform Interoperability:**
-   - Proven bidirectional compatibility between W3C Web Crypto API (`SubtleCrypto` for browsers) and Node/Android native `Cipher` implementations. Both produce and decrypt the identical wire envelope format.
-5. **Account vs Vault Boundary:**
+   - **Key Encryption Key (KEK):** Derived from user passphrase via Argon2id. Wraps the VRK (`wrap:vrk_under_passphrase`).
+   - **Data Encryption Key (DEK):** Unique 256-bit AES-GCM key generated per item or file, envelope-wrapped under the VRK (`wrap:dek_under_vrk`).
+   - **Recovery Secret:** A distinct, high-entropy 256-bit random secret (68 hex characters with 4-character SHA-256 checksum). Checksum detects transcription errors only; it does **not** authenticate a recovery package. Decode must reject non-hex, truncated, oversized, and empty-buffer inputs.
+4. **Recovery / rotation guarantees (precise):**
+   - Rewrapping the same VRK under a new recovery secret does **not** invalidate an attacker’s saved old envelope + old secret.
+   - True recovery invalidation requires VRK rotation and re-encryption of dependent DEKs/content.
+   - Device revocation (future) stops new access via that device wrap; it does **not** erase previously obtained keys or plaintext.
+5. **Cross-Platform Evidence (honest attribution):**
+   - Node WebCrypto (`SubtleCrypto`) ↔ Node `createCipheriv` interoperability is useful wire-format evidence only.
+   - Browser and Android require separate harnesses (`tests/security/vault/harnesses/`). Until those are executed and recorded, browser↔Android execution is **unverified**.
+6. **Account vs Vault Boundary:**
    - Account password reset via Supabase Auth restores account access only; it **cannot** decrypt or reset the vault.
    - If the user forgets their passphrase and loses their recovery secret, vault content is permanently unrecoverable.
-6. **Large File Encryption Strategy:**
-   - Large file attachments must use a chunked authenticated format (e.g. 64 KB to 1 MB chunks encrypted with AES-256-GCM, including chunk index and final-chunk flag in AAD). Unauthenticated streaming encryption is strictly prohibited.
+7. **Large File Encryption Strategy:**
+   - Homegrown “chunk index + final flag” protocols are **not authorized**.
+   - Evaluate maintained formats (Tink Streaming AEAD, libsodium secretstream, age STREAM, or bounded single-envelope for small files). Choice remains **pending independent review** — see [vault-attachment-encryption-evaluation.md](../architecture/vault-attachment-encryption-evaluation.md).
+8. **Production authorization:**
+   - No production database tables (`app.vault_*`), sync routes, or UI unlock screens until release gates in [release-gates.md](../engineering/release-gates.md) and the [review packet](../engineering/vault-security-review-packet.md) are satisfied.
 
-## Benchmark Results (Node 24 Environment)
-- **Argon2id Candidate Production (64MB, 3 passes):** Avg 264.3 ms (min 261.7 ms, max 267.0 ms). Responsive for interactive unlock while providing strong ASIC/GPU cracking resistance.
-- **Argon2id Test Profile (16MB, 2 passes):** Avg 41.3 ms (min 39.4 ms, max 44.7 ms).
-- **PBKDF2-HMAC-SHA256 (100k iterations):** Avg 15.0 ms.
-- **PBKDF2-HMAC-SHA256 (600k iterations):** Avg 89.0 ms.
+## Benchmark Interpretation Limits
+- Node host latency distributions inform interactive unlock UX on desktop-class hardware only.
+- JavaScript heap delta and process RSS delta do **not** measure peak native Argon2 memory.
+- Small sample counts do **not** prove resistance to affordable offline password guessing.
+- Candidate parameters remain justified for supported devices; they must not be silently reduced to chase benchmark numbers.
 
 ## Release Gate Disposition
-- Prototype implementation and verification suite (`tests/security/vault/vault-crypto.ts`, `tests/security/phase44-vault-crypto.test.ts`) pass with 19/19 tests.
-- However, per `docs/engineering/release-gates.md`, production vault features remain **BLOCKED**:
-  1. Formal independent external security audit by a qualified cryptography reviewer has not been performed.
-  2. Physical Android hardware execution with native Keystore hardware-backed unsealing has not been completed.
-- No production database tables (`app.vault_*`), sync routes, or UI unlock screens are authorized until these release gates pass.
+- Repaired prototype and verification suite live under `tests/security/vault/` and `tests/security/phase44-vault-crypto.test.ts`.
+- Production vault features remain **BLOCKED** until:
+  1. Formal independent external security audit with findings disposition.
+  2. Recorded browser harness execution and physical Android candidate-library evidence.
+  3. Attachment streaming format decision after review.
+- Phase 45 may prepare documentation and disconnected synthetic fixtures only while this ADR remains blocked.
