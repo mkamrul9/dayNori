@@ -61,6 +61,7 @@ import { ComponentGalleryView } from './src/views/ComponentGalleryView';
 import { OnboardingSheet } from './src/views/OnboardingSheet';
 import { ExpensesView } from './src/views/ExpensesView';
 import { CustomSectionsView } from './src/views/CustomSectionsView';
+import { VaultHarnessView } from './src/vault/VaultHarnessView';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -464,6 +465,10 @@ export default function App() {
           setActiveModal('settings');
         } else if (dest === 'review') {
           setActiveModal('gallery');
+        } else if (String(dest).includes('vault')) {
+          // Production vault deep links remain closed while Phase 44/45 gates are unmet.
+          // Do not open decrypted vault content from a notification/deep link.
+          setActiveModal('none');
         }
       } else if (payload.type === 'file') {
         setCurrentTab('library');
@@ -806,6 +811,22 @@ export default function App() {
             onToggleExpensesEnabled={handleToggleExpensesEnabled}
             onOpenExpenses={() => setActiveModal('expenses')}
             onOpenCustomSections={() => setActiveModal('custom-sections')}
+            onOpenVaultHarness={() => setActiveModal('vault-harness')}
+            onClose={() => setActiveModal('none')}
+          />
+        </View>
+      )}
+
+      {/* Phase 46 synthetic vault harness — production vault remains disabled */}
+      {activeModal === 'vault-harness' && (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+        >
+          <VaultHarnessView
+            themeMode={themeMode}
+            accountId={userNamespace?.userId ?? 'synthetic-account'}
+            workspaceId={userNamespace?.workspaceId ?? '11111111-1111-4111-8111-111111111111'}
+            isOnline={isOnline}
             onClose={() => setActiveModal('none')}
           />
         </View>

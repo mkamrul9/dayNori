@@ -28,4 +28,6 @@ export * from './MobileAudioRecorderSheet.js';
 export * from './MobileCustomSectionBuilderSheet.js';
 export * from './MobileCustomSectionRenderer.js';
 export * from './MobileCustomSectionEntrySheet.js';
+export * from './MobileVaultUnlockSheet.js';
+export * from './MobileVaultShellView.js';
 

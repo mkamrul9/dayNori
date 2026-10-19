@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 46 — Android vault unlock lifecycle harness (blocked / provisional) — 2026-10-19
+
+- Added domain vault lifecycle reducer, production-unavailable providers, and labeled synthetic harness providers (no silent mock fallback).
+- Delivered Android unlock/recovery/locked-shell UI and Settings entry for the synthetic harness only; production vault remains disabled.
+- Lifecycle covers background/idle lock, stale unlock rejection, account/workspace changes, revocation-when-online, transfer status copy, and presentation redaction helpers.
+- ADR 0044 records offline unlock policy and non-claims. Vitest lifecycle suite: 15 tests.
+
 ## Phase 45 — Encrypted vault records preparation safety repair (blocked) — 2026-10-19
 
 - Repaired disconnected transfer model so safety gates are enforced inside `transitionTransfer` (verification evidence, source-edit disposition, cleanup completion, shared-reference disclosure, idempotent binding).

@@ -18,7 +18,9 @@ export type ActiveModal =
   | 'account-deletion'
   | 'expenses'
   | 'audio-recorder'
-  | 'custom-sections';
+  | 'custom-sections'
+  /** Synthetic Phase 46 harness only — not a production vault enablement. */
+  | 'vault-harness';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

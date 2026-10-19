@@ -31,6 +31,8 @@ export interface SettingsViewProps {
   onToggleExpensesEnabled?: (enabled: boolean) => void;
   onOpenExpenses?: () => void;
   onOpenCustomSections?: () => void;
+  /** Opens isolated synthetic vault unlock harness (Phase 46). Not production vault. */
+  onOpenVaultHarness?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -60,6 +62,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onToggleExpensesEnabled,
   onOpenExpenses,
   onOpenCustomSections,
+  onOpenVaultHarness,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -477,6 +480,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </MobileButton>
             </View>
           )}
+        </MobileCard>
+      </View>
+
+      {/* Section 5c2: Vault synthetic harness (Phase 46) — production vault remains disabled */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Vault (development harness)
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1, paddingRight: spacing.sm }}>
+              <Text style={[styles.settingLabel, { color: palette.text.primary }]}>
+                Synthetic unlock lifecycle
+              </Text>
+              <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+                Local Phase 46 harness with fixture ciphertext only. Does not enable vault for real
+                users. Production vault stays disabled until Phase 44/45 gates pass.
+              </Text>
+            </View>
+          </View>
+          {onOpenVaultHarness ? (
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                testID="btn-open-vault-harness"
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenVaultHarness}
+                accessibilityLabel="Open synthetic vault unlock harness"
+              >
+                Open synthetic vault harness
+              </MobileButton>
+            </View>
+          ) : null}
         </MobileCard>
       </View>
 

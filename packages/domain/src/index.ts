@@ -17,4 +17,5 @@ export * from './search.js';
 export * from './expenses.js';
 export * from './audio.js';
 export * from './customSections.js';
+export * from './vaultLifecycle.js';
 

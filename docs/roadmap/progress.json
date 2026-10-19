@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-19",
-  "activePhase": null,
+  "activePhase": "46",
   "nextPhase": null,
-  "schedulingDecision": "Phase 44 further repaired: browser, desktop JVM, and Android emulator instrumentation PASS; physical Android device evidence and independent qualified review still required (emulator does not clear physical gate). Phase 45 remains blocked/prepared with transfer-model safety repairs — no production vault migrations, routes, or unlock UI. Do not start Phase 46.",
+  "schedulingDecision": "Owner selected Phase 46 for bounded local development while Phases 44–45 remain blocked. Provisional Android unlock lifecycle + synthetic harness delivered; production vault stays disabled. Physical Android review gates and Phase 45 integration still unmet. Do not start Phase 47 automatically.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -278,7 +278,9 @@
     },
     {
       "id": "46",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional Android unlock lifecycle and synthetic harness delivered under owner-selected Phase 46 while Phases 44–45 remain blocked. Production vault entry disabled. Acceptance blocked pending Phase 45 integration, Phase 44 independent review, and physical-device biometric/Keystore evidence. AI/emulator results do not satisfy those gates.",
+      "report": "docs/phase-reports/phase-46.md"
     },
     {
       "id": "47",
