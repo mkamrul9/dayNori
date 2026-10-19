@@ -1,3 +1,5 @@
 plugins {
-    // Root aggregator — harness module holds the executable candidate proof.
+    id("com.android.application") version "8.7.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.25" apply false
+    kotlin("jvm") version "1.9.25" apply false
 }

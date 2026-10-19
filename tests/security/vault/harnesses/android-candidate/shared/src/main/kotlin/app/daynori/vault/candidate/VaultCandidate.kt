@@ -1,13 +1,11 @@
 package app.daynori.vault.candidate
 
-import de.mkammerer.argon2.Argon2Factory
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import kotlin.system.measureNanoTime
 
 data class VaultContext(
     val workspaceId: String,
@@ -91,7 +89,7 @@ fun encryptAesGcm(
         algorithm = EnvelopeProfile.ALGORITHM,
         keyVersion = ctx.keyVersion,
         nonceB64 = Base64.getEncoder().encodeToString(nonce),
-        ciphertextB64 = Base64.getEncoder().encodeToString(ct),
+        ciphertextB64 = if (ct.isEmpty()) "" else Base64.getEncoder().encodeToString(ct),
         tagB64 = Base64.getEncoder().encodeToString(tag),
         aad = aad,
     )
@@ -133,45 +131,22 @@ fun hexToBytes(hex: String): ByteArray {
 fun bytesToHex(bytes: ByteArray): String =
     bytes.joinToString("") { b -> "%02x".format(b) }
 
-/**
- * Candidate Argon2id using argon2-jvm (pinned). Memory unit is KiB.
- * This establishes KDF path availability on the JVM candidate — not production approval.
- */
-fun deriveArgon2id(
-    password: ByteArray,
-    salt: ByteArray,
-    memoryKiB: Int,
-    passes: Int,
-    parallelism: Int,
-    hashLength: Int,
-): ByteArray {
-    require(memoryKiB in 16_384..262_144)
-    require(passes in 2..10)
-    require(parallelism in 1..4)
-    require(hashLength == 32)
-    require(salt.size in 16..64)
-    val argon2 = Argon2Factory.createAdvanced(
-        Argon2Factory.Argon2Types.ARGON2id,
-        salt.size,
-        hashLength,
+/** Build an envelope from independently established ciphertext/tag bytes (cross-impl exchange). */
+fun envelopeFromParts(
+    ctx: VaultContext,
+    nonce: ByteArray,
+    ciphertext: ByteArray,
+    tag: ByteArray,
+): VaultEnvelope {
+    assertNonce(nonce)
+    require(tag.size == EnvelopeProfile.TAG_BYTES)
+    return VaultEnvelope(
+        version = EnvelopeProfile.VERSION,
+        algorithm = EnvelopeProfile.ALGORITHM,
+        keyVersion = ctx.keyVersion,
+        nonceB64 = Base64.getEncoder().encodeToString(nonce),
+        ciphertextB64 = if (ciphertext.isEmpty()) "" else Base64.getEncoder().encodeToString(ciphertext),
+        tagB64 = Base64.getEncoder().encodeToString(tag),
+        aad = canonicalAad(ctx),
     )
-    return argon2.rawHash(passes, memoryKiB, parallelism, password, salt)
-}
-
-fun benchmarkArgon2idMs(
-    password: ByteArray,
-    salt: ByteArray,
-    memoryKiB: Int,
-    passes: Int,
-    parallelism: Int,
-    samples: Int,
-): List<Double> {
-    val times = mutableListOf<Double>()
-    repeat(samples) {
-        val ns = measureNanoTime {
-            deriveArgon2id(password, salt, memoryKiB, passes, parallelism, 32)
-        }
-        times += ns / 1_000_000.0
-    }
-    return times
 }

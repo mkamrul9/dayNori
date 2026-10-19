@@ -19,6 +19,9 @@ export default tseslint.config(
       'apps/web/public/**',
       '**/next-env.d.ts',
       'artifacts/**',
+      'tests/security/vault/harnesses/android-candidate/**/build/**',
+      'tests/security/vault/harnesses/android-candidate/.gradle/**',
+      'tests/security/vault/harnesses/node_modules/**',
     ],
   },
   {

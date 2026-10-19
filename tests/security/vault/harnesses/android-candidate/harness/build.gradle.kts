@@ -1,17 +1,14 @@
 plugins {
     application
-    kotlin("jvm") version "1.9.25"
+    kotlin("jvm")
 }
 
 group = "app.daynori.vault.candidate"
 version = "0.1.0-phase44"
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
-    // Pinned candidate Argon2id implementation (JVM). Not a production approval.
+    // Pinned candidate Argon2id implementation (desktop JVM host). Not a production approval.
+    // Not used on Android ABIs — see android-app Bouncy Castle candidate.
     implementation("de.mkammerer:argon2-jvm:2.11")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.25")
 }
@@ -22,6 +19,11 @@ application {
 
 kotlin {
     jvmToolchain(17)
+    sourceSets {
+        val main by getting {
+            kotlin.srcDir("../shared/src/main/kotlin")
+        }
+    }
 }
 
 tasks.register<JavaExec>("runHarness") {
@@ -29,6 +31,6 @@ tasks.register<JavaExec>("runHarness") {
     description = "Run isolated vault candidate harness (AES-GCM + Argon2id)"
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("app.daynori.vault.candidate.HarnessMainKt")
-    // Point at shared fixtures from harnesses/
+    // Required shared fixtures — missing file fails the harness.
     args = listOf(rootProject.projectDir.resolve("../shared-fixtures.json").absolutePath)
 }

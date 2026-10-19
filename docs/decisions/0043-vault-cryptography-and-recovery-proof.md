@@ -1,7 +1,7 @@
 # ADR 0043: Vault Cryptography, Key Management, and Recovery Proof
 
 ## Status
-Provisional local proof repaired and retained; production vault implementation and release remain **BLOCKED** pending independent qualified security review, recorded browser/Android platform harness evidence, and attachment-format decision. An AI review, Node simulation, successful build, or feature flag does **not** satisfy the gate.
+Provisional local proof repaired and retained; production vault implementation and release remain **BLOCKED** pending independent qualified security review, **physical Android device** harness evidence, and attachment-format decision. Browser, desktop JVM, and Android **emulator** evidence may be recorded separately and do **not** substitute for the physical-device gate. An AI review, Node simulation, successful build, or feature flag does **not** satisfy the gate.
 
 ## Context
 Phase 44 evaluates and proves the cryptographic foundation, key hierarchy, envelope format, and recovery mechanics for the Daynori Vault.
@@ -61,7 +61,7 @@ The initial Phase 44 prototype (`e07c454`) overstated platform evidence and refe
    - Device revocation (future) stops new access via that device wrap; it does **not** erase previously obtained keys or plaintext.
 5. **Cross-Platform Evidence (honest attribution):**
    - Node WebCrypto (`SubtleCrypto`) ↔ Node `createCipheriv` interoperability is useful wire-format evidence only.
-   - Browser and Android require separate harnesses (`tests/security/vault/harnesses/`). Until those are executed and recorded, browser↔Android execution is **unverified**.
+   - Browser, desktop JVM, Android emulator, and physical Android require **separate** harness evidence lanes under `tests/security/vault/harnesses/`. Emulator PASS does not clear the physical-device gate.
 6. **Account vs Vault Boundary:**
    - Account password reset via Supabase Auth restores account access only; it **cannot** decrypt or reset the vault.
    - If the user forgets their passphrase and loses their recovery secret, vault content is permanently unrecoverable.
