@@ -1,5 +1,22 @@
 # Changelog
 
+## Phase 44 — Vault cryptography and recovery proof — 2026-10-19
+
+- **ADR 0043 Authored (`docs/decisions/0043-vault-cryptography-and-recovery-proof.md`):**
+  - Documented threat model across backend compromise, lost/stolen devices, weak PIN offline guessing resistance, biometric OS-bound keys vs cosmetic boolean gates, web execution/XSS boundaries, unavoidable metadata leakage, and hardware exclusions.
+  - Formulated cryptographic standards: AES-256-GCM AEAD (NIST SP 800-38D), memory-hard Argon2id KDF (RFC 9106) with bounded parameters (16MB–256MB memory, 2–10 passes, salt >= 16 bytes), 256-bit client Vault Root Key (VRK), per-item Data Encryption Key (DEK) envelope wrapping, Additional Authenticated Data (AAD) context binding (`workspaceId`, `itemId`, `itemType`, `schemaVersion`, `keyVersion`), and 256-bit high-entropy Recovery Secret with SHA-256 checksum.
+- **Security Architecture Update (`docs/architecture/security-and-vault.md`):**
+  - Linked ADR 0043 and documented envelope format, Argon2id parameters, OS-authentication-bound Keystore requirements, and explicit release gate blocks.
+- **Isolated Cryptography Prototype (`tests/security/vault/vault-crypto.ts`):**
+  - Created standalone prototype featuring `WebCryptoVaultAdapter` (`SubtleCrypto` representing browser execution) and `NodeAndroidVaultAdapter` (`Cipher` representing mobile native execution).
+  - Implemented DEK envelope wrapping/unwrapping, high-entropy recovery secret generation/decoding, Argon2id/PBKDF2 key derivation with strict bounds checks, and canonical AAD context serialization.
+- **KDF Benchmark Suite (`tests/security/vault/kdf-benchmark.ts`):**
+  - Measured latency and memory profiles across Argon2id Candidate Production (avg ~264.3 ms at 64MB memory), Argon2id Test Profile (avg ~41.3 ms at 16MB memory), PBKDF2 100k (avg ~15.0 ms), and PBKDF2 600k (avg ~89.0 ms).
+- **Security Test Suite (`tests/security/phase44-vault-crypto.test.ts`):**
+  - 19/19 tests passing covering published RFC 9106 Argon2id test vector, NIST SP 800-38D AES-256-GCM test vectors, bidirectional browser/mobile cross-platform AEAD interoperability, binary and Unicode/Bangla fixtures, ciphertext/tag/AAD bit-flip rejection, wrong key/passphrase rejection, envelope truncation/malformation rejection, KDF parameter bounds enforcement, and fresh-device recovery secret restoration.
+- **Phase Status:**
+  - Prototype verified as provisional local work under explicit owner authorization; production vault tables, sync routes, and UI remain **BLOCKED** pending independent qualified security review and physical Android hardware evidence. Work stops before Phase 45.
+
 ## Phase 43 — Custom section builder and personal templates — 2026-10-19
 
 - **ADR 0042 Authored (`docs/decisions/0042-custom-section-builder-and-personal-templates.md`):**

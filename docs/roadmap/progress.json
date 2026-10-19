@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 42 custom section schemas and Phase 43 custom section builder and personal templates completed, integrated, and repaired under owner authorization (canonical app.items identity, item_attachments foreign keys and metadata reconciliation, folder placement validation against tenant scope, strict collectionId scoping, exact BigInt refund subtraction and UUID summaries for existing record views, web /custom-sections page, mobile CustomSectionsView, CustomSectionEntryDialog and MobileCustomSectionEntrySheet, and navigation wiring). Phase 37 release gate, Phase 38 private beta, and subsequent phases remain blocked pending external deployment, production credentials, physical hardware, and release gate fulfillment. Next: Phase 44 local cryptography and recovery proof.",
-  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-43 remain recorded as blocked / provisional pending external infrastructure, physical hardware, and release gates.",
+  "schedulingDecision": "Phase 44 vault cryptography and recovery proof completed as an isolated, verifiable provisional local prototype under owner authorization (AES-256-GCM AEAD, Argon2id memory-hard KDF, AAD context binding, DEK envelope wrapping under VRK, high-entropy 256-bit recovery secret with SHA-256 checksum, WebCrypto vs Node/Android bidirectional interoperability, KDF parameter bounds, RFC 9106 and NIST SP 800-38D published test vectors, and KDF latency benchmarking). Phase 44 is recorded as blocked pending external release gates (independent qualified security review and physical Android hardware evidence). Phase 37 release gate, Phase 38 private beta, and subsequent phases remain blocked. Do not start Phase 45 or enable vault functionality.",
+  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-44 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
       "id": "00",
@@ -266,7 +266,9 @@
     },
     {
       "id": "44",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional vault cryptography and recovery proof delivered under owner authorization and verified across AES-256-GCM AEAD, Argon2id memory-hard KDF (RFC 9106), NIST SP 800-38D test vectors, bidirectional WebCrypto and Android/Node cross-platform interoperability, DEK envelope wrapping, AAD context binding, high-entropy recovery secret with SHA-256 checksum, KDF parameter bounding, latency benchmarks (~264ms production candidate), and 19 automated tests. Completion and production vault implementation remain blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, independent qualified external security audit, and physical Android hardware keystore verification.",
+      "report": "docs/phase-reports/phase-44.md"
     },
     {
       "id": "45",
