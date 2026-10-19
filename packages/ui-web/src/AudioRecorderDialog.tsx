@@ -108,7 +108,9 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
         mediaRecorderRef.current.stop();
-      } catch {}
+      } catch {
+        void 0;
+      }
     }
     mediaRecorderRef.current = null;
     if (streamRef.current) {
@@ -205,7 +207,9 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                 audioBuffer: buffer,
               });
             }
-          } catch {}
+          } catch {
+            void 0;
+          }
         }
       };
 

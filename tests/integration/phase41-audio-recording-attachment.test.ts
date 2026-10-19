@@ -9,8 +9,6 @@ import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
 import {
   AudioAttachmentSchema,
   AudioRecordingDraftSchema,
-  MAX_AUDIO_RECORDING_SECONDS,
-  MAX_AUDIO_RECORDING_BYTES,
 } from '@daynori/contracts';
 import {
   validateAudioDuration,
@@ -171,7 +169,7 @@ describe('Phase 41: Audio Recording and Attachment Lifecycle (Integration Tests)
 
       let recorderState = 'idle';
       let errorMessage: string | null = null;
-      let hasSavedAttachment = false;
+      const hasSavedAttachment = false;
 
       // Simulate consent request flow
       try {
@@ -436,7 +434,7 @@ describe('Phase 41: Audio Recording and Attachment Lifecycle (Integration Tests)
         await clientB.finalizeFileUpload(workspaceBId, resA.data.reservationId, {
           clientChecksum: sha256,
         });
-      } catch (err: unknown) {
+      } catch {
         unauthorizedFinalizeCaught = true;
       }
       expect(unauthorizedFinalizeCaught).toBe(true);
@@ -451,7 +449,7 @@ describe('Phase 41: Audio Recording and Attachment Lifecycle (Integration Tests)
       let unauthorizedDownloadCaught = false;
       try {
         await clientB.getFileDownloadCapability(workspaceBId, finalizeRes.data.fileId);
-      } catch (err: unknown) {
+      } catch {
         unauthorizedDownloadCaught = true;
       }
       expect(unauthorizedDownloadCaught).toBe(true);

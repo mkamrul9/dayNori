@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-namespace */
+
 export namespace Audio {
   export const RecordingOptionsPresets = {
     HIGH_QUALITY: {
@@ -52,11 +54,20 @@ export namespace Audio {
     }
   }
 
+  export interface MockPlaybackStatus {
+    isLoaded: boolean;
+    isPlaying?: boolean;
+    durationMillis?: number;
+    positionMillis?: number;
+    didJustFinish?: boolean;
+    error?: string;
+  }
+
   export class Sound {
     static async createAsync(
       source: { uri: string },
       initialStatus?: { shouldPlay?: boolean },
-      onPlaybackStatusUpdate?: (status: any) => void
+      onPlaybackStatusUpdate?: (status: MockPlaybackStatus) => void
     ) {
       const sound = new Sound(source.uri, onPlaybackStatusUpdate);
       return {
@@ -72,7 +83,7 @@ export namespace Audio {
 
     constructor(
       public uri: string,
-      public onPlaybackStatusUpdate?: (status: any) => void
+      public onPlaybackStatusUpdate?: (status: MockPlaybackStatus) => void
     ) {}
 
     async playAsync() {

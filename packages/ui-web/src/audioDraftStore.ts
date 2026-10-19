@@ -121,5 +121,7 @@ export async function clearDurableAudioDraft(
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
-  } catch {}
+  } catch {
+    void 0;
+  }
 }

@@ -170,7 +170,9 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
     if (phase === 'recording') {
       try {
         await activeAdapter.pauseRecordingAsync();
-      } catch {}
+      } catch {
+        void 0;
+      }
       stopTimer();
       setPhase('paused');
     }
@@ -191,7 +193,9 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
             return next;
           });
         }, 1000);
-      } catch {}
+      } catch {
+        void 0;
+      }
     }
   };
 
@@ -216,7 +220,9 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
   const handleDiscard = async () => {
     try {
       await activeAdapter.discardRecordingAsync();
-    } catch {}
+    } catch {
+      void 0;
+    }
     resetState();
   };
 

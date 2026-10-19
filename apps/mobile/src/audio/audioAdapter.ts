@@ -104,7 +104,9 @@ export class ExpoAudioRecorderAdapter implements NativeAudioRecorderAdapter {
     if (this.recording) {
       try {
         await this.recording.stopAndUnloadAsync();
-      } catch {}
+      } catch {
+        void 0;
+      }
       this.recording = null;
     }
     this._isRecording = false;
@@ -196,7 +198,9 @@ export class ExpoAudioPlayerAdapter implements NativeAudioPlayerAdapter {
     if (this.sound) {
       try {
         await this.sound.unloadAsync();
-      } catch {}
+      } catch {
+        void 0;
+      }
       this.sound = null;
     }
     this.statusCallback = undefined;

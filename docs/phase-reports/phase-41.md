@@ -60,8 +60,8 @@ Group: Personal extensions. Status is tracked in [progress.json](../roadmap/prog
 | **Mobile UI Components** | `packages/ui-mobile` | `MobileAudioPlayerCard` and `MobileAudioRecorderSheet` exported; 11/11 unit tests passing. | **PASS** (8ms) |
 | **Web & Mobile Wiring** | `apps/web` & `apps/mobile` | Toolbar triggers, modal states, and file upload lifecycle wired cleanly. | **PASS** (Typecheck Clean) |
 | **Monorepo Typecheck** | `pnpm typecheck` | Clean run across all 13 workspace projects with 0 errors. | **PASS** (0 Errors) |
-| **Phase 41 Integration Suite** | `tests/integration/phase41-audio-recording-attachment.test.ts` | 17/17 tests passing covering permission refusal, 10m/25MB limits, WebM/MP4 inspection, interruption draft recovery, quota reservation, attachment lifecycle, tenant isolation, cascade cleanup, and no auto-recording invariant. | **PASS** (765ms) |
-| **Comprehensive Test Run** | Vitest combined 4 test files | 142/142 tests passing across domain, web UI, mobile UI, and Phase 41 integration suite. | **PASS** (142/142 Passed) |
+| **Phase 41 Integration Suite** | `tests/integration/phase41-audio-recording-attachment.test.ts` | 19/19 tests passing covering permission refusal, 10m/25MB limits, WebM/MP4 inspection, durable binary draft recovery, quota reservation, canonical item attachment lifecycle, multi-reference retention, tenant isolation, cascade cleanup, and no auto-recording invariant. | **PASS** (708ms) |
+| **Comprehensive Test Run** | Vitest combined test files | 144/144 tests passing across domain (70), web UI (44), mobile UI (11), and Phase 41 integration suite (19). | **PASS** (144/144 Passed) |
 
 ## Defects, limitations, and recovery
 

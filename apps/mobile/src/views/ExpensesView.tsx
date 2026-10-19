@@ -97,7 +97,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   const [budgetCategoryId, setBudgetCategoryId] = useState<string>('');
 
   const draftStorageKey = workspaceId ? `daynori_mobile_expense_draft_${workspaceId}` : null;
-  const [createDraft, setCreateDraft] = useState<any>(null);
+  const [createDraft, setCreateDraft] = useState<Record<string, unknown> | null>(null);
 
   // Restore cached draft from secure storage
   useEffect(() => {
@@ -136,7 +136,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         startDate: startOfMonth,
         endDate: endOfMonth,
         categoryId: selectedCategoryFilter || undefined,
-        kind: (selectedKindFilter as any) || undefined,
+        kind: (selectedKindFilter as 'expense' | 'income' | 'refund') || undefined,
         limit: 50,
       });
       setTransactions(txRes.data);
@@ -209,7 +209,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         startDate: startOfMonth,
         endDate: endOfMonth,
         categoryId: selectedCategoryFilter || undefined,
-        kind: (selectedKindFilter as any) || undefined,
+        kind: (selectedKindFilter as 'expense' | 'income' | 'refund') || undefined,
         limit: 50,
         cursor: nextCursor,
       });
@@ -402,7 +402,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           new Date(currentYear, currentMonth, 0).getDate()
         ).padStart(2, '0')}`,
         categoryId: selectedCategoryFilter || undefined,
-        kind: (selectedKindFilter as any) || undefined,
+        kind: (selectedKindFilter as 'expense' | 'income' | 'refund') || undefined,
       });
 
       await Share.share({
