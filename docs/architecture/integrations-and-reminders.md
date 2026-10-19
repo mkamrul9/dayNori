@@ -36,14 +36,16 @@ The app calendar reads internal tasks/events/routine occurrences. It does not in
 
 Primary storage supports in-app upload without Drive. Drive is optional linked storage, not a required account or an implicit backup.
 
-Start with the recommended narrow `drive.file` scope and a supported Google Picker/identity flow. It grants access to files the app creates or the user explicitly grants to it. Google's guidance recommends per-file access. This is not a documented recursive grant to every existing or future external file inside a picked folder; treat that distinction as a scope constraint, and prove behavior with a permission spike. [Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth). Reviewed 2026-10-13.
+Start with the recommended narrow `drive.file` scope and a supported Google Picker/identity flow. It grants access to files the app creates or the user explicitly grants to it. Google's guidance recommends per-file access. This is not a documented recursive grant to every existing or future external file inside a picked folder; treat that distinction as a scope constraint, and prove behavior with a permission spike. [Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth). Reviewed 2026-10-13; rechecked 2026-10-19.
+
+**Phase 48 decision (ADR 0046):** product promises use **selected/app-created-file mode** under `https://www.googleapis.com/auth/drive.file` only. Do not promise recursive folder mirroring. Live Google-account matrix remains owner-gated (`tests/spikes/drive`); missing OAuth config must not invent broader-scope success. Broader/restricted scopes stay deferred pending live evidence, current verification requirements, and a quote-required assessment/cost review when restricted-scope server storage applies.
 
 Deliver in two modes only after approval of the integration phase:
 
-1. Narrow linked-files/app-created-folder mode: app-created uploads and explicitly picked files are visible. Show which files are authorized, refresh failures and whether bytes live in Drive or app storage. A folder's externally added files may require explicit selection.
+1. Narrow linked-files/app-created-folder mode (**chosen default**): app-created uploads and explicitly picked files are visible. Show which files are authorized, refresh failures and whether bytes live in Drive or app storage. A folder's externally added files may require explicit selection — do not assume parent selection authorizes children.
 2. Arbitrary selected-folder mirror: discover pre-existing/new externally added files only after confirming the required broader read/write scopes, user consent, verification/security-assessment obligations and acceptable ongoing cost. Scope that OAuth consent to its true breadth; application filtering to one folder does not narrow Google's token permissions. If those obligations are not satisfied, keep this capability deferred and describe the narrow mode accurately.
 
-The scope table classifies broader Drive read/full access as restricted; qualification and assessment requirements must be rechecked at implementation. Do not request full Drive access during basic signup merely to avoid doing the narrow-mode work.
+The scope table classifies broader Drive read/full access as restricted; qualification and assessment requirements must be rechecked at implementation. Do not request full Drive access during basic signup merely to avoid doing the narrow-mode work. Vault material remains excluded from ordinary Drive connectors.
 
 ## Drive connector mechanics
 

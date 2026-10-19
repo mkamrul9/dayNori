@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 48 — Drive scope feasibility spike (blocked) — 2026-10-19
+
+- Added isolated spike under `tests/spikes/drive` (mock inventory, config inspection without logging secrets, live handoff).
+- ADR 0046: choose selected/app-created-file mode under `drive.file`; do not promise recursive folder children; broader scopes deferred.
+- Updated integrations architecture with dated Google scope links. Live Google experiments remain unverified until owner OAuth consent.
+
 ## Phase 47 — Local verification repair (blocked / provisional) — 2026-10-19
 
 - Restored normal linted `pnpm --filter @daynori/web build` by typing expense drafts/filters and handling empty catches.
