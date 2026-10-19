@@ -113,6 +113,8 @@ import {
   DownloadCapabilityResponseSchema,
   FileItemResponseSchema,
   StorageQuotaResponseSchema,
+  ItemAttachmentResponseSchema,
+  ListItemAttachmentsResponseSchema,
   type ReserveUploadRequest,
   type ReserveUploadResponse,
   type FinalizeUploadRequest,
@@ -122,6 +124,9 @@ import {
   type DownloadCapabilityResponse,
   type FileItemResponse,
   type StorageQuotaResponse,
+  type LinkItemAttachmentRequest,
+  type ItemAttachmentResponse,
+  type ListItemAttachmentsResponse,
   CalendarEventResponseSchema,
   CalendarReadModelResponseSchema,
   type CreateCalendarEventRequest,
@@ -1588,6 +1593,51 @@ export class DaynoriApiClient {
       options
     );
     return raw;
+  }
+
+  // --- Item Attachments ---
+
+  async linkItemAttachment(
+    workspaceId: string,
+    itemId: string,
+    payload: LinkItemAttachmentRequest,
+    options?: RequestOptions
+  ): Promise<ItemAttachmentResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/attachments`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return ItemAttachmentResponseSchema.parse(raw);
+  }
+
+  async listItemAttachments(
+    workspaceId: string,
+    itemId: string,
+    options?: RequestOptions
+  ): Promise<ListItemAttachmentsResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/attachments`,
+      { method: 'GET' },
+      options
+    );
+    return ListItemAttachmentsResponseSchema.parse(raw);
+  }
+
+  async unlinkItemAttachment(
+    workspaceId: string,
+    itemId: string,
+    attachmentId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean }; meta: { requestId: string } }> {
+    return this.request<{ data: { success: boolean }; meta: { requestId: string } }>(
+      `/v1/workspaces/${workspaceId}/items/${itemId}/attachments/${attachmentId}`,
+      { method: 'DELETE' },
+      options
+    );
   }
 
   // --- Calendar API methods (Phase 26) ---

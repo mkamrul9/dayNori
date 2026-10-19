@@ -16,6 +16,8 @@ import {
   MAX_AUDIO_RECORDING_SECONDS,
   AUDIO_WARNING_THRESHOLD_SECONDS,
   type AudioAttachment,
+  type NativeAudioRecorderAdapter,
+  MockAudioRecorderAdapter,
 } from '@daynori/domain';
 import { MobileButton } from './MobileButton.js';
 import { MobileFeedback } from './MobileFeedback.js';
@@ -25,6 +27,7 @@ export interface MobileAudioRecorderSheetProps {
   onClose: () => void;
   workspaceId: string;
   themeMode?: ThemeMode;
+  recorderAdapter?: NativeAudioRecorderAdapter;
   onSaveAudio: (data: {
     durationSeconds: number;
     fileName: string;
@@ -44,17 +47,38 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
   onClose,
   workspaceId: _workspaceId,
   themeMode = 'light',
+  recorderAdapter,
   onSaveAudio,
   attachedItemTitle,
   attachedItemType = 'note',
   testID = 'mobile-audio-recorder-sheet',
 }) => {
   const palette = colors[themeMode];
+  const activeAdapter = useRef<NativeAudioRecorderAdapter>(
+    recorderAdapter || new MockAudioRecorderAdapter()
+  ).current;
+
+  // Update active adapter if prop changes
+  useEffect(() => {
+    if (recorderAdapter) {
+      activeAdapter.requestPermissionsAsync = recorderAdapter.requestPermissionsAsync.bind(recorderAdapter);
+      activeAdapter.startRecordingAsync = recorderAdapter.startRecordingAsync.bind(recorderAdapter);
+      activeAdapter.pauseRecordingAsync = recorderAdapter.pauseRecordingAsync.bind(recorderAdapter);
+      activeAdapter.resumeRecordingAsync = recorderAdapter.resumeRecordingAsync.bind(recorderAdapter);
+      activeAdapter.stopRecordingAsync = recorderAdapter.stopRecordingAsync.bind(recorderAdapter);
+      activeAdapter.discardRecordingAsync = recorderAdapter.discardRecordingAsync.bind(recorderAdapter);
+      activeAdapter.isRecording = recorderAdapter.isRecording.bind(recorderAdapter);
+      activeAdapter.isPaused = recorderAdapter.isPaused.bind(recorderAdapter);
+    }
+  }, [recorderAdapter, activeAdapter]);
 
   const [phase, setPhase] = useState<RecorderPhase>('idle');
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [feedback, setFeedback] = useState<{ severity: 'danger' | 'warning' | 'info'; message: string } | null>(null);
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
+  const [recordedBytes, setRecordedBytes] = useState<number>(0);
+  const [recordedDuration, setRecordedDuration] = useState<number>(0);
+  const [recordedFileName, setRecordedFileName] = useState<string>('');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -71,18 +95,25 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
     setElapsedSeconds(0);
     setFeedback(null);
     setRecordedUri(null);
+    setRecordedBytes(0);
+    setRecordedDuration(0);
+    setRecordedFileName('');
   }, [stopTimer]);
 
   useEffect(() => {
     if (!visible) {
+      if (activeAdapter.isRecording()) {
+        void activeAdapter.discardRecordingAsync().catch(() => {});
+      }
       resetState();
     }
-  }, [visible, resetState]);
+  }, [visible, activeAdapter, resetState]);
 
   // Handle interruption on app backgrounding (phone calls, switching apps)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState.match(/inactive|background/) && phase === 'recording') {
+        void activeAdapter.pauseRecordingAsync().catch(() => {});
         stopTimer();
         setPhase('paused');
         setFeedback({
@@ -96,77 +127,125 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
     return () => {
       sub.remove();
     };
-  }, [phase, stopTimer]);
+  }, [phase, activeAdapter, stopTimer]);
 
   // Explicit user action to start recording
-  const handleStartRecording = () => {
+  const handleStartRecording = async () => {
     setFeedback(null);
-    setPhase('recording');
-    setElapsedSeconds(0);
+    try {
+      const perm = await activeAdapter.requestPermissionsAsync();
+      if (!perm.granted) {
+        setPhase('error');
+        setFeedback({
+          severity: 'danger',
+          message: 'Microphone permission was denied. Daynori organizer functions remain fully usable without recording.',
+        });
+        return;
+      }
 
-    timerRef.current = setInterval(() => {
-      setElapsedSeconds((prev) => {
-        const next = prev + 1;
-        if (next >= MAX_AUDIO_RECORDING_SECONDS) {
-          handleStopRecording();
-          return MAX_AUDIO_RECORDING_SECONDS;
-        }
-        return next;
-      });
-    }, 1000);
-  };
-
-  const handlePauseRecording = () => {
-    if (phase === 'recording') {
-      stopTimer();
-      setPhase('paused');
-    }
-  };
-
-  const handleResumeRecording = () => {
-    if (phase === 'paused') {
+      await activeAdapter.startRecordingAsync();
       setPhase('recording');
+      setElapsedSeconds(0);
+
       timerRef.current = setInterval(() => {
         setElapsedSeconds((prev) => {
           const next = prev + 1;
           if (next >= MAX_AUDIO_RECORDING_SECONDS) {
-            handleStopRecording();
+            void handleStopRecording();
             return MAX_AUDIO_RECORDING_SECONDS;
           }
           return next;
         });
       }, 1000);
+    } catch (err: unknown) {
+      setPhase('error');
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Failed to start audio recording.',
+      });
     }
   };
 
-  const handleStopRecording = () => {
-    stopTimer();
-    setRecordedUri(`file:///data/user/0/daynori/cache/audio_${Date.now()}.m4a`);
-    setPhase('stopped');
+  const handlePauseRecording = async () => {
+    if (phase === 'recording') {
+      try {
+        await activeAdapter.pauseRecordingAsync();
+      } catch {}
+      stopTimer();
+      setPhase('paused');
+    }
   };
 
-  const handleDiscard = () => {
+  const handleResumeRecording = async () => {
+    if (phase === 'paused') {
+      try {
+        await activeAdapter.resumeRecordingAsync();
+        setPhase('recording');
+        timerRef.current = setInterval(() => {
+          setElapsedSeconds((prev) => {
+            const next = prev + 1;
+            if (next >= MAX_AUDIO_RECORDING_SECONDS) {
+              void handleStopRecording();
+              return MAX_AUDIO_RECORDING_SECONDS;
+            }
+            return next;
+          });
+        }, 1000);
+      } catch {}
+    }
+  };
+
+  const handleStopRecording = async () => {
+    stopTimer();
+    try {
+      const result = await activeAdapter.stopRecordingAsync();
+      setRecordedUri(result.uri);
+      setRecordedBytes(result.byteSize);
+      setRecordedDuration(result.durationSeconds);
+      setRecordedFileName(result.fileName);
+      setPhase('stopped');
+    } catch (err: unknown) {
+      setPhase('error');
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Failed to finalize audio recording.',
+      });
+    }
+  };
+
+  const handleDiscard = async () => {
+    try {
+      await activeAdapter.discardRecordingAsync();
+    } catch {}
     resetState();
   };
 
   const handleSaveAndAttach = async () => {
+    if (!recordedUri) {
+      setFeedback({
+        severity: 'danger',
+        message: 'No recorded audio file exists to save.',
+      });
+      return;
+    }
+
     setPhase('uploading');
     setFeedback(null);
 
     try {
-      const fileName = `voice-note-${new Date().toISOString().slice(0, 10)}-${Date.now()}.m4a`;
-      const durationSeconds = Math.max(1, elapsedSeconds);
-      // Rough estimation for audio: ~64kbps = 8KB/s
-      const estimatedBytes = Math.min(25 * 1024 * 1024, durationSeconds * 8192);
+      const durationSeconds = recordedDuration || Math.max(1, elapsedSeconds);
+      const fileName = recordedFileName || `voice-note-${new Date().toISOString().slice(0, 10)}-${Date.now()}.m4a`;
+      const byteSize = recordedBytes || 16384;
 
       await onSaveAudio({
         durationSeconds,
         fileName,
         mimeType: 'audio/mp4',
-        byteSize: estimatedBytes,
-        uri: recordedUri || undefined,
+        byteSize,
+        uri: recordedUri,
       });
 
+      resetState();
       onClose();
     } catch (err: unknown) {
       setPhase('stopped');
@@ -355,8 +434,8 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
                     Recording Preview
                   </Text>
                   <Text style={[styles.reviewMeta, { color: palette.text.secondary }]}>
-                    Duration: {formatAudioDuration(elapsedSeconds)} • Est. Size:{' '}
-                    {formatByteSize(elapsedSeconds * 8192)}
+                    Duration: {formatAudioDuration(recordedDuration || elapsedSeconds)} • Size:{' '}
+                    {formatByteSize(recordedBytes || elapsedSeconds * 8192)}
                   </Text>
                 </View>
 

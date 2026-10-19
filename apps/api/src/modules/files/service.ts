@@ -1115,3 +1115,210 @@ export async function reconcileExpiredReservations(client: PoolClient): Promise<
 
   return count;
 }
+
+/**
+ * Links a verified file as an attachment to an authorized workspace item.
+ */
+export async function linkItemAttachment(
+  client: PoolClient,
+  workspaceId: string,
+  userId: string,
+  itemId: string,
+  input: {
+    fileId: string;
+    attachmentType?: 'audio' | 'receipt' | 'file';
+    durationSeconds?: number | null;
+  },
+  operationId?: string
+) {
+  // 1. Validate source item exists in this workspace
+  const itemRes = await client.query(
+    `SELECT id, kind, deleted_at FROM app.items WHERE workspace_id = $1 AND id = $2`,
+    [workspaceId, itemId]
+  );
+  if (itemRes.rows.length === 0 || itemRes.rows[0].deleted_at !== null) {
+    throw new FileNotFoundError(`Item ${itemId} not found in workspace`);
+  }
+
+  // 2. Validate file exists in this workspace and is verified
+  const fileRes = await client.query(
+    `SELECT id, file_name, detected_mime_type, byte_size, quarantine_status, audio_duration_seconds FROM app.file_items WHERE workspace_id = $1 AND id = $2`,
+    [workspaceId, input.fileId]
+  );
+  if (fileRes.rows.length === 0) {
+    throw new FileNotFoundError(`File ${input.fileId} not found in workspace`);
+  }
+  const fileRow = fileRes.rows[0];
+  if (fileRow.quarantine_status !== 'verified') {
+    throw new FileNotReadyError(
+      `File ${input.fileId} cannot be attached because quarantine status is ${fileRow.quarantine_status}`
+    );
+  }
+
+  const attachmentType = input.attachmentType || 'audio';
+  let duration = input.durationSeconds ?? fileRow.audio_duration_seconds ?? null;
+  if (duration !== null) {
+    duration = Math.max(1, Math.min(600, Math.round(duration)));
+  }
+
+  // 3. Upsert attachment link
+  const insertRes = await client.query(
+    `
+    INSERT INTO app.item_attachments (
+      workspace_id, item_id, file_id, attachment_type,
+      file_name, mime_type, byte_size, duration_seconds, created_by
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    ON CONFLICT (workspace_id, item_id, file_id)
+    DO UPDATE SET
+      deleted_at = NULL,
+      duration_seconds = COALESCE(EXCLUDED.duration_seconds, app.item_attachments.duration_seconds),
+      updated_at = now()
+    RETURNING
+      id, workspace_id, item_id, file_id, attachment_type,
+      file_name, mime_type, byte_size, duration_seconds,
+      created_by, created_at, updated_at
+    `,
+    [
+      workspaceId,
+      itemId,
+      input.fileId,
+      attachmentType,
+      fileRow.file_name,
+      fileRow.detected_mime_type,
+      fileRow.byte_size,
+      duration,
+      userId,
+    ]
+  );
+
+  const row = insertRes.rows[0];
+
+  // 4. Update file audio duration if set
+  if (duration !== null && !fileRow.audio_duration_seconds) {
+    await client.query(
+      `UPDATE app.file_items SET audio_duration_seconds = $1, updated_at = now() WHERE workspace_id = $2 AND id = $3`,
+      [duration, workspaceId, input.fileId]
+    );
+  }
+
+  // 5. Sync change feed entry
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  const changeSeq = syncState.nextChangeSeq;
+  await updateWorkspaceSyncSeq(client, workspaceId, changeSeq + 1);
+  await insertChange(client, {
+    workspaceId,
+    seq: changeSeq,
+    entityType: 'item_attachment',
+    entityId: row.id,
+    revision: 1,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      id: row.id,
+      itemId: row.item_id,
+      fileId: row.file_id,
+      attachmentType: row.attachment_type,
+      fileName: row.file_name,
+      mimeType: row.mime_type,
+      byteSize: Number(row.byte_size),
+      durationSeconds: row.duration_seconds,
+      createdAt: row.created_at.toISOString(),
+    },
+  });
+
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    itemId: row.item_id,
+    fileId: row.file_id,
+    attachmentType: row.attachment_type,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    byteSize: Number(row.byte_size),
+    durationSeconds: row.duration_seconds,
+    createdBy: row.created_by,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+/**
+ * Lists active attachments for an item.
+ */
+export async function listItemAttachments(
+  client: PoolClient,
+  workspaceId: string,
+  itemId: string
+) {
+  const res = await client.query(
+    `
+    SELECT
+      id, workspace_id, item_id, file_id, attachment_type,
+      file_name, mime_type, byte_size, duration_seconds,
+      created_by, created_at, updated_at
+    FROM app.item_attachments
+    WHERE workspace_id = $1 AND item_id = $2 AND deleted_at IS NULL
+    ORDER BY created_at ASC
+    `,
+    [workspaceId, itemId]
+  );
+
+  return res.rows.map((row) => ({
+    id: row.id,
+    workspaceId: row.workspace_id,
+    itemId: row.item_id,
+    fileId: row.file_id,
+    attachmentType: row.attachment_type,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    byteSize: Number(row.byte_size),
+    durationSeconds: row.duration_seconds,
+    createdBy: row.created_by,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  }));
+}
+
+/**
+ * Unlinks an attachment from an item, retaining the underlying file.
+ */
+export async function unlinkItemAttachment(
+  client: PoolClient,
+  workspaceId: string,
+  _userId: string,
+  itemId: string,
+  attachmentId: string,
+  operationId?: string
+) {
+  const res = await client.query(
+    `
+    UPDATE app.item_attachments
+    SET deleted_at = now(), updated_at = now()
+    WHERE workspace_id = $1 AND item_id = $2 AND id = $3 AND deleted_at IS NULL
+    RETURNING id, file_id
+    `,
+    [workspaceId, itemId, attachmentId]
+  );
+
+  if (res.rows.length === 0) {
+    throw new FileNotFoundError(`Attachment ${attachmentId} not found on item ${itemId}`);
+  }
+
+  // Sync change feed entry
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+  const changeSeq = syncState.nextChangeSeq;
+  await updateWorkspaceSyncSeq(client, workspaceId, changeSeq + 1);
+  await insertChange(client, {
+    workspaceId,
+    seq: changeSeq,
+    entityType: 'item_attachment',
+    entityId: attachmentId,
+    revision: 1,
+    isTombstone: true,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: { id: attachmentId, itemId },
+  });
+
+  return { success: true };
+}

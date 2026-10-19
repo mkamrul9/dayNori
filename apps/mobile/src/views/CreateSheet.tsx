@@ -11,6 +11,7 @@ export interface CreateSheetProps {
   initialDraft?: CreateDraft;
   onDraftChange?: (draft: CreateDraft) => void;
   onCreateItem: (item: CreateDraft) => void;
+  onRecordAudio?: () => void;
   testID?: string;
 }
 
@@ -21,6 +22,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
   initialDraft,
   onDraftChange,
   onCreateItem,
+  onRecordAudio,
   testID = 'create-sheet',
 }) => {
   const palette = colors[themeMode];
@@ -138,6 +140,22 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
           numberOfLines={3}
           themeMode={themeMode}
         />
+
+        {onRecordAudio && (
+          <View style={{ marginTop: spacing.sm }}>
+            <MobileButton
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={() => {
+                onClose();
+                onRecordAudio();
+              }}
+              accessibilityLabel="Record voice memo"
+            >
+              🎙️ Record Voice Memo
+            </MobileButton>
+          </View>
+        )}
 
         <View style={styles.actionRow}>
           <MobileButton

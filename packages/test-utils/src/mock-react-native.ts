@@ -1,3 +1,15 @@
+if (typeof globalThis !== 'undefined' && !(globalThis as any).expo) {
+  (globalThis as any).expo = {
+    EventEmitter: class MockEventEmitter {
+      addListener() { return { remove: () => {} }; }
+      removeListener() {}
+      emit() {}
+    },
+    modules: {},
+    ExpoModulesCore: {},
+  };
+}
+
 export const StyleSheet = {
   create: <T>(styles: T): T => styles,
   absoluteFill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },

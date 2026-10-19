@@ -15,6 +15,8 @@ import {
   MobileFeedback,
   MobileExpenseCaptureSheet,
   MobileExpenseReportView,
+  MobileModalSheet,
+  MobileTextField,
 } from '@daynori/ui-mobile';
 import type {
   ExpenseCategory,
@@ -82,6 +84,18 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ severity: 'success' | 'warning' | 'danger' | 'info'; message: string } | null>(null);
 
+  // Pagination state
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+
+  // Budget management state
+  const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState<boolean>(false);
+  const [editingBudget, setEditingBudget] = useState<ExpenseBudget | null>(null);
+  const [budgetAmount, setBudgetAmount] = useState<string>('');
+  const [budgetCurrency, setBudgetCurrency] = useState<string>('USD');
+  const [budgetCategoryId, setBudgetCategoryId] = useState<string>('');
+
   const draftStorageKey = workspaceId ? `daynori_mobile_expense_draft_${workspaceId}` : null;
   const [createDraft, setCreateDraft] = useState<any>(null);
 
@@ -113,7 +127,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       const catRes = await apiClient.listExpenseCategories(workspaceId);
       setCategories(catRes.data);
 
-      // 2. Transactions for current month
+      // 2. Transactions for current month with pagination
       const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
       const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
       const endOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
@@ -123,9 +137,11 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         endDate: endOfMonth,
         categoryId: selectedCategoryFilter || undefined,
         kind: (selectedKindFilter as any) || undefined,
-        limit: 100,
+        limit: 50,
       });
       setTransactions(txRes.data);
+      setNextCursor(txRes.meta?.pagination?.nextCursor ?? null);
+      setHasMore(Boolean(txRes.meta?.pagination?.hasMore));
 
       // 3. Budgets
       const budgetRes = await apiClient.listExpenseBudgets(workspaceId, {
@@ -150,6 +166,18 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       } catch {
         // fallback
       }
+
+      // 6. Verified receipts
+      try {
+        const itemsRes = await apiClient.listItems(workspaceId, { kind: 'file' });
+        if (itemsRes && Array.isArray(itemsRes.data)) {
+          setAvailableReceipts(
+            itemsRes.data.map((item) => ({ id: item.id, fileName: item.name || item.id }))
+          );
+        }
+      } catch {
+        // fallback
+      }
     } catch (err: unknown) {
       setFeedback({
         severity: 'danger',
@@ -168,6 +196,95 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
     selectedKindFilter,
     periodString,
   ]);
+
+  const handleLoadMore = async () => {
+    if (!workspaceId || !apiClient || !nextCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const endOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+      const moreRes = await apiClient.listExpenses(workspaceId, {
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+        categoryId: selectedCategoryFilter || undefined,
+        kind: (selectedKindFilter as any) || undefined,
+        limit: 50,
+        cursor: nextCursor,
+      });
+
+      setTransactions((prev) => [...prev, ...moreRes.data]);
+      setNextCursor(moreRes.meta?.pagination?.nextCursor ?? null);
+      setHasMore(Boolean(moreRes.meta?.pagination?.hasMore));
+    } catch (err: unknown) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Failed to load more transactions.',
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleOpenCreateBudget = () => {
+    setEditingBudget(null);
+    setBudgetAmount('');
+    setBudgetCurrency('USD');
+    setBudgetCategoryId('');
+    setIsBudgetSheetOpen(true);
+  };
+
+  const handleEditBudget = (budget: ExpenseBudget) => {
+    setEditingBudget(budget);
+    setBudgetAmount(budget.amountFormatted);
+    setBudgetCurrency(budget.currency);
+    setBudgetCategoryId(budget.categoryId || '');
+    setIsBudgetSheetOpen(true);
+  };
+
+  const handleSaveBudget = async () => {
+    if (!workspaceId || !apiClient) return;
+    if (!budgetAmount || !/^\d+(\.\d+)?$/.test(budgetAmount)) {
+      setFeedback({ severity: 'danger', message: 'Please enter a valid budget amount.' });
+      return;
+    }
+    try {
+      if (editingBudget) {
+        await apiClient.updateExpenseBudget(workspaceId, editingBudget.id, {
+          amount: budgetAmount,
+        });
+      } else {
+        await apiClient.createExpenseBudget(workspaceId, {
+          period: periodString,
+          currency: budgetCurrency,
+          categoryId: budgetCategoryId || null,
+          amount: budgetAmount,
+        });
+      }
+      setIsBudgetSheetOpen(false);
+      setEditingBudget(null);
+      await loadData();
+    } catch (err: unknown) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Failed to save budget.',
+      });
+    }
+  };
+
+  const handleDeleteBudget = async (budgetId: string) => {
+    if (!workspaceId || !apiClient) return;
+    try {
+      await apiClient.deleteExpenseBudget(workspaceId, budgetId);
+      await loadData();
+    } catch (err: unknown) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Failed to delete budget.',
+      });
+    }
+  };
 
   useEffect(() => {
     void loadData();
@@ -242,10 +359,24 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       setIsCaptureOpen(false);
       await loadData();
     } catch (err: unknown) {
-      setFeedback({
-        severity: 'danger',
-        message: err instanceof Error ? err.message : 'Failed to save transaction.',
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      const isConflict =
+        msg.toLowerCase().includes('conflict') ||
+        msg.toLowerCase().includes('revision') ||
+        msg.includes('409');
+      if (isConflict) {
+        setFeedback({
+          severity: 'warning',
+          message:
+            'This transaction was modified elsewhere. Your view has been refreshed with the latest data. Please review and re-apply your changes.',
+        });
+        await loadData();
+      } else {
+        setFeedback({
+          severity: 'danger',
+          message: msg || 'Failed to save transaction.',
+        });
+      }
     }
   };
 
@@ -603,6 +734,19 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 );
               })
             )}
+            {hasMore && (
+              <View style={{ marginTop: spacing.sm, alignItems: 'center' }}>
+                <MobileButton
+                  variant="secondary"
+                  themeMode={themeMode}
+                  onPress={handleLoadMore}
+                  disabled={isLoadingMore}
+                  accessibilityLabel="Load more transactions"
+                >
+                  {isLoadingMore ? 'Loading More...' : '⬇️ Load More Transactions'}
+                </MobileButton>
+              </View>
+            )}
           </View>
         )}
 
@@ -628,6 +772,16 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
         {activeTab === 'budgets' && (
           <View style={{ gap: spacing.sm }}>
+            <View style={{ marginBottom: spacing.xs }}>
+              <MobileButton
+                variant="primary"
+                themeMode={themeMode}
+                onPress={handleOpenCreateBudget}
+                accessibilityLabel="Set monthly budget"
+              >
+                + Set Monthly Budget
+              </MobileButton>
+            </View>
             {budgets.length === 0 ? (
               <MobileEmptyState
                 title="No Budgets Defined"
@@ -648,7 +802,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                           Period: {b.period}
                         </Text>
                       </View>
-                      <View style={{ alignItems: 'flex-end' }}>
+                      <View style={{ alignItems: 'flex-end', gap: spacing.xs }}>
                         <Text style={[styles.budgetLimit, { color: palette.text.primary }]}>
                           Limit: {b.amountFormatted} {b.currency}
                         </Text>
@@ -657,6 +811,26 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                             Spent: {b.spentFormatted} {b.currency}
                           </Text>
                         )}
+                        <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                          <Pressable
+                            onPress={() => handleEditBudget(b)}
+                            hitSlop={8}
+                            accessibilityLabel={`Edit budget for ${cat ? cat.name : 'workspace'}`}
+                          >
+                            <Text style={[styles.txAction, { color: palette.action.primary }]}>
+                              Edit
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleDeleteBudget(b.id)}
+                            hitSlop={8}
+                            accessibilityLabel={`Delete budget for ${cat ? cat.name : 'workspace'}`}
+                          >
+                            <Text style={[styles.txAction, { color: palette.status.danger }]}>
+                              Delete
+                            </Text>
+                          </Pressable>
+                        </View>
                       </View>
                     </View>
                   </MobileCard>
@@ -695,6 +869,121 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         }
         themeMode={themeMode}
       />
+
+      {/* Budget Create / Edit Modal Sheet */}
+      <MobileModalSheet
+        visible={isBudgetSheetOpen}
+        onClose={() => {
+          setIsBudgetSheetOpen(false);
+          setEditingBudget(null);
+        }}
+        title={editingBudget ? 'Edit Monthly Budget' : 'Set Monthly Budget'}
+        themeMode={themeMode}
+        testID="mobile-budget-sheet"
+      >
+        <View style={{ gap: spacing.md, paddingVertical: spacing.sm }}>
+          <MobileTextField
+            label="Budget Amount"
+            placeholder="e.g. 500.00"
+            value={budgetAmount}
+            onChangeText={setBudgetAmount}
+            keyboardType="decimal-pad"
+            themeMode={themeMode}
+          />
+          <MobileTextField
+            label="Currency"
+            placeholder="USD"
+            value={budgetCurrency}
+            onChangeText={(t) => setBudgetCurrency(t.toUpperCase())}
+            themeMode={themeMode}
+          />
+          <View style={{ gap: spacing.xs }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.secondary }}>
+              Target Category (Optional)
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                <Pressable
+                  onPress={() => setBudgetCategoryId('')}
+                  style={[
+                    styles.filterChip,
+                    {
+                      backgroundColor:
+                        budgetCategoryId === '' ? palette.action.primary : palette.surfaceRaised,
+                      borderColor:
+                        budgetCategoryId === '' ? palette.action.primary : palette.border.subtle,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      {
+                        color:
+                          budgetCategoryId === '' ? palette.action.label : palette.text.primary,
+                      },
+                    ]}
+                  >
+                    All Categories
+                  </Text>
+                </Pressable>
+                {categories.map((c) => {
+                  const isSelected = budgetCategoryId === c.id;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setBudgetCategoryId(c.id)}
+                      style={[
+                        styles.filterChip,
+                        {
+                          backgroundColor: isSelected
+                            ? palette.action.primary
+                            : palette.surfaceRaised,
+                          borderColor: isSelected
+                            ? palette.action.primary
+                            : palette.border.subtle,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          {
+                            color: isSelected ? palette.action.label : palette.text.primary,
+                          },
+                        ]}
+                      >
+                        {c.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+          <View style={{ gap: spacing.xs, marginTop: spacing.sm }}>
+            <MobileButton
+              variant="primary"
+              themeMode={themeMode}
+              onPress={handleSaveBudget}
+              accessibilityLabel="Save budget"
+            >
+              Save Budget
+            </MobileButton>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => {
+                setIsBudgetSheetOpen(false);
+                setEditingBudget(null);
+              }}
+              accessibilityLabel="Cancel budget"
+            >
+              Cancel
+            </MobileButton>
+          </View>
+        </View>
+      </MobileModalSheet>
     </View>
   );
 };

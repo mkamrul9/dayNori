@@ -6,16 +6,24 @@ import {
   formatAudioDuration,
   formatByteSize,
   MAX_AUDIO_RECORDING_SECONDS,
+  MAX_AUDIO_RECORDING_BYTES,
   AUDIO_WARNING_THRESHOLD_SECONDS,
   type AudioAttachment,
 } from '@daynori/domain';
 import { Button } from './Button.js';
 import { Feedback } from './Feedback.js';
+import {
+  saveDurableAudioDraft,
+  getDurableAudioDraft,
+  clearDurableAudioDraft,
+  type DurableAudioDraft,
+} from './audioDraftStore.js';
 
 export interface AudioRecorderDialogProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceId: string;
+  accountId?: string;
   themeMode?: ThemeMode;
   onSaveAudio: (data: {
     blob: Blob;
@@ -35,6 +43,7 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
   isOpen,
   onClose,
   workspaceId,
+  accountId,
   themeMode = 'light',
   onSaveAudio,
   attachedItemTitle,
@@ -53,26 +62,42 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
   const [recordedMimeType, setRecordedMimeType] = useState<string>('audio/webm');
   const [feedback, setFeedback] = useState<{ severity: 'danger' | 'warning' | 'info'; message: string } | null>(null);
   const [hasRecoverableDraft, setHasRecoverableDraft] = useState<boolean>(false);
+  const [recoveredDraft, setRecoveredDraft] = useState<DurableAudioDraft | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+  const isCancelledRef = useRef<boolean>(false);
+  const cumulativeBytesRef = useRef<number>(0);
+  const elapsedSecondsRef = useRef<number>(0);
 
-  const draftKey = `daynori_audio_draft_${workspaceId}`;
+  // Check for interrupted draft on mount or open
+  useEffect(() => {
+    isMountedRef.current = true;
+    isCancelledRef.current = false;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-  // Check for interrupted draft in localStorage on mount or open
   useEffect(() => {
     if (!isOpen) return;
-    try {
-      const saved = localStorage.getItem(draftKey);
-      if (saved) {
+    void getDurableAudioDraft(workspaceId, accountId).then((draft) => {
+      if (!isMountedRef.current) return;
+      if (draft && draft.audioBuffer && draft.audioBuffer.byteLength > 0) {
+        setRecoveredDraft(draft);
         setHasRecoverableDraft(true);
+      } else if (draft) {
+        setRecoveredDraft(null);
+        setHasRecoverableDraft(true);
+      } else {
+        setRecoveredDraft(null);
+        setHasRecoverableDraft(false);
       }
-    } catch {
-      // ignore storage access errors
-    }
-  }, [isOpen, draftKey]);
+    });
+  }, [isOpen, workspaceId, accountId]);
 
   // Clean up recording stream & timer on close/unmount
   const cleanupMedia = useCallback(() => {
@@ -126,6 +151,9 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
   const handleStartRecording = async () => {
     setFeedback(null);
     chunksRef.current = [];
+    cumulativeBytesRef.current = 0;
+    elapsedSecondsRef.current = 0;
+    isCancelledRef.current = false;
 
     if (!navigator?.mediaDevices?.getUserMedia) {
       setFeedback({
@@ -137,7 +165,13 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
 
     try {
       // 1. Request microphone permission explicitly via user gesture
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const streamPromise = navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await streamPromise;
+
+      if (!isMountedRef.current || isCancelledRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
 
       const chosenMime = getPreferredMimeType();
@@ -146,20 +180,31 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
       const recorder = new MediaRecorder(stream, { mimeType: chosenMime });
       mediaRecorderRef.current = recorder;
 
-      recorder.ondataavailable = (e) => {
+      recorder.ondataavailable = async (e) => {
         if (e.data && e.data.size > 0) {
           chunksRef.current.push(e.data);
-          // Persist draft receipt in localStorage on each chunk to survive crashes
+          cumulativeBytesRef.current += e.data.size;
+
+          // Enforce 25 MiB byte limit
+          if (cumulativeBytesRef.current >= MAX_AUDIO_RECORDING_BYTES) {
+            handleStopRecording();
+            return;
+          }
+
+          // Persist durable binary draft periodically
           try {
-            localStorage.setItem(
-              draftKey,
-              JSON.stringify({
+            const combinedBlob = new Blob(chunksRef.current, { type: chosenMime });
+            const buffer = await combinedBlob.arrayBuffer();
+            if (isMountedRef.current && !isCancelledRef.current) {
+              await saveDurableAudioDraft({
                 workspaceId,
-                status: 'interrupted',
-                updatedAt: new Date().toISOString(),
+                accountId,
                 mimeType: chosenMime,
-              })
-            );
+                durationSeconds: Math.max(1, elapsedSecondsRef.current),
+                byteSize: buffer.byteLength,
+                audioBuffer: buffer,
+              });
+            }
           } catch {}
         }
       };
@@ -179,11 +224,13 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
       recorder.start(1000); // 1-second timeslices for chunk reliability
       setPhase('recording');
       setElapsedSeconds(0);
+      elapsedSecondsRef.current = 0;
 
       // Start elapsed timer
       timerIntervalRef.current = setInterval(() => {
         setElapsedSeconds((prev) => {
           const next = prev + 1;
+          elapsedSecondsRef.current = next;
           // Duration limit check (10 minutes)
           if (next >= MAX_AUDIO_RECORDING_SECONDS) {
             handleStopRecording();
@@ -224,6 +271,7 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
       timerIntervalRef.current = setInterval(() => {
         setElapsedSeconds((prev) => {
           const next = prev + 1;
+          elapsedSecondsRef.current = next;
           if (next >= MAX_AUDIO_RECORDING_SECONDS) {
             handleStopRecording();
             return MAX_AUDIO_RECORDING_SECONDS;
@@ -245,16 +293,41 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
     }
   };
 
-  const handleDiscard = () => {
+  const handleRestoreDraft = () => {
+    if (!recoveredDraft || !recoveredDraft.audioBuffer) return;
+    const restoredBlob = new Blob([recoveredDraft.audioBuffer], { type: recoveredDraft.mimeType });
+    setRecordedBlob(restoredBlob);
+    const url = URL.createObjectURL(restoredBlob);
+    setRecordedUrl(url);
+    setElapsedSeconds(recoveredDraft.durationSeconds);
+    elapsedSecondsRef.current = recoveredDraft.durationSeconds;
+    setRecordedMimeType(recoveredDraft.mimeType);
+    setPhase('stopped');
+    setHasRecoverableDraft(false);
+    setRecoveredDraft(null);
+    setFeedback({
+      severity: 'info',
+      message: `Restored previous session (${formatAudioDuration(recoveredDraft.durationSeconds)}, ${formatByteSize(recoveredDraft.byteSize)}). You can review or save it.`,
+    });
+  };
+
+  const handleDiscardDraft = async () => {
+    await clearDurableAudioDraft(workspaceId, accountId);
+    setHasRecoverableDraft(false);
+    setRecoveredDraft(null);
+  };
+
+  const handleDiscard = async () => {
+    isCancelledRef.current = true;
     cleanupMedia();
     setRecordedBlob(null);
     setPhase('idle');
     setElapsedSeconds(0);
+    elapsedSecondsRef.current = 0;
     setFeedback(null);
-    try {
-      localStorage.removeItem(draftKey);
-      setHasRecoverableDraft(false);
-    } catch {}
+    await clearDurableAudioDraft(workspaceId, accountId);
+    setHasRecoverableDraft(false);
+    setRecoveredDraft(null);
   };
 
   const handleSaveAndAttach = async () => {
@@ -281,10 +354,9 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
       });
 
       // Clear draft on successful upload
-      try {
-        localStorage.removeItem(draftKey);
-        setHasRecoverableDraft(false);
-      } catch {}
+      await clearDurableAudioDraft(workspaceId, accountId);
+      setHasRecoverableDraft(false);
+      setRecoveredDraft(null);
 
       onClose();
     } catch (err: unknown) {
@@ -408,28 +480,73 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              gap: spacing.sm,
             }}
           >
-            <span style={{ fontSize: typography.webScale.supporting, color: '#1E40AF' }}>
-              ⚠️ A previous interrupted recording session was detected.
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem(draftKey);
-                setHasRecoverableDraft(false);
-              }}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: palette.status.danger,
-                cursor: 'pointer',
-                fontSize: typography.webScale.supporting,
-                fontWeight: '600',
-              }}
-            >
-              Discard Draft
-            </button>
+            {recoveredDraft ? (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontSize: typography.webScale.supporting, fontWeight: '600', color: '#1E40AF' }}>
+                    ⚠️ Recovered previous recording session ({formatAudioDuration(recoveredDraft.durationSeconds)}, {formatByteSize(recoveredDraft.byteSize)}).
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#3B82F6' }}>
+                    Durable audio binary preserved across restart.
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={handleRestoreDraft}
+                    style={{
+                      backgroundColor: '#2563EB',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: radii.sm,
+                      padding: '4px 10px',
+                      cursor: 'pointer',
+                      fontSize: typography.webScale.supporting,
+                      fontWeight: '600',
+                    }}
+                  >
+                    Restore Recording
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDiscardDraft}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: palette.status.danger,
+                      cursor: 'pointer',
+                      fontSize: typography.webScale.supporting,
+                      fontWeight: '600',
+                    }}
+                  >
+                    Discard Draft
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: typography.webScale.supporting, color: '#B91C1C' }}>
+                  ⚠️ A previous recording session was interrupted before data could be finalized and is unrecoverable.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDiscardDraft}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: palette.status.danger,
+                    cursor: 'pointer',
+                    fontSize: typography.webScale.supporting,
+                    fontWeight: '600',
+                  }}
+                >
+                  Discard Draft
+                </button>
+              </>
+            )}
           </div>
         )}
 

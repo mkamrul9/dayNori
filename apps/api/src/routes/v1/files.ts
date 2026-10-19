@@ -12,6 +12,9 @@ import {
   FileItemResponseSchema,
   StorageQuotaResponseSchema,
   WorkspaceParamsSchema,
+  LinkItemAttachmentRequestSchema,
+  ItemAttachmentResponseSchema,
+  ListItemAttachmentsResponseSchema,
 } from '@daynori/contracts';
 import { withTenantContext } from '../../db/index.js';
 import {
@@ -22,6 +25,9 @@ import {
   getFileDownloadCapability,
   getFileItem,
   deleteFileItem,
+  linkItemAttachment,
+  listItemAttachments,
+  unlinkItemAttachment,
   type ReservationRecord,
 } from '../../modules/files/service.js';
 import { getStorageUsage } from '../../modules/files/quotaService.js';
@@ -289,6 +295,129 @@ export function registerFileRoutes(app: FastifyInstance, pool: Pool): void {
       await withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
         return deleteFileItem(client, workspaceId, actor.userId, fileId, operationId);
       });
+
+      return reply.status(200).send({
+        data: { success: true },
+        meta: {
+          requestId: request.id,
+          serverTime: new Date().toISOString(),
+        },
+      });
+    }
+  );
+
+  // 9. Link Item Attachment
+  app.post(
+    '/v1/workspaces/:workspaceId/items/:itemId/attachments',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId, itemId } = WorkspaceParamsSchema.extend({
+        itemId: z.string().uuid(),
+      }).parse(request.params);
+      const parsedBody = LinkItemAttachmentRequestSchema.parse(request.body);
+      const operationId =
+        (request.headers['x-operation-id'] as string) ||
+        (request.query as { operationId?: string })?.operationId;
+
+      const attachment = await withTenantContext(
+        pool,
+        { userId: actor.userId, workspaceId },
+        async (client) => {
+          return linkItemAttachment(
+            client,
+            workspaceId,
+            actor.userId,
+            itemId,
+            {
+              fileId: parsedBody.fileId,
+              attachmentType: parsedBody.attachmentType,
+              durationSeconds: parsedBody.durationSeconds,
+            },
+            operationId
+          );
+        }
+      );
+
+      const payload = validateResponse(ItemAttachmentResponseSchema, {
+        data: attachment,
+        meta: {
+          requestId: request.id,
+          serverTime: new Date().toISOString(),
+        },
+      });
+
+      return reply.status(201).send(payload);
+    }
+  );
+
+  // 10. List Item Attachments
+  app.get(
+    '/v1/workspaces/:workspaceId/items/:itemId/attachments',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId, itemId } = WorkspaceParamsSchema.extend({
+        itemId: z.string().uuid(),
+      }).parse(request.params);
+
+      const attachments = await withTenantContext(
+        pool,
+        { userId: actor.userId, workspaceId },
+        async (client) => {
+          return listItemAttachments(client, workspaceId, itemId);
+        }
+      );
+
+      const payload = validateResponse(ListItemAttachmentsResponseSchema, {
+        data: attachments,
+        meta: {
+          requestId: request.id,
+          serverTime: new Date().toISOString(),
+        },
+      });
+
+      return reply.status(200).send(payload);
+    }
+  );
+
+  // 11. Unlink Item Attachment
+  app.delete(
+    '/v1/workspaces/:workspaceId/items/:itemId/attachments/:attachmentId',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId, itemId, attachmentId } = WorkspaceParamsSchema.extend({
+        itemId: z.string().uuid(),
+        attachmentId: z.string().uuid(),
+      }).parse(request.params);
+      const operationId =
+        (request.headers['x-operation-id'] as string) ||
+        (request.query as { operationId?: string })?.operationId;
+
+      await withTenantContext(
+        pool,
+        { userId: actor.userId, workspaceId },
+        async (client) => {
+          return unlinkItemAttachment(
+            client,
+            workspaceId,
+            actor.userId,
+            itemId,
+            attachmentId,
+            operationId
+          );
+        }
+      );
 
       return reply.status(200).send({
         data: { success: true },

@@ -45,3 +45,38 @@ export const AudioRecordingDraftSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 export type AudioRecordingDraft = z.infer<typeof AudioRecordingDraftSchema>;
+
+export const LinkItemAttachmentRequestSchema = z.object({
+  fileId: z.string().uuid(),
+  attachmentType: z.enum(['audio', 'receipt', 'file']).default('audio'),
+  durationSeconds: z.number().int().min(1).max(MAX_AUDIO_RECORDING_SECONDS).optional(),
+});
+export type LinkItemAttachmentRequest = z.infer<typeof LinkItemAttachmentRequestSchema>;
+
+export const ItemAttachmentRecordSchema = z.object({
+  id: z.string().uuid(),
+  workspaceId: z.string().uuid(),
+  itemId: z.string().uuid(),
+  fileId: z.string().uuid(),
+  attachmentType: z.enum(['audio', 'receipt', 'file']),
+  fileName: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(100),
+  byteSize: z.number().int().positive(),
+  durationSeconds: z.number().int().min(1).max(MAX_AUDIO_RECORDING_SECONDS).nullable().optional(),
+  createdBy: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ItemAttachmentRecord = z.infer<typeof ItemAttachmentRecordSchema>;
+
+export const ItemAttachmentResponseSchema = z.object({
+  data: ItemAttachmentRecordSchema,
+  meta: ResponseMetaSchema,
+});
+export type ItemAttachmentResponse = z.infer<typeof ItemAttachmentResponseSchema>;
+
+export const ListItemAttachmentsResponseSchema = z.object({
+  data: z.array(ItemAttachmentRecordSchema),
+  meta: ResponseMetaSchema,
+});
+export type ListItemAttachmentsResponse = z.infer<typeof ListItemAttachmentsResponseSchema>;

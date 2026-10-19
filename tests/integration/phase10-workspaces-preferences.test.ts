@@ -115,6 +115,7 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
         compactMode: false,
         journalPreviewHidden: true,
         suppressBodySnippets: true,
+        expensesEnabled: false,
       });
       expect(res.data.profile.revision).toBe(1);
 
@@ -249,6 +250,7 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
         compactMode: false,
         journalPreviewHidden: true,
         suppressBodySnippets: true,
+        expensesEnabled: false,
       });
       expect(profileRes.data.preferencesSchemaVersion).toBe(1);
       expect(profileRes.data.revision).toBe(1);
@@ -309,6 +311,7 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
         compactMode: true,
         journalPreviewHidden: true,
         suppressBodySnippets: true,
+        expensesEnabled: false,
       });
       expect(updated.data.revision).toBe(2);
     });

@@ -30,5 +30,6 @@ export * from './ExpenseReportView.js';
 export * from './ExpenseBudgetView.js';
 export * from './AudioPlayerCard.js';
 export * from './AudioRecorderDialog.js';
+export * from './audioDraftStore.js';
 
 

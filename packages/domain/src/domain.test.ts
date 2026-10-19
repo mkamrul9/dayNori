@@ -1913,7 +1913,40 @@ describe('Domain Rules and Invariants', () => {
           byteSize: 1024,
           mimeType: 'audio/webm',
         })
-      ).toThrow('range');
+      ).toThrow('Invalid audio duration');
+
+      // Throws on fractional duration that rounds to zero (<0.5)
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'tiny.webm',
+          durationSeconds: 0.4,
+          byteSize: 1024,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('Invalid audio duration');
+
+      // Throws on NaN byteSize
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'nan.webm',
+          durationSeconds: 5,
+          byteSize: NaN,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('Invalid audio byte size');
+
+      // Throws on non-UUID fileId
+      expect(() =>
+        createAudioAttachment({
+          fileId: 'not-a-uuid',
+          fileName: 'valid.webm',
+          durationSeconds: 5,
+          byteSize: 1024,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('must be a valid UUID');
 
       // Throws on unsupported MIME type
       expect(() =>

@@ -37,10 +37,16 @@ import {
   type RedactedSyncDiagnostics,
   type RecoveryExport,
 } from '@daynori/sync';
-import { MobileOfflineFileCache } from './src/data/offlineFileCache.js';
+import {
+  MobileOfflineFileCache,
+  base64ToArrayBuffer,
+  computeMobileBufferSha256,
+} from './src/data/offlineFileCache.js';
 import { ExpoFileSystemOfflineStorageAdapter } from './src/data/expoFileSystemStorageAdapter.js';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { generateUuid } from '@daynori/domain';
+import { ExpoAudioRecorderAdapter } from './src/audio/audioAdapter.js';
 
 MobileOfflineFileCache.setAdapter(new ExpoFileSystemOfflineStorageAdapter());
 import type { ActiveModal, CreateDraft, LibraryFilter, PlanSubView } from './src/navigation/types';
@@ -88,6 +94,7 @@ export default function App() {
     workspaceId: string;
   } | null>(null);
   const [isOnline] = useState<boolean>(true);
+  const audioRecorderAdapter = useRef(new ExpoAudioRecorderAdapter()).current;
 
   // Input draft preservation across shell navigation
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -734,6 +741,7 @@ export default function App() {
         initialDraft={createDraft}
         onDraftChange={setCreateDraft}
         onCreateItem={() => {}}
+        onRecordAudio={() => setActiveModal('audio-recorder')}
       />
 
       {/* Settings Modal */}
@@ -989,8 +997,97 @@ export default function App() {
         onClose={() => setActiveModal('none')}
         workspaceId={userNamespace?.workspaceId ?? ''}
         themeMode={themeMode}
-        onSaveAudio={async () => {
+        recorderAdapter={audioRecorderAdapter}
+        onSaveAudio={async (data) => {
+          if (!data.uri) {
+            throw new Error('No recording file was produced.');
+          }
+          const workspaceId = userNamespace?.workspaceId;
+          if (!workspaceId) {
+            throw new Error('No active workspace.');
+          }
+
+          // 1. Read recording binary bytes from disk
+          const base64 = await FileSystem.readAsStringAsync(data.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const buffer = base64ToArrayBuffer(base64);
+          const sha256 = await computeMobileBufferSha256(buffer);
+
+          let fileId = generateUuid();
+
+          if (apiClient) {
+            // Online flow: standard private binary upload lifecycle
+            const reserveRes = await apiClient.reserveFileUpload(workspaceId, {
+              fileName: data.fileName,
+              declaredMimeType: data.mimeType,
+              declaredBytes: data.byteSize,
+            });
+            const { reservationId, uploadUrl, headers } = reserveRes.data;
+
+            const putRes = await fetch(uploadUrl, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': data.mimeType,
+                ...(headers || {}),
+              },
+              body: buffer,
+            });
+            if (!putRes.ok) {
+              throw new Error(`Upload transfer failed with HTTP ${putRes.status}`);
+            }
+
+            const finalizeRes = await apiClient.finalizeFileUpload(workspaceId, reservationId, {
+              clientChecksum: sha256,
+            });
+            fileId = finalizeRes.data.fileId;
+          }
+
+          // 2. Persist binary to local mobile offline cache
+          if (userNamespace?.userId) {
+            await MobileOfflineFileCache.saveBinary({
+              accountId: userNamespace.userId,
+              workspaceId,
+              fileId,
+              version: 1,
+              fileName: data.fileName,
+              mimeType: data.mimeType,
+              expectedSha256: sha256,
+              data: buffer,
+            }).catch(() => {});
+          }
+
+          // 3. Upsert to local repository
+          if (repository) {
+            const now = new Date().toISOString();
+            await repository.upsertFile({
+              id: fileId,
+              workspaceId,
+              folderId: null,
+              fileName: data.fileName,
+              declaredMimeType: data.mimeType,
+              detectedMimeType: data.mimeType,
+              byteSize: data.byteSize,
+              sha256Checksum: sha256,
+              version: '1',
+              quarantineStatus: 'verified',
+              rejectionReason: null,
+              createdBy: userNamespace?.userId || workspaceId,
+              createdAt: now,
+              updatedAt: now,
+              verifiedAt: now,
+            });
+          }
+
           setActiveModal('none');
+          return {
+            fileId,
+            fileName: data.fileName,
+            durationSeconds: data.durationSeconds,
+            byteSize: data.byteSize,
+            mimeType: data.mimeType,
+            createdAt: new Date().toISOString(),
+          };
         }}
       />
     </SafeAreaView>

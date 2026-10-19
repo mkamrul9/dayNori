@@ -537,4 +537,187 @@ describe('Phase 41: Audio Recording and Attachment Lifecycle (Integration Tests)
       expect(onboardingContext.activeStreams).toBe(0);
     });
   });
+
+  describe('8. Canonical Item Attachment Lifecycle & Sync Integration', () => {
+    function createSyntheticWav(sampleCount = 1000): Buffer {
+      const header = Buffer.alloc(44);
+      const dataSize = sampleCount * 2;
+      header.write('RIFF', 0);
+      header.writeUInt32LE(36 + dataSize, 4);
+      header.write('WAVE', 8);
+      header.write('fmt ', 12);
+      header.writeUInt32LE(16, 16);
+      header.writeUInt16LE(1, 20);
+      header.writeUInt16LE(1, 22);
+      header.writeUInt32LE(44100, 24);
+      header.writeUInt32LE(88200, 28);
+      header.writeUInt16LE(2, 32);
+      header.writeUInt16LE(16, 34);
+      header.write('data', 36);
+      header.writeUInt32LE(dataSize, 40);
+
+      const pcmData = Buffer.alloc(dataSize);
+      for (let i = 0; i < sampleCount; i++) {
+        const sample = Math.floor(Math.sin((2 * Math.PI * 440 * i) / 44100) * 32767);
+        pcmData.writeInt16LE(sample, i * 2);
+      }
+      return Buffer.concat([header, pcmData]);
+    }
+
+    it('uploads a synthetic RIFF WAV audio binary and verifies mime type and checksum', async () => {
+      const wavBytes = createSyntheticWav(2000);
+      const sha256 = crypto.createHash('sha256').update(wavBytes).digest('hex');
+
+      const res = await clientA.reserveFileUpload(workspaceAId, {
+        fileName: 'synthetic-recording.wav',
+        declaredMimeType: 'audio/wav',
+        declaredBytes: wavBytes.length,
+      });
+
+      await fetch(res.data.uploadUrl, {
+        method: res.data.method,
+        headers: { 'content-type': 'audio/wav' },
+        body: wavBytes,
+      });
+
+      const finalizeRes = await clientA.finalizeFileUpload(workspaceAId, res.data.reservationId, {
+        clientChecksum: sha256,
+      });
+
+      expect(finalizeRes.data.status).toBe('verified');
+      expect(finalizeRes.data.detectedMimeType).toBe('audio/wav');
+      expect(finalizeRes.data.byteSize).toBe(wavBytes.length);
+    });
+
+    it('manages attachment link, list, multi-reference retention, unlink, and change feed emission', async () => {
+      const admin = await adminPool.connect();
+      let note1Id: string;
+      let note2Id: string;
+
+      try {
+        note1Id = crypto.randomUUID();
+        await admin.query(
+          `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by, security_scope)
+           VALUES ($1, $2, 'note', $3, $3, 'standard')`,
+          [note1Id, workspaceAId, userAId]
+        );
+        await admin.query(
+          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count, purpose)
+           VALUES ($1, $2, 'Audio Note 1', '{"type":"doc"}'::jsonb, 'Audio content', 2, 13, 'standard')`,
+          [note1Id, workspaceAId]
+        );
+
+        note2Id = crypto.randomUUID();
+        await admin.query(
+          `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by, security_scope)
+           VALUES ($1, $2, 'note', $3, $3, 'standard')`,
+          [note2Id, workspaceAId, userAId]
+        );
+        await admin.query(
+          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count, purpose)
+           VALUES ($1, $2, 'Audio Note 2', '{"type":"doc"}'::jsonb, 'Second audio content', 3, 20, 'standard')`,
+          [note2Id, workspaceAId]
+        );
+      } finally {
+        admin.release();
+      }
+
+      // 1. Upload audio file in Workspace A
+      const wavBytes = createSyntheticWav(1500);
+      const sha256 = crypto.createHash('sha256').update(wavBytes).digest('hex');
+
+      const res = await clientA.reserveFileUpload(workspaceAId, {
+        fileName: 'shared-memo.wav',
+        declaredMimeType: 'audio/wav',
+        declaredBytes: wavBytes.length,
+      });
+
+      await fetch(res.data.uploadUrl, {
+        method: res.data.method,
+        headers: { 'content-type': 'audio/wav' },
+        body: wavBytes,
+      });
+
+      const finalizeRes = await clientA.finalizeFileUpload(workspaceAId, res.data.reservationId, {
+        clientChecksum: sha256,
+      });
+      const fileId = finalizeRes.data.fileId;
+
+      // 2. Link attachment to Note 1
+      const link1Res = await clientA.linkItemAttachment(workspaceAId, note1Id, {
+        fileId,
+        attachmentType: 'audio',
+        durationSeconds: 45,
+      });
+      expect(link1Res.data.id).toBeDefined();
+      expect(link1Res.data.itemId).toBe(note1Id);
+      expect(link1Res.data.fileId).toBe(fileId);
+      expect(link1Res.data.fileName).toBe('shared-memo.wav');
+      expect(link1Res.data.durationSeconds).toBe(45);
+      const attachment1Id = link1Res.data.id;
+
+      // 3. List attachments on Note 1
+      const list1Res = await clientA.listItemAttachments(workspaceAId, note1Id);
+      expect(list1Res.data.length).toBe(1);
+      expect(list1Res.data[0]!.id).toBe(attachment1Id);
+      expect(list1Res.data[0]!.fileId).toBe(fileId);
+
+      // 4. Link same file to Note 2 (Multi-reference retention)
+      const link2Res = await clientA.linkItemAttachment(workspaceAId, note2Id, {
+        fileId,
+        attachmentType: 'audio',
+        durationSeconds: 45,
+      });
+      expect(link2Res.data.id).toBeDefined();
+      const attachment2Id = link2Res.data.id;
+
+      // 5. Unlink from Note 1
+      const unlinkRes = await clientA.unlinkItemAttachment(workspaceAId, note1Id, attachment1Id);
+      expect(unlinkRes.data.success).toBe(true);
+
+      // Verify Note 1 has no attachments
+      const list1AfterRes = await clientA.listItemAttachments(workspaceAId, note1Id);
+      expect(list1AfterRes.data.length).toBe(0);
+
+      // Verify Note 2 STILL retains the attachment and file record
+      const list2Res = await clientA.listItemAttachments(workspaceAId, note2Id);
+      expect(list2Res.data.length).toBe(1);
+      expect(list2Res.data[0]!.id).toBe(attachment2Id);
+
+      const poolClient = await adminPool.connect();
+      try {
+        const fileCheck = await poolClient.query(
+          `SELECT id, quarantine_status FROM app.file_items WHERE id = $1`,
+          [fileId]
+        );
+        expect(fileCheck.rowCount).toBe(1);
+        expect(fileCheck.rows[0]!.quarantine_status).toBe('verified');
+
+        // Check sync change feed for item_attachment events
+        const changes = await poolClient.query(
+          `SELECT entity_type, is_tombstone, entity_id FROM app.changes
+           WHERE entity_type = 'item_attachment' AND workspace_id = $1`,
+          [workspaceAId]
+        );
+        expect(changes.rowCount).toBeGreaterThanOrEqual(2);
+        const tombstones = changes.rows.map((r: { is_tombstone: boolean }) => r.is_tombstone);
+        expect(tombstones).toContain(false);
+        expect(tombstones).toContain(true);
+      } finally {
+        poolClient.release();
+      }
+
+      // 6. Cross-tenant isolation: Bob cannot link Alice's file in Workspace B
+      let crossTenantCaught = false;
+      try {
+        await clientB.linkItemAttachment(workspaceBId, crypto.randomUUID(), {
+          fileId,
+          attachmentType: 'audio',
+        });
+      } catch {
+        crossTenantCaught = true;
+      }
+      expect(crossTenantCaught).toBe(true);
+    });
+  });
 });

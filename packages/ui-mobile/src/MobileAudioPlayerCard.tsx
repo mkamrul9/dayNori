@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
-import { formatAudioDuration, formatByteSize, type AudioAttachment } from '@daynori/domain';
+import {
+  formatAudioDuration,
+  formatByteSize,
+  type AudioAttachment,
+  type NativeAudioPlayerAdapter,
+  type NativeAudioPlayerStatus,
+} from '@daynori/domain';
 
 export interface MobileAudioPlayerCardProps {
   attachment: AudioAttachment;
   audioUrl?: string | null;
   themeMode?: ThemeMode;
+  playerAdapter?: NativeAudioPlayerAdapter;
   onDelete?: () => void;
   onPlay?: () => void;
   onPause?: () => void;
@@ -17,7 +24,9 @@ export interface MobileAudioPlayerCardProps {
 
 export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
   attachment,
+  audioUrl,
   themeMode = 'light',
+  playerAdapter,
   onDelete,
   onPlay,
   onPause,
@@ -27,16 +36,65 @@ export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
 }) => {
   const palette = colors[themeMode];
   const [internalPlaying, setInternalPlaying] = useState<boolean>(false);
+  const [playerStatus, setPlayerStatus] = useState<NativeAudioPlayerStatus>({
+    isLoaded: false,
+    isPlaying: false,
+  });
+  const [localPosSeconds, setLocalPosSeconds] = useState<number>(currentSeconds);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
 
-  const activePlaying = isPlaying || internalPlaying;
+  useEffect(() => {
+    if (!audioUrl || !playerAdapter) return;
+    let isSubscribed = true;
 
-  const handleToggle = () => {
-    if (activePlaying) {
-      if (onPause) onPause();
-      setInternalPlaying(false);
+    void playerAdapter.loadAsync(audioUrl, (status) => {
+      if (!isSubscribed) return;
+      setPlayerStatus(status);
+      if (status.isLoaded) {
+        setPlaybackError(null);
+        if (typeof status.positionMillis === 'number') {
+          setLocalPosSeconds(Math.floor(status.positionMillis / 1000));
+        }
+      } else if (status.error) {
+        setPlaybackError(status.error);
+      }
+    });
+
+    return () => {
+      isSubscribed = false;
+      void playerAdapter.unloadAsync().catch(() => {});
+    };
+  }, [audioUrl, playerAdapter]);
+
+  const activePlaying = playerAdapter
+    ? playerStatus.isPlaying
+    : isPlaying || internalPlaying;
+
+  const displayedSeconds = playerAdapter
+    ? localPosSeconds
+    : currentSeconds;
+
+  const handleToggle = async () => {
+    if (playerAdapter) {
+      try {
+        if (playerStatus.isPlaying) {
+          await playerAdapter.pauseAsync();
+          if (onPause) onPause();
+        } else {
+          await playerAdapter.playAsync();
+          if (onPlay) onPlay();
+        }
+      } catch (err: unknown) {
+        setPlaybackError(err instanceof Error ? err.message : 'Playback error');
+      }
     } else {
-      if (onPlay) onPlay();
-      setInternalPlaying(true);
+      if (activePlaying) {
+        if (onPause) onPause();
+        setInternalPlaying(false);
+      } else {
+        if (onPlay) onPlay();
+        setInternalPlaying(true);
+      }
     }
   };
 
@@ -110,7 +168,7 @@ export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
                 styles.progressBarFill,
                 {
                   backgroundColor: palette.action.primary,
-                  width: `${Math.min(100, Math.round((currentSeconds / totalDuration) * 100))}%`,
+                  width: `${Math.min(100, Math.round((displayedSeconds / totalDuration) * 100))}%`,
                 },
               ]}
             />
@@ -118,12 +176,17 @@ export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
 
           <View style={styles.timeRow}>
             <Text style={[styles.timeText, { color: palette.text.secondary }]}>
-              {formatAudioDuration(currentSeconds)}
+              {formatAudioDuration(displayedSeconds)}
             </Text>
             <Text style={[styles.timeText, { color: palette.text.secondary }]}>
               {formatAudioDuration(totalDuration)}
             </Text>
           </View>
+          {playbackError && (
+            <Text style={{ fontSize: 11, color: palette.status.danger, marginTop: 2 }}>
+              {playbackError}
+            </Text>
+          )}
         </View>
       </View>
     </View>
