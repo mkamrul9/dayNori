@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 44 cryptography proof was repaired (RFC 9106 complete vector, strict recovery/envelope/KDF validation, honest Node-only adapter naming, recovery-rewrap limitation, review packet, platform harnesses prepared). Phase 44 remains blocked pending independent qualified security review, recorded browser/Android harness evidence, and attachment-format decision. Phases 37–38 beta/release gates remain blocked. Do not enable vault functionality. Phase 45 implementation is not authorized while the cryptography gate is blocked; preparation-only work may follow in a separate commit.",
-  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-44 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
+  "schedulingDecision": "Phase 44 cryptography proof was repaired and remains blocked pending independent qualified security review, recorded browser/Android harness evidence, and attachment-format decision. Phase 45 is blocked/prepared with documentation and disconnected synthetic fixtures only — no production vault migrations, routes, or unlock UI. Phases 37–38 beta/release gates remain blocked. Do not enable vault functionality or start Phase 46.",
+  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
       "id": "00",
@@ -272,7 +272,9 @@
     },
     {
       "id": "45",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Preparation only: transfer/sync/exclusion designs and disconnected synthetic fixtures delivered. Implementation blocked pending Phase 44 independent security review and required platform evidence. No production vault migrations, API routes, or unlock UI.",
+      "report": "docs/phase-reports/phase-45.md"
     },
     {
       "id": "46",

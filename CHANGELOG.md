@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 45 — Encrypted vault records preparation (blocked) — 2026-10-19
+
+- **Preparation only** while ADR 0043 / Phase 44 gates remain unmet — no production vault migrations, API routes, or unlock UI.
+- Added [vault-records-and-transfer-preparation.md](docs/architecture/vault-records-and-transfer-preparation.md) covering versioned envelopes, authorization, ciphertext sync/conflicts/tombstones, exclusion surfaces, leak prevention, and ordinary→vault transfer state machine (verified recoverable copy; upload ≠ completion).
+- Added disconnected synthetic fixtures `tests/security/vault/phase45-prep/` and `tests/security/phase45-vault-prep.test.ts`.
+- Phase status: `blocked` / prepared. Canonical feature commit deferred until gates pass.
+
 ## Phase 44 — Vault cryptography proof repair — 2026-10-19
 
 - **Repaired isolated prototype** (`tests/security/vault/vault-crypto.ts`) after reproducing defects in the initial `e07c454` proof:
