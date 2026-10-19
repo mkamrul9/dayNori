@@ -15,7 +15,7 @@ Phase 47 requires browser unlock/lifecycle surfaces while Phases 44–45 and ind
 3. Expose an explicitly labeled development harness at `/dev/vault-harness` (`NODE_ENV === 'development'` only). Production `/vault` remains a disabled status page.
 4. Coordinate lock/session-invalidation across tabs via `BroadcastChannel` messages that never include keys, passphrases, recovery secrets, or plaintext. Unlocking one tab must not unlock another.
 5. Keep unlocked keys/plaintext out of persistent browser storage, service-worker caches, outbox payloads, URLs, and diagnostics.
-6. Apply CSP headers in `apps/web/next.config.mjs`, distinguishing development (HMR/`unsafe-eval`) from production policy. Residual `unsafe-inline` for scripts is an open finding until a nonce pipeline lands.
+6. Apply CSP via `apps/web/src/middleware.ts` with per-request nonces and `strict-dynamic` (Next.js 15 App Router guidance). Production `script-src` omits `unsafe-inline`/`unsafe-eval`. Development may add `unsafe-eval` for HMR. Residual `style-src 'unsafe-inline'` remains for React inline styles. Permissions-Policy allows `microphone=(self)` for ordinary audio recording and denies microphone on vault routes.
 
 ## Consequences
 

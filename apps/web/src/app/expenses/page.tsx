@@ -17,10 +17,58 @@ import type {
   ExpenseItem,
   ExpenseBudget,
   CurrencyMonthlySummary,
+  ExpenseKind,
 } from '@daynori/contracts';
 import { useAuth } from '../../components/AuthContext';
 import { useShell } from '../../components/ShellContext';
 import { createWebApiClient } from '../../data/webApiClient';
+
+type ExpenseCaptureDraft = {
+  kind?: ExpenseKind;
+  amount?: string;
+  currency?: string;
+  transactionDate?: string;
+  categoryId?: string | null;
+  paymentLabel?: string | null;
+  note?: string | null;
+  receiptFileId?: string | null;
+  originalExpenseId?: string | null;
+  timezone?: string;
+};
+
+function parseExpenseKindFilter(value: string): ExpenseKind | undefined {
+  if (value === 'expense' || value === 'income' || value === 'refund') return value;
+  return undefined;
+}
+
+function parseExpenseCaptureDraft(raw: unknown): ExpenseCaptureDraft | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const kind =
+    o.kind === 'expense' || o.kind === 'income' || o.kind === 'refund' ? o.kind : undefined;
+  const draft: ExpenseCaptureDraft = {
+    kind,
+    amount: typeof o.amount === 'string' ? o.amount : undefined,
+    currency: typeof o.currency === 'string' ? o.currency : undefined,
+    transactionDate: typeof o.transactionDate === 'string' ? o.transactionDate : undefined,
+    categoryId: typeof o.categoryId === 'string' || o.categoryId === null ? (o.categoryId as string | null) : undefined,
+    paymentLabel:
+      typeof o.paymentLabel === 'string' || o.paymentLabel === null
+        ? (o.paymentLabel as string | null)
+        : undefined,
+    note: typeof o.note === 'string' || o.note === null ? (o.note as string | null) : undefined,
+    receiptFileId:
+      typeof o.receiptFileId === 'string' || o.receiptFileId === null
+        ? (o.receiptFileId as string | null)
+        : undefined,
+    originalExpenseId:
+      typeof o.originalExpenseId === 'string' || o.originalExpenseId === null
+        ? (o.originalExpenseId as string | null)
+        : undefined,
+    timezone: typeof o.timezone === 'string' ? o.timezone : undefined,
+  };
+  return draft;
+}
 
 const MONTH_NAMES = [
   'January',
@@ -71,17 +119,19 @@ export default function ExpensesPage() {
   const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(null);
 
   const draftStorageKey = workspaceId ? `daynori_expense_draft_${workspaceId}` : null;
-  const [createDraft, setCreateDraft] = useState<any>(null);
+  const [createDraft, setCreateDraft] = useState<ExpenseCaptureDraft | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && draftStorageKey) {
       try {
         const saved = localStorage.getItem(draftStorageKey);
         if (saved) {
-          setCreateDraft(JSON.parse(saved));
+          setCreateDraft(parseExpenseCaptureDraft(JSON.parse(saved)));
         }
-      } catch {
-        // ignore storage errors
+      } catch (err: unknown) {
+        // Corrupted or unavailable draft storage — discard without exposing payload.
+        setCreateDraft(null);
+        void err;
       }
     }
   }, [draftStorageKey]);
@@ -112,7 +162,7 @@ export default function ExpensesPage() {
         startDate: startOfMonth,
         endDate: endOfMonth,
         categoryId: selectedCategoryFilter || undefined,
-        kind: (selectedKindFilter as any) || undefined,
+        kind: parseExpenseKindFilter(selectedKindFilter),
         limit: 50,
       });
       setTransactions(txRes.data);
@@ -139,8 +189,15 @@ export default function ExpensesPage() {
           limit: 100,
         });
         setEligibleOriginalExpenses(origRes.data);
-      } catch {
-        // fallback
+      } catch (err: unknown) {
+        setEligibleOriginalExpenses([]);
+        setFeedback({
+          severity: 'warning',
+          message:
+            err instanceof Error
+              ? 'Refund source list unavailable; other expense data loaded.'
+              : 'Refund source list unavailable; other expense data loaded.',
+        });
       }
     } catch (err: unknown) {
       setFeedback({
@@ -250,7 +307,11 @@ export default function ExpensesPage() {
         try {
           localStorage.removeItem(draftStorageKey);
           setCreateDraft(null);
-        } catch {}
+        } catch (err: unknown) {
+          // Best-effort draft clear; private mode / quota errors must not block create success.
+          setCreateDraft(null);
+          void err;
+        }
       }
     }
 
@@ -269,7 +330,7 @@ export default function ExpensesPage() {
         startDate: startOfMonth,
         endDate: endOfMonth,
         categoryId: selectedCategoryFilter || undefined,
-        kind: (selectedKindFilter as any) || undefined,
+        kind: parseExpenseKindFilter(selectedKindFilter),
         limit: 50,
         cursor: paginationCursor,
       });
@@ -333,7 +394,7 @@ export default function ExpensesPage() {
               startDate: startOfMonth,
               endDate: endOfMonth,
               categoryId: selectedCategoryFilter || undefined,
-              kind: (selectedKindFilter as any) || undefined,
+              kind: parseExpenseKindFilter(selectedKindFilter),
               currency: currencyFilter,
             }
           : {

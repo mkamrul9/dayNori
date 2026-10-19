@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 47 — Local verification repair (blocked / provisional) — 2026-10-19
+
+- Restored normal linted `pnpm --filter @daynori/web build` by typing expense drafts/filters and handling empty catches.
+- Production CSP via Next.js 15 middleware nonces (`script-src` without `unsafe-inline`/`unsafe-eval`); `Permissions-Policy` allows `microphone=(self)` except vault routes.
+- Playwright web vault lifecycle runner (18 checks) under `tests/security/vault/harnesses`; unlock-sheet retry host fix.
+- Phase status remains `blocked` pending independent review and Phase 45 integration.
+
 ## Phase 47 — Provisional web unlock lifecycle harness (blocked) — 2026-10-19
 
 - Added browser vault interfaces reusing `@daynori/domain` session controller; production providers remain unavailable (no silent synthetic fallback).

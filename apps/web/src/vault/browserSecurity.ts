@@ -13,10 +13,20 @@ export function redactVaultDiagnostic(fields: Record<string, unknown>): Record<s
   return out;
 }
 
-/** Vault content must never enter search, preview, notification, analytics, or AI consumers. */
-export function isVaultContentExcludedFromConsumers(): true {
-  return true;
-}
+/**
+ * Documented consumer exclusion contract. Prefer exercising real filters
+ * (`searchDownloadedRecords`, recovery export, portability notices) in tests —
+ * do not treat this helper alone as security evidence.
+ */
+export const VAULT_CONSUMER_EXCLUSION_SURFACES = [
+  'search',
+  'preview',
+  'notification',
+  'analytics',
+  'ai',
+  'recovery_export',
+  'workspace_portability',
+] as const;
 
 export function assertNoVaultPlaintextInUrl(href: string): boolean {
   return !/passphrase|recovery.secret|vault-item-|synth-handle/i.test(href);

@@ -15,9 +15,10 @@ import {
 import {
   assertNoVaultPlaintextInUrl,
   clearBrowserClipboardIfAvailable,
-  isVaultContentExcludedFromConsumers,
   redactVaultDiagnostic,
+  VAULT_CONSUMER_EXCLUSION_SURFACES,
 } from '../../apps/web/src/vault/browserSecurity.js';
+import { searchDownloadedRecords } from '../../packages/domain/src/search.js';
 import {
   publishVaultLockSignal,
   subscribeVaultLockSignals,
@@ -180,18 +181,72 @@ describe('Phase 47 web vault (provisional harness — not production integration
     unsub();
   });
 
-  it('redacts diagnostics, excludes vault from consumers, and sanitizes display text', () => {
-    expect(isVaultContentExcludedFromConsumers()).toBe(true);
+  it('redacts nested diagnostics and sanitizes display text', () => {
     const redacted = redactVaultDiagnostic({
       operationId: 'op',
       passphrase: 'x',
       title: 'secret',
+      nested: { recoverySecret: 'should-stay-visible-key-name-only' },
     });
     expect(redacted.passphrase).toBe('[redacted]');
     expect(redacted.title).toBe('[redacted]');
+    // Top-level key redaction; nested objects are not deep-walked — callers must flatten sensitive keys.
+    expect(VAULT_CONSUMER_EXCLUSION_SURFACES).toContain('search');
     expect(assertNoVaultPlaintextInUrl('https://app.example/vault')).toBe(true);
     expect(assertNoVaultPlaintextInUrl('https://app.example/?passphrase=x')).toBe(false);
     expect(safeDisplayText('ok\u0000title')).toBe('oktitle');
+  });
+
+  it('search consumer boundary excludes vault-scoped headers', () => {
+    const results = searchDownloadedRecords({
+      workspaceId: 'ws-vault-boundary',
+      query: { q: 'secret' },
+      items: {
+        headers: [
+          {
+            id: 'ordinary-1',
+            workspaceId: 'ws-vault-boundary',
+            kind: 'note',
+            folderId: null,
+            securityScope: 'standard',
+            deletedAt: null,
+            createdAt: '2026-10-19T00:00:00.000Z',
+            updatedAt: '2026-10-19T00:00:00.000Z',
+          },
+          {
+            id: 'vault-1',
+            workspaceId: 'ws-vault-boundary',
+            kind: 'note',
+            folderId: null,
+            securityScope: 'vault',
+            deletedAt: null,
+            createdAt: '2026-10-19T00:00:00.000Z',
+            updatedAt: '2026-10-19T00:00:00.000Z',
+          },
+        ],
+        notes: [
+          {
+            id: 'ordinary-1',
+            workspaceId: 'ws-vault-boundary',
+            title: 'ordinary secret note',
+            plainText: 'visible secret body',
+            createdAt: '2026-10-19T00:00:00.000Z',
+            updatedAt: '2026-10-19T00:00:00.000Z',
+          },
+          {
+            id: 'vault-1',
+            workspaceId: 'ws-vault-boundary',
+            title: 'vault secret note',
+            plainText: 'must not appear',
+            createdAt: '2026-10-19T00:00:00.000Z',
+            updatedAt: '2026-10-19T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+    const ids = results.data.map((i) => i.id);
+    expect(ids).toContain('ordinary-1');
+    expect(ids).not.toContain('vault-1');
   });
 
   it('clipboard helper without API does not claim clearing', async () => {
@@ -242,17 +297,20 @@ describe('Phase 47 production vault page SSR contract (static)', () => {
   });
 });
 
-describe('Phase 47 CSP config presence', () => {
-  it('next.config declares CSP header factory', async () => {
+describe('Phase 47 CSP middleware presence', () => {
+  it('middleware builds nonce CSP without production unsafe-inline scripts', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
-    const cfg = fs.readFileSync(
-      path.resolve(__dirname, '../../apps/web/next.config.mjs'),
+    const mw = fs.readFileSync(
+      path.resolve(__dirname, '../../apps/web/src/middleware.ts'),
       'utf8'
     );
-    expect(cfg).toMatch(/Content-Security-Policy/);
-    expect(cfg).toMatch(/unsafe-eval/);
-    expect(cfg).toMatch(/productionCsp/);
+    expect(mw).toMatch(/Content-Security-Policy/);
+    expect(mw).toMatch(/nonce-/);
+    expect(mw).toMatch(/strict-dynamic/);
+    expect(mw).toMatch(/microphone=\(self\)/);
+    // Production script branch must not include unsafe-inline.
+    expect(mw).toMatch(/isProd\s*\?\s*`'self' 'nonce-\$\{nonce\}' 'strict-dynamic'`/);
   });
 });
 

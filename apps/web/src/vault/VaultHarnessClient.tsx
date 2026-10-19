@@ -65,17 +65,18 @@ export function VaultHarnessClient({
   const mountedRef = useRef(true);
   const suppressCrossTabPublish = useRef(false);
 
-  const clearProtectedUi = useCallback(() => {
+  const clearProtectedUi = useCallback((opts?: { closeUnlock?: boolean }) => {
     setSelectedDetail(null);
     setSelectedId(null);
     setItems([]);
-    setUnlockOpen(false);
     setShowingTrash(false);
+    // Keep the unlock sheet open after failed attempts so users can retry / cancel.
+    if (opts?.closeUnlock) setUnlockOpen(false);
   }, []);
 
   const performLock = useCallback(
     async (reason: string, publish = true) => {
-      clearProtectedUi();
+      clearProtectedUi({ closeUnlock: true });
       const result = await controller.lock(reason);
       const clip = await clearBrowserClipboardIfAvailable();
       setNotes([result.diagnostic, clip.note, `lock:${reason}`].filter(Boolean).join(' · '));
@@ -92,12 +93,15 @@ export function VaultHarnessClient({
 
   useEffect(() => {
     mountedRef.current = true;
+    const prevStateRef = { current: controller.getSnapshot().state };
     const unsub = controller.subscribe((next) => {
+      const prev = prevStateRef.current;
+      prevStateRef.current = next.state;
       setSession(next);
       if (next.state !== 'unlocked') {
         listEpochRef.current += 1;
         detailEpochRef.current += 1;
-        clearProtectedUi();
+        clearProtectedUi({ closeUnlock: prev === 'unlocked' });
       }
     });
     void controller.refreshCapabilities();
@@ -105,7 +109,7 @@ export function VaultHarnessClient({
       mountedRef.current = false;
       unsub();
       void controller.lock('unmount');
-      clearProtectedUi();
+      clearProtectedUi({ closeUnlock: true });
     };
   }, [controller, clearProtectedUi]);
 

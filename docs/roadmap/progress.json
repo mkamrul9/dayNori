@@ -285,7 +285,7 @@
     {
       "id": "47",
       "status": "blocked",
-      "reason": "Provisional web unlock lifecycle + synthetic harness delivered under owner-selected Phase 47 while prerequisites remain blocked. Production vault entry disabled. Acceptance blocked pending Phase 45 integration, independent security review, CSP nonce hardening, and prerequisite Phase 44/46 physical/review gates.",
+      "reason": "Provisional web unlock lifecycle + synthetic harness delivered; local lint/CSP/Permissions-Policy/Playwright gaps repaired. Production vault entry disabled. Acceptance blocked pending Phase 45 integration, independent security review, and prerequisite Phase 44/46 physical/review gates.",
       "report": "docs/phase-reports/phase-47.md"
     },
     {
