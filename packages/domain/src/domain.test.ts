@@ -19,6 +19,12 @@ import {
   calculateGentleProgress,
   explainScheduleChangeImpact,
   type RoutineTemplateRule,
+  validateFieldValue,
+  validateRecordAgainstSchema,
+  migrateRecordValues,
+  isBlockSupported,
+  createFallbackBlockRepresentation,
+  APPROVED_SECTION_TEMPLATES,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -1960,5 +1966,235 @@ describe('Domain Rules and Invariants', () => {
       ).toThrow('Unsupported audio MIME type');
     });
   });
+
+  describe('Phase 42: Safe Custom Section Schemas & Renderer Contracts', () => {
+    it('validates text field values and strictly rejects executable script injection', () => {
+      const textField = {
+        id: 'notes',
+        label: 'Notes',
+        type: 'text' as const,
+        required: true,
+        maxLength: 100,
+      };
+
+      // Valid plain text
+      expect(validateFieldValue(textField, 'Chapter 1 notes on architecture').valid).toBe(true);
+
+      // Rejects script tags
+      const xssRes1 = validateFieldValue(textField, '<script>alert("hacked")</script>');
+      expect(xssRes1.valid).toBe(false);
+      expect(xssRes1.error).toContain('disallowed script');
+
+      // Rejects javascript: URI
+      const xssRes2 = validateFieldValue(textField, 'Click here: javascript:stealToken()');
+      expect(xssRes2.valid).toBe(false);
+
+      // Rejects onerror event handler
+      const xssRes3 = validateFieldValue(textField, '<img src=x onerror=alert(1)>');
+      expect(xssRes3.valid).toBe(false);
+
+      // Exceeds max length
+      const longRes = validateFieldValue(textField, 'a'.repeat(101));
+      expect(longRes.valid).toBe(false);
+      expect(longRes.error).toContain('exceeds maximum length');
+    });
+
+    it('validates link field values and strictly rejects dangerous protocols', () => {
+      const linkField = {
+        id: 'website',
+        label: 'Resource Link',
+        type: 'link' as const,
+        required: false,
+      };
+
+      // Valid http/https, mailto, and internal canonical item links
+      expect(validateFieldValue(linkField, 'https://daynori.example.com/docs').valid).toBe(true);
+      expect(validateFieldValue(linkField, 'http://localhost:3000/api').valid).toBe(true);
+      expect(validateFieldValue(linkField, 'mailto:alice@example.com').valid).toBe(true);
+      expect(validateFieldValue(linkField, 'item:550e8400-e29b-41d4-a716-446655440000').valid).toBe(true);
+
+      // Reject javascript:
+      const badLink1 = validateFieldValue(linkField, 'javascript:void(0)');
+      expect(badLink1.valid).toBe(false);
+
+      // Reject data:
+      const badLink2 = validateFieldValue(linkField, 'data:text/html;base64,PHNjcmlwdD4=');
+      expect(badLink2.valid).toBe(false);
+
+      // Reject relative or malformed URLs
+      const badLink3 = validateFieldValue(linkField, '/relative/path/not/allowed');
+      expect(badLink3.valid).toBe(false);
+    });
+
+    it('validates date, number, checklist, and attachment fields', () => {
+      const dateField = {
+        id: 'due',
+        label: 'Due Date',
+        type: 'date' as const,
+        minDate: '2026-01-01',
+        maxDate: '2026-12-31',
+      };
+      expect(validateFieldValue(dateField, '2026-06-15').valid).toBe(true);
+      expect(validateFieldValue(dateField, '2025-12-31').valid).toBe(false); // before min
+      expect(validateFieldValue(dateField, 'not-a-date').valid).toBe(false);
+      expect(validateFieldValue(dateField, '2026-02-31').valid).toBe(false); // not a real calendar date
+
+      const numField = {
+        id: 'score',
+        label: 'Score',
+        type: 'number' as const,
+        min: 0,
+        max: 100,
+        precision: 1,
+      };
+      const numRes = validateFieldValue(numField, 88.46);
+      expect(numRes.valid).toBe(true);
+      expect(numRes.sanitizedValue).toBe(88.5); // rounded to precision 1
+      expect(validateFieldValue(numField, '92.3').valid).toBe(true); // numeric string supported
+      expect(validateFieldValue(numField, 105).valid).toBe(false); // over max
+      expect(validateFieldValue(numField, NaN).valid).toBe(false);
+
+      const checkField = { id: 'done', label: 'Done', type: 'checklist' as const };
+      const validChecklist = [
+        { id: 'item-1', text: 'Read Introduction', completed: true },
+        { id: 'item-2', text: 'Implement sample', completed: false },
+      ];
+      expect(validateFieldValue(checkField, validChecklist).valid).toBe(true);
+      expect(validateFieldValue(checkField, true).valid).toBe(false); // must not be single boolean!
+      expect(validateFieldValue(checkField, 'yes').valid).toBe(false);
+      expect(
+        validateFieldValue(checkField, [{ id: 'item-1', text: '<script>alert(1)</script>' }]).valid
+      ).toBe(false);
+
+      const attachField = { id: 'file', label: 'File', type: 'attachment' as const };
+      expect(validateFieldValue(attachField, '123e4567-e89b-12d3-a456-426614174000').valid).toBe(true);
+      expect(validateFieldValue(attachField, 'invalid-uuid').valid).toBe(false);
+    });
+
+    it('validates records against custom section schemas with required field checks and unrecognized field detection', () => {
+      const schema = APPROVED_SECTION_TEMPLATES.READING_LIST.schema;
+
+      // Valid record
+      const validRecord = {
+        title: 'Design Patterns',
+        author: 'Gang of Four',
+        completed: [{ id: 'ch-1', text: 'Chapter 1: Strategy', completed: true }],
+        finish_date: '2026-03-15',
+        rating: 5,
+        url: 'https://example.com/books/design-patterns',
+      };
+      const validRes = validateRecordAgainstSchema(schema, validRecord);
+      expect(validRes.valid).toBe(true);
+      expect(validRes.errors).toHaveLength(0);
+
+      // Missing required field ('title')
+      const missingTitle = {
+        author: 'Unknown',
+        completed: [],
+      };
+      const missingRes = validateRecordAgainstSchema(schema, missingTitle);
+      expect(missingRes.valid).toBe(false);
+      expect(missingRes.errors[0]).toContain('Required field "Title" is missing');
+
+      // Unrecognized extra field
+      const unexpectedField = {
+        title: 'Clean Code',
+        maliciousExtraData: 'exploit',
+      };
+      const extraRes = validateRecordAgainstSchema(schema, unexpectedField);
+      expect(extraRes.valid).toBe(false);
+      expect(extraRes.errors[0]).toContain('Unrecognized field "maliciousExtraData"');
+    });
+
+    it('safely migrates records between schema versions without data loss (field removal and type change archival)', () => {
+      const v1Schema = {
+        version: 1,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'name', label: 'Name', type: 'text' as const },
+              { id: 'rating', label: 'Rating', type: 'number' as const },
+              { id: 'obsolete_notes', label: 'Old Notes', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+
+      const v2Schema = {
+        version: 2,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker V2',
+            fields: [
+              { id: 'name', label: 'Name', type: 'text' as const },
+              { id: 'rating', label: 'Rating', type: 'text' as const }, // Type changed from number to text!
+              { id: 'new_checklist', label: 'Subtasks', type: 'checklist' as const }, // Newly added!
+              // 'obsolete_notes' was removed!
+            ],
+          },
+        ],
+      };
+
+      const originalValues = {
+        name: 'Project Antigravity',
+        rating: 98,
+        obsolete_notes: 'Valuable research observations that must not be lost',
+      };
+
+      const migration = migrateRecordValues(v1Schema, v2Schema, originalValues);
+
+      // 1. Preserved active fields
+      expect(migration.fieldValues.name).toBe('Project Antigravity');
+
+      // 2. Newly added field receives default empty checklist array
+      expect(migration.fieldValues.new_checklist).toEqual([]);
+
+      // 3. Removed field is ARCHIVED (not lost!)
+      expect(migration.archivedValues.obsolete_notes).toBeDefined();
+      const archivedNotes = migration.archivedValues.obsolete_notes as {
+        value: unknown;
+        reason: string;
+      };
+      expect(archivedNotes.value).toBe(
+        'Valuable research observations that must not be lost'
+      );
+      expect(archivedNotes.reason).toBe('field_removed');
+
+      // 4. Type-changed field is ARCHIVED (preserving old numeric value)
+      expect(migration.archivedValues.rating).toBeDefined();
+      const archivedRating = migration.archivedValues.rating as {
+        value: unknown;
+        reason: string;
+      };
+      expect(archivedRating.value).toBe(98);
+      expect(archivedRating.reason).toBe('type_changed');
+    });
+
+    it('provides graceful fallback contract for unknown block types', () => {
+      expect(isBlockSupported({ type: 'existing_record_view' })).toBe(true);
+      expect(isBlockSupported({ type: 'field_collection' })).toBe(true);
+      expect(isBlockSupported({ type: 'future_ai_analytics_widget' })).toBe(false);
+
+      const rawUnknownBlock = {
+        id: 'block-99',
+        type: 'future_graph_visualization',
+        title: '3D Knowledge Graph',
+        graphConfig: { nodes: 150, layout: 'force-directed' },
+      };
+
+      const fallback = createFallbackBlockRepresentation(rawUnknownBlock);
+      expect(fallback.type).toBe('fallback');
+      expect(fallback.unsupportedType).toBe('future_graph_visualization');
+      expect(fallback.title).toBe('3D Knowledge Graph');
+      expect(fallback.message).toContain('not supported by your current Daynori version');
+      expect(fallback.rawData).toEqual(rawUnknownBlock);
+    });
+  });
 });
+
 

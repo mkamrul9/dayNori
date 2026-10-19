@@ -234,6 +234,21 @@ import {
   type ExpenseBudgetResponse,
   type ExpenseBudgetListResponse,
   type ExpenseExportQuery,
+  CustomSectionResponseSchema,
+  ListCustomSectionsResponseSchema,
+  CustomSectionSchemaResponseSchema,
+  CustomSectionRecordResponseSchema,
+  ListCustomSectionRecordsResponseSchema,
+  type CreateCustomSectionRequest,
+  type UpdateCustomSectionRequest,
+  type CreateCustomSectionSchemaRequest,
+  type CreateCustomSectionRecordRequest,
+  type UpdateCustomSectionRecordRequest,
+  type CustomSectionResponse,
+  type ListCustomSectionsResponse,
+  type CustomSectionSchemaResponse,
+  type CustomSectionRecordResponse,
+  type ListCustomSectionRecordsResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -2507,6 +2522,184 @@ export class DaynoriApiClient {
       await this.handleErrorResponse(response);
     }
     return response.text();
+  }
+
+  // --- Custom Sections API methods (Phase 42) ---
+
+  async createCustomSection(
+    workspaceId: string,
+    payload: CreateCustomSectionRequest,
+    options?: RequestOptions
+  ): Promise<CustomSectionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return CustomSectionResponseSchema.parse(raw);
+  }
+
+  async listCustomSections(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<ListCustomSectionsResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections`,
+      { method: 'GET' },
+      options
+    );
+    return ListCustomSectionsResponseSchema.parse(raw);
+  }
+
+  async getCustomSection(
+    workspaceId: string,
+    sectionId: string,
+    options?: RequestOptions
+  ): Promise<CustomSectionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}`,
+      { method: 'GET' },
+      options
+    );
+    return CustomSectionResponseSchema.parse(raw);
+  }
+
+  async updateCustomSection(
+    workspaceId: string,
+    sectionId: string,
+    payload: UpdateCustomSectionRequest,
+    options?: RequestOptions
+  ): Promise<CustomSectionResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return CustomSectionResponseSchema.parse(raw);
+  }
+
+  async deleteCustomSection(
+    workspaceId: string,
+    sectionId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean }; meta: { requestId: string } }> {
+    return this.request<{ data: { success: boolean }; meta: { requestId: string } }>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async createCustomSectionSchema(
+    workspaceId: string,
+    sectionId: string,
+    payload: CreateCustomSectionSchemaRequest,
+    options?: RequestOptions
+  ): Promise<CustomSectionSchemaResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/schemas`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return CustomSectionSchemaResponseSchema.parse(raw);
+  }
+
+  async getCustomSectionSchema(
+    workspaceId: string,
+    sectionId: string,
+    version: number,
+    options?: RequestOptions
+  ): Promise<CustomSectionSchemaResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/schemas/${version}`,
+      { method: 'GET' },
+      options
+    );
+    return CustomSectionSchemaResponseSchema.parse(raw);
+  }
+
+  async createCustomSectionRecord(
+    workspaceId: string,
+    sectionId: string,
+    payload: CreateCustomSectionRecordRequest,
+    options?: RequestOptions
+  ): Promise<CustomSectionRecordResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/records`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return CustomSectionRecordResponseSchema.parse(raw);
+  }
+
+  async listCustomSectionRecords(
+    workspaceId: string,
+    sectionId: string,
+    options?: RequestOptions
+  ): Promise<ListCustomSectionRecordsResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/records`,
+      { method: 'GET' },
+      options
+    );
+    return ListCustomSectionRecordsResponseSchema.parse(raw);
+  }
+
+  async getCustomSectionRecord(
+    workspaceId: string,
+    sectionId: string,
+    recordId: string,
+    options?: RequestOptions
+  ): Promise<CustomSectionRecordResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/records/${recordId}`,
+      { method: 'GET' },
+      options
+    );
+    return CustomSectionRecordResponseSchema.parse(raw);
+  }
+
+  async updateCustomSectionRecord(
+    workspaceId: string,
+    sectionId: string,
+    recordId: string,
+    payload: UpdateCustomSectionRecordRequest,
+    options?: RequestOptions
+  ): Promise<CustomSectionRecordResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/records/${recordId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return CustomSectionRecordResponseSchema.parse(raw);
+  }
+
+  async deleteCustomSectionRecord(
+    workspaceId: string,
+    sectionId: string,
+    recordId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean }; meta: { requestId: string } }> {
+    return this.request<{ data: { success: boolean }; meta: { requestId: string } }>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/records/${recordId}`,
+      { method: 'DELETE' },
+      options
+    );
   }
 
   // --- Legacy Phase 01 compatibility ---

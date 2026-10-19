@@ -16,4 +16,5 @@ export * from './knowledge.js';
 export * from './search.js';
 export * from './expenses.js';
 export * from './audio.js';
+export * from './customSections.js';
 

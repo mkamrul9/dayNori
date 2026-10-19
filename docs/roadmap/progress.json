@@ -254,7 +254,9 @@
     },
     {
       "id": "42",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional safe custom section schema and renderer contracts delivered under owner authorization and verified across pure domain schema validation, zero-data-loss evolution (archivedValues), fallback contracts for unsupported block types, Fastify REST API, DaynoriApiClient, PostgreSQL RLS tenant isolation, optimistic concurrency control (409 conflict), and 14 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, and store submission.",
+      "report": "docs/phase-reports/phase-42.md"
     },
     {
       "id": "43",

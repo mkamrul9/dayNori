@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 42 — Safe custom section schema and renderer contracts — 2026-10-19
+
+- **ADR 0041 Authored (`docs/decisions/0041-safe-custom-section-schema-and-renderer-contracts.md`):**
+  - Documented declarative custom section schema architecture, two approved block families (`field_collection` and `existing_record_view`), rejection of arbitrary user scripts/SQL/raw HTML, zero-data-loss evolution via `archivedValues`, and the fallback renderer contract.
+- **Contracts & Schemas (`@daynori/contracts`):**
+  - Added schemas and types for `CustomBlockType`, `ExistingRecordViewBlock`, `CustomFieldDefinition`, `FieldCollectionBlock`, `CustomSectionSchemaPayload`, `CustomSectionItem`, `CustomSectionRecordItem`, and existing record queries.
+- **Pure Domain & Validation (`@daynori/domain`):**
+  - Implemented `validateFieldValue` for text, checklist, date, number, link, and attachment field types.
+  - Implemented strict script/XSS/malicious protocol rejection, `validateRecordAgainstSchema`, `migrateRecordValues` with zero data loss (`archivedValues`), `isBlockSupported`, `createFallbackBlockRepresentation`, and canonical templates in `APPROVED_SECTION_TEMPLATES`.
+  - Added 76 unit tests in `packages/domain/src/domain.test.ts`.
+- **Database Migrations (`infra/supabase/migrations/00043_custom_sections_and_schemas.sql`):**
+  - Created tables `app.custom_sections`, `app.custom_section_schemas` (immutable version ledger), and `app.custom_section_records`.
+  - Added workspace-scoped Row Level Security (`tenant_isolation_policy`) and cascade deletion on workspace removal.
+- **API Services & Routes (`apps/api`):**
+  - Created `apps/api/src/modules/custom-sections/service.ts` for section, schema version, record CRUD, optimistic concurrency control (`409 REVISION_CONFLICT`), and existing record aggregation.
+  - Registered authenticated routes in `apps/api/src/routes/v1/customSections.ts` with sync change feed emission.
+- **API Client SDK (`@daynori/api-client`):**
+  - Added 12 custom section, schema, record, and query methods to `DaynoriApiClient`.
+- **Integration Test Suite (`tests/integration/phase42-custom-sections.test.ts`):**
+  - 14/14 tests passing covering both block families, script rejection, zero-data-loss schema evolution, 409 conflict handling, cross-tenant isolation, workspace cascade deletion, sync changes, and fallback renderer contract.
+- **Phase Status:**
+  - Implemented and verified as provisional local development under explicit owner authorization; external beta gates and deployment remain **BLOCKED**. Work stops before Phase 43.
+
 ## Phase 41 — Audio recording and attachment lifecycle — 2026-10-19
 
 - **ADR 0040 Authored (`docs/decisions/0040-audio-recording-and-attachment-lifecycle.md`):**
