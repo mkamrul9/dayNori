@@ -1,5 +1,18 @@
 # Changelog
 
+## Phase 45 — Encrypted vault records preparation safety repair (blocked) — 2026-10-19
+
+- Repaired disconnected transfer model so safety gates are enforced inside `transitionTransfer` (verification evidence, source-edit disposition, cleanup completion, shared-reference disclosure, idempotent binding).
+- Added focused negative tests for each bypass; scheduling a versions-cleanup job alone cannot complete a transfer.
+- Phase status remains `blocked` / prepared — no production vault tables, routes, or unlock UI.
+
+## Phase 44 — Vault cryptography proof repair (harnesses + Android target) — 2026-10-19
+
+- Fixed JVM harness unresolved KDF identifier; required shared-fixture parse with expected-byte comparisons; Node↔JVM envelope exchange and Argon2id expected-byte checks.
+- Added isolated Android `:android-app` instrumentation target with pinned `bcprov-jdk18on:1.78.1`; emulator connected tests PASS on API 35 x86_64.
+- Physical Android device evidence and independent qualified review remain unmet; emulator does not clear the physical-device gate.
+- Completed security review packet handoff with separate browser/JVM/emulator/physical lanes.
+
 ## Phase 45 — Encrypted vault records preparation strengthened (blocked) — 2026-10-19
 
 - Strengthened disconnected preparation: purpose/field-role AAD binding, checkpoint/replay rules, ciphertext conflict preservation, transfer state machine with cleanup gates and retained-copy disclosure, default-deny exclusion registry (`protocol-models.ts`).

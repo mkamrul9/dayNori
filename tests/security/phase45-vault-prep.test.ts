@@ -17,17 +17,40 @@ import {
   createTransfer,
   transitionTransfer,
   noteOrdinaryEditDuringTransfer,
+  applySourceEditDisposition,
   discloseRetainedOrdinaryCopy,
   assertSharedReferenceCleanupAllowed,
   applyCleanupEvidence,
+  scheduleVersionsCleanupJob,
   canMarkTransferComplete,
+  hasRequiredCleanupCompletionEvidence,
   assertVaultExcluded,
   VAULT_EXCLUSION_SURFACES,
   type TrustedCheckpoint,
+  type CiphertextVerificationEvidence,
 } from './vault/phase45-prep/protocol-models.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '../..');
+
+function validEvidence(
+  overrides: Partial<CiphertextVerificationEvidence> = {}
+): CiphertextVerificationEvidence {
+  return {
+    vaultItemId: 'vault-1',
+    sourceRevision: 1,
+    ciphertextIdentity: 'sha256:aabbcc',
+    decryptVerified: true,
+    ...overrides,
+  };
+}
+
+function advanceToUploading(operationId: string, sourceRev = 1) {
+  let t = createTransfer(operationId, `ord-${operationId}`, sourceRev);
+  t = transitionTransfer(t, 'encrypting', { operationId });
+  t = transitionTransfer(t, 'uploading', { operationId });
+  return t;
+}
 
 describe('Phase 45 preparation checks (not production integration)', () => {
   const fixtures = JSON.parse(
@@ -117,71 +140,260 @@ describe('Phase 45 preparation checks (not production integration)', () => {
     });
 
     it('preserves distinct ciphertext conflicts without silent overwrite', () => {
-      const a = mergeConflictPreserving(null, {
-        revision: 2,
-        envelopeId: 'e1',
-        ciphertextSha256: 'aa',
-      }, 'item-1');
-      const b = mergeConflictPreserving(a, {
-        revision: 2,
-        envelopeId: 'e2',
-        ciphertextSha256: 'bb',
-      }, 'item-1');
+      const a = mergeConflictPreserving(
+        null,
+        {
+          revision: 2,
+          envelopeId: 'e1',
+          ciphertextSha256: 'aa',
+        },
+        'item-1'
+      );
+      const b = mergeConflictPreserving(
+        a,
+        {
+          revision: 2,
+          envelopeId: 'e2',
+          ciphertextSha256: 'bb',
+        },
+        'item-1'
+      );
       expect(b.versions).toHaveLength(2);
     });
   });
 
   describe('transfer state machine (test-only model — not durable DB proof)', () => {
     it('forbids cleanup before verified ciphertext acceptance', () => {
-      let t = createTransfer('op-1', 'ord-1', 1);
-      t = transitionTransfer(t, 'encrypting', { operationId: 'op-1' });
-      t = transitionTransfer(t, 'uploading', { operationId: 'op-1' });
+      let t = advanceToUploading('op-1');
       expect(() =>
         transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-1' })
       ).toThrow(/Illegal transfer transition/);
       t = transitionTransfer(t, 'ciphertext_accepted', {
         operationId: 'op-1',
-        ciphertextVerified: true,
-        vaultItemId: 'vault-1',
+        verificationEvidence: validEvidence(),
       });
       expect(t.ciphertextVerified).toBe(true);
+      expect(t.vaultItemId).toBe('vault-1');
       t = transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-1' });
       expect(t.state).toBe('cleanup_ordinary');
     });
 
-    it('is idempotent on retried transitions and recovers from upload failure', () => {
-      let t = createTransfer('op-2', 'ord-2', 1);
-      t = transitionTransfer(t, 'encrypting', { operationId: 'op-2' });
-      t = transitionTransfer(t, 'uploading', { operationId: 'op-2' });
-      t = transitionTransfer(t, 'upload_failed', {
-        operationId: 'op-2',
-        failureReason: 'network',
-      });
-      t = transitionTransfer(t, 'uploading', { operationId: 'op-2' });
-      const again = transitionTransfer(t, 'uploading', { operationId: 'op-2' });
-      expect(again.state).toBe('uploading');
+    it('negative: ciphertext_accepted without verification evidence does not set verified', () => {
+      const t = advanceToUploading('op-bypass-ev');
+      expect(() =>
+        transitionTransfer(t, 'ciphertext_accepted', { operationId: 'op-bypass-ev' })
+      ).toThrow(/explicit verification evidence/);
+      expect(t.ciphertextVerified).toBe(false);
+      expect(t.vaultItemId).toBeNull();
     });
 
-    it('tracks ordinary-source edits during transfer and requires retained-copy disclosure', () => {
+    it('negative: acceptance without vault destination or decrypt proof is rejected', () => {
+      const t = advanceToUploading('op-bypass-dest');
+      expect(() =>
+        transitionTransfer(t, 'ciphertext_accepted', {
+          operationId: 'op-bypass-dest',
+          verificationEvidence: validEvidence({ vaultItemId: '', decryptVerified: true }),
+        })
+      ).toThrow(/vault destination/);
+      expect(() =>
+        transitionTransfer(t, 'ciphertext_accepted', {
+          operationId: 'op-bypass-dest',
+          verificationEvidence: validEvidence({ decryptVerified: false }),
+        })
+      ).toThrow(/decrypt\/tag verification/);
+    });
+
+    it('negative: source edit before cleanup blocks silent deletion', () => {
+      let t = advanceToUploading('op-src-edit');
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-src-edit',
+        verificationEvidence: validEvidence(),
+      });
+      t = noteOrdinaryEditDuringTransfer(t, 2);
+      expect(() =>
+        transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-src-edit' })
+      ).toThrow(/Ordinary source changed|Silent deletion/);
+    });
+
+    it('source edit with preserve_changed_source + disclosure allows cleanup without deleting newer content claim', () => {
+      let t = advanceToUploading('op-preserve');
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-preserve',
+        verificationEvidence: validEvidence(),
+      });
+      t = noteOrdinaryEditDuringTransfer(t, 2);
+      t = applySourceEditDisposition(t, 'preserve_changed_source');
+      expect(() =>
+        transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-preserve' })
+      ).toThrow(/retained ordinary-copy disclosure/);
+      t = discloseRetainedOrdinaryCopy(t);
+      t = transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-preserve' });
+      expect(t.state).toBe('cleanup_ordinary');
+      expect(t.ordinarySourceRevisionLatest).toBe(2);
+    });
+
+    it('source edit with restart_reconcile clears acceptance and rebinds source revision', () => {
+      let t = advanceToUploading('op-restart');
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-restart',
+        verificationEvidence: validEvidence(),
+      });
+      t = noteOrdinaryEditDuringTransfer(t, 3);
+      t = applySourceEditDisposition(t, 'restart_reconcile');
+      expect(t.state).toBe('encrypting');
+      expect(t.ciphertextVerified).toBe(false);
+      expect(t.vaultItemId).toBeNull();
+      expect(t.ordinarySourceRevisionAtStart).toBe(3);
+      t = transitionTransfer(t, 'uploading', { operationId: 'op-restart' });
+      expect(() =>
+        transitionTransfer(t, 'ciphertext_accepted', {
+          operationId: 'op-restart',
+          verificationEvidence: validEvidence({ sourceRevision: 1 }),
+        })
+      ).toThrow(/does not match encrypted source revision/);
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-restart',
+        verificationEvidence: validEvidence({
+          sourceRevision: 3,
+          vaultItemId: 'vault-restart',
+          ciphertextIdentity: 'sha256:new',
+        }),
+      });
+      expect(t.vaultItemId).toBe('vault-restart');
+    });
+
+    it('negative: transitionTransfer enforces completion guards (helper bypass impossible)', () => {
+      let t = advanceToUploading('op-complete-bypass');
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-complete-bypass',
+        verificationEvidence: validEvidence({ vaultItemId: 'v-c' }),
+      });
+      t = transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-complete-bypass' });
+      expect(canMarkTransferComplete(t)).toBe(false);
+      expect(() =>
+        transitionTransfer(t, 'transfer_complete', { operationId: 'op-complete-bypass' })
+      ).toThrow(/cleanup completion evidence missing/);
+    });
+
+    it('negative: scheduling versions-cleanup job alone does not establish completed cleanup', () => {
+      let t = advanceToUploading('op-sched');
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-sched',
+        verificationEvidence: validEvidence({ vaultItemId: 'v-s' }),
+      });
+      t = transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-sched' });
+      t = scheduleVersionsCleanupJob(t);
+      t = applyCleanupEvidence(t, {
+        searchIndexRemoved: true,
+        previewsPurged: true,
+        cachesCleared: true,
+        pendingJobsDrained: true,
+        // versionsCleanupCompleted deliberately omitted
+      });
+      expect(t.versionsCleanupJobScheduled).toBe(true);
+      expect(hasRequiredCleanupCompletionEvidence(t)).toBe(false);
+      expect(canMarkTransferComplete(t)).toBe(false);
+      expect(() =>
+        transitionTransfer(t, 'transfer_complete', { operationId: 'op-sched' })
+      ).toThrow(/scheduling a versions-cleanup job is not sufficient|cleanup completion evidence/);
+    });
+
+    it('negative: shared-reference cleanup without disclosure is rejected at transition boundary', () => {
+      let t = advanceToUploading('op-shared');
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-shared',
+        verificationEvidence: validEvidence({ vaultItemId: 'v-sh' }),
+      });
+      expect(() =>
+        transitionTransfer(t, 'cleanup_ordinary', {
+          operationId: 'op-shared',
+          sharedFileStillReferenced: true,
+        })
+      ).toThrow(/retained-copy disclosure/);
+      t = discloseRetainedOrdinaryCopy(t);
+      t = transitionTransfer(t, 'cleanup_ordinary', {
+        operationId: 'op-shared',
+        sharedFileStillReferenced: true,
+      });
+      expect(t.state).toBe('cleanup_ordinary');
+    });
+
+    it('negative: idempotent retry cannot substitute destination or ciphertext under same operationId', () => {
+      let t = advanceToUploading('op-idem');
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-idem',
+        verificationEvidence: validEvidence({
+          vaultItemId: 'vault-a',
+          ciphertextIdentity: 'sha256:one',
+        }),
+      });
+      expect(() =>
+        transitionTransfer(t, 'ciphertext_accepted', {
+          operationId: 'op-idem',
+          verificationEvidence: validEvidence({
+            vaultItemId: 'vault-b',
+            ciphertextIdentity: 'sha256:one',
+          }),
+        })
+      ).toThrow(/different vault destination/);
+      expect(() =>
+        transitionTransfer(t, 'ciphertext_accepted', {
+          operationId: 'op-idem',
+          verificationEvidence: validEvidence({
+            vaultItemId: 'vault-a',
+            ciphertextIdentity: 'sha256:two',
+          }),
+        })
+      ).toThrow(/different ciphertext identity/);
+      const again = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-idem',
+        verificationEvidence: validEvidence({
+          vaultItemId: 'vault-a',
+          ciphertextIdentity: 'sha256:one',
+        }),
+      });
+      expect(again.state).toBe('ciphertext_accepted');
+      expect(again.vaultItemId).toBe('vault-a');
+    });
+
+    it('failed and retried transitions recover without inventing verification', () => {
+      let t = advanceToUploading('op-fail');
+      t = transitionTransfer(t, 'upload_failed', {
+        operationId: 'op-fail',
+        failureReason: 'network',
+      });
+      expect(t.ciphertextVerified).toBe(false);
+      t = transitionTransfer(t, 'uploading', { operationId: 'op-fail' });
+      const again = transitionTransfer(t, 'uploading', { operationId: 'op-fail' });
+      expect(again.state).toBe('uploading');
+      t = transitionTransfer(t, 'verify_failed', {
+        operationId: 'op-fail',
+        failureReason: 'tag mismatch',
+      });
+      expect(t.ciphertextVerified).toBe(false);
+      t = transitionTransfer(t, 'uploading', { operationId: 'op-fail' });
+      t = transitionTransfer(t, 'ciphertext_accepted', {
+        operationId: 'op-fail',
+        verificationEvidence: validEvidence({ vaultItemId: 'v-fail' }),
+      });
+      expect(t.ciphertextVerified).toBe(true);
+    });
+
+    it('tracks ordinary-source edits and retained-copy disclosure helper', () => {
       let t = createTransfer('op-3', 'ord-3', 1);
       t = noteOrdinaryEditDuringTransfer(t, 2);
       expect(t.ordinarySourceRevisionLatest).toBe(2);
-      expect(() => assertSharedReferenceCleanupAllowed(t, true)).toThrow(
-        /retained-copy disclosure/
-      );
+      expect(() => assertSharedReferenceCleanupAllowed(t, true)).toThrow(/retained-copy disclosure/);
       expect(() => assertSharedReferenceCleanupAllowed(t, false)).not.toThrow();
       t = discloseRetainedOrdinaryCopy(t);
       expect(() => assertSharedReferenceCleanupAllowed(t, true)).not.toThrow();
     });
 
-    it('requires full cleanup evidence before transfer_complete', () => {
-      let t = createTransfer('op-4', 'ord-4', 1);
-      t = transitionTransfer(t, 'encrypting', { operationId: 'op-4' });
-      t = transitionTransfer(t, 'uploading', { operationId: 'op-4' });
+    it('requires full cleanup completion evidence before transfer_complete', () => {
+      let t = advanceToUploading('op-4');
       t = transitionTransfer(t, 'ciphertext_accepted', {
         operationId: 'op-4',
-        ciphertextVerified: true,
-        vaultItemId: 'v4',
+        verificationEvidence: validEvidence({ vaultItemId: 'v4' }),
       });
       t = transitionTransfer(t, 'cleanup_ordinary', { operationId: 'op-4' });
       expect(canMarkTransferComplete(t)).toBe(false);
@@ -189,7 +401,7 @@ describe('Phase 45 preparation checks (not production integration)', () => {
         searchIndexRemoved: true,
         previewsPurged: true,
         cachesCleared: true,
-        versionsScheduled: true,
+        versionsCleanupCompleted: true,
         pendingJobsDrained: true,
       });
       expect(canMarkTransferComplete(t)).toBe(true);

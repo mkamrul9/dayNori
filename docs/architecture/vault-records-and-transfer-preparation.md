@@ -105,12 +105,15 @@ Failure branches: encrypt_failed | upload_failed | verify_failed | cleanup_faile
 ### Transition rules
 
 1. **Client-side encryption** before any vault persistence.
-2. **Idempotent retries** keyed by transfer operation id; short atomic DB transitions.
-3. **Verified ciphertext acceptance** (round-trip decrypt or tag verify against expected AAD) before destructive ordinary cleanup.
-4. **Recoverable failure states** survive process death (Phase 34 offline hardening).
-5. **Observable cleanup** of ordinary search indexes, previews, caches, applicable versions.
-6. **Shared binary references:** if another ordinary item still references a file, do not erase the blob; require move-all-references or **explicit disclosure** that an ordinary copy remains.
-7. **Disclosure:** backup retention and already-shared copies cannot be made secret retroactively.
+2. **Idempotent retries** keyed by transfer operation id; short atomic DB transitions; retries must not substitute a different vault destination or ciphertext identity under the same operation id.
+3. **Verified ciphertext acceptance** requires explicit verification evidence bound to destination vault item id, encrypted source revision, and ciphertext identity (decrypt/tag verify against expected AAD) before destructive ordinary cleanup. Entering `ciphertext_accepted` must not invent verification without that evidence.
+4. **Ordinary source edits during transfer:** require a deliberate disposition — `restart_reconcile` (re-encrypt from the new revision) or `preserve_changed_source` with retained-copy disclosure. Never silently delete newer ordinary content.
+5. **Recoverable failure states** survive process death (Phase 34 offline hardening).
+6. **Observable cleanup completion** of ordinary search indexes, previews, caches, and versions. Scheduling a versions-cleanup job alone does **not** establish completed cleanup; `transfer_complete` must enforce completion evidence inside the transition.
+7. **Shared binary references:** if another ordinary item still references a file, do not erase the blob; require move-all-references or **explicit disclosure** that an ordinary copy remains (enforced at the cleanup boundary).
+8. **Disclosure:** backup retention and already-shared copies cannot be made secret retroactively.
+
+Executable test-only model: `tests/security/vault/phase45-prep/protocol-models.ts` (disconnected; not durable DB proof).
 
 ### Negative claims forbidden in UI copy
 

@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 44 cryptography proof further repaired with browser Edge-headless and JVM candidate harness PASS; physical Android and independent review still required. Phase 45 remains blocked/prepared with strengthened protocol models — no production vault migrations, routes, or unlock UI. Do not start Phase 46.",
+  "schedulingDecision": "Phase 44 further repaired: browser, desktop JVM, and Android emulator instrumentation PASS; physical Android device evidence and independent qualified review still required (emulator does not clear physical gate). Phase 45 remains blocked/prepared with transfer-model safety repairs — no production vault migrations, routes, or unlock UI. Do not start Phase 46.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -267,13 +267,13 @@
     {
       "id": "44",
       "status": "blocked",
-      "reason": "Isolated vault cryptography prototype repaired and verified in Node plus Edge-headless browser harness and Android-class JVM candidate harness (AES-GCM + Argon2id). McGrew/Viega GCM Appendix B vectors; RFC 9106 §5.3 complete Argon2id vector; empty-payload envelopes; bounded worker KDF scheduler. Physical Android device evidence and independent qualified security review remain unmet. Attachment streaming format pending review. Phases 37–38 still blocked.",
+      "reason": "Isolated vault cryptography prototype repaired: Node Vitest, Edge-headless browser, desktop JVM (argon2-jvm), and Android emulator instrumentation (bcprov Argon2id) PASS with shared-fixture expected-byte checks. Physical Android device evidence and independent qualified security review remain unmet; emulator does not clear the physical-device gate. Attachment streaming format proposed (not adopted). Phases 37–38 still blocked.",
       "report": "docs/phase-reports/phase-44.md"
     },
     {
       "id": "45",
       "status": "blocked",
-      "reason": "Preparation only: transfer/sync/exclusion designs and disconnected synthetic fixtures delivered. Implementation blocked pending Phase 44 independent security review and required platform evidence. No production vault migrations, API routes, or unlock UI.",
+      "reason": "Preparation repaired: transfer transition enforces verification evidence, source-edit disposition, cleanup completion (not mere job scheduling), shared-reference disclosure, and idempotent bindings. Implementation blocked pending Phase 44 independent review and physical Android evidence. No production vault migrations, API routes, or unlock UI.",
       "report": "docs/phase-reports/phase-45.md"
     },
     {
