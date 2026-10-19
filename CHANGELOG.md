@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 40 — Expense capture reports and budgets — 2026-10-19
+
+- **Module Opt-in & Privacy Safeguards:**
+  - Extended user display preferences contract (`DisplayPreferencesSchema` in `@daynori/contracts`) with `expensesEnabled` defaulting to `false`.
+  - Financial data is excluded from default Today agenda and unauthenticated views; explicit opt-in controls provided in Web `/settings`, Mobile `SettingsView`, and `/expenses` page.
+- **Fast Manual Entry & Transaction Capture (`@daynori/ui-web`, `@daynori/ui-mobile`):**
+  - Created `ExpenseCaptureDialog` (Web) and `MobileExpenseCaptureSheet` (Mobile) for rapid entry of expenses, incomes, and refunds with exact decimal string amounts and zero floating-point math.
+  - Linked refund items to original expenses with automatic category inheritance and cumulative refund limit enforcement.
+  - Integrated receipt attachment picker and payment method tagging.
+- **Comprehensive Monthly Reports & Multi-Currency Summaries (`apps/api`, `@daynori/ui-web`, `@daynori/ui-mobile`):**
+  - Added `GET /v1/workspaces/:workspaceId/expenses/summary` computing exact gross spending, refunds, net spending, total income, and net savings per currency.
+  - Truthfully handled negative net spending when cross-period refunds exceed current-month gross expenses.
+  - Rendered accessible SVG bar visualization and tabular alternative in `ExpenseReportView` and `MobileExpenseReportView`.
+- **Per-Currency Monthly Budgets & Factual Non-Advisory Messages (`apps/api`, `@daynori/ui-web`):**
+  - Implemented budget CRUD routes (`GET`, `POST`, `PATCH`, `DELETE` `/v1/workspaces/:workspaceId/expenses/budgets`) with sync change feed integration.
+  - Automated comparison of budget targets against actual net monthly spending, calculating remaining headroom and percentage progress.
+  - Formatted factual, non-advisory tracking messages (e.g. "20% of budget used. $400.00 remaining in October 2026") strictly omitting financial advice or investment recommendations.
+- **CSV Export & Formula Injection Defense (`apps/api`):**
+  - Added `GET /v1/workspaces/:workspaceId/expenses/export` endpoint supporting date range, category, currency, and kind filters.
+  - Neutralized CSV formula injection attacks (OWASP) by prepending a single quote `'` to cells starting with `=`, `+`, `-`, `@`, `\t`, or `\r`.
+  - Emitted UTF-8 BOM (`\uFEFF`) to ensure Excel and LibreOffice recognize Unicode and Bangla scripts without corruption.
+- **Tenant Isolation & Security:**
+  - Enforced workspace membership verification (`SELECT app.user_has_workspace_role($1, 'viewer')`) across summary, export, and budget routes.
+- **Phase Status:**
+  - Implemented and verified as provisional local development under explicit owner authorization; external beta gates, physical hardware, and deployment remain **BLOCKED**. Work stops before Phase 41.
+
 ## Phase 39 — Expense tracking domain — 2026-10-19
 
 - **Exact Money Representation & Invariants (`@daynori/domain`):**

@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 39 expense tracking domain implemented as local, provisional development under explicit owner authorization (integer minor units, exact decimal strings, multi-currency support, workspace-scoped expense/income/refund items, category breakdown, canonical folders, verified receipt attachment, concurrency-safe refunds with cumulative bounds, recurring entry templates with deduplication, and SyncEngine change feed integration). Phase 37 release gate, Phase 38 private beta, and Phase 39 remain recorded as blocked pending external deployment, production credentials, physical hardware, and release gate fulfillment. Stop before Phase 40.",
-  "note": "Phase 37 release gate, Phase 38 private beta, and Phase 39 expense tracking domain remain recorded as blocked / provisional pending external infrastructure, physical hardware, and release gates.",
+  "schedulingDecision": "Phase 40 expense capture reports, budgets, and CSV export implemented as local, provisional development under explicit owner authorization (Web fast capture dialog, Web expense reports and budgets views, Next.js /expenses page, MobileExpenseCaptureSheet, MobileExpenseReportView, Mobile SettingsView opt-in toggle, CSV export with RFC 4180 / OWASP formula injection neutralization, multi-currency monthly reports with truthful negative spending, non-advisory budget tracking, and 23 integration tests). Phase 37 release gate, Phase 38 private beta, Phase 39, and Phase 40 remain recorded as blocked pending external deployment, production credentials, physical hardware, and release gate fulfillment. Stop before Phase 41.",
+  "note": "Phase 37 release gate, Phase 38 private beta, Phase 39 expense tracking domain, and Phase 40 capture reports and budgets remain recorded as blocked / provisional pending external infrastructure, physical hardware, and release gates.",
   "phases": [
     {
       "id": "00",
@@ -242,7 +242,9 @@
     },
     {
       "id": "40",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional expense capture reports and budgets delivered under owner authorization and verified across Web fast capture dialog, Web expense reports and budgets views, Next.js /expenses page, MobileExpenseCaptureSheet, MobileExpenseReportView, Mobile SettingsView opt-in toggle, CSV export with RFC 4180 / OWASP formula injection neutralization, multi-currency monthly reports with truthful negative spending, non-advisory budget tracking, and 23 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, physical Android test hardware, and production credentials.",
+      "report": "docs/phase-reports/phase-40.md"
     },
     {
       "id": "41",

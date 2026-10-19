@@ -21,3 +21,6 @@ export * from './MobileSyncDiagnosticsSheet.js';
 export * from './MobileRecoveryExportSheet.js';
 export * from './MobileWorkspacePortabilitySheet.js';
 export * from './MobileAccountDeletionSheet.js';
+export * from './MobileExpenseCaptureSheet.js';
+export * from './MobileExpenseReportView.js';
+

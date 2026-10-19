@@ -25,3 +25,7 @@ export * from './SyncDiagnosticsDialog.js';
 export * from './RecoveryExportDialog.js';
 export * from './WorkspacePortabilityDialog.js';
 export * from './AccountDeletionDialog.js';
+export * from './ExpenseCaptureDialog.js';
+export * from './ExpenseReportView.js';
+export * from './ExpenseBudgetView.js';
+

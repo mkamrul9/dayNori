@@ -64,6 +64,7 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
               compactMode: Boolean(result.profile.preferences?.compactMode),
               journalPreviewHidden: result.profile.preferences?.journalPreviewHidden !== false,
               suppressBodySnippets: result.profile.preferences?.suppressBodySnippets !== false,
+              expensesEnabled: Boolean(result.profile.preferences?.expensesEnabled),
               quietHours: (result.profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
               homeLayout: (result.profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
               onboarding: (result.profile.preferences?.onboarding as OnboardingState | undefined) || undefined,

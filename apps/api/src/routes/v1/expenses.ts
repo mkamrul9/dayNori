@@ -21,6 +21,7 @@ import {
   UpdateExpenseBudgetBodySchema,
   ExpenseBudgetResponseSchema,
   ExpenseBudgetListResponseSchema,
+  ExpenseExportQuerySchema,
   type ExpenseCategory,
   type ExpenseItem,
   type ExpenseRecurringTemplate,
@@ -46,6 +47,7 @@ import {
   listExpenseBudgets,
   updateExpenseBudget,
   deleteExpenseBudget,
+  exportExpensesCsv,
 } from '../../modules/expenses/service.js';
 import { computeCanonicalPayloadHash } from '../../modules/sync/types.js';
 import {
@@ -53,7 +55,7 @@ import {
   insertMutationReceipt,
   lockWorkspaceSyncState,
 } from '../../modules/sync/repository.js';
-import { ConflictError, validateResponse } from '../../plugins/errorHandler.js';
+import { ConflictError, NotFoundError, validateResponse } from '../../plugins/errorHandler.js';
 
 const CategoryParamsSchema = WorkspaceParamsSchema.extend({
   categoryId: z.string().uuid(),
@@ -463,6 +465,13 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          const accessRes = await client.query<{ exists: boolean }>(
+            `SELECT app.user_has_workspace_role($1, 'viewer') as exists;`,
+            [workspaceId]
+          );
+          if (!accessRes.rows[0]?.exists) {
+            throw new NotFoundError('Workspace not found or unauthorized');
+          }
           return getExpenseMonthlySummary(client, workspaceId, year, month);
         }
       );
@@ -749,6 +758,43 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
   );
 
   // ---------------------------------------------------------------------------
+  // CSV Export (Phase 40)
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    '/v1/workspaces/:workspaceId/expenses/export',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
+
+      const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+      const query = ExpenseExportQuerySchema.parse(request.query);
+
+      const csvData = await withTenantContext(
+        pool,
+        { workspaceId, userId: actor.userId },
+        async (client) => {
+          const accessRes = await client.query<{ exists: boolean }>(
+            `SELECT app.user_has_workspace_role($1, 'viewer') as exists;`,
+            [workspaceId]
+          );
+          if (!accessRes.rows[0]?.exists) {
+            throw new NotFoundError('Workspace not found or unauthorized');
+          }
+          return exportExpensesCsv(client, workspaceId, query);
+        }
+      );
+
+      const filename = `expenses-${new Date().toISOString().slice(0, 10)}.csv`;
+      return reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="${filename}"`)
+        .status(200)
+        .send(csvData);
+    }
+  );
+
+  // ---------------------------------------------------------------------------
   // Recurring Templates
   // ---------------------------------------------------------------------------
 
@@ -973,6 +1019,13 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          const accessRes = await client.query<{ exists: boolean }>(
+            `SELECT app.user_has_workspace_role($1, 'viewer') as exists;`,
+            [workspaceId]
+          );
+          if (!accessRes.rows[0]?.exists) {
+            throw new NotFoundError('Workspace not found or unauthorized');
+          }
           return listExpenseBudgets(client, workspaceId, query);
         }
       );

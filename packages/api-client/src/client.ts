@@ -209,6 +209,8 @@ import {
   ExpenseMonthlySummaryResponseSchema,
   ExpenseRecurringTemplateResponseSchema,
   ExpenseRecurringTemplateListResponseSchema,
+  ExpenseBudgetResponseSchema,
+  ExpenseBudgetListResponseSchema,
   type CreateExpenseCategoryBody,
   type UpdateExpenseCategoryBody,
   type ExpenseCategoryResponse,
@@ -222,6 +224,11 @@ import {
   type CreateExpenseRecurringTemplateBody,
   type ExpenseRecurringTemplateResponse,
   type ExpenseRecurringTemplateListResponse,
+  type CreateExpenseBudgetBody,
+  type UpdateExpenseBudgetBody,
+  type ExpenseBudgetResponse,
+  type ExpenseBudgetListResponse,
+  type ExpenseExportQuery,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -2363,6 +2370,93 @@ export class DaynoriApiClient {
       { method: 'POST', body: JSON.stringify(body) },
       options
     );
+  }
+
+  async createExpenseBudget(
+    workspaceId: string,
+    body: CreateExpenseBudgetBody,
+    options?: RequestOptions
+  ): Promise<ExpenseBudgetResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/budgets`,
+      { method: 'POST', body: JSON.stringify(body) },
+      options
+    );
+    return ExpenseBudgetResponseSchema.parse(raw);
+  }
+
+  async listExpenseBudgets(
+    workspaceId: string,
+    query?: { period?: string; currency?: string },
+    options?: RequestOptions
+  ): Promise<ExpenseBudgetListResponse> {
+    const searchParams = new URLSearchParams();
+    if (query?.period) searchParams.set('period', query.period);
+    if (query?.currency) searchParams.set('currency', query.currency);
+    const qs = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/budgets${qs}`,
+      { method: 'GET' },
+      options
+    );
+    return ExpenseBudgetListResponseSchema.parse(raw);
+  }
+
+  async updateExpenseBudget(
+    workspaceId: string,
+    budgetId: string,
+    body: UpdateExpenseBudgetBody,
+    options?: RequestOptions
+  ): Promise<ExpenseBudgetResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/budgets/${budgetId}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+      options
+    );
+    return ExpenseBudgetResponseSchema.parse(raw);
+  }
+
+  async deleteExpenseBudget(
+    workspaceId: string,
+    budgetId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; id: string } }> {
+    return this.request<{ data: { success: boolean; id: string } }>(
+      `/v1/workspaces/${workspaceId}/expenses/budgets/${budgetId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async exportExpensesCsv(
+    workspaceId: string,
+    filter?: ExpenseExportQuery,
+    options?: RequestOptions
+  ): Promise<string> {
+    const searchParams = new URLSearchParams();
+    if (filter?.startDate) searchParams.set('startDate', filter.startDate);
+    if (filter?.endDate) searchParams.set('endDate', filter.endDate);
+    if (filter?.categoryId) searchParams.set('categoryId', filter.categoryId);
+    if (filter?.currency) searchParams.set('currency', filter.currency);
+    if (filter?.kind) searchParams.set('kind', filter.kind);
+    const qs = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
+    const url = `${this.baseUrl}/v1/workspaces/${workspaceId}/expenses/export${qs}`;
+    const token = await this.resolveToken();
+    const headers: Record<string, string> = {
+      ...(options?.headers || {}),
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers,
+    });
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+    return response.text();
   }
 
   // --- Legacy Phase 01 compatibility ---

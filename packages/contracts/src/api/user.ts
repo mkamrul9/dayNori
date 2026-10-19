@@ -107,6 +107,7 @@ export const DisplayPreferencesSchema = z
     quietHours: QuietHoursPreferenceSchema.optional(),
     homeLayout: HomeLayoutSchema.optional(),
     onboarding: OnboardingStateSchema.optional(),
+    expensesEnabled: z.boolean().default(false),
   })
   .strict();
 export type DisplayPreferences = z.infer<typeof DisplayPreferencesSchema>;

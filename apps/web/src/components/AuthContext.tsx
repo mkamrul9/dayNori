@@ -19,6 +19,7 @@ export interface UserPreferencesState {
   weekStart: 'monday' | 'sunday' | 'saturday';
   theme: 'system' | 'light' | 'dark';
   compactMode: boolean;
+  expensesEnabled: boolean;
   revision: number;
 }
 
@@ -132,6 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             weekStart: prof.weekStart,
             theme: prof.preferences?.theme || 'system',
             compactMode: Boolean(prof.preferences?.compactMode),
+            expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
             revision: prof.revision,
           });
         }
@@ -158,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           weekStart: prof.weekStart,
           theme: prof.preferences?.theme || 'system',
           compactMode: Boolean(prof.preferences?.compactMode),
+          expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
           revision: prof.revision,
         };
         setPreferences(loaded);
@@ -184,11 +187,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ...(updates.timeZone ? { timeZone: updates.timeZone } : {}),
           ...(updates.preferredLocale ? { preferredLocale: updates.preferredLocale } : {}),
           ...(updates.weekStart ? { weekStart: updates.weekStart } : {}),
-          ...(updates.theme !== undefined || updates.compactMode !== undefined
+          ...(updates.theme !== undefined ||
+          updates.compactMode !== undefined ||
+          updates.expensesEnabled !== undefined
             ? {
                 preferences: {
                   theme: updates.theme ?? preferences?.theme ?? 'system',
                   compactMode: updates.compactMode ?? preferences?.compactMode ?? false,
+                  expensesEnabled:
+                    updates.expensesEnabled ?? preferences?.expensesEnabled ?? false,
                 },
               }
             : {}),
@@ -223,6 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           weekStart: prof.weekStart,
           theme: prof.preferences?.theme || 'system',
           compactMode: Boolean(prof.preferences?.compactMode),
+          expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
           revision: prof.revision,
         };
         setPreferences(updated);

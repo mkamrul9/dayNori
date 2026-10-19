@@ -1964,3 +1964,127 @@ export async function deleteExpenseBudget(
 
   return { success: true, id: budgetId, seq };
 }
+
+// -----------------------------------------------------------------------------
+// CSV Export (Phase 40)
+// -----------------------------------------------------------------------------
+
+/**
+ * Escapes a value for RFC 4180 CSV compliance and neutralizes formula injection
+ * (OWASP CSV Injection defense: cells starting with =, +, -, @, \t, \r are prepended with ').
+ */
+export function escapeCsvCell(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  let str = String(val);
+
+  // Neutralize formula injection
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+
+  // RFC 4180 escaping
+  if (/[",\r\n]/.test(str)) {
+    str = `"${str.replace(/"/g, '""')}"`;
+  }
+
+  return str;
+}
+
+export async function exportExpensesCsv(
+  client: PoolClient,
+  workspaceId: string,
+  filter?: {
+    startDate?: string;
+    endDate?: string;
+    categoryId?: string;
+    currency?: string;
+    kind?: 'expense' | 'income' | 'refund';
+  }
+): Promise<string> {
+  const whereClauses = [
+    'e.workspace_id = $1',
+    'i.deleted_at IS NULL',
+    "i.security_scope != 'vault'",
+  ];
+  const params: unknown[] = [workspaceId];
+  let paramIdx = 2;
+
+  if (filter?.startDate) {
+    whereClauses.push(`e.transaction_date >= $${paramIdx++}`);
+    params.push(filter.startDate);
+  }
+  if (filter?.endDate) {
+    whereClauses.push(`e.transaction_date <= $${paramIdx++}`);
+    params.push(filter.endDate);
+  }
+  if (filter?.categoryId) {
+    whereClauses.push(`e.category_id = $${paramIdx++}`);
+    params.push(filter.categoryId);
+  }
+  if (filter?.currency) {
+    whereClauses.push(`e.currency = $${paramIdx++}`);
+    params.push(filter.currency);
+  }
+  if (filter?.kind) {
+    whereClauses.push(`e.kind = $${paramIdx++}`);
+    params.push(filter.kind);
+  }
+
+  const res = await client.query<{
+    id: string;
+    transaction_date: string;
+    kind: string;
+    amount_minor_units: string;
+    currency: string;
+    category_name: string | null;
+    payment_label: string | null;
+    note: string | null;
+    receipt_file_id: string | null;
+    original_expense_id: string | null;
+    created_at: Date;
+  }>(
+    `SELECT e.id, e.transaction_date::text as transaction_date, e.kind,
+            e.amount_minor_units::text as amount_minor_units, e.currency,
+            c.name as category_name, e.payment_label, e.note,
+            e.receipt_file_id, e.original_expense_id, e.created_at
+     FROM app.expense_items e
+     JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
+     LEFT JOIN app.expense_categories c ON c.id = e.category_id AND c.workspace_id = e.workspace_id
+     WHERE ${whereClauses.join(' AND ')}
+     ORDER BY e.transaction_date DESC, e.id DESC;`,
+    params
+  );
+
+  const header = [
+    'Date',
+    'Kind',
+    'Amount',
+    'Currency',
+    'Category',
+    'Payment Label',
+    'Note',
+    'Receipt ID',
+    'Original Expense ID',
+    'ID',
+  ].join(',');
+
+  const rows = res.rows.map((r) => {
+    const formattedAmount = formatMinorUnitsToDecimal(BigInt(r.amount_minor_units), r.currency);
+    return [
+      escapeCsvCell(r.transaction_date),
+      escapeCsvCell(r.kind),
+      escapeCsvCell(formattedAmount),
+      escapeCsvCell(r.currency),
+      escapeCsvCell(r.category_name || ''),
+      escapeCsvCell(r.payment_label || ''),
+      escapeCsvCell(r.note || ''),
+      escapeCsvCell(r.receipt_file_id || ''),
+      escapeCsvCell(r.original_expense_id || ''),
+      escapeCsvCell(r.id),
+    ].join(',');
+  });
+
+  const BOM = '\uFEFF';
+  return BOM + [header, ...rows].join('\r\n') + '\r\n';
+}
+

@@ -344,3 +344,17 @@ export const ExpenseBudgetListResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type ExpenseBudgetListResponse = z.infer<typeof ExpenseBudgetListResponseSchema>;
+
+// -----------------------------------------------------------------------------
+// CSV Export Query (Phase 40)
+// -----------------------------------------------------------------------------
+
+export const ExpenseExportQuerySchema = z.object({
+  startDate: CalendarDateSchema.optional(),
+  endDate: CalendarDateSchema.optional(),
+  categoryId: z.string().uuid().optional(),
+  currency: z.string().min(3).max(3).optional(),
+  kind: z.enum(['expense', 'income', 'refund']).optional(),
+});
+export type ExpenseExportQuery = z.infer<typeof ExpenseExportQuerySchema>;
+

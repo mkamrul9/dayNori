@@ -27,6 +27,8 @@ export interface SettingsViewProps {
   onOpenRecoveryExport?: () => void;
   onOpenPortability?: () => void;
   onOpenAccountDeletion?: () => void;
+  expensesEnabled?: boolean;
+  onToggleExpensesEnabled?: (enabled: boolean) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -52,6 +54,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenRecoveryExport,
   onOpenPortability,
   onOpenAccountDeletion,
+  expensesEnabled = false,
+  onToggleExpensesEnabled,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -469,6 +473,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </MobileButton>
             </View>
           )}
+        </MobileCard>
+      </View>
+
+      {/* Section 5d: Expenses & Financial Tracking (Phase 40 Opt-in) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Expenses & Financial Tracking
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1, paddingRight: spacing.sm }}>
+              <Text style={[styles.settingLabel, { color: palette.text.primary }]}>
+                Expenses Feature
+              </Text>
+              <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+                {expensesEnabled
+                  ? 'Active. Quick capture, spending reports, and monthly budget tracking are enabled.'
+                  : 'Disabled by default. Opt in to manage expenses, incomes, and budgets.'}
+              </Text>
+            </View>
+            {onToggleExpensesEnabled && (
+              <MobileButton
+                testID="mobile-toggle-expenses"
+                variant={expensesEnabled ? 'secondary' : 'primary'}
+                themeMode={themeMode}
+                onPress={() => onToggleExpensesEnabled(!expensesEnabled)}
+                accessibilityLabel={
+                  expensesEnabled ? 'Disable expenses feature' : 'Enable expenses feature'
+                }
+              >
+                {expensesEnabled ? 'Disable' : 'Enable'}
+              </MobileButton>
+            )}
+          </View>
         </MobileCard>
       </View>
 

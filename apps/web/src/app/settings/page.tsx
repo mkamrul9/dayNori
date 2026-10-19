@@ -47,6 +47,7 @@ export default function SettingsPage() {
   const [formLocale, setFormLocale] = useState<string>('en');
   const [formWeekStart, setFormWeekStart] = useState<'monday' | 'sunday' | 'saturday'>('monday');
   const [formCompactMode, setFormCompactMode] = useState<boolean>(false);
+  const [formExpensesEnabled, setFormExpensesEnabled] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isProvisioning, setIsProvisioning] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{
@@ -61,6 +62,7 @@ export default function SettingsPage() {
       setFormLocale(preferences.preferredLocale);
       setFormWeekStart(preferences.weekStart);
       setFormCompactMode(preferences.compactMode);
+      setFormExpensesEnabled(Boolean(preferences.expensesEnabled));
     }
   }, [preferences]);
 
@@ -80,6 +82,7 @@ export default function SettingsPage() {
       preferredLocale: formLocale,
       weekStart: formWeekStart,
       compactMode: formCompactMode,
+      expensesEnabled: formExpensesEnabled,
     });
 
     setIsSaving(false);
@@ -100,7 +103,7 @@ export default function SettingsPage() {
         message: `Preferences saved successfully (Revision ${res.updated?.revision ?? 1}).`,
       });
     }
-  }, [formTimeZone, formLocale, formWeekStart, formCompactMode, savePreferences]);
+  }, [formTimeZone, formLocale, formWeekStart, formCompactMode, formExpensesEnabled, savePreferences]);
 
   const handleProvisionWorkspace = useCallback(async () => {
     setIsProvisioning(true);
@@ -643,6 +646,32 @@ export default function SettingsPage() {
                   }}
                 >
                   Enable Compact Mode (denser list items and reduced padding)
+                </label>
+              </div>
+
+              {/* Module Opt-In: Expenses & Budgets */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+                <input
+                  type="checkbox"
+                  id="expenses-enabled-toggle"
+                  checked={formExpensesEnabled}
+                  onChange={(e) => setFormExpensesEnabled(e.target.checked)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    cursor: 'pointer',
+                  }}
+                />
+                <label
+                  htmlFor="expenses-enabled-toggle"
+                  style={{
+                    fontSize: '14px',
+                    color: palette.text.primary,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Enable Expenses & Budgets Module (opt-in personal finance tracking)
                 </label>
               </div>
 
