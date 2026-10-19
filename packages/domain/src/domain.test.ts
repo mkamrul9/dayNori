@@ -2154,12 +2154,10 @@ describe('Domain Rules and Invariants', () => {
       // 2. Newly added field receives default empty checklist array
       expect(migration.fieldValues.new_checklist).toEqual([]);
 
-      // 3. Removed field is ARCHIVED (not lost!)
+      // 3. Removed field is ARCHIVED into append-only array (not lost!)
       expect(migration.archivedValues.obsolete_notes).toBeDefined();
-      const archivedNotes = migration.archivedValues.obsolete_notes as {
-        value: unknown;
-        reason: string;
-      };
+      expect(Array.isArray(migration.archivedValues.obsolete_notes)).toBe(true);
+      const archivedNotes = migration.archivedValues.obsolete_notes![0]!;
       expect(archivedNotes.value).toBe(
         'Valuable research observations that must not be lost'
       );
@@ -2167,17 +2165,153 @@ describe('Domain Rules and Invariants', () => {
 
       // 4. Type-changed field is ARCHIVED (preserving old numeric value)
       expect(migration.archivedValues.rating).toBeDefined();
-      const archivedRating = migration.archivedValues.rating as {
-        value: unknown;
-        reason: string;
-      };
+      expect(Array.isArray(migration.archivedValues.rating)).toBe(true);
+      const archivedRating = migration.archivedValues.rating![0]!;
       expect(archivedRating.value).toBe(98);
       expect(archivedRating.reason).toBe('type_changed');
     });
 
+    it('preserves all historical versions across repeated migrations (text -> number -> text)', () => {
+      const v1Schema = {
+        version: 1,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'score', label: 'Score', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+
+      const v2Schema = {
+        version: 2,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'score', label: 'Score', type: 'number' as const },
+            ],
+          },
+        ],
+      };
+
+      const v3Schema = {
+        version: 3,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'score', label: 'Score', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+
+      // 1. Initial record with text score
+      const initialValues = { score: 'First Text Score' };
+
+      // 2. Migration 1: v1 -> v2 (text -> number)
+      const mig1 = migrateRecordValues(v1Schema, v2Schema, initialValues, {});
+      expect(mig1.archivedValues.score).toHaveLength(1);
+      expect(mig1.archivedValues.score![0]!.value).toBe('First Text Score');
+      expect(mig1.archivedValues.score![0]!.fromSchemaVersion).toBe(1);
+      expect(mig1.archivedValues.score![0]!.toSchemaVersion).toBe(2);
+
+      // Now user inputs a numeric score under v2
+      mig1.fieldValues.score = 42;
+
+      // 3. Migration 2: v2 -> v3 (number -> text)
+      const mig2 = migrateRecordValues(v2Schema, v3Schema, mig1.fieldValues, mig1.archivedValues);
+
+      // BOTH archived versions MUST be preserved!
+      expect(mig2.archivedValues.score).toHaveLength(2);
+      expect(mig2.archivedValues.score![0]!.value).toBe('First Text Score');
+      expect(mig2.archivedValues.score![0]!.fromSchemaVersion).toBe(1);
+      expect(mig2.archivedValues.score![1]!.value).toBe(42);
+      expect(mig2.archivedValues.score![1]!.fromSchemaVersion).toBe(2);
+      expect(mig2.archivedValues.score![1]!.toSchemaVersion).toBe(3);
+    });
+
+    it('rejects reserved prototype keys and duplicate field/block IDs', () => {
+      const badSchema = {
+        version: 1,
+        blocks: [
+          {
+            id: '__proto__',
+            type: 'field_collection' as const,
+            title: 'Bad Block',
+            fields: [
+              { id: 'title', label: 'Title', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+      expect(isBlockSupported(badSchema.blocks[0])).toBe(false);
+
+      const protoFieldCollection = {
+        id: 'coll-1',
+        type: 'field_collection' as const,
+        title: 'Collection',
+        fields: [
+          { id: '__proto__', label: 'Proto Field', type: 'text' as const },
+        ],
+      };
+      expect(isBlockSupported(protoFieldCollection)).toBe(false);
+
+      // Validation rejects reserved keys in record field values
+      const validSchema = {
+        version: 1,
+        blocks: [
+          {
+            id: 'coll-1',
+            type: 'field_collection' as const,
+            title: 'Collection',
+            fields: [
+              { id: 'name', label: 'Name', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+      const badRecord = JSON.parse('{"__proto__": {"admin": true}, "name": "Alice"}');
+      const res = validateRecordAgainstSchema(validSchema, badRecord);
+      expect(res.valid).toBe(false);
+      expect(res.errors[0]).toContain('reserved system identifier');
+
+      const badRecord2 = { constructor: 'polluted', name: 'Alice' };
+      const res2 = validateRecordAgainstSchema(validSchema, badRecord2);
+      expect(res2.valid).toBe(false);
+      expect(res2.errors[0]).toContain('reserved system identifier');
+    });
+
+    it('fails validation when text field has an invalid regex pattern', () => {
+      const fieldDef = {
+        id: 'code',
+        label: 'Code',
+        type: 'text' as const,
+        pattern: '[invalid(regex',
+      };
+      const res = validateFieldValue(fieldDef, 'sample');
+      expect(res.valid).toBe(false);
+      expect(res.error).toContain('invalid validation pattern');
+    });
+
     it('provides graceful fallback contract for unknown block types', () => {
-      expect(isBlockSupported({ type: 'existing_record_view' })).toBe(true);
-      expect(isBlockSupported({ type: 'field_collection' })).toBe(true);
+      expect(isBlockSupported({ type: 'existing_record_view' })).toBe(false); // missing id/title
+      expect(
+        isBlockSupported({
+          id: 'v1',
+          title: 'Notes View',
+          type: 'existing_record_view',
+          targetKind: 'note',
+        })
+      ).toBe(true);
       expect(isBlockSupported({ type: 'future_ai_analytics_widget' })).toBe(false);
 
       const rawUnknownBlock = {
@@ -2193,6 +2327,7 @@ describe('Domain Rules and Invariants', () => {
       expect(fallback.title).toBe('3D Knowledge Graph');
       expect(fallback.message).toContain('not supported by your current Daynori version');
       expect(fallback.rawData).toEqual(rawUnknownBlock);
+      expect(fallback.isReadOnly).toBe(true);
     });
   });
 });

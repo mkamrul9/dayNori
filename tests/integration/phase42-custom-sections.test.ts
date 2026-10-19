@@ -334,20 +334,14 @@ describe('Phase 42: Safe Custom Section Schemas & Renderer Contracts (Integratio
       expect(migratedRecord.data.fieldValues.verified).toEqual([]);
 
       // The removed "notes" field MUST be preserved in archivedValues!
-      expect(migratedRecord.data.archivedValues.notes).toBeDefined();
-      const archivedNotes = migratedRecord.data.archivedValues.notes as {
-        value: unknown;
-        reason: string;
-      };
+      expect(Array.isArray(migratedRecord.data.archivedValues.notes)).toBe(true);
+      const archivedNotes = migratedRecord.data.archivedValues.notes[0]!;
       expect(archivedNotes.value).toBe('This note must not be lost upon schema update!');
       expect(archivedNotes.reason).toBe('field_removed');
 
       // The type-changed "score" field MUST be preserved in archivedValues!
-      expect(migratedRecord.data.archivedValues.score).toBeDefined();
-      const archivedScore = migratedRecord.data.archivedValues.score as {
-        value: unknown;
-        reason: string;
-      };
+      expect(Array.isArray(migratedRecord.data.archivedValues.score)).toBe(true);
+      const archivedScore = migratedRecord.data.archivedValues.score[0]!;
       expect(archivedScore.value).toBe(85);
       expect(archivedScore.reason).toBe('type_changed');
     });
@@ -597,6 +591,280 @@ describe('Phase 42: Safe Custom Section Schemas & Renderer Contracts (Integratio
       expect(fallback.title).toBe('Sprint Board');
       expect(fallback.rawData).toEqual(futureBlock);
       expect(fallback.message).toContain('not supported');
+      expect(fallback.isReadOnly).toBe(true);
+    });
+  });
+
+  describe('8. Defect Repairs: Immutability, Repeated Migrations, Reserved Keys, Views & References', () => {
+    it('enforces schema immutability at database boundary against UPDATE and direct DELETE', async () => {
+      const poolClient = await adminPool.connect();
+      try {
+        const secRes = await poolClient.query<{ id: string }>(
+          `SELECT section_id FROM app.custom_section_schemas LIMIT 1`
+        );
+        expect(secRes.rowCount).toBeGreaterThan(0);
+        const sectionId = secRes.rows[0]!.section_id;
+
+        // Attempt direct UPDATE -> should fail via trigger
+        let updateErr = '';
+        try {
+          await poolClient.query(
+            `UPDATE app.custom_section_schemas SET blocks = '[]'::jsonb WHERE section_id = $1`,
+            [sectionId]
+          );
+        } catch (err: unknown) {
+          updateErr = (err as Error).message;
+        }
+        expect(updateErr).toContain('Custom section schemas are immutable');
+
+        // Attempt direct DELETE -> should fail via trigger
+        let deleteErr = '';
+        try {
+          await poolClient.query(
+            `DELETE FROM app.custom_section_schemas WHERE section_id = $1`,
+            [sectionId]
+          );
+        } catch (err: unknown) {
+          deleteErr = (err as Error).message;
+        }
+        expect(deleteErr).toContain('Custom section schemas are immutable');
+      } finally {
+        poolClient.release();
+      }
+    });
+
+    it('rejects schema creation with reserved keys or duplicate field IDs', async () => {
+      // Prototype pollution attempt
+      let protoErr = false;
+      try {
+        await clientA.createCustomSection(workspaceAId, {
+          name: 'Prototype Injection Attempt',
+          initialSchema: {
+            version: 1,
+            blocks: [
+              {
+                id: 'collection-1',
+                type: 'field_collection',
+                title: 'Malicious Fields',
+                fields: [
+                  JSON.parse('{"id": "__proto__", "label": "Exploit", "type": "text"}'),
+                ],
+              },
+            ],
+          },
+        });
+      } catch {
+        protoErr = true;
+      }
+      expect(protoErr).toBe(true);
+
+      // Duplicate field IDs across blocks
+      let dupErr = false;
+      try {
+        await clientA.createCustomSection(workspaceAId, {
+          name: 'Duplicate Fields Attempt',
+          initialSchema: {
+            version: 1,
+            blocks: [
+              {
+                id: 'collection-1',
+                type: 'field_collection',
+                title: 'Block 1',
+                fields: [{ id: 'field_x', label: 'X1', type: 'text' }],
+              },
+              {
+                id: 'collection-2',
+                type: 'field_collection',
+                title: 'Block 2',
+                fields: [{ id: 'field_x', label: 'X2', type: 'number' }],
+              },
+            ],
+          },
+        });
+      } catch {
+        dupErr = true;
+      }
+      expect(dupErr).toBe(true);
+    });
+
+    it('preserves all historical versions across repeated incompatible migrations (text -> number -> text)', async () => {
+      // 1. Create section with text field "metric"
+      const sec = await clientA.createCustomSection(workspaceAId, {
+        name: 'Repeated Evolution Section',
+        initialSchema: {
+          version: 1,
+          blocks: [
+            {
+              id: 'fields',
+              type: 'field_collection',
+              title: 'Metrics',
+              fields: [{ id: 'metric', label: 'Metric', type: 'text' }],
+            },
+          ],
+        },
+      });
+      const sectionId = sec.data.id;
+
+      // 2. Insert record with text value
+      const rec = await clientA.createCustomSectionRecord(workspaceAId, sectionId, {
+        fieldValues: { metric: 'initial_text_val' },
+      });
+      const recordId = rec.data.id;
+
+      // 3. Publish schema v2: change "metric" to number
+      await clientA.createCustomSectionSchema(workspaceAId, sectionId, {
+        blocks: [
+          {
+            id: 'fields',
+            type: 'field_collection',
+            title: 'Metrics',
+            fields: [{ id: 'metric', label: 'Metric', type: 'number' }],
+          },
+        ],
+      });
+
+      // Fetch migrated record - original text archived
+      const recV2 = await clientA.getCustomSectionRecord(workspaceAId, sectionId, recordId);
+      expect(recV2.data.schemaVersion).toBe(2);
+      expect(recV2.data.archivedValues.metric).toBeDefined();
+      expect(recV2.data.archivedValues.metric).toHaveLength(1);
+      expect(recV2.data.archivedValues.metric![0]!.value).toBe('initial_text_val');
+
+      // Update record with number value
+      await clientA.updateCustomSectionRecord(workspaceAId, sectionId, recordId, {
+        fieldValues: { metric: 42 },
+        expectedRevision: recV2.data.revision,
+      });
+
+      // 4. Publish schema v3: change "metric" back to text
+      await clientA.createCustomSectionSchema(workspaceAId, sectionId, {
+        blocks: [
+          {
+            id: 'fields',
+            type: 'field_collection',
+            title: 'Metrics',
+            fields: [{ id: 'metric', label: 'Metric', type: 'text' }],
+          },
+        ],
+      });
+
+      // Fetch migrated record - BOTH historical values MUST be preserved!
+      const recV3 = await clientA.getCustomSectionRecord(workspaceAId, sectionId, recordId);
+      expect(recV3.data.schemaVersion).toBe(3);
+      expect(recV3.data.archivedValues.metric).toBeDefined();
+      expect(recV3.data.archivedValues.metric).toHaveLength(2);
+      expect(recV3.data.archivedValues.metric![0]!.value).toBe('initial_text_val');
+      expect(recV3.data.archivedValues.metric![1]!.value).toBe(42);
+    });
+
+    it('queries canonical notes and tasks through queryExistingRecordView with real data', async () => {
+      // 1. Create section with notes and tasks view blocks
+      const viewSec = await clientA.createCustomSection(workspaceAId, {
+        name: 'Study Hub Views',
+        initialSchema: {
+          version: 1,
+          blocks: [
+            {
+              id: 'notes-view',
+              type: 'existing_record_view',
+              title: 'Notes View',
+              targetKind: 'notes',
+            },
+            {
+              id: 'tasks-view',
+              type: 'existing_record_view',
+              title: 'Tasks View',
+              targetKind: 'tasks',
+            },
+          ],
+        },
+      });
+      const sectionId = viewSec.data.id;
+
+      const poolClient = await adminPool.connect();
+      try {
+        // Insert real note and task with items table references
+        const noteId = crypto.randomUUID();
+        await poolClient.query(
+          `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by, created_at, updated_at)
+           VALUES ($1, $2, 'note', $3, $3, NOW(), NOW())`,
+          [noteId, workspaceAId, userAId]
+        );
+        await poolClient.query(
+          `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, created_at, updated_at)
+           VALUES ($1, $2, 'Software Architecture Notes', '{"text":"test content"}', 'test content', NOW(), NOW())`,
+          [noteId, workspaceAId]
+        );
+
+        const taskId = crypto.randomUUID();
+        await poolClient.query(
+          `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by, created_at, updated_at)
+           VALUES ($1, $2, 'todo', $3, $3, NOW(), NOW())`,
+          [taskId, workspaceAId, userAId]
+        );
+        await poolClient.query(
+          `INSERT INTO app.tasks (id, workspace_id, title, status, created_at, updated_at)
+           VALUES ($1, $2, 'Complete Chapter 5 Review', 'todo', NOW(), NOW())`,
+          [taskId, workspaceAId]
+        );
+
+        // Query note view
+        const noteViewRes = await clientA.queryExistingRecordView(workspaceAId, sectionId, 'notes-view', {
+          limit: 10,
+        });
+        const foundNote = noteViewRes.data.find((i) => i.id === noteId);
+        expect(foundNote).toBeDefined();
+        expect(foundNote?.title).toBe('Software Architecture Notes');
+        expect(foundNote?.referenceUri).toBe(`item:${noteId}`);
+
+        // Query task view
+        const taskViewRes = await clientA.queryExistingRecordView(workspaceAId, sectionId, 'tasks-view', {
+          status: 'active',
+          limit: 10,
+        });
+        const foundTask = taskViewRes.data.find((i) => i.id === taskId);
+        expect(foundTask).toBeDefined();
+        expect(foundTask?.title).toBe('Complete Chapter 5 Review');
+        expect(foundTask?.referenceUri).toBe(`item:${taskId}`);
+      } finally {
+        poolClient.release();
+      }
+    });
+
+    it('validates file attachment references and rejects non-existent or unverified files', async () => {
+      // Create section with attachment field
+      const sec = await clientA.createCustomSection(workspaceAId, {
+        name: 'Attachments Section',
+        initialSchema: {
+          version: 1,
+          blocks: [
+            {
+              id: 'files-block',
+              type: 'field_collection',
+              title: 'Files',
+              fields: [
+                {
+                  id: 'doc',
+                  label: 'Document',
+                  type: 'attachment',
+                  allowedMimeTypes: ['application/pdf'],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // Try to submit a non-existent file ID
+      let rejectNonExistent = false;
+      try {
+        await clientA.createCustomSectionRecord(workspaceAId, sec.data.id, {
+          fieldValues: { doc: crypto.randomUUID() },
+        });
+      } catch {
+        rejectNonExistent = true;
+      }
+      expect(rejectNonExistent).toBe(true);
     });
   });
 });

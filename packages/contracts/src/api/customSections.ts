@@ -6,16 +6,34 @@ export const MAX_FIELDS_PER_COLLECTION = 20;
 export const MAX_TEXT_FIELD_LENGTH = 5000;
 export const MAX_RECORDS_PER_SECTION = 1000;
 
+export const RESERVED_IDENTIFIER_KEYS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  'toString',
+  'valueOf',
+  'hasOwnProperty',
+  'isPrototypeOf',
+  'propertyIsEnumerable',
+  'toLocaleString',
+]);
+
 export const CustomBlockTypeSchema = z.enum(['existing_record_view', 'field_collection']);
 export type CustomBlockType = z.infer<typeof CustomBlockTypeSchema>;
 
 export const ExistingRecordTargetKindSchema = z.enum([
   'note',
+  'notes',
   'task',
+  'tasks',
   'routine',
+  'routines',
   'file',
+  'files',
   'journal',
+  'journals',
   'expense_summary',
+  'expenses',
 ]);
 export type ExistingRecordTargetKind = z.infer<typeof ExistingRecordTargetKindSchema>;
 
@@ -31,7 +49,14 @@ export const ExistingRecordViewFilterSchema = z.object({
 export type ExistingRecordViewFilter = z.infer<typeof ExistingRecordViewFilterSchema>;
 
 export const ExistingRecordViewBlockSchema = z.object({
-  id: z.string().min(1).max(100),
+  id: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Block ID must be alphanumeric, hyphen, or underscore')
+    .refine((val) => !RESERVED_IDENTIFIER_KEYS.has(val), {
+      message: 'Block ID cannot be a reserved system identifier',
+    }),
   type: z.literal('existing_record_view'),
   title: z.string().min(1).max(100),
   targetKind: ExistingRecordTargetKindSchema,
@@ -54,7 +79,14 @@ export const CustomFieldTypeSchema = z.enum([
 export type CustomFieldType = z.infer<typeof CustomFieldTypeSchema>;
 
 const BaseFieldDefinitionSchema = z.object({
-  id: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, 'Field ID must be alphanumeric, hyphen, or underscore'),
+  id: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Field ID must be alphanumeric, hyphen, or underscore')
+    .refine((val) => !RESERVED_IDENTIFIER_KEYS.has(val), {
+      message: 'Field ID cannot be a reserved system identifier',
+    }),
   label: z.string().min(1).max(100),
   required: z.boolean().default(false),
   description: z.string().max(250).optional(),
@@ -120,10 +152,27 @@ export const CustomFieldDefinitionSchema = z.discriminatedUnion('type', [
 export type CustomFieldDefinition = z.infer<typeof CustomFieldDefinitionSchema>;
 
 export const FieldCollectionBlockSchema = z.object({
-  id: z.string().min(1).max(100),
+  id: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Block ID must be alphanumeric, hyphen, or underscore')
+    .refine((val) => !RESERVED_IDENTIFIER_KEYS.has(val), {
+      message: 'Block ID cannot be a reserved system identifier',
+    }),
   type: z.literal('field_collection'),
   title: z.string().min(1).max(100),
-  fields: z.array(CustomFieldDefinitionSchema).min(1).max(MAX_FIELDS_PER_COLLECTION),
+  fields: z
+    .array(CustomFieldDefinitionSchema)
+    .min(1)
+    .max(MAX_FIELDS_PER_COLLECTION)
+    .refine(
+      (fields) => {
+        const ids = fields.map((f) => f.id);
+        return new Set(ids).size === ids.length;
+      },
+      { message: 'Duplicate field IDs are not allowed in a collection block' }
+    ),
   defaultViewMode: z.enum(['table', 'cards', 'list']).default('table'),
 });
 export type FieldCollectionBlock = z.infer<typeof FieldCollectionBlockSchema>;
@@ -134,10 +183,35 @@ export const CustomBlockDefinitionSchema = z.discriminatedUnion('type', [
 ]);
 export type CustomBlockDefinition = z.infer<typeof CustomBlockDefinitionSchema>;
 
-export const CustomSectionSchemaPayloadSchema = z.object({
-  version: z.number().int().positive(),
-  blocks: z.array(CustomBlockDefinitionSchema).min(1).max(MAX_BLOCKS_PER_SECTION),
-});
+export const CustomSectionSchemaPayloadSchema = z
+  .object({
+    version: z.number().int().positive(),
+    blocks: z
+      .array(CustomBlockDefinitionSchema)
+      .min(1)
+      .max(MAX_BLOCKS_PER_SECTION)
+      .refine(
+        (blocks) => {
+          const ids = blocks.map((b) => b.id);
+          return new Set(ids).size === ids.length;
+        },
+        { message: 'Duplicate block IDs are not allowed in a section schema' }
+      ),
+  })
+  .refine(
+    (payload) => {
+      const allFieldIds: string[] = [];
+      for (const block of payload.blocks) {
+        if (block.type === 'field_collection') {
+          for (const field of block.fields) {
+            allFieldIds.push(field.id);
+          }
+        }
+      }
+      return new Set(allFieldIds).size === allFieldIds.length;
+    },
+    { message: 'Duplicate field IDs across collection blocks are not allowed in a schema' }
+  );
 export type CustomSectionSchemaPayload = z.infer<typeof CustomSectionSchemaPayloadSchema>;
 
 export const CustomSectionLayoutModeSchema = z.enum(['single_column', 'two_column', 'grid']);
@@ -187,19 +261,60 @@ export const UpdateCustomSectionRequestSchema = z.object({
 export type UpdateCustomSectionRequest = z.infer<typeof UpdateCustomSectionRequestSchema>;
 
 export const CreateCustomSectionSchemaRequestSchema = z.object({
-  blocks: z.array(CustomBlockDefinitionSchema).min(1).max(MAX_BLOCKS_PER_SECTION),
-});
+  blocks: z
+    .array(CustomBlockDefinitionSchema)
+    .min(1)
+    .max(MAX_BLOCKS_PER_SECTION)
+    .refine(
+      (blocks) => {
+        const ids = blocks.map((b) => b.id);
+        return new Set(ids).size === ids.length;
+      },
+      { message: 'Duplicate block IDs are not allowed' }
+    ),
+}).refine(
+  (payload) => {
+    const allFieldIds: string[] = [];
+    for (const block of payload.blocks) {
+      if (block.type === 'field_collection') {
+        for (const field of block.fields) {
+          allFieldIds.push(field.id);
+        }
+      }
+    }
+    return new Set(allFieldIds).size === allFieldIds.length;
+  },
+  { message: 'Duplicate field IDs across collection blocks are not allowed' }
+);
 export type CreateCustomSectionSchemaRequest = z.infer<
   typeof CreateCustomSectionSchemaRequestSchema
 >;
+
+export const ArchivedFieldValueSchema = z.object({
+  archiveId: z.string().uuid(),
+  fieldId: z.string().min(1).max(100),
+  fromSchemaVersion: z.number().int().positive(),
+  toSchemaVersion: z.number().int().positive(),
+  type: z.string().optional(),
+  value: z.unknown(),
+  reason: z.string(),
+  archivedAt: z.string(),
+  previousFieldType: z.string().optional(),
+  previousLabel: z.string().optional(),
+  newFieldType: z.string().optional(),
+  error: z.string().optional(),
+});
+export type ArchivedFieldValue = z.infer<typeof ArchivedFieldValueSchema>;
 
 export const CustomSectionRecordItemSchema = z.object({
   id: z.string().uuid(),
   sectionId: z.string().uuid(),
   workspaceId: z.string().uuid(),
+  collectionId: z.string().min(1).max(100).optional(),
+  folderId: z.string().uuid().nullable().optional(),
   schemaVersion: z.number().int().positive(),
   fieldValues: z.record(z.unknown()),
-  archivedValues: z.record(z.unknown()).default({}),
+  archivedValues: z.record(z.array(ArchivedFieldValueSchema)).default({}),
   rank: z.string(),
   createdBy: z.string().uuid(),
   updatedBy: z.string().uuid(),
@@ -269,7 +384,7 @@ export type QueryExistingRecordViewRequest = z.infer<
 >;
 
 export const ExistingRecordViewItemSummarySchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   targetKind: ExistingRecordTargetKindSchema,
   title: z.string(),
   subtitle: z.string().optional(),

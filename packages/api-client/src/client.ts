@@ -239,11 +239,14 @@ import {
   CustomSectionSchemaResponseSchema,
   CustomSectionRecordResponseSchema,
   ListCustomSectionRecordsResponseSchema,
+  QueryExistingRecordViewResponseSchema,
   type CreateCustomSectionRequest,
   type UpdateCustomSectionRequest,
   type CreateCustomSectionSchemaRequest,
   type CreateCustomSectionRecordRequest,
   type UpdateCustomSectionRecordRequest,
+  type QueryExistingRecordViewRequest,
+  type QueryExistingRecordViewResponse,
   type CustomSectionResponse,
   type ListCustomSectionsResponse,
   type CustomSectionSchemaResponse,
@@ -2700,6 +2703,24 @@ export class DaynoriApiClient {
       { method: 'DELETE' },
       options
     );
+  }
+
+  async queryExistingRecordView(
+    workspaceId: string,
+    sectionId: string,
+    blockId: string,
+    query?: QueryExistingRecordViewRequest,
+    options?: RequestOptions
+  ): Promise<QueryExistingRecordViewResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/views/${blockId}/query`,
+      {
+        method: 'POST',
+        body: JSON.stringify(query || {}),
+      },
+      options
+    );
+    return QueryExistingRecordViewResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

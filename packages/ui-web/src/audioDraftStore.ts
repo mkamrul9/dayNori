@@ -7,6 +7,14 @@ export interface DurableAudioDraft {
   byteSize: number;
   audioBuffer: ArrayBuffer;
   updatedAt: string;
+  storageTier?: 'indexeddb' | 'memory';
+}
+
+export interface SaveDraftResult {
+  success: boolean;
+  storageTier: 'indexeddb' | 'memory';
+  key: string;
+  warning?: string;
 }
 
 const DB_NAME = 'daynori_audio_drafts';
@@ -17,6 +25,7 @@ const STORE_NAME = 'drafts';
 const memoryDraftStore = new Map<string, DurableAudioDraft>();
 
 function getDraftKey(workspaceId: string, accountId?: string): string {
+  if (!workspaceId) throw new Error('workspaceId is required to scope audio draft');
   return accountId ? `${accountId}:${workspaceId}` : workspaceId;
 }
 
@@ -47,7 +56,7 @@ export async function saveDurableAudioDraft(params: {
   durationSeconds: number;
   byteSize: number;
   audioBuffer: ArrayBuffer;
-}): Promise<void> {
+}): Promise<SaveDraftResult> {
   const key = getDraftKey(params.workspaceId, params.accountId);
   const draft: DurableAudioDraft = {
     key,
@@ -58,24 +67,46 @@ export async function saveDurableAudioDraft(params: {
     byteSize: params.byteSize,
     audioBuffer: params.audioBuffer,
     updatedAt: new Date().toISOString(),
+    storageTier: 'indexeddb',
   };
 
   try {
     const db = await openDraftDb();
     if (!db) {
+      draft.storageTier = 'memory';
       memoryDraftStore.set(key, draft);
-      return;
+      return {
+        success: true,
+        storageTier: 'memory',
+        key,
+        warning: 'IndexedDB not available in current environment; draft stored in memory only.',
+      };
     }
 
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const req = store.put(draft);
-      req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
     });
-  } catch {
+
+    return {
+      success: true,
+      storageTier: 'indexeddb',
+      key,
+    };
+  } catch (err: unknown) {
+    draft.storageTier = 'memory';
     memoryDraftStore.set(key, draft);
+    return {
+      success: false,
+      storageTier: 'memory',
+      key,
+      warning: `IndexedDB persistence failed: ${err instanceof Error ? err.message : String(err)}; draft preserved in temporary memory only.`,
+    };
   }
 }
 

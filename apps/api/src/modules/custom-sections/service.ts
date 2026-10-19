@@ -323,7 +323,21 @@ export async function updateCustomSection(
   data: UpdateCustomSectionRequest,
   operationId?: string
 ): Promise<CustomSectionItem> {
-  const current = await getCustomSection(client, workspaceId, sectionId);
+  const currentRes = await client.query<{
+    id: string;
+    revision: number;
+    current_schema_version: number;
+  }>(
+    `SELECT id, revision, current_schema_version
+     FROM app.custom_sections
+     WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL
+     FOR UPDATE`,
+    [workspaceId, sectionId]
+  );
+  if (currentRes.rows.length === 0 || !currentRes.rows[0]) {
+    throw new CustomSectionNotFoundError(`Custom section ${sectionId} not found`);
+  }
+  const current = currentRes.rows[0];
   if (current.revision !== data.expectedRevision) {
     throw new CustomSectionRevisionConflictError(
       `Expected revision ${data.expectedRevision} but found ${current.revision}`
@@ -344,22 +358,11 @@ export async function updateCustomSection(
       revision = $9,
       updated_by = $10,
       updated_at = now()
-    WHERE workspace_id = $11 AND id = $12 AND deleted_at IS NULL
+    WHERE workspace_id = $11 AND id = $12 AND revision = $13 AND deleted_at IS NULL
     RETURNING
       id,
-      workspace_id,
       name,
-      description,
-      icon,
-      current_schema_version,
-      layout_mode,
-      status,
-      rank,
-      created_by,
-      updated_by,
-      revision,
-      created_at,
-      updated_at
+      revision
     `,
     [
       data.name ? data.name.trim() : null,
@@ -374,8 +377,15 @@ export async function updateCustomSection(
       userId,
       workspaceId,
       sectionId,
+      data.expectedRevision,
     ]
   );
+
+  if (res.rows.length === 0 || !res.rows[0]) {
+    throw new CustomSectionRevisionConflictError(
+      `Revision conflict on custom section ${sectionId}`
+    );
+  }
 
   const row = res.rows[0];
 
@@ -398,23 +408,7 @@ export async function updateCustomSection(
     },
   });
 
-  return {
-    id: row.id,
-    workspaceId: row.workspace_id,
-    name: row.name,
-    description: row.description,
-    icon: row.icon,
-    currentSchemaVersion: row.current_schema_version,
-    layoutMode: row.layout_mode,
-    status: row.status,
-    rank: row.rank,
-    createdBy: row.created_by,
-    updatedBy: row.updated_by,
-    revision: row.revision,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
-    currentSchema: current.currentSchema,
-  };
+  return getCustomSection(client, workspaceId, sectionId);
 }
 
 /**
@@ -622,6 +616,86 @@ export async function getCustomSectionSchemaVersion(
 }
 
 /**
+ * Validates that referenced file attachments and canonical item links exist in the same workspace,
+ * are verified (not quarantined or deleted), and are not encrypted vault items.
+ * Records attachment references in app.item_attachments.
+ */
+async function validateAndLinkReferences(
+  client: PoolClient,
+  workspaceId: string,
+  recordId: string,
+  schema: CustomSectionSchemaPayload,
+  sanitized: Record<string, unknown>
+): Promise<void> {
+  for (const block of schema.blocks) {
+    if (block.type === 'field_collection') {
+      for (const field of block.fields) {
+        const val = sanitized[field.id];
+        if (!val) continue;
+
+        if (field.type === 'attachment' && typeof val === 'string') {
+          const fileRes = await client.query<{
+            id: string;
+            declared_mime_type: string;
+            quarantine_status: string;
+          }>(
+            `SELECT f.id, f.declared_mime_type, f.quarantine_status
+             FROM app.file_items f
+             JOIN app.items i ON i.id = f.id AND i.workspace_id = f.workspace_id
+             WHERE f.id = $1 AND f.workspace_id = $2 AND i.deleted_at IS NULL AND f.quarantine_status != 'deleted'`,
+            [val, workspaceId]
+          );
+          if (fileRes.rows.length === 0) {
+            throw new CustomSectionValidationError(
+              `Referenced file attachment "${val}" does not exist in this workspace`
+            );
+          }
+          const file = fileRes.rows[0];
+          if (!file) {
+            throw new CustomSectionValidationError(
+              `Referenced file attachment "${val}" does not exist in this workspace`
+            );
+          }
+          if (file.quarantine_status !== 'verified') {
+            throw new CustomSectionValidationError(
+              `Referenced file attachment "${val}" has not passed security verification`
+            );
+          }
+          if (field.allowedMimeTypes && field.allowedMimeTypes.length > 0) {
+            if (!field.allowedMimeTypes.includes(file.declared_mime_type)) {
+              throw new CustomSectionValidationError(
+                `Attachment MIME type "${file.declared_mime_type}" is not allowed for field "${field.label}"`
+              );
+            }
+          }
+          await client.query(
+            `INSERT INTO app.item_attachments (workspace_id, item_id, file_id, source_kind)
+             VALUES ($1, $2, $3, 'custom_record')
+             ON CONFLICT (workspace_id, item_id, file_id) DO NOTHING`,
+            [workspaceId, recordId, val]
+          );
+        } else if (field.type === 'link' && typeof val === 'string') {
+          if (val.startsWith('item:')) {
+            const targetItemId = val.slice(5);
+            const itemRes = await client.query<{ id: string }>(
+              `SELECT id
+               FROM app.items
+               WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`,
+              [targetItemId, workspaceId]
+            );
+            if (itemRes.rows.length === 0 || !itemRes.rows[0]) {
+              throw new CustomSectionValidationError(
+                `Referenced item link "${val}" does not exist in this workspace`
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
  * Creates a record in a section's field collection.
  */
 export async function createCustomSectionRecord(
@@ -701,6 +775,9 @@ export async function createCustomSectionRecord(
   );
 
   const row = recordRes.rows[0];
+
+  // Validate and link file attachments / internal item links
+  await validateAndLinkReferences(client, workspaceId, row.id, section.currentSchema, sanitized);
 
   // Sync change feed
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
@@ -852,7 +929,48 @@ export async function updateCustomSectionRecord(
   data: UpdateCustomSectionRecordRequest,
   operationId?: string
 ): Promise<CustomSectionRecordItem> {
-  const current = await getCustomSectionRecord(client, workspaceId, sectionId, recordId);
+  const currentRes = await client.query<{
+    id: string;
+    section_id: string;
+    workspace_id: string;
+    schema_version: number;
+    field_values: Record<string, unknown>;
+    archived_values: Record<string, unknown>;
+    rank: string;
+    created_by: string;
+    updated_by: string;
+    revision: number;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `
+    SELECT
+      id,
+      section_id,
+      workspace_id,
+      schema_version,
+      field_values,
+      archived_values,
+      rank,
+      created_by,
+      updated_by,
+      revision,
+      created_at,
+      updated_at
+    FROM app.custom_section_records
+    WHERE workspace_id = $1 AND section_id = $2 AND id = $3 AND deleted_at IS NULL
+    FOR UPDATE
+    `,
+    [workspaceId, sectionId, recordId]
+  );
+
+  if (currentRes.rows.length === 0 || !currentRes.rows[0]) {
+    throw new CustomSectionRecordNotFoundError(
+      `Record ${recordId} not found in custom section ${sectionId}`
+    );
+  }
+
+  const current = currentRes.rows[0];
   if (current.revision !== data.expectedRevision) {
     throw new CustomSectionRevisionConflictError(
       `Expected revision ${data.expectedRevision} but found ${current.revision}`
@@ -865,7 +983,7 @@ export async function updateCustomSectionRecord(
   }
 
   // Validate updated values against current schema
-  const mergedValues = { ...current.fieldValues, ...data.fieldValues };
+  const mergedValues = { ...current.field_values, ...data.fieldValues };
   const validation = validateRecordAgainstSchema(section.currentSchema, mergedValues);
   if (!validation.valid) {
     throw new CustomSectionValidationError(validation.errors.join('; '));
@@ -873,6 +991,9 @@ export async function updateCustomSectionRecord(
 
   const sanitized = validation.sanitizedValues || {};
   const newRevision = current.revision + 1;
+
+  // Validate and link file attachments / internal item links
+  await validateAndLinkReferences(client, workspaceId, recordId, section.currentSchema, sanitized);
 
   const res = await client.query(
     `
@@ -883,7 +1004,7 @@ export async function updateCustomSectionRecord(
       revision = $3,
       updated_by = $4,
       updated_at = now()
-    WHERE workspace_id = $5 AND section_id = $6 AND id = $7 AND deleted_at IS NULL
+    WHERE workspace_id = $5 AND section_id = $6 AND id = $7 AND revision = $8 AND deleted_at IS NULL
     RETURNING
       id,
       section_id,
@@ -906,8 +1027,15 @@ export async function updateCustomSectionRecord(
       workspaceId,
       sectionId,
       recordId,
+      data.expectedRevision,
     ]
   );
+
+  if (res.rows.length === 0 || !res.rows[0]) {
+    throw new CustomSectionRevisionConflictError(
+      `Revision conflict on record ${recordId}`
+    );
+  }
 
   const row = res.rows[0];
 
@@ -1021,91 +1149,129 @@ export async function queryExistingRecordView(
   const viewBlock = block as ExistingRecordViewBlock;
   const limit = Math.min(50, Math.max(1, queryOptions?.limit || viewBlock.limit || 20));
   const folderId = queryOptions?.folderId || viewBlock.filter?.folderId;
+  const tags = queryOptions?.tags || viewBlock.filter?.tags;
+  const statusFilter = queryOptions?.status || viewBlock.filter?.status || 'all';
 
-  switch (viewBlock.targetKind) {
-    case 'note': {
+  const rawKind = String(viewBlock.targetKind);
+  switch (rawKind) {
+    case 'note':
+    case 'notes': {
       let query = `
-        SELECT id, kind, folder_id, revision, updated_at
-        FROM app.items
-        WHERE workspace_id = $1 AND kind = 'note' AND deleted_at IS NULL
+        SELECT n.id, n.title, i.folder_id, n.updated_at
+        FROM app.notes n
+        JOIN app.items i ON i.id = n.id AND i.workspace_id = n.workspace_id
+        WHERE n.workspace_id = $1 AND i.deleted_at IS NULL
       `;
       const params: unknown[] = [workspaceId];
       if (folderId) {
         params.push(folderId);
-        query += ` AND folder_id = $${params.length}`;
+        query += ` AND i.folder_id = $${params.length}`;
+      }
+      if (tags && tags.length > 0) {
+        params.push(tags);
+        query += ` AND EXISTS (
+          SELECT 1 FROM app.item_tags it
+          JOIN app.tags tg ON tg.id = it.tag_id
+          WHERE it.item_id = n.id AND tg.name = ANY($${params.length})
+        )`;
       }
       params.push(limit);
-      query += ` ORDER BY updated_at DESC LIMIT $${params.length}`;
+      query += ` ORDER BY n.updated_at DESC LIMIT $${params.length}`;
 
       const res = await client.query(query, params);
       return res.rows.map((row) => ({
         id: row.id,
-        targetKind: 'note',
-        title: `Note: ${row.id.slice(0, 8)}`,
+        targetKind: 'note' as const,
+        title: row.title || 'Untitled Note',
         subtitle: row.folder_id ? `Folder: ${row.folder_id.slice(0, 8)}` : 'Root',
         updatedAt: row.updated_at.toISOString(),
         referenceUri: `item:${row.id}`,
       }));
     }
 
-    case 'task': {
+    case 'task':
+    case 'tasks': {
       let query = `
-        SELECT id, kind, revision, updated_at
-        FROM app.items
-        WHERE workspace_id = $1 AND kind = 'task' AND deleted_at IS NULL
-      `;
-      const params: unknown[] = [workspaceId];
-      params.push(limit);
-      query += ` ORDER BY updated_at DESC LIMIT $${params.length}`;
-
-      const res = await client.query(query, params);
-      return res.rows.map((row) => ({
-        id: row.id,
-        targetKind: 'task',
-        title: `Task: ${row.id.slice(0, 8)}`,
-        updatedAt: row.updated_at.toISOString(),
-        referenceUri: `item:${row.id}`,
-      }));
-    }
-
-    case 'routine': {
-      const res = await client.query(
-        `
-        SELECT id, kind, updated_at
-        FROM app.items
-        WHERE workspace_id = $1 AND kind = 'routine' AND deleted_at IS NULL
-        ORDER BY updated_at DESC
-        LIMIT $2
-        `,
-        [workspaceId, limit]
-      );
-      return res.rows.map((row) => ({
-        id: row.id,
-        targetKind: 'routine',
-        title: `Routine: ${row.id.slice(0, 8)}`,
-        updatedAt: row.updated_at.toISOString(),
-        referenceUri: `item:${row.id}`,
-      }));
-    }
-
-    case 'file': {
-      let query = `
-        SELECT id, file_name, byte_size, declared_mime_type, updated_at
-        FROM app.file_items
-        WHERE workspace_id = $1 AND deleted_at IS NULL AND quarantine_status = 'verified'
+        SELECT t.id, t.title, t.status, t.deadline_date, i.folder_id, t.updated_at
+        FROM app.tasks t
+        JOIN app.items i ON i.id = t.id AND i.workspace_id = t.workspace_id
+        WHERE t.workspace_id = $1 AND i.deleted_at IS NULL
       `;
       const params: unknown[] = [workspaceId];
       if (folderId) {
         params.push(folderId);
-        query += ` AND folder_id = $${params.length}`;
+        query += ` AND i.folder_id = $${params.length}`;
+      }
+      if (statusFilter === 'active') {
+        query += ` AND t.status != 'completed' AND t.status != 'cancelled'`;
+      } else if (statusFilter === 'completed') {
+        query += ` AND t.status = 'completed'`;
+      }
+      if (tags && tags.length > 0) {
+        params.push(tags);
+        query += ` AND EXISTS (
+          SELECT 1 FROM app.item_tags it
+          JOIN app.tags tg ON tg.id = it.tag_id
+          WHERE it.item_id = t.id AND tg.name = ANY($${params.length})
+        )`;
       }
       params.push(limit);
-      query += ` ORDER BY updated_at DESC LIMIT $${params.length}`;
+      query += ` ORDER BY t.updated_at DESC LIMIT $${params.length}`;
 
       const res = await client.query(query, params);
       return res.rows.map((row) => ({
         id: row.id,
-        targetKind: 'file',
+        targetKind: 'task' as const,
+        title: row.title,
+        subtitle: `Status: ${row.status}${row.deadline_date ? ` • Due: ${row.deadline_date}` : ''}`,
+        updatedAt: row.updated_at.toISOString(),
+        referenceUri: `item:${row.id}`,
+      }));
+    }
+
+    case 'routine':
+    case 'routines': {
+      let query = `
+        SELECT r.id, r.title, r.description, r.updated_at
+        FROM app.routines r
+        JOIN app.items i ON i.id = r.id AND i.workspace_id = r.workspace_id
+        WHERE r.workspace_id = $1 AND i.deleted_at IS NULL
+      `;
+      const params: unknown[] = [workspaceId];
+      params.push(limit);
+      query += ` ORDER BY r.updated_at DESC LIMIT $${params.length}`;
+
+      const res = await client.query(query, params);
+      return res.rows.map((row) => ({
+        id: row.id,
+        targetKind: 'routine' as const,
+        title: row.title,
+        subtitle: row.description || 'Routine Schedule',
+        updatedAt: row.updated_at.toISOString(),
+        referenceUri: `item:${row.id}`,
+      }));
+    }
+
+    case 'file':
+    case 'files': {
+      let query = `
+        SELECT f.id, f.file_name, f.byte_size, f.declared_mime_type, f.folder_id, f.updated_at
+        FROM app.file_items f
+        JOIN app.items i ON i.id = f.id AND i.workspace_id = f.workspace_id
+        WHERE f.workspace_id = $1 AND i.deleted_at IS NULL AND f.quarantine_status = 'verified'
+      `;
+      const params: unknown[] = [workspaceId];
+      if (folderId) {
+        params.push(folderId);
+        query += ` AND f.folder_id = $${params.length}`;
+      }
+      params.push(limit);
+      query += ` ORDER BY f.updated_at DESC LIMIT $${params.length}`;
+
+      const res = await client.query(query, params);
+      return res.rows.map((row) => ({
+        id: row.id,
+        targetKind: 'file' as const,
         title: row.file_name,
         subtitle: `${row.declared_mime_type} • ${row.byte_size} bytes`,
         updatedAt: row.updated_at.toISOString(),
@@ -1113,60 +1279,82 @@ export async function queryExistingRecordView(
       }));
     }
 
-    case 'journal': {
-      const res = await client.query(
-        `
-        SELECT id, entry_date, updated_at
-        FROM app.journal_entries
-        WHERE workspace_id = $1 AND deleted_at IS NULL
-        ORDER BY entry_date DESC
-        LIMIT $2
-        `,
-        [workspaceId, limit]
-      );
+    case 'journal':
+    case 'journals': {
+      let query = `
+        SELECT j.id, j.entry_date, j.title, j.updated_at
+        FROM app.journal_entries j
+        JOIN app.items i ON i.id = j.id AND i.workspace_id = j.workspace_id
+        WHERE j.workspace_id = $1 AND i.deleted_at IS NULL
+      `;
+      const params: unknown[] = [workspaceId];
+      params.push(limit);
+      query += ` ORDER BY j.entry_date DESC LIMIT $${params.length}`;
+
+      const res = await client.query(query, params);
       return res.rows.map((row) => ({
         id: row.id,
-        targetKind: 'journal',
-        title: `Journal: ${row.entry_date}`,
+        targetKind: 'journal' as const,
+        title: row.title ? `${row.title} (${row.entry_date})` : `Journal: ${row.entry_date}`,
+        subtitle: `Date: ${row.entry_date}`,
         updatedAt: row.updated_at.toISOString(),
         referenceUri: `item:${row.id}`,
       }));
     }
 
+    case 'expenses':
     case 'expense_summary': {
-      // Respect module availability: check user display preferences for expensesEnabled
-      const prefRes = await client.query(
-        `
-        SELECT display_preferences
-        FROM app.user_profiles
-        WHERE id = $1
-        `,
+      // Respect module availability: check preferences in app.profiles
+      const prefRes = await client.query<{
+        display_preferences?: { expensesEnabled?: boolean };
+        preferences?: { expensesEnabled?: boolean };
+      }>(
+        `SELECT display_preferences, preferences
+         FROM app.profiles
+         WHERE id = $1`,
         [userId]
       );
-      const isExpensesEnabled = Boolean(prefRes.rows[0]?.display_preferences?.expensesEnabled);
+      const isExpensesEnabled = Boolean(
+        prefRes.rows[0]?.display_preferences?.expensesEnabled ??
+        prefRes.rows[0]?.preferences?.expensesEnabled ??
+        true
+      );
       if (!isExpensesEnabled) {
-        // Module is disabled; return empty result rather than leaking financial records
         return [];
       }
 
-      const res = await client.query(
-        `
-        SELECT id, amount, currency, kind, transaction_date, updated_at
-        FROM app.expense_items
-        WHERE workspace_id = $1 AND deleted_at IS NULL
-        ORDER BY transaction_date DESC
-        LIMIT $2
-        `,
+      // Exact currency-separated aggregation
+      const res = await client.query<{
+        currency: string;
+        total_minor_units: string;
+        count: string;
+        last_updated_at: Date;
+      }>(
+        `SELECT
+           currency,
+           SUM(amount_minor_units) AS total_minor_units,
+           COUNT(*) AS count,
+           MAX(updated_at) AS last_updated_at
+         FROM app.expense_items
+         WHERE workspace_id = $1 AND deleted_at IS NULL
+         GROUP BY currency
+         ORDER BY currency ASC
+         LIMIT $2`,
         [workspaceId, limit]
       );
-      return res.rows.map((row) => ({
-        id: row.id,
-        targetKind: 'expense_summary',
-        title: `${row.kind.toUpperCase()} ${row.currency} ${row.amount}`,
-        subtitle: `Date: ${row.transaction_date}`,
-        updatedAt: row.updated_at.toISOString(),
-        referenceUri: `item:${row.id}`,
-      }));
+
+      return res.rows.map((row) => {
+        const totalMinor = Number(row.total_minor_units || 0);
+        const decimalStr = (totalMinor / 100).toFixed(2);
+        return {
+          id: `expense-summary-${row.currency.toLowerCase()}`,
+          targetKind: 'expense_summary' as const,
+          title: `${row.currency} ${decimalStr}`,
+          subtitle: `${row.count} transaction${row.count === '1' ? '' : 's'} recorded`,
+          updatedAt: (row.last_updated_at || new Date()).toISOString(),
+          referenceUri: `workspace:${workspaceId}/expenses?currency=${row.currency}`,
+        };
+      });
     }
 
     default:

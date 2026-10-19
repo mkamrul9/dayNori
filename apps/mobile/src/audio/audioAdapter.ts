@@ -78,9 +78,10 @@ export class ExpoAudioRecorderAdapter implements NativeAudioRecorderAdapter {
 
     // Inspect actual file bytes from native filesystem
     const fileInfo = await FileSystem.getInfoAsync(uri, { size: true });
-    const actualBytes = (fileInfo.exists && typeof fileInfo.size === 'number')
-      ? fileInfo.size
-      : Math.max(1, Math.round((status.durationMillis || 1000) * 8.192));
+    if (!fileInfo.exists || typeof fileInfo.size !== 'number' || fileInfo.size === 0) {
+      throw new Error(`Recorded audio file at ${uri} does not exist or has 0 bytes.`);
+    }
+    const actualBytes = fileInfo.size;
 
     const durationSeconds = Math.max(1, Math.round((status.durationMillis || 1000) / 1000));
     const fileName = `mobile-audio-${new Date().toISOString().slice(0, 10)}-${Date.now()}.m4a`;

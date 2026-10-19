@@ -1,14 +1,47 @@
 import { generateUuid } from './ids.js';
 
+export const RESERVED_IDENTIFIER_KEYS = new Set<string>([
+  '__proto__',
+  'constructor',
+  'prototype',
+  'toString',
+  'valueOf',
+  'hasOwnProperty',
+  'isPrototypeOf',
+  'propertyIsEnumerable',
+  'toLocaleString',
+]);
+
+export interface ArchivedFieldValue {
+  archiveId: string;
+  fieldId: string;
+  fromSchemaVersion: number;
+  toSchemaVersion: number;
+  type?: string;
+  value: unknown;
+  reason: string;
+  archivedAt: string;
+  previousFieldType?: string;
+  previousLabel?: string;
+  newFieldType?: string;
+  error?: string;
+}
+
 export type CustomBlockType = 'existing_record_view' | 'field_collection';
 
 export type ExistingRecordTargetKind =
   | 'note'
+  | 'notes'
   | 'task'
+  | 'tasks'
   | 'routine'
+  | 'routines'
   | 'file'
+  | 'files'
   | 'journal'
-  | 'expense_summary';
+  | 'journals'
+  | 'expense_summary'
+  | 'expenses';
 
 export interface ExistingRecordViewFilter {
   folderId?: string;
@@ -123,7 +156,7 @@ export interface SchemaValidationResult {
 
 export interface MigrationResult {
   fieldValues: Record<string, unknown>;
-  archivedValues: Record<string, unknown>;
+  archivedValues: Record<string, ArchivedFieldValue[]>;
 }
 
 export interface FallbackBlockRepresentation {
@@ -133,6 +166,7 @@ export interface FallbackBlockRepresentation {
   unsupportedType: string;
   message: string;
   rawData: Record<string, unknown>;
+  isReadOnly?: boolean;
 }
 
 const UNSAFE_SCRIPT_PATTERN = /<\s*script\b|javascript:|data:text\/html|onload\s*=|onerror\s*=/i;
@@ -173,16 +207,26 @@ export function validateFieldValue(
         };
       }
       if (field.pattern) {
+        let regex: RegExp;
         try {
-          const regex = new RegExp(field.pattern);
-          if (!regex.test(value)) {
-            return {
-              valid: false,
-              error: `Field "${field.label}" does not match the required pattern`,
-            };
-          }
+          regex = new RegExp(field.pattern);
         } catch {
-          // Ignore invalid regex pattern in field definition
+          return {
+            valid: false,
+            error: `Field "${field.label}" has an invalid validation pattern`,
+          };
+        }
+        if (value.length > 1000) {
+          return {
+            valid: false,
+            error: `Field "${field.label}" exceeds bounded pattern verification length (1000)`,
+          };
+        }
+        if (!regex.test(value)) {
+          return {
+            valid: false,
+            error: `Field "${field.label}" does not match the required pattern`,
+          };
         }
       }
       return { valid: true, sanitizedValue: value };
@@ -208,6 +252,9 @@ export function validateFieldValue(
         }
         const candidate = item as Record<string, unknown>;
         const id = typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : generateUuid();
+        if (RESERVED_IDENTIFIER_KEYS.has(id)) {
+          return { valid: false, error: `Checklist item ID "${id}" in "${field.label}" is a reserved system identifier` };
+        }
         if (seenIds.has(id)) {
           return { valid: false, error: `Duplicate checklist item ID "${id}" in "${field.label}"` };
         }
@@ -326,26 +373,37 @@ export function validateFieldValue(
 
 /**
  * Validates a complete dictionary of record field values against a section schema.
+ * Enforces collection boundaries, own-property checks, and rejects reserved keys.
  */
 export function validateRecordAgainstSchema(
   schema: CustomSectionSchemaPayload,
-  fieldValues: Record<string, unknown>
+  fieldValues: Record<string, unknown>,
+  collectionId?: string
 ): SchemaValidationResult {
   const errors: string[] = [];
   const sanitizedValues: Record<string, unknown> = {};
 
-  // Extract all field definitions across all field collection blocks
+  // Extract all field definitions across relevant field collection blocks
   const fieldMap = new Map<string, CustomFieldDefinition>();
   for (const block of schema.blocks) {
     if (block.type === 'field_collection') {
-      for (const field of block.fields) {
-        fieldMap.set(field.id, field);
+      if (!collectionId || block.id === collectionId) {
+        for (const field of block.fields) {
+          fieldMap.set(field.id, field);
+        }
       }
     }
   }
 
   // 1. Validate provided values
   for (const [fieldId, val] of Object.entries(fieldValues)) {
+    if (!Object.prototype.hasOwnProperty.call(fieldValues, fieldId)) {
+      continue;
+    }
+    if (RESERVED_IDENTIFIER_KEYS.has(fieldId)) {
+      errors.push(`Field ID "${fieldId}" is a reserved system identifier and cannot be used`);
+      continue;
+    }
     const fieldDef = fieldMap.get(fieldId);
     if (!fieldDef) {
       // Disallow unexpected extra fields
@@ -374,9 +432,11 @@ export function validateRecordAgainstSchema(
   };
 }
 
+
 /**
  * Safely migrates record field values across schema versions.
- * Preserves all values: removed or type-incompatible fields are archived rather than discarded.
+ * Preserves every archived value across repeated removals, reintroductions, and type changes.
+ * Archives are append-only versioned entries with stable UUIDs and source schema metadata.
  */
 export function migrateRecordValues(
   oldSchema: CustomSectionSchemaPayload,
@@ -399,32 +459,78 @@ export function migrateRecordValues(
   }
 
   const newFieldValues: Record<string, unknown> = {};
-  const newArchivedValues: Record<string, unknown> = { ...currentArchivedValues };
+  const newArchivedValues: Record<string, ArchivedFieldValue[]> = {};
   const now = new Date().toISOString();
 
+  // 1. Normalize existing archives into append-only array per fieldId
+  for (const [fieldId, existing] of Object.entries(currentArchivedValues)) {
+    if (RESERVED_IDENTIFIER_KEYS.has(fieldId)) continue;
+    if (!Object.prototype.hasOwnProperty.call(currentArchivedValues, fieldId)) continue;
+
+    if (Array.isArray(existing)) {
+      newArchivedValues[fieldId] = [...(existing as ArchivedFieldValue[])];
+    } else if (existing && typeof existing === 'object') {
+      const legacy = existing as Record<string, unknown>;
+      newArchivedValues[fieldId] = [
+        {
+          archiveId: typeof legacy.archiveId === 'string' ? legacy.archiveId : generateUuid(),
+          fieldId,
+          fromSchemaVersion: typeof legacy.fromSchemaVersion === 'number' ? legacy.fromSchemaVersion : (oldSchema.version || 1),
+          toSchemaVersion: typeof legacy.toSchemaVersion === 'number' ? legacy.toSchemaVersion : (newSchema.version || 2),
+          value: legacy.value,
+          reason: typeof legacy.reason === 'string' ? legacy.reason : 'legacy_archived',
+          archivedAt: typeof legacy.archivedAt === 'string' ? legacy.archivedAt : now,
+          previousFieldType: typeof legacy.previousFieldType === 'string' ? legacy.previousFieldType : undefined,
+          previousLabel: typeof legacy.previousLabel === 'string' ? legacy.previousLabel : undefined,
+          newFieldType: typeof legacy.newFieldType === 'string' ? legacy.newFieldType : undefined,
+          error: typeof legacy.error === 'string' ? legacy.error : undefined,
+        },
+      ];
+    }
+  }
+
+  function appendArchive(fieldId: string, entry: Omit<ArchivedFieldValue, 'archiveId'>) {
+    if (!newArchivedValues[fieldId]) {
+      newArchivedValues[fieldId] = [];
+    }
+    newArchivedValues[fieldId].push({
+      archiveId: generateUuid(),
+      ...entry,
+    });
+  }
+
   for (const [fieldId, value] of Object.entries(currentValues)) {
+    if (!Object.prototype.hasOwnProperty.call(currentValues, fieldId)) continue;
+    if (RESERVED_IDENTIFIER_KEYS.has(fieldId)) continue;
+
     const oldField = oldFieldMap.get(fieldId);
     const newField = newFieldMap.get(fieldId);
 
     if (!newField) {
-      // Field was removed in new schema -> archive value
-      newArchivedValues[fieldId] = {
+      // Field was removed in new schema -> archive value without losing prior archives
+      appendArchive(fieldId, {
+        fieldId,
+        fromSchemaVersion: oldSchema.version,
+        toSchemaVersion: newSchema.version,
         value,
         archivedAt: now,
         reason: 'field_removed',
         previousFieldType: oldField?.type || 'unknown',
         previousLabel: oldField?.label || fieldId,
-      };
+      });
     } else if (oldField && oldField.type !== newField.type) {
       // Field type was changed in new schema -> archive previous value and reset field
-      newArchivedValues[fieldId] = {
+      appendArchive(fieldId, {
+        fieldId,
+        fromSchemaVersion: oldSchema.version,
+        toSchemaVersion: newSchema.version,
         value,
         archivedAt: now,
         reason: 'type_changed',
         previousFieldType: oldField.type,
         newFieldType: newField.type,
         previousLabel: oldField.label,
-      };
+      });
       // If new field has default, apply it
       if (newField.type === 'checklist') {
         newFieldValues[fieldId] = [];
@@ -436,12 +542,17 @@ export function migrateRecordValues(
         newFieldValues[fieldId] = validation.sanitizedValue;
       } else {
         // Soft archive value if no longer valid under new constraints
-        newArchivedValues[fieldId] = {
+        appendArchive(fieldId, {
+          fieldId,
+          fromSchemaVersion: oldSchema.version,
+          toSchemaVersion: newSchema.version,
           value,
           archivedAt: now,
           reason: 'constraint_incompatible',
+          previousFieldType: oldField?.type || newField.type,
+          previousLabel: oldField?.label || newField.label,
           error: validation.error,
-        };
+        });
       }
     }
   }
@@ -462,12 +573,138 @@ export function migrateRecordValues(
 }
 
 /**
+ * Retrieves all archived values for a specific field in chronological order.
+ */
+export function getArchivedFieldValues(
+  record: { archivedValues?: Record<string, unknown> },
+  fieldId: string
+): ArchivedFieldValue[] {
+  if (!record.archivedValues || typeof record.archivedValues !== 'object') return [];
+  const entries = record.archivedValues[fieldId];
+  if (Array.isArray(entries)) return entries as ArchivedFieldValue[];
+  if (entries && typeof entries === 'object') return [entries as ArchivedFieldValue];
+  return [];
+}
+
+/**
+ * Returns the most recent archived value for a specific field.
+ */
+export function getLatestArchivedFieldValue(
+  record: { archivedValues?: Record<string, unknown> },
+  fieldId: string
+): ArchivedFieldValue | undefined {
+  const list = getArchivedFieldValues(record, fieldId);
+  return list[list.length - 1];
+}
+
+/**
+ * Returns all historical archived values across all fields in the record.
+ */
+export function getAllArchivedFieldValues(
+  record: { archivedValues?: Record<string, unknown> }
+): ArchivedFieldValue[] {
+  if (!record.archivedValues || typeof record.archivedValues !== 'object') return [];
+  const all: ArchivedFieldValue[] = [];
+  for (const list of Object.values(record.archivedValues)) {
+    if (Array.isArray(list)) {
+      all.push(...(list as ArchivedFieldValue[]));
+    } else if (list && typeof list === 'object') {
+      all.push(list as ArchivedFieldValue);
+    }
+  }
+  return all;
+}
+
+/**
+ * Explicitly restores an archived value by archive ID if compatible with current schema.
+ */
+export function restoreArchivedFieldValue(
+  record: { fieldValues: Record<string, unknown>; archivedValues?: Record<string, unknown> },
+  schema: CustomSectionSchemaPayload,
+  archiveId: string
+): { success: boolean; fieldId?: string; error?: string } {
+  const archives = getAllArchivedFieldValues(record);
+  const target = archives.find((a) => a.archiveId === archiveId);
+  if (!target) {
+    return { success: false, error: `Archived entry "${archiveId}" not found` };
+  }
+
+  // Find target field in current schema
+  let currentField: CustomFieldDefinition | undefined;
+  for (const block of schema.blocks) {
+    if (block.type === 'field_collection') {
+      const found = block.fields.find((f) => f.id === target.fieldId);
+      if (found) {
+        currentField = found;
+        break;
+      }
+    }
+  }
+
+  if (!currentField) {
+    return {
+      success: false,
+      error: `Field "${target.fieldId}" does not exist in current schema`,
+    };
+  }
+
+  const validation = validateFieldValue(currentField, target.value);
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: `Archived value is incompatible with current field definition: ${validation.error}`,
+    };
+  }
+
+  record.fieldValues[target.fieldId] = validation.sanitizedValue;
+  return { success: true, fieldId: target.fieldId };
+}
+
+/**
  * Checks if a block is supported by the current rendering engine.
+ * Validates complete shape, required properties, and field type definitions.
  */
 export function isBlockSupported(block: unknown): block is CustomBlockDefinition {
   if (!block || typeof block !== 'object') return false;
   const b = block as Record<string, unknown>;
-  return b.type === 'existing_record_view' || b.type === 'field_collection';
+  if (typeof b.id !== 'string' || !b.id.trim() || RESERVED_IDENTIFIER_KEYS.has(b.id)) {
+    return false;
+  }
+  if (typeof b.title !== 'string' || !b.title.trim()) {
+    return false;
+  }
+
+  if (b.type === 'existing_record_view') {
+    const validKinds = ['note', 'task', 'routine', 'file', 'journal', 'expense_summary'];
+    if (typeof b.targetKind !== 'string' || !validKinds.includes(b.targetKind)) {
+      return false;
+    }
+    return true;
+  }
+
+  if (b.type === 'field_collection') {
+    if (!Array.isArray(b.fields) || b.fields.length === 0 || b.fields.length > 20) {
+      return false;
+    }
+    const validFieldTypes = ['text', 'checklist', 'date', 'number', 'link', 'attachment'];
+    const seenFieldIds = new Set<string>();
+    for (const f of b.fields) {
+      if (!f || typeof f !== 'object') return false;
+      const field = f as Record<string, unknown>;
+      if (typeof field.id !== 'string' || !field.id.trim() || RESERVED_IDENTIFIER_KEYS.has(field.id)) {
+        return false;
+      }
+      if (seenFieldIds.has(field.id)) return false;
+      seenFieldIds.add(field.id);
+      if (typeof field.label !== 'string' || !field.label.trim()) return false;
+      if (typeof field.type !== 'string' || !validFieldTypes.includes(field.type)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -488,6 +725,7 @@ export function createFallbackBlockRepresentation(
     unsupportedType: blockType,
     message: `This block type ("${blockType}") is not supported by your current Daynori version. Data is preserved safely.`,
     rawData: rawBlock,
+    isReadOnly: true,
   };
 }
 
