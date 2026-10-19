@@ -39,6 +39,7 @@ import { storageTransferPlugin } from './modules/files/storageTransfer.js';
 import { registerBetaRoutes } from './routes/v1/beta.js';
 import { registerExpenseRoutes } from './routes/v1/expenses.js';
 import { registerCustomSectionRoutes } from './routes/v1/customSections.js';
+import { registerDriveRoutes } from './routes/v1/drive.js';
 import { BetaAccessService } from './modules/beta/betaAccessService.js';
 import { ExplicitForbiddenError } from './plugins/errorHandler.js';
 
@@ -233,6 +234,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerPortabilityRoutes(authScope, runtimePool);
       registerSyncRoutes(authScope, runtimePool);
       registerCustomSectionRoutes(authScope, runtimePool);
+      registerDriveRoutes(authScope, runtimePool);
       registerAuthenticatedDeletionRoutes(authScope, runtimePool);
     });
   }

@@ -62,6 +62,7 @@ import { OnboardingSheet } from './src/views/OnboardingSheet';
 import { ExpensesView } from './src/views/ExpensesView';
 import { CustomSectionsView } from './src/views/CustomSectionsView';
 import { VaultHarnessView } from './src/vault/VaultHarnessView';
+import { DriveConnectionsSheet } from './src/views/DriveConnectionsSheet';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -816,10 +817,32 @@ export default function App() {
                 ? () => setActiveModal('vault-harness')
                 : undefined
             }
+            onOpenDriveConnections={
+              apiClient && userNamespace?.workspaceId
+                ? () => setActiveModal('drive-connections')
+                : undefined
+            }
             onClose={() => setActiveModal('none')}
           />
         </View>
       )}
+
+      {/* Phase 49 provisional Drive connections */}
+      {activeModal === 'drive-connections' && apiClient && userNamespace?.workspaceId ? (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+        >
+          <DriveConnectionsSheet
+            themeMode={themeMode}
+            workspaceId={userNamespace.workspaceId}
+            apiClient={apiClient}
+            openSystemBrowser={(url) => {
+              void Linking.openURL(url);
+            }}
+            onClose={() => setActiveModal('settings')}
+          />
+        </View>
+      ) : null}
 
       {/* Phase 46 synthetic vault harness — development only; unavailable in release */}
       {typeof __DEV__ !== 'undefined' && __DEV__ && activeModal === 'vault-harness' && (

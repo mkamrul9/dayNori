@@ -40,6 +40,8 @@ Start with the recommended narrow `drive.file` scope and a supported Google Pick
 
 **Phase 48 decision (ADR 0046):** product promises use **selected/app-created-file mode** under `https://www.googleapis.com/auth/drive.file` only. Do not promise recursive folder mirroring. Live Google-account matrix remains owner-gated (`tests/spikes/drive`); missing OAuth config must not invent broader-scope success. Broader/restricted scopes stay deferred pending live evidence, current verification requirements, and a quote-required assessment/cost review when restricted-scope server storage applies.
 
+**Phase 49 provisional connector (ADR 0047):** local persistence, PKCE intents, AES-256-GCM refresh-token storage, disconnect fencing, and web/Android connection UI are implemented. Production Google selection fails closed without OAuth configuration and `DAYNORI_DRIVE_PRODUCTION_ENABLED=true`. Fake provider results are not live verification. Vault activation remains disabled.
+
 Deliver in two modes only after approval of the integration phase:
 
 1. Narrow linked-files/app-created-folder mode (**chosen default**): app-created uploads and explicitly picked files are visible. Show which files are authorized, refresh failures and whether bytes live in Drive or app storage. A folder's externally added files may require explicit selection — do not assume parent selection authorizes children.

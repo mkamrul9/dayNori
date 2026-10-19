@@ -13,6 +13,7 @@ import {
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
+import { DriveConnectionsPanel } from '../../components/DriveConnectionsPanel';
 import { createWebApiClient } from '../../data/webApiClient';
 
 export default function SettingsPage() {
@@ -741,6 +742,17 @@ export default function SettingsPage() {
           apiClient={createWebApiClient({ csrfToken })}
           themeMode={themeMode}
         />
+
+        {/* 7b. Google Drive selected-file connector (Phase 49 provisional) */}
+        {isAuthenticated && workspaceId ? (
+          <Card themeMode={themeMode} id="drive-connections">
+            <DriveConnectionsPanel
+              workspaceId={workspaceId}
+              csrfToken={csrfToken}
+              themeMode={themeMode}
+            />
+          </Card>
+        ) : null}
 
         {/* 8. Sync & Offline Recovery (Phase 34) */}
         <Card themeMode={themeMode} id="sync-recovery">

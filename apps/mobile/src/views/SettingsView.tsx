@@ -33,6 +33,8 @@ export interface SettingsViewProps {
   onOpenCustomSections?: () => void;
   /** Opens isolated synthetic vault unlock harness (Phase 46). Not production vault. */
   onOpenVaultHarness?: () => void;
+  /** Opens provisional Drive connections sheet (Phase 49). */
+  onOpenDriveConnections?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -63,6 +65,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenExpenses,
   onOpenCustomSections,
   onOpenVaultHarness,
+  onOpenDriveConnections,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -482,6 +485,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
         </MobileCard>
       </View>
+
+      {/* Section 5c1b: Drive selected-file connector (Phase 49 provisional) */}
+      {isAuthenticated && onOpenDriveConnections ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Google Drive (selected files)
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Optional narrow drive.file connector. Development fixtures are labeled. Production
+              Google OAuth stays fail-closed until configured. Vault content is excluded.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenDriveConnections}
+                accessibilityLabel="Open Google Drive connection settings"
+              >
+                Manage Drive connection
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
 
       {/* Section 5c2: Vault synthetic harness (Phase 46) — production vault remains disabled */}
       <View style={styles.section}>

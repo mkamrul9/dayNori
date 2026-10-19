@@ -22,4 +22,5 @@ export * from './vaultProviders.js';
 export * from './vaultSessionController.js';
 export * from './vaultSyntheticHarness.js';
 export * from './driveScopes.js';
+export * from './driveConnector.js';
 

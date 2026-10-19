@@ -20,7 +20,9 @@ export type ActiveModal =
   | 'audio-recorder'
   | 'custom-sections'
   /** Synthetic Phase 46 harness only — not a production vault enablement. */
-  | 'vault-harness';
+  | 'vault-harness'
+  /** Phase 49 provisional Drive connections — not production Google enablement. */
+  | 'drive-connections';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

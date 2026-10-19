@@ -258,6 +258,23 @@ import {
   type CreateCustomSectionTemplateRequest,
   type CustomSectionTemplateResponse,
   type ListCustomSectionTemplatesResponse,
+  DriveConnectionStatusResponseSchema,
+  StartDriveConnectResponseSchema,
+  CompleteDriveConnectResponseSchema,
+  DisconnectDriveResponseSchema,
+  ListDriveLinkedFilesResponseSchema,
+  DriveSelectFileResponseSchema,
+  DrivePickerTokenResponseSchema,
+  type StartDriveConnectRequest,
+  type CompleteDriveConnectRequest,
+  type DriveSelectFileRequest,
+  type DriveConnectionStatusResponse,
+  type StartDriveConnectResponse,
+  type CompleteDriveConnectResponse,
+  type DisconnectDriveResponse,
+  type ListDriveLinkedFilesResponse,
+  type DriveSelectFileResponse,
+  type DrivePickerTokenResponse,
   type PreviewSchemaMigrationRequest,
   type SchemaMigrationPreviewResponse,
 } from '@daynori/contracts';
@@ -2796,6 +2813,107 @@ export class DaynoriApiClient {
   ): Promise<{ data: { success: boolean }; meta: { requestId: string } }> {
     return this.request<{ data: { success: boolean }; meta: { requestId: string } }>(
       `/v1/workspaces/${workspaceId}/custom-section-templates/${templateId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  // --- Drive selected-file connector (Phase 49) ---
+
+  async getDriveConnection(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<DriveConnectionStatusResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/connection`,
+      { method: 'GET' },
+      options
+    );
+    return DriveConnectionStatusResponseSchema.parse(raw);
+  }
+
+  async startDriveConnect(
+    workspaceId: string,
+    request: StartDriveConnectRequest,
+    options?: RequestOptions
+  ): Promise<StartDriveConnectResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/connect/start`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return StartDriveConnectResponseSchema.parse(raw);
+  }
+
+  async completeDriveConnect(
+    workspaceId: string,
+    request: CompleteDriveConnectRequest,
+    options?: RequestOptions
+  ): Promise<CompleteDriveConnectResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/connect/complete`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return CompleteDriveConnectResponseSchema.parse(raw);
+  }
+
+  async disconnectDrive(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<DisconnectDriveResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/disconnect`,
+      { method: 'POST', body: JSON.stringify({ reason: 'local_disconnect' }) },
+      options
+    );
+    return DisconnectDriveResponseSchema.parse(raw);
+  }
+
+  async getDrivePickerToken(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<DrivePickerTokenResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/picker-token`,
+      { method: 'GET' },
+      options
+    );
+    return DrivePickerTokenResponseSchema.parse(raw);
+  }
+
+  async listDriveLinkedFiles(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<ListDriveLinkedFilesResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/files`,
+      { method: 'GET' },
+      options
+    );
+    return ListDriveLinkedFilesResponseSchema.parse(raw);
+  }
+
+  async selectDriveFile(
+    workspaceId: string,
+    request: DriveSelectFileRequest,
+    options?: RequestOptions
+  ): Promise<DriveSelectFileResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/files/select`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return DriveSelectFileResponseSchema.parse(raw);
+  }
+
+  async unlinkDriveFile(
+    workspaceId: string,
+    linkedFileId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; remoteOriginalDeleted: boolean }; meta: { requestId: string } }> {
+    return this.request(
+      `/v1/workspaces/${workspaceId}/drive/files/${linkedFileId}`,
       { method: 'DELETE' },
       options
     );

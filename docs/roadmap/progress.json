@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-19",
-  "activePhase": "48",
+  "activePhase": "49",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 48 as a bounded Drive feasibility spike while earlier release prerequisites remain blocked. Spike repairs delivered (live OAuth runner + exact scope validation); live Google experiments still unverified (OAuth unset). Vault activation and production Drive connection remain unavailable. Owner may separately authorize provisional Phase 49 local work.",
+  "schedulingDecision": "Owner selected Phase 49 provisional local Drive selected-file connector while Phase 48 live Google proof and earlier release prerequisites remain unmet. Local connector delivered under ADR 0047; production Google and real-user enablement unavailable. Vault activation remains disabled. Stop before Phase 50.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -296,7 +296,9 @@
     },
     {
       "id": "49",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local selected-file Drive connector delivered (OAuth intents, encrypted tokens, jobs, web/Android UI, fake-provider tests). Live Google verification, production enablement, and Phase 48 live scope proof remain unmet. Vault activation remains disabled.",
+      "report": "docs/phase-reports/phase-49.md"
     },
     {
       "id": "50",

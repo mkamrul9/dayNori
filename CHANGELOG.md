@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 49 — Drive selected-file connector (blocked / provisional) — 2026-10-19
+
+- Provisional selected-file Google Drive connector: OAuth intents + PKCE, AES-256-GCM server token storage, connection lifecycle with disconnect fencing, linked-file link/import/upload/offline jobs, web Settings + Android connections UI.
+- Production Google provider fails closed without OAuth config and `DAYNORI_DRIVE_PRODUCTION_ENABLED`; fake provider is tests/labeled harness only.
+- ADR 0047. Live Google verification and real-user enablement remain unmet. Vault activation stays disabled.
+
 ## Phase 48 — Drive spike repair (blocked) — 2026-10-19
 
 - Live CLI now runs interactive PKCE OAuth, callback listener, optional Picker, and Drive API probes (`src/liveRunner.ts`); missing config yields explicit `blocked` / `blocked_unexecuted`, not a fake pass.

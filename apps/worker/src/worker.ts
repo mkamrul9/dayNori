@@ -678,6 +678,21 @@ export class DaynoriWorker {
       };
     }
 
+    // 2b. Drive selected-file connector jobs (Phase 49)
+    if (taskType.startsWith('drive_') && client) {
+      const { handleDriveJob } = await import('./driveJobs.js');
+      const driveRes = await handleDriveJob(client, taskType, payload ?? {});
+      if (driveRes.status === 'failed') {
+        throw new Error(String(driveRes.details['errorCode'] ?? 'drive_job_failed'));
+      }
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: driveRes.details,
+      };
+    }
+
     // 3. Built-in: Orphan reservation cleanup
     if (taskType === 'file_orphan_cleanup') {
       let deletedStorageObjects = 0;
