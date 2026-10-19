@@ -23,4 +23,6 @@ export * from './MobileWorkspacePortabilitySheet.js';
 export * from './MobileAccountDeletionSheet.js';
 export * from './MobileExpenseCaptureSheet.js';
 export * from './MobileExpenseReportView.js';
+export * from './MobileAudioPlayerCard.js';
+export * from './MobileAudioRecorderSheet.js';
 

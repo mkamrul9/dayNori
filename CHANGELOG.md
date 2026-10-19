@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 41 — Audio recording and attachment lifecycle — 2026-10-19
+
+- **ADR 0040 Authored (`docs/decisions/0040-audio-recording-and-attachment-lifecycle.md`):**
+  - Documented explicit consent gesture, pulsing red recording indicator, 10-minute / 25MB limits with 9-minute warning threshold, interruption / incoming call pause, draft recovery, and private file attachment lifecycle.
+- **Pure Domain & Constraints (`@daynori/domain`):**
+  - Implemented `validateAudioDuration` (1s to 600s), `formatAudioDuration` (MM:SS), `calculateAudioProgress`, `isSupportedAudioMimeType` (WebM, MP4, OGG, WAV, MP3), `canAttachAudioToItem` ('note', 'journal', 'knowledge', 'file'), and `createAudioAttachment`.
+  - Added unit tests in `packages/domain/src/domain.test.ts`.
+- **API Contracts & Zod Schemas (`@daynori/contracts`):**
+  - Added `AudioAttachmentSchema`, `AudioAttachmentResponseSchema`, `AudioRecordingDraftSchema`, `AudioTargetItemTypeSchema`, and `AudioRecordingStatusSchema`.
+- **Accessible Web Audio Components (`@daynori/ui-web`):**
+  - Created `AudioRecorderDialog` with explicit consent gesture, pulsing red indicator, elapsed counter with `role="timer"`, 10-minute progress bar, pause/resume, review stage, and draft recovery.
+  - Created `AudioPlayerCard` with play/pause, scrub slider (`type="range"`), formatted metadata, and download / delete actions.
+  - Added unit test suite in `packages/ui-web/src/ui-web.test.ts`.
+- **Accessible Mobile Audio Components (`@daynori/ui-mobile`):**
+  - Created `MobileAudioRecorderSheet` with explicit request, high-contrast active indicator, timer, 10-minute progress bar, pause/resume, and `AppState` interruption listener pausing on incoming phone calls or background switching.
+  - Created `MobileAudioPlayerCard` with design token compliance and touch targets >= 48dp.
+  - Added unit test suite in `packages/ui-mobile/src/ui-mobile.test.ts`.
+- **Application Wiring (Web & Mobile):**
+  - Web: Wired `AudioRecorderDialog` into `apps/web/src/app/library/page.tsx` toolbar, reserving and uploading audio blobs through the private file lifecycle.
+  - Mobile: Added `audio-recorder` modal state to `apps/mobile/src/navigation/types.ts` and wired `MobileAudioRecorderSheet` in `apps/mobile/App.tsx`.
+- **Integration Test Suite (`tests/integration/phase41-audio-recording-attachment.test.ts`):**
+  - 17/17 tests passing covering permission refusal, 10m/25MB limits, WebM/MP4/WAV magic byte inspection, interruption draft recovery without false saved claims, quota reservation, attachment lifecycle, tenant isolation, cascade cleanup, and no auto-recording invariant.
+- **Phase Status:**
+  - Implemented and verified as provisional local development under explicit owner authorization; external beta gates, physical hardware, and deployment remain **BLOCKED**. Work stops before Phase 42.
+
 ## Repairs — Expense interfaces, proxy streaming, and mobile integration — 2026-10-19
 
 - **BFF Streaming Proxy Hardening (`apps/web`):**

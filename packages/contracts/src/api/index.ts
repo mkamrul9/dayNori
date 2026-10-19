@@ -19,3 +19,5 @@ export * from './search.js';
 export * from './portability.js';
 export * from './deletion.js';
 export * from './expenses.js';
+export * from './audio.js';
+

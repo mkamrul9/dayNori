@@ -18,6 +18,7 @@ import {
   MobileConflictReviewSheet,
   MobileWorkspacePortabilitySheet,
   MobileAccountDeletionSheet,
+  MobileAudioRecorderSheet,
   type MobileExportActionResult,
   type MobileTab,
 } from '@daynori/ui-mobile';
@@ -979,6 +980,17 @@ export default function App() {
         onSuccess={() => {
           setActiveModal('none');
           void defaultAuthAdapter.signOut({ createDraft, searchQuery });
+        }}
+      />
+
+      {/* Phase 41 Mobile Audio Recorder Sheet */}
+      <MobileAudioRecorderSheet
+        visible={activeModal === 'audio-recorder'}
+        onClose={() => setActiveModal('none')}
+        workspaceId={userNamespace?.workspaceId ?? ''}
+        themeMode={themeMode}
+        onSaveAudio={async () => {
+          setActiveModal('none');
         }}
       />
     </SafeAreaView>

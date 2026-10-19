@@ -837,4 +837,61 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).not.toContain('<img');
     });
   });
+
+  describe('Phase 41 Audio Recording & Player Accessibility', () => {
+    it('renders AudioPlayerCard with metadata and accessible controls', async () => {
+      const { AudioPlayerCard } = await import('./AudioPlayerCard.js');
+
+      const mockAttachment = {
+        fileId: 'file-audio-1',
+        fileName: 'meeting-memo.webm',
+        mimeType: 'audio/webm',
+        byteSize: 1024 * 512,
+        durationSeconds: 125,
+        createdAt: '2026-10-19T10:00:00.000Z',
+      };
+
+      const html = renderToString(
+        React.createElement(AudioPlayerCard, {
+          attachment: mockAttachment,
+          audioUrl: 'https://storage.local/audio/memo.webm',
+          onDelete: () => {},
+          onDownload: () => {},
+        })
+      );
+
+      expect(html).toContain('meeting-memo.webm');
+      expect(html).toContain('512 KB');
+      expect(html).toContain('audio/webm');
+      expect(html).toContain('02:05');
+      expect(html).toContain('Play audio');
+      expect(html).toContain('Download');
+      expect(html).toContain('Delete');
+      expect(html).toContain('type="range"');
+    });
+
+    it('renders AudioRecorderDialog in idle state with deliberate consent button and 10-minute limit notice', async () => {
+      const { AudioRecorderDialog } = await import('./AudioRecorderDialog.js');
+
+      const html = renderToString(
+        React.createElement(AudioRecorderDialog, {
+          isOpen: true,
+          onClose: () => {},
+          workspaceId: 'ws-test',
+          attachedItemTitle: 'Weekly Planning Note',
+          attachedItemType: 'note',
+          onSaveAudio: async () => {},
+        })
+      );
+
+      expect(html).toContain('Record Audio Memo');
+      expect(html).toContain('Weekly Planning Note');
+      expect(html).toContain('10 minutes (25 MB)');
+      expect(html).toContain('Request Mic &amp; Start Recording');
+      expect(html).toContain('role="dialog"');
+      expect(html).toContain('aria-modal="true"');
+      // Must not be recording automatically
+      expect(html).not.toContain('RECORDING ACTIVE');
+    });
+  });
 });

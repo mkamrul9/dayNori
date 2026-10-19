@@ -28,4 +28,7 @@ export * from './AccountDeletionDialog.js';
 export * from './ExpenseCaptureDialog.js';
 export * from './ExpenseReportView.js';
 export * from './ExpenseBudgetView.js';
+export * from './AudioPlayerCard.js';
+export * from './AudioRecorderDialog.js';
+
 

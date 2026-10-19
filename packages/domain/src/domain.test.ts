@@ -1802,4 +1802,130 @@ describe('Domain Rules and Invariants', () => {
       expect(buildFolderPath('unknown', folderMap)).toBe('Inbox');
     });
   });
+
+  describe('Phase 41: Audio Recording & Attachment Invariants', () => {
+    it('validates audio recording duration boundaries (1s to 600s)', async () => {
+      const { validateAudioDuration, MAX_AUDIO_RECORDING_SECONDS } = await import('./audio.js');
+
+      expect(MAX_AUDIO_RECORDING_SECONDS).toBe(600);
+      expect(validateAudioDuration(1)).toBe(true);
+      expect(validateAudioDuration(60)).toBe(true);
+      expect(validateAudioDuration(600)).toBe(true);
+
+      // Rejections
+      expect(validateAudioDuration(0)).toBe(false);
+      expect(validateAudioDuration(-1)).toBe(false);
+      expect(validateAudioDuration(601)).toBe(false);
+      expect(validateAudioDuration(Number.NaN)).toBe(false);
+      expect(validateAudioDuration(Number.POSITIVE_INFINITY)).toBe(false);
+    });
+
+    it('formats audio duration into standard MM:SS presentation', async () => {
+      const { formatAudioDuration } = await import('./audio.js');
+
+      expect(formatAudioDuration(0)).toBe('00:00');
+      expect(formatAudioDuration(5)).toBe('00:05');
+      expect(formatAudioDuration(59)).toBe('00:59');
+      expect(formatAudioDuration(60)).toBe('01:00');
+      expect(formatAudioDuration(75)).toBe('01:15');
+      expect(formatAudioDuration(600)).toBe('10:00');
+      expect(formatAudioDuration(-10)).toBe('00:00');
+      expect(formatAudioDuration(Number.NaN)).toBe('00:00');
+    });
+
+    it('validates supported audio MIME types with codec parameters', async () => {
+      const { isSupportedAudioMimeType } = await import('./audio.js');
+
+      expect(isSupportedAudioMimeType('audio/webm')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/webm;codecs=opus')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/mp4')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/ogg')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/wav')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/mpeg')).toBe(true);
+
+      // Unsupported types
+      expect(isSupportedAudioMimeType('video/mp4')).toBe(false);
+      expect(isSupportedAudioMimeType('text/plain')).toBe(false);
+      expect(isSupportedAudioMimeType('application/octet-stream')).toBe(false);
+      expect(isSupportedAudioMimeType('')).toBe(false);
+    });
+
+    it('verifies permitted item types for audio attachments', async () => {
+      const { canAttachAudioToItem } = await import('./audio.js');
+
+      expect(canAttachAudioToItem('note')).toBe(true);
+      expect(canAttachAudioToItem('journal')).toBe(true);
+      expect(canAttachAudioToItem('knowledge')).toBe(true);
+      expect(canAttachAudioToItem('file')).toBe(true);
+
+      // Disallowed targets
+      expect(canAttachAudioToItem('task')).toBe(false);
+      expect(canAttachAudioToItem('routine')).toBe(false);
+      expect(canAttachAudioToItem('user')).toBe(false);
+      expect(canAttachAudioToItem('workspace')).toBe(false);
+    });
+
+    it('calculates bounded playback progress percentages', async () => {
+      const { calculateAudioProgress } = await import('./audio.js');
+
+      expect(calculateAudioProgress(0, 100)).toBe(0);
+      expect(calculateAudioProgress(50, 100)).toBe(50);
+      expect(calculateAudioProgress(100, 100)).toBe(100);
+      expect(calculateAudioProgress(150, 100)).toBe(100);
+      expect(calculateAudioProgress(-10, 100)).toBe(0);
+      expect(calculateAudioProgress(10, 0)).toBe(0);
+    });
+
+    it('creates and validates durable AudioAttachment references', async () => {
+      const { createAudioAttachment, MAX_AUDIO_RECORDING_BYTES } = await import('./audio.js');
+
+      const att = createAudioAttachment({
+        fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+        fileName: 'meeting-recording.webm',
+        durationSeconds: 125,
+        byteSize: 1024 * 1024,
+        mimeType: 'audio/webm;codecs=opus',
+      });
+
+      expect(att.fileId).toBe('9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+      expect(att.fileName).toBe('meeting-recording.webm');
+      expect(att.durationSeconds).toBe(125);
+      expect(att.mimeType).toBe('audio/webm');
+      expect(att.byteSize).toBe(1048576);
+
+      // Throws on oversized audio (>25MB)
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'oversized.webm',
+          durationSeconds: 60,
+          byteSize: MAX_AUDIO_RECORDING_BYTES + 1,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('exceeds maximum');
+
+      // Throws on invalid duration (>10min)
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'toolong.webm',
+          durationSeconds: 601,
+          byteSize: 1024,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('range');
+
+      // Throws on unsupported MIME type
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'bad.flac',
+          durationSeconds: 30,
+          byteSize: 1024,
+          mimeType: 'audio/flac',
+        })
+      ).toThrow('Unsupported audio MIME type');
+    });
+  });
 });
+

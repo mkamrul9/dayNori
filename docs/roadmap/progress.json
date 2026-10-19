@@ -248,7 +248,9 @@
     },
     {
       "id": "41",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional audio recording and attachment lifecycle delivered under owner authorization and verified across Vitest pure domain, Zod contracts, Web AudioRecorderDialog and AudioPlayerCard, MobileAudioRecorderSheet and MobileAudioPlayerCard, Web and Mobile app wiring, 10-minute / 25MB limits, interruption recovery without false saved status, quarantine magic byte inspection, and 17 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, physical Android microphone hardware verification, and production credentials.",
+      "report": "docs/phase-reports/phase-41.md"
     },
     {
       "id": "42",

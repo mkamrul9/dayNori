@@ -17,6 +17,8 @@ import {
   MobileStorageUsageBar,
   MobileFileUploadSheet,
   MobileFilePreviewSheet,
+  MobileAudioPlayerCard,
+  MobileAudioRecorderSheet,
 } from './index.js';
 
 describe('UI Mobile Primitives', () => {
@@ -202,5 +204,42 @@ describe('UI Mobile Primitives', () => {
     });
     expect(quarantinedSheet.type).toBe(MobileFilePreviewSheet);
     expect(quarantinedSheet.props.file?.quarantineStatus).toBe('quarantined');
+  });
+
+  it('instantiates MobileAudioPlayerCard with attachment and accessible playback controls', () => {
+    const mockAttachment = {
+      fileId: 'file-audio-1',
+      fileName: 'quick-memo.m4a',
+      mimeType: 'audio/mp4',
+      byteSize: 1024 * 64,
+      durationSeconds: 45,
+      createdAt: '2026-10-19T10:00:00.000Z',
+    };
+    const card = React.createElement(MobileAudioPlayerCard, {
+      attachment: mockAttachment,
+      onPlay: () => {},
+      onPause: () => {},
+      onDelete: () => {},
+    });
+
+    expect(card.type).toBe(MobileAudioPlayerCard);
+    expect(card.props.attachment.fileName).toBe('quick-memo.m4a');
+    expect(card.props.attachment.durationSeconds).toBe(45);
+  });
+
+  it('instantiates MobileAudioRecorderSheet with deliberate recording parameters', () => {
+    const sheet = React.createElement(MobileAudioRecorderSheet, {
+      visible: true,
+      onClose: () => {},
+      workspaceId: 'ws-test',
+      attachedItemTitle: 'Field Observations Note',
+      attachedItemType: 'note',
+      onSaveAudio: async () => {},
+    });
+
+    expect(sheet.type).toBe(MobileAudioRecorderSheet);
+    expect(sheet.props.visible).toBe(true);
+    expect(sheet.props.attachedItemTitle).toBe('Field Observations Note');
+    expect(sheet.props.attachedItemType).toBe('note');
   });
 });

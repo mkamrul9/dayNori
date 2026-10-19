@@ -16,7 +16,8 @@ export type ActiveModal =
   | 'conflict-review'
   | 'workspace-portability'
   | 'account-deletion'
-  | 'expenses';
+  | 'expenses'
+  | 'audio-recorder';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

@@ -14,6 +14,7 @@ import {
   StorageUsageBar,
   FileUploadDialog,
   FilePreviewDialog,
+  AudioRecorderDialog,
   QuickReferenceView,
   ConflictReviewDialog,
   type BreadcrumbItem,
@@ -178,6 +179,7 @@ export default function LibraryPage() {
   });
   const [filesMap, setFilesMap] = useState<Record<string, FileRecord>>({});
   const [isFileUploadOpen, setFileUploadOpen] = useState(false);
+  const [isAudioRecorderOpen, setAudioRecorderOpen] = useState(false);
   const [activePreviewFile, setActivePreviewFile] = useState<FileItemRecord | null>(null);
 
   // Reversible Undo Toast State
@@ -1936,6 +1938,24 @@ export default function LibraryPage() {
     [workspaceId, items.length, user?.id, announce, refreshFilesAndUsage]
   );
 
+  const handleSaveRecordedAudio = useCallback(
+    async (data: {
+      blob: Blob;
+      durationSeconds: number;
+      fileName: string;
+      mimeType: string;
+      byteSize: number;
+    }) => {
+      const fileObj = new File([data.blob], data.fileName, { type: data.mimeType });
+      const res = await handlePerformUpload(fileObj, currentFolderId, () => {});
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to upload recorded audio.');
+      }
+      announce(`Audio recording ${data.fileName} saved to library.`);
+    },
+    [handlePerformUpload, currentFolderId, announce]
+  );
+
   const handleRequestDownloadUrl = useCallback(
     async (file: FileItemRecord): Promise<string> => {
       if (!workspaceId) return '';
@@ -2775,6 +2795,14 @@ export default function LibraryPage() {
 
               <Button
                 variant="secondary"
+                onClick={() => setAudioRecorderOpen(true)}
+                aria-label="Record deliberate audio note"
+              >
+                🎙️ Record Audio
+              </Button>
+
+              <Button
+                variant="secondary"
                 onClick={() => handleOpenCreateModal(currentFolderId)}
                 aria-label="Create new workspace folder"
               >
@@ -3574,6 +3602,17 @@ export default function LibraryPage() {
         reservedBytes={storageUsage.reservedBytes}
         maxBytes={storageUsage.maxBytes}
         onPerformUpload={handlePerformUpload}
+      />
+
+      {/* Audio Recorder Dialog */}
+      <AudioRecorderDialog
+        isOpen={isAudioRecorderOpen}
+        onClose={() => setAudioRecorderOpen(false)}
+        themeMode={themeMode}
+        workspaceId={workspaceId || ''}
+        attachedItemTitle={currentFolder ? currentFolder.name : 'Workspace Root'}
+        attachedItemType="file"
+        onSaveAudio={handleSaveRecordedAudio}
       />
 
       {/* File Preview Dialog */}
