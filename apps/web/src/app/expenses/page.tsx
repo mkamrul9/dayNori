@@ -56,6 +56,12 @@ export default function ExpensesPage() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [budgets, setBudgets] = useState<ExpenseBudget[]>([]);
   const [monthlySummaries, setMonthlySummaries] = useState<CurrencyMonthlySummary[]>([]);
+  const [availableReceipts, setAvailableReceipts] = useState<Array<{ id: string; fileName: string }>>([]);
+  const [eligibleOriginalExpenses, setEligibleOriginalExpenses] = useState<ExpenseItem[]>([]);
+
+  const [paginationCursor, setPaginationCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('');
   const [selectedKindFilter, setSelectedKindFilter] = useState<string>('');
@@ -63,6 +69,22 @@ export default function ExpensesPage() {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(null);
+
+  const draftStorageKey = workspaceId ? `daynori_expense_draft_${workspaceId}` : null;
+  const [createDraft, setCreateDraft] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && draftStorageKey) {
+      try {
+        const saved = localStorage.getItem(draftStorageKey);
+        if (saved) {
+          setCreateDraft(JSON.parse(saved));
+        }
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [draftStorageKey]);
 
   const apiClient = useMemo(() => {
     return createWebApiClient();
@@ -81,18 +103,21 @@ export default function ExpensesPage() {
       const catRes = await apiClient.listExpenseCategories(workspaceId);
       setCategories(catRes.data);
 
-      // 2. Transactions for current month
+      // 2. Transactions for current month - true end of month calculation
       const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
-      const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
-      const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
-      const endOfMonth = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const endOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
       const txRes = await apiClient.listExpenses(workspaceId, {
         startDate: startOfMonth,
         endDate: endOfMonth,
-        limit: 100,
+        categoryId: selectedCategoryFilter || undefined,
+        kind: (selectedKindFilter as any) || undefined,
+        limit: 50,
       });
       setTransactions(txRes.data);
+      setPaginationCursor(txRes.meta?.pagination?.nextCursor || null);
+      setHasMore(Boolean(txRes.meta?.pagination?.hasMore));
 
       // 3. Budgets for period
       const budgetRes = await apiClient.listExpenseBudgets(workspaceId, {
@@ -106,6 +131,17 @@ export default function ExpensesPage() {
         month: currentMonth,
       });
       setMonthlySummaries(summaryRes.data);
+
+      // 6. Eligible original expenses across workspace for refund picker
+      try {
+        const origRes = await apiClient.listExpenses(workspaceId, {
+          kind: 'expense',
+          limit: 100,
+        });
+        setEligibleOriginalExpenses(origRes.data);
+      } catch {
+        // fallback
+      }
     } catch (err: unknown) {
       setFeedback({
         severity: 'danger',
@@ -114,7 +150,17 @@ export default function ExpensesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [workspaceId, isAuthenticated, isModuleEnabled, apiClient, currentYear, currentMonth, periodString]);
+  }, [
+    workspaceId,
+    isAuthenticated,
+    isModuleEnabled,
+    apiClient,
+    currentYear,
+    currentMonth,
+    periodString,
+    selectedCategoryFilter,
+    selectedKindFilter,
+  ]);
 
   useEffect(() => {
     loadExpenseData();
@@ -175,6 +221,7 @@ export default function ExpensesPage() {
 
     if (editingExpense) {
       await apiClient.updateExpense(workspaceId, editingExpense.id, {
+        baseRevision: editingExpense.revision,
         amount: data.amount,
         currency: data.currency,
         transactionDate: data.transactionDate,
@@ -198,9 +245,45 @@ export default function ExpensesPage() {
         originalExpenseId: data.originalExpenseId,
         timezone: data.timezone,
       });
+      // Clear draft on successful create
+      if (typeof window !== 'undefined' && draftStorageKey) {
+        try {
+          localStorage.removeItem(draftStorageKey);
+          setCreateDraft(null);
+        } catch {}
+      }
     }
 
     await loadExpenseData();
+  };
+
+  const handleLoadMore = async () => {
+    if (!workspaceId || !paginationCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const endOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+      const txRes = await apiClient.listExpenses(workspaceId, {
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+        categoryId: selectedCategoryFilter || undefined,
+        kind: (selectedKindFilter as any) || undefined,
+        limit: 50,
+        cursor: paginationCursor,
+      });
+      setTransactions((prev) => [...prev, ...txRes.data]);
+      setPaginationCursor(txRes.meta?.pagination?.nextCursor || null);
+      setHasMore(Boolean(txRes.meta?.pagination?.hasMore));
+    } catch (err: unknown) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Failed to load more transactions.',
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
 
   // Transaction trash / delete
@@ -236,20 +319,40 @@ export default function ExpensesPage() {
     await loadExpenseData();
   };
 
-  // CSV Export
-  const handleExportCsv = async (currencyFilter?: string) => {
+  // CSV Export with explicit filtered vs all-records modes
+  const handleExportCsv = async (mode: 'filtered' | 'all' = 'filtered', currencyFilter?: string) => {
     if (!workspaceId) return;
     try {
-      const csvData = await apiClient.exportExpensesCsv(workspaceId, {
-        currency: currencyFilter,
-      });
+      const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const endOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+      const query =
+        mode === 'filtered'
+          ? {
+              startDate: startOfMonth,
+              endDate: endOfMonth,
+              categoryId: selectedCategoryFilter || undefined,
+              kind: (selectedKindFilter as any) || undefined,
+              currency: currencyFilter,
+            }
+          : {
+              currency: currencyFilter,
+            };
+
+      const csvData = await apiClient.exportExpensesCsv(workspaceId, query);
+
+      const filename =
+        mode === 'filtered'
+          ? `expenses-${periodString}-filtered.csv`
+          : `expenses-all-records${currencyFilter ? `-${currencyFilter}` : ''}.csv`;
 
       // Browser download trigger
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `expenses-${periodString}.csv`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -593,8 +696,20 @@ export default function ExpensesPage() {
                       <div style={{ display: 'flex', gap: spacing.xs }}>
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             setEditingExpense(tx);
+                            if (tx.receiptFileId && workspaceId) {
+                              try {
+                                const fileRes = await apiClient.getFileMetadata(workspaceId, tx.receiptFileId);
+                                if (fileRes?.data) {
+                                  setAvailableReceipts([{ id: fileRes.data.id, fileName: fileRes.data.fileName }]);
+                                }
+                              } catch {
+                                setAvailableReceipts([]);
+                              }
+                            } else {
+                              setAvailableReceipts([]);
+                            }
                             setIsCaptureOpen(true);
                           }}
                           aria-label={`Edit transaction ${tx.id}`}
@@ -631,17 +746,45 @@ export default function ExpensesPage() {
               })}
             </div>
           )}
+
+          {hasMore && (
+            <div style={{ textAlign: 'center', marginTop: spacing.md }}>
+              <Button
+                variant="secondary"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+              >
+                {isLoadingMore ? 'Loading More...' : 'Load More Transactions'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === 'report' && (
-        <ExpenseReportView
-          summaries={monthlySummaries}
-          year={currentYear}
-          month={currentMonth}
-          onExportCsv={(currency) => handleExportCsv(currency)}
-          isLoading={isLoading}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' }}>
+            <Button
+              variant="secondary"
+              onClick={() => handleExportCsv('filtered')}
+            >
+              📥 Export CSV ({MONTH_NAMES[currentMonth - 1]} {currentYear})
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleExportCsv('all')}
+            >
+              📥 Export All Records
+            </Button>
+          </div>
+          <ExpenseReportView
+            summaries={monthlySummaries}
+            year={currentYear}
+            month={currentMonth}
+            onExportCsv={(currency) => handleExportCsv('filtered', currency)}
+            isLoading={isLoading}
+          />
+        </div>
       )}
 
       {activeTab === 'budgets' && (
@@ -665,7 +808,8 @@ export default function ExpensesPage() {
         }}
         onSubmit={handleCreateOrUpdateExpense}
         categories={categories}
-        availableOriginalExpenses={transactions.filter((t) => t.kind === 'expense')}
+        availableReceipts={availableReceipts}
+        availableOriginalExpenses={eligibleOriginalExpenses}
         initialValues={
           editingExpense
             ? {
@@ -678,8 +822,9 @@ export default function ExpensesPage() {
                 note: editingExpense.note,
                 receiptFileId: editingExpense.receiptFileId,
                 originalExpenseId: editingExpense.originalExpenseId,
+                timezone: editingExpense.timezone,
               }
-            : undefined
+            : createDraft || undefined
         }
         mode={editingExpense ? 'edit' : 'create'}
       />

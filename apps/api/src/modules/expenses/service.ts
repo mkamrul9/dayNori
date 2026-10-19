@@ -30,7 +30,7 @@ import {
   insertChange,
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
-import { NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
 
 export interface ExpenseItemDbRow {
   id: string;
@@ -49,6 +49,7 @@ export interface ExpenseItemDbRow {
   receipt_file_id: string | null;
   original_expense_id: string | null;
   cumulative_refund_minor_units: string;
+  revision: number;
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -118,6 +119,7 @@ function mapRowToExpenseItem(row: ExpenseItemDbRow): ExpenseItem {
     originalExpenseId: row.original_expense_id || null,
     cumulativeRefundMinorUnits: row.cumulative_refund_minor_units || '0',
     folderId: row.folder_id || null,
+    revision: Number(row.revision) || 1,
     deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
@@ -560,6 +562,7 @@ export async function createExpenseRecord(
     );
     row.category_name = cNameRes.rows[0]?.name ?? null;
   }
+  row.revision = 1;
 
   const seq = syncState.nextChangeSeq;
 
@@ -594,7 +597,7 @@ export async function getExpenseRecord(
   expenseId: string
 ): Promise<ExpenseItem> {
   const res = await client.query<ExpenseItemDbRow>(
-    `SELECT e.*, i.folder_id, i.deleted_at, c.name as category_name
+    `SELECT e.*, i.folder_id, i.deleted_at, i.revision, c.name as category_name
      FROM app.expense_items e
      JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
      LEFT JOIN app.expense_categories c ON c.id = e.category_id
@@ -688,7 +691,7 @@ export async function listExpenseRecords(
 
   // Fetch limit + 1 to detect whether there is a next page
   const res = await client.query<ExpenseItemDbRow>(
-    `SELECT e.*, i.folder_id, i.deleted_at, c.name as category_name
+    `SELECT e.*, i.folder_id, i.deleted_at, i.revision, c.name as category_name
      FROM app.expense_items e
      JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
      LEFT JOIN app.expense_categories c ON c.id = e.category_id
@@ -754,9 +757,10 @@ export async function updateExpenseRecord(
     original_expense_id: string | null;
     cumulative_refund_minor_units: string;
     deleted_at: Date | null;
+    revision: number;
   }>(
     `SELECT e.id, e.kind, e.amount_minor_units, e.currency, e.category_id, e.original_expense_id,
-            e.cumulative_refund_minor_units, i.deleted_at
+            e.cumulative_refund_minor_units, i.deleted_at, i.revision
      FROM app.expense_items e
      JOIN app.items i ON i.id = e.id
      WHERE e.workspace_id = $1 AND e.id = $2
@@ -767,6 +771,14 @@ export async function updateExpenseRecord(
   const current = curRes.rows[0]!;
   if (current.deleted_at) {
     throw new ValidationError('Cannot update a deleted expense record');
+  }
+
+  // Enforce optimistic revision check
+  const expectedRev = input.baseRevision !== undefined ? input.baseRevision : input.expectedRevision;
+  if (expectedRev !== undefined && expectedRev !== current.revision) {
+    throw new ConflictError(
+      `REVISION_CONFLICT: Expected baseRevision ${current.revision}, but received ${expectedRev}.`
+    );
   }
 
   let newCurrency = current.currency;
@@ -951,7 +963,7 @@ export async function updateExpenseRecord(
 
   // Retrieve complete updated row including folder_id and category_name
   const rowRes = await client.query<ExpenseItemDbRow>(
-    `SELECT e.*, i.folder_id, i.deleted_at, c.name as category_name
+    `SELECT e.*, i.folder_id, i.deleted_at, i.revision, c.name as category_name
      FROM app.expense_items e
      JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
      LEFT JOIN app.expense_categories c ON c.id = e.category_id
@@ -994,7 +1006,7 @@ export async function trashExpenseRecord(
   expenseId: string,
   actorUserId: string,
   operationId?: string
-): Promise<{ success: boolean; id: string; seq: number }> {
+): Promise<{ success: boolean; id: string; seq: number; revision: number }> {
   // 1. Identify kind and original_expense_id
   const checkRes = await client.query<{
     kind: string;
@@ -1036,7 +1048,7 @@ export async function trashExpenseRecord(
 
   const exp = expRes.rows[0]!;
   if (exp.deleted_at) {
-    return { success: true, id: expenseId, seq: 0 };
+    return { success: true, id: expenseId, seq: 0, revision: 1 };
   }
 
   // Invariant: Cannot trash an original expense while active refunds reference it!
@@ -1101,7 +1113,7 @@ export async function trashExpenseRecord(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
-  return { success: true, id: expenseId, seq };
+  return { success: true, id: expenseId, seq, revision: finalRevision };
 }
 
 export async function restoreExpenseRecord(
@@ -1110,7 +1122,7 @@ export async function restoreExpenseRecord(
   expenseId: string,
   actorUserId: string,
   operationId?: string
-): Promise<{ success: boolean; id: string; seq: number }> {
+): Promise<{ success: boolean; id: string; seq: number; revision: number }> {
   // 1. Identify kind and original_expense_id
   const checkRes = await client.query<{
     kind: string;
@@ -1150,7 +1162,7 @@ export async function restoreExpenseRecord(
 
   const exp = expRes.rows[0]!;
   if (!exp.deleted_at) {
-    return { success: true, id: expenseId, seq: 0 };
+    return { success: true, id: expenseId, seq: 0, revision: 1 };
   }
 
   // If restoring a refund, ensure original expense is still active and bounds are respected
@@ -1220,7 +1232,7 @@ export async function restoreExpenseRecord(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
-  return { success: true, id: expenseId, seq };
+  return { success: true, id: expenseId, seq, revision: finalRevision };
 }
 
 // -----------------------------------------------------------------------------

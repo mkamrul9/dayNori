@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { colors, radii, spacing, typography, touchTargets } from '@daynori/design-tokens';
 import type { ExpenseBudget } from '@daynori/contracts';
+import { formatMinorUnitsToDecimal } from '@daynori/domain';
 import { Button } from './Button.js';
 import { Card } from './Card.js';
 import { TextField } from './TextField.js';
@@ -45,10 +46,10 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
     setFormFeedback(null);
 
     const trimmed = formAmount.trim();
-    if (!trimmed || !/^\d+(\.\d{1,4})?$/.test(trimmed) || trimmed === '0' || trimmed === '0.00') {
+    if (!trimmed || !/^\d+(\.\d{1,4})?$/.test(trimmed)) {
       setFormFeedback({
         severity: 'danger',
-        message: 'Budget amount must be an exact positive decimal string (e.g. 500.00).',
+        message: 'Budget amount must be an exact non-negative decimal string (e.g. 500.00 or 0).',
       });
       return;
     }
@@ -80,10 +81,10 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
     setFormFeedback(null);
 
     const trimmed = formAmount.trim();
-    if (!trimmed || !/^\d+(\.\d{1,4})?$/.test(trimmed) || trimmed === '0' || trimmed === '0.00') {
+    if (!trimmed || !/^\d+(\.\d{1,4})?$/.test(trimmed)) {
       setFormFeedback({
         severity: 'danger',
-        message: 'Budget amount must be an exact positive decimal string.',
+        message: 'Budget amount must be an exact non-negative decimal string.',
       });
       return;
     }
@@ -143,21 +144,27 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: spacing.md }}>
           {budgets.map((b) => {
-            const budgetNum = parseFloat(b.amountFormatted);
-            const spentNum = parseFloat(b.spentFormatted || '0');
-            const percent = budgetNum > 0 ? (spentNum / budgetNum) * 100 : 0;
-            const isExceeded = spentNum > budgetNum;
-            const isNear = percent >= 80 && !isExceeded;
+            const budgetMinor = BigInt(b.amountMinorUnits || '0');
+            const spentMinor = BigInt(b.spentMinorUnits || '0');
+            const isExceeded = spentMinor > budgetMinor;
+            const diffMinor = isExceeded ? spentMinor - budgetMinor : budgetMinor - spentMinor;
 
+            // Approximate percentage for progress width only (derived ratio, bounded [0, 100])
+            const percent = budgetMinor > 0n ? Number((spentMinor * 10000n) / budgetMinor) / 100 : (spentMinor > 0n ? 100 : 0);
+            const isNear = percent >= 80 && !isExceeded;
             const progressWidth = Math.min(Math.max(percent, 0), 100);
 
-            // Neutral, factual tracking messages
-            let trackingMessage = `${percent.toFixed(1)}% of budget used. ${b.remainingFormatted} ${b.currency} remaining in ${period}.`;
+            // Neutral, factual tracking messages using exact integer minor units
+            let trackingMessage = '';
             if (isExceeded) {
-              const diff = (spentNum - budgetNum).toFixed(2);
+              const diff = formatMinorUnitsToDecimal(diffMinor, b.currency);
               trackingMessage = `${percent.toFixed(1)}% of budget used. Exceeded planned budget by ${diff} ${b.currency}.`;
-            } else if (spentNum < 0) {
-              trackingMessage = `Net refunds exceed expenses in this period by ${Math.abs(spentNum).toFixed(2)} ${b.currency}.`;
+            } else if (spentMinor < 0n) {
+              const diff = formatMinorUnitsToDecimal(-spentMinor, b.currency);
+              trackingMessage = `Net refunds exceed expenses in this period by ${diff} ${b.currency}.`;
+            } else {
+              const remaining = formatMinorUnitsToDecimal(diffMinor, b.currency);
+              trackingMessage = `${percent.toFixed(1)}% of budget used. ${remaining} ${b.currency} remaining in ${period}.`;
             }
 
             return (

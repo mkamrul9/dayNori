@@ -526,6 +526,9 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          const currentRecord = await getExpenseRecord(client, workspaceId, expenseId);
+          const baseRev = body.baseRevision ?? body.expectedRevision ?? currentRecord.revision;
+
           if (operationId) {
             const payloadHash = computeCanonicalPayloadHash({
               workspaceId,
@@ -533,7 +536,7 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
               schemaVersion: 1,
               entityType: 'expense',
               entityId: expenseId,
-              baseRevision: 1,
+              baseRevision: baseRev,
               payload: body as unknown as Record<string, unknown>,
             });
 
@@ -571,10 +574,10 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
               entityType: 'expense',
               entityId: expenseId,
               schemaVersion: 1,
-              baseRevision: 1,
+              baseRevision: baseRev,
               canonicalPayloadHash: payloadHash,
               status: 'accepted',
-              acceptedRevision: 2,
+              acceptedRevision: res.revision,
               appliedChangeSeq: res.seq,
               resultPayload: { expense: res },
             });
@@ -616,6 +619,9 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          const currentRecord = await getExpenseRecord(client, workspaceId, expenseId);
+          const baseRev = currentRecord.revision;
+
           if (operationId) {
             const payloadHash = computeCanonicalPayloadHash({
               workspaceId,
@@ -623,7 +629,7 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
               schemaVersion: 1,
               entityType: 'expense',
               entityId: expenseId,
-              baseRevision: 1,
+              baseRevision: baseRev,
               payload: {},
             });
 
@@ -657,10 +663,10 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
               entityType: 'expense',
               entityId: expenseId,
               schemaVersion: 1,
-              baseRevision: 1,
+              baseRevision: baseRev,
               canonicalPayloadHash: payloadHash,
               status: 'accepted',
-              acceptedRevision: 2,
+              acceptedRevision: res.revision,
               appliedChangeSeq: res.seq,
               resultPayload: res,
             });
@@ -694,6 +700,9 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          const currentRecord = await getExpenseRecord(client, workspaceId, expenseId);
+          const baseRev = currentRecord.revision;
+
           if (operationId) {
             const payloadHash = computeCanonicalPayloadHash({
               workspaceId,
@@ -701,7 +710,7 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
               schemaVersion: 1,
               entityType: 'expense',
               entityId: expenseId,
-              baseRevision: 1,
+              baseRevision: baseRev,
               payload: {},
             });
 
@@ -735,10 +744,10 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
               entityType: 'expense',
               entityId: expenseId,
               schemaVersion: 1,
-              baseRevision: 1,
+              baseRevision: baseRev,
               canonicalPayloadHash: payloadHash,
               status: 'accepted',
-              acceptedRevision: 2,
+              acceptedRevision: res.revision,
               appliedChangeSeq: res.seq,
               resultPayload: res,
             });

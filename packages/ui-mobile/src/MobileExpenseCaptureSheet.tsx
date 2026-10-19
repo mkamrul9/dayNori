@@ -35,10 +35,29 @@ export interface MobileExpenseCaptureSheetProps {
     transactionDate: string;
     categoryId?: string | null;
   }>;
+  availableReceipts?: Array<{ id: string; fileName?: string; filename?: string }>;
+  initialValues?: {
+    kind?: 'expense' | 'income' | 'refund';
+    amount?: string;
+    currency?: string;
+    transactionDate?: string;
+    categoryId?: string | null;
+    paymentLabel?: string | null;
+    note?: string | null;
+    receiptFileId?: string | null;
+    originalExpenseId?: string | null;
+  };
   themeMode?: ThemeMode;
 }
 
 const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'BDT', 'JPY'];
+
+function getLocalCalendarDate(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps> = ({
   visible,
@@ -46,43 +65,47 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
   onSubmit,
   categories,
   availableOriginalExpenses = [],
+  availableReceipts = [],
+  initialValues,
   themeMode = 'light',
 }) => {
   const palette = colors[themeMode];
 
-  const [kind, setKind] = useState<'expense' | 'income' | 'refund'>('expense');
-  const [amount, setAmount] = useState<string>('');
-  const [currency, setCurrency] = useState<string>('USD');
+  const [kind, setKind] = useState<'expense' | 'income' | 'refund'>(initialValues?.kind || 'expense');
+  const [amount, setAmount] = useState<string>(initialValues?.amount || '');
+  const [currency, setCurrency] = useState<string>(initialValues?.currency || 'USD');
   const [transactionDate, setTransactionDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+    initialValues?.transactionDate || getLocalCalendarDate()
   );
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [paymentLabel, setPaymentLabel] = useState<string>('');
-  const [note, setNote] = useState<string>('');
-  const [originalExpenseId, setOriginalExpenseId] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(initialValues?.categoryId || null);
+  const [paymentLabel, setPaymentLabel] = useState<string>(initialValues?.paymentLabel || '');
+  const [note, setNote] = useState<string>(initialValues?.note || '');
+  const [receiptFileId, setReceiptFileId] = useState<string | null>(initialValues?.receiptFileId || null);
+  const [originalExpenseId, setOriginalExpenseId] = useState<string | null>(initialValues?.originalExpenseId || null);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
-    if (visible) {
-      setKind('expense');
-      setAmount('');
-      setCurrency('USD');
-      setTransactionDate(new Date().toISOString().slice(0, 10));
-      setCategoryId(null);
-      setPaymentLabel('');
-      setNote('');
-      setOriginalExpenseId(null);
+    if (visible && initialValues) {
+      setKind(initialValues.kind || 'expense');
+      setAmount(initialValues.amount || '');
+      setCurrency(initialValues.currency || 'USD');
+      setTransactionDate(initialValues.transactionDate || getLocalCalendarDate());
+      setCategoryId(initialValues.categoryId || null);
+      setPaymentLabel(initialValues.paymentLabel || '');
+      setNote(initialValues.note || '');
+      setReceiptFileId(initialValues.receiptFileId || null);
+      setOriginalExpenseId(initialValues.originalExpenseId || null);
       setErrorMsg(null);
     }
-  }, [visible]);
+  }, [visible, initialValues]);
 
   const handleSubmit = async () => {
     setErrorMsg(null);
     const trimmed = amount.trim();
-    if (!trimmed || !/^\d+(\.\d{1,4})?$/.test(trimmed) || trimmed === '0' || trimmed === '0.00') {
-      setErrorMsg('Amount must be an exact positive decimal string (e.g. 25.50).');
+    if (!trimmed || !/^\d+(\.\d{1,4})?$/.test(trimmed)) {
+      setErrorMsg('Amount must be an exact non-negative decimal string (e.g. 25.50 or 0).');
       return;
     }
 
@@ -101,6 +124,7 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
         categoryId: categoryId || null,
         paymentLabel: paymentLabel.trim() || null,
         note: note.trim() || null,
+        receiptFileId: receiptFileId || null,
         originalExpenseId: kind === 'refund' ? originalExpenseId : null,
       });
       onClose();
@@ -314,6 +338,40 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
                 ]}
               />
             </View>
+
+            {/* Receipt File */}
+            {availableReceipts.length > 0 && (
+              <View>
+                <Text style={[styles.label, { color: palette.text.primary }]}>Attached Receipt</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+                  <Pressable
+                    onPress={() => setReceiptFileId(null)}
+                    style={[
+                      styles.chip,
+                      receiptFileId === null && { backgroundColor: palette.action.primary },
+                    ]}
+                  >
+                    <Text style={{ color: receiptFileId === null ? '#fff' : palette.text.primary }}>
+                      None
+                    </Text>
+                  </Pressable>
+                  {availableReceipts.map((file) => (
+                    <Pressable
+                      key={file.id}
+                      onPress={() => setReceiptFileId(file.id)}
+                      style={[
+                        styles.chip,
+                        receiptFileId === file.id && { backgroundColor: palette.action.primary },
+                      ]}
+                    >
+                      <Text style={{ color: receiptFileId === file.id ? '#fff' : palette.text.primary }}>
+                        📎 {file.fileName || file.filename}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Actions */}
             <View style={{ marginTop: spacing.md, gap: spacing.sm }}>

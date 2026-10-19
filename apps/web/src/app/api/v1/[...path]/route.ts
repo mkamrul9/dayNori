@@ -61,7 +61,7 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
   const targetUrl = `${API_URL}/v1/${targetPath}${incomingUrl.search}`;
 
   const forwardHeaders: Record<string, string> = {
-    Accept: req.headers.get('accept') || 'application/json, application/zip, */*',
+    Accept: req.headers.get('accept') || 'application/json, application/zip, text/csv, */*',
   };
   if (token) {
     forwardHeaders['Authorization'] = `Bearer ${token}`;
@@ -112,19 +112,18 @@ async function handleProxy(req: Request, pathSegments: string[]): Promise<NextRe
     });
 
     const resContentType = upstreamRes.headers.get('content-type') || '';
-    const isBinary =
-      resContentType.includes('application/zip') ||
-      resContentType.includes('application/octet-stream') ||
-      resContentType.includes('application/x-zip-compressed');
+    const isJson = resContentType.includes('application/json');
 
-    if (isBinary) {
+    if (!isJson) {
       const buffer = await upstreamRes.arrayBuffer();
       const headers = new Headers();
-      headers.set('Content-Type', resContentType);
+      if (resContentType) headers.set('Content-Type', resContentType);
       const disposition = upstreamRes.headers.get('content-disposition');
       if (disposition) headers.set('Content-Disposition', disposition);
       const len = upstreamRes.headers.get('content-length');
       if (len) headers.set('Content-Length', len);
+      const cacheControl = upstreamRes.headers.get('cache-control');
+      if (cacheControl) headers.set('Cache-Control', cacheControl);
       return new NextResponse(buffer, {
         status: upstreamRes.status,
         headers,

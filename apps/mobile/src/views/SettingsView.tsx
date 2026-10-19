@@ -29,6 +29,7 @@ export interface SettingsViewProps {
   onOpenAccountDeletion?: () => void;
   expensesEnabled?: boolean;
   onToggleExpensesEnabled?: (enabled: boolean) => void;
+  onOpenExpenses?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -56,6 +57,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenAccountDeletion,
   expensesEnabled = false,
   onToggleExpensesEnabled,
+  onOpenExpenses,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -507,6 +509,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </MobileButton>
             )}
           </View>
+          {expensesEnabled && onOpenExpenses && (
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                testID="btn-open-expenses"
+                variant="primary"
+                themeMode={themeMode}
+                onPress={onOpenExpenses}
+                accessibilityLabel="Open Expenses Tracker"
+              >
+                💳 Open Expense Tracker &rarr;
+              </MobileButton>
+            </View>
+          )}
         </MobileCard>
       </View>
 

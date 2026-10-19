@@ -52,6 +52,7 @@ import { SearchSheet } from './src/views/SearchSheet';
 import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
 import { OnboardingSheet } from './src/views/OnboardingSheet';
+import { ExpensesView } from './src/views/ExpensesView';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -118,6 +119,35 @@ export default function App() {
   const [recoveryExport, setRecoveryExport] = useState<RecoveryExport | null>(null);
   const [activeConflict, setActiveConflict] = useState<ConflictRecord | null>(null);
   const sessionGenRef = useRef(0);
+  const [expensesEnabled, setExpensesEnabled] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!userNamespace?.userId) return;
+    const key = `daynori_expenses_enabled_${userNamespace.userId}`;
+    defaultSecureStorage
+      .getItemAsync(key)
+      .then((val) => {
+        if (val !== null) {
+          setExpensesEnabled(val === 'true');
+        }
+      })
+      .catch(() => {});
+  }, [userNamespace?.userId]);
+
+  const handleToggleExpensesEnabled = async (enabled: boolean) => {
+    setExpensesEnabled(enabled);
+    if (userNamespace?.userId) {
+      const key = `daynori_expenses_enabled_${userNamespace.userId}`;
+      await defaultSecureStorage.setItemAsync(key, String(enabled)).catch(() => {});
+    }
+    if (apiClient) {
+      try {
+        await apiClient.updateUserPreferences({ preferences: { expensesEnabled: enabled } });
+      } catch {
+        // offline fallback
+      }
+    }
+  };
 
   // Reset diagnostics and recovery export on session / workspace change
   useEffect(() => {
@@ -762,6 +792,9 @@ export default function App() {
             }}
             onOpenPortability={() => setActiveModal('workspace-portability')}
             onOpenAccountDeletion={() => setActiveModal('account-deletion')}
+            expensesEnabled={expensesEnabled}
+            onToggleExpensesEnabled={handleToggleExpensesEnabled}
+            onOpenExpenses={() => setActiveModal('expenses')}
             onClose={() => setActiveModal('none')}
           />
         </View>
@@ -776,6 +809,21 @@ export default function App() {
             themeMode={themeMode}
             onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
             onClose={() => setActiveModal('settings')}
+          />
+        </View>
+      )}
+
+      {/* Expenses Modal (Phase 40 Opt-In) */}
+      {activeModal === 'expenses' && (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+        >
+          <ExpensesView
+            themeMode={themeMode}
+            workspaceId={userNamespace?.workspaceId ?? null}
+            apiClient={apiClient ?? undefined}
+            isOnline={isOnline}
+            onClose={() => setActiveModal('none')}
           />
         </View>
       )}

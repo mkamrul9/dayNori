@@ -118,6 +118,7 @@ export const ExpenseItemSchema = z.object({
   originalExpenseId: z.string().uuid().nullable().optional(),
   cumulativeRefundMinorUnits: z.string().default('0'),
   folderId: z.string().uuid().nullable().optional(),
+  revision: z.coerce.number().int().default(1),
   deletedAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -141,6 +142,8 @@ export const CreateExpenseBodySchema = z.object({
 export type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
 
 export const UpdateExpenseBodySchema = z.object({
+  baseRevision: z.number().int().nonnegative().optional(),
+  expectedRevision: z.number().int().nonnegative().optional(),
   amount: ExactMoneyStringSchema.optional(),
   currency: z.string().trim().min(3).max(3).optional(),
   transactionDate: CalendarDateSchema.optional(),

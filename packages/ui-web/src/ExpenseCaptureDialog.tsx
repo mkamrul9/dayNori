@@ -50,6 +50,13 @@ export interface ExpenseCaptureDialogProps {
 
 const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'BDT', 'JPY', 'CAD', 'AUD', 'INR', 'SGD'];
 
+function getLocalCalendarDate(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
   isOpen,
   onClose,
@@ -67,7 +74,7 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
   const [amount, setAmount] = useState<string>(initialValues?.amount || '');
   const [currency, setCurrency] = useState<string>(initialValues?.currency || 'USD');
   const [transactionDate, setTransactionDate] = useState<string>(
-    initialValues?.transactionDate || new Date().toISOString().slice(0, 10)
+    initialValues?.transactionDate || getLocalCalendarDate()
   );
   const [categoryId, setCategoryId] = useState<string | null>(initialValues?.categoryId || null);
   const [paymentLabel, setPaymentLabel] = useState<string>(initialValues?.paymentLabel || '');
@@ -88,7 +95,7 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
       setKind(initialValues?.kind || 'expense');
       setAmount(initialValues?.amount || '');
       setCurrency(initialValues?.currency || 'USD');
-      setTransactionDate(initialValues?.transactionDate || new Date().toISOString().slice(0, 10));
+      setTransactionDate(initialValues?.transactionDate || getLocalCalendarDate());
       setCategoryId(initialValues?.categoryId || null);
       setPaymentLabel(initialValues?.paymentLabel || '');
       setNote(initialValues?.note || '');
@@ -115,12 +122,12 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
     e.preventDefault();
     setFeedback(null);
 
-    // Exact string validation: strictly decimal string, positive
+    // Exact string validation: strictly decimal string, non-negative
     const trimmedAmount = amount.trim();
-    if (!trimmedAmount || !/^\d+(\.\d{1,4})?$/.test(trimmedAmount) || trimmedAmount === '0' || trimmedAmount === '0.00') {
+    if (!trimmedAmount || !/^\d+(\.\d{1,4})?$/.test(trimmedAmount)) {
       setFeedback({
         severity: 'danger',
-        message: 'Amount must be an exact positive decimal string (e.g. 15.50), not negative or zero.',
+        message: 'Amount must be an exact non-negative decimal string (e.g. 15.50 or 0).',
       });
       return;
     }

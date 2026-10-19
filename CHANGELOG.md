@@ -1,5 +1,21 @@
 # Changelog
 
+## Repairs — Expense interfaces, proxy streaming, and mobile integration — 2026-10-19
+
+- **BFF Streaming Proxy Hardening (`apps/web`):**
+  - Updated Next.js API route proxy handler to stream non-JSON raw bytes (CSV, audio, video, attachments) preserving exact `Content-Type`, `Content-Disposition`, `Content-Length`, and `Cache-Control` headers.
+  - Added `text/csv` to default fallback `Accept` header.
+- **Durable Revisions & Optimistic Concurrency (`packages/contracts`, `apps/api`):**
+  - Added `revision` to `ExpenseItemSchema` and optimistic revision checks (`expectedRevision`, `baseRevision`) to `UpdateExpenseBodySchema`.
+  - Persisted item revisions in PostgreSQL queries and verified optimistic conflict handling (`409 ConflictError`).
+- **Exact Financial Math & Domain Validation (`packages/ui-web`, `packages/ui-mobile`):**
+  - Replaced IEEE 754 floating-point calculations with integer minor unit math (`BigInt`) in `ExpenseBudgetView`.
+  - Harmonized zero-amount acceptance (`/^\d+(\.\d{1,4})?$/`) and local calendar date calculation across web and mobile capture dialogs.
+  - Added cursor pagination, category filtering, and draft persistence to Web Expenses hub.
+- **Mobile Expenses Integration (`apps/mobile`):**
+  - Added opt-in toggle and "Open Expense Tracker" button in `SettingsView`.
+  - Created accessible `ExpensesView` integrating month stepper, transactions list, spending report cards, budget overview, and CSV sharing via React Native `Share`.
+
 ## Phase 40 — Expense capture reports and budgets — 2026-10-19
 
 - **Module Opt-in & Privacy Safeguards:**

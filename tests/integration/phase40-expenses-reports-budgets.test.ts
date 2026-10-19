@@ -578,6 +578,50 @@ describe('Phase 40: Expense Capture, Reports, Budgets & CSV Export', () => {
       expect(bytes[1]).toBe(0xBB);
       expect(bytes[2]).toBe(0xBF);
     });
+
+    it('verifies BFF proxy forwarding for CSV streaming export with exact headers, BOM, formula neutralization, and Unicode', async () => {
+      // Point DAYNORI_API_URL to current local test API server
+      process.env['DAYNORI_API_URL'] = baseUrl;
+
+      const { GET: proxyGet } = await import('../../apps/web/src/app/api/v1/[...path]/route.js');
+      const req = new Request(
+        `http://localhost:3000/api/v1/workspaces/${workspaceAId}/expenses/export?startDate=2026-10-01&endDate=2026-10-31`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${tokenA}`,
+            Accept: 'text/csv',
+          },
+        }
+      );
+
+      const proxyRes = await proxyGet(req, {
+        params: Promise.resolve({
+          path: ['workspaces', workspaceAId, 'expenses', 'export'],
+        }),
+      });
+
+      expect(proxyRes.status).toBe(200);
+      expect(proxyRes.headers.get('content-type')).toBe('text/csv; charset=utf-8');
+      const disposition = proxyRes.headers.get('content-disposition');
+      expect(disposition).toContain('attachment;');
+      expect(disposition).toContain('filename="expenses-');
+      expect(disposition).toContain('.csv"');
+
+      // Assert byte-level UTF-8 BOM
+      const buf = await proxyRes.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      expect(bytes[0]).toBe(0xEF);
+      expect(bytes[1]).toBe(0xBB);
+      expect(bytes[2]).toBe(0xBF);
+
+      // Assert Unicode and formula escaping preserved through proxy stream
+      const text = new TextDecoder('utf-8').decode(buf);
+      expect(text).toContain('মুদি');
+      expect(text).toContain('বিকাশ (bKash)');
+      expect(text).toContain("'=SUM(1+1)");
+      expect(text).toContain("'+cmd");
+    });
   });
 
   // ---------------------------------------------------------------------------
