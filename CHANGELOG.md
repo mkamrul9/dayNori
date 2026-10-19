@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 45 — Encrypted vault records preparation strengthened (blocked) — 2026-10-19
+
+- Strengthened disconnected preparation: purpose/field-role AAD binding, checkpoint/replay rules, ciphertext conflict preservation, transfer state machine with cleanup gates and retained-copy disclosure, default-deny exclusion registry (`protocol-models.ts`).
+- Relabeled Vitest coverage as preparation checks (not production integration proof).
+- Attachment evaluation lists pinned candidate versions and proposes libsodium secretstream for independent review (not adopted).
+- Phase status remains `blocked` / prepared — no production vault tables, routes, or unlock UI.
+
 ## Phase 44 — Vault cryptography proof repair (continued) — 2026-10-19
 
 - Empty authenticated payloads: empty ciphertext string allowed; nonce/tag remain mandatory; cross-adapter regressions added.

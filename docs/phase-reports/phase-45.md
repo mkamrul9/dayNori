@@ -3,49 +3,40 @@
 ## Identity and scope
 
 - **Phase ID/specification:** [Phase 45 — Encrypted vault records and sync protocol](../roadmap/phases/45-encrypted-vault-records-and-sync-protocol.md).
-- **Status:** `blocked` (preparation delivered; implementation **not** authorized while Phase 44 gates remain unmet).
-- **Contributor and report date:** Cursor agent, 2026-10-19 (Asia/Dhaka).
-- **Prerequisites:**
-  - [Phase 44](phase-44.md): `blocked` — crypto proof repaired; independent review + platform evidence absent.
-  - [Phase 34](phase-34.md): provisional conflict/offline hardening (still hardware-blocked).
-  - [Phase 24](phase-24.md): provisional binary upload lifecycle (still hardware-blocked).
-- **Included (preparation only):**
-  - Design: [vault-records-and-transfer-preparation.md](../architecture/vault-records-and-transfer-preparation.md)
-  - Synthetic fixtures: `tests/security/vault/phase45-prep/`
-  - Disconnected fixture tests: `tests/security/phase45-vault-prep.test.ts`
-- **Excluded (not delivered):**
-  - Production `app.vault_*` migrations
-  - API vault routes / sync registration
-  - Application package vault modules
-  - Unlock screens
-  - Enabling vault feature flags
+- **Status:** `blocked` (**preparation strengthened**; implementation **not** authorized).
+- **Prerequisites verified as still unmet for implementation:**
+  - Phase 44: blocked (local proof improved; independent review + physical Android still missing).
+  - Phase 34: blocked (provisional conflict/offline; hardware gates).
+  - Phase 24: blocked (provisional binary lifecycle; hardware/scanner gates).
 
-## Result
+## Preparation delivered (not implementation)
 
-Phase 45 is **blocked/prepared**. Designs cover versioned envelopes, authorization, ciphertext sync/conflicts/tombstones, exclusion surfaces, plaintext-leak prevention, cross-scope attachment rejection, and a durable ordinary→vault transfer state machine that preserves a verified recoverable copy and forbids equating upload success with secure transfer completion.
+- Design: [vault-records-and-transfer-preparation.md](../architecture/vault-records-and-transfer-preparation.md)
+- Executable **test-only** models: `tests/security/vault/phase45-prep/protocol-models.ts`
+  - Purpose/field-role AAD binding
+  - Checkpoint / replay decisions + fresh-device reduced assurance
+  - Ciphertext conflict preservation (no silent overwrite)
+  - Transfer state machine with idempotency, cleanup-before-accept forbidden, ordinary edits, retained-copy disclosure, cleanup evidence gate
+  - Default-deny exclusion registry
+- Fixture inventory checks remain labeled as **preparation checks** in `tests/security/phase45-vault-prep.test.ts`
+- Attachment format comparison completed with pinned candidate versions and a **proposed** libsodium secretstream choice pending review — not adopted
 
-Canonical feature commit `feat(vault): add client-encrypted records and ciphertext synchronization` is **not** used — acceptance requirements for implementation are not met.
+## Explicit non-claims
 
-## Acceptance evidence (preparation)
+- Preparation model tests ≠ production authorization, durable DB recovery, or leak scans of live app paths.
+- Listing transfer state names ≠ proof of durable recovery.
+- No `app.vault_*` migrations, API routes, sync registration, or unlock screens.
 
-Environment: Windows 10, Node `v24.11.1`, pnpm `9.15.5`.
+## Checks
 
 | Command | Exit | Result |
 |---|---|---|
-| `pnpm vitest run tests/security/phase45-vault-prep.test.ts` | 0 | 5/5 passed (fixtures, AAD, transfer states, exclusions, no vault migrations/routes) |
-| Production vault module path `apps/api/src/modules/vault` | absent | Confirmed by prep test |
-| Vault-named SQL migrations | absent | Confirmed by prep test |
-
-Implementation acceptance (server cannot recover plaintext, unauthorized tenants denied, etc.) is **not claimed**.
+| `pnpm vitest run tests/security/phase45-vault-prep.test.ts` | 0 | Preparation + model tests |
 
 ## What would unblock implementation
 
-1. Phase 44 independent review disposition + recorded browser/Android harness evidence within stated scope.
-2. Attachment streaming format decision (ADR amendment).
-3. Owner authorization to implement Phase 45 after verifying prerequisite evidence scope.
-4. Then follow the canonical specification: contracts, migrations, ciphertext sync, transfer lifecycle, leak scans — behind default-off flags until Phases 46–47 unlock UX.
+Phase 44 independent review disposition + physical Android harness evidence within scope + attachment format decision; then verify Phases 24/34 provisional scopes before implementing the canonical Phase 45 feature commit.
 
 ## Handoff
 
-Stop before Phase 46. Do not deploy, provision paid infrastructure, or use real private content.
-Next action: obtain Phase 44 unblocking evidence; until then keep vault disabled.
+Stop before Phase 46. Vault remains disabled.

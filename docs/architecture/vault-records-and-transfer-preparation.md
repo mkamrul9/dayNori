@@ -131,6 +131,9 @@ Failure branches: encrypt_failed | upload_failed | verify_failed | cleanup_faile
 
 ---
 
-## 6. Synthetic fixtures (disconnected)
+## 6. Synthetic fixtures and test-only models (disconnected)
 
-See `tests/security/vault/phase45-prep/`. These fixtures must not import application route modules or register Fastify plugins.
+See `tests/security/vault/phase45-prep/` (`synthetic-envelopes.json`, `protocol-models.ts`).
+Vitest coverage in `tests/security/phase45-vault-prep.test.ts` is labeled **preparation checks** — it exercises models and fixture inventory only. It does not prove production authorization, durable DB recovery, or live plaintext-leak absence.
+
+These fixtures/models must not import application route modules or register Fastify plugins.
