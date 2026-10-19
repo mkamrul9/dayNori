@@ -1,24 +1,24 @@
 /**
- * Fixture model encoding documentation-supported drive.file expectations.
- * Not proof of live OAuth — same-account ownership is not application access.
+ * Documentation / synthetic expectation matrix — not live Google observations.
+ * Selection (OAuth file authorization) ≠ provider capability (edit/move/trash).
  */
 
 import type { Capability, CapabilityResult, ExperimentCase } from './scopes.js';
 
 export interface CaseCapabilityMatrix {
   caseId: string;
+  /** documentation_expectation or synthetic_assumption — never live_observation */
+  evidenceLane: 'documentation_expectation' | 'synthetic_assumption';
+  /** OAuth/file authorization expectation (may the app call APIs for this object?). */
+  oauthAuthorization: 'authorized' | 'unauthorized' | 'unverified';
+  /**
+   * Provider capability expectations if authorized. Must not treat selection alone
+   * as proof a read-only shared file can be edited/moved/trashed.
+   */
   capabilities: Record<Capability, CapabilityResult>;
   notes: string;
 }
 
-/**
- * Expected outcomes under a clean drive.file grant + Picker per-file authorization,
- * based on Google Drive API scope guidance reviewed 2026-10-19:
- * https://developers.google.com/workspace/drive/api/guides/api-specific-auth
- *
- * Folder pick authorizes the folder resource; it is not treated here as a recursive
- * grant to all existing/future children (must be proven live; mock marks unverified/denied).
- */
 export function expectedMatrixForCase(c: ExperimentCase): CaseCapabilityMatrix {
   const allDenied = (): Record<Capability, CapabilityResult> => ({
     metadata: 'denied',
@@ -28,115 +28,121 @@ export function expectedMatrixForCase(c: ExperimentCase): CaseCapabilityMatrix {
     update_move_trash: 'denied',
   });
 
+  const allUnverified = (): Record<Capability, CapabilityResult> => ({
+    metadata: 'unverified',
+    enumerate: 'unverified',
+    download_or_export: 'unverified',
+    create_upload: 'unverified',
+    update_move_trash: 'unverified',
+  });
+
   switch (c.authorizationPath) {
     case 'app_created':
     case 'app_created_in_authorized_folder':
       return {
         caseId: c.id,
+        evidenceLane: 'documentation_expectation',
+        oauthAuthorization: 'authorized',
         capabilities: {
           metadata: 'allowed',
           enumerate: 'allowed',
           download_or_export: 'allowed',
           create_upload: 'allowed',
-          update_move_trash: 'allowed',
+          // Capability still depends on ACLs; app-created usually writable.
+          update_move_trash: 'unverified',
         },
-        notes: 'App-created objects are in the drive.file per-file set.',
+        notes:
+          'App-created objects are in the drive.file per-file set. Mutating capability still requires live ACL proof.',
       };
     case 'picker_file':
     case 'independent_picker':
       return {
         caseId: c.id,
+        evidenceLane: 'documentation_expectation',
+        oauthAuthorization: 'authorized',
         capabilities: {
           metadata: 'allowed',
           enumerate: 'allowed',
-          download_or_export: 'allowed',
-          create_upload: 'denied',
-          update_move_trash: 'allowed',
+          download_or_export: 'unverified',
+          create_upload: 'n/a',
+          update_move_trash: 'unverified',
         },
-        notes: 'Explicit Picker selection authorizes that file resource.',
+        notes:
+          'Picker selection authorizes the file for the app; download/edit/trash still depend on the user’s role on that file.',
       };
     case 'picker_folder':
       if (c.id === 'existing-children-of-selected-folder') {
         return {
           caseId: c.id,
-          capabilities: {
-            metadata: 'denied',
-            enumerate: 'denied',
-            download_or_export: 'denied',
-            create_upload: 'denied',
-            update_move_trash: 'denied',
-          },
+          evidenceLane: 'synthetic_assumption',
+          oauthAuthorization: 'unverified',
+          capabilities: allUnverified(),
           notes:
-            'Do not assume folder selection grants existing children. Live proof required; mock expects denial.',
+            'Unmeasured: do not treat mock denial as an observed Google denial. Folder pick ≠ proven recursive child grant.',
         };
       }
       return {
         caseId: c.id,
+        evidenceLane: 'documentation_expectation',
+        oauthAuthorization: 'authorized',
         capabilities: {
           metadata: 'allowed',
           enumerate: 'unverified',
-          download_or_export: 'denied',
+          download_or_export: 'n/a',
           create_upload: 'unverified',
-          update_move_trash: 'allowed',
+          update_move_trash: 'unverified',
         },
-        notes:
-          'Folder resource itself may be authorized; listing/creating children is the experiment under test.',
+        notes: 'Folder resource may be authorized; child listing/create must be measured live.',
       };
     case 'never_selected':
     case 'external_child_after_folder_pick':
       return {
         caseId: c.id,
+        evidenceLane: 'synthetic_assumption',
+        oauthAuthorization: 'unauthorized',
         capabilities: allDenied(),
-        notes: 'Never selected / externally added child — not in per-file grant by assumption.',
+        notes:
+          'Synthetic assumption under per-file model — confirm with live 403/404; mock is not observation.',
       };
     case 'post_move':
+    case 'reauth_incremental':
       return {
         caseId: c.id,
-        capabilities: {
-          metadata: 'unverified',
-          enumerate: 'unverified',
-          download_or_export: 'unverified',
-          create_upload: 'denied',
-          update_move_trash: 'unverified',
-        },
-        notes: 'Move semantics depend on whether the file remains in the authorized set — live only.',
+        evidenceLane: 'synthetic_assumption',
+        oauthAuthorization: 'unverified',
+        capabilities: allUnverified(),
+        notes: 'Live-only.',
       };
     case 'trash_restore':
       return {
         caseId: c.id,
+        evidenceLane: 'documentation_expectation',
+        oauthAuthorization: 'authorized',
         capabilities: {
           metadata: 'allowed',
           enumerate: 'allowed',
-          download_or_export: 'allowed',
-          create_upload: 'denied',
-          update_move_trash: 'allowed',
+          download_or_export: 'unverified',
+          create_upload: 'n/a',
+          update_move_trash: 'unverified',
         },
-        notes: 'Synthetic authorized object trash/restore expected when still authorized.',
+        notes: 'Authorized synthetic object; trash/restore capability still ACL-dependent.',
       };
     case 'permission_loss':
     case 'grant_revoked':
       return {
         caseId: c.id,
+        evidenceLane: 'documentation_expectation',
+        oauthAuthorization: 'unauthorized',
         capabilities: allDenied(),
-        notes: 'After revoke/permission loss, operations must fail closed.',
-      };
-    case 'reauth_incremental':
-      return {
-        caseId: c.id,
-        capabilities: {
-          metadata: 'unverified',
-          enumerate: 'unverified',
-          download_or_export: 'unverified',
-          create_upload: 'unverified',
-          update_move_trash: 'unverified',
-        },
-        notes: 'Incremental consent must be observed live; do not broaden scopes in the harness.',
+        notes: 'After revoke/permission loss, operations must fail closed (live).',
       };
     default:
       return {
         caseId: c.id,
-        capabilities: allDenied(),
-        notes: 'Unknown path — deny.',
+        evidenceLane: 'synthetic_assumption',
+        oauthAuthorization: 'unverified',
+        capabilities: allUnverified(),
+        notes: 'Unknown path.',
       };
   }
 }

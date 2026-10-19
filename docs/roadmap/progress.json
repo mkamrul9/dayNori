@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-19",
   "activePhase": "48",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 48 as a bounded Drive feasibility spike while earlier release prerequisites remain blocked. Local drive.file matrix + narrow-mode ADR delivered; live Google experiments unverified (OAuth unset). Vault activation and production Drive connection remain unavailable. Do not start Phase 49 automatically.",
+  "schedulingDecision": "Owner selected Phase 48 as a bounded Drive feasibility spike while earlier release prerequisites remain blocked. Spike repairs delivered (live OAuth runner + exact scope validation); live Google experiments still unverified (OAuth unset). Vault activation and production Drive connection remain unavailable. Owner may separately authorize provisional Phase 49 local work.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -291,7 +291,7 @@
     {
       "id": "48",
       "status": "blocked",
-      "reason": "Drive scope feasibility spike and ADR 0046 narrow-mode decision delivered under owner selection. Live Google drive.file experiments unverified (OAuth client unset). Production Drive connection unavailable. Vault activation remains disabled. Phase 38 beta infra still blocked separately.",
+      "reason": "Spike + ADR 0046 + repairs (live OAuth runner, exact scope URI validation, evidence lanes) delivered. Live Google drive.file experiments still unverified (OAuth client unset). Production Drive connection unavailable. Vault activation remains disabled.",
       "report": "docs/phase-reports/phase-48.md"
     },
     {

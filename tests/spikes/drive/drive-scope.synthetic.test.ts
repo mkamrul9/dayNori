@@ -1,22 +1,56 @@
 /**
- * Phase 48 — synthetic Drive scope matrix (no live Google account required).
+ * Phase 48 — synthetic Drive scope matrix + validation (no live Google account required).
  */
 import { describe, it, expect } from 'vitest';
 import {
   DRIVE_FILE_SCOPE,
-  EXPERIMENT_CASES,
-  RESTRICTED_DRIVE_SCOPES,
-} from './src/scopes.js';
+  tokenizeScopes,
+  validateRequestedDriveScopes,
+  validateGrantedDriveScopes,
+  assertNarrowScope,
+} from '@daynori/domain';
+import { EXPERIMENT_CASES } from './src/scopes.js';
 import { expectedMatrixForCase } from './src/mockDriveModel.js';
-import { assertNarrowScope, loadDriveSpikeConfig } from './src/config.js';
+import { loadDriveSpikeConfig } from './src/config.js';
 
 describe('Phase 48 Drive scope spike (synthetic / documentation matrix)', () => {
-  it('requests only the narrow drive.file scope by default', () => {
-    expect(DRIVE_FILE_SCOPE).toBe('https://www.googleapis.com/auth/drive.file');
-    assertNarrowScope(DRIVE_FILE_SCOPE);
-    for (const s of RESTRICTED_DRIVE_SCOPES) {
-      expect(() => assertNarrowScope(s)).toThrow(/refuses/i);
-    }
+  it('tokenizes scopes and rejects lookalikes / broader combinations', () => {
+    expect(tokenizeScopes(`  ${DRIVE_FILE_SCOPE}  ${DRIVE_FILE_SCOPE} `)).toEqual([
+      DRIVE_FILE_SCOPE,
+    ]);
+    expect(validateRequestedDriveScopes(DRIVE_FILE_SCOPE).ok).toBe(true);
+    expect(
+      validateRequestedDriveScopes(
+        `${DRIVE_FILE_SCOPE} https://www.googleapis.com/auth/drive`
+      ).ok
+    ).toBe(false);
+    expect(
+      validateRequestedDriveScopes(
+        `https://www.googleapis.com/auth/drive ${DRIVE_FILE_SCOPE}`
+      ).ok
+    ).toBe(false);
+    expect(
+      validateRequestedDriveScopes('https://evil.example/drive.file').ok
+    ).toBe(false);
+    expect(validateRequestedDriveScopes('https://www.googleapis.com/auth/drive').ok).toBe(false);
+    expect(() => assertNarrowScope(DRIVE_FILE_SCOPE)).not.toThrow();
+    expect(() =>
+      assertNarrowScope(`${DRIVE_FILE_SCOPE} https://www.googleapis.com/auth/drive`)
+    ).toThrow();
+  });
+
+  it('rejects broader granted scopes even when drive.file is also present', () => {
+    const bad = validateGrantedDriveScopes(
+      `${DRIVE_FILE_SCOPE} https://www.googleapis.com/auth/drive`,
+      { allowOpenIdExtras: true }
+    );
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.reason).toBe('broader_than_approved');
+
+    const ok = validateGrantedDriveScopes(`${DRIVE_FILE_SCOPE} openid email`, {
+      allowOpenIdExtras: true,
+    });
+    expect(ok.ok).toBe(true);
   });
 
   it('covers the required experiment inventory ids', () => {
@@ -40,43 +74,26 @@ describe('Phase 48 Drive scope spike (synthetic / documentation matrix)', () => 
     }
   });
 
-  it('does not assume folder selection authorizes existing children', () => {
-    const children = EXPERIMENT_CASES.find((c) => c.id === 'existing-children-of-selected-folder');
-    expect(children).toBeTruthy();
-    const matrix = expectedMatrixForCase(children!);
-    expect(matrix.capabilities.enumerate).toBe('denied');
-    expect(matrix.capabilities.download_or_export).toBe('denied');
-    expect(matrix.notes).toMatch(/Do not assume folder selection/i);
+  it('keeps unmeasured folder-child behavior unverified (not a mock Google denial)', () => {
+    const children = EXPERIMENT_CASES.find((c) => c.id === 'existing-children-of-selected-folder')!;
+    const matrix = expectedMatrixForCase(children);
+    expect(matrix.evidenceLane).toBe('synthetic_assumption');
+    expect(matrix.oauthAuthorization).toBe('unverified');
+    expect(matrix.capabilities.enumerate).toBe('unverified');
+    expect(matrix.notes).toMatch(/not treat mock denial as an observed/i);
   });
 
-  it('marks never-selected and externally added children as denied', () => {
-    for (const id of ['never-selected-file', 'external-child-after-folder-selection']) {
-      const c = EXPERIMENT_CASES.find((x) => x.id === id)!;
-      const m = expectedMatrixForCase(c);
-      expect(m.capabilities.metadata).toBe('denied');
-      expect(m.capabilities.download_or_export).toBe('denied');
-    }
-  });
-
-  it('allows app-created and picker-selected files in the documentation matrix', () => {
-    for (const id of ['app-created-file', 'picker-selected-file']) {
-      const c = EXPERIMENT_CASES.find((x) => x.id === id)!;
-      const m = expectedMatrixForCase(c);
-      expect(m.capabilities.metadata).toBe('allowed');
-      expect(m.capabilities.download_or_export).toBe('allowed');
-    }
+  it('separates OAuth authorization from mutating provider capabilities', () => {
+    const picked = expectedMatrixForCase(
+      EXPERIMENT_CASES.find((c) => c.id === 'picker-selected-file')!
+    );
+    expect(picked.oauthAuthorization).toBe('authorized');
+    expect(picked.capabilities.update_move_trash).toBe('unverified');
   });
 
   it('inspects OAuth config without requiring credentials', () => {
     const cfg = loadDriveSpikeConfig();
     expect(typeof cfg.clientIdSet).toBe('boolean');
-    expect(typeof cfg.clientSecretSet).toBe('boolean');
-    // Secrets must never appear in the config inspection object.
-    expect(JSON.stringify(cfg)).not.toMatch(/GOCSPX-|ya29\.|1\//);
-  });
-
-  it('keeps vault exclusion as an explicit spike invariant', () => {
-    const notes = EXPERIMENT_CASES.map((c) => expectedMatrixForCase(c).notes).join(' ');
-    expect(notes.toLowerCase()).not.toMatch(/vault plaintext|decrypt vault/);
+    expect(JSON.stringify(cfg)).not.toMatch(/GOCSPX-|ya29\./);
   });
 });

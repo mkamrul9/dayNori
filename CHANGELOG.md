@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 48 — Drive spike repair (blocked) — 2026-10-19
+
+- Live CLI now runs interactive PKCE OAuth, callback listener, optional Picker, and Drive API probes (`src/liveRunner.ts`); missing config yields explicit `blocked` / `blocked_unexecuted`, not a fake pass.
+- Centralized exact-URI scope validation in `@daynori/domain` (`driveScopes.ts`); rejects broader+narrow combinations, lookalike URIs, and unclean grants.
+- Evidence lanes separated: documentation/synthetic vs live; unmeasured folder children stay `unverified`; OAuth selection ≠ mutating capability proof.
+- Inventory/`--mode=mock` documented as non-live preparation only.
+
 ## Phase 48 — Drive scope feasibility spike (blocked) — 2026-10-19
 
 - Added isolated spike under `tests/spikes/drive` (mock inventory, config inspection without logging secrets, live handoff).

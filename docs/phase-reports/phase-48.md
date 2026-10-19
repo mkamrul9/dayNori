@@ -3,9 +3,9 @@
 ## Identity and scope
 
 - **Phase ID/specification:** [Phase 48 — Drive scope and external folder feasibility](../roadmap/phases/48-drive-scope-and-external-folder-feasibility.md).
-- **Status:** `blocked` (harness + documentation decision delivered; live Google experiments unverified).
-- **Contributor and report date:** Cursor agent, 2026-10-19 (Asia/Dhaka).
-- **Base revision:** Phase 47 repair `32d0256`.
+- **Status:** `blocked` (harness + documentation decision + repair delivered; live Google experiments still unverified without owner OAuth).
+- **Contributor and report date:** Cursor agent, 2026-10-19 (Asia/Dhaka); repair same day.
+- **Base revision:** Phase 47 repair `32d0256`; initial Phase 48 spike `25b0c8a`.
 - **Prerequisites:**
   - Phase 03: complete (prior Drive scope warnings in spikes/ADRs).
   - Phase 38: blocked (private beta infra still owner-gated) — does not block local spike harness.
@@ -15,65 +15,74 @@
 | Lane | Delivered? |
 |---|---|
 | Runnable local spike + synthetic matrix + setup instructions | **Yes** |
+| Centralized exact-URI scope validation (`@daynori/domain`) | **Yes** (repair) |
+| Genuine interactive live runner (OAuth/PKCE/callback/Picker/Drive) | **Yes** (repair); exits `blocked` when config absent |
 | Live Google account experiments with clean `drive.file` grant | **No** — OAuth client unset |
-| Production Drive connection / Phase 49 | **No** — not authorized |
+| Production Drive connection / Phase 49 | **No** — not authorized by this phase alone |
 | Vault activation | **No** — remains disabled |
 
 ## Result
 
-- Spike at `tests/spikes/drive` (mock + live-ready config inspection; refuses restricted scopes).
+- Spike at `tests/spikes/drive`:
+  - `--mode=inventory` (alias `--mode=mock`): documentation inventory only — **no** Google calls.
+  - `--mode=live`: interactive PKCE OAuth, local callback listener, optional Picker page, Drive API probes; writes redacted `results/live-*.json`.
+- Scope validation centralized in `packages/domain/src/driveScopes.ts` (tokenize + exact URI approve/forbid). Used by TypeScript spike helpers and the live runner.
 - ADR 0046: **selected/app-created-file mode** under `drive.file`; folder-child recursion not promised.
-- Architecture update in `docs/architecture/integrations-and-reminders.md` (dated 2026-10-19 links).
-- Experiment inventory covers app-created, Picker file/folder, never-selected, existing/external children, moves, trash/restore, permission loss, revocation, reauth.
+- Evidence lanes kept separate: documentation/synthetic vs live observation; mock denial ≠ observed Google denial; OAuth selection ≠ mutating capability proof.
 
-### Observed access limits (documentation + synthetic)
+### Observed access limits
 
-| Case class | Metadata | Enumerate | Download/export | Create/upload | Update/move/trash |
-|---|---|---|---|---|---|
-| App-created / Picker file | allowed | allowed | allowed | varies | allowed |
-| Never selected / external child after folder pick | denied | denied | denied | denied | denied |
-| Existing children of selected folder | denied (assumption) | denied | denied | denied | denied |
-| Live confirmations | **unexecuted** | **unexecuted** | **unexecuted** | **unexecuted** | **unexecuted** |
-
-Same-account ownership is **not** counted as OAuth application access proof.
+| Case class | Evidence | Metadata | Enumerate | Download/export | Create/upload | Update/move/trash |
+|---|---|---|---|---|---|---|
+| App-created / Picker file | documentation | allowed | allowed | unverified/allowed | varies | unverified |
+| Never selected / external child after folder pick | documentation | denied | denied | denied | denied | denied |
+| Existing children of selected folder | synthetic_assumption | unverified | unverified | unverified | unverified | unverified |
+| Live confirmations | live | **unexecuted** (config blocked) | **unexecuted** | **unexecuted** | **unexecuted** | **unexecuted** |
 
 ### Scope / ownership decision
 
-**Accepted direction:** selected/app-created-file mode (`drive.file` + Picker). Broader folder mirror deferred. UX must say the app can see files it creates or the user picks — not an entire folder tree. Ownership: prefer provider reference with explicit import-copy when offline retention is needed; disconnect ≠ grant revocation semantics documented in ADR 0046.
+**Accepted direction:** selected/app-created-file mode (`drive.file` + Picker). Broader folder mirror deferred. UX must say the app can see files it creates or the user picks — not an entire folder tree.
 
-Verification/assessment: non-sensitive `drive.file` still needs current OAuth verification checks at implementation; restricted scopes would need assessment — **fees quote-required, not invented**.
+### Repair (post-`25b0c8a`)
+
+| Defect | Fix |
+|---|---|
+| `--mode=live` only wrote inventory / never ran OAuth | `src/liveRunner.ts` + CLI spawn; missing config → `live-blocked.json` outcome `blocked` |
+| `assertNarrowScope` substring / ordering holes | `tokenizeScopes` + exact `APPROVED_DRIVE_SCOPES` / `FORBIDDEN_DRIVE_SCOPES` |
+| Mock denial treated like Google denial | folder-child matrix uses `unverified` + synthetic_assumption notes |
+| Selection = edit capability | capabilities split from `oauthAuthorization` |
 
 ## Acceptance evidence
 
 | Condition | Method | Result |
 |---|---|---|
-| Runnable spike without credentials | `node tests/spikes/drive/run-spike.mjs --mode=mock` | PASS |
-| Synthetic matrix tests | `pnpm vitest run tests/spikes/drive/drive-scope.synthetic.test.ts` | PASS |
-| Live Drive experiments | Requires `config.local.env` | **UNEXECUTED** (`DAYNORI_DRIVE_CLIENT_ID` unset) |
-| Official docs review | Dated links in ADR 0046 | PASS (docs) |
+| Inventory without credentials | `node tests/spikes/drive/run-spike.mjs --mode=inventory` | PASS |
+| Synthetic matrix + scope tests | `pnpm vitest run tests/spikes/drive/drive-scope.synthetic.test.ts` | PASS (6) |
+| Live runner without credentials | `node tests/spikes/drive/run-spike.mjs --mode=live` | PASS → `outcome=blocked`, `live-blocked.json` |
+| Domain build | `pnpm --filter @daynori/domain build` | PASS |
+| Live Drive experiments with Google account | Requires `config.local.env` | **UNEXECUTED** |
 
-### Commands run
+### Commands run (repair verification)
 
 Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`.
 
 | Command | Exit | Result |
 |---|---|---|
-| `pnpm vitest run tests/spikes/drive/drive-scope.synthetic.test.ts` | 0 | 7 passed |
-| `node tests/spikes/drive/run-spike.mjs --mode=mock` | 0 | 13 cases → `results/mock-inventory.json`; LIVE_UNVERIFIED |
-| `node tests/spikes/drive/run-spike.mjs --mode=live` | 0 | inventory written; consent unexecuted (no client id) |
-| `pnpm --filter @daynori/web typecheck` | 0 | OK (no Drive web wiring) |
-| `node scripts/validate-planning.mjs` | 0 | passed |
-| `git diff --check` | 0 | clean |
-
-Config inspection: no Drive OAuth variables set in environment or `.env` (keys scanned without printing values).
+| `pnpm --filter @daynori/domain build` | 0 | OK |
+| `pnpm vitest run tests/spikes/drive/drive-scope.synthetic.test.ts` | 0 | 6 passed |
+| `node tests/spikes/drive/run-spike.mjs --mode=inventory` | 0 | inventory.json; no Google |
+| `node tests/spikes/drive/run-spike.mjs --mode=live` | 0 | blocked; observed=0 |
 
 ### Owner handoff for live experiments
 
-1. Create a Google Cloud **test** OAuth client; enable Drive API.
-2. Copy `tests/spikes/drive/config.example.env` → `config.local.env`; set `DAYNORI_DRIVE_CLIENT_ID` (secret only if client type requires it).
-3. Use a dedicated test account; revoke prior app grants for a clean narrow-scope consent screen.
-4. Run `node tests/spikes/drive/run-spike.mjs --mode=live` and complete interactive Picker/API cases; fill redacted observed results.
-5. Do not broaden scopes if a case fails — record denial and revisit ADR 0046 only with evidence.
+1. Google Cloud **test** project: enable **Google Drive API** and **Google Picker API**.
+2. OAuth client matching platform:
+   - `DAYNORI_DRIVE_CLIENT_TYPE=web` → Web client + secret; redirect `http://127.0.0.1:8765/oauth2callback` allowlisted.
+   - `DAYNORI_DRIVE_CLIENT_TYPE=installed` → Desktop/installed; PKCE; secret per client type rules.
+3. Copy `tests/spikes/drive/config.example.env` → `config.local.env`; set client id/type/secret/API key as required.
+4. Dedicated test account; revoke prior app access for a **clean** narrow grant.
+5. Run `node tests/spikes/drive/run-spike.mjs --mode=live`; complete consent/Picker; retain redacted `results/live-*.json`.
+6. Do not broaden scopes on failure — record denial.
 
 ## Defects, limitations and recovery
 
@@ -83,9 +92,9 @@ Config inspection: no Drive OAuth variables set in environment or `.env` (keys s
 
 ## Documentation and Git review
 
-- ADR 0046; architecture; phase report; CHANGELOG; progress.json (`48` blocked).
-- Commit subject (preparation accurate): `docs(drive): add scope feasibility spike and narrow-mode decision`
+- ADR 0046; spike README; phase report; CHANGELOG; progress.json (`48` blocked).
+- Repair commit subject target: `fix(drive): repair live spike path and exact scope validation`
 
 ## Handoff
 
-Phase 48 local spike + narrow-mode decision delivered; live Google proof pending owner OAuth. **Next action:** supply test OAuth client + run live inventory, or proceed only when owner selects later phases. **Stop before Phase 49.** Production Drive connection and vault activation stay unavailable.
+Phase 48 local spike + narrow-mode decision + repairs delivered; live Google proof pending owner OAuth. Vault activation stays unavailable. Owner has separately authorized provisional Phase 49 local development without clearing live scope proof.

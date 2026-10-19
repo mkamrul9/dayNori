@@ -1,39 +1,41 @@
 # Phase 48 — Google Drive scope / folder feasibility spike
 
 Isolated experiment harness. **Not** production Drive integration.
-Does not authorize vault activation, broader OAuth permissions, or Phase 49.
+Does not authorize vault activation, broader OAuth permissions, or Phase 49 real-user enablement.
 
-## What this proves
+## Commands (accurate)
 
-1. Documentation-supported expectations for `drive.file` + Google Picker.
-2. Mock/fixture matrix for operations × authorization states (always runnable).
-3. Optional live Google account experiments when owner-provided OAuth config exists.
+| Command | What it actually does |
+|---|---|
+| `pnpm vitest run tests/spikes/drive/drive-scope.synthetic.test.ts` | Unit tests: scope tokenization + documentation/synthetic matrix |
+| `node tests/spikes/drive/run-spike.mjs --mode=inventory` | Writes inventory JSON only — **no** OAuth, Picker, or Drive API |
+| `node tests/spikes/drive/run-spike.mjs --mode=mock` | Alias for `inventory` |
+| `node tests/spikes/drive/run-spike.mjs --mode=live` | **Interactive** PKCE OAuth, callback listener, optional Picker page, Drive API probes; writes redacted `results/live-*.json` |
 
-## Setup (live experiments)
+Missing configuration or unfinished consent → outcome `blocked` / `blocked_unexecuted`, **not** successful live verification.
 
-1. Create a Google Cloud project **test** OAuth client (Desktop or Web) with Drive API enabled.
-2. Copy `config.example.env` → `config.local.env` (gitignored).
-3. Fill `DAYNORI_DRIVE_CLIENT_ID`, and for installed-app flows `DAYNORI_DRIVE_CLIENT_SECRET` only if the client type requires it (never commit).
-4. Use a **dedicated test Google account**. Prefer a clean grant (revoke prior Daynori/test app access first).
-5. Synthetic files only under a Drive folder you create for this spike — no real user content, no vault material.
+## Live setup
+
+1. Google Cloud **test** project with **Drive API** and **Picker API** enabled.
+2. OAuth client:
+   - `DAYNORI_DRIVE_CLIENT_TYPE=web` → Web application client; secret required; redirect `http://127.0.0.1:8765/oauth2callback` allowlisted.
+   - `DAYNORI_DRIVE_CLIENT_TYPE=installed` → Desktop client; PKCE; secret optional depending on client.
+3. Copy `config.example.env` → `config.local.env` (gitignored) and fill values.
+4. Dedicated test account; revoke prior app access for a **clean** narrow grant.
+5. Optional: set `DAYNORI_DRIVE_NEVER_SELECTED_FILE_ID` and/or use Picker (`DAYNORI_DRIVE_API_KEY`).
 
 ```bash
-# From repo root
 pnpm vitest run tests/spikes/drive/drive-scope.synthetic.test.ts
-node tests/spikes/drive/run-spike.mjs --mode=mock
-node tests/spikes/drive/run-spike.mjs --mode=live   # requires config.local.env + interactive consent
+node tests/spikes/drive/run-spike.mjs --mode=inventory
+node tests/spikes/drive/run-spike.mjs --mode=live
 ```
 
-## Modes
+## Evidence lanes
 
-| Mode | Needs credentials | Purpose |
-|---|---|---|
-| `mock` | No | Records expected matrix from fixtures; CI-safe |
-| `live` | Yes | Real `drive.file` grant + Picker/API calls; writes redacted results |
+- **documentation_expectation** / **synthetic_assumption** — not Google observations
+- **live_observation** — measured HTTP/capability results from `--mode=live`
+- OAuth file authorization ≠ proof of edit/move/trash on a read-only shared file
 
 ## Safety
 
-- Never log tokens, codes, client secrets, or file contents.
-- Results store redacted status codes and boolean capability flags only.
-- Vault ciphertext/plaintext is out of scope for every experiment.
-- Production app Drive connection remains unavailable.
+Never log tokens, codes, client secrets, or file contents. Vault material is out of scope.

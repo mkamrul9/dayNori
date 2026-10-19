@@ -1,13 +1,19 @@
-/** Narrow Drive scope under test — do not silently broaden. */
-export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+/**
+ * Spike experiment inventory — scope constants/validation live in @daynori/domain.
+ */
 
-/** Restricted scopes that must not be requested by this spike. */
-export const RESTRICTED_DRIVE_SCOPES = [
-  'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/drive.metadata',
-  'https://www.googleapis.com/auth/drive.metadata.readonly',
-] as const;
+import { DRIVE_FILE_SCOPE } from '@daynori/domain';
+
+export {
+  DRIVE_FILE_SCOPE,
+  FORBIDDEN_DRIVE_SCOPES as RESTRICTED_DRIVE_SCOPES,
+  APPROVED_DRIVE_SCOPES,
+  tokenizeScopes,
+  validateRequestedDriveScopes,
+  validateGrantedDriveScopes,
+  assertNarrowScope,
+  assertCleanNarrowGrant,
+} from '@daynori/domain';
 
 export type Capability =
   | 'metadata'
@@ -16,13 +22,15 @@ export type Capability =
   | 'create_upload'
   | 'update_move_trash';
 
-export type CapabilityResult = 'allowed' | 'denied' | 'unverified' | 'error';
+export type CapabilityResult = 'allowed' | 'denied' | 'unverified' | 'error' | 'n/a';
+
+/** Evidence lanes must stay separate in reports. */
+export type EvidenceLane = 'documentation_expectation' | 'synthetic_assumption' | 'live_observation';
 
 export interface ExperimentCase {
   id: string;
   description: string;
   requestedScope: string;
-  /** How the resource becomes authorized in the narrow model. */
   authorizationPath:
     | 'app_created'
     | 'picker_file'
