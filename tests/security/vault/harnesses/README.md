@@ -1,20 +1,28 @@
 # Vault platform harnesses (Phase 44)
 
-Isolated cryptographic evidence runners. These are **not** unlock screens and are **not** wired into the Daynori applications.
+Isolated cryptographic evidence runners. **Not** unlock screens. **Not** wired into Daynori apps.
 
-| Harness | Runtime | Status in repair session |
+| Harness | Runtime | Evidence status |
 |---|---|---|
-| `browser-webcrypto.harness.html` | Real browser Web Crypto | Runnable; open in Chromium/Firefox/Safari and paste results into the phase report. **Execution unverified** unless recorded. |
-| `android-candidate.harness.md` | Android candidate AEAD library | Procedure + Kotlin sketch prepared. **Execution unverified** (no device evidence). |
-| Node Vitest suite | `tests/security/phase44-vault-crypto.test.ts` | Executed in CI/dev Node only — proves Node WebCrypto ↔ Node createCipheriv format interoperability. |
+| `browser-webcrypto.harness.html` + `run-browser-harness.mjs` | Real browser (Playwright → Edge/Chromium) | **PASS** recorded 2026-10-19 |
+| `android-candidate/` Gradle/Kotlin | JVM host using `AES/GCM/NoPadding` + `argon2-jvm:2.11` | **PASS (JVM)** recorded 2026-10-19; **physical Android unverified** |
+| Node Vitest suite | `tests/security/phase44-vault-crypto.test.ts` | Node wire-format / policy tests |
 
-## How to run the browser harness
+## Browser
 
 ```bash
-# From repo root — any static file server
-npx --yes serve tests/security/vault/harnesses -p 8765
-# Open http://127.0.0.1:8765/browser-webcrypto.harness.html
-# Copy the on-page log into docs/phase-reports/phase-44.md evidence section.
+cd tests/security/vault/harnesses
+npm install
+node run-browser-harness.mjs
 ```
 
-Do not treat Node-side Vitest green as browser or Android proof.
+## Android / JVM candidate
+
+```bash
+cd tests/security/vault/harnesses/android-candidate
+# Set JAVA_HOME to JDK 17+
+./gradlew.bat :harness:runHarness   # Windows
+./gradlew :harness:runHarness       # Unix
+```
+
+Physical device steps: see `android-candidate/README.md`.

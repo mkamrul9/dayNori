@@ -46,7 +46,7 @@ Exclusions: rooted devices, cold-boot, actively compromised unlocked runtimes.
 
 - RFC 9106 §5.3 complete (password, salt, secret, AD) → `0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659`
 - Password+salt-only regression fixture (not complete RFC) → `03aab965…`
-- NIST SP 800-38D Appendix C Cases 13–14
+- McGrew/Viega GCM specification Appendix B Test Cases 13–14 (AES-256 empty/16-byte PT; empty AAD). **Not** SP 800-38D appendix cases.
 
 ---
 
@@ -111,11 +111,13 @@ Web vault unlock holds keys in JS memory. Compromised origin script, malicious e
 |---|---|
 | Vitest prototype suite | Runnable locally (`pnpm vitest run tests/security/phase44-vault-crypto.test.ts`) |
 | Node↔Node AEAD interop | Evidence of wire format only |
-| Browser harness | Runnable; record result when executed |
-| Android harness | Procedure ready; device result required |
-| KDF latency on Node host | Distribution + RSS/heap deltas with explicit non-claims |
+| Browser harness | **PASS** Edge/Chromium headless 2026-10-19 — `harnesses/evidence/browser-harness-2026-10-19.md` |
+| Android/JVM candidate harness | **PASS on host JVM** 2026-10-19 — `harnesses/evidence/android-jvm-harness-2026-10-19.md` |
+| Physical Android device / emulator app | **Missing — still required** |
+| KDF latency on Node/JVM hosts | Distributions with explicit non-claims (not GPU/ASIC proof) |
 | Independent qualified review | **Missing — blocks gate** |
 | Physical Android Keystore unlock binding | **Missing — blocks gate** (Phase 46 scope overlap) |
+| Attachment streaming format decision | Proposed libsodium secretstream; **pending review** |
 
 ---
 

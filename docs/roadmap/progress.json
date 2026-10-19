@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 44 cryptography proof was repaired and remains blocked pending independent qualified security review, recorded browser/Android harness evidence, and attachment-format decision. Phase 45 is blocked/prepared with documentation and disconnected synthetic fixtures only — no production vault migrations, routes, or unlock UI. Phases 37–38 beta/release gates remain blocked. Do not enable vault functionality or start Phase 46.",
+  "schedulingDecision": "Phase 44 cryptography proof further repaired (empty-payload envelopes, browser profile validator, bounded async Argon2id scheduler, McGrew/Viega GCM Appendix B attribution, removed unsupported GPU/ASIC claims). Browser Edge-headless harness PASS and Android-class JVM candidate harness PASS recorded; physical Android device evidence still unverified. Independent qualified review still required. Phase 45 remains blocked/prepared. Do not start Phase 46.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -267,7 +267,7 @@
     {
       "id": "44",
       "status": "blocked",
-      "reason": "Repaired isolated vault cryptography prototype verified in Node (RFC 9106 §5.3 complete Argon2id vector, NIST SP 800-38D Appendix C AES-GCM vectors, strict recovery-secret and envelope-profile validation, Node WebCrypto↔createCipheriv wire-format interop only, recovery-rewrap limitation documented, 29 automated tests). Browser/Android harnesses are runnable but unverified here. Completion and production vault implementation remain blocked pending independent qualified security review, recorded browser and physical Android candidate-library evidence, attachment streaming format decision, and prerequisite Phase 37–38 release/beta gates.",
+      "reason": "Isolated vault cryptography prototype repaired and verified in Node plus Edge-headless browser harness and Android-class JVM candidate harness (AES-GCM + Argon2id). McGrew/Viega GCM Appendix B vectors; RFC 9106 §5.3 complete Argon2id vector; empty-payload envelopes; bounded worker KDF scheduler. Physical Android device evidence and independent qualified security review remain unmet. Attachment streaming format pending review. Phases 37–38 still blocked.",
       "report": "docs/phase-reports/phase-44.md"
     },
     {

@@ -52,6 +52,8 @@ export const KDF_BOUNDS = {
   },
   /** Max concurrent application Argon2id derivations in this process. */
   MAX_CONCURRENT_DERIVATIONS: 2,
+  /** Max queued derivations waiting for a slot (unbounded waiters are rejected). */
+  MAX_QUEUED_DERIVATIONS: 4,
 } as const;
 
 /** Key-wrapping purpose tags — must appear in authenticated context itemType. */
@@ -98,28 +100,6 @@ const ITEM_TYPE_RE = /^[a-z][a-z0-9_:]{0,63}$/;
 const STRICT_HEX_RE = /^[0-9a-f]+$/;
 const STRICT_BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
-let activeDerivations = 0;
-const derivationWaiters: Array<() => void> = [];
-
-function acquireDerivationSlot(): Promise<void> {
-  if (activeDerivations < KDF_BOUNDS.MAX_CONCURRENT_DERIVATIONS) {
-    activeDerivations += 1;
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    derivationWaiters.push(() => {
-      activeDerivations += 1;
-      resolve();
-    });
-  });
-}
-
-function releaseDerivationSlot(): void {
-  activeDerivations = Math.max(0, activeDerivations - 1);
-  const next = derivationWaiters.shift();
-  if (next) next();
-}
-
 /** Finite positive integer (rejects NaN, Infinity, fractions, non-numbers). */
 export function assertFinitePositiveInteger(value: unknown, name: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
@@ -128,9 +108,24 @@ export function assertFinitePositiveInteger(value: unknown, name: string): numbe
   return value;
 }
 
-function decodeStrictBase64(value: string, fieldName: string): Buffer {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`Invalid ${fieldName}: empty or non-string base64.`);
+/**
+ * Strict base64 decode.
+ * Authenticated empty AES-GCM payloads use an empty ciphertext string (`""` → 0 bytes).
+ * Nonce and tag fields must never be empty — pass `allowEmpty: false` (default).
+ */
+export function decodeStrictBase64(
+  value: string,
+  fieldName: string,
+  options: { allowEmpty?: boolean } = {}
+): Buffer {
+  if (typeof value !== 'string') {
+    throw new Error(`Invalid ${fieldName}: non-string base64.`);
+  }
+  if (value.length === 0) {
+    if (options.allowEmpty) {
+      return Buffer.alloc(0);
+    }
+    throw new Error(`Invalid ${fieldName}: empty base64 is not permitted for this field.`);
   }
   if (value.length > ENVELOPE_PROFILE.maxBase64FieldChars) {
     throw new Error(`Invalid ${fieldName}: exceeds maximum encoding length.`);
@@ -235,9 +230,10 @@ export function validateEnvelopeStructure(
     throw new Error(`AAD exceeds maximum size of ${ENVELOPE_PROFILE.maxAadBytes} bytes.`);
   }
 
-  const nonce = decodeStrictBase64(envelope.nonce, 'nonce');
-  const ciphertext = decodeStrictBase64(envelope.ciphertext, 'ciphertext');
-  const tag = decodeStrictBase64(envelope.tag, 'tag');
+  // Nonce and tag must be non-empty encodings. Ciphertext may be empty for AEAD of zero-length PT.
+  const nonce = decodeStrictBase64(envelope.nonce, 'nonce', { allowEmpty: false });
+  const ciphertext = decodeStrictBase64(envelope.ciphertext, 'ciphertext', { allowEmpty: true });
+  const tag = decodeStrictBase64(envelope.tag, 'tag', { allowEmpty: false });
 
   if (nonce.length !== ENVELOPE_PROFILE.nonceLengthBytes) {
     throw new Error(
@@ -456,32 +452,6 @@ export function deriveKeyArgon2id(
     parallelism,
     tagLength,
   });
-}
-
-/**
- * Async Argon2id with concurrent-derivation limiting (DoS defense).
- */
-export async function deriveKeyArgon2idLimited(
-  passphrase: string | Buffer,
-  salt: Buffer,
-  options: {
-    memoryKiB?: number;
-    passes?: number;
-    parallelism?: number;
-    keyLengthBytes?: number;
-  } = {}
-): Promise<Buffer> {
-  await acquireDerivationSlot();
-  try {
-    return deriveKeyArgon2id(passphrase, salt, options);
-  } finally {
-    releaseDerivationSlot();
-  }
-}
-
-/** Exposed for tests — current in-process derivation occupancy. */
-export function getActiveDerivationCount(): number {
-  return activeDerivations;
 }
 
 /**

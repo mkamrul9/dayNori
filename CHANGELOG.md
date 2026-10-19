@@ -1,17 +1,23 @@
 # Changelog
 
+## Phase 44 — Vault cryptography proof repair (continued) — 2026-10-19
+
+- Empty authenticated payloads: empty ciphertext string allowed; nonce/tag remain mandatory; cross-adapter regressions added.
+- Browser harness: vault profile rejects non-32-byte keys before `importKey`; native 128-bit AES-GCM capability recorded separately; Edge headless evidence PASS.
+- Android/JVM candidate harness: buildable Gradle/Kotlin project with `argon2-jvm:2.11` + AES-GCM; host JVM PASS; physical device unverified.
+- KDF scheduler: worker_threads, bounded active/queue, validate-before-admit, cancel/fail capacity release, overload rejection.
+- Vector attribution corrected to McGrew/Viega GCM Appendix B Cases 13–14 (not SP 800-38D appendices).
+- Removed unsupported “prevent cost-effective GPU/ASIC cracking” claim from ADR.
+
 ## Phase 45 — Encrypted vault records preparation (blocked) — 2026-10-19
 
-- **Preparation only** while ADR 0043 / Phase 44 gates remain unmet — no production vault migrations, API routes, or unlock UI.
-- Added [vault-records-and-transfer-preparation.md](docs/architecture/vault-records-and-transfer-preparation.md) covering versioned envelopes, authorization, ciphertext sync/conflicts/tombstones, exclusion surfaces, leak prevention, and ordinary→vault transfer state machine (verified recoverable copy; upload ≠ completion).
-- Added disconnected synthetic fixtures `tests/security/vault/phase45-prep/` and `tests/security/phase45-vault-prep.test.ts`.
-- Phase status: `blocked` / prepared. Canonical feature commit deferred until gates pass.
+- Initial preparation docs and synthetic fixtures (`2e53c29`).
 
 ## Phase 44 — Vault cryptography proof repair — 2026-10-19
 
 - **Repaired isolated prototype** (`tests/security/vault/vault-crypto.ts`) after reproducing defects in the initial `e07c454` proof:
   - Complete RFC 9106 §5.3 Argon2id vector (password, salt, secret, AD → `0d640df5…`); retain `03aab965…` as password+salt-only regression fixture; isolate reference-vector parameters from application KDF policy.
-  - Correct NIST SP 800-38D attribution to Appendix C Cases 13–14.
+  - AES-GCM known-answer fixtures initially mis-attributed; later corrected to McGrew/Viega GCM Appendix B (see continued repair entry).
   - Strict recovery-secret validation (hex + separators, exactly 32 bytes); checksum is transcription-only.
   - Explicit envelope profile: 32-byte keys, 12-byte nonces, 16-byte tags; outer/AAD `keyVersion` consistency; reject malformed encodings before crypto work.
   - Application KDF: finite integer parameters, exact 32-byte output, concurrent derivation limit, no silent downgrade.

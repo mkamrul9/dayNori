@@ -4,7 +4,6 @@ import {
   NodeWebCryptoVaultAdapter,
   NodeCreateCipherivVaultAdapter,
   deriveKeyArgon2id,
-  deriveKeyArgon2idLimited,
   deriveKeyPbkdf2,
   computeArgon2idReferenceVector,
   generateRandomKey,
@@ -23,6 +22,10 @@ import {
   type AuthenticatedContext,
   type VaultEnvelope,
 } from './vault/vault-crypto.js';
+import {
+  Argon2idDerivationScheduler,
+  deriveKeyArgon2idLimited,
+} from './vault/kdf-scheduler.js';
 import { runKdfBenchmark } from './vault/kdf-benchmark.js';
 
 describe('Phase 44 — Vault Cryptography and Recovery Proof', () => {
@@ -90,11 +93,12 @@ describe('Phase 44 — Vault Cryptography and Recovery Proof', () => {
       ).toThrow(/outside allowed bounds/);
     });
 
-    it('matches NIST SP 800-38D Appendix C AES-256-GCM Test Cases 13 and 14', () => {
-      // Primary source: NIST SP 800-38D (Nov 2007), Appendix C — Examples of the GCM Mode.
-      // Test Case 13: 256-bit all-zero key, 96-bit all-zero IV, empty plaintext, empty AAD.
-      // Test Case 14: same key/IV, 16 zero-byte plaintext, empty AAD.
-      // (Earlier reports incorrectly cited Appendix B.)
+    it('matches McGrew/Viega GCM specification Appendix B AES Test Cases 13 and 14', () => {
+      // Primary source: D. McGrew & J. Viega, "The Galois/Counter Mode of Operation (GCM)",
+      // NIST modes submission, Appendix B "AES Test Vectors", Test Cases 13 and 14.
+      // https://csrc.nist.rip/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-spec.pdf
+      // SP 800-38D does NOT contain these numbered cases (its App B = Authentication Assurance,
+      // App C = short-tag guidance). Do not attribute these vectors to SP 800-38D appendices.
       const key13 = Buffer.alloc(32, 0);
       const iv13 = Buffer.alloc(12, 0);
       const pt13 = Buffer.alloc(0);
@@ -155,6 +159,37 @@ describe('Phase 44 — Vault Cryptography and Recovery Proof', () => {
       const decrypted = await NodeWebCryptoVaultAdapter.decrypt(envelope, dataKey, sampleContext);
 
       expect(decrypted.equals(binaryPayload)).toBe(true);
+    });
+
+    it('round-trips authenticated empty payloads through both adapters (cross-decrypt)', async () => {
+      // Contract: empty plaintext is supported — ciphertext field may be "" with a valid 16-byte tag.
+      const dataKey = generateRandomKey();
+      const empty = Buffer.alloc(0);
+
+      const fromCipher = NodeCreateCipherivVaultAdapter.encrypt(empty, dataKey, sampleContext);
+      expect(fromCipher.ciphertext).toBe('');
+      expect(Buffer.from(fromCipher.tag, 'base64').length).toBe(16);
+      expect(Buffer.from(fromCipher.nonce, 'base64').length).toBe(12);
+
+      const viaWeb = await NodeWebCryptoVaultAdapter.decrypt(fromCipher, dataKey, sampleContext);
+      expect(viaWeb.length).toBe(0);
+
+      const fromWeb = await NodeWebCryptoVaultAdapter.encrypt(empty, dataKey, sampleContext);
+      expect(fromWeb.ciphertext).toBe('');
+      const viaCipher = NodeCreateCipherivVaultAdapter.decrypt(fromWeb, dataKey, sampleContext);
+      expect(viaCipher.length).toBe(0);
+
+      // Nonce/tag remain strictly non-empty encodings.
+      expect(() =>
+        NodeCreateCipherivVaultAdapter.decrypt(
+          { ...fromCipher, nonce: '' },
+          dataKey,
+          sampleContext
+        )
+      ).toThrow(/empty base64 is not permitted/);
+      expect(() =>
+        NodeCreateCipherivVaultAdapter.decrypt({ ...fromCipher, tag: '' }, dataKey, sampleContext)
+      ).toThrow(/empty base64 is not permitted/);
     });
   });
 
@@ -561,19 +596,61 @@ describe('Phase 44 — Vault Cryptography and Recovery Proof', () => {
       );
     });
 
-    it('limits concurrent Argon2id derivations', async () => {
-      const tasks = Array.from({ length: 4 }, () =>
-        deriveKeyArgon2idLimited('passphrase', salt, {
-          memoryKiB: 16 * 1024,
-          passes: 2,
-          parallelism: 1,
-        })
+    it('bounds active and queued Argon2id work, rejects overload, and recovers after failure', async () => {
+      const scheduler = new Argon2idDerivationScheduler();
+      const light = { memoryKiB: 16 * 1024, passes: 2, parallelism: 1 as const };
+
+      // Fill active (2) + queue (4) = 6; 7th must be rejected before admission.
+      const admitted = Array.from({ length: 6 }, (_, i) =>
+        scheduler.derive(`passphrase-${i}`, salt, light)
       );
-      const keys = await Promise.all(tasks);
-      expect(keys).toHaveLength(4);
-      for (const k of keys) {
-        expect(k.length).toBe(32);
-      }
+      const overload = scheduler.derive('overflow', salt, light);
+      await expect(overload).rejects.toThrow(/KDF overload/);
+
+      // Observe peak occupancy while work is in flight.
+      await new Promise((r) => setTimeout(r, 20));
+      const mid = scheduler.getStats();
+      expect(mid.peakActive).toBeLessThanOrEqual(KDF_BOUNDS.MAX_CONCURRENT_DERIVATIONS);
+      expect(mid.peakActive).toBeGreaterThanOrEqual(1);
+      expect(mid.peakQueued).toBeLessThanOrEqual(KDF_BOUNDS.MAX_QUEUED_DERIVATIONS);
+      expect(mid.rejected).toBeGreaterThanOrEqual(1);
+
+      const keys = await Promise.all(admitted);
+      expect(keys).toHaveLength(6);
+      for (const k of keys) expect(k.length).toBe(32);
+
+      const after = scheduler.getStats();
+      expect(after.active).toBe(0);
+      expect(after.queued).toBe(0);
+      expect(after.completed).toBe(6);
+
+      // Invalid input rejected before occupying capacity.
+      const beforeReject = scheduler.getStats();
+      await expect(
+        scheduler.derive('pw', salt, { ...light, memoryKiB: 1 })
+      ).rejects.toThrow(/outside allowed bounds/);
+      expect(scheduler.getStats().active).toBe(beforeReject.active);
+      expect(scheduler.getStats().queued).toBe(0);
+
+      // Cancellation while queued releases capacity for later work.
+      const controller = new AbortController();
+      const longJobs = Array.from({ length: 2 }, (_, i) =>
+        scheduler.derive(`hold-${i}`, salt, { ...light, signal: controller.signal })
+      );
+      const queuedCancel = scheduler.derive('cancel-me', salt, {
+        ...light,
+        signal: controller.signal,
+      });
+      controller.abort();
+      await expect(queuedCancel).rejects.toThrow(/cancelled/);
+      await Promise.allSettled(longJobs);
+
+      const recovered = await scheduler.derive('after-cancel', salt, light);
+      expect(recovered.length).toBe(32);
+
+      // Default export path still works for light concurrent use.
+      const viaDefault = await deriveKeyArgon2idLimited('passphrase', salt, light);
+      expect(viaDefault.length).toBe(32);
     });
   });
 

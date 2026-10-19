@@ -16,7 +16,7 @@ The initial Phase 44 prototype (`e07c454`) overstated platform evidence and refe
    - *Mitigation:* Vault item titles, bodies, metadata values, file attachments, and folder labels are encrypted client-side using authenticated encryption (AES-256-GCM). The server only stores opaque ciphertext envelopes and minimal routing identifiers. Decrypted keys never leave client memory.
 2. **Lost or Stolen Devices / Offline Guessing:**
    - The adversary extracts encrypted local SQLite databases or intercepts cloud envelopes.
-   - *Mitigation:* Key derivation uses memory-hard Argon2id (RFC 9106) with minimum 16 MB memory cost and 2 passes (candidate production: 64 MB, 3 passes), preventing cost-effective GPU/ASIC parallel dictionary cracking. Candidate parameters are never silently weakened based on desktop Node benchmarks.
+   - *Mitigation:* Key derivation uses memory-hard Argon2id (RFC 9106) with minimum 16 MB memory cost and 2 passes (candidate production: 64 MB, 3 passes, parallelism 1, 32-byte output). These parameters are chosen for interactive unlock latency on capable devices and to raise the memory×time cost of offline guessing relative to short-iteration hashes; **they are not claimed here to “prevent cost-effective GPU/ASIC cracking.”** Resistance depends on passphrase entropy and attacker resources and requires qualified review. Candidate parameters are never silently weakened based on desktop Node benchmarks.
 3. **Weak App PIN Resistance:**
    - A 4–6 digit PIN has only 10,000 to 1,000,000 combinations.
    - *Invariant:* A short PIN must **never** be the sole encryption key or direct KDF input protecting an envelope synchronized to or stored on a server.
@@ -43,6 +43,7 @@ The initial Phase 44 prototype (`e07c454`) overstated platform evidence and refe
    - **Alternative Baseline:** PBKDF2-HMAC-SHA256 (NIST SP 800-132) profiled as a comparative baseline — **not** a silent fallback when Argon2id fails.
    - **Strict KDF Parameter Bounds:** Argon2id memory 16–256 MB; passes 2–10; parallelism 1–4; salt 16–64 bytes; reject NaN/fractions/wrong types; bound concurrent derivations; never silently downgrade output length.
    - **Reference vectors isolated:** RFC 9106 §5.3 complete fixture (password, salt, secret, associated data) is computed only via `computeArgon2idReferenceVector`. Low-cost reference parameters must not enter application KDF policy.
+   - **AES-GCM known-answer vectors:** Empty/16-byte zero-key cases used in tests are **McGrew/Viega GCM specification Appendix B Test Cases 13–14** (NIST modes submission PDF). They are **not** SP 800-38D Appendix B/C cases (SP 800-38D App B = authentication assurance; App C = short-tag guidance).
 2. **Envelope profile (explicit, single):**
    - Version `1`, algorithm `AES-256-GCM` only.
    - Exactly 32-byte keys, 12-byte nonces, 16-byte tags.

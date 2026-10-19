@@ -30,18 +30,26 @@
   <body>
     <h1>Browser WebCrypto AES-256-GCM harness</h1>
     <p class="meta">
-      Isolated proof harness. Not an unlock screen. Record browser/engine versions from the
-      results block. This file must be served or opened in a real browser — Node execution does
-      not satisfy this evidence.
+      Isolated proof harness. Not an unlock screen. Application key-length policy is enforced
+      <em>before</em> native importKey. Native WebCrypto may accept 128-bit AES-GCM keys — that is
+      a capability observation, not Daynori vault profile compliance.
     </p>
     <pre id="out">Running…</pre>
     <script type="module">
+      const PROFILE = {
+        algorithm: 'AES-256-GCM',
+        keyLengthBytes: 32,
+        nonceLengthBytes: 12,
+        tagLengthBytes: 16,
+      };
+
       const out = document.getElementById('out');
       const lines = [];
       const log = (msg, cls) => {
         lines.push((cls ? `[${cls}] ` : '') + msg);
         out.textContent = lines.join('\n');
-        out.className = cls === 'fail' ? 'fail' : out.className;
+        if (cls === 'fail') out.className = 'fail';
+        if (cls === 'pass' && out.className !== 'fail') out.className = 'pass';
       };
 
       function b64(buf) {
@@ -50,12 +58,30 @@
         for (const b of bytes) s += String.fromCharCode(b);
         return btoa(s);
       }
-      function fromB64(s) {
-        const bin = atob(s);
-        const out = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-        return out;
+
+      function assertVaultAes256Key(keyBytes) {
+        if (!(keyBytes instanceof Uint8Array) && !(keyBytes instanceof ArrayBuffer)) {
+          throw new Error('key must be Uint8Array');
+        }
+        const bytes = keyBytes instanceof Uint8Array ? keyBytes : new Uint8Array(keyBytes);
+        if (bytes.length !== PROFILE.keyLengthBytes) {
+          throw new Error(
+            `Vault profile requires exactly ${PROFILE.keyLengthBytes}-byte AES keys; received ${bytes.length}.`
+          );
+        }
+        return bytes;
       }
+
+      function assertVaultNonce(nonce) {
+        const bytes = nonce instanceof Uint8Array ? nonce : new Uint8Array(nonce);
+        if (bytes.length !== PROFILE.nonceLengthBytes) {
+          throw new Error(
+            `Vault profile requires exactly ${PROFILE.nonceLengthBytes}-byte nonces; received ${bytes.length}.`
+          );
+        }
+        return bytes;
+      }
+
       function canonicalAad(ctx) {
         return JSON.stringify({
           keyVersion: ctx.keyVersion,
@@ -66,9 +92,28 @@
         });
       }
 
+      async function importVaultKey(keyBytes, usages) {
+        const checked = assertVaultAes256Key(keyBytes);
+        const key = await crypto.subtle.importKey(
+          'raw',
+          checked,
+          { name: 'AES-GCM', length: 256 },
+          true,
+          usages
+        );
+        // Verify imported algorithm metadata matches vault policy.
+        if (key.algorithm.name !== 'AES-GCM') {
+          throw new Error(`Imported algorithm mismatch: ${key.algorithm.name}`);
+        }
+        if (key.algorithm.length !== 256) {
+          throw new Error(`Imported key length mismatch: ${key.algorithm.length}`);
+        }
+        return key;
+      }
+
       async function aesGcmRoundTrip() {
         const keyBytes = crypto.getRandomValues(new Uint8Array(32));
-        const nonce = crypto.getRandomValues(new Uint8Array(12));
+        const nonce = assertVaultNonce(crypto.getRandomValues(new Uint8Array(12)));
         const ctx = {
           workspaceId: '11111111-1111-4111-8111-111111111111',
           itemId: '22222222-2222-4222-8222-222222222222',
@@ -81,13 +126,7 @@
           'Browser harness: গোপন ভল্ট + binary \u0000\u0001'
         );
 
-        const key = await crypto.subtle.importKey(
-          'raw',
-          keyBytes,
-          { name: 'AES-GCM', length: 256 },
-          false,
-          ['encrypt', 'decrypt']
-        );
+        const key = await importVaultKey(keyBytes, ['encrypt', 'decrypt']);
         const encrypted = await crypto.subtle.encrypt(
           { name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 },
           key,
@@ -97,7 +136,6 @@
         const ct = full.slice(0, full.length - 16);
         const tag = full.slice(full.length - 16);
 
-        // Tamper rejection
         const tampered = full.slice();
         tampered[0] ^= 1;
         let tamperRejected = false;
@@ -111,6 +149,22 @@
           tamperRejected = true;
         }
 
+        // Empty plaintext round-trip
+        const emptyEnc = new Uint8Array(
+          await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 },
+            key,
+            new Uint8Array(0)
+          )
+        );
+        const emptyPt = new Uint8Array(
+          await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 },
+            key,
+            emptyEnc
+          )
+        );
+
         const decrypted = new Uint8Array(
           await crypto.subtle.decrypt(
             { name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 },
@@ -121,30 +175,25 @@
         const ok =
           decrypted.length === plaintext.length &&
           decrypted.every((b, i) => b === plaintext[i]) &&
-          tamperRejected;
+          tamperRejected &&
+          emptyPt.length === 0 &&
+          emptyEnc.length === 16;
 
         return {
           ok,
           nonceB64: b64(nonce),
-          ciphertextB64: b64(ct),
           tagB64: b64(tag),
           tagLen: tag.length,
           nonceLen: nonce.length,
           keyLen: keyBytes.length,
           tamperRejected,
-          plaintextUtf8: new TextDecoder().decode(decrypted),
+          emptyOk: emptyPt.length === 0 && emptyEnc.length === 16,
         };
       }
 
-      // NIST SP 800-38D Appendix C Test Case 13 (empty PT/AAD)
-      async function nistCase13() {
-        const key = await crypto.subtle.importKey(
-          'raw',
-          new Uint8Array(32),
-          { name: 'AES-GCM', length: 256 },
-          false,
-          ['encrypt']
-        );
+      // McGrew/Viega GCM spec Appendix B Test Case 13 (not SP 800-38D appendix cases)
+      async function mcgGrewCase13() {
+        const key = await importVaultKey(new Uint8Array(32), ['encrypt']);
         const encrypted = new Uint8Array(
           await crypto.subtle.encrypt(
             {
@@ -164,31 +213,46 @@
       }
 
       try {
+        window.__HARNESS_DONE__ = false;
         log(`userAgent: ${navigator.userAgent}`, 'meta');
         log(`crypto.subtle present: ${!!crypto?.subtle}`, 'meta');
         log(`executedAt: ${new Date().toISOString()}`, 'meta');
-        log('status: UNVERIFIED until recorded in phase-44 report with this browser output', 'meta');
 
-        const nistOk = await nistCase13();
-        log(`NIST SP 800-38D Appendix C Case 13 tag: ${nistOk ? 'PASS' : 'FAIL'}`, nistOk ? 'pass' : 'fail');
+        const nistOk = await mcgGrewCase13();
+        log(
+          `McGrew/Viega GCM Appendix B Case 13 tag: ${nistOk ? 'PASS' : 'FAIL'}`,
+          nistOk ? 'pass' : 'fail'
+        );
 
         const rt = await aesGcmRoundTrip();
         log(
-          `AES-256-GCM Unicode/binary round-trip + tamper: ${rt.ok ? 'PASS' : 'FAIL'}`,
+          `AES-256-GCM Unicode/binary/empty + tamper: ${rt.ok ? 'PASS' : 'FAIL'}`,
           rt.ok ? 'pass' : 'fail'
         );
-        log(`keyLen=${rt.keyLen} nonceLen=${rt.nonceLen} tagLen=${rt.tagLen}`, 'meta');
-        log(`tamperRejected=${rt.tamperRejected}`, 'meta');
-        log(`sample envelope nonce(b64)=${rt.nonceB64}`, 'meta');
-        log(`sample tag(b64)=${rt.tagB64}`, 'meta');
+        log(
+          `keyLen=${rt.keyLen} nonceLen=${rt.nonceLen} tagLen=${rt.tagLen} emptyOk=${rt.emptyOk}`,
+          'meta'
+        );
 
-        // Reject 16-byte key import attempt for AES-GCM length 256 where supported
-        let shortKeyRejected = false;
+        // Application-policy check (must reject before native import).
+        let policyRejected = false;
+        try {
+          await importVaultKey(new Uint8Array(16), ['encrypt']);
+        } catch (e) {
+          policyRejected = /exactly 32-byte/.test(String(e && e.message));
+        }
+        log(
+          `Vault profile rejects 16-byte key before importKey: ${policyRejected ? 'PASS' : 'FAIL'}`,
+          policyRejected ? 'pass' : 'fail'
+        );
+
+        // Native capability observation (separate from vault policy).
+        let nativeAccepts128 = false;
         try {
           const shortKey = await crypto.subtle.importKey(
             'raw',
             new Uint8Array(16),
-            { name: 'AES-GCM', length: 256 },
+            { name: 'AES-GCM' },
             false,
             ['encrypt']
           );
@@ -197,18 +261,25 @@
             shortKey,
             new Uint8Array([1])
           );
+          nativeAccepts128 = true;
         } catch {
-          shortKeyRejected = true;
+          nativeAccepts128 = false;
         }
         log(
-          `16-byte key with AES-256 intent rejected by browser: ${shortKeyRejected ? 'PASS' : 'FAIL (browser accepted)'}`,
-          shortKeyRejected ? 'pass' : 'fail'
+          `Native WebCrypto AES-GCM 128-bit key capability: ${nativeAccepts128 ? 'accepted (expected on many engines)' : 'rejected'}`,
+          'meta'
         );
 
-        const all = nistOk && rt.ok && shortKeyRejected;
+        const all = nistOk && rt.ok && policyRejected;
         log(all ? 'HARNESS RESULT: PASS' : 'HARNESS RESULT: FAIL', all ? 'pass' : 'fail');
+        window.__HARNESS_RESULT__ = all ? 'PASS' : 'FAIL';
+        window.__HARNESS_LOG__ = lines.join('\n');
+        window.__HARNESS_DONE__ = true;
       } catch (err) {
         log(`HARNESS RESULT: ERROR ${err && err.message ? err.message : err}`, 'fail');
+        window.__HARNESS_RESULT__ = 'ERROR';
+        window.__HARNESS_LOG__ = lines.join('\n');
+        window.__HARNESS_DONE__ = true;
       }
     </script>
   </body>
