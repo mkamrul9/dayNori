@@ -20,6 +20,7 @@ import {
 } from '../../modules/sync/repository.js';
 import { decodeCursor, encodeCursor } from '../../utils/pagination.js';
 import { NotFoundError, ValidationError, validateResponse } from '../../plugins/errorHandler.js';
+import { trashExpenseRecord } from '../../modules/expenses/service.js';
 
 export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // GET /v1/workspaces/:workspaceId/items — List items with keyset pagination
@@ -361,6 +362,11 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
               }
             }
 
+            if (existing.kind === 'expense') {
+              await trashExpenseRecord(client, params.workspaceId, params.itemId, actor.userId);
+              return true;
+            }
+
             const newRevision = existing.revision + 1;
             await updateItem(client, params.workspaceId, params.itemId, {
               deletedAt: new Date(),
@@ -405,10 +411,10 @@ export function registerItemRoutes(app: FastifyInstance, runtimePool: Pool): voi
           },
         });
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
+        if (err instanceof NotFoundError || err instanceof ValidationError) {
           throw err;
         }
-        throw new NotFoundError('Item not found');
+        throw err;
       }
     }
   );

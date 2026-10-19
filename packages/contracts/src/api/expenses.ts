@@ -2,6 +2,54 @@ import { z } from 'zod';
 import { ResponseMetaSchema } from './common.js';
 
 // -----------------------------------------------------------------------------
+// Semantic & Calendar Validation Helpers
+// -----------------------------------------------------------------------------
+
+export function isValidCalendarDate(dateStr: string): boolean {
+  if (typeof dateStr !== 'string') return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) return false;
+  const year = parseInt(match[1]!, 10);
+  const month = parseInt(match[2]!, 10);
+  const day = parseInt(match[3]!, 10);
+  if (year < 1900 || year > 2200) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1) return false;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= daysInMonth;
+}
+
+export function isValidIanaTimezone(tz: string): boolean {
+  if (typeof tz !== 'string' || !tz.trim()) return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz.trim() });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const CalendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be formatted as YYYY-MM-DD')
+  .refine(isValidCalendarDate, { message: 'Date must be a real calendar date' });
+
+export const IanaTimezoneSchema = z
+  .string()
+  .trim()
+  .refine(isValidIanaTimezone, { message: 'Invalid IANA timezone' });
+
+/**
+ * Strict exact decimal string money schema.
+ * Rejects JavaScript Numbers to prevent floating-point inaccuracy and precision loss.
+ */
+export const ExactMoneyStringSchema = z
+  .string()
+  .trim()
+  .min(1, 'Amount cannot be empty')
+  .regex(/^\d+(\.\d+)?$/, 'Amount must be an exact non-negative decimal string (e.g. "12.50" or "100")');
+
+// -----------------------------------------------------------------------------
 // Expense Categories
 // -----------------------------------------------------------------------------
 
@@ -59,7 +107,7 @@ export const ExpenseItemSchema = z.object({
   amountMinorUnits: z.string(), // Serialized BigInt integer string
   amountFormatted: z.string(), // Decimal string e.g. "12.50"
   currency: z.string().min(3).max(3),
-  transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  transactionDate: CalendarDateSchema,
   occurredAt: z.string().datetime().nullable().optional(),
   timezone: z.string().default('UTC'),
   categoryId: z.string().uuid().nullable().optional(),
@@ -78,11 +126,11 @@ export type ExpenseItem = z.infer<typeof ExpenseItemSchema>;
 
 export const CreateExpenseBodySchema = z.object({
   kind: ExpenseKindSchema.default('expense'),
-  amount: z.union([z.string(), z.number()]), // Decimal string "12.50" or integer
+  amount: ExactMoneyStringSchema,
   currency: z.string().trim().min(3).max(3),
-  transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  transactionDate: CalendarDateSchema,
   occurredAt: z.string().datetime().optional().nullable(),
-  timezone: z.string().trim().default('UTC').optional(),
+  timezone: IanaTimezoneSchema.default('UTC').optional(),
   categoryId: z.string().uuid().optional().nullable(),
   paymentLabel: z.string().trim().max(100).optional().nullable(),
   note: z.string().trim().max(2000).optional().nullable(),
@@ -93,14 +141,11 @@ export const CreateExpenseBodySchema = z.object({
 export type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
 
 export const UpdateExpenseBodySchema = z.object({
-  amount: z.union([z.string(), z.number()]).optional(),
+  amount: ExactMoneyStringSchema.optional(),
   currency: z.string().trim().min(3).max(3).optional(),
-  transactionDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
+  transactionDate: CalendarDateSchema.optional(),
   occurredAt: z.string().datetime().optional().nullable(),
-  timezone: z.string().trim().optional(),
+  timezone: IanaTimezoneSchema.optional(),
   categoryId: z.string().uuid().optional().nullable(),
   paymentLabel: z.string().trim().max(100).optional().nullable(),
   note: z.string().trim().max(2000).optional().nullable(),
@@ -118,14 +163,8 @@ export type ExpenseResponse = z.infer<typeof ExpenseResponseSchema>;
 export const ExpenseListQuerySchema = z.object({
   year: z.coerce.number().int().min(1900).max(2200).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
-  startDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  endDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
+  startDate: CalendarDateSchema.optional(),
+  endDate: CalendarDateSchema.optional(),
   kind: ExpenseKindSchema.optional(),
   categoryId: z.string().uuid().optional(),
   currency: z.string().min(3).max(3).optional(),
@@ -135,9 +174,17 @@ export const ExpenseListQuerySchema = z.object({
 });
 export type ExpenseListQuery = z.infer<typeof ExpenseListQuerySchema>;
 
+export const ExpensePaginationMetaSchema = z.object({
+  nextCursor: z.string().nullable().optional(),
+  hasMore: z.boolean().default(false),
+});
+export type ExpensePaginationMeta = z.infer<typeof ExpensePaginationMetaSchema>;
+
 export const ExpenseListResponseSchema = z.object({
   data: z.array(ExpenseItemSchema),
-  meta: ResponseMetaSchema,
+  meta: ResponseMetaSchema.extend({
+    pagination: ExpensePaginationMetaSchema.optional(),
+  }),
 });
 export type ExpenseListResponse = z.infer<typeof ExpenseListResponseSchema>;
 
@@ -203,12 +250,8 @@ export const ExpenseRecurringTemplateSchema = z.object({
   note: z.string().nullable().optional(),
   schedule: RecurringScheduleSchema,
   timezone: z.string().default('UTC'),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable()
-    .optional(),
+  startDate: CalendarDateSchema,
+  endDate: CalendarDateSchema.nullable().optional(),
   isActive: z.boolean().default(true),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -218,19 +261,15 @@ export type ExpenseRecurringTemplate = z.infer<typeof ExpenseRecurringTemplateSc
 export const CreateExpenseRecurringTemplateBodySchema = z.object({
   title: z.string().trim().min(1).max(200),
   kind: z.enum(['expense', 'income']),
-  amount: z.union([z.string(), z.number()]),
+  amount: ExactMoneyStringSchema,
   currency: z.string().trim().min(3).max(3),
   categoryId: z.string().uuid().optional().nullable(),
   paymentLabel: z.string().trim().max(100).optional().nullable(),
   note: z.string().trim().max(2000).optional().nullable(),
   schedule: RecurringScheduleSchema,
-  timezone: z.string().trim().default('UTC').optional(),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional()
-    .nullable(),
+  timezone: IanaTimezoneSchema.default('UTC').optional(),
+  startDate: CalendarDateSchema,
+  endDate: CalendarDateSchema.optional().nullable(),
   isActive: z.boolean().default(true).optional(),
 });
 export type CreateExpenseRecurringTemplateBody = z.infer<
@@ -252,3 +291,56 @@ export const ExpenseRecurringTemplateListResponseSchema = z.object({
 export type ExpenseRecurringTemplateListResponse = z.infer<
   typeof ExpenseRecurringTemplateListResponseSchema
 >;
+
+export const GenerateOccurrencesBodySchema = z.object({
+  untilDate: CalendarDateSchema,
+});
+export type GenerateOccurrencesBody = z.infer<typeof GenerateOccurrencesBodySchema>;
+
+// -----------------------------------------------------------------------------
+// Budgets (Phase 40)
+// -----------------------------------------------------------------------------
+
+export const ExpenseBudgetSchema = z.object({
+  id: z.string().uuid(),
+  workspaceId: z.string().uuid(),
+  period: z.string().regex(/^\d{4}-\d{2}$/),
+  currency: z.string().min(3).max(3),
+  categoryId: z.string().uuid().nullable().optional(),
+  categoryName: z.string().nullable().optional(),
+  amountMinorUnits: z.string(),
+  amountFormatted: z.string(),
+  spentMinorUnits: z.string().optional(),
+  spentFormatted: z.string().optional(),
+  remainingMinorUnits: z.string().optional(),
+  remainingFormatted: z.string().optional(),
+  revision: z.number().int().default(1),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ExpenseBudget = z.infer<typeof ExpenseBudgetSchema>;
+
+export const CreateExpenseBudgetBodySchema = z.object({
+  period: z.string().regex(/^\d{4}-\d{2}$/, 'Period must be in YYYY-MM format'),
+  currency: z.string().trim().min(3).max(3),
+  categoryId: z.string().uuid().optional().nullable(),
+  amount: ExactMoneyStringSchema,
+});
+export type CreateExpenseBudgetBody = z.infer<typeof CreateExpenseBudgetBodySchema>;
+
+export const UpdateExpenseBudgetBodySchema = z.object({
+  amount: ExactMoneyStringSchema,
+});
+export type UpdateExpenseBudgetBody = z.infer<typeof UpdateExpenseBudgetBodySchema>;
+
+export const ExpenseBudgetResponseSchema = z.object({
+  data: ExpenseBudgetSchema,
+  meta: ResponseMetaSchema,
+});
+export type ExpenseBudgetResponse = z.infer<typeof ExpenseBudgetResponseSchema>;
+
+export const ExpenseBudgetListResponseSchema = z.object({
+  data: z.array(ExpenseBudgetSchema),
+  meta: ResponseMetaSchema,
+});
+export type ExpenseBudgetListResponse = z.infer<typeof ExpenseBudgetListResponseSchema>;

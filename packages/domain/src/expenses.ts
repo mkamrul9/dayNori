@@ -241,6 +241,31 @@ export function calculateNetSavings(
   return grossIncomeMinorUnits - netExpenseMinorUnits;
 }
 
+/**
+ * Helper to get the number of days in a specific calendar month.
+ * Handles leap years automatically in UTC.
+ */
+export function getDaysInMonth(year: number, month1To12: number): number {
+  return new Date(Date.UTC(year, month1To12, 0)).getUTCDate();
+}
+
+/**
+ * Validates that a string is a real calendar date in YYYY-MM-DD format.
+ */
+export function isValidCalendarDate(dateStr: string): boolean {
+  if (typeof dateStr !== 'string') return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) return false;
+  const year = parseInt(match[1]!, 10);
+  const month = parseInt(match[2]!, 10);
+  const day = parseInt(match[3]!, 10);
+  if (year < 1900 || year > 2200) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1) return false;
+  return day <= getDaysInMonth(year, month);
+}
+
+
 export interface RecurringSchedule {
   frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
   interval?: number; // e.g. 1 = every month, 2 = every 2 months
@@ -250,6 +275,8 @@ export interface RecurringSchedule {
 
 /**
  * Calculates the next occurrence date (YYYY-MM-DD) for a recurring expense template.
+ * Explicitly preserves the recurrence anchor across months with varying lengths (28, 29, 30, 31 days)
+ * and supports leap years without permanently clamping to 28.
  */
 export function getNextOccurrenceDate(
   schedule: RecurringSchedule,
@@ -257,41 +284,93 @@ export function getNextOccurrenceDate(
   afterDateStr?: string,
   endDateStr?: string
 ): string | null {
-  const start = new Date(startDateStr + 'T00:00:00Z');
-  const target = afterDateStr ? new Date(afterDateStr + 'T00:00:00Z') : start;
-  const end = endDateStr ? new Date(endDateStr + 'T00:00:00Z') : null;
+  const startMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startDateStr);
+  if (!startMatch) {
+    throw new Error(`Invalid startDateStr: ${startDateStr}`);
+  }
+  const startYear = parseInt(startMatch[1]!, 10);
+  const startMonth = parseInt(startMatch[2]!, 10);
+  const startDay = parseInt(startMatch[3]!, 10);
 
+  const anchorDay = schedule.dayOfMonth !== undefined ? schedule.dayOfMonth : startDay;
   const interval = Math.max(1, schedule.interval || 1);
-  const candidate = new Date(target);
 
-  if (afterDateStr) {
-    // Advance candidate by interval
+  let candidateStr: string;
+
+  if (!afterDateStr) {
+    if (schedule.frequency === 'monthly') {
+      const maxDays = getDaysInMonth(startYear, startMonth);
+      const targetDay = Math.min(anchorDay, maxDays);
+      const targetDate = `${startYear}-${String(startMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+      if (targetDate >= startDateStr) {
+        candidateStr = targetDate;
+      } else {
+        // Advance 1 interval
+        const totalMonths = startYear * 12 + (startMonth - 1) + interval;
+        const nextYear = Math.floor(totalMonths / 12);
+        const nextMonth = (totalMonths % 12) + 1;
+        const nextMax = getDaysInMonth(nextYear, nextMonth);
+        const nextDay = Math.min(anchorDay, nextMax);
+        candidateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
+      }
+    } else if (schedule.frequency === 'weekly' && schedule.dayOfWeek !== undefined) {
+      const s = new Date(startDateStr + 'T00:00:00Z');
+      const currentDow = s.getUTCDay();
+      let diff = schedule.dayOfWeek - currentDow;
+      if (diff < 0) diff += 7;
+      s.setUTCDate(s.getUTCDate() + diff);
+      candidateStr = s.toISOString().split('T')[0]!;
+    } else {
+      candidateStr = startDateStr;
+    }
+  } else {
+    const afterMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(afterDateStr);
+    if (!afterMatch) {
+      throw new Error(`Invalid afterDateStr: ${afterDateStr}`);
+    }
+    const afterYear = parseInt(afterMatch[1]!, 10);
+    const afterMonth = parseInt(afterMatch[2]!, 10);
+
     switch (schedule.frequency) {
-      case 'daily':
-        candidate.setUTCDate(candidate.getUTCDate() + interval);
+      case 'daily': {
+        const cur = new Date(afterDateStr + 'T00:00:00Z');
+        cur.setUTCDate(cur.getUTCDate() + interval);
+        candidateStr = cur.toISOString().split('T')[0]!;
         break;
-      case 'weekly':
-        candidate.setUTCDate(candidate.getUTCDate() + 7 * interval);
+      }
+      case 'weekly': {
+        const cur = new Date(afterDateStr + 'T00:00:00Z');
+        cur.setUTCDate(cur.getUTCDate() + 7 * interval);
+        candidateStr = cur.toISOString().split('T')[0]!;
         break;
-      case 'monthly':
-        candidate.setUTCMonth(candidate.getUTCMonth() + interval);
-        if (schedule.dayOfMonth) {
-          candidate.setUTCDate(Math.min(schedule.dayOfMonth, 28)); // Safe bound
-        }
+      }
+      case 'monthly': {
+        const totalMonths = afterYear * 12 + (afterMonth - 1) + interval;
+        const targetYear = Math.floor(totalMonths / 12);
+        const targetMonth = (totalMonths % 12) + 1;
+        const maxDays = getDaysInMonth(targetYear, targetMonth);
+        const targetDay = Math.min(anchorDay, maxDays);
+        candidateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
         break;
-      case 'yearly':
-        candidate.setUTCFullYear(candidate.getUTCFullYear() + interval);
+      }
+      case 'yearly': {
+        const targetYear = afterYear + interval;
+        const targetMonth = startMonth;
+        const maxDays = getDaysInMonth(targetYear, targetMonth);
+        const targetDay = Math.min(anchorDay, maxDays);
+        candidateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
         break;
+      }
     }
   }
 
-  if (candidate < start) {
-    candidate.setTime(start.getTime());
+  if (candidateStr < startDateStr) {
+    candidateStr = startDateStr;
   }
 
-  if (end && candidate > end) {
+  if (endDateStr && candidateStr > endDateStr) {
     return null;
   }
 
-  return candidate.toISOString().split('T')[0]!;
+  return candidateStr;
 }

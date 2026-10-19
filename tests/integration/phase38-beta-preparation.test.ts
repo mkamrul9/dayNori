@@ -316,6 +316,115 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
       const claimPromise = betaService.claimInvitation(seatVictimId, extraCode, 2);
       await expect(claimPromise).rejects.toThrow(/Beta participant seat limit \(2\) reached/);
     });
+
+    it('enforces configured recipient email binding on invitations', async () => {
+      const boundUserAId = crypto.randomUUID();
+      const boundUserBId = crypto.randomUUID();
+      const tokenBoundA = await createToken(boundUserAId, 'alice.bound@example.test');
+      const tokenBoundB = await createToken(boundUserBId, 'bob.wrong@example.test');
+      const boundCode = `BOUND-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(
+          `INSERT INTO app.profiles (id, display_name) VALUES ($1, 'Alice Bound'), ($2, 'Bob Wrong') ON CONFLICT DO NOTHING;`,
+          [boundUserAId, boundUserBId]
+        );
+        await betaService.createInvitation(admin, boundCode, {
+          expiresInHours: 24,
+          recipientEmail: 'alice.bound@example.test',
+        });
+      } finally {
+        admin.release();
+      }
+
+      // Bob tries to claim Alice's invitation -> rejected
+      const rejectRes = await fetch(`${baseUrl}/v1/beta/claim-invitation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenBoundB}`,
+        },
+        body: JSON.stringify({ invitationCode: boundCode }),
+      });
+      expect(rejectRes.status).toBe(403);
+      const rejectData = await rejectRes.json();
+      expect(rejectData.error?.message || rejectData.message).toContain('bound to a specific recipient email address');
+
+      // Alice claims her own invitation -> succeeds
+      const acceptRes = await fetch(`${baseUrl}/v1/beta/claim-invitation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenBoundA}`,
+        },
+        body: JSON.stringify({ invitationCode: boundCode }),
+      });
+      expect(acceptRes.status).toBe(200);
+      const acceptData = await acceptRes.json();
+      expect(acceptData.enrolled).toBe(true);
+    });
+
+    it('serializes seat allocation across different invitations racing for the final seat', async () => {
+      // Determine currently enrolled count dynamically and set maxSeats to exactly current + 1
+      const countAdmin = await adminPool.connect();
+      let maxSeats = 4;
+      try {
+        const countRes = await countAdmin.query<{ count: string }>(
+          `SELECT count(*) FROM app.beta_enrollments WHERE status = 'enrolled';`
+        );
+        maxSeats = Number(countRes.rows[0].count) + 1;
+      } finally {
+        countAdmin.release();
+      }
+
+      const candidateXId = crypto.randomUUID();
+      const candidateYId = crypto.randomUUID();
+      const codeX = `RACEX-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+      const codeY = `RACEY-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+
+      const admin = await adminPool.connect();
+      try {
+        await admin.query(
+          `INSERT INTO app.profiles (id, display_name) VALUES ($1, 'Candidate X'), ($2, 'Candidate Y') ON CONFLICT DO NOTHING;`,
+          [candidateXId, candidateYId]
+        );
+        await betaService.createInvitation(admin, codeX, { expiresInHours: 24 });
+        await betaService.createInvitation(admin, codeY, { expiresInHours: 24 });
+      } finally {
+        admin.release();
+      }
+
+      const results = await Promise.allSettled([
+        betaService.claimInvitation(candidateXId, codeX, maxSeats, 'candX@example.test'),
+        betaService.claimInvitation(candidateYId, codeY, maxSeats, 'candY@example.test'),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      // Exactly 1 must succeed and 1 must be rejected by the serialized advisory lock
+      expect(fulfilled.length).toBe(1);
+      expect(rejected.length).toBe(1);
+      const rejectionError = (rejected[0] as PromiseRejectedResult).reason;
+      expect(rejectionError.message).toMatch(new RegExp(`seat limit \\(${maxSeats}\\) reached`));
+    });
+
+    it('prohibits ordinary runtime credentials from directly fabricating enrollments', async () => {
+      const fakeUserId = crypto.randomUUID();
+      const runtimeClient = await runtimePool.connect();
+      try {
+        await expect(
+          runtimeClient.query(
+            `INSERT INTO app.beta_enrollments (user_id, invitation_id)
+             VALUES ($1, NULL);`,
+            [fakeUserId]
+          )
+        ).rejects.toThrow(/permission denied/i);
+      } finally {
+        runtimeClient.release();
+      }
+    });
   });
 
   describe('3. Beta Environment Configuration Validation', () => {

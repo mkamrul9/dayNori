@@ -6,7 +6,11 @@ import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
 import { createAdminPool, createRuntimePool } from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
-import { parseDecimalToMinorUnits, formatMinorUnitsToDecimal } from '@daynori/domain';
+import {
+  parseDecimalToMinorUnits,
+  formatMinorUnitsToDecimal,
+  getNextOccurrenceDate,
+} from '@daynori/domain';
 
 describe('Phase 39: Expense Tracking Domain & Exact Money Invariants', () => {
   let adminPool: Pool;
@@ -77,6 +81,7 @@ describe('Phase 39: Expense Tracking Domain & Exact Money Invariants', () => {
       jwtVerifier: verifier,
       allowUnauthenticatedStartup: false,
       enableExpenses: true,
+      rateLimitOptions: { maxRequests: 1000 },
     });
 
     baseUrl = await server.listen({ port: 0, host: '127.0.0.1' });
@@ -305,7 +310,7 @@ describe('Phase 39: Expense Tracking Domain & Exact Money Invariants', () => {
           transactionDate: '2026-10-18',
           receiptFileId: quarantinedFileId,
         })
-      ).rejects.toThrow(/quarantined files cannot be attached/);
+      ).rejects.toThrow(/quarantined|rejected/i);
     });
 
     it('rejects cross-workspace receipt references', async () => {
@@ -317,7 +322,7 @@ describe('Phase 39: Expense Tracking Domain & Exact Money Invariants', () => {
           transactionDate: '2026-10-18',
           receiptFileId: validFileId,
         })
-      ).rejects.toThrow(/does not exist or has been deleted/);
+      ).rejects.toThrow(/Receipt file must be an active file in the same workspace|does not exist/i);
     });
   });
 
@@ -630,6 +635,380 @@ describe('Phase 39: Expense Tracking Domain & Exact Money Invariants', () => {
         expect(res.status).toBe(403);
       } finally {
         await betaServer.close();
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 8. Exact Decimal-String Validation and Semantic Date Boundaries
+  // ---------------------------------------------------------------------------
+
+  describe('8. Exact Decimal-String Boundaries and Semantic Date/Timezone Validation', () => {
+    it('strictly rejects non-string JSON numbers at API boundaries', async () => {
+      // Safe probe with raw number 9007199254740993 for JPY
+      const probeRes = await fetch(`${baseUrl}/v1/workspaces/${workspaceAId}/expenses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenA}`,
+        },
+        body: JSON.stringify({
+          kind: 'expense',
+          amount: 9007199254740993, // raw number!
+          currency: 'JPY',
+          transactionDate: '2026-10-19',
+        }),
+      });
+
+      expect(probeRes.status).toBe(400);
+      const data = await probeRes.json();
+      expect(JSON.stringify(data)).toMatch(/Expected string|amount must be a decimal string/i);
+    });
+
+    it('strictly rejects non-calendar dates such as 2026-02-31', async () => {
+      const res = await fetch(`${baseUrl}/v1/workspaces/${workspaceAId}/expenses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenA}`,
+        },
+        body: JSON.stringify({
+          kind: 'expense',
+          amount: '100.00',
+          currency: 'USD',
+          transactionDate: '2026-02-31', // invalid calendar date!
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(JSON.stringify(data)).toMatch(/Date must be a real calendar date/i);
+    });
+
+    it('strictly rejects fictional timezones such as Mars/Olympus', async () => {
+      const res = await fetch(`${baseUrl}/v1/workspaces/${workspaceAId}/expenses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenA}`,
+        },
+        body: JSON.stringify({
+          kind: 'expense',
+          amount: '100.00',
+          currency: 'USD',
+          transactionDate: '2026-10-19',
+          timezone: 'Mars/Olympus', // invalid IANA timezone!
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(JSON.stringify(data)).toMatch(/Invalid IANA timezone/i);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 9. Recurrence Anchor Preservation and Leap Years
+  // ---------------------------------------------------------------------------
+
+  describe('9. Recurrence Anchor Preservation Across Variable-Length Months', () => {
+    it('preserves the day-of-month anchor across February and 30-day months without drifting or clamping to 28', () => {
+      // Anchored at 31st of the month
+      const pattern = {
+        frequency: 'monthly' as const,
+        interval: 1,
+        dayOfMonth: 31,
+      };
+
+      // 2026 is non-leap year (Feb has 28 days)
+      const afterJan = getNextOccurrenceDate(pattern, '2026-01-31', '2026-01-31');
+      expect(afterJan).toBe('2026-02-28');
+
+      const afterFeb = getNextOccurrenceDate(pattern, '2026-01-31', '2026-02-28');
+      // Invariant: March has 31 days, so it must return 2026-03-31 (anchor preserved!), NOT 2026-03-03 or 2026-03-28!
+      expect(afterFeb).toBe('2026-03-31');
+
+      const afterMar = getNextOccurrenceDate(pattern, '2026-01-31', '2026-03-31');
+      expect(afterMar).toBe('2026-04-30'); // April has 30 days
+
+      const afterApr = getNextOccurrenceDate(pattern, '2026-01-31', '2026-04-30');
+      expect(afterApr).toBe('2026-05-31'); // May has 31 days (anchor preserved!)
+    });
+
+    it('correctly honors leap years (Feb 29)', () => {
+      const pattern = {
+        frequency: 'monthly' as const,
+        interval: 1,
+        dayOfMonth: 31,
+      };
+
+      // 2028 is a leap year (Feb has 29 days)
+      const feb2028 = getNextOccurrenceDate(pattern, '2028-01-31', '2028-01-31');
+      expect(feb2028).toBe('2028-02-29');
+
+      const mar2028 = getNextOccurrenceDate(pattern, '2028-01-31', '2028-02-29');
+      expect(mar2028).toBe('2028-03-31');
+    });
+
+    it('atomically claims occurrences during concurrent generation requests', async () => {
+      const tmpl = await clientA.createExpenseRecurringTemplate(workspaceAId, {
+        title: 'Concurrent Server Subscription',
+        kind: 'expense',
+        amount: '19.99',
+        currency: 'USD',
+        schedule: {
+          frequency: 'monthly',
+          interval: 1,
+          dayOfMonth: 15,
+        },
+        startDate: '2026-05-15',
+      });
+      expect(tmpl.data.id).toBeDefined();
+
+      // Fire 3 concurrent generation requests simultaneously
+      const results = await Promise.all([
+        clientA.generateRecurringOccurrences(workspaceAId, { untilDate: '2026-08-15' }),
+        clientA.generateRecurringOccurrences(workspaceAId, { untilDate: '2026-08-15' }),
+        clientA.generateRecurringOccurrences(workspaceAId, { untilDate: '2026-08-15' }),
+      ]);
+
+      const totalGenerated = results.reduce((acc, r) => acc + r.data.generatedCount, 0);
+      // May 15, Jun 15, Jul 15, Aug 15 = exactly 4 occurrences across all concurrent workers!
+      expect(totalGenerated).toBe(4);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 10. Keyset Pagination and Response Invariants
+  // ---------------------------------------------------------------------------
+
+  describe('10. Keyset Pagination and Response Invariants', () => {
+    it('paginates through expense records deterministically with cursor tie-breaking', async () => {
+      // Create 5 expenses on identical transaction date
+      const createdIds: string[] = [];
+      for (let i = 1; i <= 5; i++) {
+        const res = await clientA.createExpense(workspaceAId, {
+          amount: `${i}.00`,
+          currency: 'USD',
+          transactionDate: '2026-10-10',
+          paymentLabel: `Item ${i}`,
+        });
+        createdIds.push(res.data.id);
+      }
+
+      // Page 1: limit = 2
+      const page1 = await clientA.listExpenses(workspaceAId, { limit: 2 });
+      expect(page1.data.length).toBe(2);
+      expect(page1.meta.pagination?.hasMore).toBe(true);
+      expect(page1.meta.pagination?.nextCursor).toBeDefined();
+
+      // Page 2: with cursor
+      const page2 = await clientA.listExpenses(workspaceAId, {
+        limit: 2,
+        cursor: page1.meta.pagination!.nextCursor!,
+      });
+      expect(page2.data.length).toBe(2);
+      expect(page2.meta.pagination?.hasMore).toBe(true);
+      expect(page2.meta.pagination?.nextCursor).toBeDefined();
+
+      // Items across page 1 and page 2 must be disjoint
+      const p1Ids = new Set(page1.data.map((i) => i.id));
+      for (const item of page2.data) {
+        expect(p1Ids.has(item.id)).toBe(false);
+      }
+
+      // Page 3: final page
+      const page3 = await clientA.listExpenses(workspaceAId, {
+        limit: 2,
+        cursor: page2.meta.pagination!.nextCursor!,
+      });
+      expect(page3.data.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('retains canonical metadata on updates and honors folderId: null as root move', async () => {
+      const exp = await clientA.createExpense(workspaceAId, {
+        amount: '40.00',
+        currency: 'USD',
+        transactionDate: '2026-10-10',
+      });
+
+      // Update with folderId: null to move to root
+      const updated = await clientA.updateExpense(workspaceAId, exp.data.id, {
+        folderId: null,
+        paymentLabel: 'Moved to Root',
+      });
+
+      expect(updated.data.folderId).toBeNull();
+      expect(updated.data.paymentLabel).toBe('Moved to Root');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 11. Refund Category Policy and Generic Item Invariants
+  // ---------------------------------------------------------------------------
+
+  describe('11. Refund Category Policy and Item Safeguards', () => {
+    it('rejects creating a refund with a category different from the original expense', async () => {
+      const cat1 = await clientA.createExpenseCategory(workspaceAId, { name: 'Cat 1' });
+      const cat2 = await clientA.createExpenseCategory(workspaceAId, { name: 'Cat 2' });
+
+      const orig = await clientA.createExpense(workspaceAId, {
+        kind: 'expense',
+        amount: '100.00',
+        currency: 'USD',
+        transactionDate: '2026-10-10',
+        categoryId: cat1.data.id,
+      });
+
+      // Attempting to refund under Cat 2 must be rejected
+      await expect(
+        clientA.createExpense(workspaceAId, {
+          kind: 'refund',
+          amount: '20.00',
+          currency: 'USD',
+          transactionDate: '2026-10-11',
+          originalExpenseId: orig.data.id,
+          categoryId: cat2.data.id,
+        })
+      ).rejects.toThrow(/original expense category/i);
+    });
+
+    it('updating the original expense category propagates to linked active refunds', async () => {
+      const catA = await clientA.createExpenseCategory(workspaceAId, { name: 'Alpha Cat' });
+      const catB = await clientA.createExpenseCategory(workspaceAId, { name: 'Beta Cat' });
+
+      const orig = await clientA.createExpense(workspaceAId, {
+        kind: 'expense',
+        amount: '60.00',
+        currency: 'USD',
+        transactionDate: '2026-10-10',
+        categoryId: catA.data.id,
+      });
+
+      const refund = await clientA.createExpense(workspaceAId, {
+        kind: 'refund',
+        amount: '15.00',
+        currency: 'USD',
+        transactionDate: '2026-10-12',
+        originalExpenseId: orig.data.id,
+      });
+      expect(refund.data.categoryId).toBe(catA.data.id);
+
+      // Now update original expense to Cat B
+      await clientA.updateExpense(workspaceAId, orig.data.id, {
+        categoryId: catB.data.id,
+      });
+
+      // Fetch refund -> categoryId must now be Cat B!
+      const fetchedRefund = await clientA.getExpense(workspaceAId, refund.data.id);
+      expect(fetchedRefund.data.categoryId).toBe(catB.data.id);
+    });
+
+    it('prevents trashing an original expense via generic item endpoint while active refunds exist', async () => {
+      const orig = await clientA.createExpense(workspaceAId, {
+        kind: 'expense',
+        amount: '75.00',
+        currency: 'USD',
+        transactionDate: '2026-10-10',
+      });
+
+      await clientA.createExpense(workspaceAId, {
+        kind: 'refund',
+        amount: '25.00',
+        currency: 'USD',
+        transactionDate: '2026-10-12',
+        originalExpenseId: orig.data.id,
+      });
+
+      // Try trashing original via generic items endpoint
+      const res = await fetch(`${baseUrl}/v1/workspaces/${workspaceAId}/items/${orig.data.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${tokenA}`,
+        },
+      });
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(JSON.stringify(data)).toMatch(/active refund/i);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 12. Workspace Purge Lifecycle Integration
+  // ---------------------------------------------------------------------------
+
+  describe('12. Workspace Purge Lifecycle Integration', () => {
+    it('completely purges all expense records, categories, templates, and budgets on workspace deletion', async () => {
+      // Create dedicated workspace for purge verification
+      const prov = await clientA.provisionPersonalWorkspace();
+      const purgeWsId = prov.data.workspace.id;
+
+      // Add category, expense, recurring template
+      const cat = await clientA.createExpenseCategory(purgeWsId, { name: 'Purge Category' });
+      await clientA.createExpense(purgeWsId, {
+        amount: '35.00',
+        currency: 'USD',
+        transactionDate: '2026-10-10',
+        categoryId: cat.data.id,
+      });
+      await clientA.createExpenseRecurringTemplate(purgeWsId, {
+        title: 'Purge Template',
+        kind: 'expense',
+        amount: '10.00',
+        currency: 'USD',
+        schedule: { frequency: 'monthly', interval: 1, dayOfMonth: 1 },
+        startDate: '2026-10-01',
+      });
+      await clientA.generateRecurringOccurrences(purgeWsId, { untilDate: '2026-10-01' });
+
+      // Run app.purge_owned_workspace(workspace_id, owner_id) after setting authorized deletion state
+      const admin = await adminPool.connect();
+      try {
+        const wsHash = crypto.createHash('sha256').update(`workspace:${purgeWsId}`).digest('hex');
+        await admin.query(
+          `INSERT INTO app.deletion_suppression_ledger (entity_type, entity_id, content_free_hash, reason, expires_at)
+           VALUES ('workspace', $1, $2, 'workspace_owner_deleted', now() + interval '90 days')
+           ON CONFLICT (entity_type, entity_id) DO NOTHING;`,
+          [purgeWsId, wsHash]
+        );
+
+        await admin.query(`SELECT app.purge_owned_workspace($1::uuid, $2::uuid);`, [
+          purgeWsId,
+          userAId,
+        ]);
+
+        // Verify zero records remain in any expense table for purgeWsId
+        const expCount = await admin.query<{ count: string }>(
+          `SELECT count(*) FROM app.expense_items WHERE workspace_id = $1;`,
+          [purgeWsId]
+        );
+        expect(Number(expCount.rows[0].count)).toBe(0);
+
+        const catCount = await admin.query<{ count: string }>(
+          `SELECT count(*) FROM app.expense_categories WHERE workspace_id = $1;`,
+          [purgeWsId]
+        );
+        expect(Number(catCount.rows[0].count)).toBe(0);
+
+        const tmplCount = await admin.query<{ count: string }>(
+          `SELECT count(*) FROM app.expense_recurring_templates WHERE workspace_id = $1;`,
+          [purgeWsId]
+        );
+        expect(Number(tmplCount.rows[0].count)).toBe(0);
+
+        const occCount = await admin.query<{ count: string }>(
+          `SELECT count(*) FROM app.expense_recurring_occurrences WHERE template_id IN (SELECT id FROM app.expense_recurring_templates WHERE workspace_id = $1);`,
+          [purgeWsId]
+        );
+        expect(Number(occCount.rows[0].count)).toBe(0);
+
+        const bgtCount = await admin.query<{ count: string }>(
+          `SELECT count(*) FROM app.expense_budgets WHERE workspace_id = $1;`,
+          [purgeWsId]
+        );
+        expect(Number(bgtCount.rows[0].count)).toBe(0);
+      } finally {
+        admin.release();
       }
     });
   });

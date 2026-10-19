@@ -22,7 +22,8 @@ export function registerBetaRoutes(app: FastifyInstance, pool: Pool): void {
     const result = await betaService.claimInvitation(
       request.actor.userId,
       body.invitationCode,
-      maxSeats
+      maxSeats,
+      request.actor.email
     );
 
     return reply.status(200).send(result);

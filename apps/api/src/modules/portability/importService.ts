@@ -147,6 +147,64 @@ const ExportedFileItemSchema = z.object({
   binaryPath: z.string().nullable().optional(),
 });
 
+const ExportedExpenseCategorySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(255),
+  color: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+  displayOrder: z.number().int().optional(),
+  isSystem: z.boolean().optional(),
+});
+
+const ExportedExpenseRecurringTemplateSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(255).optional().default('Recurring Template'),
+  kind: z.enum(['expense', 'income']),
+  amountMinor: z.union([z.string(), z.number(), z.bigint()]),
+  amount: z.string().optional(),
+  currency: z.string().min(3).max(3),
+  categoryId: z.string().uuid().nullable().optional(),
+  paymentLabel: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  schedule: z.unknown().optional(),
+  recurrencePattern: z.unknown().optional(),
+  timezone: z.string().optional().default('UTC'),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
+const ExportedExpenseItemSchema = z.object({
+  id: z.string().uuid(),
+  folderId: z.string().uuid().nullable().optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+  receiptFileId: z.string().uuid().nullable().optional(),
+  originalExpenseId: z.string().uuid().nullable().optional(),
+  transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  currency: z.string().min(3).max(3),
+  amountMinor: z.union([z.string(), z.number(), z.bigint()]),
+  amount: z.string().optional(),
+  kind: z.enum(['expense', 'income', 'refund']),
+  paymentLabel: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  timezone: z.string().optional(),
+  recurringTemplateId: z.string().uuid().nullable().optional(),
+  isReconciled: z.boolean().optional(),
+  updatedAt: z.string().optional(),
+});
+
+const ExportedExpenseBudgetSchema = z.object({
+  id: z.string().uuid(),
+  categoryId: z.string().uuid().nullable().optional(),
+  period: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  currency: z.string().min(3).max(3),
+  amountMinor: z.union([z.string(), z.number(), z.bigint()]),
+  amount: z.string().optional(),
+});
+
 /**
  * Validates that folder parent-child hierarchy has no cycles and is within safe depth.
  */
@@ -340,6 +398,53 @@ export async function validateAndPreviewImport(
     } catch (err) {
       throw new ValidationError(
         `MALFORMED_IMPORT: metadata/saved_views.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  // Expenses & Financial Records
+  const expCategoriesBuf = parsedFiles.get('expenses/categories.json');
+  if (expCategoriesBuf) {
+    try {
+      z.array(ExportedExpenseCategorySchema).parse(JSON.parse(expCategoriesBuf.toString('utf8')));
+    } catch (err) {
+      throw new ValidationError(
+        `MALFORMED_IMPORT: expenses/categories.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const expRecurringBuf = parsedFiles.get('expenses/recurring_templates.json');
+  if (expRecurringBuf) {
+    try {
+      z.array(ExportedExpenseRecurringTemplateSchema).parse(
+        JSON.parse(expRecurringBuf.toString('utf8'))
+      );
+    } catch (err) {
+      throw new ValidationError(
+        `MALFORMED_IMPORT: expenses/recurring_templates.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const expensesBuf = parsedFiles.get('expenses/expenses.json');
+  if (expensesBuf) {
+    try {
+      z.array(ExportedExpenseItemSchema).parse(JSON.parse(expensesBuf.toString('utf8')));
+    } catch (err) {
+      throw new ValidationError(
+        `MALFORMED_IMPORT: expenses/expenses.json validation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const expBudgetsBuf = parsedFiles.get('expenses/budgets.json');
+  if (expBudgetsBuf) {
+    try {
+      z.array(ExportedExpenseBudgetSchema).parse(JSON.parse(expBudgetsBuf.toString('utf8')));
+    } catch (err) {
+      throw new ValidationError(
+        `MALFORMED_IMPORT: expenses/budgets.json validation failed: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   }
@@ -697,6 +802,10 @@ export async function executeConfirmedImport(
     journal: 0,
     calendar: 0,
     files: 0,
+    expenses: 0,
+    expenseCategories: 0,
+    expenseRecurringTemplates: 0,
+    expenseBudgets: 0,
   };
   let skippedCounts = 0;
   let copiedCounts = 0;
@@ -1394,6 +1503,281 @@ export async function executeConfirmedImport(
       }
     } catch {
       // Ignored non-fatal routine occurrence errors
+    }
+  }
+
+  // --- 9c. Expense Categories ---
+  const expCategoriesJson = parsedFiles.get('expenses/categories.json');
+  if (expCategoriesJson) {
+    try {
+      const categories = JSON.parse(expCategoriesJson.toString('utf8')) as Array<{
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+        isSystem?: boolean;
+      }>;
+      for (const cat of categories) {
+        // If a category with same name exists in target workspace, reuse it
+        const existing = await client.query<{ id: string }>(
+          `SELECT id FROM app.expense_categories WHERE workspace_id = $1 AND lower(trim(name)) = lower(trim($2)) AND deleted_at IS NULL;`,
+          [workspaceId, cat.name]
+        );
+        if (existing.rows[0]) {
+          idMap.set(cat.id, existing.rows[0].id);
+        } else {
+          const newCatId = resolveId(cat.id)!;
+          await client.query(
+            `INSERT INTO app.expense_categories (id, workspace_id, name, color, icon, display_order)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (id) DO NOTHING;`,
+            [newCatId, workspaceId, cat.name.trim(), cat.color || null, cat.icon || null, (cat as any).displayOrder ?? 0]
+          );
+          importedCounts.expenseCategories++;
+          createdChanges.push({
+            entityType: 'expense_category',
+            entityId: newCatId,
+            action: 'created',
+          });
+        }
+      }
+    } catch {
+      // Ignored non-fatal category import errors
+    }
+  }
+
+  // --- 9d. Expense Recurring Templates ---
+  const expRecurringJson = parsedFiles.get('expenses/recurring_templates.json');
+  if (expRecurringJson) {
+    try {
+      const templates = JSON.parse(expRecurringJson.toString('utf8')) as Array<{
+        id: string;
+        title?: string;
+        categoryId?: string | null;
+        currency: string;
+        amountMinor: string | number;
+        kind: 'expense' | 'income';
+        paymentLabel?: string | null;
+        note?: string | null;
+        notes?: string | null;
+        schedule?: unknown;
+        recurrencePattern?: unknown;
+        timezone?: string;
+        startDate: string;
+        endDate?: string | null;
+        isActive?: boolean;
+      }>;
+      for (const t of templates) {
+        const newTemplateId = resolveId(t.id)!;
+        const targetCatId = resolveId(t.categoryId);
+
+        // Verify category exists in this workspace if specified
+        let safeCatId: string | null = null;
+        if (targetCatId) {
+          const catCheck = await client.query<{ id: string }>(
+            `SELECT id FROM app.expense_categories WHERE id = $1 AND workspace_id = $2;`,
+            [targetCatId, workspaceId]
+          );
+          if (catCheck.rows[0]) safeCatId = targetCatId;
+        }
+
+        const title = t.title || 'Recurring Template';
+        const schedule = t.schedule || t.recurrencePattern || { frequency: 'monthly', interval: 1 };
+        const note = t.note || t.notes || null;
+        const timezone = t.timezone || 'UTC';
+
+        await client.query(
+          `INSERT INTO app.expense_recurring_templates
+            (id, workspace_id, title, kind, amount_minor_units, currency, category_id, payment_label, note, schedule, timezone, start_date, end_date, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           ON CONFLICT (id) DO NOTHING;`,
+          [
+            newTemplateId,
+            workspaceId,
+            title,
+            t.kind,
+            BigInt(t.amountMinor),
+            t.currency,
+            safeCatId,
+            t.paymentLabel || null,
+            note,
+            JSON.stringify(schedule),
+            timezone,
+            t.startDate,
+            t.endDate || null,
+            t.isActive ?? true,
+          ]
+        );
+        importedCounts.expenseRecurringTemplates++;
+        createdChanges.push({
+          entityType: 'expense_recurring_template',
+          entityId: newTemplateId,
+          action: 'created',
+        });
+      }
+    } catch {
+      // Ignored non-fatal recurring template errors
+    }
+  }
+
+  // --- 9e. Expense Items ---
+  const expensesJson = parsedFiles.get('expenses/expenses.json');
+  if (expensesJson) {
+    try {
+      const expenses = JSON.parse(expensesJson.toString('utf8')) as Array<{
+        id: string;
+        folderId?: string | null;
+        categoryId?: string | null;
+        receiptFileId?: string | null;
+        originalExpenseId?: string | null;
+        transactionDate: string;
+        currency: string;
+        amountMinor: string | number;
+        kind: 'expense' | 'income' | 'refund';
+        paymentLabel?: string | null;
+        note?: string | null;
+        notes?: string | null;
+        timezone?: string;
+      }>;
+
+      // Pass 1: Insert all expenses without original_expense_id
+      for (const e of expenses) {
+        const targetExpenseId = resolveId(e.id)!;
+        const targetFolderId = resolveId(e.folderId);
+        const targetCatId = resolveId(e.categoryId);
+        const rawReceiptId = resolveId(e.receiptFileId);
+
+        let safeFolderId: string | null = null;
+        if (targetFolderId) {
+          const fCheck = await client.query<{ id: string }>(
+            `SELECT id FROM app.folders WHERE id = $1 AND workspace_id = $2;`,
+            [targetFolderId, workspaceId]
+          );
+          if (fCheck.rows[0]) safeFolderId = targetFolderId;
+        }
+
+        let safeCatId: string | null = null;
+        if (targetCatId) {
+          const catCheck = await client.query<{ id: string }>(
+            `SELECT id FROM app.expense_categories WHERE id = $1 AND workspace_id = $2;`,
+            [targetCatId, workspaceId]
+          );
+          if (catCheck.rows[0]) safeCatId = targetCatId;
+        }
+
+        let safeReceiptId: string | null = null;
+        if (rawReceiptId) {
+          const fileCheck = await client.query<{ id: string }>(
+            `SELECT id FROM app.file_items WHERE id = $1 AND workspace_id = $2;`,
+            [rawReceiptId, workspaceId]
+          );
+          if (fileCheck.rows[0]) safeReceiptId = rawReceiptId;
+        }
+
+        await client.query(
+          `INSERT INTO app.items (id, workspace_id, folder_id, kind, created_by, updated_by, security_scope)
+           VALUES ($1, $2, $3, 'expense', $4, $4, 'standard')
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [targetExpenseId, workspaceId, safeFolderId, actorUserId]
+        );
+
+        await client.query(
+          `INSERT INTO app.expense_items (id, workspace_id, category_id, receipt_file_id, original_expense_id, transaction_date, currency, amount_minor_units, kind, payment_label, note, timezone)
+           VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9, $10, $11)
+           ON CONFLICT (workspace_id, id) DO NOTHING;`,
+          [
+            targetExpenseId,
+            workspaceId,
+            safeCatId,
+            safeReceiptId,
+            e.transactionDate,
+            e.currency,
+            BigInt(e.amountMinor),
+            e.kind,
+            e.paymentLabel || null,
+            e.note || e.notes || null,
+            e.timezone || 'UTC',
+          ]
+        );
+
+        importedCounts.expenses++;
+        createdChanges.push({
+          entityType: 'expense',
+          entityId: targetExpenseId,
+          action: 'created',
+        });
+      }
+
+      // Pass 2: Link refunds to original expenses
+      for (const e of expenses) {
+        if (e.originalExpenseId) {
+          const targetExpenseId = resolveId(e.id)!;
+          const targetOriginalId = resolveId(e.originalExpenseId);
+          if (targetOriginalId) {
+            await client.query(
+              `UPDATE app.expense_items
+               SET original_expense_id = $1
+               WHERE id = $2 AND workspace_id = $3;`,
+              [targetOriginalId, targetExpenseId, workspaceId]
+            );
+          }
+        }
+      }
+    } catch {
+      // Ignored non-fatal expense item errors
+    }
+  }
+
+  // --- 9f. Expense Budgets ---
+  const expBudgetsJson = parsedFiles.get('expenses/budgets.json');
+  if (expBudgetsJson) {
+    try {
+      const budgets = JSON.parse(expBudgetsJson.toString('utf8')) as Array<{
+        id: string;
+        categoryId?: string | null;
+        period?: string;
+        periodMonth?: string;
+        currency: string;
+        amountMinor: string | number;
+      }>;
+      for (const b of budgets) {
+        const newBudgetId = resolveId(b.id)!;
+        const targetCatId = resolveId(b.categoryId);
+
+        let safeCatId: string | null = null;
+        if (targetCatId) {
+          const catCheck = await client.query<{ id: string }>(
+            `SELECT id FROM app.expense_categories WHERE id = $1 AND workspace_id = $2;`,
+            [targetCatId, workspaceId]
+          );
+          if (catCheck.rows[0]) safeCatId = targetCatId;
+        }
+
+        const period = b.period || b.periodMonth;
+        if (!period) continue;
+
+        await client.query(
+          `INSERT INTO app.expense_budgets (id, workspace_id, category_id, period, currency, amount_minor_units)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (id) DO NOTHING;`,
+          [
+            newBudgetId,
+            workspaceId,
+            safeCatId,
+            period,
+            b.currency,
+            BigInt(b.amountMinor),
+          ]
+        );
+        importedCounts.expenseBudgets++;
+        createdChanges.push({
+          entityType: 'expense_budget',
+          entityId: newBudgetId,
+          action: 'created',
+        });
+      }
+    } catch {
+      // Ignored non-fatal budget import errors
     }
   }
 

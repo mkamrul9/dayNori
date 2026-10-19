@@ -11,6 +11,7 @@ export const ItemKindSchema = z.enum([
   'file',
   'file_item',
   'calendar_event',
+  'expense',
 ]);
 export type ItemKind = z.infer<typeof ItemKindSchema>;
 

@@ -24,12 +24,14 @@ export class BetaAccessService {
   }
 
   /**
-   * Claims an invitation code for an authenticated user with concurrency protection and seat limits.
+   * Claims an invitation code for an authenticated user with concurrency protection,
+   * seat allocation serialization across invitations, recipient binding, and privilege restriction.
    */
   async claimInvitation(
     userId: string,
     invitationCode: string,
-    maxSeats: number = 50
+    maxSeats: number = 50,
+    userEmail?: string
   ): Promise<ClaimInvitationResult> {
     if (!invitationCode || typeof invitationCode !== 'string' || invitationCode.trim().length === 0) {
       throw new ValidationError('A valid invitation code is required');
@@ -42,95 +44,36 @@ export class BetaAccessService {
     try {
       await client.query('BEGIN');
 
-      // 1. Check if user is already enrolled
-      const alreadyEnrolled = await client.query<{ status: string }>(
-        `SELECT status FROM app.beta_enrollments WHERE user_id = $1;`,
-        [userId]
-      );
-      if (alreadyEnrolled.rows[0]?.status === 'enrolled') {
-        await client.query('COMMIT');
-        return {
-          success: true,
-          enrolled: true,
-          message: 'User is already enrolled in the private beta',
-        };
-      }
-
-      // 2. Atomically lock and inspect the invitation record
-      const inviteRes = await client.query<{
-        id: string;
-        status: string;
-        expires_at: Date;
-      }>(
-        `SELECT id, status, expires_at FROM app.beta_invitations
-         WHERE invitation_code_hash = $1
-         FOR UPDATE;`,
-        [codeHash]
-      );
-
-      if (inviteRes.rows.length === 0) {
-        throw new ExplicitForbiddenError('Invalid invitation code');
-      }
-
-      const invite = inviteRes.rows[0]!;
-
-      if (invite.status === 'revoked') {
-        throw new ExplicitForbiddenError('This beta invitation code has been revoked');
-      }
-
-      if (invite.status === 'claimed') {
-        throw new ValidationError('This beta invitation code has already been claimed');
-      }
-
-      if (invite.status === 'expired' || new Date(invite.expires_at).getTime() < Date.now()) {
-        await client.query(
-          `UPDATE app.beta_invitations SET status = 'expired' WHERE id = $1;`,
-          [invite.id]
-        );
-        throw new ValidationError('This beta invitation code has expired');
-      }
-
-      // 3. Enforce seat limit barrier
-      const seatCountRes = await client.query<{ count: string }>(
-        `SELECT count(*) as count FROM app.beta_enrollments WHERE status = 'enrolled';`
-      );
-      const currentEnrolledSeats = parseInt(seatCountRes.rows[0]?.count || '0', 10);
-      if (currentEnrolledSeats >= maxSeats) {
-        throw new ValidationError(
-          `Beta participant seat limit (${maxSeats}) reached; no additional enrollments permitted`
-        );
-      }
-
-      // 4. Mark invitation claimed
-      await client.query(
-        `UPDATE app.beta_invitations
-         SET status = 'claimed',
-             claimed_by_user_id = $1,
-             claimed_at = now()
-         WHERE id = $2;`,
-        [userId, invite.id]
-      );
-
-      // 5. Enroll user
-      await client.query(
-        `INSERT INTO app.beta_enrollments (user_id, invitation_id, enrolled_at, status)
-         VALUES ($1, $2, now(), 'enrolled')
-         ON CONFLICT (user_id) DO UPDATE
-           SET invitation_id = EXCLUDED.invitation_id,
-               enrolled_at = now(),
-               status = 'enrolled';`,
-        [userId, invite.id]
+      const res = await client.query<{ res: ClaimInvitationResult }>(
+        `SELECT app.claim_beta_invitation($1, $2, $3, $4) as res;`,
+        [codeHash, userId, userEmail || null, maxSeats]
       );
 
       await client.query('COMMIT');
-
-      return {
-        success: true,
-        enrolled: true,
-        message: 'Successfully enrolled in Daynori Private Beta',
-      };
-    } catch (err) {
+      return res.rows[0]!.res;
+    } catch (err: unknown) {
       await client.query('ROLLBACK').catch(() => {});
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes('FORBIDDEN') ||
+        msg.includes('Invalid invitation code') ||
+        msg.includes('revoked') ||
+        msg.includes('bound to a specific recipient')
+      ) {
+        throw new ExplicitForbiddenError(
+          msg.replace(/^.*?FORBIDDEN:\s*/i, '').replace(/^.*?error:\s*/i, '')
+        );
+      }
+      if (
+        msg.includes('VALIDATION_FAILED') ||
+        msg.includes('already been claimed') ||
+        msg.includes('expired') ||
+        msg.includes('seat limit')
+      ) {
+        throw new ValidationError(
+          msg.replace(/^.*?VALIDATION_FAILED:\s*/i, '').replace(/^.*?error:\s*/i, '')
+        );
+      }
       throw err;
     } finally {
       client.release();

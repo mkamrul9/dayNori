@@ -16,6 +16,15 @@ import {
   CreateExpenseRecurringTemplateBodySchema,
   ExpenseRecurringTemplateResponseSchema,
   ExpenseRecurringTemplateListResponseSchema,
+  GenerateOccurrencesBodySchema,
+  CreateExpenseBudgetBodySchema,
+  UpdateExpenseBudgetBodySchema,
+  ExpenseBudgetResponseSchema,
+  ExpenseBudgetListResponseSchema,
+  type ExpenseCategory,
+  type ExpenseItem,
+  type ExpenseRecurringTemplate,
+  type ExpenseBudget,
 } from '@daynori/contracts';
 import { withTenantContext } from '../../db/index.js';
 import {
@@ -33,8 +42,18 @@ import {
   createExpenseRecurringTemplate,
   listExpenseRecurringTemplates,
   generateRecurringOccurrences,
+  createExpenseBudget,
+  listExpenseBudgets,
+  updateExpenseBudget,
+  deleteExpenseBudget,
 } from '../../modules/expenses/service.js';
-import { validateResponse } from '../../plugins/errorHandler.js';
+import { computeCanonicalPayloadHash } from '../../modules/sync/types.js';
+import {
+  getMutationReceipt,
+  insertMutationReceipt,
+  lockWorkspaceSyncState,
+} from '../../modules/sync/repository.js';
+import { ConflictError, validateResponse } from '../../plugins/errorHandler.js';
 
 const CategoryParamsSchema = WorkspaceParamsSchema.extend({
   categoryId: z.string().uuid(),
@@ -44,13 +63,21 @@ const ExpenseParamsSchema = WorkspaceParamsSchema.extend({
   expenseId: z.string().uuid(),
 });
 
+const BudgetParamsSchema = WorkspaceParamsSchema.extend({
+  budgetId: z.string().uuid(),
+});
+
 const SummaryQuerySchema = z.object({
   year: z.coerce.number().int().min(1900).max(2200),
   month: z.coerce.number().int().min(1).max(12),
 });
 
-const GenerateOccurrencesBodySchema = z.object({
-  untilDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+const BudgetListQuerySchema = z.object({
+  period: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .optional(),
+  currency: z.string().min(3).max(3).optional(),
 });
 
 export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
@@ -66,11 +93,60 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
 
       const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
       const body = CreateExpenseCategoryBodySchema.parse(request.body);
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       const category = await withTenantContext(
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'createExpenseCategory',
+              schemaVersion: 1,
+              entityType: 'expense_category',
+              entityId: operationId,
+              baseRevision: 0,
+              payload: body as unknown as Record<string, unknown>,
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return (receipt.resultPayload as { category: ExpenseCategory }).category;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const created = await createExpenseCategory(client, workspaceId, body, operationId);
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'createExpenseCategory',
+              entityType: 'expense_category',
+              entityId: created.id,
+              schemaVersion: 1,
+              baseRevision: 0,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 1,
+              appliedChangeSeq: created.seq ?? null,
+              resultPayload: { category: created },
+            });
+
+            return created;
+          }
+
           return createExpenseCategory(client, workspaceId, body);
         }
       );
@@ -117,11 +193,66 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
 
       const { workspaceId, categoryId } = CategoryParamsSchema.parse(request.params);
       const body = UpdateExpenseCategoryBodySchema.parse(request.body);
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       const category = await withTenantContext(
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'updateExpenseCategory',
+              schemaVersion: 1,
+              entityType: 'expense_category',
+              entityId: categoryId,
+              baseRevision: 1,
+              payload: body as unknown as Record<string, unknown>,
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return (receipt.resultPayload as { category: ExpenseCategory }).category;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const updated = await updateExpenseCategory(
+              client,
+              workspaceId,
+              categoryId,
+              body,
+              operationId
+            );
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'updateExpenseCategory',
+              entityType: 'expense_category',
+              entityId: categoryId,
+              schemaVersion: 1,
+              baseRevision: 1,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 2,
+              appliedChangeSeq: updated.seq ?? null,
+              resultPayload: { category: updated },
+            });
+
+            return updated;
+          }
+
           return updateExpenseCategory(client, workspaceId, categoryId, body);
         }
       );
@@ -142,11 +273,60 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
       if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
 
       const { workspaceId, categoryId } = CategoryParamsSchema.parse(request.params);
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       const result = await withTenantContext(
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'trashExpenseCategory',
+              schemaVersion: 1,
+              entityType: 'expense_category',
+              entityId: categoryId,
+              baseRevision: 1,
+              payload: {},
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return receipt.resultPayload;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const deleted = await deleteExpenseCategory(client, workspaceId, categoryId, operationId);
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'trashExpenseCategory',
+              entityType: 'expense_category',
+              entityId: categoryId,
+              schemaVersion: 1,
+              baseRevision: 1,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 2,
+              appliedChangeSeq: deleted.seq ?? null,
+              resultPayload: deleted,
+            });
+
+            return deleted;
+          }
+
           return deleteExpenseCategory(client, workspaceId, categoryId);
         }
       );
@@ -168,13 +348,70 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
 
     const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
     const body = CreateExpenseBodySchema.parse(request.body);
-    const operationId = (request.headers['x-operation-id'] as string) || undefined;
+    const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+    const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+    const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
     const created = await withTenantContext(
       pool,
       { workspaceId, userId: actor.userId },
       async (client) => {
-        return createExpenseRecord(client, workspaceId, actor.userId, body, operationId);
+        if (operationId) {
+          const payloadHash = computeCanonicalPayloadHash({
+            workspaceId,
+            command: 'createExpense',
+            schemaVersion: 1,
+            entityType: 'expense',
+            entityId: operationId,
+            baseRevision: 0,
+            payload: body as unknown as Record<string, unknown>,
+          });
+
+          const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+          if (receipt) {
+            if (receipt.canonicalPayloadHash !== payloadHash) {
+              throw new ConflictError(
+                'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+              );
+            }
+            if (receipt.status === 'accepted') {
+              const durableExpense = (receipt.resultPayload as { expense: ExpenseItem }).expense;
+              return (
+                durableExpense || (await getExpenseRecord(client, workspaceId, receipt.entityId))
+              );
+            }
+          }
+
+          await lockWorkspaceSyncState(client, workspaceId);
+          const res = await createExpenseRecord(
+            client,
+            workspaceId,
+            actor.userId,
+            body,
+            operationId
+          );
+
+          await insertMutationReceipt(client, {
+            workspaceId,
+            actorUserId: actor.userId,
+            deviceId,
+            operationId,
+            command: 'createExpense',
+            entityType: 'expense',
+            entityId: res.id,
+            schemaVersion: 1,
+            baseRevision: 0,
+            canonicalPayloadHash: payloadHash,
+            status: 'accepted',
+            acceptedRevision: 1,
+            appliedChangeSeq: res.seq,
+            resultPayload: { expense: res },
+          });
+
+          return res;
+        }
+
+        return createExpenseRecord(client, workspaceId, actor.userId, body);
       }
     );
 
@@ -193,7 +430,7 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
     const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
     const query = ExpenseListQuerySchema.parse(request.query);
 
-    const items = await withTenantContext(
+    const { items, nextCursor, hasMore } = await withTenantContext(
       pool,
       { workspaceId, userId: actor.userId },
       async (client) => {
@@ -203,7 +440,11 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
 
     const response = validateResponse(ExpenseListResponseSchema, {
       data: items,
-      meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      meta: {
+        requestId: request.id,
+        serverTime: new Date().toISOString(),
+        pagination: { nextCursor, hasMore },
+      },
     });
 
     return reply.status(200).send(response);
@@ -268,19 +509,76 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
 
       const { workspaceId, expenseId } = ExpenseParamsSchema.parse(request.params);
       const body = UpdateExpenseBodySchema.parse(request.body);
-      const operationId = (request.headers['x-operation-id'] as string) || undefined;
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       const updated = await withTenantContext(
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'updateExpense',
+              schemaVersion: 1,
+              entityType: 'expense',
+              entityId: expenseId,
+              baseRevision: 1,
+              payload: body as unknown as Record<string, unknown>,
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                const durableExpense = (receipt.resultPayload as { expense: ExpenseItem }).expense;
+                return (
+                  durableExpense || (await getExpenseRecord(client, workspaceId, expenseId))
+                );
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const res = await updateExpenseRecord(
+              client,
+              workspaceId,
+              expenseId,
+              actor.userId,
+              body,
+              operationId
+            );
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'updateExpense',
+              entityType: 'expense',
+              entityId: expenseId,
+              schemaVersion: 1,
+              baseRevision: 1,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 2,
+              appliedChangeSeq: res.seq,
+              resultPayload: { expense: res },
+            });
+
+            return res;
+          }
+
           return updateExpenseRecord(
             client,
             workspaceId,
             expenseId,
             actor.userId,
-            body,
-            operationId
+            body
           );
         }
       );
@@ -301,13 +599,67 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
       if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
 
       const { workspaceId, expenseId } = ExpenseParamsSchema.parse(request.params);
-      const operationId = (request.headers['x-operation-id'] as string) || undefined;
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       const result = await withTenantContext(
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
-          return trashExpenseRecord(client, workspaceId, expenseId, actor.userId, operationId);
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'trashExpense',
+              schemaVersion: 1,
+              entityType: 'expense',
+              entityId: expenseId,
+              baseRevision: 1,
+              payload: {},
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return receipt.resultPayload;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const res = await trashExpenseRecord(
+              client,
+              workspaceId,
+              expenseId,
+              actor.userId,
+              operationId
+            );
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'trashExpense',
+              entityType: 'expense',
+              entityId: expenseId,
+              schemaVersion: 1,
+              baseRevision: 1,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 2,
+              appliedChangeSeq: res.seq,
+              resultPayload: res,
+            });
+
+            return res;
+          }
+
+          return trashExpenseRecord(client, workspaceId, expenseId, actor.userId);
         }
       );
 
@@ -325,13 +677,67 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
       if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
 
       const { workspaceId, expenseId } = ExpenseParamsSchema.parse(request.params);
-      const operationId = (request.headers['x-operation-id'] as string) || undefined;
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       const result = await withTenantContext(
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
-          return restoreExpenseRecord(client, workspaceId, expenseId, actor.userId, operationId);
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'restoreExpense',
+              schemaVersion: 1,
+              entityType: 'expense',
+              entityId: expenseId,
+              baseRevision: 1,
+              payload: {},
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return receipt.resultPayload;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const res = await restoreExpenseRecord(
+              client,
+              workspaceId,
+              expenseId,
+              actor.userId,
+              operationId
+            );
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'restoreExpense',
+              entityType: 'expense',
+              entityId: expenseId,
+              schemaVersion: 1,
+              baseRevision: 1,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 2,
+              appliedChangeSeq: res.seq,
+              resultPayload: res,
+            });
+
+            return res;
+          }
+
+          return restoreExpenseRecord(client, workspaceId, expenseId, actor.userId);
         }
       );
 
@@ -354,11 +760,65 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
 
       const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
       const body = CreateExpenseRecurringTemplateBodySchema.parse(request.body);
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
 
       const template = await withTenantContext(
         pool,
         { workspaceId, userId: actor.userId },
         async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'createExpenseRecurringTemplate',
+              schemaVersion: 1,
+              entityType: 'expense_recurring_template',
+              entityId: operationId,
+              baseRevision: 0,
+              payload: body as unknown as Record<string, unknown>,
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return (receipt.resultPayload as { template: ExpenseRecurringTemplate }).template;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const res = await createExpenseRecurringTemplate(
+              client,
+              workspaceId,
+              body,
+              operationId
+            );
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'createExpenseRecurringTemplate',
+              entityType: 'expense_recurring_template',
+              entityId: res.id,
+              schemaVersion: 1,
+              baseRevision: 0,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 1,
+              appliedChangeSeq: res.seq ?? null,
+              resultPayload: { template: res },
+            });
+
+            return res;
+          }
+
           return createExpenseRecurringTemplate(client, workspaceId, body);
         }
       );
@@ -411,6 +871,264 @@ export function registerExpenseRoutes(app: FastifyInstance, pool: Pool): void {
         { workspaceId, userId: actor.userId },
         async (client) => {
           return generateRecurringOccurrences(client, workspaceId, actor.userId, untilDate);
+        }
+      );
+
+      return reply.status(200).send({
+        data: result,
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // Budgets (Phase 40)
+  // ---------------------------------------------------------------------------
+
+  app.post(
+    '/v1/workspaces/:workspaceId/expenses/budgets',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
+
+      const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+      const body = CreateExpenseBudgetBodySchema.parse(request.body);
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+
+      const budget = await withTenantContext(
+        pool,
+        { workspaceId, userId: actor.userId },
+        async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'createExpenseBudget',
+              schemaVersion: 1,
+              entityType: 'expense_budget',
+              entityId: operationId,
+              baseRevision: 0,
+              payload: body as unknown as Record<string, unknown>,
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return (receipt.resultPayload as { budget: ExpenseBudget }).budget;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const created = await createExpenseBudget(client, workspaceId, body, operationId);
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'createExpenseBudget',
+              entityType: 'expense_budget',
+              entityId: created.id,
+              schemaVersion: 1,
+              baseRevision: 0,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 1,
+              appliedChangeSeq: created.seq ?? null,
+              resultPayload: { budget: created },
+            });
+
+            return created;
+          }
+
+          return createExpenseBudget(client, workspaceId, body);
+        }
+      );
+
+      const response = validateResponse(ExpenseBudgetResponseSchema, {
+        data: budget,
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
+
+      return reply.status(201).send(response);
+    }
+  );
+
+  app.get(
+    '/v1/workspaces/:workspaceId/expenses/budgets',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
+
+      const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+      const query = BudgetListQuerySchema.parse(request.query);
+
+      const budgets = await withTenantContext(
+        pool,
+        { workspaceId, userId: actor.userId },
+        async (client) => {
+          return listExpenseBudgets(client, workspaceId, query);
+        }
+      );
+
+      const response = validateResponse(ExpenseBudgetListResponseSchema, {
+        data: budgets,
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
+
+      return reply.status(200).send(response);
+    }
+  );
+
+  app.patch(
+    '/v1/workspaces/:workspaceId/expenses/budgets/:budgetId',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
+
+      const { workspaceId, budgetId } = BudgetParamsSchema.parse(request.params);
+      const body = UpdateExpenseBudgetBodySchema.parse(request.body);
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+
+      const updated = await withTenantContext(
+        pool,
+        { workspaceId, userId: actor.userId },
+        async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'updateExpenseBudget',
+              schemaVersion: 1,
+              entityType: 'expense_budget',
+              entityId: budgetId,
+              baseRevision: 1,
+              payload: body as unknown as Record<string, unknown>,
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return (receipt.resultPayload as { budget: ExpenseBudget }).budget;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const res = await updateExpenseBudget(
+              client,
+              workspaceId,
+              budgetId,
+              body,
+              operationId
+            );
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'updateExpenseBudget',
+              entityType: 'expense_budget',
+              entityId: budgetId,
+              schemaVersion: 1,
+              baseRevision: 1,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: res.revision,
+              appliedChangeSeq: res.seq ?? null,
+              resultPayload: { budget: res },
+            });
+
+            return res;
+          }
+
+          return updateExpenseBudget(client, workspaceId, budgetId, body);
+        }
+      );
+
+      const response = validateResponse(ExpenseBudgetResponseSchema, {
+        data: updated,
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
+
+      return reply.status(200).send(response);
+    }
+  );
+
+  app.delete(
+    '/v1/workspaces/:workspaceId/expenses/budgets/:budgetId',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) return reply.status(401).send({ error: { message: 'Unauthorized' } });
+
+      const { workspaceId, budgetId } = BudgetParamsSchema.parse(request.params);
+      const rawOpId = request.headers['x-operation-id'] || request.headers['idempotency-key'];
+      const operationId = typeof rawOpId === 'string' && rawOpId.length > 0 ? rawOpId : undefined;
+      const deviceId = (request.headers['x-device-id'] as string) || 'rest-api';
+
+      const result = await withTenantContext(
+        pool,
+        { workspaceId, userId: actor.userId },
+        async (client) => {
+          if (operationId) {
+            const payloadHash = computeCanonicalPayloadHash({
+              workspaceId,
+              command: 'deleteExpenseBudget',
+              schemaVersion: 1,
+              entityType: 'expense_budget',
+              entityId: budgetId,
+              baseRevision: 1,
+              payload: {},
+            });
+
+            const receipt = await getMutationReceipt(client, actor.userId, deviceId, operationId);
+            if (receipt) {
+              if (receipt.canonicalPayloadHash !== payloadHash) {
+                throw new ConflictError(
+                  'IDEMPOTENCY_KEY_REUSED: Operation ID was already used with a different payload.'
+                );
+              }
+              if (receipt.status === 'accepted') {
+                return receipt.resultPayload;
+              }
+            }
+
+            await lockWorkspaceSyncState(client, workspaceId);
+            const res = await deleteExpenseBudget(client, workspaceId, budgetId, operationId);
+
+            await insertMutationReceipt(client, {
+              workspaceId,
+              actorUserId: actor.userId,
+              deviceId,
+              operationId,
+              command: 'deleteExpenseBudget',
+              entityType: 'expense_budget',
+              entityId: budgetId,
+              schemaVersion: 1,
+              baseRevision: 1,
+              canonicalPayloadHash: payloadHash,
+              status: 'accepted',
+              acceptedRevision: 2,
+              appliedChangeSeq: res.seq ?? null,
+              resultPayload: res,
+            });
+
+            return res;
+          }
+
+          return deleteExpenseBudget(client, workspaceId, budgetId);
         }
       );
 

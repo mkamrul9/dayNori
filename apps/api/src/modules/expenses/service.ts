@@ -11,6 +11,9 @@ import type {
   CurrencyMonthlySummary,
   ExpenseRecurringTemplate,
   CreateExpenseRecurringTemplateBody,
+  ExpenseBudget,
+  CreateExpenseBudgetBody,
+  UpdateExpenseBudgetBody,
 } from '@daynori/contracts';
 import {
   getCurrencyInfo,
@@ -20,6 +23,7 @@ import {
   calculateNetSpending,
   calculateNetSavings,
   getNextOccurrenceDate,
+  isValidCalendarDate,
 } from '@daynori/domain';
 import {
   lockWorkspaceSyncState,
@@ -28,7 +32,7 @@ import {
 } from '../sync/repository.js';
 import { NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
 
-interface ExpenseItemDbRow {
+export interface ExpenseItemDbRow {
   id: string;
   workspace_id: string;
   folder_id: string | null;
@@ -58,57 +62,90 @@ function formatDateOnly(d: string | Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function mapRowToExpenseItem(r: ExpenseItemDbRow): ExpenseItem {
-  const minorUnits = BigInt(r.amount_minor_units);
-  const cumulativeRefund = BigInt(r.cumulative_refund_minor_units || '0');
+export function encodeExpenseCursor(options: {
+  workspaceId: string;
+  transactionDate: string;
+  id: string;
+}): string {
+  const raw = `${options.workspaceId}|${options.transactionDate}|${options.id}`;
+  return Buffer.from(raw, 'utf-8').toString('base64url');
+}
 
+export function decodeExpenseCursor(
+  cursor: string | undefined,
+  expectedWorkspaceId: string
+): { transactionDate: string; id: string } | null {
+  if (!cursor || typeof cursor !== 'string') return null;
+  if (cursor.length > 256) {
+    throw new ValidationError('Pagination cursor exceeds maximum allowed length');
+  }
+  let raw: string;
+  try {
+    raw = Buffer.from(cursor, 'base64url').toString('utf-8');
+  } catch {
+    throw new ValidationError('Pagination cursor encoding is invalid');
+  }
+  const parts = raw.split('|');
+  const wsId = parts[0];
+  const txDate = parts[1];
+  const id = parts[2];
+  if (!wsId || !txDate || !id) {
+    throw new ValidationError('Pagination cursor structure is invalid');
+  }
+  if (wsId !== expectedWorkspaceId) {
+    throw new ValidationError('Pagination cursor belongs to a different workspace context');
+  }
+  return { transactionDate: txDate, id };
+}
+
+function mapRowToExpenseItem(row: ExpenseItemDbRow): ExpenseItem {
+  const transactionDate = formatDateOnly(row.transaction_date);
   return {
-    id: r.id,
-    workspaceId: r.workspace_id,
-    kind: r.kind,
-    amountMinorUnits: minorUnits.toString(),
-    amountFormatted: formatMinorUnitsToDecimal(minorUnits, r.currency),
-    currency: r.currency,
-    transactionDate: formatDateOnly(r.transaction_date),
-    occurredAt: r.occurred_at ? r.occurred_at.toISOString() : null,
-    timezone: r.timezone,
-    categoryId: r.category_id,
-    categoryName: r.category_name ?? null,
-    paymentLabel: r.payment_label,
-    note: r.note,
-    receiptFileId: r.receipt_file_id,
-    originalExpenseId: r.original_expense_id,
-    cumulativeRefundMinorUnits: cumulativeRefund.toString(),
-    folderId: r.folder_id,
-    deletedAt: r.deleted_at ? r.deleted_at.toISOString() : null,
-    createdAt: r.created_at.toISOString(),
-    updatedAt: r.updated_at.toISOString(),
+    id: row.id,
+    workspaceId: row.workspace_id,
+    kind: row.kind,
+    amountMinorUnits: row.amount_minor_units,
+    amountFormatted: formatMinorUnitsToDecimal(BigInt(row.amount_minor_units), row.currency),
+    currency: row.currency,
+    transactionDate,
+    occurredAt: row.occurred_at ? row.occurred_at.toISOString() : null,
+    timezone: row.timezone || 'UTC',
+    categoryId: row.category_id || null,
+    categoryName: row.category_name ?? null,
+    paymentLabel: row.payment_label || null,
+    note: row.note || null,
+    receiptFileId: row.receipt_file_id || null,
+    originalExpenseId: row.original_expense_id || null,
+    cumulativeRefundMinorUnits: row.cumulative_refund_minor_units || '0',
+    folderId: row.folder_id || null,
+    deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
 }
 
 // -----------------------------------------------------------------------------
-// Category Service
+// Expense Categories
 // -----------------------------------------------------------------------------
 
 export async function createExpenseCategory(
-  client: PoolClient | Pool,
+  client: PoolClient,
   workspaceId: string,
-  input: CreateExpenseCategoryBody
-): Promise<ExpenseCategory> {
-  const name = input.name.trim();
-  if (!name) {
-    throw new ValidationError('Category name cannot be empty');
-  }
+  input: CreateExpenseCategoryBody,
+  operationId?: string
+): Promise<ExpenseCategory & { seq?: number }> {
+  const trimmedName = input.name.trim();
 
-  // Check duplicate name within workspace
   const dup = await client.query<{ id: string }>(
     `SELECT id FROM app.expense_categories
      WHERE workspace_id = $1 AND lower(trim(name)) = lower($2) AND deleted_at IS NULL;`,
-    [workspaceId, name]
+    [workspaceId, trimmedName]
   );
   if (dup.rows.length > 0) {
-    throw new ValidationError(`Category with name '${name}' already exists in this workspace`);
+    throw new ValidationError(`Expense category '${trimmedName}' already exists in this workspace`);
   }
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
   const res = await client.query<{
     id: string;
@@ -123,10 +160,36 @@ export async function createExpenseCategory(
     `INSERT INTO app.expense_categories (workspace_id, name, color, icon, display_order)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, workspace_id, name, color, icon, display_order, created_at, updated_at;`,
-    [workspaceId, name, input.color || null, input.icon || null, input.displayOrder || 0]
+    [
+      workspaceId,
+      trimmedName,
+      input.color ? input.color.trim() : null,
+      input.icon ? input.icon.trim() : null,
+      input.displayOrder ?? 0,
+    ]
   );
 
   const row = res.rows[0]!;
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'expense_category',
+    entityId: row.id,
+    revision: 1,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      name: row.name,
+      color: row.color,
+      icon: row.icon,
+      displayOrder: row.display_order,
+    },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -136,6 +199,7 @@ export async function createExpenseCategory(
     displayOrder: row.display_order,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    seq,
   };
 }
 
@@ -173,33 +237,34 @@ export async function listExpenseCategories(
 }
 
 export async function updateExpenseCategory(
-  client: PoolClient | Pool,
+  client: PoolClient,
   workspaceId: string,
   categoryId: string,
-  input: UpdateExpenseCategoryBody
-): Promise<ExpenseCategory> {
-  const catRes = await client.query<{ id: string; name: string }>(
+  input: UpdateExpenseCategoryBody,
+  operationId?: string
+): Promise<ExpenseCategory & { seq?: number }> {
+  const existing = await client.query<{ id: string; name: string }>(
     `SELECT id, name FROM app.expense_categories
      WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;`,
     [workspaceId, categoryId]
   );
-  if (catRes.rows.length === 0) {
-    throw new NotFoundError('Expense category not found');
+  if (existing.rows.length === 0) {
+    throw new NotFoundError(`Expense category ${categoryId} not found`);
   }
 
-  if (input.name !== undefined) {
+  if (input.name) {
     const trimmed = input.name.trim();
-    if (!trimmed) throw new ValidationError('Category name cannot be empty');
-
     const dup = await client.query<{ id: string }>(
       `SELECT id FROM app.expense_categories
        WHERE workspace_id = $1 AND lower(trim(name)) = lower($2) AND id != $3 AND deleted_at IS NULL;`,
       [workspaceId, trimmed, categoryId]
     );
     if (dup.rows.length > 0) {
-      throw new ValidationError(`Category with name '${trimmed}' already exists`);
+      throw new ValidationError(`Expense category '${trimmed}' already exists`);
     }
   }
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
   const res = await client.query<{
     id: string;
@@ -213,23 +278,45 @@ export async function updateExpenseCategory(
   }>(
     `UPDATE app.expense_categories
      SET name = COALESCE($1, name),
-         color = CASE WHEN $2::text IS NOT NULL THEN $2 ELSE color END,
-         icon = CASE WHEN $3::text IS NOT NULL THEN $3 ELSE icon END,
-         display_order = COALESCE($4, display_order),
+         color = CASE WHEN $2::boolean THEN $3 ELSE color END,
+         icon = CASE WHEN $4::boolean THEN $5 ELSE icon END,
+         display_order = COALESCE($6, display_order),
          updated_at = now()
-     WHERE workspace_id = $5 AND id = $6 AND deleted_at IS NULL
+     WHERE workspace_id = $7 AND id = $8 AND deleted_at IS NULL
      RETURNING id, workspace_id, name, color, icon, display_order, created_at, updated_at;`,
     [
       input.name ? input.name.trim() : null,
-      input.color !== undefined ? input.color : null,
-      input.icon !== undefined ? input.icon : null,
-      input.displayOrder !== undefined ? input.displayOrder : null,
+      input.color !== undefined,
+      input.color ? input.color.trim() : null,
+      input.icon !== undefined,
+      input.icon ? input.icon.trim() : null,
+      input.displayOrder,
       workspaceId,
       categoryId,
     ]
   );
 
   const row = res.rows[0]!;
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'expense_category',
+    entityId: row.id,
+    revision: 2,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      name: row.name,
+      color: row.color,
+      icon: row.icon,
+      displayOrder: row.display_order,
+    },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -239,57 +326,73 @@ export async function updateExpenseCategory(
     displayOrder: row.display_order,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    seq,
   };
 }
 
 export async function deleteExpenseCategory(
-  client: PoolClient | Pool,
+  client: PoolClient,
   workspaceId: string,
-  categoryId: string
-): Promise<{ success: boolean; id: string }> {
-  const res = await client.query(
-    `UPDATE app.expense_categories
-     SET deleted_at = now(), updated_at = now()
+  categoryId: string,
+  operationId?: string
+): Promise<{ success: boolean; id: string; seq?: number }> {
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM app.expense_categories
      WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;`,
     [workspaceId, categoryId]
   );
-  if ((res.rowCount ?? 0) === 0) {
-    throw new NotFoundError('Expense category not found or already deleted');
+  if (existing.rows.length === 0) {
+    throw new NotFoundError(`Expense category ${categoryId} not found`);
   }
-  return { success: true, id: categoryId };
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  await client.query(
+    `UPDATE app.expense_categories
+     SET deleted_at = now(), updated_at = now()
+     WHERE workspace_id = $1 AND id = $2;`,
+    [workspaceId, categoryId]
+  );
+
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'expense_category',
+    entityId: categoryId,
+    revision: 2,
+    isTombstone: true,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: { deleted: true },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  return { success: true, id: categoryId, seq };
 }
 
 // -----------------------------------------------------------------------------
-// Expense Records Service
+// Expense Records
 // -----------------------------------------------------------------------------
 
 export async function createExpenseRecord(
   client: PoolClient,
   workspaceId: string,
   actorUserId: string,
-  input: CreateExpenseBody,
+  input: CreateExpenseBody & { id?: string },
   operationId?: string
 ): Promise<ExpenseItem & { seq: number }> {
-  const currencyInfo = getCurrencyInfo(input.currency);
-  const amountMinorUnits = parseDecimalToMinorUnits(input.amount, currencyInfo.code);
-  const entryId = crypto.randomUUID();
+  const entryId = input.id || crypto.randomUUID();
   const kind = input.kind || 'expense';
 
-  // 1. Validate folder if provided
-  if (input.folderId) {
-    const fRes = await client.query<{ id: string }>(
-      `SELECT id FROM app.items
-       WHERE workspace_id = $1 AND id = $2 AND kind = 'folder' AND deleted_at IS NULL;`,
-      [workspaceId, input.folderId]
-    );
-    if (fRes.rows.length === 0) {
-      throw new ValidationError(
-        `Target folder ${input.folderId} does not exist or has been deleted.`
-      );
-    }
+  const currencyInfo = getCurrencyInfo(input.currency);
+  const amountMinorUnits = parseDecimalToMinorUnits(input.amount, currencyInfo.code);
+
+  if (!isValidCalendarDate(input.transactionDate)) {
+    throw new ValidationError(`Invalid transactionDate: '${input.transactionDate}'`);
   }
 
-  // 2. Validate category if provided
   let categoryId = input.categoryId || null;
   if (categoryId) {
     const cRes = await client.query<{ id: string }>(
@@ -298,35 +401,38 @@ export async function createExpenseRecord(
       [workspaceId, categoryId]
     );
     if (cRes.rows.length === 0) {
-      throw new ValidationError(
-        `Expense category ${categoryId} does not exist or has been deleted.`
-      );
+      throw new ValidationError(`Expense category ${categoryId} does not exist in this workspace`);
     }
   }
 
-  // 3. Validate receipt file reference if provided (must be in same workspace, active, verified)
+  if (input.folderId) {
+    const fRes = await client.query<{ id: string }>(
+      `SELECT id FROM app.items
+       WHERE workspace_id = $1 AND id = $2 AND kind = 'folder' AND deleted_at IS NULL;`,
+      [workspaceId, input.folderId]
+    );
+    if (fRes.rows.length === 0) {
+      throw new ValidationError(`Folder ${input.folderId} does not exist in this workspace`);
+    }
+  }
+
   if (input.receiptFileId) {
     const fileRes = await client.query<{ id: string; quarantine_status: string }>(
-      `SELECT f.id, f.quarantine_status
-       FROM app.file_items f
+      `SELECT f.id, f.quarantine_status FROM app.file_items f
        JOIN app.items i ON i.id = f.id
        WHERE f.workspace_id = $1 AND f.id = $2 AND i.deleted_at IS NULL;`,
       [workspaceId, input.receiptFileId]
     );
     if (fileRes.rows.length === 0) {
-      throw new ValidationError(
-        `Receipt file ${input.receiptFileId} does not exist or has been deleted.`
-      );
+      throw new ValidationError('Receipt file must be an active file in the same workspace');
     }
     if (fileRes.rows[0]!.quarantine_status !== 'verified') {
-      throw new ValidationError(
-        `Receipt file ${input.receiptFileId} is not verified (status: ${fileRes.rows[0]!.quarantine_status}); quarantined files cannot be attached.`
-      );
+      throw new ValidationError('Quarantined or rejected files cannot be attached as receipts');
     }
   }
 
-  // 4. Handle refund invariants under transactional row lock
   let originalExpenseId = input.originalExpenseId || null;
+
   if (kind === 'refund') {
     if (!originalExpenseId) {
       throw new ValidationError('A refund record must specify originalExpenseId');
@@ -368,6 +474,12 @@ export async function createExpenseRecord(
       );
     }
 
+    // Enforce approved original-category reporting policy: refund category MUST match original expense category
+    if (categoryId && orig.category_id && categoryId !== orig.category_id) {
+      throw new ValidationError('Refund category must match the original expense category');
+    }
+    categoryId = orig.category_id;
+
     // Calculate existing active refunds
     const sumRes = await client.query<{ sum: string | null }>(
       `SELECT SUM(e.amount_minor_units) as sum
@@ -391,20 +503,14 @@ export async function createExpenseRecord(
        WHERE workspace_id = $2 AND id = $3;`,
       [newCumulative.toString(), workspaceId, originalExpenseId]
     );
-
-    // Automatically inherit original category if not specified
-    if (!categoryId && orig.category_id) {
-      categoryId = orig.category_id;
-    }
   } else {
-    // Non-refund records must not have originalExpenseId
     originalExpenseId = null;
   }
 
-  // 5. Acquire workspace sync lock
+  // Acquire workspace sync lock
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
-  // 6. Insert into app.items
+  // Insert into app.items
   await client.query(
     `INSERT INTO app.items (
       id, workspace_id, folder_id, kind, created_by, updated_by,
@@ -413,7 +519,7 @@ export async function createExpenseRecord(
     [entryId, workspaceId, input.folderId || null, actorUserId]
   );
 
-  // 7. Insert into app.expense_items
+  // Insert into app.expense_items
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : null;
   const timezone = input.timezone || 'UTC';
 
@@ -447,7 +553,6 @@ export async function createExpenseRecord(
   row.folder_id = input.folderId || null;
   row.deleted_at = null;
 
-  // Fetch category name if attached
   if (categoryId) {
     const cNameRes = await client.query<{ name: string }>(
       `SELECT name FROM app.expense_categories WHERE id = $1;`,
@@ -458,11 +563,10 @@ export async function createExpenseRecord(
 
   const seq = syncState.nextChangeSeq;
 
-  // 8. Record change feed entry
   await insertChange(client, {
     workspaceId,
     seq,
-    entityType: 'item',
+    entityType: 'expense',
     entityId: entryId,
     revision: 1,
     isTombstone: false,
@@ -481,8 +585,7 @@ export async function createExpenseRecord(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
-  const mapped = mapRowToExpenseItem(row);
-  return { ...mapped, seq };
+  return { ...mapRowToExpenseItem(row), seq };
 }
 
 export async function getExpenseRecord(
@@ -510,7 +613,7 @@ export async function listExpenseRecords(
   client: PoolClient | Pool,
   workspaceId: string,
   query: ExpenseListQuery
-): Promise<ExpenseItem[]> {
+): Promise<{ items: ExpenseItem[]; nextCursor: string | null; hasMore: boolean }> {
   const conditions: string[] = ['e.workspace_id = $1', 'i.deleted_at IS NULL'];
   const params: unknown[] = [workspaceId];
   let pIdx = 2;
@@ -519,7 +622,6 @@ export async function listExpenseRecords(
     if (query.month) {
       const monthStr = String(query.month).padStart(2, '0');
       const start = `${query.year}-${monthStr}-01`;
-      // Safe next month calculation
       const nextMonth = query.month === 12 ? 1 : query.month + 1;
       const nextYear = query.month === 12 ? query.year + 1 : query.year;
       const end = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
@@ -570,20 +672,47 @@ export async function listExpenseRecords(
     pIdx++;
   }
 
+  // Stable keyset cursor filtering
+  if (query.cursor) {
+    const decoded = decodeExpenseCursor(query.cursor, workspaceId);
+    if (decoded) {
+      conditions.push(
+        `(e.transaction_date < $${pIdx} OR (e.transaction_date = $${pIdx} AND e.id < $${pIdx + 1}))`
+      );
+      params.push(decoded.transactionDate, decoded.id);
+      pIdx += 2;
+    }
+  }
+
   const limit = Math.min(query.limit || 50, 200);
 
+  // Fetch limit + 1 to detect whether there is a next page
   const res = await client.query<ExpenseItemDbRow>(
     `SELECT e.*, i.folder_id, i.deleted_at, c.name as category_name
      FROM app.expense_items e
      JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
      LEFT JOIN app.expense_categories c ON c.id = e.category_id
      WHERE ${conditions.join(' AND ')}
-     ORDER BY e.transaction_date DESC, e.created_at DESC
+     ORDER BY e.transaction_date DESC, e.id DESC
      LIMIT $${pIdx};`,
-    [...params, limit]
+    [...params, limit + 1]
   );
 
-  return res.rows.map(mapRowToExpenseItem);
+  const hasMore = res.rows.length > limit;
+  const rows = hasMore ? res.rows.slice(0, limit) : res.rows;
+  const items = rows.map(mapRowToExpenseItem);
+
+  const lastRow = rows[rows.length - 1];
+  const nextCursor =
+    hasMore && lastRow
+      ? encodeExpenseCursor({
+          workspaceId,
+          transactionDate: formatDateOnly(lastRow.transaction_date),
+          id: lastRow.id,
+        })
+      : null;
+
+  return { items, nextCursor, hasMore };
 }
 
 export async function updateExpenseRecord(
@@ -594,17 +723,39 @@ export async function updateExpenseRecord(
   input: UpdateExpenseBody,
   operationId?: string
 ): Promise<ExpenseItem & { seq: number }> {
-  // Lock current expense row
+  // 1. Identify kind and original_expense_id
+  const checkRes = await client.query<{
+    kind: string;
+    original_expense_id: string | null;
+  }>(
+    `SELECT kind, original_expense_id FROM app.expense_items WHERE workspace_id = $1 AND id = $2;`,
+    [workspaceId, expenseId]
+  );
+  if (checkRes.rows.length === 0) {
+    throw new NotFoundError(`Expense record ${expenseId} not found`);
+  }
+  const check = checkRes.rows[0]!;
+
+  // Consistent lock order: If this is a refund, lock original expense FIRST, then lock the refund!
+  if (check.kind === 'refund' && check.original_expense_id) {
+    await client.query(
+      `SELECT id FROM app.expense_items WHERE workspace_id = $1 AND id = $2 FOR UPDATE;`,
+      [workspaceId, check.original_expense_id]
+    );
+  }
+
+  // Lock current expense item row
   const curRes = await client.query<{
     id: string;
     kind: string;
     amount_minor_units: string;
     currency: string;
+    category_id: string | null;
     original_expense_id: string | null;
     cumulative_refund_minor_units: string;
     deleted_at: Date | null;
   }>(
-    `SELECT e.id, e.kind, e.amount_minor_units, e.currency, e.original_expense_id,
+    `SELECT e.id, e.kind, e.amount_minor_units, e.currency, e.category_id, e.original_expense_id,
             e.cumulative_refund_minor_units, i.deleted_at
      FROM app.expense_items e
      JOIN app.items i ON i.id = e.id
@@ -612,10 +763,6 @@ export async function updateExpenseRecord(
      FOR UPDATE OF e;`,
     [workspaceId, expenseId]
   );
-
-  if (curRes.rows.length === 0) {
-    throw new NotFoundError(`Expense record ${expenseId} not found`);
-  }
 
   const current = curRes.rows[0]!;
   if (current.deleted_at) {
@@ -627,7 +774,6 @@ export async function updateExpenseRecord(
     const cInfo = getCurrencyInfo(input.currency);
     newCurrency = cInfo.code;
     if (newCurrency !== current.currency) {
-      // Currency changes are forbidden if active refunds exist or if this record is a refund
       if (current.kind === 'refund') {
         throw new ValidationError('Cannot change currency of a refund record independently');
       }
@@ -652,11 +798,9 @@ export async function updateExpenseRecord(
         );
       }
     } else if (current.kind === 'refund' && current.original_expense_id) {
-      // Re-validate against original expense
       const origRes = await client.query<{ amount_minor_units: string }>(
         `SELECT amount_minor_units FROM app.expense_items
-         WHERE workspace_id = $1 AND id = $2
-         FOR UPDATE;`,
+         WHERE workspace_id = $1 AND id = $2;`,
         [workspaceId, current.original_expense_id]
       );
       const origAmount = BigInt(origRes.rows[0]!.amount_minor_units);
@@ -672,13 +816,18 @@ export async function updateExpenseRecord(
 
       validateRefundBounds(origAmount, otherRefunds, newAmountMinorUnits);
 
-      // Update original expense cumulative_refund_minor_units
       await client.query(
         `UPDATE app.expense_items
          SET cumulative_refund_minor_units = $1, updated_at = now()
          WHERE workspace_id = $2 AND id = $3;`,
         [(otherRefunds + newAmountMinorUnits).toString(), workspaceId, current.original_expense_id]
       );
+    }
+  }
+
+  if (input.transactionDate) {
+    if (!isValidCalendarDate(input.transactionDate)) {
+      throw new ValidationError(`Invalid transactionDate: '${input.transactionDate}'`);
     }
   }
 
@@ -690,7 +839,14 @@ export async function updateExpenseRecord(
       [workspaceId, input.categoryId]
     );
     if (cRes.rows.length === 0) {
-      throw new ValidationError(`Expense category ${input.categoryId} does not exist`);
+      throw new ValidationError(`Expense category ${input.categoryId} does not exist in this workspace`);
+    }
+  }
+
+  // Enforce category policy on refunds
+  if (current.kind === 'refund') {
+    if (input.categoryId !== undefined && input.categoryId !== current.category_id) {
+      throw new ValidationError('Refund category cannot be changed independently from the original expense');
     }
   }
 
@@ -709,19 +865,36 @@ export async function updateExpenseRecord(
     }
   }
 
-  // Validate folder if updating
-  if (input.folderId !== undefined && input.folderId !== null) {
-    const fRes = await client.query<{ id: string }>(
-      `SELECT id FROM app.items
-       WHERE workspace_id = $1 AND id = $2 AND kind = 'folder' AND deleted_at IS NULL;`,
-      [workspaceId, input.folderId]
-    );
-    if (fRes.rows.length === 0) {
-      throw new ValidationError(`Folder ${input.folderId} does not exist`);
+  // Validate and handle folder update (honor folderId: null as moving to root)
+  if (input.folderId !== undefined) {
+    if (input.folderId === null) {
+      await client.query(
+        `UPDATE app.items SET folder_id = NULL, updated_by = $1, updated_at = now() WHERE id = $2;`,
+        [actorUserId, expenseId]
+      );
+    } else {
+      const fRes = await client.query<{ id: string }>(
+        `SELECT id FROM app.items
+         WHERE workspace_id = $1 AND id = $2 AND kind = 'folder' AND deleted_at IS NULL;`,
+        [workspaceId, input.folderId]
+      );
+      if (fRes.rows.length === 0) {
+        throw new ValidationError(`Folder ${input.folderId} does not exist in this workspace`);
+      }
+      await client.query(
+        `UPDATE app.items SET folder_id = $1, updated_by = $2, updated_at = now() WHERE id = $3;`,
+        [input.folderId, actorUserId, expenseId]
+      );
     }
+  }
+
+  // If changing original expense category, keep linked refunds updated
+  if (current.kind === 'expense' && input.categoryId !== undefined) {
     await client.query(
-      `UPDATE app.items SET folder_id = $1, updated_by = $2, updated_at = now() WHERE id = $3;`,
-      [input.folderId, actorUserId, expenseId]
+      `UPDATE app.expense_items
+       SET category_id = $1, updated_at = now()
+       WHERE workspace_id = $2 AND original_expense_id = $3;`,
+      [input.categoryId || null, workspaceId, expenseId]
     );
   }
 
@@ -733,7 +906,7 @@ export async function updateExpenseRecord(
         : null
       : undefined;
 
-  const res = await client.query<ExpenseItemDbRow>(
+  await client.query(
     `UPDATE app.expense_items
      SET amount_minor_units = $1,
          currency = $2,
@@ -745,8 +918,7 @@ export async function updateExpenseRecord(
          note = CASE WHEN $11::boolean THEN $12 ELSE note END,
          receipt_file_id = CASE WHEN $13::boolean THEN $14 ELSE receipt_file_id END,
          updated_at = now()
-     WHERE workspace_id = $15 AND id = $16
-     RETURNING *;`,
+     WHERE workspace_id = $15 AND id = $16;`,
     [
       newAmountMinorUnits.toString(),
       newCurrency,
@@ -767,7 +939,26 @@ export async function updateExpenseRecord(
     ]
   );
 
-  const row = res.rows[0]!;
+  // Monotonically increment persisted revision in app.items
+  const revRes = await client.query<{ revision: number }>(
+    `UPDATE app.items
+     SET revision = revision + 1, updated_by = $1, updated_at = now()
+     WHERE workspace_id = $2 AND id = $3
+     RETURNING revision;`,
+    [actorUserId, workspaceId, expenseId]
+  );
+  const finalRevision = revRes.rows[0]?.revision ?? 2;
+
+  // Retrieve complete updated row including folder_id and category_name
+  const rowRes = await client.query<ExpenseItemDbRow>(
+    `SELECT e.*, i.folder_id, i.deleted_at, c.name as category_name
+     FROM app.expense_items e
+     JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
+     LEFT JOIN app.expense_categories c ON c.id = e.category_id
+     WHERE e.workspace_id = $1 AND e.id = $2;`,
+    [workspaceId, expenseId]
+  );
+  const row = rowRes.rows[0]!;
 
   // Sync state & change feed
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
@@ -776,9 +967,9 @@ export async function updateExpenseRecord(
   await insertChange(client, {
     workspaceId,
     seq,
-    entityType: 'item',
+    entityType: 'expense',
     entityId: expenseId,
-    revision: 2,
+    revision: finalRevision,
     isTombstone: false,
     operationId: operationId || crypto.randomUUID(),
     changeData: {
@@ -786,7 +977,9 @@ export async function updateExpenseRecord(
       action: 'updated',
       amountMinorUnits: newAmountMinorUnits.toString(),
       currency: newCurrency,
-      transactionDate: row.transaction_date,
+      transactionDate: formatDateOnly(row.transaction_date),
+      categoryId: row.category_id,
+      folderId: row.folder_id,
     },
   });
 
@@ -802,6 +995,27 @@ export async function trashExpenseRecord(
   actorUserId: string,
   operationId?: string
 ): Promise<{ success: boolean; id: string; seq: number }> {
+  // 1. Identify kind and original_expense_id
+  const checkRes = await client.query<{
+    kind: string;
+    original_expense_id: string | null;
+  }>(
+    `SELECT kind, original_expense_id FROM app.expense_items WHERE workspace_id = $1 AND id = $2;`,
+    [workspaceId, expenseId]
+  );
+  if (checkRes.rows.length === 0) {
+    throw new NotFoundError(`Expense record ${expenseId} not found`);
+  }
+  const check = checkRes.rows[0]!;
+
+  // Consistent lock order: If refund, lock original expense first
+  if (check.kind === 'refund' && check.original_expense_id) {
+    await client.query(
+      `SELECT id FROM app.expense_items WHERE workspace_id = $1 AND id = $2 FOR UPDATE;`,
+      [workspaceId, check.original_expense_id]
+    );
+  }
+
   // Lock expense item row
   const expRes = await client.query<{
     id: string;
@@ -820,10 +1034,6 @@ export async function trashExpenseRecord(
     [workspaceId, expenseId]
   );
 
-  if (expRes.rows.length === 0) {
-    throw new NotFoundError(`Expense record ${expenseId} not found`);
-  }
-
   const exp = expRes.rows[0]!;
   if (exp.deleted_at) {
     return { success: true, id: expenseId, seq: 0 };
@@ -831,31 +1041,48 @@ export async function trashExpenseRecord(
 
   // Invariant: Cannot trash an original expense while active refunds reference it!
   if (exp.kind === 'expense') {
-    const activeRefunds = BigInt(exp.cumulative_refund_minor_units || '0');
-    if (activeRefunds > 0n) {
+    const activeRefundsRes = await client.query<{ count: string; sum: string | null }>(
+      `SELECT COUNT(*) as count, SUM(e.amount_minor_units) as sum
+       FROM app.expense_items e
+       JOIN app.items i ON i.id = e.id
+       WHERE e.workspace_id = $1 AND e.original_expense_id = $2 AND i.deleted_at IS NULL;`,
+      [workspaceId, expenseId]
+    );
+    const activeRefundsCount = parseInt(activeRefundsRes.rows[0]?.count || '0', 10);
+    if (activeRefundsCount > 0) {
       throw new ValidationError(
         'Cannot delete expense with active refund references. Revert or trash active refunds first.'
       );
     }
   }
 
-  // If trashing a refund, atomically decrement cumulative_refund_minor_units on original expense
+  // If trashing a refund, atomically recompute and update cumulative_refund_minor_units on original expense
   if (exp.kind === 'refund' && exp.original_expense_id) {
-    const refundAmount = BigInt(exp.amount_minor_units);
+    const sumRes = await client.query<{ sum: string | null }>(
+      `SELECT SUM(e.amount_minor_units) as sum
+       FROM app.expense_items e
+       JOIN app.items i ON i.id = e.id
+       WHERE e.workspace_id = $1 AND e.original_expense_id = $2 AND e.id != $3 AND i.deleted_at IS NULL;`,
+      [workspaceId, exp.original_expense_id, expenseId]
+    );
+    const remainingActive = BigInt(sumRes.rows[0]?.sum || '0');
     await client.query(
       `UPDATE app.expense_items
-       SET cumulative_refund_minor_units = GREATEST(0, cumulative_refund_minor_units - $1),
-           updated_at = now()
+       SET cumulative_refund_minor_units = $1, updated_at = now()
        WHERE workspace_id = $2 AND id = $3;`,
-      [refundAmount.toString(), workspaceId, exp.original_expense_id]
+      [remainingActive.toString(), workspaceId, exp.original_expense_id]
     );
   }
 
-  // Soft delete in app.items
-  await client.query(
-    `UPDATE app.items SET deleted_at = now(), updated_by = $1 WHERE workspace_id = $2 AND id = $3;`,
+  // Soft delete in app.items and increment revision
+  const revRes = await client.query<{ revision: number }>(
+    `UPDATE app.items
+     SET deleted_at = now(), updated_by = $1, revision = revision + 1
+     WHERE workspace_id = $2 AND id = $3
+     RETURNING revision;`,
     [actorUserId, workspaceId, expenseId]
   );
+  const finalRevision = revRes.rows[0]?.revision ?? 2;
 
   // Sync state & change feed
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
@@ -864,9 +1091,9 @@ export async function trashExpenseRecord(
   await insertChange(client, {
     workspaceId,
     seq,
-    entityType: 'item',
+    entityType: 'expense',
     entityId: expenseId,
-    revision: 2,
+    revision: finalRevision,
     isTombstone: true,
     operationId: operationId || crypto.randomUUID(),
     changeData: { kind: 'expense', action: 'trashed' },
@@ -884,6 +1111,27 @@ export async function restoreExpenseRecord(
   actorUserId: string,
   operationId?: string
 ): Promise<{ success: boolean; id: string; seq: number }> {
+  // 1. Identify kind and original_expense_id
+  const checkRes = await client.query<{
+    kind: string;
+    original_expense_id: string | null;
+  }>(
+    `SELECT kind, original_expense_id FROM app.expense_items WHERE workspace_id = $1 AND id = $2;`,
+    [workspaceId, expenseId]
+  );
+  if (checkRes.rows.length === 0) {
+    throw new NotFoundError(`Expense record ${expenseId} not found`);
+  }
+  const check = checkRes.rows[0]!;
+
+  // Consistent lock order: If refund, lock original expense first
+  if (check.kind === 'refund' && check.original_expense_id) {
+    await client.query(
+      `SELECT id FROM app.expense_items WHERE workspace_id = $1 AND id = $2 FOR UPDATE;`,
+      [workspaceId, check.original_expense_id]
+    );
+  }
+
   // Lock expense item row
   const expRes = await client.query<{
     id: string;
@@ -900,16 +1148,12 @@ export async function restoreExpenseRecord(
     [workspaceId, expenseId]
   );
 
-  if (expRes.rows.length === 0) {
-    throw new NotFoundError(`Expense record ${expenseId} not found`);
-  }
-
   const exp = expRes.rows[0]!;
   if (!exp.deleted_at) {
     return { success: true, id: expenseId, seq: 0 };
   }
 
-  // If restoring a refund, verify original expense exists and restoring won't exceed bounds
+  // If restoring a refund, ensure original expense is still active and bounds are respected
   if (exp.kind === 'refund' && exp.original_expense_id) {
     const origRes = await client.query<{
       amount_minor_units: string;
@@ -918,42 +1162,46 @@ export async function restoreExpenseRecord(
       `SELECT e.amount_minor_units, i.deleted_at
        FROM app.expense_items e
        JOIN app.items i ON i.id = e.id
-       WHERE e.workspace_id = $1 AND e.id = $2
-       FOR UPDATE OF e;`,
+       WHERE e.workspace_id = $1 AND e.id = $2;`,
       [workspaceId, exp.original_expense_id]
     );
 
-    if (origRes.rows.length === 0 || origRes.rows[0]!.deleted_at) {
+    if (origRes.rows.length === 0 || origRes.rows[0]!.deleted_at !== null) {
       throw new ValidationError('Cannot restore refund because original expense is deleted');
     }
 
     const origAmount = BigInt(origRes.rows[0]!.amount_minor_units);
-    const sumRes = await client.query<{ sum: string | null }>(
+    const refundAmount = BigInt(exp.amount_minor_units);
+
+    const activeOtherRefunds = await client.query<{ sum: string | null }>(
       `SELECT SUM(e.amount_minor_units) as sum
        FROM app.expense_items e
        JOIN app.items i ON i.id = e.id
-       WHERE e.workspace_id = $1 AND e.original_expense_id = $2 AND i.deleted_at IS NULL;`,
-      [workspaceId, exp.original_expense_id]
+       WHERE e.workspace_id = $1 AND e.original_expense_id = $2 AND e.id != $3 AND i.deleted_at IS NULL;`,
+      [workspaceId, exp.original_expense_id, expenseId]
     );
-    const currentActiveRefunds = BigInt(sumRes.rows[0]?.sum || '0');
-    const restoreAmount = BigInt(exp.amount_minor_units);
+    const otherSum = BigInt(activeOtherRefunds.rows[0]?.sum || '0');
 
-    validateRefundBounds(origAmount, currentActiveRefunds, restoreAmount);
+    validateRefundBounds(origAmount, otherSum, refundAmount);
 
-    // Atomically increment cumulative refunds
+    const newCumulative = otherSum + refundAmount;
     await client.query(
       `UPDATE app.expense_items
        SET cumulative_refund_minor_units = $1, updated_at = now()
        WHERE workspace_id = $2 AND id = $3;`,
-      [(currentActiveRefunds + restoreAmount).toString(), workspaceId, exp.original_expense_id]
+      [newCumulative.toString(), workspaceId, exp.original_expense_id]
     );
   }
 
-  // Restore in app.items
-  await client.query(
-    `UPDATE app.items SET deleted_at = NULL, updated_by = $1 WHERE workspace_id = $2 AND id = $3;`,
+  // Restore in app.items and increment revision
+  const revRes = await client.query<{ revision: number }>(
+    `UPDATE app.items
+     SET deleted_at = NULL, updated_by = $1, revision = revision + 1
+     WHERE workspace_id = $2 AND id = $3
+     RETURNING revision;`,
     [actorUserId, workspaceId, expenseId]
   );
+  const finalRevision = revRes.rows[0]?.revision ?? 2;
 
   // Sync state & change feed
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
@@ -962,9 +1210,9 @@ export async function restoreExpenseRecord(
   await insertChange(client, {
     workspaceId,
     seq,
-    entityType: 'item',
+    entityType: 'expense',
     entityId: expenseId,
-    revision: 3,
+    revision: finalRevision,
     isTombstone: false,
     operationId: operationId || crypto.randomUUID(),
     changeData: { kind: 'expense', action: 'restored' },
@@ -992,6 +1240,7 @@ export async function getExpenseMonthlySummary(
   const endOfMonth = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
   // Fetch all active items in reporting month
+  // Join original expense to ensure original-category reporting policy is respected
   const itemsRes = await client.query<{
     kind: 'expense' | 'income' | 'refund';
     amount_minor_units: string;
@@ -1000,11 +1249,15 @@ export async function getExpenseMonthlySummary(
     category_name: string | null;
     category_color: string | null;
   }>(
-    `SELECT e.kind, e.amount_minor_units, e.currency, e.category_id,
-            c.name as category_name, c.color as category_color
+    `SELECT e.kind, e.amount_minor_units, e.currency,
+            COALESCE(e.category_id, orig.category_id) as category_id,
+            COALESCE(c.name, oc.name) as category_name,
+            COALESCE(c.color, oc.color) as category_color
      FROM app.expense_items e
      JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
+     LEFT JOIN app.expense_items orig ON orig.id = e.original_expense_id
      LEFT JOIN app.expense_categories c ON c.id = e.category_id
+     LEFT JOIN app.expense_categories oc ON oc.id = orig.category_id
      WHERE e.workspace_id = $1
        AND i.deleted_at IS NULL
        AND e.transaction_date >= $2
@@ -1070,7 +1323,6 @@ export async function getExpenseMonthlySummary(
       catEntry.count++;
     } else if (row.kind === 'refund') {
       group.refundTotal += amount;
-      // Refund reduces category spending
       catEntry.spentMinorUnits -= amount;
       catEntry.count++;
     }
@@ -1121,16 +1373,38 @@ export async function getExpenseMonthlySummary(
 }
 
 // -----------------------------------------------------------------------------
-// Recurring Templates Service
+// Recurring Templates & Occurrence Generation
 // -----------------------------------------------------------------------------
 
 export async function createExpenseRecurringTemplate(
-  client: PoolClient | Pool,
+  client: PoolClient,
   workspaceId: string,
-  input: CreateExpenseRecurringTemplateBody
-): Promise<ExpenseRecurringTemplate> {
+  input: CreateExpenseRecurringTemplateBody,
+  operationId?: string
+): Promise<ExpenseRecurringTemplate & { seq?: number }> {
   const currencyInfo = getCurrencyInfo(input.currency);
   const amountMinorUnits = parseDecimalToMinorUnits(input.amount, currencyInfo.code);
+
+  if (!isValidCalendarDate(input.startDate)) {
+    throw new ValidationError(`Invalid startDate: '${input.startDate}'`);
+  }
+  if (input.endDate && !isValidCalendarDate(input.endDate)) {
+    throw new ValidationError(`Invalid endDate: '${input.endDate}'`);
+  }
+
+  let categoryId = input.categoryId || null;
+  if (categoryId) {
+    const cRes = await client.query<{ id: string }>(
+      `SELECT id FROM app.expense_categories
+       WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;`,
+      [workspaceId, categoryId]
+    );
+    if (cRes.rows.length === 0) {
+      throw new ValidationError(`Expense category ${categoryId} does not exist in this workspace`);
+    }
+  }
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
 
   const res = await client.query<{
     id: string;
@@ -1162,38 +1436,58 @@ export async function createExpenseRecurringTemplate(
       input.kind,
       amountMinorUnits.toString(),
       currencyInfo.code,
-      input.categoryId || null,
+      categoryId,
       input.paymentLabel || null,
       input.note || null,
       JSON.stringify(input.schedule),
       input.timezone || 'UTC',
       input.startDate,
       input.endDate || null,
-      input.isActive !== undefined ? input.isActive : true,
+      input.isActive ?? true,
     ]
   );
 
-  const r = res.rows[0]!;
-  const minor = BigInt(r.amount_minor_units);
+  const row = res.rows[0]!;
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'expense_recurring_template',
+    entityId: row.id,
+    revision: 1,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      title: row.title,
+      kind: row.kind,
+      amountMinorUnits: row.amount_minor_units,
+      currency: row.currency,
+      schedule: row.schedule,
+    },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
   return {
-    id: r.id,
-    workspaceId: r.workspace_id,
-    title: r.title,
-    kind: r.kind,
-    amountMinorUnits: minor.toString(),
-    amountFormatted: formatMinorUnitsToDecimal(minor, r.currency),
-    currency: r.currency,
-    categoryId: r.category_id,
-    paymentLabel: r.payment_label,
-    note: r.note,
-    schedule: typeof r.schedule === 'string' ? JSON.parse(r.schedule) : r.schedule,
-    timezone: r.timezone,
-    startDate: formatDateOnly(r.start_date),
-    endDate: r.end_date ? formatDateOnly(r.end_date) : null,
-    isActive: Boolean(r.is_active),
-    createdAt: r.created_at.toISOString(),
-    updatedAt: r.updated_at.toISOString(),
+    id: row.id,
+    workspaceId: row.workspace_id,
+    title: row.title,
+    kind: row.kind,
+    amountMinorUnits: row.amount_minor_units,
+    amountFormatted: formatMinorUnitsToDecimal(BigInt(row.amount_minor_units), row.currency),
+    currency: row.currency,
+    categoryId: row.category_id,
+    paymentLabel: row.payment_label,
+    note: row.note,
+    schedule: row.schedule as ExpenseRecurringTemplate['schedule'],
+    timezone: row.timezone,
+    startDate: formatDateOnly(row.start_date),
+    endDate: row.end_date ? formatDateOnly(row.end_date) : null,
+    isActive: row.is_active,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    seq,
   };
 }
 
@@ -1225,32 +1519,31 @@ export async function listExpenseRecurringTemplates(
     [workspaceId]
   );
 
-  return res.rows.map((r) => {
-    const minor = BigInt(r.amount_minor_units);
-    return {
-      id: r.id,
-      workspaceId: r.workspace_id,
-      title: r.title,
-      kind: r.kind,
-      amountMinorUnits: minor.toString(),
-      amountFormatted: formatMinorUnitsToDecimal(minor, r.currency),
-      currency: r.currency,
-      categoryId: r.category_id,
-      paymentLabel: r.payment_label,
-      note: r.note,
-      schedule: typeof r.schedule === 'string' ? JSON.parse(r.schedule) : r.schedule,
-      timezone: r.timezone,
-      startDate: formatDateOnly(r.start_date),
-      endDate: r.end_date ? formatDateOnly(r.end_date) : null,
-      isActive: Boolean(r.is_active),
-      createdAt: r.created_at.toISOString(),
-      updatedAt: r.updated_at.toISOString(),
-    };
-  });
+  return res.rows.map((r) => ({
+    id: r.id,
+    workspaceId: r.workspace_id,
+    title: r.title,
+    kind: r.kind,
+    amountMinorUnits: r.amount_minor_units,
+    amountFormatted: formatMinorUnitsToDecimal(BigInt(r.amount_minor_units), r.currency),
+    currency: r.currency,
+    categoryId: r.category_id,
+    paymentLabel: r.payment_label,
+    note: r.note,
+    schedule: r.schedule as ExpenseRecurringTemplate['schedule'],
+    timezone: r.timezone,
+    startDate: formatDateOnly(r.start_date),
+    endDate: r.end_date ? formatDateOnly(r.end_date) : null,
+    isActive: r.is_active,
+    createdAt: r.created_at.toISOString(),
+    updatedAt: r.updated_at.toISOString(),
+  }));
 }
 
 /**
- * Generates pending recurring occurrences up to target date with deduplication.
+ * Generates pending recurring occurrences up to target date with atomic claim deduplication.
+ * Prevents race conditions and orphan expense records by atomically reserving (template_id, occurrence_date)
+ * BEFORE calling createExpenseRecord.
  */
 export async function generateRecurringOccurrences(
   client: PoolClient,
@@ -1258,23 +1551,44 @@ export async function generateRecurringOccurrences(
   actorUserId: string,
   untilDateStr: string
 ): Promise<{ generatedCount: number; expenseIds: string[] }> {
+  if (!isValidCalendarDate(untilDateStr)) {
+    throw new ValidationError(`Invalid untilDate: '${untilDateStr}'`);
+  }
+
+  // Bound generation window to at most 366 days in the future
+  const maxFutureDate = new Date();
+  maxFutureDate.setUTCDate(maxFutureDate.getUTCDate() + 366);
+  const maxFutureDateStr = maxFutureDate.toISOString().split('T')[0]!;
+  if (untilDateStr > maxFutureDateStr) {
+    throw new ValidationError(
+      `Generation untilDate cannot exceed 1 year into the future (${maxFutureDateStr})`
+    );
+  }
+
   const templates = await listExpenseRecurringTemplates(client, workspaceId);
   const expenseIds: string[] = [];
+  const MAX_TOTAL_GENERATIONS = 500;
 
   for (const t of templates) {
     if (!t.isActive) continue;
 
     let nextDate: string | null = t.startDate;
     while (nextDate && nextDate <= untilDateStr) {
-      // Check deduplication table
-      const occRes = await client.query<{ occurrence_date: string }>(
-        `SELECT occurrence_date FROM app.expense_recurring_occurrences
-         WHERE template_id = $1 AND occurrence_date = $2;`,
+      if (expenseIds.length >= MAX_TOTAL_GENERATIONS) {
+        break;
+      }
+
+      // 1. Atomically claim occurrence reservation before creating expense
+      const claimRes = await client.query<{ occurrence_date: string }>(
+        `INSERT INTO app.expense_recurring_occurrences (template_id, occurrence_date, expense_id)
+         VALUES ($1, $2, NULL)
+         ON CONFLICT (template_id, occurrence_date) DO NOTHING
+         RETURNING occurrence_date;`,
         [t.id, nextDate]
       );
 
-      if (occRes.rows.length === 0) {
-        // Create generated expense
+      if (claimRes.rows.length > 0) {
+        // We won the atomic claim for this occurrence!
         const created = await createExpenseRecord(client, workspaceId, actorUserId, {
           kind: t.kind,
           amount: t.amountFormatted,
@@ -1286,12 +1600,12 @@ export async function generateRecurringOccurrences(
           note: t.note ? `[Recurring: ${t.title}] ${t.note}` : `[Recurring: ${t.title}]`,
         });
 
-        // Record deduplicated occurrence
+        // Update occurrence with created expense ID
         await client.query(
-          `INSERT INTO app.expense_recurring_occurrences (template_id, occurrence_date, expense_id)
-           VALUES ($1, $2, $3)
-           ON CONFLICT DO NOTHING;`,
-          [t.id, nextDate, created.id]
+          `UPDATE app.expense_recurring_occurrences
+           SET expense_id = $1
+           WHERE template_id = $2 AND occurrence_date = $3;`,
+          [created.id, t.id, nextDate]
         );
 
         expenseIds.push(created.id);
@@ -1302,4 +1616,351 @@ export async function generateRecurringOccurrences(
   }
 
   return { generatedCount: expenseIds.length, expenseIds };
+}
+
+// -----------------------------------------------------------------------------
+// Budgets (Phase 40)
+// -----------------------------------------------------------------------------
+
+export async function createExpenseBudget(
+  client: PoolClient,
+  workspaceId: string,
+  input: CreateExpenseBudgetBody,
+  operationId?: string
+): Promise<ExpenseBudget & { seq?: number }> {
+  const currencyInfo = getCurrencyInfo(input.currency);
+  const amountMinorUnits = parseDecimalToMinorUnits(input.amount, currencyInfo.code);
+
+  let categoryId = input.categoryId || null;
+  if (categoryId) {
+    const cRes = await client.query<{ id: string }>(
+      `SELECT id FROM app.expense_categories
+       WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;`,
+      [workspaceId, categoryId]
+    );
+    if (cRes.rows.length === 0) {
+      throw new ValidationError(`Expense category ${categoryId} does not exist in this workspace`);
+    }
+  }
+
+  // Check unique active budget for (workspace, period, currency, categoryId)
+  const dupRes = await client.query<{ id: string }>(
+    `SELECT id FROM app.expense_budgets
+     WHERE workspace_id = $1
+       AND period = $2
+       AND currency = $3
+       AND (category_id IS NOT DISTINCT FROM $4)
+       AND deleted_at IS NULL;`,
+    [workspaceId, input.period, currencyInfo.code, categoryId]
+  );
+  if (dupRes.rows.length > 0) {
+    throw new ValidationError(
+      `A budget for period '${input.period}', currency '${currencyInfo.code}' and ${
+        categoryId ? `category '${categoryId}'` : 'overall spending'
+      } already exists.`
+    );
+  }
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const res = await client.query<{
+    id: string;
+    workspace_id: string;
+    period: string;
+    currency: string;
+    category_id: string | null;
+    amount_minor_units: string;
+    revision: number;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `INSERT INTO app.expense_budgets (
+      workspace_id, period, currency, category_id, amount_minor_units, revision
+    ) VALUES ($1, $2, $3, $4, $5, 1)
+    RETURNING id, workspace_id, period, currency, category_id, amount_minor_units, revision, created_at, updated_at;`,
+    [workspaceId, input.period, currencyInfo.code, categoryId, amountMinorUnits.toString()]
+  );
+
+  const row = res.rows[0]!;
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'expense_budget',
+    entityId: row.id,
+    revision: 1,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      period: row.period,
+      currency: row.currency,
+      categoryId: row.category_id,
+      amountMinorUnits: row.amount_minor_units,
+    },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    period: row.period,
+    currency: row.currency,
+    categoryId: row.category_id,
+    amountMinorUnits: row.amount_minor_units,
+    amountFormatted: formatMinorUnitsToDecimal(BigInt(row.amount_minor_units), row.currency),
+    revision: row.revision,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    seq,
+  };
+}
+
+export async function listExpenseBudgets(
+  client: PoolClient | Pool,
+  workspaceId: string,
+  query?: { period?: string; currency?: string }
+): Promise<ExpenseBudget[]> {
+  const conditions = ['b.workspace_id = $1', 'b.deleted_at IS NULL'];
+  const params: unknown[] = [workspaceId];
+  let pIdx = 2;
+
+  if (query?.period) {
+    conditions.push(`b.period = $${pIdx}`);
+    params.push(query.period);
+    pIdx++;
+  }
+
+  if (query?.currency) {
+    conditions.push(`b.currency = $${pIdx}`);
+    params.push(query.currency.toUpperCase());
+    pIdx++;
+  }
+
+  const res = await client.query<{
+    id: string;
+    workspace_id: string;
+    period: string;
+    currency: string;
+    category_id: string | null;
+    category_name: string | null;
+    amount_minor_units: string;
+    revision: number;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `SELECT b.*, c.name as category_name
+     FROM app.expense_budgets b
+     LEFT JOIN app.expense_categories c ON c.id = b.category_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY b.period DESC, b.currency ASC, c.name ASC;`,
+    params
+  );
+
+  const budgets: ExpenseBudget[] = [];
+
+  for (const row of res.rows) {
+    // Calculate net spending in the period for this budget
+    const startOfMonth = `${row.period}-01`;
+    const parts = row.period.split('-');
+    const y = parseInt(parts[0]!, 10);
+    const m = parseInt(parts[1]!, 10);
+    const nextM = m === 12 ? 1 : m + 1;
+    const nextY = m === 12 ? y + 1 : y;
+    const endOfMonth = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+
+    let spentMinorUnits = 0n;
+    if (row.category_id) {
+      // Category budget net spending
+      const spentRes = await client.query<{ sum: string | null }>(
+        `SELECT
+           SUM(CASE WHEN e.kind = 'expense' THEN e.amount_minor_units
+                    WHEN e.kind = 'refund' THEN -e.amount_minor_units
+                    ELSE 0 END) as sum
+         FROM app.expense_items e
+         JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
+         LEFT JOIN app.expense_items orig ON orig.id = e.original_expense_id
+         WHERE e.workspace_id = $1
+           AND e.currency = $2
+           AND COALESCE(e.category_id, orig.category_id) = $3
+           AND e.transaction_date >= $4
+           AND e.transaction_date < $5
+           AND i.deleted_at IS NULL;`,
+        [workspaceId, row.currency, row.category_id, startOfMonth, endOfMonth]
+      );
+      spentMinorUnits = BigInt(spentRes.rows[0]?.sum || '0');
+    } else {
+      // Overall monthly budget net spending
+      const spentRes = await client.query<{ sum: string | null }>(
+        `SELECT
+           SUM(CASE WHEN e.kind = 'expense' THEN e.amount_minor_units
+                    WHEN e.kind = 'refund' THEN -e.amount_minor_units
+                    ELSE 0 END) as sum
+         FROM app.expense_items e
+         JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
+         WHERE e.workspace_id = $1
+           AND e.currency = $2
+           AND e.kind IN ('expense', 'refund')
+           AND e.transaction_date >= $3
+           AND e.transaction_date < $4
+           AND i.deleted_at IS NULL;`,
+        [workspaceId, row.currency, startOfMonth, endOfMonth]
+      );
+      spentMinorUnits = BigInt(spentRes.rows[0]?.sum || '0');
+    }
+
+    const budgetAmount = BigInt(row.amount_minor_units);
+    const remainingMinorUnits = budgetAmount - spentMinorUnits;
+
+    budgets.push({
+      id: row.id,
+      workspaceId: row.workspace_id,
+      period: row.period,
+      currency: row.currency,
+      categoryId: row.category_id,
+      categoryName: row.category_name,
+      amountMinorUnits: row.amount_minor_units,
+      amountFormatted: formatMinorUnitsToDecimal(budgetAmount, row.currency),
+      spentMinorUnits: spentMinorUnits.toString(),
+      spentFormatted:
+        spentMinorUnits < 0n
+          ? `-${formatMinorUnitsToDecimal(-spentMinorUnits, row.currency)}`
+          : formatMinorUnitsToDecimal(spentMinorUnits, row.currency),
+      remainingMinorUnits: remainingMinorUnits.toString(),
+      remainingFormatted:
+        remainingMinorUnits < 0n
+          ? `-${formatMinorUnitsToDecimal(-remainingMinorUnits, row.currency)}`
+          : formatMinorUnitsToDecimal(remainingMinorUnits, row.currency),
+      revision: row.revision,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    });
+  }
+
+  return budgets;
+}
+
+export async function updateExpenseBudget(
+  client: PoolClient,
+  workspaceId: string,
+  budgetId: string,
+  input: UpdateExpenseBudgetBody,
+  operationId?: string
+): Promise<ExpenseBudget & { seq?: number }> {
+  const existing = await client.query<{
+    id: string;
+    currency: string;
+    period: string;
+    category_id: string | null;
+    amount_minor_units: string;
+    revision: number;
+  }>(
+    `SELECT id, currency, period, category_id, amount_minor_units, revision
+     FROM app.expense_budgets
+     WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;`,
+    [workspaceId, budgetId]
+  );
+  if (existing.rows.length === 0) {
+    throw new NotFoundError(`Budget ${budgetId} not found`);
+  }
+
+  const cur = existing.rows[0]!;
+  const newAmount = parseDecimalToMinorUnits(input.amount, cur.currency);
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const res = await client.query<{
+    id: string;
+    workspace_id: string;
+    period: string;
+    currency: string;
+    category_id: string | null;
+    amount_minor_units: string;
+    revision: number;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `UPDATE app.expense_budgets
+     SET amount_minor_units = $1, revision = revision + 1, updated_at = now()
+     WHERE workspace_id = $2 AND id = $3 AND deleted_at IS NULL
+     RETURNING id, workspace_id, period, currency, category_id, amount_minor_units, revision, created_at, updated_at;`,
+    [newAmount.toString(), workspaceId, budgetId]
+  );
+
+  const row = res.rows[0]!;
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'expense_budget',
+    entityId: budgetId,
+    revision: row.revision,
+    isTombstone: false,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: {
+      amountMinorUnits: row.amount_minor_units,
+    },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    period: row.period,
+    currency: row.currency,
+    categoryId: row.category_id,
+    amountMinorUnits: row.amount_minor_units,
+    amountFormatted: formatMinorUnitsToDecimal(BigInt(row.amount_minor_units), row.currency),
+    revision: row.revision,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    seq,
+  };
+}
+
+export async function deleteExpenseBudget(
+  client: PoolClient,
+  workspaceId: string,
+  budgetId: string,
+  operationId?: string
+): Promise<{ success: boolean; id: string; seq?: number }> {
+  const existing = await client.query<{ id: string; revision: number }>(
+    `SELECT id, revision FROM app.expense_budgets
+     WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;`,
+    [workspaceId, budgetId]
+  );
+  if (existing.rows.length === 0) {
+    throw new NotFoundError(`Budget ${budgetId} not found`);
+  }
+
+  const syncState = await lockWorkspaceSyncState(client, workspaceId);
+
+  const res = await client.query<{ revision: number }>(
+    `UPDATE app.expense_budgets
+     SET deleted_at = now(), revision = revision + 1, updated_at = now()
+     WHERE workspace_id = $1 AND id = $2
+     RETURNING revision;`,
+    [workspaceId, budgetId]
+  );
+
+  const finalRev = res.rows[0]?.revision ?? 2;
+  const seq = syncState.nextChangeSeq;
+
+  await insertChange(client, {
+    workspaceId,
+    seq,
+    entityType: 'expense_budget',
+    entityId: budgetId,
+    revision: finalRev,
+    isTombstone: true,
+    operationId: operationId || crypto.randomUUID(),
+    changeData: { deleted: true },
+  });
+
+  await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  return { success: true, id: budgetId, seq };
 }

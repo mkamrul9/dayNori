@@ -32,6 +32,10 @@ export const ExportManifestSummarySchema = z.object({
   calendarCount: z.number().int().nonnegative(),
   filesCount: z.number().int().nonnegative(),
   totalBinaryBytes: z.number().int().nonnegative(),
+  expensesCount: z.number().int().nonnegative().optional(),
+  expenseCategoriesCount: z.number().int().nonnegative().optional(),
+  expenseRecurringTemplatesCount: z.number().int().nonnegative().optional(),
+  expenseBudgetsCount: z.number().int().nonnegative().optional(),
 });
 export type ExportManifestSummary = z.infer<typeof ExportManifestSummarySchema>;
 
@@ -129,6 +133,10 @@ export const ExecuteImportResponseSchema = z.object({
     journal: z.number().int().nonnegative(),
     calendar: z.number().int().nonnegative(),
     files: z.number().int().nonnegative(),
+    expenses: z.number().int().nonnegative().optional(),
+    expenseCategories: z.number().int().nonnegative().optional(),
+    expenseRecurringTemplates: z.number().int().nonnegative().optional(),
+    expenseBudgets: z.number().int().nonnegative().optional(),
   }),
   skippedCounts: z.number().int().nonnegative(),
   copiedCounts: z.number().int().nonnegative(),

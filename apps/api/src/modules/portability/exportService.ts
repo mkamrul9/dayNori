@@ -11,6 +11,7 @@ import { getDefaultStorageProvider, type StorageProviderContract } from '../file
 import { PRIVATE_ASSETS_BUCKET } from '../files/service.js';
 import { NotFoundError, ForbiddenError } from '../../plugins/errorHandler.js';
 import { getReauthSecret } from './reauth.js';
+import { formatMinorUnitsToDecimal } from '@daynori/domain';
 
 export const EXPORT_TTL_SECONDS = 15 * 60; // 15 minutes
 
@@ -656,6 +657,207 @@ ${j.plainText}
     data: JSON.stringify(exportedFiles, null, 2),
   });
 
+  // 12b. Expenses & Financial Records
+  const expCategoriesRes = await client.query<{
+    id: string;
+    name: string;
+    color: string | null;
+    icon: string | null;
+    display_order: number;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `SELECT id, name, color, icon, display_order, created_at, updated_at
+     FROM app.expense_categories
+     WHERE workspace_id = $1 AND deleted_at IS NULL
+     ORDER BY display_order ASC, name ASC;`,
+    [workspaceId]
+  );
+  const expenseCategories = expCategoriesRes.rows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    color: c.color,
+    icon: c.icon,
+    displayOrder: c.display_order,
+    createdAt: c.created_at.toISOString(),
+    updatedAt: c.updated_at.toISOString(),
+  }));
+  zipEntries.push({
+    path: 'expenses/categories.json',
+    data: JSON.stringify(expenseCategories, null, 2),
+  });
+
+  const expRecurringRes = await client.query<{
+    id: string;
+    title: string;
+    kind: string;
+    amount_minor_units: string;
+    currency: string;
+    category_id: string | null;
+    payment_label: string | null;
+    note: string | null;
+    schedule: unknown;
+    timezone: string;
+    start_date: string | Date;
+    end_date: string | Date | null;
+    is_active: boolean;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `SELECT id, title, kind, amount_minor_units::text as amount_minor_units, currency,
+            category_id, payment_label, note, schedule, timezone,
+            start_date::text as start_date, end_date::text as end_date,
+            is_active, created_at, updated_at
+     FROM app.expense_recurring_templates
+     WHERE workspace_id = $1
+     ORDER BY created_at ASC;`,
+    [workspaceId]
+  );
+  const expenseRecurringTemplates = expRecurringRes.rows.map((t) => ({
+    id: t.id,
+    title: t.title,
+    kind: t.kind,
+    amountMinor: t.amount_minor_units,
+    amount: formatMinorUnitsToDecimal(t.amount_minor_units, t.currency),
+    currency: t.currency,
+    categoryId: t.category_id,
+    paymentLabel: t.payment_label,
+    note: t.note,
+    schedule: t.schedule,
+    timezone: t.timezone,
+    startDate:
+      typeof t.start_date === 'string'
+        ? t.start_date
+        : (t.start_date as Date).toISOString().split('T')[0],
+    endDate: t.end_date
+      ? typeof t.end_date === 'string'
+        ? t.end_date
+        : (t.end_date as Date).toISOString().split('T')[0]
+      : null,
+    isActive: t.is_active,
+    createdAt: t.created_at.toISOString(),
+    updatedAt: t.updated_at.toISOString(),
+  }));
+  zipEntries.push({
+    path: 'expenses/recurring_templates.json',
+    data: JSON.stringify(expenseRecurringTemplates, null, 2),
+  });
+
+  const expensesRes = await client.query<{
+    id: string;
+    folder_id: string | null;
+    category_id: string | null;
+    receipt_file_id: string | null;
+    original_expense_id: string | null;
+    transaction_date: string | Date;
+    currency: string;
+    amount_minor_units: string;
+    kind: string;
+    payment_label: string | null;
+    note: string | null;
+    timezone: string;
+    cumulative_refund_minor_units: string;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `SELECT e.id, i.folder_id, e.category_id, e.receipt_file_id, e.original_expense_id,
+            e.transaction_date::text as transaction_date, e.currency,
+            e.amount_minor_units::text as amount_minor_units,
+            e.kind, e.payment_label, e.note, e.timezone,
+            e.cumulative_refund_minor_units::text as cumulative_refund_minor_units,
+            e.created_at, e.updated_at
+     FROM app.expense_items e
+     JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
+     WHERE e.workspace_id = $1 AND i.deleted_at IS NULL AND i.security_scope != 'vault'
+     ORDER BY e.transaction_date DESC, e.id DESC;`,
+    [workspaceId]
+  );
+  const expensesList = expensesRes.rows.map((e) => ({
+    id: e.id,
+    folderId: e.folder_id,
+    categoryId: e.category_id,
+    receiptFileId: e.receipt_file_id,
+    originalExpenseId: e.original_expense_id,
+    transactionDate:
+      typeof e.transaction_date === 'string'
+        ? e.transaction_date
+        : (e.transaction_date as Date).toISOString().split('T')[0],
+    currency: e.currency,
+    amountMinor: e.amount_minor_units,
+    amount: formatMinorUnitsToDecimal(e.amount_minor_units, e.currency),
+    kind: e.kind,
+    paymentLabel: e.payment_label,
+    note: e.note,
+    timezone: e.timezone,
+    cumulativeRefundMinorUnits: e.cumulative_refund_minor_units,
+    createdAt: e.created_at.toISOString(),
+    updatedAt: e.updated_at.toISOString(),
+  }));
+  zipEntries.push({
+    path: 'expenses/expenses.json',
+    data: JSON.stringify(expensesList, null, 2),
+  });
+
+  const expensesCsvRows = [
+    'id,folderId,categoryId,receiptFileId,originalExpenseId,transactionDate,currency,amount,amountMinor,kind,paymentLabel,note,timezone,cumulativeRefundMinorUnits,createdAt,updatedAt',
+    ...expensesList.map((e) =>
+      toCsvRow([
+        e.id,
+        e.folderId,
+        e.categoryId,
+        e.receiptFileId,
+        e.originalExpenseId,
+        e.transactionDate,
+        e.currency,
+        e.amount,
+        e.amountMinor,
+        e.kind,
+        e.paymentLabel,
+        e.note,
+        e.timezone,
+        e.cumulativeRefundMinorUnits,
+        e.createdAt,
+        e.updatedAt,
+      ])
+    ),
+  ];
+  zipEntries.push({
+    path: 'expenses/expenses.csv',
+    data: expensesCsvRows.join('\n'),
+  });
+
+  const budgetsRes = await client.query<{
+    id: string;
+    category_id: string | null;
+    period: string;
+    currency: string;
+    amount_minor_units: string;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `SELECT id, category_id, period, currency, amount_minor_units::text as amount_minor_units,
+            created_at, updated_at
+     FROM app.expense_budgets
+     WHERE workspace_id = $1 AND deleted_at IS NULL
+     ORDER BY period ASC, category_id NULLS FIRST;`,
+    [workspaceId]
+  );
+  const budgetsList = budgetsRes.rows.map((b) => ({
+    id: b.id,
+    categoryId: b.category_id,
+    period: b.period,
+    periodMonth: b.period,
+    currency: b.currency,
+    amountMinor: b.amount_minor_units,
+    amount: formatMinorUnitsToDecimal(b.amount_minor_units, b.currency),
+    createdAt: b.created_at.toISOString(),
+    updatedAt: b.updated_at.toISOString(),
+  }));
+  zipEntries.push({
+    path: 'expenses/budgets.json',
+    data: JSON.stringify(budgetsList, null, 2),
+  });
+
   // 13. Manifest
   const summary: ExportManifestSummary = {
     foldersCount: folders.length,
@@ -666,6 +868,10 @@ ${j.plainText}
     calendarCount: calList.length,
     filesCount: exportedFiles.length,
     totalBinaryBytes,
+    expensesCount: expensesList.length,
+    expenseCategoriesCount: expenseCategories.length,
+    expenseRecurringTemplatesCount: expenseRecurringTemplates.length,
+    expenseBudgetsCount: budgetsList.length,
   };
 
   const manifest: ExportManifest = {

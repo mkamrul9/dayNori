@@ -93,6 +93,19 @@ import {
   restoreCalendarEvent,
 } from '../calendar/service.js';
 import {
+  createExpenseRecord,
+  updateExpenseRecord,
+  trashExpenseRecord,
+  restoreExpenseRecord,
+  createExpenseCategory,
+  updateExpenseCategory,
+  deleteExpenseCategory,
+  createExpenseRecurringTemplate,
+  createExpenseBudget,
+  updateExpenseBudget,
+  deleteExpenseBudget,
+} from '../expenses/service.js';
+import {
   type NoteDocument,
   validateNoteDocument,
   extractPlainText,
@@ -115,6 +128,7 @@ const VALID_ITEM_KINDS = new Set([
   'file_item',
   'calendar_event',
   'folder',
+  'expense',
 ]);
 
 export class SyncService {
@@ -2684,6 +2698,390 @@ export class SyncService {
       }
     }
 
+    // --- Phase 39/40: Expense Tracking & Budgets Commands ---
+    if (
+      cmd.command === 'createExpense' ||
+      cmd.command === 'updateExpense' ||
+      cmd.command === 'trashExpense' ||
+      cmd.command === 'restoreExpense' ||
+      cmd.command === 'createExpenseCategory' ||
+      cmd.command === 'updateExpenseCategory' ||
+      cmd.command === 'trashExpenseCategory' ||
+      cmd.command === 'createExpenseRecurringTemplate' ||
+      cmd.command === 'createExpenseBudget' ||
+      cmd.command === 'updateExpenseBudget' ||
+      cmd.command === 'deleteExpenseBudget'
+    ) {
+      try {
+        let resultRevision = 1;
+        let appliedSeq: number | null = null;
+        let resultPayload: Record<string, unknown> = {};
+
+        switch (cmd.command) {
+          case 'createExpense': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const created = await createExpenseRecord(
+              client,
+              cmd.workspaceId,
+              actorUserId,
+              {
+                id: cmd.entityId,
+                kind: (payload['kind'] as any) || 'expense',
+                amount: String(payload['amount'] || '0'),
+                currency: String(payload['currency'] || 'USD'),
+                transactionDate: String(
+                  payload['transactionDate'] || new Date().toISOString().slice(0, 10)
+                ),
+                occurredAt:
+                  typeof payload['occurredAt'] === 'string' ? payload['occurredAt'] : undefined,
+                timezone:
+                  typeof payload['timezone'] === 'string' ? payload['timezone'] : undefined,
+                categoryId:
+                  typeof payload['categoryId'] === 'string' ? payload['categoryId'] : null,
+                paymentLabel:
+                  typeof payload['paymentLabel'] === 'string' ? payload['paymentLabel'] : null,
+                note: typeof payload['note'] === 'string' ? payload['note'] : null,
+                receiptFileId:
+                  typeof payload['receiptFileId'] === 'string' ? payload['receiptFileId'] : null,
+                originalExpenseId:
+                  typeof payload['originalExpenseId'] === 'string'
+                    ? payload['originalExpenseId']
+                    : null,
+                folderId:
+                  typeof payload['folderId'] === 'string' ? payload['folderId'] : null,
+              },
+              cmd.operationId
+            );
+            resultRevision = 1;
+            appliedSeq = created.seq;
+            resultPayload = { expense: created };
+            break;
+          }
+          case 'updateExpense': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const updated = await updateExpenseRecord(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              {
+                amount: payload['amount'] !== undefined ? String(payload['amount']) : undefined,
+                currency: typeof payload['currency'] === 'string' ? payload['currency'] : undefined,
+                transactionDate:
+                  typeof payload['transactionDate'] === 'string'
+                    ? payload['transactionDate']
+                    : undefined,
+                occurredAt:
+                  typeof payload['occurredAt'] === 'string' ? payload['occurredAt'] : undefined,
+                timezone:
+                  typeof payload['timezone'] === 'string' ? payload['timezone'] : undefined,
+                categoryId:
+                  typeof payload['categoryId'] === 'string'
+                    ? payload['categoryId']
+                    : payload['categoryId'] === null
+                      ? null
+                      : undefined,
+                paymentLabel:
+                  typeof payload['paymentLabel'] === 'string'
+                    ? payload['paymentLabel']
+                    : payload['paymentLabel'] === null
+                      ? null
+                      : undefined,
+                note:
+                  typeof payload['note'] === 'string'
+                    ? payload['note']
+                    : payload['note'] === null
+                      ? null
+                      : undefined,
+                receiptFileId:
+                  typeof payload['receiptFileId'] === 'string'
+                    ? payload['receiptFileId']
+                    : payload['receiptFileId'] === null
+                      ? null
+                      : undefined,
+                folderId:
+                  typeof payload['folderId'] === 'string'
+                    ? payload['folderId']
+                    : payload['folderId'] === null
+                      ? null
+                      : undefined,
+              },
+              cmd.operationId
+            );
+            const itemRes = await client.query<{ revision: number }>(
+              `SELECT revision FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+              [cmd.workspaceId, cmd.entityId]
+            );
+            resultRevision = itemRes.rows[0]?.revision ?? 2;
+            appliedSeq = updated.seq;
+            resultPayload = { expense: updated };
+            break;
+          }
+          case 'trashExpense': {
+            const res = await trashExpenseRecord(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.operationId
+            );
+            const itemRes = await client.query<{ revision: number }>(
+              `SELECT revision FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+              [cmd.workspaceId, cmd.entityId]
+            );
+            resultRevision = itemRes.rows[0]?.revision ?? 2;
+            appliedSeq = res.seq;
+            resultPayload = res;
+            break;
+          }
+          case 'restoreExpense': {
+            const res = await restoreExpenseRecord(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              actorUserId,
+              cmd.operationId
+            );
+            const itemRes = await client.query<{ revision: number }>(
+              `SELECT revision FROM app.items WHERE workspace_id = $1 AND id = $2;`,
+              [cmd.workspaceId, cmd.entityId]
+            );
+            resultRevision = itemRes.rows[0]?.revision ?? 2;
+            appliedSeq = res.seq;
+            resultPayload = res;
+            break;
+          }
+          case 'createExpenseCategory': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const cat = await createExpenseCategory(
+              client,
+              cmd.workspaceId,
+              {
+                name: String(payload['name'] || 'Category'),
+                color: typeof payload['color'] === 'string' ? payload['color'] : null,
+                icon: typeof payload['icon'] === 'string' ? payload['icon'] : null,
+                displayOrder:
+                  typeof payload['displayOrder'] === 'number' ? payload['displayOrder'] : 0,
+              },
+              cmd.operationId
+            );
+            resultRevision = 1;
+            appliedSeq = cat.seq ?? null;
+            resultPayload = { category: cat };
+            break;
+          }
+          case 'updateExpenseCategory': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const cat = await updateExpenseCategory(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              {
+                name: typeof payload['name'] === 'string' ? payload['name'] : undefined,
+                color:
+                  typeof payload['color'] === 'string'
+                    ? payload['color']
+                    : payload['color'] === null
+                      ? null
+                      : undefined,
+                icon:
+                  typeof payload['icon'] === 'string'
+                    ? payload['icon']
+                    : payload['icon'] === null
+                      ? null
+                      : undefined,
+                displayOrder:
+                  typeof payload['displayOrder'] === 'number' ? payload['displayOrder'] : undefined,
+              },
+              cmd.operationId
+            );
+            resultRevision = 2;
+            appliedSeq = cat.seq ?? null;
+            resultPayload = { category: cat };
+            break;
+          }
+          case 'trashExpenseCategory': {
+            const res = await deleteExpenseCategory(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              cmd.operationId
+            );
+            resultRevision = 2;
+            appliedSeq = res.seq ?? null;
+            resultPayload = res;
+            break;
+          }
+          case 'createExpenseRecurringTemplate': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const template = await createExpenseRecurringTemplate(
+              client,
+              cmd.workspaceId,
+              {
+                title: String(payload['title'] || 'Template'),
+                kind: (payload['kind'] as any) || 'expense',
+                amount: String(payload['amount'] || '0'),
+                currency: String(payload['currency'] || 'USD'),
+                categoryId:
+                  typeof payload['categoryId'] === 'string' ? payload['categoryId'] : null,
+                paymentLabel:
+                  typeof payload['paymentLabel'] === 'string' ? payload['paymentLabel'] : null,
+                note: typeof payload['note'] === 'string' ? payload['note'] : null,
+                schedule: payload['schedule'] as any,
+                timezone:
+                  typeof payload['timezone'] === 'string' ? payload['timezone'] : 'UTC',
+                startDate: String(
+                  payload['startDate'] || new Date().toISOString().slice(0, 10)
+                ),
+                endDate: typeof payload['endDate'] === 'string' ? payload['endDate'] : null,
+                isActive:
+                  typeof payload['isActive'] === 'boolean' ? payload['isActive'] : true,
+              },
+              cmd.operationId
+            );
+            resultRevision = 1;
+            appliedSeq = template.seq ?? null;
+            resultPayload = { template };
+            break;
+          }
+          case 'createExpenseBudget': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const budget = await createExpenseBudget(
+              client,
+              cmd.workspaceId,
+              {
+                period: String(payload['period']),
+                currency: String(payload['currency']),
+                categoryId:
+                  typeof payload['categoryId'] === 'string' ? payload['categoryId'] : null,
+                amount: String(payload['amount'] || '0'),
+              },
+              cmd.operationId
+            );
+            resultRevision = 1;
+            appliedSeq = budget.seq ?? null;
+            resultPayload = { budget };
+            break;
+          }
+          case 'updateExpenseBudget': {
+            const payload = (cmd.payload as Record<string, unknown>) || {};
+            const budget = await updateExpenseBudget(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              {
+                amount: String(payload['amount'] || '0'),
+              },
+              cmd.operationId
+            );
+            resultRevision = budget.revision;
+            appliedSeq = budget.seq ?? null;
+            resultPayload = { budget };
+            break;
+          }
+          case 'deleteExpenseBudget': {
+            const res = await deleteExpenseBudget(
+              client,
+              cmd.workspaceId,
+              cmd.entityId,
+              cmd.operationId
+            );
+            resultRevision = 2;
+            appliedSeq = res.seq ?? null;
+            resultPayload = res;
+            break;
+          }
+        }
+
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'accepted',
+          acceptedRevision: resultRevision,
+          appliedChangeSeq: appliedSeq,
+          resultPayload,
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'accepted',
+          entityId: cmd.entityId,
+          revision: resultRevision,
+          seq: appliedSeq,
+        };
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          const conflictErrorPayload = {
+            code: 'CONFLICT',
+            message: err.message || 'Operation resulted in a conflict state.',
+          };
+          await insertMutationReceipt(client, {
+            workspaceId: cmd.workspaceId,
+            actorUserId,
+            deviceId: cmd.deviceId,
+            operationId: cmd.operationId,
+            command: cmd.command,
+            entityType: cmd.entityType,
+            entityId: cmd.entityId,
+            schemaVersion: cmd.schemaVersion,
+            baseRevision: cmd.baseRevision,
+            canonicalPayloadHash: payloadHash,
+            status: 'conflict',
+            acceptedRevision: null,
+            appliedChangeSeq: null,
+            resultPayload: { error: conflictErrorPayload },
+          });
+
+          return {
+            operationId: cmd.operationId,
+            status: 'conflict',
+            entityId: cmd.entityId,
+            revision: 0,
+            seq: null,
+            error: conflictErrorPayload,
+          };
+        }
+
+        const errorPayload = {
+          code: 'VALIDATION_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error: errorPayload },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: existingItem ? existingItem.revision : 0,
+          seq: null,
+          error: errorPayload,
+        };
+      }
+    }
+
     // --- Command: createItem ---
     if (cmd.command === 'createItem') {
       if (existingItem) {
@@ -2759,6 +3157,38 @@ export class SyncService {
         const error = {
           code: 'VALIDATION_FAILED',
           message: 'Calendar events must be created via createCalendarEvent command.',
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: cmd.workspaceId,
+          actorUserId,
+          deviceId: cmd.deviceId,
+          operationId: cmd.operationId,
+          command: cmd.command,
+          entityType: cmd.entityType,
+          entityId: cmd.entityId,
+          schemaVersion: cmd.schemaVersion,
+          baseRevision: cmd.baseRevision,
+          canonicalPayloadHash: payloadHash,
+          status: 'rejected',
+          acceptedRevision: null,
+          appliedChangeSeq: null,
+          resultPayload: { error },
+        });
+
+        return {
+          operationId: cmd.operationId,
+          status: 'rejected',
+          entityId: cmd.entityId,
+          revision: 0,
+          seq: null,
+          error,
+        };
+      }
+
+      if (kind === 'expense') {
+        const error = {
+          code: 'VALIDATION_FAILED',
+          message: 'Expenses must be created via createExpense command.',
         };
         await insertMutationReceipt(client, {
           workspaceId: cmd.workspaceId,
@@ -3208,7 +3638,7 @@ export class SyncService {
       };
     }
 
-    const newRevision = existingItem.revision + 1;
+    let newRevision = existingItem.revision + 1;
     const seq = syncState.nextChangeSeq;
     let isTombstone = false;
     let changeData: Record<string, unknown> = {};
@@ -3454,12 +3884,39 @@ export class SyncService {
         break;
       }
       case 'trashItem': {
+        if (existingItem.kind === 'expense') {
+          await trashExpenseRecord(
+            client,
+            cmd.workspaceId,
+            cmd.entityId,
+            actorUserId,
+            cmd.operationId
+          );
+          const updatedItem = await getItemForSync(client, cmd.workspaceId, cmd.entityId);
+          newRevision = updatedItem?.revision ?? existingItem.revision + 1;
+          changeData = { kind: 'expense', action: 'trashed' };
+          isTombstone = true;
+          break;
+        }
         isTombstone = true;
         await tombstoneItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
         changeData = { deleted: true };
         break;
       }
       case 'restoreItem': {
+        if (existingItem.kind === 'expense') {
+          await restoreExpenseRecord(
+            client,
+            cmd.workspaceId,
+            cmd.entityId,
+            actorUserId,
+            cmd.operationId
+          );
+          const updatedItem = await getItemForSync(client, cmd.workspaceId, cmd.entityId);
+          newRevision = updatedItem?.revision ?? existingItem.revision + 1;
+          changeData = { kind: 'expense', action: 'restored' };
+          break;
+        }
         await restoreItemForSync(client, cmd.workspaceId, cmd.entityId, actorUserId, newRevision);
         changeData = { restored: true };
         break;
