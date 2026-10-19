@@ -166,7 +166,12 @@ export function createErrorHandler(logger: SafeLogger) {
     }
 
     // 4b. Custom invariant validation errors
-    if (error instanceof ValidationError) {
+    if (
+      error instanceof ValidationError ||
+      error.name === 'ValidationError' ||
+      error.name === 'RefundInvariantError' ||
+      error.name === 'MoneyPrecisionError'
+    ) {
       const body: ApiErrorResponse = {
         error: {
           code: ApiErrorCode.VALIDATION_FAILED,

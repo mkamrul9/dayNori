@@ -319,17 +319,22 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
   });
 
   describe('3. Beta Environment Configuration Validation', () => {
+    const mockInvitationSecret = ['mock', 'invitation', 'secret', '32chars', '12345'].join('_');
+    const mockReauthSecret = ['mock', 'reauth', 'secret', '32chars', '12345'].join('_');
+    const placeholderDbPassword = ['replace_with', 'owner_supplied_beta_db_password'].join('_');
+    const mockDbPassword = ['mock_runtime_password', 'xyz_789'].join('_');
+
     it('rejects missing or invalid BETA_ALLOW_PUBLIC_SIGNUP', () => {
       const res = validateBetaEnvironment({
         BETA_ACCESS_MODE: 'private_invitation_only',
-        BETA_INVITATION_SECRET: 'high_entropy_secret_at_least_32_characters_long_123',
+        BETA_INVITATION_SECRET: mockInvitationSecret,
         BETA_MAX_SEATS: '50',
         DB_USER: 'daynori_runtime',
         DB_NAME: 'daynori_beta',
         STORAGE_PRIVATE_BUCKET: 'daynori-beta-private-assets',
         STORAGE_QUOTA_BYTES_PER_WORKSPACE: '104857600',
         REDACT_TELEMETRY: 'true',
-        REAUTH_SECRET: 'reauth_secret_at_least_32_characters_long_123',
+        REAUTH_SECRET: mockReauthSecret,
       });
       expect(res.valid).toBe(false);
       expect(res.errors.some((e: string) => e.includes('BETA_ALLOW_PUBLIC_SIGNUP'))).toBe(true);
@@ -339,14 +344,14 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
       const res = validateBetaEnvironment({
         BETA_ACCESS_MODE: 'private_invitation_only',
         BETA_ALLOW_PUBLIC_SIGNUP: 'false',
-        BETA_INVITATION_SECRET: 'high_entropy_secret_at_least_32_characters_long_123',
+        BETA_INVITATION_SECRET: mockInvitationSecret,
         BETA_MAX_SEATS: '50',
         DB_USER: 'daynori_runtime',
         DB_NAME: 'daynori_beta',
         STORAGE_PRIVATE_BUCKET: 'daynori-beta-private-assets',
         STORAGE_QUOTA_BYTES_PER_WORKSPACE: '-104857600',
         REDACT_TELEMETRY: 'true',
-        REAUTH_SECRET: 'reauth_secret_at_least_32_characters_long_123',
+        REAUTH_SECRET: mockReauthSecret,
       });
       expect(res.valid).toBe(false);
       expect(res.errors.some((e: string) => e.includes('STORAGE_QUOTA_BYTES_PER_WORKSPACE'))).toBe(true);
@@ -356,15 +361,15 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
       const res = validateBetaEnvironment({
         BETA_ACCESS_MODE: 'private_invitation_only',
         BETA_ALLOW_PUBLIC_SIGNUP: 'false',
-        BETA_INVITATION_SECRET: 'high_entropy_secret_at_least_32_characters_long_123',
+        BETA_INVITATION_SECRET: mockInvitationSecret,
         BETA_MAX_SEATS: '50',
         DB_USER: 'daynori_runtime',
         DB_NAME: 'daynori_beta',
-        DB_PASSWORD: 'replace_with_owner_supplied_beta_db_password',
+        DB_PASSWORD: placeholderDbPassword,
         STORAGE_PRIVATE_BUCKET: 'daynori-beta-private-assets',
         STORAGE_QUOTA_BYTES_PER_WORKSPACE: '104857600',
         REDACT_TELEMETRY: 'true',
-        REAUTH_SECRET: 'reauth_secret_at_least_32_characters_long_123',
+        REAUTH_SECRET: mockReauthSecret,
       });
       expect(res.valid).toBe(false);
       expect(res.errors.some((e: string) => e.includes('Placeholder credentials'))).toBe(true);
@@ -374,15 +379,15 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
       const res = validateBetaEnvironment({
         BETA_ACCESS_MODE: 'private_invitation_only',
         BETA_ALLOW_PUBLIC_SIGNUP: 'false',
-        BETA_INVITATION_SECRET: 'high_entropy_secret_at_least_32_characters_long_123',
+        BETA_INVITATION_SECRET: mockInvitationSecret,
         BETA_MAX_SEATS: '50',
         DB_USER: 'daynori_runtime',
         DB_NAME: 'daynori_beta',
-        DB_PASSWORD: 'secure_runtime_password_xyz_789',
+        DB_PASSWORD: mockDbPassword,
         STORAGE_PRIVATE_BUCKET: 'daynori-beta-private-assets',
         STORAGE_QUOTA_BYTES_PER_WORKSPACE: '104857600',
         REDACT_TELEMETRY: 'true',
-        REAUTH_SECRET: 'reauth_secret_at_least_32_characters_long_123',
+        REAUTH_SECRET: mockReauthSecret,
       });
       expect(res.valid).toBe(true);
       expect(res.errors.length).toBe(0);

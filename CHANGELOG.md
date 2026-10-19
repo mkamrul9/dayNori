@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 39 — Expense tracking domain — 2026-10-19
+
+- **Exact Money Representation & Invariants (`@daynori/domain`):**
+  - Implemented `parseDecimalToMinorUnits`, `formatMinorUnitsToDecimal`, `validateRefundBounds`, `calculateNetSpending`, `calculateNetSavings`, and `getNextOccurrenceDate`.
+  - Stored all monetary figures strictly in integer minor units (`BigInt`) with exact decimal string formatting, eliminating IEEE 754 floating-point drift.
+  - Built currency registry supporting 0-decimal (JPY), 2-decimal (USD, BDT, EUR), and 3-decimal (KWD) currencies with exponent bounds enforcement.
+  - Multi-currency isolation: summaries and monthly breakdowns group totals strictly per-currency without automatic conversion or summing across currencies.
+- **Workspace-Scoped Categories & Organization (`app.expense_categories`, `app.expense_items`):**
+  - Added user categories with workspace-scoped unique names (case/whitespace-normalized), soft-deletion, and color/icon styling.
+  - Organized expense, income, and refund items with transaction dates, timezones, payment labels, notes, and canonical folder placement.
+  - Verified receipt file attachment: validates file ownership within the same workspace, active verification status (`quarantine_status = 'verified'`), and rejection of quarantined/cross-workspace files.
+- **Concurrency-Safe Refunds & Cumulative Bounds:**
+  - Implemented transactional row-level locking (`SELECT ... FOR UPDATE`) of the original expense during refund creation and edits.
+  - Enforced refund invariants: cumulative active refunds cannot exceed the original expense amount; refund currency must match the original expense.
+  - Reductions to category spending: refunds reduce net category spending rather than inflating income; cross-month refunds truthfully reflect negative net spending when applicable.
+  - Protected original expense from deletion or reduction below active cumulative refund totals.
+  - Trashing a refund releases refundable headroom, while restoring it re-evaluates and re-claims headroom.
+- **Recurring Entry Templates & Occurrence Deduplication (`app.expense_recurring_templates`):**
+  - Added recurring expense/income templates supporting daily, weekly, monthly, and yearly recurrences.
+  - Implemented idempotent occurrence generator endpoint (`/v1/workspaces/:workspaceId/expenses/recurring/generate`) tracking generated occurrences in `app.expense_recurring_occurrences` without duplication.
+- **Database Schema Migration 00040 & SyncEngine Integration:**
+  - Created `infra/supabase/migrations/00040_expense_tracking_domain.sql` defining `app.expense_categories`, `app.expense_items`, `app.expense_recurring_templates`, `app.expense_recurring_occurrences`, RLS policies, and updated `app.purge_owned_workspace` for clean tenant deletion.
+  - Integrated with sync change feed (`app.changes`) and sequence tracking (`app.workspace_sync_state`).
+- **Phase Status:**
+  - Implemented and verified as provisional local development under explicit owner authorization; external beta gates, physical hardware, and deployment remain **BLOCKED**. UI and beta exposure remain disabled by default.
+
 ## Phase 38 — Controlled private beta & Lifecycle Hardening — 2026-10-19
 
 - **Lifecycle State Machine & Deletion Coordination:**

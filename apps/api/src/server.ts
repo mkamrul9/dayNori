@@ -37,6 +37,7 @@ import {
 import { registerSyncRoutes } from './modules/sync/index.js';
 import { storageTransferPlugin } from './modules/files/storageTransfer.js';
 import { registerBetaRoutes } from './routes/v1/beta.js';
+import { registerExpenseRoutes } from './routes/v1/expenses.js';
 import { BetaAccessService } from './modules/beta/betaAccessService.js';
 import { ExplicitForbiddenError } from './plugins/errorHandler.js';
 
@@ -48,6 +49,7 @@ export interface ServerOptions {
   rateLimitOptions?: { windowMs?: number; maxRequests?: number };
   logger?: SafeLogger;
   allowUnauthenticatedStartup?: boolean;
+  enableExpenses?: boolean;
 }
 
 const REQUEST_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -138,12 +140,14 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
     return reply.status(200).send(payload);
   });
 
+  const allowExpenses = options?.enableExpenses ?? process.env['ENABLE_EXPENSES'] === 'true';
+
   // Global barrier for unreleased feature scope (expenses, vault, rooms, ai, billing)
   // Rejects direct calls with 403 Forbidden before router matching
   app.addHook('onRequest', async (request) => {
     const url = request.url;
     if (
-      url.startsWith('/v1/expenses') ||
+      (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
       url.startsWith('/v1/vault') ||
       url.startsWith('/v1/rooms') ||
       url.startsWith('/v1/ai') ||
@@ -176,7 +180,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
 
         // 1. Unreleased feature scope barriers (403 Forbidden on direct access)
         if (
-          url.startsWith('/v1/expenses') ||
+          (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
           url.startsWith('/v1/vault') ||
           url.startsWith('/v1/rooms') ||
           url.startsWith('/v1/ai') ||
@@ -219,6 +223,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerTaskRoutes(authScope, runtimePool);
       registerRoutineRoutes(authScope, runtimePool);
       registerJournalRoutes(authScope, runtimePool);
+      registerExpenseRoutes(authScope, runtimePool);
       registerFileRoutes(authScope, runtimePool);
       registerCalendarRoutes(authScope, runtimePool);
       registerReminderRoutes(authScope, runtimePool);

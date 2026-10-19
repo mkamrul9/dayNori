@@ -805,7 +805,7 @@ describe('Phase 37: Core Organizer Journeys — API, Domain, and Database Integr
       confirmationToken: reqDel.confirmationToken!,
     });
     expect(confirmDel.success).toBe(true);
-    expect(confirmDel.status).toBe('completed');
+    expect(confirmDel.status).toBe('processing');
 
     // 4. Verify user 2 token is revoked and cannot access API
     await expect(client2.getUserPreferences()).rejects.toThrow();

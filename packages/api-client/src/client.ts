@@ -202,6 +202,26 @@ import {
   type PublicDeletionRequestResponse,
   type VerifyPublicDeletionRequestBody,
   type VerifyPublicDeletionResponse,
+  ExpenseCategoryResponseSchema,
+  ExpenseCategoryListResponseSchema,
+  ExpenseResponseSchema,
+  ExpenseListResponseSchema,
+  ExpenseMonthlySummaryResponseSchema,
+  ExpenseRecurringTemplateResponseSchema,
+  ExpenseRecurringTemplateListResponseSchema,
+  type CreateExpenseCategoryBody,
+  type UpdateExpenseCategoryBody,
+  type ExpenseCategoryResponse,
+  type ExpenseCategoryListResponse,
+  type CreateExpenseBody,
+  type UpdateExpenseBody,
+  type ExpenseResponse,
+  type ExpenseListResponse,
+  type ExpenseListQuery,
+  type ExpenseMonthlySummaryResponse,
+  type CreateExpenseRecurringTemplateBody,
+  type ExpenseRecurringTemplateResponse,
+  type ExpenseRecurringTemplateListResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -2153,6 +2173,196 @@ export class DaynoriApiClient {
       options
     );
     return VerifyPublicDeletionResponseSchema.parse(raw);
+  }
+
+  // --- Expenses (Phase 39) ---
+
+  async createExpenseCategory(
+    workspaceId: string,
+    body: CreateExpenseCategoryBody,
+    options?: RequestOptions
+  ): Promise<ExpenseCategoryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/categories`,
+      { method: 'POST', body: JSON.stringify(body) },
+      options
+    );
+    return ExpenseCategoryResponseSchema.parse(raw);
+  }
+
+  async listExpenseCategories(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<ExpenseCategoryListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/categories`,
+      { method: 'GET' },
+      options
+    );
+    return ExpenseCategoryListResponseSchema.parse(raw);
+  }
+
+  async updateExpenseCategory(
+    workspaceId: string,
+    categoryId: string,
+    body: UpdateExpenseCategoryBody,
+    options?: RequestOptions
+  ): Promise<ExpenseCategoryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/categories/${categoryId}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+      options
+    );
+    return ExpenseCategoryResponseSchema.parse(raw);
+  }
+
+  async deleteExpenseCategory(
+    workspaceId: string,
+    categoryId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; id: string } }> {
+    return this.request<{ data: { success: boolean; id: string } }>(
+      `/v1/workspaces/${workspaceId}/expenses/categories/${categoryId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async createExpense(
+    workspaceId: string,
+    body: CreateExpenseBody,
+    options?: RequestOptions
+  ): Promise<ExpenseResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses`,
+      { method: 'POST', body: JSON.stringify(body) },
+      options
+    );
+    return ExpenseResponseSchema.parse(raw);
+  }
+
+  async getExpense(
+    workspaceId: string,
+    expenseId: string,
+    options?: RequestOptions
+  ): Promise<ExpenseResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/${expenseId}`,
+      { method: 'GET' },
+      options
+    );
+    return ExpenseResponseSchema.parse(raw);
+  }
+
+  async listExpenses(
+    workspaceId: string,
+    query?: ExpenseListQuery,
+    options?: RequestOptions
+  ): Promise<ExpenseListResponse> {
+    const q = new URLSearchParams();
+    if (query?.year) q.set('year', String(query.year));
+    if (query?.month) q.set('month', String(query.month));
+    if (query?.startDate) q.set('startDate', query.startDate);
+    if (query?.endDate) q.set('endDate', query.endDate);
+    if (query?.kind) q.set('kind', query.kind);
+    if (query?.categoryId) q.set('categoryId', query.categoryId);
+    if (query?.currency) q.set('currency', query.currency);
+    if (query?.folderId) q.set('folderId', query.folderId);
+    if (query?.limit) q.set('limit', String(query.limit));
+    if (query?.cursor) q.set('cursor', query.cursor);
+
+    const queryString = q.toString();
+    const path = `/v1/workspaces/${workspaceId}/expenses${queryString ? `?${queryString}` : ''}`;
+    const raw = await this.request<unknown>(path, { method: 'GET' }, options);
+    return ExpenseListResponseSchema.parse(raw);
+  }
+
+  async updateExpense(
+    workspaceId: string,
+    expenseId: string,
+    body: UpdateExpenseBody,
+    options?: RequestOptions
+  ): Promise<ExpenseResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/${expenseId}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+      options
+    );
+    return ExpenseResponseSchema.parse(raw);
+  }
+
+  async trashExpense(
+    workspaceId: string,
+    expenseId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; id: string; seq: number } }> {
+    return this.request<{ data: { success: boolean; id: string; seq: number } }>(
+      `/v1/workspaces/${workspaceId}/expenses/${expenseId}/trash`,
+      { method: 'POST' },
+      options
+    );
+  }
+
+  async restoreExpense(
+    workspaceId: string,
+    expenseId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean; id: string; seq: number } }> {
+    return this.request<{ data: { success: boolean; id: string; seq: number } }>(
+      `/v1/workspaces/${workspaceId}/expenses/${expenseId}/restore`,
+      { method: 'POST' },
+      options
+    );
+  }
+
+  async getExpenseMonthlySummary(
+    workspaceId: string,
+    params: { year: number; month: number },
+    options?: RequestOptions
+  ): Promise<ExpenseMonthlySummaryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/summary?year=${params.year}&month=${params.month}`,
+      { method: 'GET' },
+      options
+    );
+    return ExpenseMonthlySummaryResponseSchema.parse(raw);
+  }
+
+  async createExpenseRecurringTemplate(
+    workspaceId: string,
+    body: CreateExpenseRecurringTemplateBody,
+    options?: RequestOptions
+  ): Promise<ExpenseRecurringTemplateResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/recurring`,
+      { method: 'POST', body: JSON.stringify(body) },
+      options
+    );
+    return ExpenseRecurringTemplateResponseSchema.parse(raw);
+  }
+
+  async listExpenseRecurringTemplates(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<ExpenseRecurringTemplateListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/expenses/recurring`,
+      { method: 'GET' },
+      options
+    );
+    return ExpenseRecurringTemplateListResponseSchema.parse(raw);
+  }
+
+  async generateRecurringOccurrences(
+    workspaceId: string,
+    body: { untilDate: string },
+    options?: RequestOptions
+  ): Promise<{ data: { generatedCount: number; expenseIds: string[] } }> {
+    return this.request<{ data: { generatedCount: number; expenseIds: string[] } }>(
+      `/v1/workspaces/${workspaceId}/expenses/recurring/generate`,
+      { method: 'POST', body: JSON.stringify(body) },
+      options
+    );
   }
 
   // --- Legacy Phase 01 compatibility ---

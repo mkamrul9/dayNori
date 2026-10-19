@@ -3,8 +3,8 @@
   "updatedAt": "2026-10-19",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 37 lifecycle repairs and verification delivered under owner authorization (harden public deletion, provider cleanup, transaction recovery, privileged functions, and real disaster recovery drill). Phase 38 local preparation completed under provisional authorization (beta config template, environment validator, personal organizer feature flags, operations runbook, external keystore signing guide, observation & triage protocol, automated smoke runner). Both Phase 37 and Phase 38 remain explicitly blocked pending owner-supplied deployment targets, external signing credentials, push provider service accounts, physical Android test hardware, and invited participant cohort. Next phase pointer is set to null; stop before Phase 39.",
-  "note": "Phase 37 release gate and Phase 38 private beta remain blocked pending physical hardware, cloud deployment targets, and production credentials.",
+  "schedulingDecision": "Phase 39 expense tracking domain implemented as local, provisional development under explicit owner authorization (integer minor units, exact decimal strings, multi-currency support, workspace-scoped expense/income/refund items, category breakdown, canonical folders, verified receipt attachment, concurrency-safe refunds with cumulative bounds, recurring entry templates with deduplication, and SyncEngine change feed integration). Phase 37 release gate, Phase 38 private beta, and Phase 39 remain recorded as blocked pending external deployment, production credentials, physical hardware, and release gate fulfillment. Stop before Phase 40.",
+  "note": "Phase 37 release gate, Phase 38 private beta, and Phase 39 expense tracking domain remain recorded as blocked / provisional pending external infrastructure, physical hardware, and release gates.",
   "phases": [
     {
       "id": "00",
@@ -236,7 +236,9 @@
     },
     {
       "id": "39",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional expense tracking domain delivered under owner authorization and verified across Vitest pure domain, PostgreSQL RLS, Fastify expense REST routes, DaynoriApiClient, and 20 integration tests (integer minor units, exact decimal formatting, multi-currency non-coercion, concurrency-safe cumulative refund bounds, category spending reduction, recurring entry templates, and sync change feed integration). Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, and UI exposure.",
+      "report": "docs/phase-reports/phase-39.md"
     },
     {
       "id": "40",

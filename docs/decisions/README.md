@@ -40,5 +40,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0036: Today Home Layout Personalization, Widget Versioning, and Privacy Redaction](0036-today-home-and-personal-customization.md)
 - [ADR-0037: Knowledge Guides, Cheatsheet Organization, and Saved Views](0037-knowledge-guides-cheatsheets-and-saved-views.md)
 - [ADR-0038: Account Deletion Lifecycle, Suppression Ledger, and Disaster Recovery Procedures](0038-account-deletion-suppression-ledger-and-disaster-recovery.md)
+- [ADR-0039: Expense Tracking Domain, Exact Money Invariants, and Refund Concurrency](0039-expense-tracking-domain-and-money-invariants.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

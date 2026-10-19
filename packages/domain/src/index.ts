@@ -14,3 +14,4 @@ export * from './home.js';
 export * from './onboarding.js';
 export * from './knowledge.js';
 export * from './search.js';
+export * from './expenses.js';
