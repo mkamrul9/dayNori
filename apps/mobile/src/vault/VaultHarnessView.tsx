@@ -1,8 +1,9 @@
 /**
  * Phase 46 synthetic vault harness host — not a production vault entry point.
+ * Development builds only (__DEV__).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import type { ThemeMode } from '@daynori/design-tokens';
 import {
@@ -22,6 +23,7 @@ import {
   clearClipboardIfControllable,
   disableVaultScreenProtection,
   enableVaultScreenProtection,
+  tryLoadClipboardClearAdapter,
 } from './presentationProtection.js';
 
 export interface VaultHarnessViewProps {
@@ -64,16 +66,65 @@ export function VaultHarnessView({
   const [selectedDetail, setSelectedDetail] = useState<{ title: string; body: string } | null>(null);
   const [transferPhase, setTransferPhase] = useState<TransferUiPhase>('preview');
   const [protectionNote, setProtectionNote] = useState<string>('');
+  const [clipboardNote, setClipboardNote] = useState<string>('');
+  const [cleanupNote, setCleanupNote] = useState<string>('');
+  const listEpochRef = useRef(0);
+  const detailEpochRef = useRef(0);
+  const mountedRef = useRef(true);
+  const clipboardAdapterRef = useRef<((value: string) => Promise<void>) | null>(null);
+
+  const clearProtectedUi = useCallback(() => {
+    setSelectedDetail(null);
+    setSelectedId(null);
+    setItems([]);
+    setUnlockOpen(false);
+    setShowingTrash(false);
+  }, []);
+
+  const wipeClipboard = useCallback(async () => {
+    const adapter = clipboardAdapterRef.current;
+    if (!adapter) {
+      setClipboardNote('Clipboard adapter unavailable; clearing not established.');
+      return;
+    }
+    const result = await clearClipboardIfControllable(adapter);
+    setClipboardNote(result.note);
+  }, []);
 
   useEffect(() => {
-    const unsub = controller.subscribe(setSession);
+    mountedRef.current = true;
+    const unsub = controller.subscribe((next) => {
+      setSession(next);
+      if (next.state !== 'unlocked') {
+        listEpochRef.current += 1;
+        detailEpochRef.current += 1;
+        clearProtectedUi();
+      }
+    });
     void controller.refreshCapabilities();
+    void tryLoadClipboardClearAdapter().then((adapter) => {
+      clipboardAdapterRef.current = adapter;
+      if (!adapter) {
+        setClipboardNote('Clipboard adapter unavailable; clearing not established.');
+      }
+    });
     return () => {
+      mountedRef.current = false;
       unsub();
       void controller.lock('unmount');
       void disableVaultScreenProtection();
+      clearProtectedUi();
     };
-  }, [controller]);
+  }, [controller, clearProtectedUi]);
+
+  const identityRef = useRef({ accountId, workspaceId });
+  useEffect(() => {
+    const prev = identityRef.current;
+    if (prev.accountId === accountId && prev.workspaceId === workspaceId) return;
+    identityRef.current = { accountId, workspaceId };
+    void controller.onAccountOrWorkspaceChanged(accountId, workspaceId);
+    clearProtectedUi();
+  }, [controller, accountId, workspaceId, clearProtectedUi]);
 
   useEffect(() => {
     let mounted = true;
@@ -90,20 +141,29 @@ export function VaultHarnessView({
     const sub = AppState.addEventListener('change', (next) => {
       if (next !== 'active') {
         void controller.onBackground();
-        void clearClipboardIfControllable();
-        setSelectedDetail(null);
-        setSelectedId(null);
-        setUnlockOpen(false);
+        void wipeClipboard();
+        clearProtectedUi();
       } else {
         void controller.onResume();
         void controller.checkRevocationIfConnected(isOnline);
       }
     });
     return () => sub.remove();
-  }, [controller, isOnline]);
+  }, [controller, isOnline, wipeClipboard, clearProtectedUi]);
+
+  // Idle locking: schedule ticks while unlocked; activity resets via noteActivity.
+  useEffect(() => {
+    if (session.state !== 'unlocked') return;
+    const id = setInterval(() => {
+      void controller.tickIdleLock();
+    }, 5_000);
+    return () => clearInterval(id);
+  }, [controller, session.state]);
 
   const reloadLists = useCallback(async () => {
+    const epoch = ++listEpochRef.current;
     if (session.state !== 'unlocked') {
+      if (!mountedRef.current || epoch !== listEpochRef.current) return;
       setItems([]);
       setTrashItems(
         synthetic.controls.listTrash().map((r) => ({
@@ -118,14 +178,23 @@ export function VaultHarnessView({
     const keyHandleId = controller.getKeyHandleId();
     const active = await controller.getRepository().listItems(null);
     const folder = await controller.getRepository().listItems('vault-folder-a');
+    if (!mountedRef.current || epoch !== listEpochRef.current || controller.getSnapshot().state !== 'unlocked') {
+      return;
+    }
     const mapped: VaultListItemVm[] = [];
     for (const row of [...active, ...folder]) {
       let label = row.titleCiphertextLabel;
-      if (keyHandleId) {
+      if (keyHandleId && controller.getKeyHandleId() === keyHandleId) {
         const revealed = await controller.getRepository().revealPlaintext(row.id, keyHandleId);
+        if (!mountedRef.current || epoch !== listEpochRef.current || controller.getSnapshot().state !== 'unlocked') {
+          return;
+        }
         if (revealed.ok) label = revealed.title;
       }
       mapped.push({ id: row.id, displayLabel: label, folderId: row.folderId });
+    }
+    if (!mountedRef.current || epoch !== listEpochRef.current || controller.getSnapshot().state !== 'unlocked') {
+      return;
     }
     setItems(mapped);
     setTrashItems(
@@ -146,6 +215,7 @@ export function VaultHarnessView({
     const nav = controller.canNavigate('vault_detail');
     if (!nav.allow) return;
     controller.noteActivity();
+    const epoch = ++detailEpochRef.current;
     setSelectedId(id);
     const keyHandleId = controller.getKeyHandleId();
     if (!keyHandleId) {
@@ -153,7 +223,22 @@ export function VaultHarnessView({
       return;
     }
     const revealed = await controller.getRepository().revealPlaintext(id, keyHandleId);
+    if (
+      !mountedRef.current ||
+      epoch !== detailEpochRef.current ||
+      controller.getSnapshot().state !== 'unlocked' ||
+      controller.getKeyHandleId() !== keyHandleId
+    ) {
+      return;
+    }
     setSelectedDetail(revealed.ok ? { title: revealed.title, body: revealed.body } : null);
+  };
+
+  const onLock = async () => {
+    clearProtectedUi();
+    const result = await controller.lock('explicit');
+    setCleanupNote(result.diagnostic ?? '');
+    await wipeClipboard();
   };
 
   return (
@@ -196,14 +281,9 @@ export function VaultHarnessView({
         selectedDetail={selectedDetail}
         transferPhase={transferPhase}
         showingTrash={showingTrash}
-        screenProtectionNote={protectionNote}
+        screenProtectionNote={[protectionNote, clipboardNote, cleanupNote].filter(Boolean).join(' ')}
         onOpenUnlock={() => setUnlockOpen(true)}
-        onLock={() => {
-          void controller.lock('explicit');
-          setSelectedDetail(null);
-          setSelectedId(null);
-          void clearClipboardIfControllable();
-        }}
+        onLock={() => void onLock()}
         onSelectItem={(id) => void onSelectItem(id)}
         onClearSelection={() => {
           setSelectedId(null);
@@ -219,8 +299,11 @@ export function VaultHarnessView({
         themeMode={themeMode}
         session={session}
         syntheticHarness
-        onCancelUnlock={() => void controller.cancelUnlock()}
-        onLock={() => void controller.lock('explicit')}
+        onCancelUnlock={() => {
+          void controller.cancelUnlock();
+          setUnlockOpen(false);
+        }}
+        onLock={() => void onLock()}
         onUnlockPassphrase={async (passphrase) => {
           const res = await controller.unlockWithPassphrase(passphrase);
           if (res.ok) setUnlockOpen(false);

@@ -23,7 +23,23 @@ export type VaultFailureReason =
   | 'device_revoked'
   | 'stale_operation'
   | 'account_changed'
-  | 'locked_during_operation';
+  | 'locked_during_operation'
+  | 'cooldown_active'
+  | 'admission_denied';
+
+export type UnlockAdmissionDenial =
+  | 'cooldown_active'
+  | 'revoked'
+  | 'unavailable'
+  | 'method_not_allowed'
+  | 'already_pending'
+  | 'already_unlocked';
+
+export interface UnlockAdmissionResult {
+  admit: boolean;
+  reason?: UnlockAdmissionDenial;
+  message?: string;
+}
 
 export interface VaultRetryPolicy {
   /** Max consecutive failed passphrase/recovery attempts before cooldown. */
@@ -170,6 +186,59 @@ export function assertNotSolePinSecret(method: VaultUnlockMethod): void {
   }
 }
 
+/** Explicit unlock admission — controllers must call this before invoking key providers. */
+export function admitUnlockAttempt(
+  session: VaultSessionSnapshot,
+  method: VaultUnlockMethod,
+  at: string
+): UnlockAdmissionResult {
+  if (session.state === 'revoked') {
+    return { admit: false, reason: 'revoked', message: 'Device enrollment revoked.' };
+  }
+  if (session.state === 'unavailable') {
+    return { admit: false, reason: 'unavailable', message: 'Vault provider unavailable.' };
+  }
+  if (session.state === 'unlock_pending') {
+    return { admit: false, reason: 'already_pending', message: 'An unlock operation is already pending.' };
+  }
+  if (session.state === 'unlocked') {
+    return { admit: false, reason: 'already_unlocked', message: 'Vault is already unlocked.' };
+  }
+  if (session.cooldownUntil && Date.parse(at) < Date.parse(session.cooldownUntil)) {
+    return {
+      admit: false,
+      reason: 'cooldown_active',
+      message: 'Unlock attempts are in cooldown. Recoverable vault data was not deleted.',
+    };
+  }
+  if (!isUnlockMethodProductionAllowed(method) && !session.syntheticHarnessActive) {
+    return {
+      admit: false,
+      reason: 'method_not_allowed',
+      message: 'Unlock method is not permitted for production vault sessions.',
+    };
+  }
+  return { admit: true };
+}
+
+/** Completion may apply only to the exact pending operation in unlock_pending. */
+export function canAcceptUnlockCompletion(
+  session: VaultSessionSnapshot,
+  opts: {
+    operationId: string;
+    generationAtStart: number;
+    accountId: string | null;
+    workspaceId: string | null;
+  }
+): boolean {
+  if (session.state !== 'unlock_pending') return false;
+  if (session.pendingOperationId !== opts.operationId) return false;
+  if (session.generation !== opts.generationAtStart) return false;
+  if (session.accountId !== opts.accountId) return false;
+  if (session.workspaceId !== opts.workspaceId) return false;
+  return true;
+}
+
 export function reduceVaultSession(
   session: VaultSessionSnapshot,
   event: VaultLifecycleEvent,
@@ -187,12 +256,13 @@ export function reduceVaultSession(
       return toLocked(session, { state: 'unavailable' });
 
     case 'unlock_started': {
-      if (session.state === 'revoked') return session;
-      if (session.cooldownUntil && Date.parse(event.at) < Date.parse(session.cooldownUntil)) {
+      const admission = admitUnlockAttempt(session, event.method, event.at);
+      if (!admission.admit) {
+        if (admission.reason === 'method_not_allowed') {
+          return { ...session, state: 'unavailable' };
+        }
+        // Cooldown / already pending / revoked: leave session unchanged (no pending op).
         return session;
-      }
-      if (!isUnlockMethodProductionAllowed(event.method) && !session.syntheticHarnessActive) {
-        return { ...session, state: 'unavailable' };
       }
       return {
         ...session,
@@ -202,14 +272,17 @@ export function reduceVaultSession(
     }
 
     case 'unlock_succeeded': {
-      if (event.generationAtStart !== session.generation) {
-        // Stale unlock after lock / account change / newer generation.
-        return session.state === 'unlocked' ? session : toLocked(session);
+      if (
+        !canAcceptUnlockCompletion(session, {
+          operationId: event.operationId,
+          generationAtStart: event.generationAtStart,
+          accountId: session.accountId,
+          workspaceId: session.workspaceId,
+        })
+      ) {
+        // Stale or non-pending success must not open the vault.
+        return session.state === 'unlocked' ? session : session;
       }
-      if (session.pendingOperationId && session.pendingOperationId !== event.operationId) {
-        return session;
-      }
-      if (session.state === 'revoked') return session;
       return {
         ...session,
         state: 'unlocked',
@@ -223,7 +296,14 @@ export function reduceVaultSession(
     }
 
     case 'unlock_failed': {
-      if (event.generationAtStart !== session.generation) {
+      if (
+        !canAcceptUnlockCompletion(session, {
+          operationId: event.operationId,
+          generationAtStart: event.generationAtStart,
+          accountId: session.accountId,
+          workspaceId: session.workspaceId,
+        })
+      ) {
         return session;
       }
       if (event.reason === 'device_revoked') {
@@ -238,7 +318,7 @@ export function reduceVaultSession(
       if (event.reason === 'provider_unavailable') {
         return toLocked(session, { state: 'unavailable' });
       }
-      if (event.reason === 'wrong_credentials') {
+      if (event.reason === 'wrong_credentials' || event.reason === 'rate_limited') {
         const failedAttempts = session.failedAttempts + 1;
         const cooldownUntil =
           failedAttempts >= policy.maxFailedAttempts
@@ -250,12 +330,21 @@ export function reduceVaultSession(
           cooldownUntil,
         };
       }
-      // cancelled / stale / locked_during_operation — return locked without destroying data
+      // cancelled / stale / locked_during_operation / cooldown — lock without destroying data
       return toLocked(session, { failedAttempts: session.failedAttempts });
     }
 
     case 'unlock_cancelled': {
-      if (event.generationAtStart !== session.generation) return session;
+      if (
+        !canAcceptUnlockCompletion(session, {
+          operationId: event.operationId,
+          generationAtStart: event.generationAtStart,
+          accountId: session.accountId,
+          workspaceId: session.workspaceId,
+        })
+      ) {
+        return session;
+      }
       return toLocked(session, { failedAttempts: session.failedAttempts });
     }
 

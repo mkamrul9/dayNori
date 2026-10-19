@@ -116,3 +116,25 @@ export async function clearClipboardIfControllable(
     return { cleared: false, note: 'Clipboard clear failed; treat as uncleared.' };
   }
 }
+
+/**
+ * Resolve an actual clipboard clear adapter when the optional native module is linked.
+ * Calling clearClipboardIfControllable without an adapter does not establish clearing.
+ */
+export async function tryLoadClipboardClearAdapter(): Promise<
+  ((value: string) => Promise<void>) | null
+> {
+  try {
+    // Optional dependency — unavailable environments return null.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('expo-clipboard') as {
+      setStringAsync?: (value: string) => Promise<void>;
+    };
+    if (typeof mod.setStringAsync === 'function') {
+      return (value: string) => mod.setStringAsync!(value);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

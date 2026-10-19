@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 46 — Unlock admission and immediate lock cleanup repair (blocked / provisional) — 2026-10-19
+
+- Reject unlock attempts during cooldown (and other disallowed states) before invoking key providers; require exact pending operation/generation/account binding on completion.
+- Lock immediately (invalidate pending ops, detach key handle, close protected navigation) then clean up asynchronously; cleanup failures keep the session locked with a redacted diagnostic.
+- Host fixes: stale list/detail races, idle lock scheduling, account/workspace change wiring, clipboard adapter honesty, `__DEV__`-only harness entry.
+- Moved session controller + provider contracts into `@daynori/domain` for reuse by Phase 47 without importing mobile modules.
+- Tests: `tests/security/phase46-vault-lifecycle.test.ts` (23 tests). Status remains `blocked`.
+
 ## Phase 46 — Android vault unlock lifecycle harness (blocked / provisional) — 2026-10-19
 
 - Added domain vault lifecycle reducer, production-unavailable providers, and labeled synthetic harness providers (no silent mock fallback).

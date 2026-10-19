@@ -811,14 +811,18 @@ export default function App() {
             onToggleExpensesEnabled={handleToggleExpensesEnabled}
             onOpenExpenses={() => setActiveModal('expenses')}
             onOpenCustomSections={() => setActiveModal('custom-sections')}
-            onOpenVaultHarness={() => setActiveModal('vault-harness')}
+            onOpenVaultHarness={
+              typeof __DEV__ !== 'undefined' && __DEV__
+                ? () => setActiveModal('vault-harness')
+                : undefined
+            }
             onClose={() => setActiveModal('none')}
           />
         </View>
       )}
 
-      {/* Phase 46 synthetic vault harness — production vault remains disabled */}
-      {activeModal === 'vault-harness' && (
+      {/* Phase 46 synthetic vault harness — development only; unavailable in release */}
+      {typeof __DEV__ !== 'undefined' && __DEV__ && activeModal === 'vault-harness' && (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
         >

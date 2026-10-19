@@ -61,15 +61,33 @@ export const MobileVaultUnlockSheet: React.FC<MobileVaultUnlockSheetProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const clearSecrets = () => {
+    setPassphrase('');
+    setRecovery('');
+  };
+
   useEffect(() => {
     if (!visible) {
-      setPassphrase('');
-      setRecovery('');
+      clearSecrets();
       setError(null);
       setBusy(false);
       setMode('passphrase');
     }
   }, [visible]);
+
+  // Clear form secrets on lock, dismissal path, cancellation, or completed unlock.
+  useEffect(() => {
+    if (
+      session.state === 'locked' ||
+      session.state === 'unlocked' ||
+      session.state === 'unavailable' ||
+      session.state === 'revoked' ||
+      session.state === 'session_expired'
+    ) {
+      clearSecrets();
+      setBusy(false);
+    }
+  }, [session.state]);
 
   if (!visible) return null;
 
@@ -81,9 +99,11 @@ export const MobileVaultUnlockSheet: React.FC<MobileVaultUnlockSheetProps> = ({
     setError(null);
     try {
       const res = await fn();
+      clearSecrets();
       if (!res.ok) setError(res.message || 'Unlock failed.');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch {
+      clearSecrets();
+      setError('Unlock failed.');
     } finally {
       setBusy(false);
     }

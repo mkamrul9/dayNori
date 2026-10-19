@@ -18,4 +18,6 @@ export * from './expenses.js';
 export * from './audio.js';
 export * from './customSections.js';
 export * from './vaultLifecycle.js';
+export * from './vaultProviders.js';
+export * from './vaultSessionController.js';
 
