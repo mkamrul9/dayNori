@@ -242,4 +242,55 @@ describe('UI Mobile Primitives', () => {
     expect(sheet.props.attachedItemTitle).toBe('Field Observations Note');
     expect(sheet.props.attachedItemType).toBe('note');
   });
+
+  it('instantiates MobileCustomSectionBuilderSheet with non-drag ordering and template props', async () => {
+    const { MobileCustomSectionBuilderSheet } = await import('./MobileCustomSectionBuilderSheet.js');
+
+    const sheet = React.createElement(MobileCustomSectionBuilderSheet, {
+      visible: true,
+      onClose: () => {},
+      workspaceId: 'ws-test',
+      onCreateSection: async () => {},
+    });
+
+    expect(sheet.type).toBe(MobileCustomSectionBuilderSheet);
+    expect(sheet.props.visible).toBe(true);
+    expect(sheet.props.workspaceId).toBe('ws-test');
+  });
+
+  it('instantiates MobileCustomSectionRenderer with collection blocks and records', async () => {
+    const { MobileCustomSectionRenderer } = await import('./MobileCustomSectionRenderer.js');
+
+    const renderer = React.createElement(MobileCustomSectionRenderer, {
+      section: {
+        id: 'sec-mob-1',
+        title: 'Mobile Reading List',
+        placement: 'dashboard',
+      },
+      blocks: [
+        {
+          id: 'col-mob-1',
+          type: 'field_collection',
+          title: 'Books',
+          fields: [
+            { id: 'title', label: 'Title', type: 'text', required: true },
+          ],
+        },
+      ],
+      records: [
+        {
+          id: 'rec-mob-1',
+          sectionId: 'sec-mob-1',
+          schemaVersion: 1,
+          values: { title: 'Site Reliability Engineering' },
+          createdAt: '2026-10-19T10:00:00Z',
+          updatedAt: '2026-10-19T10:00:00Z',
+        },
+      ],
+    });
+
+    expect(renderer.type).toBe(MobileCustomSectionRenderer);
+    expect(renderer.props.section.title).toBe('Mobile Reading List');
+    expect(renderer.props.records?.length).toBe(1);
+  });
 });

@@ -31,5 +31,8 @@ export * from './ExpenseBudgetView.js';
 export * from './AudioPlayerCard.js';
 export * from './AudioRecorderDialog.js';
 export * from './audioDraftStore.js';
+export * from './CustomSectionBuilderDialog.js';
+export * from './SchemaMigrationPreviewModal.js';
+export * from './CustomSectionRenderer.js';
 
 

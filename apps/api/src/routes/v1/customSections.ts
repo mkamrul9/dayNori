@@ -5,6 +5,8 @@ import {
   CreateCustomSectionRecordRequestSchema,
   CreateCustomSectionRequestSchema,
   CreateCustomSectionSchemaRequestSchema,
+  CreateCustomSectionTemplateRequestSchema,
+  PreviewSchemaMigrationRequestSchema,
   QueryExistingRecordViewRequestSchema,
   UpdateCustomSectionRecordRequestSchema,
   UpdateCustomSectionRequestSchema,
@@ -15,18 +17,24 @@ import {
   createCustomSection,
   createCustomSectionRecord,
   createCustomSectionSchema,
+  createCustomSectionTemplate,
   CustomSectionNotFoundError,
   CustomSectionRecordNotFoundError,
   CustomSectionRevisionConflictError,
   CustomSectionSchemaVersionNotFoundError,
+  CustomSectionTemplateNotFoundError,
   CustomSectionValidationError,
   deleteCustomSection,
   deleteCustomSectionRecord,
+  deleteCustomSectionTemplate,
   getCustomSection,
   getCustomSectionRecord,
   getCustomSectionSchemaVersion,
+  getCustomSectionTemplate,
   listCustomSectionRecords,
   listCustomSections,
+  listCustomSectionTemplates,
+  previewCustomSectionSchema,
   queryExistingRecordView,
   updateCustomSection,
   updateCustomSectionRecord,
@@ -35,7 +43,12 @@ import {
 export function registerCustomSectionRoutes(app: FastifyInstance, pool: Pool): void {
 
   function handleError(err: unknown, reply: FastifyReply) {
-    if (err instanceof CustomSectionNotFoundError || err instanceof CustomSectionRecordNotFoundError || err instanceof CustomSectionSchemaVersionNotFoundError) {
+    if (
+      err instanceof CustomSectionNotFoundError ||
+      err instanceof CustomSectionRecordNotFoundError ||
+      err instanceof CustomSectionSchemaVersionNotFoundError ||
+      err instanceof CustomSectionTemplateNotFoundError
+    ) {
       return reply.status(404).send({ error: { message: err.message, code: 'NOT_FOUND' } });
     }
     if (err instanceof CustomSectionRevisionConflictError) {
@@ -534,6 +547,179 @@ export function registerCustomSectionRoutes(app: FastifyInstance, pool: Pool): v
 
         return reply.status(200).send({
           data: items,
+          meta: {
+            requestId: request.id,
+            serverTime: new Date().toISOString(),
+          },
+        });
+      } catch (err: unknown) {
+        return handleError(err, reply);
+      }
+    }
+  );
+
+  // 14. Preview Custom Section Schema Evolution
+  app.post(
+    '/v1/workspaces/:workspaceId/custom-sections/:sectionId/schemas/preview',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId, sectionId } = WorkspaceParamsSchema.extend({
+        sectionId: z.string().uuid(),
+      }).parse(request.params);
+      const { blocks } = PreviewSchemaMigrationRequestSchema.parse(request.body);
+
+      try {
+        const preview = await withTenantContext(
+          pool,
+          { userId: actor.userId, workspaceId },
+          async (client) => {
+            return previewCustomSectionSchema(client, workspaceId, sectionId, blocks);
+          }
+        );
+
+        return reply.status(200).send({
+          data: preview,
+          meta: {
+            requestId: request.id,
+            serverTime: new Date().toISOString(),
+          },
+        });
+      } catch (err: unknown) {
+        return handleError(err, reply);
+      }
+    }
+  );
+
+  // 15. Create Custom Section Template
+  app.post(
+    '/v1/workspaces/:workspaceId/custom-section-templates',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+      const body = CreateCustomSectionTemplateRequestSchema.parse(request.body);
+
+      try {
+        const template = await withTenantContext(
+          pool,
+          { userId: actor.userId, workspaceId },
+          async (client) => {
+            return createCustomSectionTemplate(client, workspaceId, actor.userId, body);
+          }
+        );
+
+        return reply.status(201).send({
+          data: template,
+          meta: {
+            requestId: request.id,
+            serverTime: new Date().toISOString(),
+          },
+        });
+      } catch (err: unknown) {
+        return handleError(err, reply);
+      }
+    }
+  );
+
+  // 16. List Custom Section Templates
+  app.get(
+    '/v1/workspaces/:workspaceId/custom-section-templates',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+
+      try {
+        const templates = await withTenantContext(
+          pool,
+          { userId: actor.userId, workspaceId },
+          async (client) => {
+            return listCustomSectionTemplates(client, workspaceId);
+          }
+        );
+
+        return reply.status(200).send({
+          data: templates,
+          meta: {
+            requestId: request.id,
+            serverTime: new Date().toISOString(),
+          },
+        });
+      } catch (err: unknown) {
+        return handleError(err, reply);
+      }
+    }
+  );
+
+  // 17. Get Custom Section Template
+  app.get(
+    '/v1/workspaces/:workspaceId/custom-section-templates/:templateId',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId, templateId } = WorkspaceParamsSchema.extend({
+        templateId: z.string().uuid(),
+      }).parse(request.params);
+
+      try {
+        const template = await withTenantContext(
+          pool,
+          { userId: actor.userId, workspaceId },
+          async (client) => {
+            return getCustomSectionTemplate(client, workspaceId, templateId);
+          }
+        );
+
+        return reply.status(200).send({
+          data: template,
+          meta: {
+            requestId: request.id,
+            serverTime: new Date().toISOString(),
+          },
+        });
+      } catch (err: unknown) {
+        return handleError(err, reply);
+      }
+    }
+  );
+
+  // 18. Delete Custom Section Template
+  app.delete(
+    '/v1/workspaces/:workspaceId/custom-section-templates/:templateId',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({ error: { message: 'Authentication required' } });
+      }
+
+      const { workspaceId, templateId } = WorkspaceParamsSchema.extend({
+        templateId: z.string().uuid(),
+      }).parse(request.params);
+
+      try {
+        await withTenantContext(
+          pool,
+          { userId: actor.userId, workspaceId },
+          async (client) => {
+            return deleteCustomSectionTemplate(client, workspaceId, templateId);
+          }
+        );
+
+        return reply.status(200).send({
+          data: { success: true },
           meta: {
             requestId: request.id,
             serverTime: new Date().toISOString(),

@@ -1,5 +1,39 @@
 # Changelog
 
+## Phase 43 — Custom section builder and personal templates — 2026-10-19
+
+- **ADR 0042 Authored (`docs/decisions/0042-custom-section-builder-and-personal-templates.md`):**
+  - Documented builder dialogs, starter templates, personal template lifecycle (fork-on-use, zero private record leakage), schema evolution preview modal with plain-language impacts, canonical folder and collection scoping, accessible non-drag reordering, and read-only fallback rendering.
+- **Database Migrations (`infra/supabase/migrations/`):**
+  - Added `00045_custom_section_templates.sql` creating `app.custom_section_templates` with workspace-scoped RLS policies and indexes.
+  - Added `00046_custom_section_record_folder_and_collection.sql` introducing `folder_id` and `collection_id` to `app.custom_section_records` with composite indexing.
+- **Contracts & Schemas (`@daynori/contracts`):**
+  - Added schemas for `CustomSectionTemplateItem`, `CreateCustomSectionTemplateRequest`, `ListCustomSectionTemplatesResponse`, `PreviewSchemaMigrationRequest`, `FieldMigrationImpact`, and `SchemaMigrationPreviewResponse`.
+- **Pure Domain & Validation (`@daynori/domain`):**
+  - Implemented `generateSchemaMigrationPreview` computing plain-language impact breakdowns and archive explanations.
+  - Implemented `createSectionPayloadFromTemplate` with isolated instance IDs and fork behavior.
+  - Added approved starter templates: Reading List, Study Hub, Project Tracker, Equipment Log.
+  - Added 79 unit tests in `packages/domain/src/domain.test.ts`.
+- **API Services & Routes (`apps/api`):**
+  - Added personal template CRUD under `/v1/workspaces/:workspaceId/custom-section-templates`.
+  - Added schema migration preview under `/v1/workspaces/:workspaceId/custom-sections/:sectionId/schemas/preview`.
+  - Added `folder_id` and `collection_id` scoping to custom section record endpoints.
+- **API Client SDK (`@daynori/api-client`):**
+  - Added `previewCustomSectionSchema`, `createCustomSectionTemplate`, `listCustomSectionTemplates`, `getCustomSectionTemplate`, and `deleteCustomSectionTemplate` to `DaynoriApiClient`.
+- **UI Web Primitives (`@daynori/ui-web`):**
+  - Created `CustomSectionBuilderDialog` with starter template selection, personal templates, collection/existing-view/combined modes, accessible Move Up/Down field reordering, and folder selection.
+  - Created `SchemaMigrationPreviewModal` displaying record counts, affected fields, archive safety assurances, and explicit Proceed/Cancel actions.
+  - Created `CustomSectionRenderer` rendering collection tables/cards/lists, existing-record views, archive recovery modals, and unknown block fallbacks.
+  - Added 47 unit tests in `packages/ui-web/src/ui-web.test.ts`.
+- **UI Mobile Primitives (`@daynori/ui-mobile`):**
+  - Created `MobileCustomSectionBuilderSheet` with touch targets >= 48dp, screen-reader reordering, template picker, and field builder.
+  - Created `MobileCustomSectionRenderer` with design token compliance and fallback card rendering.
+  - Added 13 unit tests in `packages/ui-mobile/src/ui-mobile.test.ts`.
+- **Integration Test Suite (`tests/integration/phase43-custom-section-builder.test.ts`):**
+  - 16/16 tests passing across all 6 core user journeys: Reading List creation with folder placement, field reordering, personal template save and reuse without private data leakage, Study Hub combining Software files and tasks without source deletion, schema preview with repeated migration archive recovery, and unknown block fallback.
+- **Phase Status:**
+  - Implemented and verified as provisional local development under explicit owner authorization; external beta gates and deployment remain **BLOCKED**. Work stops before Phase 44.
+
 ## Phase 42 — Safe custom section schema and renderer contracts — 2026-10-19
 
 - **ADR 0041 Authored (`docs/decisions/0041-safe-custom-section-schema-and-renderer-contracts.md`):**

@@ -240,6 +240,9 @@ import {
   CustomSectionRecordResponseSchema,
   ListCustomSectionRecordsResponseSchema,
   QueryExistingRecordViewResponseSchema,
+  CustomSectionTemplateResponseSchema,
+  ListCustomSectionTemplatesResponseSchema,
+  SchemaMigrationPreviewResponseSchema,
   type CreateCustomSectionRequest,
   type UpdateCustomSectionRequest,
   type CreateCustomSectionSchemaRequest,
@@ -252,6 +255,11 @@ import {
   type CustomSectionSchemaResponse,
   type CustomSectionRecordResponse,
   type ListCustomSectionRecordsResponse,
+  type CreateCustomSectionTemplateRequest,
+  type CustomSectionTemplateResponse,
+  type ListCustomSectionTemplatesResponse,
+  type PreviewSchemaMigrationRequest,
+  type SchemaMigrationPreviewResponse,
 } from '@daynori/contracts';
 import {
   ApiClientError,
@@ -2721,6 +2729,76 @@ export class DaynoriApiClient {
       options
     );
     return QueryExistingRecordViewResponseSchema.parse(raw);
+  }
+
+  async previewCustomSectionSchema(
+    workspaceId: string,
+    sectionId: string,
+    payload: PreviewSchemaMigrationRequest,
+    options?: RequestOptions
+  ): Promise<SchemaMigrationPreviewResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-sections/${sectionId}/schemas/preview`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return SchemaMigrationPreviewResponseSchema.parse(raw);
+  }
+
+  async createCustomSectionTemplate(
+    workspaceId: string,
+    payload: CreateCustomSectionTemplateRequest,
+    options?: RequestOptions
+  ): Promise<CustomSectionTemplateResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-section-templates`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      options
+    );
+    return CustomSectionTemplateResponseSchema.parse(raw);
+  }
+
+  async listCustomSectionTemplates(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<ListCustomSectionTemplatesResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-section-templates`,
+      { method: 'GET' },
+      options
+    );
+    return ListCustomSectionTemplatesResponseSchema.parse(raw);
+  }
+
+  async getCustomSectionTemplate(
+    workspaceId: string,
+    templateId: string,
+    options?: RequestOptions
+  ): Promise<CustomSectionTemplateResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/custom-section-templates/${templateId}`,
+      { method: 'GET' },
+      options
+    );
+    return CustomSectionTemplateResponseSchema.parse(raw);
+  }
+
+  async deleteCustomSectionTemplate(
+    workspaceId: string,
+    templateId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { success: boolean }; meta: { requestId: string } }> {
+    return this.request<{ data: { success: boolean }; meta: { requestId: string } }>(
+      `/v1/workspaces/${workspaceId}/custom-section-templates/${templateId}`,
+      { method: 'DELETE' },
+      options
+    );
   }
 
   // --- Legacy Phase 01 compatibility ---

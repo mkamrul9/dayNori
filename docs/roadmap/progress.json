@@ -260,7 +260,9 @@
     },
     {
       "id": "43",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional custom section builder and personal templates delivered under owner authorization and verified across Web CustomSectionBuilderDialog, CustomSectionRenderer, SchemaMigrationPreviewModal, MobileCustomSectionBuilderSheet, MobileCustomSectionRenderer, starter/personal templates without private data leakage, schema migration preview with append-only archives preservation, canonical existing record views (tasks, notes, files in folders, routines, expenses respecting module availability) without duplicating source data, accessible non-drag reordering, read-only fallbacks for unsupported blocks, and 16 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, and store submission.",
+      "report": "docs/phase-reports/phase-43.md"
     },
     {
       "id": "44",

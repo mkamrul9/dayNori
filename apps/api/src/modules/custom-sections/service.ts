@@ -4,19 +4,26 @@ import {
   type CreateCustomSectionRecordRequest,
   type CreateCustomSectionRequest,
   type CreateCustomSectionSchemaRequest,
+  type CreateCustomSectionTemplateRequest,
+  type CustomBlockDefinition,
   type CustomSectionItem,
   type CustomSectionRecordItem,
   type CustomSectionSchemaPayload,
+  type CustomSectionTemplateItem,
   type ExistingRecordViewBlock,
   type ExistingRecordViewItemSummary,
   type QueryExistingRecordViewRequest,
+  type SchemaMigrationPreviewData,
   type UpdateCustomSectionRecordRequest,
   type UpdateCustomSectionRequest,
+  CustomSectionSchemaPayloadSchema,
   MAX_BLOCKS_PER_SECTION,
   MAX_FIELDS_PER_COLLECTION,
   MAX_RECORDS_PER_SECTION,
 } from '@daynori/contracts';
 import {
+  APPROVED_SECTION_TEMPLATES,
+  generateSchemaMigrationPreview,
   migrateRecordValues,
   validateRecordAgainstSchema,
 } from '@daynori/domain';
@@ -25,6 +32,13 @@ import {
   lockWorkspaceSyncState,
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
+
+export class CustomSectionTemplateNotFoundError extends Error {
+  constructor(message = 'Custom section template not found') {
+    super(message);
+    this.name = 'CustomSectionTemplateNotFoundError';
+  }
+}
 
 export class CustomSectionNotFoundError extends Error {
   constructor(message = 'Custom section not found') {
@@ -740,6 +754,8 @@ export async function createCustomSectionRecord(
       section_id,
       workspace_id,
       schema_version,
+      folder_id,
+      collection_id,
       field_values,
       archived_values,
       rank,
@@ -749,12 +765,14 @@ export async function createCustomSectionRecord(
       created_at,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, '{}'::jsonb, $5, $6, $6, 1, now(), now())
+    VALUES ($1, $2, $3, $4, $5, $6, '{}'::jsonb, $7, $8, $8, 1, now(), now())
     RETURNING
       id,
       section_id,
       workspace_id,
       schema_version,
+      folder_id,
+      collection_id,
       field_values,
       archived_values,
       rank,
@@ -768,6 +786,8 @@ export async function createCustomSectionRecord(
       sectionId,
       workspaceId,
       section.currentSchemaVersion,
+      data.folderId || null,
+      data.collectionId || null,
       JSON.stringify(sanitized),
       data.rank || '0|hzzzzz:',
       userId,
@@ -802,6 +822,8 @@ export async function createCustomSectionRecord(
     id: row.id,
     sectionId: row.section_id,
     workspaceId: row.workspace_id,
+    collectionId: row.collection_id ?? undefined,
+    folderId: row.folder_id ?? undefined,
     schemaVersion: row.schema_version,
     fieldValues: row.field_values,
     archivedValues: row.archived_values,
@@ -823,6 +845,7 @@ export async function listCustomSectionRecords(
   sectionId: string,
   options?: { limit?: number; cursor?: string }
 ): Promise<CustomSectionRecordItem[]> {
+  await getCustomSection(client, workspaceId, sectionId);
   const limit = Math.min(100, Math.max(1, options?.limit ?? 50));
 
   const res = await client.query(
@@ -832,6 +855,8 @@ export async function listCustomSectionRecords(
       section_id,
       workspace_id,
       schema_version,
+      folder_id,
+      collection_id,
       field_values,
       archived_values,
       rank,
@@ -852,6 +877,8 @@ export async function listCustomSectionRecords(
     id: row.id,
     sectionId: row.section_id,
     workspaceId: row.workspace_id,
+    collectionId: row.collection_id ?? undefined,
+    folderId: row.folder_id ?? undefined,
     schemaVersion: row.schema_version,
     fieldValues: row.field_values,
     archivedValues: row.archived_values,
@@ -880,6 +907,8 @@ export async function getCustomSectionRecord(
       section_id,
       workspace_id,
       schema_version,
+      folder_id,
+      collection_id,
       field_values,
       archived_values,
       rank,
@@ -905,6 +934,8 @@ export async function getCustomSectionRecord(
     id: row.id,
     sectionId: row.section_id,
     workspaceId: row.workspace_id,
+    collectionId: row.collection_id ?? undefined,
+    folderId: row.folder_id ?? undefined,
     schemaVersion: row.schema_version,
     fieldValues: row.field_values,
     archivedValues: row.archived_values,
@@ -1001,6 +1032,8 @@ export async function updateCustomSectionRecord(
     SET
       field_values = $1,
       rank = COALESCE($2, rank),
+      folder_id = CASE WHEN $9::text = '__CLEAR__' THEN NULL WHEN $9 IS NOT NULL THEN $9::uuid ELSE folder_id END,
+      collection_id = COALESCE($10, collection_id),
       revision = $3,
       updated_by = $4,
       updated_at = now()
@@ -1010,6 +1043,8 @@ export async function updateCustomSectionRecord(
       section_id,
       workspace_id,
       schema_version,
+      folder_id,
+      collection_id,
       field_values,
       archived_values,
       rank,
@@ -1028,6 +1063,8 @@ export async function updateCustomSectionRecord(
       sectionId,
       recordId,
       data.expectedRevision,
+      data.folderId === null ? '__CLEAR__' : (data.folderId || null),
+      data.collectionId || null,
     ]
   );
 
@@ -1062,6 +1099,8 @@ export async function updateCustomSectionRecord(
     id: row.id,
     sectionId: row.section_id,
     workspaceId: row.workspace_id,
+    collectionId: row.collection_id ?? undefined,
+    folderId: row.folder_id ?? undefined,
     schemaVersion: row.schema_version,
     fieldValues: row.field_values,
     archivedValues: row.archived_values,
@@ -1224,6 +1263,7 @@ export async function queryExistingRecordView(
         targetKind: 'task' as const,
         title: row.title,
         subtitle: `Status: ${row.status}${row.deadline_date ? ` • Due: ${row.deadline_date}` : ''}`,
+        status: row.status,
         updatedAt: row.updated_at.toISOString(),
         referenceUri: `item:${row.id}`,
       }));
@@ -1360,4 +1400,239 @@ export async function queryExistingRecordView(
     default:
       return [];
   }
+}
+
+/**
+ * Creates a personal custom section template.
+ */
+export async function createCustomSectionTemplate(
+  client: PoolClient,
+  workspaceId: string,
+  userId: string,
+  data: CreateCustomSectionTemplateRequest
+): Promise<CustomSectionTemplateItem> {
+  const schemaValidation = CustomSectionSchemaPayloadSchema.safeParse(data.schema);
+  if (!schemaValidation.success) {
+    throw new CustomSectionValidationError(
+      `Invalid template schema: ${schemaValidation.error.message}`
+    );
+  }
+
+  const res = await client.query<{
+    id: string;
+    workspace_id: string;
+    name: string;
+    description: string | null;
+    icon: string | null;
+    layout_mode: 'single_column' | 'two_column' | 'grid';
+    schema: CustomSectionSchemaPayload;
+    is_starter: boolean;
+    created_by: string;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `
+    INSERT INTO app.custom_section_templates (
+      workspace_id,
+      name,
+      description,
+      icon,
+      layout_mode,
+      schema,
+      is_starter,
+      created_by,
+      created_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, false, $7, now(), now())
+    RETURNING
+      id,
+      workspace_id,
+      name,
+      description,
+      icon,
+      layout_mode,
+      schema,
+      is_starter,
+      created_by,
+      created_at,
+      updated_at
+    `,
+    [
+      workspaceId,
+      data.name.trim(),
+      data.description?.trim() || null,
+      data.icon || null,
+      data.layoutMode || 'single_column',
+      JSON.stringify(data.schema),
+      userId,
+    ]
+  );
+
+  const row = res.rows[0];
+  if (!row) {
+    throw new Error('Failed to create custom section template');
+  }
+
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    name: row.name,
+    description: row.description,
+    icon: row.icon,
+    layoutMode: row.layout_mode,
+    schema: row.schema,
+    isStarter: row.is_starter,
+    createdBy: row.created_by,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+/**
+ * Lists custom section templates for a workspace, including approved starters and personal templates.
+ */
+export async function listCustomSectionTemplates(
+  client: PoolClient,
+  workspaceId: string
+): Promise<CustomSectionTemplateItem[]> {
+  const res = await client.query<{
+    id: string;
+    workspace_id: string;
+    name: string;
+    description: string | null;
+    icon: string | null;
+    layout_mode: 'single_column' | 'two_column' | 'grid';
+    schema: CustomSectionSchemaPayload;
+    is_starter: boolean;
+    created_by: string;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `
+    SELECT
+      id,
+      workspace_id,
+      name,
+      description,
+      icon,
+      layout_mode,
+      schema,
+      is_starter,
+      created_by,
+      created_at,
+      updated_at
+    FROM app.custom_section_templates
+    WHERE workspace_id = $1
+    ORDER BY created_at ASC
+    `,
+    [workspaceId]
+  );
+
+  const personalTemplates: CustomSectionTemplateItem[] = res.rows.map((row) => ({
+    id: row.id,
+    workspaceId: row.workspace_id,
+    name: row.name,
+    description: row.description,
+    icon: row.icon,
+    layoutMode: row.layout_mode,
+    schema: row.schema,
+    isStarter: row.is_starter,
+    createdBy: row.created_by,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  }));
+
+  // Standard approved starter templates
+  const starterTemplates: CustomSectionTemplateItem[] = [
+    {
+      id: '00000000-0000-0000-0000-000000000001',
+      workspaceId,
+      name: APPROVED_SECTION_TEMPLATES.READING_LIST.name,
+      description: APPROVED_SECTION_TEMPLATES.READING_LIST.description,
+      icon: '📚',
+      layoutMode: APPROVED_SECTION_TEMPLATES.READING_LIST.layoutMode,
+      schema: APPROVED_SECTION_TEMPLATES.READING_LIST.schema,
+      isStarter: true,
+      createdBy: '00000000-0000-0000-0000-000000000000',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000002',
+      workspaceId,
+      name: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.name,
+      description: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.description,
+      icon: '🎓',
+      layoutMode: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.layoutMode,
+      schema: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.schema,
+      isStarter: true,
+      createdBy: '00000000-0000-0000-0000-000000000000',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+  ];
+
+  return [...starterTemplates, ...personalTemplates];
+}
+
+/**
+ * Gets a single custom section template by ID.
+ */
+export async function getCustomSectionTemplate(
+  client: PoolClient,
+  workspaceId: string,
+  templateId: string
+): Promise<CustomSectionTemplateItem> {
+  const all = await listCustomSectionTemplates(client, workspaceId);
+  const found = all.find((t) => t.id === templateId);
+  if (!found) {
+    throw new CustomSectionTemplateNotFoundError(
+      `Custom section template ${templateId} not found`
+    );
+  }
+  return found;
+}
+
+/**
+ * Deletes a personal custom section template.
+ */
+export async function deleteCustomSectionTemplate(
+  client: PoolClient,
+  workspaceId: string,
+  templateId: string
+): Promise<void> {
+  const res = await client.query(
+    `DELETE FROM app.custom_section_templates WHERE workspace_id = $1 AND id = $2`,
+    [workspaceId, templateId]
+  );
+  if (res.rowCount === 0) {
+    throw new CustomSectionTemplateNotFoundError(
+      `Custom section template ${templateId} not found in this workspace`
+    );
+  }
+}
+
+/**
+ * Previews schema migration impact before publishing.
+ */
+export async function previewCustomSectionSchema(
+  client: PoolClient,
+  workspaceId: string,
+  sectionId: string,
+  proposedBlocks: CustomBlockDefinition[]
+): Promise<SchemaMigrationPreviewData> {
+  const section = await getCustomSection(client, workspaceId, sectionId);
+  if (!section.currentSchema) {
+    throw new CustomSectionValidationError('Section has no active schema to preview against');
+  }
+
+  // Count existing records affected
+  const countRes = await client.query<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM app.custom_section_records WHERE workspace_id = $1 AND section_id = $2 AND deleted_at IS NULL`,
+    [workspaceId, sectionId]
+  );
+  const count = Number(countRes.rows[0]?.count || 0);
+
+  return generateSchemaMigrationPreview(section.currentSchema, proposedBlocks, count);
 }

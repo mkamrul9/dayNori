@@ -25,4 +25,6 @@ export * from './MobileExpenseCaptureSheet.js';
 export * from './MobileExpenseReportView.js';
 export * from './MobileAudioPlayerCard.js';
 export * from './MobileAudioRecorderSheet.js';
+export * from './MobileCustomSectionBuilderSheet.js';
+export * from './MobileCustomSectionRenderer.js';
 

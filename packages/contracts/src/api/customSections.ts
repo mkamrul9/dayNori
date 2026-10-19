@@ -88,7 +88,7 @@ const BaseFieldDefinitionSchema = z.object({
       message: 'Field ID cannot be a reserved system identifier',
     }),
   label: z.string().min(1).max(100),
-  required: z.boolean().default(false),
+  required: z.boolean().default(false).optional(),
   description: z.string().max(250).optional(),
 });
 
@@ -325,6 +325,8 @@ export const CustomSectionRecordItemSchema = z.object({
 export type CustomSectionRecordItem = z.infer<typeof CustomSectionRecordItemSchema>;
 
 export const CreateCustomSectionRecordRequestSchema = z.object({
+  folderId: z.string().uuid().nullable().optional(),
+  collectionId: z.string().min(1).max(100).optional(),
   fieldValues: z.record(z.unknown()),
   rank: z.string().optional(),
 });
@@ -333,6 +335,8 @@ export type CreateCustomSectionRecordRequest = z.infer<
 >;
 
 export const UpdateCustomSectionRecordRequestSchema = z.object({
+  folderId: z.string().uuid().nullable().optional(),
+  collectionId: z.string().min(1).max(100).optional(),
   fieldValues: z.record(z.unknown()),
   rank: z.string().optional(),
   expectedRevision: z.number().int().positive(),
@@ -402,5 +406,97 @@ export const QueryExistingRecordViewResponseSchema = z.object({
 });
 export type QueryExistingRecordViewResponse = z.infer<
   typeof QueryExistingRecordViewResponseSchema
+>;
+
+// --- Phase 43: Personal Section Templates & Migration Preview ---
+
+export const CustomSectionTemplateItemSchema = z.object({
+  id: z.string().uuid(),
+  workspaceId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).nullable().optional(),
+  icon: z.string().max(50).nullable().optional(),
+  layoutMode: CustomSectionLayoutModeSchema,
+  schema: CustomSectionSchemaPayloadSchema,
+  isStarter: z.boolean().default(false),
+  createdBy: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type CustomSectionTemplateItem = z.infer<
+  typeof CustomSectionTemplateItemSchema
+>;
+
+export const CreateCustomSectionTemplateRequestSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  icon: z.string().max(50).optional(),
+  layoutMode: CustomSectionLayoutModeSchema.default('single_column').optional(),
+  schema: CustomSectionSchemaPayloadSchema,
+});
+export type CreateCustomSectionTemplateRequest = z.infer<
+  typeof CreateCustomSectionTemplateRequestSchema
+>;
+
+export const CustomSectionTemplateResponseSchema = z.object({
+  data: CustomSectionTemplateItemSchema,
+  meta: ResponseMetaSchema,
+});
+export type CustomSectionTemplateResponse = z.infer<
+  typeof CustomSectionTemplateResponseSchema
+>;
+
+export const ListCustomSectionTemplatesResponseSchema = z.object({
+  data: z.array(CustomSectionTemplateItemSchema),
+  meta: ResponseMetaSchema,
+});
+export type ListCustomSectionTemplatesResponse = z.infer<
+  typeof ListCustomSectionTemplatesResponseSchema
+>;
+
+export const PreviewSchemaMigrationRequestSchema = z.object({
+  blocks: z
+    .array(CustomBlockDefinitionSchema)
+    .min(1)
+    .max(MAX_BLOCKS_PER_SECTION),
+});
+export type PreviewSchemaMigrationRequest = z.infer<
+  typeof PreviewSchemaMigrationRequestSchema
+>;
+
+export const FieldMigrationImpactSchema = z.object({
+  fieldId: z.string(),
+  label: z.string(),
+  changeType: z.enum([
+    'unmodified',
+    'added',
+    'removed',
+    'type_changed',
+    'constraint_changed',
+  ]),
+  previousType: z.string().optional(),
+  newType: z.string().optional(),
+  description: z.string(),
+  archivedNotice: z.string().optional(),
+});
+export type FieldMigrationImpact = z.infer<typeof FieldMigrationImpactSchema>;
+
+export const SchemaMigrationPreviewDataSchema = z.object({
+  affectedFields: z.array(FieldMigrationImpactSchema),
+  affectedRecordCount: z.number().int().min(0),
+  hasIncompatibleChanges: z.boolean(),
+  canMigrateSafely: z.boolean(),
+  summary: z.string(),
+});
+export type SchemaMigrationPreviewData = z.infer<
+  typeof SchemaMigrationPreviewDataSchema
+>;
+
+export const SchemaMigrationPreviewResponseSchema = z.object({
+  data: SchemaMigrationPreviewDataSchema,
+  meta: ResponseMetaSchema,
+});
+export type SchemaMigrationPreviewResponse = z.infer<
+  typeof SchemaMigrationPreviewResponseSchema
 >;
 

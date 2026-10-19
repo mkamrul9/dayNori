@@ -675,7 +675,23 @@ export function isBlockSupported(block: unknown): block is CustomBlockDefinition
   }
 
   if (b.type === 'existing_record_view') {
-    const validKinds = ['note', 'task', 'routine', 'file', 'journal', 'expense_summary'];
+    const validKinds = [
+      'note',
+      'notes',
+      'task',
+      'tasks',
+      'routine',
+      'routines',
+      'file',
+      'files',
+      'journal',
+      'journals',
+      'journal_entry',
+      'journal_entries',
+      'expense_summary',
+      'expense',
+      'expenses',
+    ];
     if (typeof b.targetKind !== 'string' || !validKinds.includes(b.targetKind)) {
       return false;
     }
@@ -764,6 +780,7 @@ export const APPROVED_SECTION_TEMPLATES = {
               id: 'completed',
               label: 'Progress Checklist',
               type: 'checklist' as const,
+              required: false,
               maxEntries: 50,
             },
             {
@@ -776,6 +793,7 @@ export const APPROVED_SECTION_TEMPLATES = {
               id: 'rating',
               label: 'Rating (1-5)',
               type: 'number' as const,
+              required: false,
               min: 1,
               max: 5,
               precision: 0,
@@ -814,7 +832,7 @@ export const APPROVED_SECTION_TEMPLATES = {
           type: 'existing_record_view' as const,
           title: 'Upcoming Assignments',
           targetKind: 'task' as const,
-          filter: { status: 'active' },
+          filter: { status: 'active' as const },
           displayMode: 'card' as const,
           limit: 10,
           sortBy: 'deadline' as const,
@@ -824,3 +842,212 @@ export const APPROVED_SECTION_TEMPLATES = {
     },
   },
 };
+
+export const APPROVED_FIELD_TYPES: CustomFieldType[] = [
+  'text',
+  'checklist',
+  'date',
+  'number',
+  'link',
+  'attachment',
+];
+
+export interface CustomSectionStarterTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  icon?: string;
+  color?: string;
+  layoutMode: 'single_column' | 'two_column' | 'grid';
+  schema: CustomSectionSchemaPayload;
+}
+
+export const APPROVED_CUSTOM_SECTION_TEMPLATES: CustomSectionStarterTemplate[] = [
+  {
+    id: 'reading_list',
+    name: APPROVED_SECTION_TEMPLATES.READING_LIST.name,
+    description: APPROVED_SECTION_TEMPLATES.READING_LIST.description,
+    category: 'Productivity',
+    icon: 'book',
+    color: '#2563eb',
+    layoutMode: APPROVED_SECTION_TEMPLATES.READING_LIST.layoutMode,
+    schema: APPROVED_SECTION_TEMPLATES.READING_LIST.schema,
+  },
+  {
+    id: 'study_hub',
+    name: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.name,
+    description: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.description,
+    category: 'Education',
+    icon: 'academic-cap',
+    color: '#059669',
+    layoutMode: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.layoutMode,
+    schema: APPROVED_SECTION_TEMPLATES.STUDY_DASHBOARD.schema,
+  },
+];
+
+// --- Phase 43: Schema Migration Preview & Template Helpers ---
+
+export interface FieldMigrationImpact {
+  fieldId: string;
+  label: string;
+  changeType: 'unmodified' | 'added' | 'removed' | 'type_changed' | 'constraint_changed';
+  previousType?: string;
+  newType?: string;
+  description: string;
+  archivedNotice?: string;
+}
+
+export interface SchemaMigrationPreview {
+  affectedFields: FieldMigrationImpact[];
+  affectedRecordCount: number;
+  hasIncompatibleChanges: boolean;
+  canMigrateSafely: boolean;
+  summary: string;
+}
+
+/**
+ * Generates an impact analysis preview before publishing a schema evolution.
+ * Explains affected fields, record counts, and archived retention rules in plain language.
+ */
+export function generateSchemaMigrationPreview(
+  currentSchema: CustomSectionSchemaPayload,
+  proposedBlocks: CustomBlockDefinition[],
+  totalRecordsCount = 0
+): SchemaMigrationPreview {
+  const oldFieldMap = new Map<string, CustomFieldDefinition>();
+  for (const block of currentSchema.blocks) {
+    if (block.type === 'field_collection') {
+      for (const field of block.fields) {
+        oldFieldMap.set(field.id, field);
+      }
+    }
+  }
+
+  const newFieldMap = new Map<string, CustomFieldDefinition>();
+  for (const block of proposedBlocks) {
+    if (block.type === 'field_collection') {
+      for (const field of block.fields) {
+        newFieldMap.set(field.id, field);
+      }
+    }
+  }
+
+  const impacts: FieldMigrationImpact[] = [];
+  let hasIncompatibleChanges = false;
+  let removedCount = 0;
+  let typeChangedCount = 0;
+  let addedCount = 0;
+
+  // 1. Evaluate existing fields
+  for (const [fieldId, oldField] of oldFieldMap.entries()) {
+    const newField = newFieldMap.get(fieldId);
+
+    if (!newField) {
+      // Removed
+      hasIncompatibleChanges = true;
+      removedCount++;
+      impacts.push({
+        fieldId,
+        label: oldField.label,
+        changeType: 'removed',
+        previousType: oldField.type,
+        description: `Field "${oldField.label}" will be removed.`,
+        archivedNotice: `All historical entries for "${oldField.label}" will be preserved in archived values and can be recovered anytime.`,
+      });
+    } else if (oldField.type !== newField.type) {
+      // Type Changed
+      hasIncompatibleChanges = true;
+      typeChangedCount++;
+      impacts.push({
+        fieldId,
+        label: newField.label,
+        changeType: 'type_changed',
+        previousType: oldField.type,
+        newType: newField.type,
+        description: `Field "${newField.label}" type changes from ${oldField.type} to ${newField.type}.`,
+        archivedNotice: `Prior ${oldField.type} values will be archived safely. Conforming values will be migrated automatically.`,
+      });
+    } else if (
+      oldField.required !== newField.required ||
+      ('pattern' in oldField && 'pattern' in newField && oldField.pattern !== newField.pattern)
+    ) {
+      // Constraints changed
+      impacts.push({
+        fieldId,
+        label: newField.label,
+        changeType: 'constraint_changed',
+        previousType: oldField.type,
+        newType: newField.type,
+        description: `Validation rules updated for "${newField.label}".`,
+      });
+    } else {
+      impacts.push({
+        fieldId,
+        label: newField.label,
+        changeType: 'unmodified',
+        description: `Field "${newField.label}" remains unchanged.`,
+      });
+    }
+  }
+
+  // 2. Identify new fields
+  for (const [fieldId, newField] of newFieldMap.entries()) {
+    if (!oldFieldMap.has(fieldId)) {
+      addedCount++;
+      impacts.push({
+        fieldId,
+        label: newField.label,
+        changeType: 'added',
+        newType: newField.type,
+        description: `New ${newField.type} field "${newField.label}" added.`,
+      });
+    }
+  }
+
+  // Generate plain-language summary
+  const summaryParts: string[] = [];
+  if (addedCount > 0) summaryParts.push(`${addedCount} field(s) added`);
+  if (removedCount > 0) summaryParts.push(`${removedCount} field(s) removed`);
+  if (typeChangedCount > 0) summaryParts.push(`${typeChangedCount} field type(s) updated`);
+  if (summaryParts.length === 0) summaryParts.push('No field additions or removals');
+
+  const recordNotice =
+    totalRecordsCount > 0
+      ? ` Affects ${totalRecordsCount} existing record(s).`
+      : ' No records currently exist in this section.';
+
+  return {
+    affectedFields: impacts,
+    affectedRecordCount: totalRecordsCount,
+    hasIncompatibleChanges,
+    canMigrateSafely: true, // Daynori append-only archives guarantee no data loss
+    summary: summaryParts.join(', ') + '.' + recordNotice,
+  };
+}
+
+/**
+ * Creates an independent section configuration from a template.
+ * Guarantees zero leakage of private user records and ensures independent version 1 evolution.
+ */
+export function createSectionPayloadFromTemplate(
+  template: {
+    name: string;
+    description?: string | null;
+    icon?: string | null;
+    layoutMode: 'single_column' | 'two_column' | 'grid';
+    schema: CustomSectionSchemaPayload;
+  },
+  customName?: string
+) {
+  return {
+    name: customName || template.name,
+    description: template.description || undefined,
+    icon: template.icon || undefined,
+    layoutMode: template.layoutMode,
+    initialSchema: {
+      version: 1,
+      blocks: JSON.parse(JSON.stringify(template.schema.blocks)),
+    },
+  };
+}

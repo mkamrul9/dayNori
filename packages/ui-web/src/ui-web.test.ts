@@ -894,4 +894,144 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).not.toContain('RECORDING ACTIVE');
     });
   });
+
+  describe('Phase 43: Custom Section Builder and Renderer Primitives', () => {
+    it('renders CustomSectionBuilderDialog with template options, non-drag ordering, and accessible inputs', async () => {
+      const { CustomSectionBuilderDialog } = await import('./CustomSectionBuilderDialog.js');
+
+      const html = renderToString(
+        React.createElement(CustomSectionBuilderDialog, {
+          isOpen: true,
+          onClose: () => {},
+          workspaceId: 'ws-test',
+          onCreateSection: async () => {},
+        })
+      );
+
+      expect(html).toContain('Create Custom Section');
+      expect(html).toContain('Choose Starter Template');
+      expect(html).toContain('Reading List');
+      expect(html).toContain('Section Name');
+      expect(html).toContain('Structured Collection');
+      expect(html).toContain('Existing Items View');
+    });
+
+    it('renders SchemaMigrationPreviewModal with plain language impact and archive retention explanation', async () => {
+      const { SchemaMigrationPreviewModal } = await import('./SchemaMigrationPreviewModal.js');
+
+      const html = renderToString(
+        React.createElement(SchemaMigrationPreviewModal, {
+          isOpen: true,
+          onClose: () => {},
+          preview: {
+            affectedFields: [
+              {
+                fieldId: 'rating',
+                label: 'Rating',
+                changeType: 'type_changed',
+                previousType: 'number',
+                newType: 'text',
+                description: 'Field "Rating" type changes from number to text.',
+                archivedNotice: 'Prior number values will be archived safely.',
+              },
+            ],
+            affectedRecordCount: 5,
+            hasIncompatibleChanges: true,
+            canMigrateSafely: true,
+            summary: '1 field type changed. 5 existing record(s) will be migrated to the new schema.',
+          },
+          onConfirmMigration: async () => {},
+        })
+      );
+
+      expect(html).toContain('Review Schema Changes');
+      expect(html).toContain('5');
+      expect(html).toContain('safely preserved in append-only versioned archives');
+      expect(html).toContain('Field Changes');
+      expect(html).toContain('Rating');
+      expect(html).toContain('Cancel (Keep Current)');
+      expect(html).toContain('Apply Migration');
+    });
+
+    it('renders CustomSectionRenderer with collection records, archived value tags, and existing views', async () => {
+      const { CustomSectionRenderer } = await import('./CustomSectionRenderer.js');
+
+      const html = renderToString(
+        React.createElement(CustomSectionRenderer, {
+          section: {
+            id: 'sec-1',
+            title: 'My Custom Reading List',
+            description: 'Weekly book tracking',
+            placement: 'dashboard',
+          },
+          blocks: [
+            {
+              id: 'col-1',
+              type: 'field_collection',
+              title: 'Reading Entries',
+              fields: [
+                { id: 'title', label: 'Book Title', type: 'text', required: true },
+                { id: 'rating', label: 'Rating', type: 'number' },
+              ],
+            },
+            {
+              id: 'view-1',
+              type: 'existing_record_view',
+              title: 'Related Tasks',
+              targetKind: 'tasks',
+            },
+            {
+              id: 'future-1',
+              type: 'ai_smart_summary',
+              title: 'AI Smart Summary (Future Block)',
+            },
+          ],
+          records: [
+            {
+              id: 'rec-1',
+              sectionId: 'sec-1',
+              schemaVersion: 2,
+              values: { title: 'Designing Data-Intensive Applications', rating: 5 },
+              archivedValues: {
+                rating: [
+                  {
+                    archiveId: 'arch-1',
+                    fieldId: 'rating',
+                    fromSchemaVersion: 1,
+                    toSchemaVersion: 2,
+                    value: 'Five stars',
+                    archivedAt: '2026-10-19T10:00:00Z',
+                  },
+                ],
+              },
+              createdAt: '2026-10-19T09:00:00Z',
+              updatedAt: '2026-10-19T10:00:00Z',
+            },
+          ],
+          existingRecordViewsData: {
+            'view-1': [
+              {
+                id: 'task-1',
+                targetKind: 'task',
+                title: 'Finish Chapter 4 Notes',
+                status: 'active',
+                updatedAt: '2026-10-19T11:00:00Z',
+                referenceUri: 'daynori://workspaces/ws-1/tasks/task-1',
+              },
+            ],
+          },
+        })
+      );
+
+      expect(html).toContain('My Custom Reading List');
+      expect(html).toContain('Weekly book tracking');
+      expect(html).toContain('archived');
+      expect(html).toContain('title="1 historical value(s) preserved in archive"');
+      expect(html).toContain('Related Tasks');
+      expect(html).toContain('Finish Chapter 4 Notes');
+      // Read-only fallback for unknown future block
+      expect(html).toContain('Read-Only');
+      expect(html).toContain('Data is preserved safely');
+    });
+  });
 });
