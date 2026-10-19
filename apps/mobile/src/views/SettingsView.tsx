@@ -30,6 +30,7 @@ export interface SettingsViewProps {
   expensesEnabled?: boolean;
   onToggleExpensesEnabled?: (enabled: boolean) => void;
   onOpenExpenses?: () => void;
+  onOpenCustomSections?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -58,6 +59,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   expensesEnabled = false,
   onToggleExpensesEnabled,
   onOpenExpenses,
+  onOpenCustomSections,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -521,6 +523,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 💳 Open Expense Tracker &rarr;
               </MobileButton>
             </View>
+          )}
+        </MobileCard>
+      </View>
+
+      {/* Section 5e: Custom Sections (Phase 43) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Custom Sections
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Create flexible structured workspaces, reading lists, study hubs, and view blocks.
+          </Text>
+          {onOpenCustomSections && (
+            <MobileButton
+              testID="btn-open-custom-sections"
+              variant="primary"
+              themeMode={themeMode}
+              onPress={onOpenCustomSections}
+              accessibilityLabel="Open Custom Sections"
+            >
+              📑 Open Custom Sections &rarr;
+            </MobileButton>
           )}
         </MobileCard>
       </View>

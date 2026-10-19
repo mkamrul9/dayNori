@@ -135,6 +135,7 @@ export interface FieldCollectionBlock {
   defaultViewMode?: 'table' | 'cards' | 'list';
 }
 
+export type CustomCollectionBlockDefinition = FieldCollectionBlock;
 export type CustomBlockDefinition = ExistingRecordViewBlock | FieldCollectionBlock;
 
 export interface CustomSectionSchemaPayload {

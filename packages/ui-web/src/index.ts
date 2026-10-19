@@ -34,5 +34,6 @@ export * from './audioDraftStore.js';
 export * from './CustomSectionBuilderDialog.js';
 export * from './SchemaMigrationPreviewModal.js';
 export * from './CustomSectionRenderer.js';
+export * from './CustomSectionEntryDialog.js';
 
 

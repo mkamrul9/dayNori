@@ -71,16 +71,19 @@ Group: Personal extensions. Status is tracked in [progress.json](../roadmap/prog
 | **Git Diff Validation** | `git diff --check` | Clean diff with zero whitespace or line-break errors. | **PASS** |
 | **Secrets Audit** | `pnpm audit:secrets` | 1910 files scanned with zero unapproved secrets. | **PASS** |
 
-## Defects, limitations, and recovery
+## Phase 42/43 Defect Repairs & Application Integration
 
-### Release Gate Status: BLOCKED
-
-Phase 43 custom section builder and personal templates are fully implemented and verified in provisional local development. However, per project rules (`AGENTS.md`) and roadmap specifications:
-- Phase 43 depends on Phase 42, 41, and 30, and inherits blocked status from prerequisite Phase 37 (Core quality release gate) and Phase 38 (Controlled private beta).
-- External beta deployment, tester invitations, store submission, paid cloud infrastructure, and device-level TalkBack hardware verification remain blocked.
-- Custom sections compose approved declarative block types only; user-supplied scripts and arbitrary SQL are strictly prohibited.
-- Status is recorded as `blocked` (provisional local development). Work stops before Phase 44 (Encrypted item vault).
+Prior to performing Phase 44, the following defects and integration gaps were repaired and verified:
+1. **Canonical `app.items` Identity:** Created migration `00047_custom_record_items_and_attachments.sql` adding `'custom_record'` to `app.items.kind` CHECK constraint, backfilling canonical `app.items` entries for custom records, and foreign-key linking `custom_section_records.item_id`.
+2. **Real Attachment Linking & Reconciliation:** Aligned `validateAndLinkReferences` to use real `app.item_attachments` columns (`attachment_type`, `file_name`, `mime_type`, `byte_size`, `created_by`, `item_id`). Implemented reconciliation on record update and delete without leaving orphaned records or deleting shared files.
+3. **Tenant & Security Scope Validation:** Validated `folderId` strictly against the active workspace, active folder status, and `security_scope = 'standard'`. Validated `collectionId` strictly against active schema collections. Renderers filter records strictly by collection to prevent unscoped cross-collection record leakage.
+4. **Existing Record View Expenses Hardening:** Enforced explicit user opt-in (`expensesEnabled === true`), exact integer BigInt arithmetic for refund subtraction, formatting via `formatMinorUnitsToDecimal`, and valid v4 UUID summary IDs matching the contract schema.
+5. **Reachable Application Integration:**
+   - Web: Added `/custom-sections` page (`apps/web/src/app/custom-sections/page.tsx`) and sidebar navigation link wiring builder dialog, entry dialog, renderer, and migration preview modal.
+   - Mobile: Added `CustomSectionsView` (`apps/mobile/src/views/CustomSectionsView.tsx`), wired into `SettingsView` and `App.tsx` (`activeModal = 'custom-sections'`).
+   - Platform Field Editors: Implemented `CustomSectionEntryDialog` (web) and `MobileCustomSectionEntrySheet` (mobile) for structured fields, folder placement, safe links, checklists, and attachments.
+   - Verified Reading List and Study journeys through end-to-end integration tests and application callers.
 
 ## Commit target
 
-`feat(customization): add guided section and template creation`
+Prerequisite repairs: `fix(customization): repair attachment linking, expense summaries, and application integration`

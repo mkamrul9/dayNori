@@ -60,6 +60,7 @@ import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
 import { OnboardingSheet } from './src/views/OnboardingSheet';
 import { ExpensesView } from './src/views/ExpensesView';
+import { CustomSectionsView } from './src/views/CustomSectionsView';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -804,6 +805,7 @@ export default function App() {
             expensesEnabled={expensesEnabled}
             onToggleExpensesEnabled={handleToggleExpensesEnabled}
             onOpenExpenses={() => setActiveModal('expenses')}
+            onOpenCustomSections={() => setActiveModal('custom-sections')}
             onClose={() => setActiveModal('none')}
           />
         </View>
@@ -832,6 +834,20 @@ export default function App() {
             workspaceId={userNamespace?.workspaceId ?? null}
             apiClient={apiClient ?? undefined}
             isOnline={isOnline}
+            onClose={() => setActiveModal('none')}
+          />
+        </View>
+      )}
+
+      {/* Custom Sections Modal (Phase 43) */}
+      {activeModal === 'custom-sections' && (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 103 }]}
+        >
+          <CustomSectionsView
+            themeMode={themeMode}
+            workspaceId={userNamespace?.workspaceId ?? ''}
+            apiClient={apiClient}
             onClose={() => setActiveModal('none')}
           />
         </View>

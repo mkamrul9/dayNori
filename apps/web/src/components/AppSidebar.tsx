@@ -22,6 +22,7 @@ export const AppSidebar: React.FC = () => {
     },
     { href: '/library', label: 'Library', icon: '📚', shortcut: 'L' },
     { href: '/journal', label: 'Journal', icon: '📖', shortcut: 'J' },
+    { href: '/custom-sections', label: 'Custom Sections', icon: '📑', shortcut: 'C' },
   ];
 
   const secondaryItems = [

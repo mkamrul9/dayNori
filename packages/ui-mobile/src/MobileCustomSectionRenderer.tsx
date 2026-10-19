@@ -15,7 +15,8 @@ import { MobileTypeBadge } from './MobileTypeBadge.js';
 export interface MobileCustomSectionRendererProps {
   section: {
     id: string;
-    title: string;
+    title?: string;
+    name?: string;
     description?: string;
     icon?: string;
     color?: string;
@@ -27,10 +28,13 @@ export interface MobileCustomSectionRendererProps {
     sectionId: string;
     schemaVersion: number;
     collectionBlockId?: string;
-    values: Record<string, unknown>;
+    collectionId?: string;
+    values?: Record<string, unknown>;
+    fieldValues?: Record<string, unknown>;
     archivedValues?: Record<string, unknown>;
     createdAt: string;
     updatedAt: string;
+    [key: string]: unknown;
   }>;
   existingRecordViewsData?: Record<string, ExistingRecordViewItemSummary[]>;
   themeMode?: ThemeMode;
@@ -38,7 +42,8 @@ export interface MobileCustomSectionRendererProps {
   onOpenSourceItem?: (itemId: string, targetKind: string) => void;
   onEditEntry?: (record: {
     id: string;
-    values: Record<string, unknown>;
+    values?: Record<string, unknown>;
+    fieldValues?: Record<string, unknown>;
     [key: string]: unknown;
   }) => void;
 }
@@ -54,6 +59,7 @@ export const MobileCustomSectionRenderer: React.FC<MobileCustomSectionRendererPr
   onEditEntry,
 }) => {
   const palette = colors[themeMode];
+  const sectionTitle = section.name || section.title || 'Untitled Section';
 
   return (
     <View style={{ gap: spacing.md, padding: spacing.md }}>
@@ -66,7 +72,7 @@ export const MobileCustomSectionRenderer: React.FC<MobileCustomSectionRendererPr
         }}
       >
         <Text style={{ fontSize: 18, fontWeight: '700', color: palette.text.primary }}>
-          {section.title}
+          {sectionTitle}
         </Text>
         {section.description && (
           <Text style={{ fontSize: 13, color: palette.text.secondary, marginTop: 2 }}>
@@ -105,7 +111,7 @@ export const MobileCustomSectionRenderer: React.FC<MobileCustomSectionRendererPr
         if (block.type === 'field_collection') {
           const colBlock = block;
           const matching = records.filter(
-            (r) => !r.collectionBlockId || r.collectionBlockId === colBlock.id
+            (r) => (r.collectionId ?? r.collectionBlockId) === colBlock.id
           );
 
           return (
@@ -146,51 +152,54 @@ export const MobileCustomSectionRenderer: React.FC<MobileCustomSectionRendererPr
                   themeMode={themeMode}
                 />
               ) : (
-                matching.map((rec) => (
-                  <Pressable
-                    key={rec.id}
-                    onPress={() => onEditEntry?.(rec)}
-                    style={{
-                      padding: spacing.sm,
-                      borderRadius: radii.sm,
-                      backgroundColor: palette.background,
-                      borderWidth: 1,
-                      borderColor: palette.border.subtle,
-                      gap: 2,
-                    }}
-                  >
-                    {colBlock.fields.map((f) => {
-                      const val = rec.values[f.id];
-                      const archives = getArchivedFieldValues(rec, f.id);
-                      return (
-                        <View
-                          key={f.id}
-                          style={{ flexDirection: 'row', justifyContent: 'space-between' }}
-                        >
-                          <Text style={{ fontSize: 12, color: palette.text.secondary }}>
-                            {f.label}:
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Text
-                              style={{
-                                fontSize: 12,
-                                fontWeight: '500',
-                                color: palette.text.primary,
-                              }}
-                            >
-                              {val !== undefined && val !== null ? String(val) : '—'}
+                matching.map((rec) => {
+                  const recVals = rec.fieldValues || rec.values || {};
+                  return (
+                    <Pressable
+                      key={rec.id}
+                      onPress={() => onEditEntry?.(rec)}
+                      style={{
+                        padding: spacing.sm,
+                        borderRadius: radii.sm,
+                        backgroundColor: palette.background,
+                        borderWidth: 1,
+                        borderColor: palette.border.subtle,
+                        gap: 2,
+                      }}
+                    >
+                      {colBlock.fields.map((f) => {
+                        const val = recVals[f.id];
+                        const archives = getArchivedFieldValues(rec, f.id);
+                        return (
+                          <View
+                            key={f.id}
+                            style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+                          >
+                            <Text style={{ fontSize: 12, color: palette.text.secondary }}>
+                              {f.label}:
                             </Text>
-                            {archives.length > 0 && (
-                              <Text style={{ fontSize: 10, color: palette.action.subtleText }}>
-                                (+{archives.length} arch)
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: '500',
+                                  color: palette.text.primary,
+                                }}
+                              >
+                                {val !== undefined && val !== null ? String(val) : '—'}
                               </Text>
-                            )}
+                              {archives.length > 0 && (
+                                <Text style={{ fontSize: 10, color: palette.action.subtleText }}>
+                                  (+{archives.length} arch)
+                                </Text>
+                              )}
+                            </View>
                           </View>
-                        </View>
-                      );
-                    })}
-                  </Pressable>
-                ))
+                        );
+                      })}
+                    </Pressable>
+                  );
+                })
               )}
             </View>
           );

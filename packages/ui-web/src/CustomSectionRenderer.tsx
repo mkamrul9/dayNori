@@ -20,9 +20,12 @@ export interface CustomSectionRecordViewData {
   sectionId: string;
   schemaVersion: number;
   collectionBlockId?: string;
+  collectionId?: string;
   folderId?: string | null;
-  values: Record<string, unknown>;
+  values?: Record<string, unknown>;
+  fieldValues?: Record<string, unknown>;
   archivedValues?: Record<string, unknown>;
+  revision?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,7 +33,8 @@ export interface CustomSectionRecordViewData {
 export interface CustomSectionRendererProps {
   section: {
     id: string;
-    title: string;
+    title?: string;
+    name?: string;
     description?: string;
     icon?: string;
     color?: string;
@@ -66,6 +70,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
   onEditSchema,
 }) => {
   const palette = colors[themeMode];
+  const sectionTitle = section.name || section.title || 'Untitled Section';
   const [activeArchiveModal, setActiveArchiveModal] = useState<{
     recordId: string;
     fieldId: string;
@@ -101,7 +106,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
               color: palette.text.primary,
             }}
           >
-            {section.title}
+            {sectionTitle}
           </h2>
           {section.description && (
             <p
@@ -157,7 +162,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
         if (block.type === 'field_collection') {
           const colBlock = block;
           const matchingRecords = records.filter(
-            (r) => !r.collectionBlockId || r.collectionBlockId === colBlock.id
+            (r) => (r.collectionId ?? r.collectionBlockId) === colBlock.id
           );
 
           return (
@@ -239,6 +244,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                     </thead>
                     <tbody>
                       {matchingRecords.map((rec) => {
+                        const recVals = rec.fieldValues || rec.values || {};
                         return (
                           <tr
                             key={rec.id}
@@ -247,7 +253,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                             }}
                           >
                             {colBlock.fields.map((f) => {
-                              const val = rec.values[f.id];
+                              const val = recVals[f.id];
                               const archives = getArchivedFieldValues(
                                 { archivedValues: rec.archivedValues },
                                 f.id
@@ -540,13 +546,13 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
 };
 
 function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.ReactNode {
-  if (value === undefined || value === null) {
+  if (value === undefined || value === null || value === '') {
     return <span style={{ color: '#9ca3af' }}>—</span>;
   }
 
   if (field.type === 'checklist' && Array.isArray(value)) {
     return (
-      <ul style={{ margin: 0, paddingLeft: 16 }}>
+      <ul style={{ margin: 0, paddingLeft: 0, listStyleType: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {value.map((item: unknown, idx: number) => {
           const itemObj = (typeof item === 'object' && item !== null ? item : {}) as {
             completed?: boolean;
@@ -557,8 +563,17 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
           const text = itemObj.text || itemObj.label || String(item);
           const isDone = itemObj.completed || itemObj.checked;
           return (
-            <li key={idx} style={{ textDecoration: isDone ? 'line-through' : 'none' }}>
-              {text}
+            <li key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+              <input
+                type="checkbox"
+                checked={!!isDone}
+                readOnly
+                aria-label={text}
+                style={{ margin: 0, cursor: 'default' }}
+              />
+              <span style={{ textDecoration: isDone ? 'line-through' : 'none', color: isDone ? '#6b7280' : 'inherit' }}>
+                {text}
+              </span>
             </li>
           );
         })}
@@ -567,17 +582,24 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
   }
 
   if (field.type === 'link') {
-    const url = String(value);
-    // Safe link rendering
+    const url = String(value).trim();
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:')) {
       return (
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: '#2563eb', textDecoration: 'underline' }}
+          style={{
+            color: '#2563eb',
+            textDecoration: 'underline',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            wordBreak: 'break-all',
+          }}
         >
-          {url}
+          <span aria-hidden="true">🔗</span>
+          <span>{url}</span>
         </a>
       );
     }
@@ -585,7 +607,62 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
   }
 
   if (field.type === 'attachment') {
-    return <span>📎 {String(value)}</span>;
+    if (typeof value === 'object' && value !== null) {
+      const att = value as { fileName?: string; byteSize?: number; mimeType?: string };
+      const name = att.fileName || 'Attachment';
+      const sizeStr = att.byteSize ? ` • ${Math.round(att.byteSize / 1024)} KB` : '';
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '3px 8px',
+            borderRadius: 4,
+            backgroundColor: '#f3f4f6',
+            fontSize: '0.8rem',
+            border: '1px solid #e5e7eb',
+            color: '#374151',
+          }}
+        >
+          <span aria-hidden="true">📎</span>
+          <span style={{ fontWeight: 600 }}>{name}</span>
+          <span style={{ color: '#6b7280' }}>{sizeStr}</span>
+        </span>
+      );
+    }
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '3px 8px',
+          borderRadius: 4,
+          backgroundColor: '#f3f4f6',
+          fontSize: '0.8rem',
+          border: '1px solid #e5e7eb',
+          color: '#374151',
+        }}
+      >
+        <span aria-hidden="true">📎</span>
+        <span>{String(value)}</span>
+      </span>
+    );
+  }
+
+  if (field.type === 'date') {
+    const d = new Date(String(value));
+    if (!isNaN(d.getTime())) {
+      return <span>{d.toLocaleDateString()}</span>;
+    }
+  }
+
+  if (field.type === 'number') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      return <span>{num.toLocaleString()}</span>;
+    }
   }
 
   return <span>{String(value)}</span>;

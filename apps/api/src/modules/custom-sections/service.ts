@@ -23,6 +23,7 @@ import {
 } from '@daynori/contracts';
 import {
   APPROVED_SECTION_TEMPLATES,
+  formatMinorUnitsToDecimal,
   generateSchemaMigrationPreview,
   migrateRecordValues,
   validateRecordAgainstSchema,
@@ -632,15 +633,18 @@ export async function getCustomSectionSchemaVersion(
 /**
  * Validates that referenced file attachments and canonical item links exist in the same workspace,
  * are verified (not quarantined or deleted), and are not encrypted vault items.
- * Records attachment references in app.item_attachments.
+ * Records attachment references in app.item_attachments and reconciles deleted references.
  */
 async function validateAndLinkReferences(
   client: PoolClient,
   workspaceId: string,
   recordId: string,
+  userId: string,
   schema: CustomSectionSchemaPayload,
   sanitized: Record<string, unknown>
 ): Promise<void> {
+  const activeAttachmentIds: string[] = [];
+
   for (const block of schema.blocks) {
     if (block.type === 'field_collection') {
       for (const field of block.fields) {
@@ -650,26 +654,23 @@ async function validateAndLinkReferences(
         if (field.type === 'attachment' && typeof val === 'string') {
           const fileRes = await client.query<{
             id: string;
+            file_name: string;
             declared_mime_type: string;
+            byte_size: string;
             quarantine_status: string;
           }>(
-            `SELECT f.id, f.declared_mime_type, f.quarantine_status
+            `SELECT f.id, f.file_name, f.declared_mime_type, f.byte_size, f.quarantine_status
              FROM app.file_items f
              JOIN app.items i ON i.id = f.id AND i.workspace_id = f.workspace_id
-             WHERE f.id = $1 AND f.workspace_id = $2 AND i.deleted_at IS NULL AND f.quarantine_status != 'deleted'`,
+             WHERE f.id = $1 AND f.workspace_id = $2 AND i.deleted_at IS NULL AND f.quarantine_status != 'deleted' AND i.security_scope = 'standard'`,
             [val, workspaceId]
           );
-          if (fileRes.rows.length === 0) {
+          if (fileRes.rows.length === 0 || !fileRes.rows[0]) {
             throw new CustomSectionValidationError(
-              `Referenced file attachment "${val}" does not exist in this workspace`
+              `Referenced file attachment "${val}" does not exist, is deleted, or belongs to a different security scope/workspace`
             );
           }
           const file = fileRes.rows[0];
-          if (!file) {
-            throw new CustomSectionValidationError(
-              `Referenced file attachment "${val}" does not exist in this workspace`
-            );
-          }
           if (file.quarantine_status !== 'verified') {
             throw new CustomSectionValidationError(
               `Referenced file attachment "${val}" has not passed security verification`
@@ -682,30 +683,52 @@ async function validateAndLinkReferences(
               );
             }
           }
+
+          const attachmentType = file.declared_mime_type.startsWith('audio/') ? 'audio' : 'file';
+          const byteSize = BigInt(file.byte_size || '1');
+
           await client.query(
-            `INSERT INTO app.item_attachments (workspace_id, item_id, file_id, source_kind)
-             VALUES ($1, $2, $3, 'custom_record')
-             ON CONFLICT (workspace_id, item_id, file_id) DO NOTHING`,
-            [workspaceId, recordId, val]
+            `INSERT INTO app.item_attachments (
+               workspace_id, item_id, file_id, attachment_type, file_name, mime_type, byte_size, created_by, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())
+             ON CONFLICT (workspace_id, item_id, file_id) DO UPDATE
+             SET file_name = EXCLUDED.file_name, mime_type = EXCLUDED.mime_type, byte_size = EXCLUDED.byte_size, updated_at = now()`,
+            [workspaceId, recordId, val, attachmentType, file.file_name, file.declared_mime_type, byteSize.toString(), userId]
           );
+          activeAttachmentIds.push(val);
         } else if (field.type === 'link' && typeof val === 'string') {
           if (val.startsWith('item:')) {
             const targetItemId = val.slice(5);
             const itemRes = await client.query<{ id: string }>(
               `SELECT id
                FROM app.items
-               WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`,
+               WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL AND security_scope = 'standard'`,
               [targetItemId, workspaceId]
             );
             if (itemRes.rows.length === 0 || !itemRes.rows[0]) {
               throw new CustomSectionValidationError(
-                `Referenced item link "${val}" does not exist in this workspace`
+                `Referenced item link "${val}" does not exist, is deleted, or belongs to a different security scope/workspace`
               );
             }
           }
         }
       }
     }
+  }
+
+  // Reconcile attachments: unreferenced attachments for this record are deleted without deleting shared files
+  if (activeAttachmentIds.length > 0) {
+    await client.query(
+      `DELETE FROM app.item_attachments
+       WHERE workspace_id = $1 AND item_id = $2 AND NOT (file_id = ANY($3::uuid[]))`,
+      [workspaceId, recordId, activeAttachmentIds]
+    );
+  } else {
+    await client.query(
+      `DELETE FROM app.item_attachments
+       WHERE workspace_id = $1 AND item_id = $2`,
+      [workspaceId, recordId]
+    );
   }
 }
 
@@ -746,11 +769,54 @@ export async function createCustomSectionRecord(
     throw new CustomSectionValidationError(validation.errors.join('; '));
   }
 
-  const sanitized = validation.sanitizedValues || {};
+  // Validate folder placement if provided
+  if (data.folderId) {
+    const folderRes = await client.query<{ id: string }>(
+      `SELECT i.id
+       FROM app.folders f
+       JOIN app.items i ON i.id = f.id AND i.workspace_id = f.workspace_id
+       WHERE f.id = $1 AND f.workspace_id = $2 AND i.deleted_at IS NULL AND i.security_scope = 'standard'`,
+      [data.folderId, workspaceId]
+    );
+    if (folderRes.rows.length === 0) {
+      throw new CustomSectionValidationError(
+        `Folder "${data.folderId}" does not exist, is deleted, or belongs to a different security scope/workspace`
+      );
+    }
+  }
 
+  // Validate collectionId if provided
+  if (data.collectionId) {
+    const matchingCollection = section.currentSchema.blocks.find(
+      (b) => b.type === 'field_collection' && b.id === data.collectionId
+    );
+    if (!matchingCollection) {
+      throw new CustomSectionValidationError(
+        `Collection "${data.collectionId}" does not exist in section "${sectionId}" schema version ${section.currentSchema.version}`
+      );
+    }
+  }
+
+  const sanitized = validation.sanitizedValues || {};
+  const recordId = crypto.randomUUID();
+  const folderId = data.folderId || null;
+  const collectionId = data.collectionId || null;
+  const rank = data.rank || '0|hzzzzz:';
+
+  // 1. Insert canonical app.items row
+  await client.query(
+    `INSERT INTO app.items (
+      id, workspace_id, folder_id, kind, created_by, updated_by,
+      revision, rank, is_archived, is_pinned, security_scope, created_at, updated_at
+    ) VALUES ($1, $2, $3, 'custom_record', $4, $4, 1, $5, false, false, 'standard', now(), now());`,
+    [recordId, workspaceId, folderId, userId, rank]
+  );
+
+  // 2. Insert into app.custom_section_records with shared ID
   const recordRes = await client.query(
     `
     INSERT INTO app.custom_section_records (
+      id,
       section_id,
       workspace_id,
       schema_version,
@@ -765,7 +831,7 @@ export async function createCustomSectionRecord(
       created_at,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, '{}'::jsonb, $7, $8, $8, 1, now(), now())
+    VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, $8, $9, $9, 1, now(), now())
     RETURNING
       id,
       section_id,
@@ -783,13 +849,14 @@ export async function createCustomSectionRecord(
       updated_at
     `,
     [
+      recordId,
       sectionId,
       workspaceId,
       section.currentSchemaVersion,
-      data.folderId || null,
-      data.collectionId || null,
+      folderId,
+      collectionId,
       JSON.stringify(sanitized),
-      data.rank || '0|hzzzzz:',
+      rank,
       userId,
     ]
   );
@@ -797,7 +864,7 @@ export async function createCustomSectionRecord(
   const row = recordRes.rows[0];
 
   // Validate and link file attachments / internal item links
-  await validateAndLinkReferences(client, workspaceId, row.id, section.currentSchema, sanitized);
+  await validateAndLinkReferences(client, workspaceId, row.id, userId, section.currentSchema, sanitized);
 
   // Sync change feed
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
@@ -964,6 +1031,8 @@ export async function updateCustomSectionRecord(
     id: string;
     section_id: string;
     workspace_id: string;
+    folder_id: string | null;
+    collection_id: string | null;
     schema_version: number;
     field_values: Record<string, unknown>;
     archived_values: Record<string, unknown>;
@@ -979,6 +1048,8 @@ export async function updateCustomSectionRecord(
       id,
       section_id,
       workspace_id,
+      folder_id,
+      collection_id,
       schema_version,
       field_values,
       archived_values,
@@ -1013,6 +1084,34 @@ export async function updateCustomSectionRecord(
     throw new CustomSectionValidationError('Section has no active schema');
   }
 
+  // Validate folder placement if provided
+  if (data.folderId && data.folderId !== null) {
+    const folderRes = await client.query<{ id: string }>(
+      `SELECT i.id
+       FROM app.folders f
+       JOIN app.items i ON i.id = f.id AND i.workspace_id = f.workspace_id
+       WHERE f.id = $1 AND f.workspace_id = $2 AND i.deleted_at IS NULL AND i.security_scope = 'standard'`,
+      [data.folderId, workspaceId]
+    );
+    if (folderRes.rows.length === 0) {
+      throw new CustomSectionValidationError(
+        `Folder "${data.folderId}" does not exist, is deleted, or belongs to a different security scope/workspace`
+      );
+    }
+  }
+
+  // Validate collectionId if provided
+  if (data.collectionId) {
+    const matchingCollection = section.currentSchema.blocks.find(
+      (b) => b.type === 'field_collection' && b.id === data.collectionId
+    );
+    if (!matchingCollection) {
+      throw new CustomSectionValidationError(
+        `Collection "${data.collectionId}" does not exist in section "${sectionId}" schema version ${section.currentSchema.version}`
+      );
+    }
+  }
+
   // Validate updated values against current schema
   const mergedValues = { ...current.field_values, ...data.fieldValues };
   const validation = validateRecordAgainstSchema(section.currentSchema, mergedValues);
@@ -1024,7 +1123,16 @@ export async function updateCustomSectionRecord(
   const newRevision = current.revision + 1;
 
   // Validate and link file attachments / internal item links
-  await validateAndLinkReferences(client, workspaceId, recordId, section.currentSchema, sanitized);
+  await validateAndLinkReferences(client, workspaceId, recordId, userId, section.currentSchema, sanitized);
+
+  // Sync canonical app.items row
+  const resolvedFolderId = data.folderId === null ? null : (data.folderId ?? current.folder_id);
+  await client.query(
+    `UPDATE app.items
+     SET folder_id = $1, rank = COALESCE($2, rank), revision = $3, updated_by = $4, updated_at = now()
+     WHERE id = $5 AND workspace_id = $6`,
+    [resolvedFolderId, data.rank || null, newRevision, userId, recordId, workspaceId]
+  );
 
   const res = await client.query(
     `
@@ -1140,6 +1248,20 @@ export async function deleteCustomSectionRecord(
     );
   }
 
+  // Soft-delete in app.items and app.item_attachments
+  await client.query(
+    `UPDATE app.items
+     SET deleted_at = now(), updated_by = $1, revision = revision + 1
+     WHERE id = $2 AND workspace_id = $3`,
+    [_userId, recordId, workspaceId]
+  );
+  await client.query(
+    `UPDATE app.item_attachments
+     SET deleted_at = now(), updated_at = now()
+     WHERE workspace_id = $1 AND item_id = $2 AND deleted_at IS NULL`,
+    [workspaceId, recordId]
+  );
+
   // Sync change feed
   const syncState = await lockWorkspaceSyncState(client, workspaceId);
   const changeSeq = syncState.nextChangeSeq;
@@ -1199,7 +1321,7 @@ export async function queryExistingRecordView(
         SELECT n.id, n.title, i.folder_id, n.updated_at
         FROM app.notes n
         JOIN app.items i ON i.id = n.id AND i.workspace_id = n.workspace_id
-        WHERE n.workspace_id = $1 AND i.deleted_at IS NULL
+        WHERE n.workspace_id = $1 AND i.deleted_at IS NULL AND i.security_scope = 'standard'
       `;
       const params: unknown[] = [workspaceId];
       if (folderId) {
@@ -1215,7 +1337,7 @@ export async function queryExistingRecordView(
         )`;
       }
       params.push(limit);
-      query += ` ORDER BY n.updated_at DESC LIMIT $${params.length}`;
+      query += ` ORDER BY n.updated_at DESC, n.id ASC LIMIT $${params.length}`;
 
       const res = await client.query(query, params);
       return res.rows.map((row) => ({
@@ -1234,7 +1356,7 @@ export async function queryExistingRecordView(
         SELECT t.id, t.title, t.status, t.deadline_date, i.folder_id, t.updated_at
         FROM app.tasks t
         JOIN app.items i ON i.id = t.id AND i.workspace_id = t.workspace_id
-        WHERE t.workspace_id = $1 AND i.deleted_at IS NULL
+        WHERE t.workspace_id = $1 AND i.deleted_at IS NULL AND i.security_scope = 'standard'
       `;
       const params: unknown[] = [workspaceId];
       if (folderId) {
@@ -1255,7 +1377,7 @@ export async function queryExistingRecordView(
         )`;
       }
       params.push(limit);
-      query += ` ORDER BY t.updated_at DESC LIMIT $${params.length}`;
+      query += ` ORDER BY t.updated_at DESC, t.id ASC LIMIT $${params.length}`;
 
       const res = await client.query(query, params);
       return res.rows.map((row) => ({
@@ -1275,11 +1397,11 @@ export async function queryExistingRecordView(
         SELECT r.id, r.title, r.description, r.updated_at
         FROM app.routines r
         JOIN app.items i ON i.id = r.id AND i.workspace_id = r.workspace_id
-        WHERE r.workspace_id = $1 AND i.deleted_at IS NULL
+        WHERE r.workspace_id = $1 AND i.deleted_at IS NULL AND i.security_scope = 'standard'
       `;
       const params: unknown[] = [workspaceId];
       params.push(limit);
-      query += ` ORDER BY r.updated_at DESC LIMIT $${params.length}`;
+      query += ` ORDER BY r.updated_at DESC, r.id ASC LIMIT $${params.length}`;
 
       const res = await client.query(query, params);
       return res.rows.map((row) => ({
@@ -1298,7 +1420,7 @@ export async function queryExistingRecordView(
         SELECT f.id, f.file_name, f.byte_size, f.declared_mime_type, f.folder_id, f.updated_at
         FROM app.file_items f
         JOIN app.items i ON i.id = f.id AND i.workspace_id = f.workspace_id
-        WHERE f.workspace_id = $1 AND i.deleted_at IS NULL AND f.quarantine_status = 'verified'
+        WHERE f.workspace_id = $1 AND i.deleted_at IS NULL AND f.quarantine_status = 'verified' AND i.security_scope = 'standard'
       `;
       const params: unknown[] = [workspaceId];
       if (folderId) {
@@ -1306,7 +1428,7 @@ export async function queryExistingRecordView(
         query += ` AND f.folder_id = $${params.length}`;
       }
       params.push(limit);
-      query += ` ORDER BY f.updated_at DESC LIMIT $${params.length}`;
+      query += ` ORDER BY f.updated_at DESC, f.id ASC LIMIT $${params.length}`;
 
       const res = await client.query(query, params);
       return res.rows.map((row) => ({
@@ -1325,11 +1447,11 @@ export async function queryExistingRecordView(
         SELECT j.id, j.entry_date, j.title, j.updated_at
         FROM app.journal_entries j
         JOIN app.items i ON i.id = j.id AND i.workspace_id = j.workspace_id
-        WHERE j.workspace_id = $1 AND i.deleted_at IS NULL
+        WHERE j.workspace_id = $1 AND i.deleted_at IS NULL AND i.security_scope = 'standard'
       `;
       const params: unknown[] = [workspaceId];
       params.push(limit);
-      query += ` ORDER BY j.entry_date DESC LIMIT $${params.length}`;
+      query += ` ORDER BY j.entry_date DESC, j.id ASC LIMIT $${params.length}`;
 
       const res = await client.query(query, params);
       return res.rows.map((row) => ({
@@ -1354,16 +1476,15 @@ export async function queryExistingRecordView(
          WHERE id = $1`,
         [userId]
       );
-      const isExpensesEnabled = Boolean(
-        prefRes.rows[0]?.display_preferences?.expensesEnabled ??
-        prefRes.rows[0]?.preferences?.expensesEnabled ??
-        true
-      );
+      // Explicit opt-in only; do not default missing preferences to enabled
+      const isExpensesEnabled =
+        prefRes.rows[0]?.display_preferences?.expensesEnabled === true ||
+        prefRes.rows[0]?.preferences?.expensesEnabled === true;
       if (!isExpensesEnabled) {
         return [];
       }
 
-      // Exact currency-separated aggregation
+      // Exact currency-separated aggregation respecting refund reduction and items lifecycle
       const res = await client.query<{
         currency: string;
         total_minor_units: string;
@@ -1371,23 +1492,31 @@ export async function queryExistingRecordView(
         last_updated_at: Date;
       }>(
         `SELECT
-           currency,
-           SUM(amount_minor_units) AS total_minor_units,
-           COUNT(*) AS count,
-           MAX(updated_at) AS last_updated_at
-         FROM app.expense_items
-         WHERE workspace_id = $1 AND deleted_at IS NULL
-         GROUP BY currency
-         ORDER BY currency ASC
+           e.currency,
+           SUM(CASE WHEN e.kind = 'expense' THEN e.amount_minor_units::bigint
+                    WHEN e.kind = 'refund' THEN -e.amount_minor_units::bigint
+                    ELSE 0 END) AS total_minor_units,
+           COUNT(CASE WHEN e.kind = 'expense' OR e.kind = 'refund' THEN 1 END) AS count,
+           MAX(e.updated_at) AS last_updated_at
+         FROM app.expense_items e
+         JOIN app.items i ON i.id = e.id AND i.workspace_id = e.workspace_id
+         WHERE e.workspace_id = $1 AND i.deleted_at IS NULL AND i.security_scope = 'standard'
+         GROUP BY e.currency
+         ORDER BY e.currency ASC
          LIMIT $2`,
         [workspaceId, limit]
       );
 
       return res.rows.map((row) => {
-        const totalMinor = Number(row.total_minor_units || 0);
-        const decimalStr = (totalMinor / 100).toFixed(2);
+        const totalMinor = BigInt(row.total_minor_units || '0');
+        const decimalStr = formatMinorUnitsToDecimal(totalMinor, row.currency);
+        const hash = crypto
+          .createHash('sha256')
+          .update(`${workspaceId}:expense_summary:${row.currency}`)
+          .digest('hex');
+        const summaryUuid = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
         return {
-          id: `expense-summary-${row.currency.toLowerCase()}`,
+          id: summaryUuid,
           targetKind: 'expense_summary' as const,
           title: `${row.currency} ${decimalStr}`,
           subtitle: `${row.count} transaction${row.count === '1' ? '' : 's'} recorded`,

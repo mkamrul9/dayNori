@@ -31,6 +31,14 @@
   - Added 13 unit tests in `packages/ui-mobile/src/ui-mobile.test.ts`.
 - **Integration Test Suite (`tests/integration/phase43-custom-section-builder.test.ts`):**
   - 16/16 tests passing across all 6 core user journeys: Reading List creation with folder placement, field reordering, personal template save and reuse without private data leakage, Study Hub combining Software files and tasks without source deletion, schema preview with repeated migration archive recovery, and unknown block fallback.
+- **Phase 42/43 Defect Repairs & Complete Application Integration:**
+  - **Database Migration 00047 (`infra/supabase/migrations/00047_custom_record_items_and_attachments.sql`):** Added canonical `app.items` backfill and identity for custom records with `fk_custom_section_records_item` constraint.
+  - **Attachment Persistence Alignment:** Corrected `validateAndLinkReferences` to write real `app.item_attachments` table columns (`attachment_type`, `file_name`, `mime_type`, `byte_size`, `created_by`, `item_id`) and handle attachment reconciliation on record update/delete without orphan references.
+  - **Folder & Collection Security Scoping:** Enforced strict workspace tenant, active status, and standard security scope checks on `folderId`. Enforced strict `collectionId` validation against active schemas and filtered records strictly per collection block in renderers.
+  - **Existing Record View Expense Aggregation:** Enforced explicit opt-in preference checks (`expensesEnabled === true`), exact integer BigInt arithmetic for refund subtraction, currency-aware decimal formatting, and valid UUID summary identifiers matching schema contracts.
+  - **Application UI Journeys & Field Editors:**
+    - Connected `apps/web` (`/custom-sections` page and sidebar) and `apps/mobile` (`CustomSectionsView` modal via Settings) with starter selection, personal templates, builder dialogs, renderer, schema migration preview, archive recovery, and canonical source item navigation.
+    - Created `CustomSectionEntryDialog` (`@daynori/ui-web`) and `MobileCustomSectionEntrySheet` (`@daynori/ui-mobile`) with real platform controls for text, checklist, date, number, link, and attachment field types.
 - **Phase Status:**
   - Implemented and verified as provisional local development under explicit owner authorization; external beta gates and deployment remain **BLOCKED**. Work stops before Phase 44.
 
