@@ -16,6 +16,12 @@ export interface RoomsPanelProps {
 /**
  * Provisional local shared-rooms settings (Phase 51).
  * Real-user / public invitation enablement remains release-gated.
+ *
+ * Invitation delivery is a **manual-token harness**: create returns a raw token once for
+ * clipboard copy, and accept is via the paste field below. Deep-link path
+ * `/rooms/invitations/accept?token=…` is not a routed web page in this phase — recipients
+ * paste the token into Settings → Rooms (or call the API). Tokens are kept in component
+ * state only for the copy action and are not written to localStorage or audit logs.
  */
 export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsPanelProps) {
   const palette = colors[themeMode];

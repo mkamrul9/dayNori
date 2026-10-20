@@ -28,7 +28,32 @@ import {
   updateMembershipRole,
 } from '../../db/repositories/membershipRepository.js';
 import { recordAuditEvent } from '../../db/repositories/auditRepository.js';
+import {
+  insertChange,
+  lockWorkspaceSyncState,
+  updateWorkspaceSyncSeq,
+} from '../sync/repository.js';
 import { NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
+
+/** Reject note/task payloads that embed foreign workspace item UUIDs as private references. */
+function assertNoPrivateEmbeddedReferences(
+  payloadJson: unknown,
+  allowedIds: Set<string>
+): void {
+  const text = JSON.stringify(payloadJson ?? {});
+  const uuidRe =
+    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi;
+  for (const match of text.match(uuidRe) ?? []) {
+    const id = match.toLowerCase();
+    if (!allowedIds.has(id)) {
+      throw new RoomServiceError(
+        'Copied content cannot embed private cross-item references; remove links to other personal items first',
+        400,
+        'ROOM_SHARE_PRIVATE_REF'
+      );
+    }
+  }
+}
 
 export class RoomServiceError extends Error {
   constructor(
@@ -417,6 +442,10 @@ export async function updateRoomMemberRole(
   input: { roomId: string; actorId: string; targetUserId: string; role: RoomRole }
 ) {
   assertRoomsLocallyEnabled();
+  await client.query(
+    `SELECT id FROM app.workspaces WHERE id = $1 AND kind = 'room' FOR UPDATE`,
+    [input.roomId]
+  );
   await requireRoom(client, input.roomId);
   await requireActorRole(client, input.roomId, input.actorId, 'owner');
 
@@ -459,6 +488,10 @@ export async function removeRoomMember(
   input: { roomId: string; actorId: string; targetUserId: string }
 ) {
   assertRoomsLocallyEnabled();
+  await client.query(
+    `SELECT id FROM app.workspaces WHERE id = $1 AND kind = 'room' FOR UPDATE`,
+    [input.roomId]
+  );
   await requireRoom(client, input.roomId);
   await requireActorRole(client, input.roomId, input.actorId, 'owner');
   if (input.actorId === input.targetUserId) {
@@ -489,6 +522,10 @@ export async function leaveRoom(
   input: { roomId: string; actorId: string }
 ) {
   assertRoomsLocallyEnabled();
+  await client.query(
+    `SELECT id FROM app.workspaces WHERE id = $1 AND kind = 'room' FOR UPDATE`,
+    [input.roomId]
+  );
   await requireRoom(client, input.roomId);
   const membership = await getMembership(client, input.roomId, input.actorId);
   if (!membership) throw new NotFoundError('Room not found');
@@ -522,15 +559,25 @@ export async function transferRoomOwnership(
   input: { roomId: string; actorId: string; newOwnerUserId: string }
 ) {
   assertRoomsLocallyEnabled();
-  const room = await requireRoom(client, input.roomId);
+  // Serialize against concurrent leave/demote/transfer (matches DB last-owner lock).
+  const locked = await client.query<WorkspaceRow>(
+    `SELECT id, name, kind, owner_id, status, membership_revision, created_at, updated_at, archived_at
+     FROM app.workspaces WHERE id = $1 AND kind = 'room' FOR UPDATE`,
+    [input.roomId]
+  );
+  const room = locked.rows[0];
+  if (!room) throw new NotFoundError('Room not found');
   await requireActorRole(client, input.roomId, input.actorId, 'owner');
+  if (room.owner_id !== input.actorId) {
+    throw new RoomServiceError('Only the canonical owner may transfer ownership', 403, 'ROOM_FORBIDDEN');
+  }
   if (input.newOwnerUserId === input.actorId) {
     throw new ValidationError('Already the owner');
   }
   const target = await getMembership(client, input.roomId, input.newOwnerUserId);
   if (!target) throw new NotFoundError('Target member not found in this room');
 
-  // Update canonical owner_id while actor still has owner membership (RLS).
+  // Update canonical owner_id first so demoting the prior owner satisfies the DB invariant.
   await client.query(
     `UPDATE app.workspaces SET owner_id = $2, updated_at = now() WHERE id = $1 AND kind = 'room'`,
     [input.roomId, input.newOwnerUserId]
@@ -686,47 +733,148 @@ export async function copyPersonalItemToRoom(
     throw new RoomServiceError('Vault content cannot be shared into rooms', 400, 'ROOM_SHARE_BLOCKED');
   }
 
+  const attachments = await client.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM app.item_attachments
+     WHERE item_id = $1 AND workspace_id = $2`,
+    [input.sourceItemId, input.sourceWorkspaceId]
+  );
+  if (Number(attachments.rows[0]?.count ?? 0) > 0) {
+    throw new RoomServiceError(
+      'Items with attachments cannot be copied into rooms in this phase; detach files first',
+      400,
+      'ROOM_SHARE_ATTACHMENTS'
+    );
+  }
+
   const destinationItemId = randomUUID();
   const itemKind = src.kind === 'todo' ? 'task' : src.kind;
-
-  // Switch tenant GUC to destination room so RLS allows the insert (source was authorized above).
-  await client.query("SELECT set_config('app.current_workspace_id', $1, true)", [
-    input.destinationRoomId,
-  ]);
-
-  await client.query(
-    `INSERT INTO app.items (
-      id, workspace_id, folder_id, kind, created_by, updated_by,
-      revision, rank, is_archived, is_pinned, security_scope
-    ) VALUES (
-      $1, $2, NULL, $3, $4, $4, 1, $5, false, false, 'standard'
-    )`,
-    [destinationItemId, input.destinationRoomId, itemKind, input.actorId, src.rank]
-  );
+  let copiedPayload: Record<string, unknown> = { kind: itemKind };
 
   if (src.kind === 'note') {
+    const note = await client.query<{
+      title: string;
+      document: unknown;
+      plain_text: string;
+      word_count: number;
+      char_count: number;
+    }>(
+      `SELECT title, document, plain_text, word_count, char_count
+       FROM app.notes WHERE id = $1 AND workspace_id = $2`,
+      [input.sourceItemId, input.sourceWorkspaceId]
+    );
+    const n = note.rows[0];
+    if (!n) throw new NotFoundError('Source note payload not found');
+    // Allow only the source item id if it appears; block other UUIDs (private refs).
+    assertNoPrivateEmbeddedReferences(n.document, new Set([input.sourceItemId.toLowerCase()]));
+    assertNoPrivateEmbeddedReferences(n.plain_text, new Set([input.sourceItemId.toLowerCase()]));
+    copiedPayload = {
+      kind: 'note',
+      title: n.title,
+      plainText: n.plain_text,
+      wordCount: n.word_count,
+      charCount: n.char_count,
+    };
+
+    await client.query("SELECT set_config('app.current_workspace_id', $1, true)", [
+      input.destinationRoomId,
+    ]);
+    await client.query(
+      `INSERT INTO app.items (
+        id, workspace_id, folder_id, kind, created_by, updated_by,
+        revision, rank, is_archived, is_pinned, security_scope
+      ) VALUES (
+        $1, $2, NULL, 'note', $3, $3, 1, $4, false, false, 'standard'
+      )`,
+      [destinationItemId, input.destinationRoomId, input.actorId, src.rank]
+    );
     await client.query(
       `INSERT INTO app.notes (
          id, workspace_id, title, document, plain_text, word_count, char_count, created_at, updated_at
-       )
-       SELECT $1, $2, title, document, plain_text, word_count, char_count, now(), now()
-       FROM app.notes WHERE id = $3 AND workspace_id = $4`,
-      [destinationItemId, input.destinationRoomId, input.sourceItemId, input.sourceWorkspaceId]
+       ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, now(), now())`,
+      [
+        destinationItemId,
+        input.destinationRoomId,
+        n.title,
+        JSON.stringify(n.document ?? {}),
+        n.plain_text,
+        n.word_count,
+        n.char_count,
+      ]
     );
   } else if (src.kind === 'task' || src.kind === 'todo') {
+    const task = await client.query<{
+      title: string;
+      details: string | null;
+      priority: string;
+      status: string;
+      deadline_type: string | null;
+      deadline_date: string | null;
+      deadline_zone: string | null;
+    }>(
+      `SELECT title, details, priority, status, deadline_type, deadline_date::text, deadline_zone
+       FROM app.tasks WHERE id = $1 AND workspace_id = $2`,
+      [input.sourceItemId, input.sourceWorkspaceId]
+    );
+    const t = task.rows[0];
+    if (!t) throw new NotFoundError('Source task payload not found');
+    assertNoPrivateEmbeddedReferences(t.details, new Set([input.sourceItemId.toLowerCase()]));
+    copiedPayload = {
+      kind: 'task',
+      title: t.title,
+      details: t.details,
+      priority: t.priority,
+      status: t.status,
+    };
+
+    await client.query("SELECT set_config('app.current_workspace_id', $1, true)", [
+      input.destinationRoomId,
+    ]);
+    await client.query(
+      `INSERT INTO app.items (
+        id, workspace_id, folder_id, kind, created_by, updated_by,
+        revision, rank, is_archived, is_pinned, security_scope
+      ) VALUES (
+        $1, $2, NULL, 'task', $3, $3, 1, $4, false, false, 'standard'
+      )`,
+      [destinationItemId, input.destinationRoomId, input.actorId, src.rank]
+    );
     await client.query(
       `INSERT INTO app.tasks (
          id, workspace_id, title, details, priority, status, deadline_type,
          deadline_date, deadline_zone, created_at, updated_at
-       )
-       SELECT $1, $2, title, details, priority, status, deadline_type,
-              deadline_date, deadline_zone, now(), now()
-       FROM app.tasks WHERE id = $3 AND workspace_id = $4`,
-      [destinationItemId, input.destinationRoomId, input.sourceItemId, input.sourceWorkspaceId]
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, now(), now())`,
+      [
+        destinationItemId,
+        input.destinationRoomId,
+        t.title,
+        t.details,
+        t.priority,
+        t.status,
+        t.deadline_type,
+        t.deadline_date,
+        t.deadline_zone,
+      ]
     );
   } else {
     throw new RoomServiceError('Unsupported share kind', 400, 'ROOM_SHARE_BLOCKED');
   }
+
+  const syncState = await lockWorkspaceSyncState(client, input.destinationRoomId);
+  const seq = syncState.nextChangeSeq;
+  await insertChange(client, {
+    workspaceId: input.destinationRoomId,
+    seq,
+    entityType: itemKind,
+    entityId: destinationItemId,
+    revision: 1,
+    isTombstone: false,
+    operationId: `room-copy-${destinationItemId}`,
+    changeData: {
+      type: 'room_item_copied_from_personal',
+      ...copiedPayload,
+    },
+  });
+  await updateWorkspaceSyncSeq(client, input.destinationRoomId, seq + 1);
 
   await recordAuditEvent(client, {
     workspaceId: input.destinationRoomId,
@@ -745,6 +893,7 @@ export async function copyPersonalItemToRoom(
     destinationItemId,
     destinationRoomId: input.destinationRoomId,
     sourcePreserved: true as const,
+    copiedPayload,
   };
 }
 

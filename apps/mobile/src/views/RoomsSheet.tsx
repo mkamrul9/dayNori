@@ -15,7 +15,8 @@ export interface RoomsSheetProps {
 
 /**
  * Android rooms UI for Phase 51 provisional local development.
- * Invite tokens are shown for explicit local copy — no outbound messaging.
+ * Manual-token harness: invite tokens are shown for explicit local copy only — no outbound
+ * messaging and no deep-link accept screen; paste the token into this sheet to accept.
  */
 export function RoomsSheet({
   themeMode,

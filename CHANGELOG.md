@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 51 repair — Quarantine, ownership concurrency, copy boundaries (blocked) — 2026-10-20
+
+- Quarantine uses reconciliation inventory status (not the renameable Legacy Room name suffix); rename cannot unlock invites.
+- Last-owner trigger locks the workspace row; canonical `owner_id` must keep an owner membership; concurrent demotion/leave/transfer races covered by integration tests.
+- Invitation accept binds to session actor; copy verifies note/task payloads, rejects embedded private refs and attachments, emits change-feed; manual-token harness documented.
+- Cleared synthetic secret-scan false positive in phase47 vault test. Local flag alone does not enable production rooms.
+
 ## Phase 51 — Shared rooms, invitations, and roles (blocked / provisional) — 2026-10-20
 
 - Provisional local shared rooms: separate `kind=room` workspaces, owner/editor/viewer roles, hashed expiring single-use invitations, last-owner DB protection, legacy `(Legacy Room)` quarantine, explicit personal→room note/todo copy with journal/vault exclusion.

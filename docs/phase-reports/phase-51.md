@@ -22,7 +22,7 @@
 | Multi-account PostgreSQL/API integration tests | **Yes** (synthetic) |
 | Real-user invitations / outbound email/messages | **No** |
 | Private-beta / production rooms enablement | **No** |
-| Phase 52 chat / broad collaboration | **No** — stop before 52 |
+| Phase 52 shared content sync (later) / Phase 53 chat | **No** — not this phase |
 | Vault activation | **No** — remains disabled |
 
 ## Result
@@ -72,20 +72,35 @@ Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`, local PostgreSQL via pr
 | `pnpm --filter @daynori/web build` | 0 | Next.js production build passed |
 | `npx eslint` on Phase 51 touched paths | 0 | clean on scoped files |
 | `pnpm lint` (repo-wide) | 1 | **pre-existing** errors in vault harnesses / drive spike (not Phase 51 paths) |
-| `pnpm audit:secrets` | 1 | **pre-existing** finding in `phase47-web-vault.test.ts` (not Phase 51) |
+| `pnpm audit:secrets` | 0 after repair | Synthetic fixture shortened; scanner coverage preserved |
 | `node scripts/validate-planning.mjs` | 0 | passed |
 | `git diff --check` | 0 | clean |
 | Physical Android TalkBack / multi-device UI | — | **Unexecuted** |
 | Outbound invitation email/SMS | — | **Not implemented** (by design) |
 | Real-user / staging invitations | — | **Blocked** on Phase 38 |
 
+## Repair (post-`f7deab4`)
+
+| Gap | Fix |
+|---|---|
+| Quarantine keyed off renameable ` (Legacy Room)` suffix | Forward migration `00052`: `is_confirmed_shareable_room` uses inventory status only |
+| Sequential “concurrency” demotion test | Independent-connection overlap + API concurrent leave/demote; workspace `FOR UPDATE` serialization |
+| Canonical `owner_id` vs memberships | Transfer locks workspace; demote/remove of canonical owner blocked until transfer |
+| Accept actor binding | `accept_room_invitation` requires `app.current_user_id()`; mismatched arg rejected |
+| Copy only checked destination ID | Payload title/text verified; embedded private UUIDs and attachments rejected; change-feed emit |
+| Invite deep-link implied | Documented manual-token harness (clipboard + paste); no routed accept page |
+| Secret-scan on phase47 fixture | Shortened synthetic `recoverySecret` value; `pnpm audit:secrets` exit 0 |
+| Production enablement via local flag | Assert `NODE_ENV=production` without flag throws `ROOMS_DISABLED` |
+
+Repair verification: `pnpm vitest run tests/integration/phase51-rooms-repair.test.ts` → 6 passed; prior Phase 51 suites still pass.
+
 ## Defects, limitations and recovery
 
 1. Phase remains **blocked / incomplete** until Phase 38 private-beta evidence and Phase 10 hardware gates (as recorded) plus rooms release-gate moderation/report/block readiness are accepted.
 2. `DAYNORI_ROOMS_LOCAL_ENABLED` is local harness only — not production authorization.
 3. Previously downloaded room copies and issued short-lived URLs cannot be remotely erased; document this to operators before any invite-only release.
-4. File/folder/attachment collaboration and chat are deferred to Phase 52+.
-5. Repo-wide `pnpm lint` / `audit:secrets` failures are inherited from earlier vault/Drive harness work; Phase 51 scoped eslint is clean.
+4. Shared note/task/file sync and revocation handling are Phase 52; room chat is Phase 53 — not claimed here.
+5. Repo-wide `pnpm lint` may still report pre-existing vault harness / drive spike issues unrelated to rooms.
 
 ### Unblocking release
 
@@ -104,6 +119,6 @@ Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`, local PostgreSQL via pr
 
 Phase 51 provisional local rooms/invitations/roles are delivered and verified against synthetic multi-account PostgreSQL/API tests. Phase status remains **blocked** on Phases 38/10 and rooms release evidence — do not treat as release-complete.
 
-**Stop before Phase 52.** No deployment, real-user invitations, outbound messages, paid provisioning, or public sharing from this phase.
+No deployment, real-user invitations, outbound messages, paid provisioning, or public sharing from this phase.
 
-Exact next action: owner selects further work (e.g. Phase 52 only after accepting rooms local scope and ordering) or resumes prerequisite release evidence for Phases 38/10 / rooms gate — not automatic roadmap advance.
+Exact next action after this repair commit: owner-selected Phase 52 (shared content sync and revocation — **not** chat) for provisional local development, or resume Phases 38/10 / rooms gate evidence.

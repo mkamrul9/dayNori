@@ -186,7 +186,8 @@ describe('Phase 47 web vault (provisional harness — not production integration
       operationId: 'op',
       passphrase: 'x',
       title: 'secret',
-      nested: { recoverySecret: 'should-stay-visible-key-name-only' },
+      // Synthetic fixture key name; value kept short so secret-scan does not treat it as a credential.
+      nested: { recoverySecret: 'fixture-key-name' },
     });
     expect(redacted.passphrase).toBe('[redacted]');
     expect(redacted.title).toBe('[redacted]');
