@@ -21,7 +21,11 @@ import {
 } from '@daynori/domain';
 import { NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
 import { publishRoomChatEvent } from './localRealtimeBus.js';
-import { assertCurrentTermsAccepted, SafetyServiceError } from '../safety/service.js';
+import {
+  assertCurrentTermsAccepted,
+  listHiddenSenderIdsForActor,
+  SafetyServiceError,
+} from '../safety/service.js';
 
 export class ChatServiceError extends Error {
   constructor(
@@ -445,6 +449,14 @@ export async function editRoomMessage(
   }
 ): Promise<ChatMutationResult> {
   const role = await assertRoomChatAccess(client, input.roomId, input.actorId, 'send');
+  try {
+    await assertCurrentTermsAccepted(client, input.actorId);
+  } catch (err) {
+    if (err instanceof SafetyServiceError) {
+      throw new ChatServiceError(err.message, err.statusCode, err.code);
+    }
+    throw err;
+  }
   const validated = validateRoomChatBody(input.body);
   if (!validated.ok) throw new ValidationError(validated.message);
 
@@ -633,6 +645,7 @@ export async function listRoomChatEvents(
   }
 ) {
   await assertRoomChatAccess(client, input.roomId, input.actorId, 'read');
+  const hidden = await listHiddenSenderIdsForActor(client, input.actorId);
   const limit = clampRoomChatPageSize(input.limit);
   const since = input.sinceOrder ?? 0;
   const eventsRes = await client.query<{
@@ -653,13 +666,18 @@ export async function listRoomChatEvents(
 
   const messageIds = [...new Set(eventsRes.rows.map((e) => e.message_id))];
   const messagesById = new Map<string, ReturnType<typeof mapMessage>>();
+  const senderByMessageId = new Map<string, string>();
   if (messageIds.length > 0) {
     const msgRes = await client.query<MessageRow>(
       `SELECT * FROM app.room_messages WHERE workspace_id = $1 AND id = ANY($2::uuid[])`,
       [input.roomId, messageIds]
     );
     for (const row of msgRes.rows) {
-      messagesById.set(row.id, mapMessage(row));
+      senderByMessageId.set(row.id, row.sender_id);
+      // Blocker-only hide: keep event for cursor progress, omit message body payload.
+      if (!hidden.has(row.sender_id)) {
+        messagesById.set(row.id, mapMessage(row));
+      }
     }
   }
 
@@ -669,15 +687,19 @@ export async function listRoomChatEvents(
   );
 
   return {
-    events: eventsRes.rows.map((e) => ({
-      id: e.id,
-      roomId: e.workspace_id,
-      serverOrder: Number(e.server_order),
-      eventType: e.event_type,
-      messageId: e.message_id,
-      message: messagesById.get(e.message_id) ?? null,
-      createdAt: e.created_at.toISOString(),
-    })),
+    events: eventsRes.rows.map((e) => {
+      const senderId = senderByMessageId.get(e.message_id);
+      const isHidden = Boolean(senderId && hidden.has(senderId));
+      return {
+        id: e.id,
+        roomId: e.workspace_id,
+        serverOrder: Number(e.server_order),
+        eventType: e.event_type,
+        messageId: e.message_id,
+        message: isHidden ? null : (messagesById.get(e.message_id) ?? null),
+        createdAt: e.created_at.toISOString(),
+      };
+    }),
     latestServerOrder: Number(latestRes.rows[0]?.m ?? 0),
     connectionStatus: 'connected' as const,
   };
@@ -698,6 +720,21 @@ export async function planRoomChatNotification(
     await assertRoomChatAccess(client, input.roomId, input.recipientId, 'read');
   } catch {
     return { dispatch: false, reason: 'not_a_member' };
+  }
+  const sender = await client.query<{ sender_id: string }>(
+    `SELECT sender_id FROM app.room_messages WHERE id = $1 AND workspace_id = $2`,
+    [input.messageId, input.roomId]
+  );
+  const senderId = sender.rows[0]?.sender_id;
+  if (senderId) {
+    const blocked = await client.query<{ blocked: boolean }>(
+      `SELECT app.are_users_blocked($1, $2) AS blocked`,
+      [input.recipientId, senderId]
+    );
+    // Notification suppress for blocked pairs — does not revoke shared-room membership.
+    if (blocked.rows[0]?.blocked) {
+      return { dispatch: false, reason: 'blocked' };
+    }
   }
   const muteRes = await client.query<{ muted: boolean; muted_until: Date | null }>(
     `SELECT muted, muted_until FROM app.room_mutes

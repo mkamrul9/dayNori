@@ -90,7 +90,10 @@ export function requiresCurrentTermsAcceptance(
   return acceptedVersion !== currentVersion;
 }
 
-/** Parse comma-separated platform moderator user IDs from env (synthetic local only). */
+/**
+ * @deprecated Prefer `app.platform_moderators` + `app.is_platform_moderator`.
+ * Env parsing remains only for local bootstrap scripts — not an authorization boundary.
+ */
 export function parsePlatformModeratorIds(env: NodeJS.ProcessEnv | Record<string, string | undefined>): Set<string> {
   const raw = env['DAYNORI_PLATFORM_MODERATOR_IDS'] ?? '';
   return new Set(
@@ -99,11 +102,4 @@ export function parsePlatformModeratorIds(env: NodeJS.ProcessEnv | Record<string
       .map((s) => s.trim())
       .filter((s) => s.length > 0)
   );
-}
-
-export function isPlatformModerator(
-  userId: string,
-  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env
-): boolean {
-  return parsePlatformModeratorIds(env).has(userId);
 }

@@ -7,9 +7,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
-import { createAdminPool, createRuntimePool } from '../../apps/api/src/db/index.js';
+import { createAdminPool, createRuntimePool, withUserContext } from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
+import { grantPlatformModeratorForTests } from '../../apps/api/src/modules/safety/service.js';
 
 describe('Phase 54: collaboration safety and policy gate', () => {
   let adminPool: Pool;
@@ -61,7 +62,6 @@ describe('Phase 54: collaboration safety and policy gate', () => {
   beforeAll(async () => {
     process.env['NODE_ENV'] = 'test';
     process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] = 'true';
-    process.env['DAYNORI_PLATFORM_MODERATOR_IDS'] = moderatorId;
 
     adminPool = createAdminPool();
     runtimePool = createRuntimePool();
@@ -115,13 +115,13 @@ describe('Phase 54: collaboration safety and policy gate', () => {
           [uid, CURRENT_UGC_POLICY_VERSION]
         );
       }
+      await grantPlatformModeratorForTests(setup, moderatorId);
     } finally {
       setup.release();
     }
   }, 120_000);
 
   afterAll(async () => {
-    delete process.env['DAYNORI_PLATFORM_MODERATOR_IDS'];
     await server.close();
     await runtimePool.end();
     await adminPool.end();
@@ -187,6 +187,7 @@ describe('Phase 54: collaboration safety and policy gate', () => {
       roomId: room.id,
       messageId: msg.data.id,
       category: 'harassment',
+      explanation: 'synthetic harassment sample',
     });
     expect(a.data.id).toBe(b.data.id);
     expect(a.data.status).toBe('received');
@@ -220,7 +221,7 @@ describe('Phase 54: collaboration safety and policy gate', () => {
     ).rejects.toThrow(/MEMBERSHIP|not a member|Not a member/i);
   });
 
-  it('block prevents invitation accept; hide filters history for blocker only', async () => {
+  it('block prevents invitation accept; hide filters history and events for blocker only', async () => {
     const room = await seedRoom();
     const msg = await clientEditor.sendRoomChatMessage(room.id, {
       clientMessageId: crypto.randomUUID(),
@@ -230,6 +231,12 @@ describe('Phase 54: collaboration safety and policy gate', () => {
     const histViewer = await clientViewer.listRoomChatMessages(room.id, { limit: 50 });
     expect(histViewer.data.messages.find((m) => m.id === msg.data.id)).toBeUndefined();
 
+    const eventsViewer = await clientViewer.listRoomChatEvents(room.id, { sinceOrder: 0, limit: 100 });
+    const hiddenEv = eventsViewer.data.events.find((e) => e.messageId === msg.data.id);
+    expect(hiddenEv).toBeTruthy();
+    expect(hiddenEv!.message).toBeNull();
+    expect(hiddenEv!.serverOrder).toBe(msg.data.serverOrder);
+
     const histOwner = await clientOwner.listRoomChatMessages(room.id, { limit: 50 });
     expect(histOwner.data.messages.find((m) => m.id === msg.data.id)).toBeTruthy();
 
@@ -237,8 +244,6 @@ describe('Phase 54: collaboration safety and policy gate', () => {
       role: 'viewer',
       recipientUserId: outsiderId,
     });
-    // Block between outsider and owner after invite created by owner — accept as outsider
-    // who blocks the owner first:
     await clientOutsider.blockUser({ blockedUserId: ownerId });
     await expect(
       clientOutsider.acceptRoomInvitation({ token: inv.data.inviteToken! })
@@ -247,12 +252,35 @@ describe('Phase 54: collaboration safety and policy gate', () => {
     await clientViewer.unblockUser(editorId);
   });
 
-  it('unauthorized users cannot list moderation queue; moderator can', async () => {
+  it('unauthorized users cannot list moderation queue; moderator can; actioned needs disposition', async () => {
     await expect(clientOwner.listModerationReports()).rejects.toThrow(
       /MODERATION_FORBIDDEN|moderation access denied|403/i
     );
     const list = await clientModerator.listModerationReports();
     expect(Array.isArray(list.data.reports)).toBe(true);
+
+    const room = await seedRoom();
+    const msg = await clientOwner.sendRoomChatMessage(room.id, {
+      clientMessageId: crypto.randomUUID(),
+      body: 'to-action',
+    });
+    const report = await clientViewer.createUgcReport({
+      clientReportId: crypto.randomUUID(),
+      targetType: 'message',
+      roomId: room.id,
+      messageId: msg.data.id,
+      category: 'spam',
+    });
+    await expect(
+      clientModerator.updateModerationReport(report.data.id, { status: 'actioned' })
+    ).rejects.toThrow(/disposition|reason|400/i);
+    const actioned = await clientModerator.updateModerationReport(report.data.id, {
+      status: 'actioned',
+      disposition: 'content_removed',
+      reason: 'Synthetic disposition for local test',
+    });
+    expect(actioned.data.reports[0]?.status).toBe('actioned');
+    expect(actioned.data.reports[0]?.disposition).toBe('content_removed');
   });
 
   it('evidence snapshot survives message delete', async () => {
@@ -275,5 +303,63 @@ describe('Phase 54: collaboration safety and policy gate', () => {
     expect((found!.evidenceSnapshot as { message?: { body?: string } }).message?.body).toBe(
       'evidence-body'
     );
+  });
+
+  it('rejects incompatible report clientReportId reuse; allows identical concurrent retries', async () => {
+    const room = await seedRoom();
+    const msg = await clientOwner.sendRoomChatMessage(room.id, {
+      clientMessageId: crypto.randomUUID(),
+      body: 'idem-report',
+    });
+    const clientReportId = crypto.randomUUID();
+    const [a, b] = await Promise.all([
+      clientViewer.createUgcReport({
+        clientReportId,
+        targetType: 'message',
+        roomId: room.id,
+        messageId: msg.data.id,
+        category: 'spam',
+      }),
+      clientViewer.createUgcReport({
+        clientReportId,
+        targetType: 'message',
+        roomId: room.id,
+        messageId: msg.data.id,
+        category: 'spam',
+      }),
+    ]);
+    expect(a.data.id).toBe(b.data.id);
+
+    await expect(
+      clientViewer.createUgcReport({
+        clientReportId,
+        targetType: 'message',
+        roomId: room.id,
+        messageId: msg.data.id,
+        category: 'harassment',
+      })
+    ).rejects.toThrow(/IDEMPOTENCY|reused|409/i);
+  });
+
+  it('DB helpers deny ordinary runtime users without moderator membership', async () => {
+    await expect(
+      withUserContext(runtimePool, ownerId, async (client) => {
+        await client.query(`SELECT * FROM app.list_ugc_reports_for_moderation(10)`);
+      })
+    ).rejects.toThrow(/MODERATION_FORBIDDEN/i);
+
+    await expect(
+      withUserContext(runtimePool, ownerId, async (client) => {
+        await client.query(
+          `SELECT app.record_moderation_audit($1, 'platform', NULL, 'forged', NULL, 'user', $2)`,
+          [moderatorId, ownerId]
+        );
+      })
+    ).rejects.toThrow(/MODERATION_FORBIDDEN/i);
+
+    await withUserContext(runtimePool, moderatorId, async (client) => {
+      const ok = await client.query(`SELECT count(*)::int AS c FROM app.list_ugc_reports_for_moderation(5)`);
+      expect(Number(ok.rows[0]?.c ?? 0)).toBeGreaterThanOrEqual(0);
+    });
   });
 });

@@ -124,6 +124,10 @@ import {
   ForbiddenError,
 } from '../../plugins/errorHandler.js';
 import { isRoomContentBlocked } from '@daynori/domain';
+import {
+  assertCurrentTermsAccepted,
+  SafetyServiceError,
+} from '../safety/service.js';
 
 function mapRoomAccessErrorCode(err: unknown): string {
   if (err instanceof MembershipRevokedError) return err.code;
@@ -630,6 +634,27 @@ export class SyncService {
                 error: {
                   code: 'FORBIDDEN',
                   message: 'Journal and vault content cannot be synced to room workspaces',
+                },
+              };
+            }
+            // Phase 54 repair: shared UGC contribution requires current terms.
+            try {
+              await assertCurrentTermsAccepted(client, actorUserId);
+            } catch (err) {
+              const code =
+                err instanceof SafetyServiceError ? err.code : 'UGC_TERMS_REQUIRED';
+              return {
+                operationId: cmd.operationId,
+                status: 'rejected',
+                entityId: cmd.entityId,
+                revision: 0,
+                seq: null,
+                error: {
+                  code,
+                  message:
+                    err instanceof Error
+                      ? err.message
+                      : 'Accept UGC policy before contributing shared content',
                 },
               };
             }

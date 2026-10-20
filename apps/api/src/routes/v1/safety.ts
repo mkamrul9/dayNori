@@ -185,6 +185,7 @@ export function registerSafetyRoutes(app: FastifyInstance, pool: Pool): void {
           reportId,
           status: body.status,
           reason: body.reason,
+          disposition: body.disposition,
         })
       );
       return reply.send(

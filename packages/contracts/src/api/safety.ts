@@ -46,6 +46,7 @@ export const UgcReportReceiptSchema = z
     reportedUserId: z.string().uuid().nullable(),
     category: UgcReportCategorySchema,
     status: UgcReportStatusSchema,
+    disposition: z.string().nullable().optional(),
     createdAt: z.string().datetime(),
   })
   .strict();
@@ -109,6 +110,15 @@ export const UgcTermsStatusResponseSchema = z.object({
 });
 export type UgcTermsStatusResponse = z.infer<typeof UgcTermsStatusResponseSchema>;
 
+export const ReportDispositionSchema = z.enum([
+  'content_removed',
+  'user_warned',
+  'user_restricted',
+  'no_violation',
+  'escalated',
+  'other',
+]);
+
 export const ModerationReportSchema = z
   .object({
     id: z.string().uuid(),
@@ -120,6 +130,7 @@ export const ModerationReportSchema = z
     category: UgcReportCategorySchema,
     explanation: z.string().nullable(),
     status: UgcReportStatusSchema,
+    disposition: z.string().nullable().optional(),
     evidenceSnapshot: z.record(z.string(), z.unknown()),
     createdAt: z.string().datetime(),
   })
@@ -137,6 +148,7 @@ export const UpdateModerationReportRequestSchema = z
   .object({
     status: UgcReportStatusSchema,
     reason: z.string().max(500).optional(),
+    disposition: ReportDispositionSchema.optional(),
   })
   .strict();
 export type UpdateModerationReportRequest = z.infer<typeof UpdateModerationReportRequestSchema>;

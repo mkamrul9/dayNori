@@ -506,35 +506,113 @@ export function RoomsSheet({
                 variant="subtle"
                 themeMode={themeMode}
                 disabled={busy || chatCache.length === 0}
-                accessibilityLabel="Report last message"
+                accessibilityLabel="Report a message"
                 onPress={() => {
-                  const last = chatCache[chatCache.length - 1];
-                  if (!last || !selected) return;
-                  Alert.alert('Report message', 'Submit a harassment report for the latest message?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Report',
-                      onPress: () => {
-                        void (async () => {
-                          try {
-                            await apiClient.createUgcReport({
-                              clientReportId: crypto.randomUUID(),
-                              targetType: 'message',
-                              roomId: selected.id,
-                              messageId: last.id,
-                              category: 'harassment',
-                            });
-                            setMessage('Report submitted');
-                          } catch (err) {
-                            setMessage(err instanceof Error ? err.message : 'Report failed');
-                          }
-                        })();
-                      },
-                    },
-                  ]);
+                  if (!selected || chatCache.length === 0) return;
+                  const choices = chatCache
+                    .slice(-8)
+                    .map((m) => ({
+                      id: m.id,
+                      label: `#${m.serverOrder} ${(m.deletedAt ? '(deleted)' : m.body).slice(0, 40)}`,
+                    }));
+                  Alert.alert(
+                    'Report message',
+                    'Choose which message to report, then a category.',
+                    [
+                      ...choices.map((c) => ({
+                        text: c.label,
+                        onPress: () => {
+                          Alert.alert('Category', 'Select a report category', [
+                            {
+                              text: 'Harassment',
+                              onPress: () => {
+                                void (async () => {
+                                  try {
+                                    await apiClient.createUgcReport({
+                                      clientReportId: crypto.randomUUID(),
+                                      targetType: 'message',
+                                      roomId: selected.id,
+                                      messageId: c.id,
+                                      category: 'harassment',
+                                    });
+                                    setMessage('Report submitted');
+                                  } catch (err) {
+                                    setMessage(err instanceof Error ? err.message : 'Report failed');
+                                  }
+                                })();
+                              },
+                            },
+                            {
+                              text: 'Spam',
+                              onPress: () => {
+                                void (async () => {
+                                  try {
+                                    await apiClient.createUgcReport({
+                                      clientReportId: crypto.randomUUID(),
+                                      targetType: 'message',
+                                      roomId: selected.id,
+                                      messageId: c.id,
+                                      category: 'spam',
+                                    });
+                                    setMessage('Report submitted');
+                                  } catch (err) {
+                                    setMessage(err instanceof Error ? err.message : 'Report failed');
+                                  }
+                                })();
+                              },
+                            },
+                            { text: 'Cancel', style: 'cancel' },
+                          ]);
+                        },
+                      })),
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
                 }}
               >
-                Report last message
+                Report a message
+              </MobileButton>
+              <MobileButton
+                variant="subtle"
+                themeMode={themeMode}
+                disabled={busy}
+                accessibilityLabel="Manage blocked users"
+                onPress={() => {
+                  void (async () => {
+                    try {
+                      const list = await apiClient.listUserBlocks();
+                      if (list.data.blocks.length === 0) {
+                        setMessage('No blocked users');
+                        return;
+                      }
+                      const first = list.data.blocks[0]!;
+                      Alert.alert(
+                        'Blocked users',
+                        `${list.data.blocks.length} blocked. Unblock ${first.blockedUserId.slice(0, 8)}…?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Unblock',
+                            onPress: () => {
+                              void (async () => {
+                                try {
+                                  await apiClient.unblockUser(first.blockedUserId);
+                                  setMessage('User unblocked');
+                                } catch (err) {
+                                  setMessage(err instanceof Error ? err.message : 'Unblock failed');
+                                }
+                              })();
+                            },
+                          },
+                        ]
+                      );
+                    } catch (err) {
+                      setMessage(err instanceof Error ? err.message : 'Block list failed');
+                    }
+                  })();
+                }}
+              >
+                Manage blocks
               </MobileButton>
               <MobileButton
                 variant="subtle"

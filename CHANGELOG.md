@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 54 repair — Moderation DB auth, hide consistency, terms/idempotency (blocked) — 2026-10-20
+
+- Protected `app.platform_moderators` membership enforced inside SECURITY DEFINER helpers; audit actors bound to caller; self-service block audit separated.
+- Blocker-only hide applied to chat events (cursor preserved); notification suppress for blocked pairs.
+- Terms required for chat edit, room copy, and room sync writes; report immutable request hash + concurrency-safe limits; actioned needs disposition/reason.
+- Web/Android user report, block list/unblock, and selectable message report. ADR 0051 amended. Status remains blocked.
+
 ## Phase 54 — Collaboration safety and policy gate (blocked / provisional) — 2026-10-20
 
 - Durable UGC reports (categories, explanation bounds, idempotent client ids, rate limits, frozen evidence snapshots) and viewer-capable reporting.

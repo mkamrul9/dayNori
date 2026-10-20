@@ -30,6 +30,7 @@ import {
 } from '../../db/repositories/membershipRepository.js';
 import { recordAuditEvent } from '../../db/repositories/auditRepository.js';
 import {
+  assertCurrentTermsAccepted,
   assertInviteCreateRateLimit,
   assertUsersNotBlocked,
   SafetyServiceError,
@@ -752,6 +753,14 @@ export async function copyPersonalItemToRoom(
     destinationRoomId: string;
   }
 ) {
+  try {
+    await assertCurrentTermsAccepted(client, input.actorId);
+  } catch (err) {
+    if (err instanceof SafetyServiceError) {
+      throw new RoomServiceError(err.message, err.statusCode, err.code);
+    }
+    throw err;
+  }
   const preview = await previewCopyPersonalItemToRoom(client, input);
   if (preview.blocked) {
     throw new RoomServiceError(preview.blockReason ?? 'Share blocked', 400, 'ROOM_SHARE_BLOCKED');

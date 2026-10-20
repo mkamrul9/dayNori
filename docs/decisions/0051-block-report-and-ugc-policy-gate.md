@@ -14,10 +14,11 @@ Invite-only room chat is user-generated content visible to a subset of users. Pl
 2. **Block** — Bidirectional invitation restriction (`app.are_users_blocked`). For the blocker only, hide the blocked user's messages in history reads. Does **not** remove membership, revoke the other user's room access, or delete shared content for other members.
 3. **Hide** — Derived client/API filter for the blocker (see block). Not a separate durable entity.
 4. **Membership removal / leave / archive** — Existing room-owner controls; confirmed destructive UX. Distinct from block.
-5. **Moderation deletion** — Author or room-owner message soft-delete (chat); platform report status changes require explicit platform moderator allow-list (`DAYNORI_PLATFORM_MODERATOR_IDS`). Room owners cannot read the report queue or reporter identity.
-6. **Reports** — Viewers may report; categories validated; optional explanation ≤1000; idempotent `client_report_id`; rate-limited. Evidence snapshot frozen at submit time (survives edit/delete).
-7. **Terms** — Versioned `CURRENT_UGC_POLICY_VERSION`; server rejects chat sends without current acceptance (`UGC_TERMS_REQUIRED`). UI alone is insufficient.
-8. **Invitations** — Per-actor create rate limit; block checks on targeted create and on accept vs invitation creator. Existing TTL/pending caps retained.
+5. **Moderation deletion** — Author or room-owner message soft-delete (chat). Platform report queue/status changes require membership in protected `app.platform_moderators` enforced **inside** SECURITY DEFINER helpers (not API-only). Audit actor is bound to `app.current_user_id()`; forged actor ids are rejected. Room owners cannot read the report queue or reporter identity. Self-service block/unblock uses `record_self_safety_audit` (caller-bound).
+6. **Reports** — Viewers may report; categories validated; optional explanation ≤1000; immutable `original_request_hash` for idempotent `client_report_id`; incompatible reuse → 409; concurrent identical retries return one receipt; advisory locks for rate limits. User reports require a shared-room relationship. Evidence snapshot frozen at submit time. `actioned` requires disposition + auditable reason.
+7. **Terms** — Versioned `CURRENT_UGC_POLICY_VERSION`; server rejects shared UGC contribution without current acceptance (`UGC_TERMS_REQUIRED`) on chat send/edit, personal→room copy, and room sync writes. Private personal work, reporting, blocking, leave, and deletion remain ungated. UI shows version before accept.
+8. **Invitations** — Per-actor create rate limit (advisory-locked); block checks on targeted create and on accept vs invitation creator. Existing TTL/pending caps retained.
+9. **Hide consistency** — Blocker-only message hide applies to history and event payloads (`message: null` while cursor advances). Notification planning suppresses blocked pairs. Blocking does not revoke shared-room membership.
 
 ## Consequences
 

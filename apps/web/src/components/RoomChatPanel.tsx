@@ -69,6 +69,7 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
   const [needsTerms, setNeedsTerms] = useState(false);
+  const [blocks, setBlocks] = useState<Array<{ blockedUserId: string; createdAt: string }>>([]);
   const eventCursorRef = useRef(0);
   const generationRef = useRef(0);
   const roomIdRef = useRef(room.id);
@@ -118,6 +119,19 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     setMessages((prev) => mergeByRevision(prev, incoming));
   }, []);
 
+  const applyEvents = useCallback((events: Array<{ messageId: string; message: RoomChatMessage | null }>) => {
+    const fresh: RoomChatMessage[] = [];
+    const hideIds = new Set<string>();
+    for (const ev of events) {
+      if (ev.message) fresh.push(ev.message);
+      else hideIds.add(ev.messageId);
+    }
+    setMessages((prev) => {
+      const kept = prev.filter((m) => !hideIds.has(m.id));
+      return mergeByRevision(kept, fresh);
+    });
+  }, []);
+
   const drainEvents = useCallback(
     async (since: number): Promise<number> => {
       let cursor = since;
@@ -128,12 +142,10 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
           limit: 100,
         });
         if (isStale()) return cursor;
-        const fresh: RoomChatMessage[] = [];
         for (const ev of res.data.events) {
           cursor = Math.max(cursor, ev.serverOrder);
-          if (ev.message) fresh.push(ev.message);
         }
-        if (fresh.length) mergeMessages(fresh);
+        applyEvents(res.data.events);
         if (res.data.events.length === 0) {
           // Snapshot watermark when starting cold: do not skip if since was 0 and history loaded.
           if (since === 0 && cursor === 0) {
@@ -147,7 +159,7 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
       saveRoomChatEventCursor(userId, room.id, cursor);
       return cursor;
     },
-    [client, isStale, mergeMessages, room.id, userId]
+    [applyEvents, client, isStale, room.id, userId]
   );
 
   const refreshHistory = useCallback(async () => {
@@ -401,7 +413,23 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     }
   };
 
+  const refreshBlocks = useCallback(async () => {
+    try {
+      const res = await client.listUserBlocks();
+      if (!isStale()) setBlocks(res.data.blocks);
+    } catch {
+      /* ignore */
+    }
+  }, [client, isStale]);
+
   const acceptTerms = async () => {
+    const confirmed = window.confirm(
+      `Accept Daynori community rules version ${CURRENT_UGC_POLICY_VERSION}?\n\n` +
+        'This covers shared room contributions (chat and shared notes/tasks/files). ' +
+        'See docs/policy/acceptable-use-and-community-rules.md for the full text. ' +
+        'Reporting, blocking, leaving, and deleting remain available without re-acceptance.'
+    );
+    if (!confirmed) return;
     try {
       const res = await client.acceptUgcTerms({ policyVersion: CURRENT_UGC_POLICY_VERSION });
       setNeedsTerms(res.data.requiresAcceptance);
@@ -448,6 +476,37 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     }
   };
 
+  const onReportUser = async (userIdToReport: string) => {
+    const category = window.prompt(
+      'Report user category (harassment|hate|sexual_content|spam|scam|violence|illegal|other):',
+      'harassment'
+    );
+    if (!category) return;
+    try {
+      await client.createUgcReport({
+        clientReportId: crypto.randomUUID(),
+        targetType: 'user',
+        roomId: room.id,
+        reportedUserId: userIdToReport,
+        category: category as
+          | 'harassment'
+          | 'hate'
+          | 'sexual_content'
+          | 'spam'
+          | 'scam'
+          | 'violence'
+          | 'illegal'
+          | 'other',
+      });
+      setFeedback({ severity: 'success', message: 'User report submitted.' });
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Report failed',
+      });
+    }
+  };
+
   const onBlockSender = async (senderId: string) => {
     if (
       !window.confirm(
@@ -459,11 +518,26 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     try {
       await client.blockUser({ blockedUserId: senderId });
       setMessages((prev) => prev.filter((m) => m.senderId !== senderId));
+      await refreshBlocks();
       setFeedback({ severity: 'success', message: 'User blocked. Invitation path restricted.' });
     } catch (err) {
       setFeedback({
         severity: 'danger',
         message: err instanceof Error ? err.message : 'Block failed',
+      });
+    }
+  };
+
+  const onUnblock = async (blockedUserId: string) => {
+    if (!window.confirm('Unblock this user? Invitations between you may resume.')) return;
+    try {
+      await client.unblockUser(blockedUserId);
+      await refreshBlocks();
+      setFeedback({ severity: 'success', message: 'User unblocked.' });
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Unblock failed',
       });
     }
   };
@@ -476,8 +550,9 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
       } catch {
         /* terms endpoint may be gated; leave default */
       }
+      await refreshBlocks();
     })();
-  }, [client, room.id, isStale]);
+  }, [client, room.id, isStale, refreshBlocks]);
 
   return (
     <section
@@ -549,13 +624,40 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
         </Button>
         {needsTerms ? (
           <Button type="button" size="compact" themeMode={themeMode} onClick={() => void acceptTerms()}>
-            Accept community rules {CURRENT_UGC_POLICY_VERSION}
+            Review & accept rules {CURRENT_UGC_POLICY_VERSION}
           </Button>
         ) : null}
         <Button type="button" variant="subtle" size="compact" themeMode={themeMode} onClick={onClose}>
           Close
         </Button>
       </div>
+
+      {blocks.length > 0 ? (
+        <section aria-label="Blocked users" style={{ marginBottom: spacing.md }}>
+          <h3 style={{ fontSize: 14, margin: `0 0 ${spacing.xs}` }}>Blocked users</h3>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {blocks.map((b) => (
+              <li
+                key={b.blockedUserId}
+                style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', marginBottom: spacing.xs }}
+              >
+                <span style={{ fontSize: 12, color: palette.text.secondary }}>
+                  {b.blockedUserId.slice(0, 8)}…
+                </span>
+                <Button
+                  type="button"
+                  size="compact"
+                  variant="subtle"
+                  themeMode={themeMode}
+                  onClick={() => void onUnblock(b.blockedUserId)}
+                >
+                  Unblock
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <ul
         aria-label="Message history"
@@ -611,15 +713,26 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
                 </Button>
               ) : null}
               {m.senderId !== userId ? (
-                <Button
-                  type="button"
-                  size="compact"
-                  variant="subtle"
-                  themeMode={themeMode}
-                  onClick={() => void onBlockSender(m.senderId)}
-                >
-                  Block sender
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="subtle"
+                    themeMode={themeMode}
+                    onClick={() => void onReportUser(m.senderId)}
+                  >
+                    Report user
+                  </Button>
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="subtle"
+                    themeMode={themeMode}
+                    onClick={() => void onBlockSender(m.senderId)}
+                  >
+                    Block sender
+                  </Button>
+                </>
               ) : null}
               {!readOnly && !m.deletedAt && m.senderId === userId ? (
                 editingId === m.id ? (
