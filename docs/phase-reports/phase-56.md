@@ -9,7 +9,7 @@
 - **Prerequisites:** Phases 55, 19, 23, 32 — owner selected bounded provisional local work; external prerequisite evidence remains pending and does not authorize release claims.
 - **Owner selection:** Bounded provisional local development only — no real-user AI, live providers, private-content transmission, deploy, paid infra, rooms/vault enablement.
 - **Preserved:** Phase 50 deferred; Phase 49 live Google pending; vault disabled; rooms/chat unavailable to real users; AI live provider and production activation disabled.
-- **Stop before:** Phase 57.
+- **Stop before:** Phase 57 (owner-selected after repair commit on this base).
 
 ### Distinguishing lanes
 
@@ -63,7 +63,18 @@ Physical Android device and full keyboard/SR matrix: **unexecuted**.
 - Fake answers are **not** evaluated live intelligence.
 - Cancellation cannot recall content already transmitted (Phase 55 invariant unchanged).
 - Real-user sharing/notifications stay disabled.
-- Rollback: reverse migration `00063` after disabling AI local flag; pending proposals expire or cancel.
+- Rollback: reverse migrations `00063`/`00064` after disabling AI local flag; pending proposals expire or cancel.
+
+### Phase 56 repair (same report family)
+
+| Repair | Result |
+|---|---|
+| A Create recovery bound to `operation_id` + mutation receipt | **Pass** (`AI_CREATE_ID_CONFLICT` for unrelated ids) |
+| B Durable terminal status before API error | **Pass** (expired/failed rows persist) |
+| C Update target vault/kind/revision validation + review summary | **Pass** |
+| D Draft get/save/clear; consent-gen history; ask cancel/fence | **Pass** |
+| E Source-access recheck; physical expired cleanup | **Pass** |
+| Commands: `npx vitest run tests/integration/phase56-ai-repair.test.ts tests/integration/phase56-ai-assistant-actions.test.ts` | **18 passed** (2026-10-20, Node v24.11.1) |
 
 ## Documentation and Git review
 

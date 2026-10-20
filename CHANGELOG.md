@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 56 repair — Proposal recovery, durable status, drafts, source access (blocked) — 2026-10-20
+
+- Create recovery binds to proposal `operation_id` + mutation receipt/`request_hash`; unrelated id collision → conflict, not recovered success.
+- Terminal proposal states (`expired`/`failed`/`cancelled`) commit before API errors; review summaries for Confirm UI.
+- Update-target vault/kind/revision validation; draft get/save/clear; history scoped to current consent generation; ask AbortSignal cancel.
+- Source-access recheck for citations; `ai_cleanup_expired_assistant_data` physical deletion. ADR 0053 amended.
+
 ## Phase 56 — AI assistant and confirmed organizer actions (blocked / provisional) — 2026-10-20
 
 - Assistant ask reuses Phase 55 retrieval with labeled fake/gated answers, history/draft retention, and source citation links on web and Android.

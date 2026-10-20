@@ -3,8 +3,12 @@ import type { Pool } from 'pg';
 import {
   AiAskRequestSchema,
   AiAskResponseSchema,
+  AiAssistantDraftResponseSchema,
   AiAssistantHistoryResponseSchema,
   AiProposalResponseSchema,
+  AiSourceAccessRequestSchema,
+  AiSourceAccessResponseSchema,
+  ClearAiDraftRequestSchema,
   ConfirmAiProposalRequestSchema,
   CreateAiProposalRequestSchema,
   SaveAiDraftRequestSchema,
@@ -15,9 +19,12 @@ import { AiServiceError } from '../../modules/ai/service.js';
 import {
   askAssistant,
   cancelAiProposal,
+  clearAssistantDraft,
   confirmAiProposal,
   createAiProposal,
+  getAssistantDraft,
   listAssistantHistory,
+  resolveAiSourceAccess,
   saveAssistantDraft,
 } from '../../modules/ai/assistantService.js';
 
@@ -85,6 +92,25 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
     }
   });
 
+  app.get('/v1/ai/assistant/draft', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const workspaceId = (request.query as { workspaceId?: string }).workspaceId;
+    if (!workspaceId) {
+      return reply.status(400).send({ error: { message: 'workspaceId required' } });
+    }
+    try {
+      const data = await withUserContext(pool, actor.userId, (client) =>
+        getAssistantDraft(client, { userId: actor.userId, workspaceId })
+      );
+      return reply.send(
+        validateResponse(AiAssistantDraftResponseSchema, { data, meta: meta(request.id) })
+      );
+    } catch (err) {
+      return sendAiError(err, reply);
+    }
+  });
+
   app.post('/v1/ai/assistant/draft', async (request, reply) => {
     const actor = request.actor;
     if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
@@ -98,6 +124,40 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
         })
       );
       return reply.status(204).send();
+    } catch (err) {
+      return sendAiError(err, reply);
+    }
+  });
+
+  app.post('/v1/ai/assistant/draft/clear', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const body = ClearAiDraftRequestSchema.parse(request.body);
+    try {
+      await withUserContext(pool, actor.userId, (client) =>
+        clearAssistantDraft(client, { userId: actor.userId, workspaceId: body.workspaceId })
+      );
+      return reply.status(204).send();
+    } catch (err) {
+      return sendAiError(err, reply);
+    }
+  });
+
+  app.post('/v1/ai/assistant/source-access', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const body = AiSourceAccessRequestSchema.parse(request.body);
+    try {
+      const data = await withUserContext(pool, actor.userId, (client) =>
+        resolveAiSourceAccess(client, {
+          userId: actor.userId,
+          workspaceId: body.workspaceId,
+          itemId: body.itemId,
+        })
+      );
+      return reply.send(
+        validateResponse(AiSourceAccessResponseSchema, { data, meta: meta(request.id) })
+      );
     } catch (err) {
       return sendAiError(err, reply);
     }
@@ -132,7 +192,6 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
     const proposalId = (request.params as { proposalId: string }).proposalId;
     const body = ConfirmAiProposalRequestSchema.parse(request.body);
     try {
-      // Resolve workspace under user context, then confirm under tenant context for item RLS.
       const workspaceId = await withUserContext(pool, actor.userId, async (client) => {
         const res = await client.query<{ workspace_id: string }>(
           `SELECT workspace_id FROM app.ai_proposals WHERE id = $1 AND user_id = $2`,
@@ -143,7 +202,8 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
         }
         return res.rows[0].workspace_id;
       });
-      const data = await withTenantContext(
+      // Terminal status updates commit with the transaction; error is returned only afterward.
+      const result = await withTenantContext(
         pool,
         { userId: actor.userId, workspaceId },
         (client) =>
@@ -153,8 +213,17 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
             confirmationToken: body.confirmationToken,
           })
       );
+      if (result.outcome === 'error') {
+        return reply.status(result.error.statusCode).send({
+          error: { message: result.error.message, code: result.error.code },
+          data: result.proposal,
+        });
+      }
       return reply.send(
-        validateResponse(AiProposalResponseSchema, { data, meta: meta(request.id) })
+        validateResponse(AiProposalResponseSchema, {
+          data: result.proposal,
+          meta: meta(request.id),
+        })
       );
     } catch (err) {
       return sendAiError(err, reply);

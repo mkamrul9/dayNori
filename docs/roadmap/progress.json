@@ -339,7 +339,7 @@
     {
       "id": "56",
       "status": "blocked",
-      "reason": "Provisional local assistant + reviewable proposals (ADR 0053): grounded ask UI, opaque confirmation tokens, allow-listed personal task/note creates via domain services. Completion blocked pending AI release gates, live-provider authorization, and Phase 55 external evidence. No real-user AI or live private-content traffic. Vault/rooms remain disabled.",
+      "reason": "Provisional local assistant repaired (ADR 0053 amended): operation-bound create recovery, durable terminal proposal states, vault/revision update gates, draft lifecycle, consent-gen history, ask cancel, source-access recheck, expired cleanup. Completion blocked pending AI release gates and live-provider evidence. No real-user AI. Vault/rooms remain disabled.",
       "report": "docs/phase-reports/phase-56.md"
     },
     {

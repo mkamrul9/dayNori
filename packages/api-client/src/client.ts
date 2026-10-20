@@ -291,6 +291,8 @@ import {
   AiAskResponseSchema,
   AiProposalResponseSchema,
   AiAssistantHistoryResponseSchema,
+  AiAssistantDraftResponseSchema,
+  AiSourceAccessResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -342,7 +344,11 @@ import {
   type ConfirmAiProposalRequest,
   type AiProposalResponse,
   type AiAssistantHistoryResponse,
+  type AiAssistantDraftResponse,
+  type AiSourceAccessResponse,
   type SaveAiDraftRequest,
+  type ClearAiDraftRequest,
+  type AiSourceAccessRequest,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3476,6 +3482,41 @@ export class DaynoriApiClient {
       { method: 'POST', body: JSON.stringify(request) },
       options
     );
+  }
+
+  async getAssistantDraft(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<AiAssistantDraftResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/assistant/draft?workspaceId=${encodeURIComponent(workspaceId)}`,
+      { method: 'GET' },
+      options
+    );
+    return AiAssistantDraftResponseSchema.parse(raw);
+  }
+
+  async clearAssistantDraft(
+    request: ClearAiDraftRequest,
+    options?: RequestOptions
+  ): Promise<void> {
+    await this.request<unknown>(
+      `/v1/ai/assistant/draft/clear`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+  }
+
+  async checkAiSourceAccess(
+    request: AiSourceAccessRequest,
+    options?: RequestOptions
+  ): Promise<AiSourceAccessResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/assistant/source-access`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AiSourceAccessResponseSchema.parse(raw);
   }
 
   async createAiProposal(

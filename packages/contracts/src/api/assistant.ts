@@ -20,6 +20,16 @@ export const AiAskRequestSchema = z
   .strict();
 export type AiAskRequest = z.infer<typeof AiAskRequestSchema>;
 
+export const AiProposalReviewSummarySchema = z
+  .object({
+    headline: z.string(),
+    targetLabel: z.string(),
+    before: z.string().nullable(),
+    after: z.string(),
+  })
+  .strict();
+export type AiProposalReviewSummary = z.infer<typeof AiProposalReviewSummarySchema>;
+
 export const AiProposalSchema = z
   .object({
     id: z.string().uuid(),
@@ -27,12 +37,13 @@ export const AiProposalSchema = z
     operation: AiAssistantOperationSchema,
     payload: z.record(z.string(), z.unknown()),
     targetItemId: z.string().uuid().nullable(),
-    expectedRevision: z.number().int().positive().nullable(),
+    expectedRevision: z.number().int().nonnegative().nullable(),
     consentGeneration: z.number().int().positive(),
     status: z.enum(['pending', 'confirmed', 'cancelled', 'expired', 'failed']),
     expiresAt: z.string(),
     confirmationToken: z.string().min(16).max(128),
     executionReceipt: z.record(z.string(), z.unknown()).nullable(),
+    reviewSummary: AiProposalReviewSummarySchema,
     createdAt: z.string(),
   })
   .strict();
@@ -50,6 +61,7 @@ export const AiAskResponseSchema = z.object({
     tokensSettled: z.number().int().nonnegative(),
     suggestedProposal: AiProposalSchema.nullable(),
     label: z.literal('provisional-local-fake-or-gated'),
+    cancelled: z.boolean().optional(),
   }),
   meta: ResponseMetaSchema,
 });
@@ -61,7 +73,7 @@ export const CreateAiProposalRequestSchema = z
     operation: AiAssistantOperationSchema,
     payload: z.record(z.string(), z.unknown()),
     targetItemId: z.string().uuid().optional(),
-    expectedRevision: z.number().int().positive().optional(),
+    expectedRevision: z.number().int().nonnegative().optional(),
   })
   .strict();
 export type CreateAiProposalRequest = z.infer<typeof CreateAiProposalRequestSchema>;
@@ -88,6 +100,7 @@ export const AiAssistantTurnSchema = z
     abstained: z.boolean(),
     citations: z.array(AiCitationSchema),
     providerMode: z.string(),
+    consentGeneration: z.number().int().positive(),
     createdAt: z.string(),
     expiresAt: z.string(),
   })
@@ -106,3 +119,46 @@ export const SaveAiDraftRequestSchema = z
   })
   .strict();
 export type SaveAiDraftRequest = z.infer<typeof SaveAiDraftRequestSchema>;
+
+export const AiAssistantDraftSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    draftQuestion: z.string(),
+    consentGeneration: z.number().int().positive(),
+    updatedAt: z.string(),
+  })
+  .strict();
+
+export const AiAssistantDraftResponseSchema = z.object({
+  data: AiAssistantDraftSchema.nullable(),
+  meta: ResponseMetaSchema,
+});
+export type AiAssistantDraftResponse = z.infer<typeof AiAssistantDraftResponseSchema>;
+
+export const ClearAiDraftRequestSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+  })
+  .strict();
+export type ClearAiDraftRequest = z.infer<typeof ClearAiDraftRequestSchema>;
+
+export const AiSourceAccessRequestSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    itemId: z.string().uuid(),
+  })
+  .strict();
+export type AiSourceAccessRequest = z.infer<typeof AiSourceAccessRequestSchema>;
+
+export const AiSourceAccessResponseSchema = z.object({
+  data: z.object({
+    accessible: z.boolean(),
+    itemId: z.string().uuid(),
+    kind: z.string().nullable(),
+    title: z.string().nullable(),
+    revision: z.number().int().positive().nullable(),
+    reason: z.string().nullable(),
+  }),
+  meta: ResponseMetaSchema,
+});
+export type AiSourceAccessResponse = z.infer<typeof AiSourceAccessResponseSchema>;
