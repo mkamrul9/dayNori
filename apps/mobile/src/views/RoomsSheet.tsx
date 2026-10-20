@@ -4,10 +4,17 @@ import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { MobileButton } from '@daynori/ui-mobile';
 import type { Room } from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
+import {
+  clearRoomChatLocal,
+  loadRoomChatLocal,
+  saveRoomChatLocal,
+} from '../data/roomChatLocalStore';
 
 export interface RoomsSheetProps {
   themeMode: ThemeMode;
   personalWorkspaceId: string;
+  /** Authenticated account id — scopes durable chat drafts/pending. */
+  userId: string;
   apiClient: DaynoriApiClient;
   onClose: () => void;
   testID?: string;
@@ -21,6 +28,7 @@ export interface RoomsSheetProps {
 export function RoomsSheet({
   themeMode,
   personalWorkspaceId,
+  userId,
   apiClient,
   onClose,
   testID = 'rooms-sheet',
@@ -224,22 +232,64 @@ export function RoomsSheet({
               void (async () => {
                 setBusy(true);
                 try {
+                  const snap = loadRoomChatLocal(userId, selected.id);
+                  setChatDraft(snap.draft);
                   const hist = await apiClient.listRoomChatMessages(selected.id, { limit: 40 });
-                  const lines = [...hist.data.messages]
-                    .sort((a, b) => a.serverOrder - b.serverOrder)
-                    .map((m) =>
-                      m.deletedAt
-                        ? `#${m.serverOrder} (deleted)`
-                        : `#${m.serverOrder} ${m.body}`
-                    );
-                  setChatLines(lines);
+                  let cursor = snap.eventCursor;
+                  const events = await apiClient.listRoomChatEvents(selected.id, {
+                    sinceOrder: cursor,
+                    limit: 100,
+                  });
+                  for (const ev of events.data.events) {
+                    cursor = Math.max(cursor, ev.serverOrder);
+                  }
+                  if (snap.eventCursor === 0 && events.data.events.length === 0) {
+                    cursor = events.data.latestServerOrder;
+                  }
+                  const byId = new Map(
+                    hist.data.messages.map((m) => [
+                      m.id,
+                      {
+                        id: m.id,
+                        body: m.body,
+                        serverOrder: m.serverOrder,
+                        bodyRevision: m.bodyRevision,
+                        deletedAt: m.deletedAt,
+                        senderId: m.senderId,
+                      },
+                    ])
+                  );
+                  for (const ev of events.data.events) {
+                    if (ev.message) {
+                      byId.set(ev.message.id, {
+                        id: ev.message.id,
+                        body: ev.message.body,
+                        serverOrder: ev.message.serverOrder,
+                        bodyRevision: ev.message.bodyRevision,
+                        deletedAt: ev.message.deletedAt,
+                        senderId: ev.message.senderId,
+                      });
+                    }
+                  }
+                  const cached = [...byId.values()].sort((a, b) => a.serverOrder - b.serverOrder);
+                  saveRoomChatLocal(userId, selected.id, {
+                    ...snap,
+                    eventCursor: cursor,
+                    messagesCache: cached,
+                    draft: snap.draft,
+                  });
+                  setChatLines(
+                    cached.map((m) =>
+                      m.deletedAt ? `#${m.serverOrder} (deleted)` : `#${m.serverOrder} ${m.body}`
+                    )
+                  );
                   const read = await apiClient.getRoomChatReadState(selected.id);
                   setChatMuted(read.data.muted);
                   setChatConnection('connected');
                   setMessage(
                     selected.actorRole === 'viewer'
-                      ? `Chat loaded (read-only). Unread ${read.data.unreadCount}.`
-                      : `Chat loaded. Unread ${read.data.unreadCount}.`
+                      ? `Chat loaded (read-only). Unread ${read.data.unreadCount}${hist.data.hasMore ? ' · more history available' : ''}.`
+                      : `Chat loaded. Unread ${read.data.unreadCount}${hist.data.hasMore ? ' · more history available' : ''}.`
                   );
                 } catch (err) {
                   const code = (err as { code?: string })?.code;
@@ -248,11 +298,15 @@ export function RoomsSheet({
                     code === 'MEMBERSHIP_REVOKED' ||
                     code === 'ROOM_ARCHIVED' ||
                     /\bMEMBERSHIP_REVOKED\b|\bROOM_ARCHIVED\b/i.test(msg);
+                  if (revoked) {
+                    clearRoomChatLocal(userId, selected.id);
+                  }
                   setChatLines([]);
+                  setChatDraft('');
                   setChatConnection('offline');
                   setMessage(
                     revoked
-                      ? 'Room access was revoked or archived. Conversation cleared from this view.'
+                      ? 'Room access was revoked or archived. Conversation and local chat drafts were cleared.'
                       : msg
                   );
                 } finally {
@@ -336,7 +390,26 @@ export function RoomsSheet({
                       void (async () => {
                         const body = chatDraft.trim();
                         if (!body) return;
-                        const clientMessageId = crypto.randomUUID();
+                        const snap = loadRoomChatLocal(userId, selected.id);
+                        const existing = snap.pending.find(
+                          (p) => p.status === 'failed' && p.body === body
+                        );
+                        const clientMessageId =
+                          existing?.clientMessageId ?? crypto.randomUUID();
+                        const pending = [
+                          ...snap.pending.filter((p) => p.clientMessageId !== clientMessageId),
+                          {
+                            clientMessageId,
+                            body,
+                            status: 'pending' as const,
+                            updatedAt: new Date().toISOString(),
+                          },
+                        ];
+                        saveRoomChatLocal(userId, selected.id, {
+                          ...snap,
+                          draft: chatDraft,
+                          pending,
+                        });
                         setBusy(true);
                         setChatConnection('pending');
                         try {
@@ -348,10 +421,31 @@ export function RoomsSheet({
                             ...prev,
                             `#${sent.data.serverOrder} ${sent.data.body}`,
                           ]);
+                          const after = loadRoomChatLocal(userId, selected.id);
+                          saveRoomChatLocal(userId, selected.id, {
+                            ...after,
+                            draft: '',
+                            pending: after.pending.filter(
+                              (p) => p.clientMessageId !== clientMessageId
+                            ),
+                          });
                           setChatDraft('');
                           setChatConnection('connected');
                           setMessage('Message sent');
                         } catch (err) {
+                          const after = loadRoomChatLocal(userId, selected.id);
+                          saveRoomChatLocal(userId, selected.id, {
+                            ...after,
+                            pending: after.pending.map((p) =>
+                              p.clientMessageId === clientMessageId
+                                ? {
+                                    ...p,
+                                    status: 'failed' as const,
+                                    error: err instanceof Error ? err.message : 'Send failed',
+                                  }
+                                : p
+                            ),
+                          });
                           setChatConnection('failed');
                           setMessage(err instanceof Error ? err.message : 'Send failed');
                         } finally {

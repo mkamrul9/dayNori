@@ -43,11 +43,17 @@ import { registerCustomSectionRoutes } from './routes/v1/customSections.js';
 import { registerDriveRoutes } from './routes/v1/drive.js';
 import { registerRoomRoutes } from './routes/v1/rooms.js';
 import { registerChatRoutes } from './routes/v1/chat.js';
+import {
+  startChatPublicationRecovery,
+  stopChatPublicationRecovery,
+} from './modules/chat/publicationRecovery.js';
 import { BetaAccessService } from './modules/beta/betaAccessService.js';
 import { ExplicitForbiddenError } from './plugins/errorHandler.js';
 
 export interface ServerOptions {
   runtimePool?: Pool;
+  /** Disable chat publication recovery loop (tests). Default: start when rooms locally enabled. */
+  enableChatPublicationRecovery?: boolean;
   jwtVerifier?: JwtVerifier;
   jwtConfig?: JwtVerifierConfig;
   rateLimiter?: ProcessLocalRateLimiter;
@@ -249,6 +255,19 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerRoomRoutes(authScope, runtimePool);
       registerChatRoutes(authScope, runtimePool);
       registerAuthenticatedDeletionRoutes(authScope, runtimePool);
+    });
+  }
+
+  if (allowRoomsLocal && options?.enableChatPublicationRecovery !== false) {
+    startChatPublicationRecovery(runtimePool, {
+      logger: (level, msg, meta) => {
+        if (level === 'error') {
+          safeLogger.error('chat-publication-recovery', msg, meta);
+        }
+      },
+    });
+    app.addHook('onClose', async () => {
+      stopChatPublicationRecovery();
     });
   }
 

@@ -841,6 +841,7 @@ export default function App() {
           <RoomsSheet
             themeMode={themeMode}
             personalWorkspaceId={userNamespace.workspaceId}
+            userId={userNamespace.userId}
             apiClient={apiClient}
             onClose={() => setActiveModal('settings')}
           />

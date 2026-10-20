@@ -5,6 +5,15 @@ import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { Button, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import type { Room, RoomChatMessage } from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
+import { useAuth } from './AuthContext';
+import {
+  clearRoomChatLocal,
+  loadRoomChatLocal,
+  saveRoomChatDraft,
+  saveRoomChatEventCursor,
+  saveRoomChatPending,
+  type RoomChatPendingSend,
+} from '../data/roomChatLocalStore';
 
 export interface RoomChatPanelProps {
   csrfToken: string | null;
@@ -13,24 +22,37 @@ export interface RoomChatPanelProps {
   onClose: () => void;
 }
 
-type LocalPending = {
-  clientMessageId: string;
-  body: string;
-  status: 'pending' | 'failed' | 'sent';
-  error?: string;
-};
-
-const draftKey = (roomId: string) => `daynori.roomChat.draft.${roomId}`;
+function mergeByRevision(
+  prev: RoomChatMessage[],
+  incoming: RoomChatMessage[]
+): RoomChatMessage[] {
+  const byId = new Map(prev.map((m) => [m.id, m]));
+  for (const next of incoming) {
+    const cur = byId.get(next.id);
+    if (!cur) {
+      byId.set(next.id, next);
+      continue;
+    }
+    const newerRevision = next.bodyRevision > cur.bodyRevision;
+    const newlyDeleted = Boolean(next.deletedAt) && !cur.deletedAt;
+    const newerUpdated = next.updatedAt > cur.updatedAt;
+    if (newerRevision || newlyDeleted || newerUpdated) {
+      byId.set(next.id, next);
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.serverOrder - b.serverOrder);
+}
 
 /**
- * Phase 53 provisional room conversation UI.
- * History + composer + pending/retry + unread/mute + connection feedback.
+ * Phase 53 repair — durable drafts/pending, event-cursor handoff, revocation purge.
  */
 export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatPanelProps) {
   const palette = colors[themeMode];
+  const { user } = useAuth();
+  const userId = user?.id ?? 'anonymous';
   const client = useMemo(() => createWebApiClient({ csrfToken }), [csrfToken]);
   const [messages, setMessages] = useState<RoomChatMessage[]>([]);
-  const [pending, setPending] = useState<LocalPending[]>([]);
+  const [pending, setPending] = useState<RoomChatPendingSend[]>([]);
   const [draft, setDraft] = useState('');
   const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(
     null
@@ -43,82 +65,138 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
   const [muted, setMuted] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextBeforeOrder, setNextBeforeOrder] = useState<number | null>(null);
-  const sinceOrderRef = useRef(0);
-  const listRef = useRef<HTMLUListElement | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const eventCursorRef = useRef(0);
+  const generationRef = useRef(0);
+  const roomIdRef = useRef(room.id);
   const announceRef = useRef<HTMLParagraphElement | null>(null);
+  const draftAtSendRef = useRef<string | null>(null);
   const readOnly = room.actorRole === 'viewer';
-  const pollAbort = useRef<AbortController | null>(null);
+
+  const isStale = useCallback(() => roomIdRef.current !== room.id, [room.id]);
+
+  const applyRevocation = useCallback(
+    (message: string) => {
+      clearRoomChatLocal(userId, room.id);
+      setMessages([]);
+      setPending([]);
+      setDraft('');
+      eventCursorRef.current = 0;
+      setConnectionStatus('offline');
+      setFeedback({ severity: 'danger', message });
+    },
+    [room.id, userId]
+  );
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(draftKey(room.id));
-      if (saved) setDraft(saved);
-    } catch {
-      /* ignore */
-    }
-  }, [room.id]);
+    roomIdRef.current = room.id;
+    generationRef.current += 1;
+    const gen = generationRef.current;
+    const snap = loadRoomChatLocal(userId, room.id);
+    eventCursorRef.current = snap.eventCursor;
+    setDraft(snap.draft);
+    setPending(snap.pending);
+    setMessages([]);
+    return () => {
+      generationRef.current += 1;
+      void gen;
+    };
+  }, [room.id, userId]);
 
   useEffect(() => {
-    try {
-      if (draft) localStorage.setItem(draftKey(room.id), draft);
-      else localStorage.removeItem(draftKey(room.id));
-    } catch {
-      /* ignore */
-    }
-  }, [draft, room.id]);
+    saveRoomChatDraft(userId, room.id, draft);
+  }, [draft, room.id, userId]);
+
+  useEffect(() => {
+    saveRoomChatPending(userId, room.id, pending);
+  }, [pending, room.id, userId]);
 
   const mergeMessages = useCallback((incoming: RoomChatMessage[]) => {
-    setMessages((prev) => {
-      const byId = new Map(prev.map((m) => [m.id, m]));
-      for (const m of incoming) byId.set(m.id, m);
-      return [...byId.values()].sort((a, b) => a.serverOrder - b.serverOrder);
-    });
+    setMessages((prev) => mergeByRevision(prev, incoming));
   }, []);
 
+  const drainEvents = useCallback(
+    async (since: number): Promise<number> => {
+      let cursor = since;
+      for (let page = 0; page < 20; page++) {
+        if (isStale()) return cursor;
+        const res = await client.listRoomChatEvents(room.id, {
+          sinceOrder: cursor,
+          limit: 100,
+        });
+        if (isStale()) return cursor;
+        const fresh: RoomChatMessage[] = [];
+        for (const ev of res.data.events) {
+          cursor = Math.max(cursor, ev.serverOrder);
+          if (ev.message) fresh.push(ev.message);
+        }
+        if (fresh.length) mergeMessages(fresh);
+        if (res.data.events.length === 0) {
+          // Snapshot watermark when starting cold: do not skip if since was 0 and history loaded.
+          if (since === 0 && cursor === 0) {
+            cursor = res.data.latestServerOrder;
+          }
+          break;
+        }
+        if (res.data.events.length < 100) break;
+      }
+      eventCursorRef.current = cursor;
+      saveRoomChatEventCursor(userId, room.id, cursor);
+      return cursor;
+    },
+    [client, isStale, mergeMessages, room.id, userId]
+  );
+
   const refreshHistory = useCallback(async () => {
+    const gen = generationRef.current;
     setBusy(true);
     setFeedback(null);
     try {
       const res = await client.listRoomChatMessages(room.id, { limit: 50 });
-      mergeMessages(res.data.messages);
+      if (isStale() || gen !== generationRef.current) return;
+      setMessages(mergeByRevision([], res.data.messages));
       setHasMore(res.data.hasMore);
       setNextBeforeOrder(res.data.nextBeforeOrder);
-      const maxOrder = res.data.messages.reduce(
-        (m: number, x: RoomChatMessage) => Math.max(m, x.serverOrder),
-        0
-      );
-      sinceOrderRef.current = Math.max(sinceOrderRef.current, maxOrder);
-      if (maxOrder > 0) {
+
+      // History/live handoff: drain events from persisted cursor (do not use message order).
+      const watermark = await drainEvents(eventCursorRef.current);
+      if (isStale() || gen !== generationRef.current) return;
+
+      if (watermark > 0) {
         const read = await client.updateRoomChatReadState(room.id, {
-          lastReadServerOrder: maxOrder,
+          lastReadServerOrder: watermark,
         });
+        if (isStale() || gen !== generationRef.current) return;
         setUnreadCount(read.data.unreadCount);
         setMuted(read.data.muted);
       } else {
         const read = await client.getRoomChatReadState(room.id);
+        if (isStale() || gen !== generationRef.current) return;
         setUnreadCount(read.data.unreadCount);
         setMuted(read.data.muted);
       }
       setConnectionStatus('connected');
     } catch (err) {
+      if (isStale() || gen !== generationRef.current) return;
       const code = (err as { code?: string })?.code;
       const message = err instanceof Error ? err.message : 'Failed to load chat';
       const revoked =
         code === 'MEMBERSHIP_REVOKED' ||
         code === 'ROOM_ARCHIVED' ||
         /\bMEMBERSHIP_REVOKED\b|\bROOM_ARCHIVED\b/i.test(message);
-      setMessages([]);
-      setConnectionStatus('offline');
-      setFeedback({
-        severity: 'danger',
-        message: revoked
-          ? 'Room access was revoked or archived. Conversation history was cleared from this view.'
-          : message,
-      });
+      if (revoked) {
+        applyRevocation(
+          'Room access was revoked or archived. Conversation and local chat drafts for this room were cleared.'
+        );
+      } else {
+        setConnectionStatus('offline');
+        setFeedback({ severity: 'danger', message });
+      }
     } finally {
-      setBusy(false);
+      if (gen === generationRef.current) setBusy(false);
     }
-  }, [client, mergeMessages, room.id]);
+  }, [applyRevocation, client, drainEvents, isStale, room.id]);
 
   const loadOlder = useCallback(async () => {
     if (!nextBeforeOrder) return;
@@ -128,6 +206,7 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
         beforeOrder: nextBeforeOrder,
         limit: 50,
       });
+      if (isStale()) return;
       mergeMessages(res.data.messages);
       setHasMore(res.data.hasMore);
       setNextBeforeOrder(res.data.nextBeforeOrder);
@@ -139,89 +218,173 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     } finally {
       setBusy(false);
     }
-  }, [client, mergeMessages, nextBeforeOrder, room.id]);
+  }, [client, isStale, mergeMessages, nextBeforeOrder, room.id]);
 
   const pollEvents = useCallback(async () => {
+    const gen = generationRef.current;
     try {
-      const res = await client.listRoomChatEvents(room.id, {
-        sinceOrder: sinceOrderRef.current,
-        limit: 50,
-      });
-      setConnectionStatus(res.data.connectionStatus);
-      const fresh: RoomChatMessage[] = [];
-      for (const ev of res.data.events) {
-        sinceOrderRef.current = Math.max(sinceOrderRef.current, ev.serverOrder);
-        if (ev.message) fresh.push(ev.message);
-      }
-      if (fresh.length) {
-        mergeMessages(fresh);
-        const latest = fresh[fresh.length - 1]!;
-        if (announceRef.current && !latest.deletedAt) {
-          announceRef.current.textContent = `New message: ${latest.body.slice(0, 80)}`;
+      const before = eventCursorRef.current;
+      const after = await drainEvents(before);
+      if (isStale() || gen !== generationRef.current) return;
+      setConnectionStatus('connected');
+      if (after > before) {
+        const latestMsg = messages[messages.length - 1];
+        if (announceRef.current && latestMsg && !latestMsg.deletedAt) {
+          announceRef.current.textContent = `New message: ${latestMsg.body.slice(0, 80)}`;
         }
-        await client.updateRoomChatReadState(room.id, {
-          lastReadServerOrder: sinceOrderRef.current,
+        const read = await client.updateRoomChatReadState(room.id, {
+          lastReadServerOrder: after,
         });
-        setUnreadCount(0);
+        if (isStale() || gen !== generationRef.current) return;
+        setUnreadCount(read.data.unreadCount);
       }
-    } catch {
-      setConnectionStatus('reconnecting');
+    } catch (err) {
+      if (isStale() || gen !== generationRef.current) return;
+      const code = (err as { code?: string })?.code;
+      const message = err instanceof Error ? err.message : '';
+      const revoked =
+        code === 'MEMBERSHIP_REVOKED' ||
+        code === 'ROOM_ARCHIVED' ||
+        /\bMEMBERSHIP_REVOKED\b|\bROOM_ARCHIVED\b/i.test(message);
+      if (revoked) {
+        applyRevocation(
+          'Room access was revoked or archived. Conversation and local chat drafts for this room were cleared.'
+        );
+      } else {
+        setConnectionStatus('reconnecting');
+      }
     }
-  }, [client, mergeMessages, room.id]);
+  }, [applyRevocation, client, drainEvents, isStale, messages, room.id]);
 
   useEffect(() => {
     void refreshHistory();
   }, [refreshHistory]);
 
   useEffect(() => {
-    pollAbort.current?.abort();
-    const ac = new AbortController();
-    pollAbort.current = ac;
     const timer = setInterval(() => {
-      if (!ac.signal.aborted) void pollEvents();
+      void pollEvents();
     }, 2500);
-    return () => {
-      ac.abort();
-      clearInterval(timer);
-    };
+    return () => clearInterval(timer);
   }, [pollEvents]);
+
+  // Resume durable pending sends after load
+  useEffect(() => {
+    const failedOrPending = pending.filter((p) => p.status === 'pending' || p.status === 'failed');
+    if (failedOrPending.length === 0 || readOnly) return;
+    // Do not auto-fire on mount spam — leave explicit retry for failed; pending resume once.
+    for (const p of pending.filter((x) => x.status === 'pending')) {
+      void (async () => {
+        try {
+          const res = await client.sendRoomChatMessage(room.id, {
+            clientMessageId: p.clientMessageId,
+            body: p.body,
+            attachmentFileId: p.attachmentFileId,
+          });
+          if (isStale()) return;
+          mergeMessages([res.data]);
+          setPending((prev) => prev.filter((x) => x.clientMessageId !== p.clientMessageId));
+        } catch (err) {
+          if (isStale()) return;
+          const message = err instanceof Error ? err.message : 'Send failed';
+          setPending((prev) =>
+            prev.map((x) =>
+              x.clientMessageId === p.clientMessageId
+                ? { ...x, status: 'failed' as const, error: message }
+                : x
+            )
+          );
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once per room mount
+  }, [room.id]);
 
   const sendBody = useCallback(
     async (body: string, clientMessageId: string) => {
+      const entry: RoomChatPendingSend = {
+        clientMessageId,
+        body,
+        status: 'pending',
+        updatedAt: new Date().toISOString(),
+      };
       setPending((p) => {
         const rest = p.filter((x) => x.clientMessageId !== clientMessageId);
-        return [...rest, { clientMessageId, body, status: 'pending' }];
+        return [...rest, entry];
       });
+      draftAtSendRef.current = draft;
       try {
         const res = await client.sendRoomChatMessage(room.id, { clientMessageId, body });
-        setPending((p) =>
-          p.map((x) =>
-            x.clientMessageId === clientMessageId ? { ...x, status: 'sent' as const } : x
-          )
-        );
+        if (isStale()) return;
         mergeMessages([res.data]);
-        sinceOrderRef.current = Math.max(sinceOrderRef.current, res.data.serverOrder);
+        // Do not advance event cursor from ack — poll/drain owns that.
         setPending((p) => p.filter((x) => x.clientMessageId !== clientMessageId));
-        setDraft('');
+        // Clear draft only if user has not typed further since this send started.
+        setDraft((current) => (current === draftAtSendRef.current || current === body ? '' : current));
       } catch (err) {
+        if (isStale()) return;
         const message = err instanceof Error ? err.message : 'Send failed';
+        const code = (err as { code?: string })?.code;
+        if (
+          code === 'MEMBERSHIP_REVOKED' ||
+          code === 'ROOM_ARCHIVED' ||
+          /\bMEMBERSHIP_REVOKED\b|\bROOM_ARCHIVED\b/i.test(message)
+        ) {
+          applyRevocation(
+            'Room access was revoked or archived. Conversation and local chat drafts for this room were cleared.'
+          );
+          return;
+        }
         setPending((p) =>
           p.map((x) =>
             x.clientMessageId === clientMessageId
-              ? { ...x, status: 'failed' as const, error: message }
+              ? { ...x, status: 'failed' as const, error: message, updatedAt: new Date().toISOString() }
               : x
           )
         );
         setFeedback({ severity: 'danger', message });
       }
     },
-    [client, mergeMessages, room.id]
+    [applyRevocation, client, draft, isStale, mergeMessages, room.id]
   );
 
   const onSend = () => {
     const body = draft.trim();
     if (!body || readOnly || busy) return;
-    void sendBody(body, crypto.randomUUID());
+    // Stable id: reuse pending failed entry for same body if present, else new.
+    const existing = pending.find((p) => p.status === 'failed' && p.body === body);
+    void sendBody(body, existing?.clientMessageId ?? crypto.randomUUID());
+  };
+
+  const onSaveEdit = async () => {
+    if (!editingId || readOnly) return;
+    const target = messages.find((m) => m.id === editingId);
+    if (!target) return;
+    try {
+      const res = await client.editRoomChatMessage(room.id, editingId, {
+        body: editBody.trim(),
+        baseRevision: target.bodyRevision,
+      });
+      mergeMessages([res.data]);
+      setEditingId(null);
+      setEditBody('');
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Edit failed',
+      });
+    }
+  };
+
+  const onDelete = async (messageId: string) => {
+    try {
+      const res = await client.deleteRoomChatMessage(room.id, messageId);
+      mergeMessages([res.data]);
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Delete failed',
+      });
+    }
   };
 
   const toggleMute = async () => {
@@ -310,7 +473,6 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
       </div>
 
       <ul
-        ref={listRef}
         aria-label="Message history"
         style={{
           listStyle: 'none',
@@ -334,9 +496,67 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
             }}
           >
             <span style={{ fontSize: 12, color: palette.text.secondary }}>
-              {m.senderId.slice(0, 8)}… · #{m.serverOrder}
+              {m.senderId.slice(0, 8)}… · #{m.serverOrder} · rev {m.bodyRevision}
             </span>
-            <div>{m.deletedAt ? '(deleted)' : m.body}</div>
+            <div>
+              {editingId === m.id ? (
+                <textarea
+                  value={editBody}
+                  onChange={(e) => setEditBody(e.target.value)}
+                  aria-label="Edit message"
+                  rows={2}
+                  style={{ width: '100%' }}
+                />
+              ) : m.deletedAt ? (
+                '(deleted)'
+              ) : (
+                m.body
+              )}
+            </div>
+            {!readOnly && !m.deletedAt && m.senderId === userId ? (
+              <div style={{ display: 'flex', gap: spacing.xs, marginTop: spacing.xs }}>
+                {editingId === m.id ? (
+                  <>
+                    <Button type="button" size="compact" themeMode={themeMode} onClick={() => void onSaveEdit()}>
+                      Save edit
+                    </Button>
+                    <Button
+                      type="button"
+                      size="compact"
+                      variant="subtle"
+                      themeMode={themeMode}
+                      onClick={() => setEditingId(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      size="compact"
+                      variant="subtle"
+                      themeMode={themeMode}
+                      onClick={() => {
+                        setEditingId(m.id);
+                        setEditBody(m.body);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      size="compact"
+                      variant="subtle"
+                      themeMode={themeMode}
+                      onClick={() => void onDelete(m.id)}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : null}
           </li>
         ))}
         {pending.map((p) => (

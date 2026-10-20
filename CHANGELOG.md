@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 53 repair — Chat idempotency, cursors, persistence, publication recovery (blocked) — 2026-10-20
+
+- Lock-first send: idempotency lookup and rate limits run under chat-state lock; immutable `original_payload_hash` survives edit/delete retries; replays do not republish.
+- Event cursor separated from message-order acks; read-state clamped to server high-water; stale overwrite guards on clients.
+- Account/room-scoped durable drafts and pending sends (web + Android) with stable `clientMessageId`, revoke purge, edit/delete controls.
+- Process lifecycle publication recovery with outbox claim/mark; verified-file attachment gate; tighter message/event RLS.
+- ADR 0050 amended. Status remains blocked; no real-user/production chat enablement.
+
 ## Phase 53 — Room chat and realtime events (blocked / provisional) — 2026-10-20
 
 - Durable room messages with client IDs, idempotent send/retry, server ordering, pagination, author edit/delete, and role-based send.

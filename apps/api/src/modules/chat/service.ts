@@ -88,10 +88,18 @@ type MessageRow = {
   body: string;
   body_revision: number;
   attachment_file_id: string | null;
+  original_payload_hash: string;
   server_order: string | number;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
+};
+
+export type ChatMutationResult = {
+  message: ReturnType<typeof mapMessage>;
+  eventServerOrder: number;
+  /** True when returning a durable prior receipt — do not publish a new event. */
+  isReplay: boolean;
 };
 
 function mapMessage(row: MessageRow) {
@@ -144,20 +152,10 @@ async function insertChatEvent(
     payload: Record<string, unknown>;
   }
 ): Promise<void> {
-  await client.query(
-    `INSERT INTO app.room_chat_events (workspace_id, server_order, event_type, message_id, payload)
-     VALUES ($1, $2, $3, $4, $5::jsonb)`,
-    [
-      params.roomId,
-      params.serverOrder,
-      params.eventType,
-      params.messageId,
-      JSON.stringify(params.payload),
-    ]
-  );
-  await client.query(
+  const outbox = await client.query<{ id: string }>(
     `INSERT INTO app.outbox_intents (workspace_id, event_type, payload, status)
-     VALUES ($1, $2, $3::jsonb, 'pending')`,
+     VALUES ($1, $2, $3::jsonb, 'pending')
+     RETURNING id`,
     [
       params.roomId,
       params.eventType,
@@ -165,6 +163,19 @@ async function insertChatEvent(
         messageId: params.messageId,
         serverOrder: params.serverOrder,
       }),
+    ]
+  );
+  await client.query(
+    `INSERT INTO app.room_chat_events (
+       workspace_id, server_order, event_type, message_id, payload, outbox_intent_id
+     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+    [
+      params.roomId,
+      params.serverOrder,
+      params.eventType,
+      params.messageId,
+      JSON.stringify(params.payload),
+      outbox.rows[0]!.id,
     ]
   );
 }
@@ -192,9 +203,13 @@ async function assertAttachmentAllowed(
     security_scope: string | null;
     workspace_id: string;
     deleted_at: Date | null;
+    quarantine_status: string | null;
   }>(
-    `SELECT kind, security_scope, workspace_id, deleted_at
-     FROM app.items WHERE id = $1`,
+    `SELECT i.kind, i.security_scope, i.workspace_id, i.deleted_at,
+            f.quarantine_status
+     FROM app.items i
+     LEFT JOIN app.file_items f ON f.id = i.id AND f.workspace_id = i.workspace_id
+     WHERE i.id = $1`,
     [fileId]
   );
   const row = res.rows[0];
@@ -213,6 +228,13 @@ async function assertAttachmentAllowed(
       'Chat attachments cannot reference vault or journal content',
       400,
       'CHAT_ATTACHMENT_FORBIDDEN'
+    );
+  }
+  if (row.quarantine_status !== 'verified') {
+    throw new ChatServiceError(
+      `Chat attachments require a verified file (status=${row.quarantine_status ?? 'missing'})`,
+      400,
+      'CHAT_ATTACHMENT_NOT_READY'
     );
   }
 }
@@ -248,7 +270,7 @@ export async function sendRoomMessage(
     body: string;
     attachmentFileId?: string | null;
   }
-) {
+): Promise<ChatMutationResult> {
   await assertRoomChatAccess(client, input.roomId, input.actorId, 'send');
   const validated = validateRoomChatBody(input.body);
   if (!validated.ok) throw new ValidationError(validated.message);
@@ -257,57 +279,89 @@ export async function sendRoomMessage(
   if (attachmentFileId) {
     await assertAttachmentAllowed(client, input.roomId, attachmentFileId);
   }
+  const requestHash = payloadHash(validated.body, attachmentFileId);
+
+  // Lock before idempotency/rate checks so concurrent retries serialize.
+  await lockChatState(client, input.roomId);
 
   const existing = await client.query<MessageRow>(
     `SELECT * FROM app.room_messages
-     WHERE workspace_id = $1 AND sender_id = $2 AND client_message_id = $3`,
+     WHERE workspace_id = $1 AND sender_id = $2 AND client_message_id = $3
+     FOR UPDATE`,
     [input.roomId, input.actorId, input.clientMessageId]
   );
   if (existing.rows[0]) {
     const prev = existing.rows[0];
-    const prevHash = payloadHash(prev.body, prev.attachment_file_id);
-    const nextHash = payloadHash(validated.body, attachmentFileId);
-    if (prevHash !== nextHash) {
+    if (prev.original_payload_hash !== requestHash) {
       throw new ChatServiceError(
         'Idempotency key reused with different content',
         409,
         'IDEMPOTENCY_KEY_REUSED'
       );
     }
-    // Reauthorize on cached ack
     await assertRoomChatAccess(client, input.roomId, input.actorId, 'send');
-    return { message: mapMessage(prev), eventServerOrder: Number(prev.server_order) };
+    return {
+      message: mapMessage(prev),
+      eventServerOrder: Number(prev.server_order),
+      isReplay: true,
+    };
   }
 
   await assertSendRateLimit(client, input.roomId, input.actorId);
-  await lockChatState(client, input.roomId);
   const serverOrder = await allocateServerOrder(client, input.roomId);
 
-  const inserted = await client.query<MessageRow>(
-    `INSERT INTO app.room_messages (
-       workspace_id, sender_id, client_message_id, body, attachment_file_id, server_order
-     ) VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING *`,
-    [
-      input.roomId,
-      input.actorId,
-      input.clientMessageId,
-      validated.body,
-      attachmentFileId,
+  try {
+    const inserted = await client.query<MessageRow>(
+      `INSERT INTO app.room_messages (
+         workspace_id, sender_id, client_message_id, body, attachment_file_id,
+         original_payload_hash, server_order
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        input.roomId,
+        input.actorId,
+        input.clientMessageId,
+        validated.body,
+        attachmentFileId,
+        requestHash,
+        serverOrder,
+      ]
+    );
+    const message = inserted.rows[0]!;
+    await insertChatEvent(client, {
+      roomId: input.roomId,
       serverOrder,
-    ]
-  );
-  const message = inserted.rows[0]!;
-  await insertChatEvent(client, {
-    roomId: input.roomId,
-    serverOrder,
-    eventType: 'room_message.created',
-    messageId: message.id,
-    payload: { senderId: input.actorId },
-  });
-
-  // Publication after durable commit is coordinated by the caller via publishAfterCommit.
-  return { message: mapMessage(message), eventServerOrder: serverOrder };
+      eventType: 'room_message.created',
+      messageId: message.id,
+      payload: { senderId: input.actorId },
+    });
+    return { message: mapMessage(message), eventServerOrder: serverOrder, isReplay: false };
+  } catch (err) {
+    // Concurrent insert raced the unique constraint — treat as idempotent replay.
+    const code = (err as { code?: string })?.code;
+    if (code === '23505') {
+      const raced = await client.query<MessageRow>(
+        `SELECT * FROM app.room_messages
+         WHERE workspace_id = $1 AND sender_id = $2 AND client_message_id = $3`,
+        [input.roomId, input.actorId, input.clientMessageId]
+      );
+      const prev = raced.rows[0];
+      if (prev && prev.original_payload_hash === requestHash) {
+        await assertRoomChatAccess(client, input.roomId, input.actorId, 'send');
+        return {
+          message: mapMessage(prev),
+          eventServerOrder: Number(prev.server_order),
+          isReplay: true,
+        };
+      }
+      throw new ChatServiceError(
+        'Idempotency key reused with different content',
+        409,
+        'IDEMPOTENCY_KEY_REUSED'
+      );
+    }
+    throw err;
+  }
 }
 
 /** Call after the transaction that persisted the message commits. */
@@ -376,7 +430,7 @@ export async function editRoomMessage(
     body: string;
     baseRevision: number;
   }
-) {
+): Promise<ChatMutationResult> {
   const role = await assertRoomChatAccess(client, input.roomId, input.actorId, 'send');
   const validated = validateRoomChatBody(input.body);
   if (!validated.ok) throw new ValidationError(validated.message);
@@ -411,13 +465,13 @@ export async function editRoomMessage(
     messageId: message.id,
     payload: { bodyRevision: message.body_revision },
   });
-  return { message: mapMessage(message), eventServerOrder: serverOrder };
+  return { message: mapMessage(message), eventServerOrder: serverOrder, isReplay: false };
 }
 
 export async function deleteRoomMessage(
   client: PoolClient,
   input: { roomId: string; messageId: string; actorId: string }
-) {
+): Promise<ChatMutationResult> {
   const role = await assertRoomChatAccess(client, input.roomId, input.actorId, 'read');
   await lockChatState(client, input.roomId);
   const existing = await client.query<MessageRow>(
@@ -430,7 +484,11 @@ export async function deleteRoomMessage(
     throw new ChatServiceError('Not authorized to delete this message', 403, 'FORBIDDEN');
   }
   if (row.deleted_at) {
-    return { message: mapMessage(row), eventServerOrder: Number(row.server_order) };
+    return {
+      message: mapMessage(row),
+      eventServerOrder: Number(row.server_order),
+      isReplay: true,
+    };
   }
 
   // Deleting requires send privilege unless owner moderating
@@ -458,7 +516,7 @@ export async function deleteRoomMessage(
     messageId: message.id,
     payload: {},
   });
-  return { message: mapMessage(message), eventServerOrder: serverOrder };
+  return { message: mapMessage(message), eventServerOrder: serverOrder, isReplay: false };
 }
 
 export async function getRoomChatReadState(
@@ -505,13 +563,27 @@ export async function updateRoomChatReadState(
   input: { roomId: string; actorId: string; lastReadServerOrder: number }
 ) {
   await assertRoomChatAccess(client, input.roomId, input.actorId, 'read');
+  const highWater = await client.query<{ m: string | number | null }>(
+    `SELECT GREATEST(
+       coalesce((SELECT max(server_order) FROM app.room_messages WHERE workspace_id = $1), 0),
+       coalesce((SELECT max(server_order) FROM app.room_chat_events WHERE workspace_id = $1), 0)
+     ) AS m`,
+    [input.roomId]
+  );
+  const maxOrder = Number(highWater.rows[0]?.m ?? 0);
+  const requested = Math.max(0, Math.floor(input.lastReadServerOrder));
+  const clamped = Math.min(requested, maxOrder);
+
   await client.query(
     `INSERT INTO app.room_message_read_state (workspace_id, user_id, last_read_server_order, last_read_at)
      VALUES ($1, $2, $3, now())
      ON CONFLICT (workspace_id, user_id) DO UPDATE
-       SET last_read_server_order = GREATEST(app.room_message_read_state.last_read_server_order, EXCLUDED.last_read_server_order),
+       SET last_read_server_order = GREATEST(
+             app.room_message_read_state.last_read_server_order,
+             EXCLUDED.last_read_server_order
+           ),
            last_read_at = now()`,
-    [input.roomId, input.actorId, input.lastReadServerOrder]
+    [input.roomId, input.actorId, clamped]
   );
   return getRoomChatReadState(client, input);
 }
@@ -632,21 +704,26 @@ export async function planRoomChatNotification(
   };
 }
 
-/** Recover unpublished events after crash (commit-to-publication). */
+/**
+ * @deprecated Prefer recoverUnpublishedChatEventsBatch from publicationRecovery.ts
+ * Kept for room-scoped test helpers; does not claim user delivery.
+ */
 export async function recoverUnpublishedChatEvents(
   client: PoolClient,
   roomId: string
 ): Promise<number> {
   const res = await client.query<{
+    id: string;
     server_order: string | number;
     event_type: 'room_message.created' | 'room_message.edited' | 'room_message.deleted';
     message_id: string;
   }>(
-    `SELECT server_order, event_type, message_id
+    `SELECT id, server_order, event_type, message_id
      FROM app.room_chat_events
      WHERE workspace_id = $1 AND published_at IS NULL
      ORDER BY server_order ASC
-     LIMIT 100`,
+     LIMIT 100
+     FOR UPDATE`,
     [roomId]
   );
   for (const row of res.rows) {
@@ -657,7 +734,9 @@ export async function recoverUnpublishedChatEvents(
       messageId: row.message_id,
       at: new Date().toISOString(),
     });
-    await markEventPublished(client, roomId, Number(row.server_order));
+    await client.query(`SELECT app.mark_room_chat_event_published($1)`, [row.id]).catch(async () => {
+      await markEventPublished(client, roomId, Number(row.server_order));
+    });
   }
   return res.rows.length;
 }

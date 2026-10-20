@@ -88,6 +88,7 @@ describe('Phase 53: room chat and realtime events', () => {
       jwtVerifier: verifier,
       runtimePool,
       rateLimitOptions: { windowMs: 60000, maxRequests: 50000 },
+      enableChatPublicationRecovery: false,
     });
     await server.listen({ port: 0, host: '127.0.0.1' });
     const addr = server.server.address();
@@ -213,11 +214,17 @@ describe('Phase 53: room chat and realtime events', () => {
     const before = await clientEditor.getRoomChatReadState(room.id);
     expect(before.data.unreadCount).toBeGreaterThanOrEqual(1);
 
+    const high = await clientOwner.sendRoomChatMessage(room.id, {
+      clientMessageId: crypto.randomUUID(),
+      body: 'mark-read',
+    });
     await clientEditor.updateRoomChatReadState(room.id, {
-      lastReadServerOrder: before.data.lastReadServerOrder + 1000,
+      lastReadServerOrder: high.data.serverOrder,
     });
     const after = await clientEditor.getRoomChatReadState(room.id);
     expect(after.data.unreadCount).toBe(0);
+    expect(after.data.lastReadServerOrder).toBeLessThanOrEqual(high.data.serverOrder);
+    void before;
 
     await clientEditor.updateRoomChatMute(room.id, { muted: true });
     const muted = await clientEditor.getRoomChatReadState(room.id);

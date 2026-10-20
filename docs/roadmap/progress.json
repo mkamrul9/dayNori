@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-20",
   "activePhase": "53",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 52 for bounded provisional local shared content sync after Phase 51 repair ca607ce. Phase 52 delivered room sync/revocation (ADR 0049); not chat (Phase 53). Status blocked pending Phases 51/34/38 release evidence. Phase 50 deferred; Phase 49 live Google unmet; vault disabled. Stop before Phase 53.",
+  "schedulingDecision": "Owner selected Phase 53 repair then Phase 54 for bounded provisional local development after Phase 53 677c0a9. Phase 53 repair hardens chat idempotency/cursors/persistence/publication recovery (ADR 0050 amended). Status blocked pending rooms release gates. Phase 50 deferred; Phase 49 live Google unmet; vault disabled; rooms/chat fail-closed for production. Stop before Phase 55 after Phase 54.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -321,7 +321,7 @@
     {
       "id": "53",
       "status": "blocked",
-      "reason": "Provisional local durable room chat, idempotent send, authorized event poll/local bus, unread/mute, and web/Android conversation journeys delivered (ADR 0050). Completion blocked pending prerequisite Phase 52 release evidence and rooms/chat release gates (incl. Phase 54 moderation). No real-user sharing, outbound notifications, or production enablement. Vault remains disabled.",
+      "reason": "Provisional local durable room chat repaired (ADR 0050 amended): lock-first idempotency with immutable original_payload_hash; event cursor ≠ message ack; read clamp; durable client drafts/pending; process-wired publication recovery; verified attachments; tighter RLS. Completion blocked pending Phase 52 release evidence and rooms/chat gates (incl. Phase 54). No real-user sharing, outbound notifications, or production enablement. Vault remains disabled.",
       "report": "docs/phase-reports/phase-53.md"
     },
     {

@@ -65,16 +65,18 @@ export function registerChatRoutes(app: FastifyInstance, pool: Pool): void {
           attachmentFileId: body.attachmentFileId,
         })
       );
-      publishChatAfterCommit({
-        roomId,
-        serverOrder: result.eventServerOrder,
-        eventType: 'room_message.created',
-        messageId: result.message.id,
-      });
-      await withUserContext(pool, actor.userId, (client) =>
-        markChatEventPublished(client, roomId, result.eventServerOrder)
-      );
-      return reply.status(201).send(
+      if (!result.isReplay) {
+        publishChatAfterCommit({
+          roomId,
+          serverOrder: result.eventServerOrder,
+          eventType: 'room_message.created',
+          messageId: result.message.id,
+        });
+        await withUserContext(pool, actor.userId, (client) =>
+          markChatEventPublished(client, roomId, result.eventServerOrder)
+        );
+      }
+      return reply.status(result.isReplay ? 200 : 201).send(
         validateResponse(RoomChatMessageResponseSchema, {
           data: result.message,
           meta: meta(request.id),
@@ -130,15 +132,17 @@ export function registerChatRoutes(app: FastifyInstance, pool: Pool): void {
           baseRevision: body.baseRevision,
         })
       );
-      publishChatAfterCommit({
-        roomId,
-        serverOrder: result.eventServerOrder,
-        eventType: 'room_message.edited',
-        messageId: result.message.id,
-      });
-      await withUserContext(pool, actor.userId, (client) =>
-        markChatEventPublished(client, roomId, result.eventServerOrder)
-      );
+      if (!result.isReplay) {
+        publishChatAfterCommit({
+          roomId,
+          serverOrder: result.eventServerOrder,
+          eventType: 'room_message.edited',
+          messageId: result.message.id,
+        });
+        await withUserContext(pool, actor.userId, (client) =>
+          markChatEventPublished(client, roomId, result.eventServerOrder)
+        );
+      }
       return reply.send(
         validateResponse(RoomChatMessageResponseSchema, {
           data: result.message,
@@ -162,18 +166,17 @@ export function registerChatRoutes(app: FastifyInstance, pool: Pool): void {
           actorId: actor.userId,
         })
       );
-      if (!result.message.deletedAt) {
-        /* already deleted path may reuse message order */
+      if (!result.isReplay) {
+        publishChatAfterCommit({
+          roomId,
+          serverOrder: result.eventServerOrder,
+          eventType: 'room_message.deleted',
+          messageId: result.message.id,
+        });
+        await withUserContext(pool, actor.userId, (client) =>
+          markChatEventPublished(client, roomId, result.eventServerOrder)
+        );
       }
-      publishChatAfterCommit({
-        roomId,
-        serverOrder: result.eventServerOrder,
-        eventType: 'room_message.deleted',
-        messageId: result.message.id,
-      });
-      await withUserContext(pool, actor.userId, (client) =>
-        markChatEventPublished(client, roomId, result.eventServerOrder)
-      );
       return reply.send(
         validateResponse(RoomChatMessageResponseSchema, {
           data: result.message,
