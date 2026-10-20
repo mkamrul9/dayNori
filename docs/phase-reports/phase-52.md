@@ -63,13 +63,37 @@ Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`. Date 2026-10-20.
 3. Disconnected devices may retain previously downloaded room bytes until revocation is observed.
 4. Chat is Phase 53 — not delivered here.
 
+## Repair — revocation vs reset, durable purge, production gate (2026-10-20)
+
+Owner-selected local repair before Phase 53:
+
+| Defect | Fix |
+|---|---|
+| `SYNC_RESET_REQUIRED` treated as confirmed revocation | Removed from `CONFIRMED_REVOCATION_CODES`; engine rebases via `resetAndBootstrap` before any purge path |
+| Broad “archived” message matching | Purge only on structured `MEMBERSHIP_REVOKED` / `ROOM_ARCHIVED` (or those tokens in messages) |
+| Editor→viewer treated as membership loss | `ROOM_ROLE_INSUFFICIENT`; readable cache retained; unauthorized pending writes dropped |
+| Partial / untyped purge | `applyRoomRevocationPurge` → typed `clearWorkspaceData` (cursors, conflicts, drafts, mutations, projections) |
+| Production unlock via local flag | Shared `isRoomsLocallyEnabled` always false in production |
+| Incomplete client revoke UX | Web/Android clear displayed content on structured revocation codes |
+
+Regression coverage: domain classification, IndexedDB `clearWorkspaceData` scoped purge, remaining-member retention after leave, viewer write rejection, production flag present/absent.
+
+### Repair commands
+
+| Command | Exit | Result |
+|---|---|---|
+| `pnpm vitest run tests/security/phase52-room-revocation-domain.test.ts tests/integration/phase52-room-content-sync.test.ts tests/integration/phase51-rooms-repair.test.ts` | 0 | 28 passed |
+| `pnpm --filter @daynori/domain build` + sync/api typecheck | 0 | passed |
+| Physical Android / multi-device offline hardware | — | **Unexecuted** |
+
 ## Documentation and Git review
 
-- This report; CHANGELOG; progress.json; ADR 0049; sync/integrations architecture notes.
-- Intended commit: `feat(rooms): synchronize shared content and enforce membership changes`
+- This report; CHANGELOG; progress.json; ADR 0049 (repair amendments); sync/integrations architecture notes.
+- Implementation commit: `feat(rooms): synchronize shared content and enforce membership changes`
+- Repair commit subject: `fix(rooms): separate sync reset from revocation purge`
 
 ## Handoff
 
-Provisional local room content sync and observed-revocation handling are delivered. Status remains **blocked** on release prerequisites.
+Provisional local room content sync and observed-revocation handling are delivered and repaired. Status remains **blocked** on release prerequisites.
 
-**Stop before Phase 53.** No chat, real-user invitations, outbound messages, deployment, or public sharing.
+Next eligible owner-selected action: Phase 53 — Room chat and realtime events (provisional local only).

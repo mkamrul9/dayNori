@@ -43,15 +43,17 @@ export function RoomContentPanel({
       const res = await client.listRoomContent(room.id);
       setContent(res.data);
     } catch (err) {
+      const code = (err as { code?: string })?.code;
       const message = err instanceof Error ? err.message : 'Failed to load room content';
       const revoked =
-        /MEMBERSHIP_REVOKED|access revoked|Room not found|FORBIDDEN|403/i.test(message) ||
-        (err as { code?: string })?.code === 'MEMBERSHIP_REVOKED';
+        code === 'MEMBERSHIP_REVOKED' ||
+        code === 'ROOM_ARCHIVED' ||
+        /\bMEMBERSHIP_REVOKED\b|\bROOM_ARCHIVED\b/i.test(message);
       setContent(null);
       setFeedback({
         severity: 'danger',
         message: revoked
-          ? 'Room access was revoked or is unavailable. Shared content for this room was cleared from this session. Offline copies on disconnected devices may remain until reconnect.'
+          ? 'Room access was revoked or archived. Displayed shared content was cleared. Offline copies on disconnected devices may remain until reconnect. Rejoin requires a fresh invitation and sync context.'
           : message,
       });
     } finally {

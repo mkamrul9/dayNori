@@ -232,7 +232,22 @@ describe('Phase 52: room content sync and revocation', () => {
     );
   });
 
-  it('classifies revocation distinctly from network failure and plans workspace-scoped purge', () => {
+  it('keeps remaining members after another member leaves', async () => {
+    const room = await seedRoomWithMembers();
+    await clientViewer.leaveRoom(room.id);
+
+    const pull = await clientEditor.syncPull({ workspaceId: room.id, limit: 5 });
+    expect(pull.data.accessEpoch).toBeTruthy();
+
+    const content = await clientEditor.listRoomContent(room.id);
+    expect(content.data).toBeTruthy();
+
+    await expect(clientViewer.listRoomContent(room.id)).rejects.toThrow(
+      /MEMBERSHIP_REVOKED|revoked|403|not found/i
+    );
+  });
+
+  it('classifies revocation distinctly from reset, role downgrade, and network failure', () => {
     const revoked = classifyRoomSyncFailure({
       statusCode: 403,
       code: 'MEMBERSHIP_REVOKED',
@@ -240,6 +255,22 @@ describe('Phase 52: room content sync and revocation', () => {
     });
     expect(revoked.isMembershipRevoked).toBe(true);
     expect(revoked.isNetworkError).toBe(false);
+
+    const reset = classifyRoomSyncFailure({
+      statusCode: 409,
+      code: 'SYNC_RESET_REQUIRED',
+      message: 'SYNC_RESET_REQUIRED: Workspace access epoch has changed',
+    });
+    expect(reset.isMembershipRevoked).toBe(false);
+    expect(reset.isSyncResetRequired).toBe(true);
+
+    const role = classifyRoomSyncFailure({
+      statusCode: 403,
+      code: 'ROOM_ROLE_INSUFFICIENT',
+      message: 'ROOM_ROLE_INSUFFICIENT: editor required but user has viewer',
+    });
+    expect(role.isMembershipRevoked).toBe(false);
+    expect(role.isRoleInsufficient).toBe(true);
 
     const network = classifyRoomSyncFailure({
       code: 'NETWORK_ERROR',
@@ -253,9 +284,43 @@ describe('Phase 52: room content sync and revocation', () => {
       userId: editorId,
       reason: 'membership_removed',
     });
-    expect(plan.operations.clearPendingMutations).toBe(true);
-    expect(plan.operations.clearHeaders).toBe(true);
+    expect(plan.shouldPurge).toBe(true);
     expect(typeof applyRoomRevocationPurge).toBe('function');
+  });
+
+  it('rejects viewer write with ROOM_ROLE_INSUFFICIENT without membership loss', async () => {
+    const room = await seedRoomWithMembers();
+    await clientOwner.updateRoomMemberRole(room.id, editorId, { role: 'viewer' });
+
+    const noteId = crypto.randomUUID();
+    const push = await clientEditor.syncPush({
+      commands: [
+        {
+          operationId: crypto.randomUUID(),
+          deviceId: 'phase52-downgrade',
+          workspaceId: room.id,
+          commandVersion: 1,
+          schemaVersion: 1,
+          command: 'createItem',
+          entityType: 'item',
+          entityId: noteId,
+          baseRevision: 0,
+          dependencyOperationIds: [],
+          clientTimestamp: new Date().toISOString(),
+          payload: {
+            kind: 'note',
+            rank: '0|hzzzzz:',
+            securityScope: 'standard',
+          },
+        },
+      ],
+    });
+    expect(push.data.results[0]?.status).toBe('rejected');
+    expect(push.data.results[0]?.error?.code).toMatch(/ROOM_ROLE_INSUFFICIENT|FORBIDDEN/);
+
+    // Still readable as viewer
+    const pull = await clientEditor.syncPull({ workspaceId: room.id, limit: 5 });
+    expect(pull.data.accessEpoch).toBeTruthy();
   });
 
   it('preserves two-editor conflict versions via sync push (no silent overwrite)', async () => {

@@ -363,16 +363,23 @@ describe('Phase 51 repair: quarantine, ownership concurrency, copy boundaries', 
     ).rejects.toThrow(/private|reference|embed/i);
   });
 
-  it('does not enable production rooms via local flag alone', async () => {
+  it('does not enable production rooms via local flag alone or when flag is present', async () => {
     const prev = process.env['NODE_ENV'];
     const prevFlag = process.env['DAYNORI_ROOMS_LOCAL_ENABLED'];
     try {
-      process.env['NODE_ENV'] = 'production';
-      delete process.env['DAYNORI_ROOMS_LOCAL_ENABLED'];
       const { assertRoomsLocallyEnabled } = await import(
         '../../apps/api/src/modules/rooms/service.js'
       );
+      const { isRoomsLocallyEnabled } = await import('@daynori/domain');
+
+      process.env['NODE_ENV'] = 'production';
+      delete process.env['DAYNORI_ROOMS_LOCAL_ENABLED'];
+      expect(isRoomsLocallyEnabled(process.env)).toBe(false);
       expect(() => assertRoomsLocallyEnabled()).toThrow(/disabled|ROOMS_DISABLED/i);
+
+      process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] = 'true';
+      expect(isRoomsLocallyEnabled(process.env)).toBe(false);
+      expect(() => assertRoomsLocallyEnabled()).toThrow(/disabled|ROOMS_DISABLED|Production/i);
     } finally {
       process.env['NODE_ENV'] = prev;
       if (prevFlag !== undefined) process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] = prevFlag;

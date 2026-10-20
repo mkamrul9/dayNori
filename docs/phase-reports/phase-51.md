@@ -90,9 +90,9 @@ Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`, local PostgreSQL via pr
 | Copy only checked destination ID | Payload title/text verified; embedded private UUIDs and attachments rejected; change-feed emit |
 | Invite deep-link implied | Documented manual-token harness (clipboard + paste); no routed accept page |
 | Secret-scan on phase47 fixture | Shortened synthetic `recoverySecret` value; `pnpm audit:secrets` exit 0 |
-| Production enablement via local flag | Assert `NODE_ENV=production` without flag throws `ROOMS_DISABLED` |
+| Production enablement via local flag | Shared `isRoomsLocallyEnabled` — production always false even when `DAYNORI_ROOMS_LOCAL_ENABLED=true` (flag present and absent covered) |
 
-Repair verification: `pnpm vitest run tests/integration/phase51-rooms-repair.test.ts` → 6 passed; prior Phase 51 suites still pass.
+Repair verification: `pnpm vitest run tests/integration/phase51-rooms-repair.test.ts` (includes production gate present/absent); prior Phase 51 suites still pass.
 
 ## Defects, limitations and recovery
 

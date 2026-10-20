@@ -309,13 +309,13 @@
     {
       "id": "51",
       "status": "blocked",
-      "reason": "Provisional local shared rooms, invitations, roles, and explicit personal→room copy delivered under owner-authorized local scope (ADR 0048). Completion blocked pending prerequisite Phase 38 controlled private beta evidence, Phase 10 physical Android TalkBack/hardware gates, and rooms release-gate moderation/report/block readiness. No real-user invitations, outbound messages, or production enablement. Vault remains disabled.",
+      "reason": "Provisional local shared rooms repaired (ADR 0048): shared isRoomsLocallyEnabled fails closed in production even with DAYNORI_ROOMS_LOCAL_ENABLED. Completion blocked pending Phase 38 private-beta evidence, Phase 10 hardware gates, and rooms release-gate readiness. No real-user invitations, outbound messages, or production enablement. Vault remains disabled.",
       "report": "docs/phase-reports/phase-51.md"
     },
     {
       "id": "52",
       "status": "blocked",
-      "reason": "Provisional local room content sync, role revalidation, MEMBERSHIP_REVOKED/ROOM_ARCHIVED handling, and client purge protocol delivered (ADR 0049). Chat is Phase 53 and was not implemented. Completion blocked pending prerequisite Phases 51 and 34 release evidence plus rooms gate. No real-user sharing or production enablement. Vault remains disabled.",
+      "reason": "Provisional local room content sync repaired (ADR 0049): SYNC_RESET_REQUIRED rebases without purge; ROOM_ROLE_INSUFFICIENT for role downgrade; typed clearWorkspaceData purge; production gate fail-closed. Chat is Phase 53. Completion blocked pending Phases 51/34 release evidence plus rooms gate. No real-user sharing or production enablement. Vault remains disabled.",
       "report": "docs/phase-reports/phase-52.md"
     },
     {

@@ -43,7 +43,9 @@ import {
   applyRoomRevocationPurge,
   classifyRoomSyncFailure,
   planRoomRevocationPurge,
+  RoomRevocationPurgeError,
 } from './roomRevocation.js';
+import { requiresRoomContentPurge, type RoomRevocationReason } from '@daynori/domain';
 
 export interface SaveItemOptions {
   dependencyOperationIds?: string[];
@@ -84,7 +86,9 @@ export type SyncEngineEvent =
       workspaceId: string;
       reason: string;
       message: string;
+      purgeFailed?: boolean;
     }
+  | { type: 'role_insufficient'; workspaceId: string; message: string }
   | { type: 'error'; message: string; code?: string; isAuthError?: boolean };
 
 function defaultIdGenerator(): string {
@@ -1132,6 +1136,16 @@ export class SyncEngine {
   // --- Synchronization Execution Cycle ---
 
   async syncNow(): Promise<void> {
+    if (this.roomAccessBlocked) {
+      this.emit({
+        type: 'room_revoked',
+        workspaceId: this.namespace.workspaceId,
+        reason: 'membership_removed',
+        message: 'Room sync blocked after revocation; rejoin required for a fresh context.',
+        purgeFailed: false,
+      });
+      return;
+    }
     if (!this.isRunning) return;
 
     // Follower tabs must delegate synchronization to the elected leader
@@ -1248,6 +1262,9 @@ export class SyncEngine {
    * of up to 50 operations.
    */
   async pushPending(isStale?: () => boolean): Promise<{ pushedCount: number }> {
+    if (this.roomAccessBlocked) {
+      return { pushedCount: 0 };
+    }
     if (this.networkStatus === 'offline' || !this.coordination.isLeader) {
       return { pushedCount: 0 };
     }
@@ -1643,9 +1660,40 @@ export class SyncEngine {
 
         this.emit({ type: 'conflict_detected', conflict: conflictRecord });
       } else if (result.status === 'rejected') {
+        const rejectCode = result.error?.code;
+        const rejectMsg = result.error?.message || 'Rejected by server';
+        const classified = classifyRoomSyncFailure({
+          code: rejectCode,
+          message: rejectMsg,
+          statusCode: 403,
+        });
+
+        if (classified.isMembershipRevoked) {
+          await this.handleRoomMembershipRevoked(
+            classified.revocationReason ?? 'membership_removed'
+          );
+          return { pushedCount };
+        }
+
+        if (classified.isRoleInsufficient) {
+          // Keep readable cache; drop unauthorized write from queue.
+          await this.repository.removePendingMutation(result.operationId);
+          this.itemStates.set(result.entityId, {
+            savedOnDevice: true,
+            cloudSyncStatus: 'error',
+            lastError: rejectMsg,
+          });
+          this.emit({
+            type: 'role_insufficient',
+            workspaceId: this.namespace.workspaceId,
+            message: rejectMsg,
+          });
+          continue;
+        }
+
         // Terminal domain failure
         origMutation.status = 'failed';
-        origMutation.lastError = result.error?.message || 'Rejected by server';
+        origMutation.lastError = rejectMsg;
         await this.repository.enqueueMutation(origMutation);
 
         this.itemStates.set(result.entityId, {
@@ -1663,6 +1711,9 @@ export class SyncEngine {
    * Pulls incremental server changes with pagination and atomic cursor advancement.
    */
   async pullChanges(isStale?: () => boolean): Promise<{ changesCount: number }> {
+    if (this.roomAccessBlocked) {
+      return { changesCount: 0 };
+    }
     if (this.networkStatus === 'offline' || !this.coordination.isLeader) {
       return { changesCount: 0 };
     }
@@ -2318,15 +2369,24 @@ export class SyncEngine {
         hasMore = pullRes.data.hasMore;
       } catch (err) {
         const classified = classifyRoomSyncFailure(err);
-        if (classified.isMembershipRevoked) {
-          await this.handleRoomMembershipRevoked(classified.revocationReason ?? 'membership_removed');
+        // Authorized members with epoch/cursor drift rebase first — never purge on SYNC_RESET_REQUIRED.
+        if (classified.isSyncResetRequired || classified.isResetRequired) {
+          this.log('warn', 'Cursor expired or epoch rotated; initiating bootstrap snapshot reset');
+          await this.resetAndBootstrap();
           return { changesCount: totalChanges };
         }
-        if (classified.isResetRequired) {
-          this.log('warn', 'Cursor expired or epoch rotated; initiating bootstrap snapshot reset');
-          // For rooms, epoch rotation after membership change is handled as revocation above.
-          // Personal/workspace reset preserves drafts via bootstrap rebase.
-          await this.resetAndBootstrap();
+        if (classified.isMembershipRevoked) {
+          await this.handleRoomMembershipRevoked(
+            classified.revocationReason ?? 'membership_removed'
+          );
+          return { changesCount: totalChanges };
+        }
+        if (classified.isRoleInsufficient) {
+          this.emit({
+            type: 'role_insufficient',
+            workspaceId: this.namespace.workspaceId,
+            message: classified.message,
+          });
           return { changesCount: totalChanges };
         }
         throw err;
@@ -3331,43 +3391,80 @@ export class SyncEngine {
    * Offline devices may retain previously downloaded bytes until this path runs.
    */
   async handleRoomMembershipRevoked(
-    reason: string = 'membership_removed'
+    reason: RoomRevocationReason | string = 'membership_removed'
   ): Promise<void> {
-    this.log('warn', `Room membership revoked (${reason}); purging local room cache`);
+    const typedReason = (
+      requiresRoomContentPurge(reason as RoomRevocationReason)
+        ? reason
+        : 'membership_removed'
+    ) as RoomRevocationReason;
+
+    this.log('warn', `Room membership revoked (${typedReason}); purging local room cache`);
     await this.stop();
     const scope = planRoomRevocationPurge({
       workspaceId: this.namespace.workspaceId,
       userId: this.namespace.userId,
-      reason: reason as
-        | 'membership_removed'
-        | 'role_downgraded'
-        | 'room_archived'
-        | 'access_epoch_changed'
-        | 'cursor_invalid',
+      reason: typedReason,
     });
-    await applyRoomRevocationPurge(
-      this.repository,
-      scope,
-      this.abortController ?? undefined
-    );
+
+    let purgeFailed = false;
+    try {
+      await applyRoomRevocationPurge(
+        this.repository,
+        scope,
+        this.abortController ?? undefined
+      );
+    } catch (err) {
+      purgeFailed = true;
+      this.log(
+        'error',
+        err instanceof RoomRevocationPurgeError
+          ? err.message
+          : 'Room revocation purge failed',
+        { err: String(err) }
+      );
+    }
+
     this.itemStates.clear();
     this.activeConflicts.clear();
+    this.roomAccessBlocked = true;
     this.setOverallStatus('needs_attention');
     this.emit({
       type: 'room_revoked',
       workspaceId: this.namespace.workspaceId,
-      reason,
-      message:
-        'Room access was revoked. Shared caches for this room were cleared. Previously downloaded offline copies may remain on disconnected devices until reconnect.',
+      reason: typedReason,
+      purgeFailed,
+      message: purgeFailed
+        ? 'Room access was revoked but local purge failed. Room sync remains blocked until recovery.'
+        : 'Room access was revoked. Shared caches for this room were cleared. Previously downloaded offline copies may remain on disconnected devices until reconnect.',
     });
   }
+
+  private roomAccessBlocked = false;
 
   private handleSyncFailure(error: unknown): void {
     const classified = classifyRoomSyncFailure(error);
     this.consecutiveFailures++;
 
+    if (classified.isSyncResetRequired || classified.isResetRequired) {
+      void this.resetAndBootstrap().catch((err) => {
+        this.log('error', 'Bootstrap reset failed', { err: String(err) });
+      });
+      return;
+    }
+
     if (classified.isMembershipRevoked) {
       void this.handleRoomMembershipRevoked(classified.revocationReason ?? 'membership_removed');
+      return;
+    }
+
+    if (classified.isRoleInsufficient) {
+      this.emit({
+        type: 'role_insufficient',
+        workspaceId: this.namespace.workspaceId,
+        message: classified.message,
+      });
+      this.setOverallStatus('error');
       return;
     }
 

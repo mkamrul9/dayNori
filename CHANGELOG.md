@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 51/52 repair — Revocation vs sync reset, durable purge, production gate (blocked) — 2026-10-20
+
+- Confirmed room purge only on structured `MEMBERSHIP_REVOKED` / `ROOM_ARCHIVED`; `SYNC_RESET_REQUIRED` rebases while preserving drafts/pending/conflicts.
+- `ROOM_ROLE_INSUFFICIENT` for editor→viewer write rejection without membership-loss purge.
+- Typed `clearWorkspaceData` purge (cursor, conflicts, drafts, mutations, projections); SyncEngine handles push-result revocation and purge failure.
+- Shared `isRoomsLocallyEnabled` fails closed in production even when the local flag is set.
+- ADR 0049 amended. Status remains blocked; no real-user/production rooms enablement.
+
 ## Phase 52 — Shared content sync and revocation (blocked / provisional) — 2026-10-20
 
 - Room-scoped note/task/file sync with role revalidation on pull/push/bootstrap/receipts/downloads; journal/vault excluded.

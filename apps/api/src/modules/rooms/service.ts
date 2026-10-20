@@ -12,6 +12,7 @@ import {
   canInviteWithRole,
   invitationPreviewSafe,
   isBlockedShareKind,
+  isRoomsLocallyEnabled,
   isShareableItemKind,
   mapInviteExceptionMessage,
   roomPermissionsFor,
@@ -130,15 +131,14 @@ function mapRoom(row: WorkspaceRow, actorRole: RoomRole | null) {
   };
 }
 
-/** Local provisional enablement — not public/release enablement. */
+/**
+ * Local provisional enablement — never production.
+ * `DAYNORI_ROOMS_LOCAL_ENABLED=true` is ignored when NODE_ENV=production.
+ */
 export function assertRoomsLocallyEnabled(): void {
-  const enabled =
-    process.env['NODE_ENV'] === 'test' ||
-    process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] === 'true' ||
-    process.env['NODE_ENV'] === 'development';
-  if (!enabled) {
+  if (!isRoomsLocallyEnabled(process.env)) {
     throw new RoomServiceError(
-      'Shared rooms are disabled outside local/provisional development. Set DAYNORI_ROOMS_LOCAL_ENABLED=true for local harnesses only.',
+      'Shared rooms are disabled outside local/provisional development. Production never enables rooms via DAYNORI_ROOMS_LOCAL_ENABLED.',
       403,
       'ROOMS_DISABLED'
     );

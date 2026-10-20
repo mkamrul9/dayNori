@@ -116,8 +116,25 @@ import {
   calculateCharCount,
 } from '@daynori/domain';
 import { withTenantContext } from '../../db/index.js';
-import { NotFoundError, ConflictError, ValidationError, MembershipRevokedError } from '../../plugins/errorHandler.js';
+import {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+  MembershipRevokedError,
+  ForbiddenError,
+} from '../../plugins/errorHandler.js';
 import { isRoomContentBlocked } from '@daynori/domain';
+
+function mapRoomAccessErrorCode(err: unknown): string {
+  if (err instanceof MembershipRevokedError) return err.code;
+  if (err instanceof ForbiddenError && String(err.message).includes('ROOM_ROLE_INSUFFICIENT')) {
+    return 'ROOM_ROLE_INSUFFICIENT';
+  }
+  if (err instanceof Error && err.message.includes('ROOM_ROLE_INSUFFICIENT')) {
+    return 'ROOM_ROLE_INSUFFICIENT';
+  }
+  return 'FORBIDDEN';
+}
 
 const VALID_ITEM_KINDS = new Set([
   'note',
@@ -177,9 +194,9 @@ async function assertRoomSyncAccess(
   const minLevel = roleHierarchy[minRole] || 0;
 
   if (userLevel < minLevel) {
-    throw new MembershipRevokedError(
-      `Insufficient role: ${minRole} required but user has ${ws.user_role}`,
-      'MEMBERSHIP_REVOKED'
+    // Remaining member with reduced role — reject writes without claiming membership loss.
+    throw new ForbiddenError(
+      `ROOM_ROLE_INSUFFICIENT: ${minRole} required but user has ${ws.user_role}`
     );
   }
 
@@ -591,7 +608,7 @@ export class SyncService {
               revision: 0,
               seq: null,
               error: {
-                code: err instanceof MembershipRevokedError ? err.code : 'FORBIDDEN',
+                code: mapRoomAccessErrorCode(err),
                 message: err instanceof Error ? err.message : 'Access denied',
               },
             };
@@ -639,8 +656,13 @@ export class SyncService {
                 revision: 0,
                 seq: null,
                 error: {
-                  code: err instanceof MembershipRevokedError ? err.code : 'FORBIDDEN',
-                  message: 'Access to target workspace has been revoked.',
+                  code: mapRoomAccessErrorCode(err),
+                  message:
+                    err instanceof MembershipRevokedError
+                      ? err.message
+                      : err instanceof Error
+                        ? err.message
+                        : 'Access to target workspace has been revoked.',
                 },
               };
             }

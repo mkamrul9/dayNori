@@ -23,6 +23,7 @@ export const ApiErrorCode = {
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   MEMBERSHIP_REVOKED: 'MEMBERSHIP_REVOKED',
   ROOM_ARCHIVED: 'ROOM_ARCHIVED',
+  ROOM_ROLE_INSUFFICIENT: 'ROOM_ROLE_INSUFFICIENT',
 } as const;
 
 export type ApiErrorCodeType = (typeof ApiErrorCode)[keyof typeof ApiErrorCode];
@@ -47,6 +48,7 @@ export const ApiErrorCodeSchema = z.enum([
   'INTERNAL_ERROR',
   'MEMBERSHIP_REVOKED',
   'ROOM_ARCHIVED',
+  'ROOM_ROLE_INSUFFICIENT',
 ]);
 
 /**

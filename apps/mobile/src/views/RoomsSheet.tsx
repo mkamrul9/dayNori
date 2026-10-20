@@ -192,11 +192,16 @@ export function RoomsSheet({
                       : 'Shared content loaded (personal workspace stays separate)'
                   );
                 } catch (err) {
+                  const code = (err as { code?: string })?.code;
                   const msg = err instanceof Error ? err.message : 'Content failed';
+                  const revoked =
+                    code === 'MEMBERSHIP_REVOKED' ||
+                    code === 'ROOM_ARCHIVED' ||
+                    /\bMEMBERSHIP_REVOKED\b|\bROOM_ARCHIVED\b/i.test(msg);
                   setContentSummary(null);
                   setMessage(
-                    /MEMBERSHIP_REVOKED|revoked|403/i.test(msg)
-                      ? 'Room access revoked. Shared caches for this room should be cleared on reconnect.'
+                    revoked
+                      ? 'Room access was revoked or archived. Displayed shared content was cleared. Offline copies on disconnected devices may remain until reconnect.'
                       : msg
                   );
                 } finally {
