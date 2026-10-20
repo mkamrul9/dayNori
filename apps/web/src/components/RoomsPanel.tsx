@@ -6,6 +6,7 @@ import { Button, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import type { Room, RoomInvitation } from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
 import { RoomContentPanel } from './RoomContentPanel';
+import { RoomChatPanel } from './RoomChatPanel';
 
 export interface RoomsPanelProps {
   csrfToken: string | null;
@@ -41,6 +42,7 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
   );
   const [busy, setBusy] = useState(false);
   const [showContent, setShowContent] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
 
@@ -300,6 +302,16 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
               </Button>
               <Button
                 type="button"
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => setShowChat(true)}
+                disabled={busy}
+              >
+                Open room chat
+              </Button>
+              <Button
+                type="button"
                 variant="subtle"
                 size="compact"
                 themeMode={themeMode}
@@ -316,6 +328,14 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
                 room={selected}
                 personalWorkspaceId={personalWorkspaceId}
                 onClose={() => setShowContent(false)}
+              />
+            ) : null}
+            {showChat ? (
+              <RoomChatPanel
+                csrfToken={csrfToken}
+                themeMode={themeMode}
+                room={selected}
+                onClose={() => setShowChat(false)}
               />
             ) : null}
 

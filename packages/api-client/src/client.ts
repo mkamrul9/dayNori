@@ -275,6 +275,10 @@ import {
   CopyPersonalItemToRoomPreviewResponseSchema,
   CopyPersonalItemToRoomResponseSchema,
   RoomContentResponseSchema,
+  RoomChatMessageResponseSchema,
+  RoomChatMessageListResponseSchema,
+  RoomChatReadStateResponseSchema,
+  RoomChatEventsResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -295,6 +299,14 @@ import {
   type RoomListResponse,
   type RoomResponse,
   type RoomContentResponse,
+  type SendRoomChatMessageRequest,
+  type EditRoomChatMessageRequest,
+  type UpdateRoomChatReadStateRequest,
+  type UpdateRoomChatMuteRequest,
+  type RoomChatMessageResponse,
+  type RoomChatMessageListResponse,
+  type RoomChatReadStateResponse,
+  type RoomChatEventsResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3142,6 +3154,120 @@ export class DaynoriApiClient {
       options
     );
     return RoomContentResponseSchema.parse(raw);
+  }
+
+  // --- Phase 53 Room chat ---
+
+  async sendRoomChatMessage(
+    roomId: string,
+    request: SendRoomChatMessageRequest,
+    options?: RequestOptions
+  ): Promise<RoomChatMessageResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/messages`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoomChatMessageResponseSchema.parse(raw);
+  }
+
+  async listRoomChatMessages(
+    roomId: string,
+    query?: { beforeOrder?: number; limit?: number },
+    options?: RequestOptions
+  ): Promise<RoomChatMessageListResponse> {
+    const params = new URLSearchParams();
+    if (query?.beforeOrder !== undefined) params.set('beforeOrder', String(query.beforeOrder));
+    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    const qs = params.toString();
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/messages${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+      options
+    );
+    return RoomChatMessageListResponseSchema.parse(raw);
+  }
+
+  async editRoomChatMessage(
+    roomId: string,
+    messageId: string,
+    request: EditRoomChatMessageRequest,
+    options?: RequestOptions
+  ): Promise<RoomChatMessageResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/messages/${messageId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return RoomChatMessageResponseSchema.parse(raw);
+  }
+
+  async deleteRoomChatMessage(
+    roomId: string,
+    messageId: string,
+    options?: RequestOptions
+  ): Promise<RoomChatMessageResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/messages/${messageId}`,
+      { method: 'DELETE' },
+      options
+    );
+    return RoomChatMessageResponseSchema.parse(raw);
+  }
+
+  async getRoomChatReadState(
+    roomId: string,
+    options?: RequestOptions
+  ): Promise<RoomChatReadStateResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/chat/read-state`,
+      { method: 'GET' },
+      options
+    );
+    return RoomChatReadStateResponseSchema.parse(raw);
+  }
+
+  async updateRoomChatReadState(
+    roomId: string,
+    request: UpdateRoomChatReadStateRequest,
+    options?: RequestOptions
+  ): Promise<RoomChatReadStateResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/chat/read-state`,
+      { method: 'PUT', body: JSON.stringify(request) },
+      options
+    );
+    return RoomChatReadStateResponseSchema.parse(raw);
+  }
+
+  async updateRoomChatMute(
+    roomId: string,
+    request: UpdateRoomChatMuteRequest,
+    options?: RequestOptions
+  ): Promise<RoomChatReadStateResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/chat/mute`,
+      { method: 'PUT', body: JSON.stringify(request) },
+      options
+    );
+    return RoomChatReadStateResponseSchema.parse(raw);
+  }
+
+  async listRoomChatEvents(
+    roomId: string,
+    query?: { sinceOrder?: number; limit?: number },
+    options?: RequestOptions
+  ): Promise<RoomChatEventsResponse> {
+    const params = new URLSearchParams();
+    if (query?.sinceOrder !== undefined) params.set('sinceOrder', String(query.sinceOrder));
+    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    const qs = params.toString();
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/chat/events${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+      options
+    );
+    return RoomChatEventsResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

@@ -23,4 +23,5 @@ export * from './audio.js';
 export * from './customSections.js';
 export * from './drive.js';
 export * from './rooms.js';
+export * from './chat.js';
 

@@ -33,6 +33,10 @@ export function RoomsSheet({
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [contentSummary, setContentSummary] = useState<string | null>(null);
+  const [chatLines, setChatLines] = useState<string[]>([]);
+  const [chatDraft, setChatDraft] = useState('');
+  const [chatConnection, setChatConnection] = useState('idle');
+  const [chatMuted, setChatMuted] = useState(false);
 
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
 
@@ -213,6 +217,53 @@ export function RoomsSheet({
             Open shared content
           </MobileButton>
           <MobileButton
+            themeMode={themeMode}
+            disabled={busy}
+            accessibilityLabel="Open room chat"
+            onPress={() => {
+              void (async () => {
+                setBusy(true);
+                try {
+                  const hist = await apiClient.listRoomChatMessages(selected.id, { limit: 40 });
+                  const lines = [...hist.data.messages]
+                    .sort((a, b) => a.serverOrder - b.serverOrder)
+                    .map((m) =>
+                      m.deletedAt
+                        ? `#${m.serverOrder} (deleted)`
+                        : `#${m.serverOrder} ${m.body}`
+                    );
+                  setChatLines(lines);
+                  const read = await apiClient.getRoomChatReadState(selected.id);
+                  setChatMuted(read.data.muted);
+                  setChatConnection('connected');
+                  setMessage(
+                    selected.actorRole === 'viewer'
+                      ? `Chat loaded (read-only). Unread ${read.data.unreadCount}.`
+                      : `Chat loaded. Unread ${read.data.unreadCount}.`
+                  );
+                } catch (err) {
+                  const code = (err as { code?: string })?.code;
+                  const msg = err instanceof Error ? err.message : 'Chat failed';
+                  const revoked =
+                    code === 'MEMBERSHIP_REVOKED' ||
+                    code === 'ROOM_ARCHIVED' ||
+                    /\bMEMBERSHIP_REVOKED\b|\bROOM_ARCHIVED\b/i.test(msg);
+                  setChatLines([]);
+                  setChatConnection('offline');
+                  setMessage(
+                    revoked
+                      ? 'Room access was revoked or archived. Conversation cleared from this view.'
+                      : msg
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          >
+            Open room chat
+          </MobileButton>
+          <MobileButton
             variant="subtle"
             themeMode={themeMode}
             disabled={busy}
@@ -224,6 +275,7 @@ export function RoomsSheet({
                   await apiClient.leaveRoom(selected.id);
                   setSelectedId(null);
                   setContentSummary(null);
+                  setChatLines([]);
                   setMessage('Left room');
                   await refresh();
                 } catch (err) {
@@ -243,6 +295,96 @@ export function RoomsSheet({
             >
               {contentSummary}
             </Text>
+          ) : null}
+          {chatLines.length > 0 || chatConnection !== 'idle' ? (
+            <View style={{ marginTop: spacing.sm }} accessibilityLabel="Room conversation">
+              <Text style={{ color: palette.text.secondary, marginBottom: spacing.xs }}>
+                Chat · {chatConnection}
+                {chatMuted ? ' · muted' : ''}
+              </Text>
+              {chatLines.map((line, idx) => (
+                <Text
+                  key={`${idx}-${line.slice(0, 12)}`}
+                  accessibilityLiveRegion={idx === chatLines.length - 1 ? 'polite' : undefined}
+                  style={{ color: palette.text.primary, marginBottom: 4 }}
+                >
+                  {line}
+                </Text>
+              ))}
+              {selected.actorRole !== 'viewer' ? (
+                <>
+                  <TextInput
+                    value={chatDraft}
+                    onChangeText={setChatDraft}
+                    accessibilityLabel="Compose room message"
+                    placeholder="Message"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: palette.border.subtle,
+                      borderRadius: radii.sm,
+                      padding: spacing.sm,
+                      color: palette.text.primary,
+                      minHeight: 44,
+                      marginVertical: spacing.sm,
+                    }}
+                  />
+                  <MobileButton
+                    themeMode={themeMode}
+                    disabled={busy || !chatDraft.trim()}
+                    accessibilityLabel="Send room message"
+                    onPress={() => {
+                      void (async () => {
+                        const body = chatDraft.trim();
+                        if (!body) return;
+                        const clientMessageId = crypto.randomUUID();
+                        setBusy(true);
+                        setChatConnection('pending');
+                        try {
+                          const sent = await apiClient.sendRoomChatMessage(selected.id, {
+                            clientMessageId,
+                            body,
+                          });
+                          setChatLines((prev) => [
+                            ...prev,
+                            `#${sent.data.serverOrder} ${sent.data.body}`,
+                          ]);
+                          setChatDraft('');
+                          setChatConnection('connected');
+                          setMessage('Message sent');
+                        } catch (err) {
+                          setChatConnection('failed');
+                          setMessage(err instanceof Error ? err.message : 'Send failed');
+                        } finally {
+                          setBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    Send message
+                  </MobileButton>
+                </>
+              ) : null}
+              <MobileButton
+                variant="subtle"
+                themeMode={themeMode}
+                disabled={busy}
+                accessibilityLabel={chatMuted ? 'Unmute room chat' : 'Mute room chat'}
+                onPress={() => {
+                  void (async () => {
+                    try {
+                      const res = await apiClient.updateRoomChatMute(selected.id, {
+                        muted: !chatMuted,
+                      });
+                      setChatMuted(res.data.muted);
+                    } catch (err) {
+                      setMessage(err instanceof Error ? err.message : 'Mute failed');
+                    }
+                  })();
+                }}
+              >
+                {chatMuted ? 'Unmute chat' : 'Mute chat'}
+              </MobileButton>
+            </View>
           ) : null}
         </View>
       ) : null}

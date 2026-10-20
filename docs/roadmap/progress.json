@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-20",
-  "activePhase": "52",
+  "activePhase": "53",
   "nextPhase": null,
   "schedulingDecision": "Owner selected Phase 52 for bounded provisional local shared content sync after Phase 51 repair ca607ce. Phase 52 delivered room sync/revocation (ADR 0049); not chat (Phase 53). Status blocked pending Phases 51/34/38 release evidence. Phase 50 deferred; Phase 49 live Google unmet; vault disabled. Stop before Phase 53.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
@@ -320,7 +320,9 @@
     },
     {
       "id": "53",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local durable room chat, idempotent send, authorized event poll/local bus, unread/mute, and web/Android conversation journeys delivered (ADR 0050). Completion blocked pending prerequisite Phase 52 release evidence and rooms/chat release gates (incl. Phase 54 moderation). No real-user sharing, outbound notifications, or production enablement. Vault remains disabled.",
+      "report": "docs/phase-reports/phase-53.md"
     },
     {
       "id": "54",

@@ -27,4 +27,5 @@ export * from './rooms.js';
 export * from './roomsGate.js';
 export * from './roomContent.js';
 export * from './roomRevocation.js';
+export * from './chat.js';
 

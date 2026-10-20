@@ -42,6 +42,7 @@ import { isRoomsLocallyEnabled } from '@daynori/domain';
 import { registerCustomSectionRoutes } from './routes/v1/customSections.js';
 import { registerDriveRoutes } from './routes/v1/drive.js';
 import { registerRoomRoutes } from './routes/v1/rooms.js';
+import { registerChatRoutes } from './routes/v1/chat.js';
 import { BetaAccessService } from './modules/beta/betaAccessService.js';
 import { ExplicitForbiddenError } from './plugins/errorHandler.js';
 
@@ -246,6 +247,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerCustomSectionRoutes(authScope, runtimePool);
       registerDriveRoutes(authScope, runtimePool);
       registerRoomRoutes(authScope, runtimePool);
+      registerChatRoutes(authScope, runtimePool);
       registerAuthenticatedDeletionRoutes(authScope, runtimePool);
     });
   }

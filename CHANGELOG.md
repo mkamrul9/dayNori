@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 53 — Room chat and realtime events (blocked / provisional) — 2026-10-20
+
+- Durable room messages with client IDs, idempotent send/retry, server ordering, pagination, author edit/delete, and role-based send.
+- Authorized history and event cursor poll; process-local realtime bus with unpublished-event recovery (not a production provider).
+- Per-user unread cursor and mute; synthetic privacy-safe notification planning (no real push). Attachment refs limited to room-owned files.
+- Web RoomChatPanel and Android RoomsSheet chat journey under local rooms gate. ADR 0050. Status blocked on rooms release prerequisites.
+
 ## Phase 51/52 repair — Revocation vs sync reset, durable purge, production gate (blocked) — 2026-10-20
 
 - Confirmed room purge only on structured `MEMBERSHIP_REVOKED` / `ROOM_ARCHIVED`; `SYNC_RESET_REQUIRED` rebases while preserving drafts/pending/conflicts.

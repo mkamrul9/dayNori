@@ -40,7 +40,8 @@ Serialize instants as RFC 3339 UTC strings, local dates as `YYYY-MM-DD`, and zon
 - Sync: bootstrap, push, pull, device checkpoint and conflict resolution.
 - Recovery/privacy: exports, account deletion requests, job status and consent/revocation.
 - Rooms (provisional local): `/v1/rooms`, invitations, accept/preview, members, leave, transfer, explicit personal→room copy — gated by local enablement (`DAYNORI_ROOMS_LOCAL_ENABLED` / test-dev); not public release (ADR 0048).
-- Deferred: broader Drive folder mirroring, room chat/messages, AI sessions/proposals and entitlements. Provider Drive selected-file connector remains separately gated.
+- Deferred: broader Drive folder mirroring, AI sessions/proposals and entitlements. Provider Drive selected-file connector remains separately gated.
+- Phase 53 (provisional local; ADR 0050): room chat under the same rooms local gate — `POST/GET/PATCH/DELETE /v1/rooms/:roomId/messages`, read-state/mute, and `GET .../chat/events`. Production remains fail-closed.
 
 Keep endpoint naming consistent when concrete schemas are introduced. Do not publish fake handlers or production SDK methods in Phase 00.
 
