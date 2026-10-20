@@ -40,6 +40,7 @@ import { registerBetaRoutes } from './routes/v1/beta.js';
 import { registerExpenseRoutes } from './routes/v1/expenses.js';
 import { registerCustomSectionRoutes } from './routes/v1/customSections.js';
 import { registerDriveRoutes } from './routes/v1/drive.js';
+import { registerRoomRoutes } from './routes/v1/rooms.js';
 import { BetaAccessService } from './modules/beta/betaAccessService.js';
 import { ExplicitForbiddenError } from './plugins/errorHandler.js';
 
@@ -143,15 +144,23 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
   });
 
   const allowExpenses = options?.enableExpenses ?? process.env['ENABLE_EXPENSES'] === 'true';
+  // Provisional local rooms only — not public invitation / release enablement.
+  const allowRoomsLocal =
+    process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] === 'true' ||
+    process.env['NODE_ENV'] === 'test' ||
+    process.env['NODE_ENV'] === 'development';
 
   // Global barrier for unreleased feature scope (expenses, vault, rooms, ai, billing)
   // Rejects direct calls with 403 Forbidden before router matching
   app.addHook('onRequest', async (request) => {
     const url = request.url;
+    const roomsBlocked =
+      !allowRoomsLocal &&
+      (url.startsWith('/v1/rooms') || url.startsWith('/v1/room-invitations'));
     if (
       (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
       url.startsWith('/v1/vault') ||
-      url.startsWith('/v1/rooms') ||
+      roomsBlocked ||
       url.startsWith('/v1/ai') ||
       url.startsWith('/v1/billing')
     ) {
@@ -181,10 +190,13 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
         const url = request.url;
 
         // 1. Unreleased feature scope barriers (403 Forbidden on direct access)
+        const roomsBlockedAuth =
+          !allowRoomsLocal &&
+          (url.startsWith('/v1/rooms') || url.startsWith('/v1/room-invitations'));
         if (
           (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
           url.startsWith('/v1/vault') ||
-          url.startsWith('/v1/rooms') ||
+          roomsBlockedAuth ||
           url.startsWith('/v1/ai') ||
           url.startsWith('/v1/billing')
         ) {
@@ -235,6 +247,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerSyncRoutes(authScope, runtimePool);
       registerCustomSectionRoutes(authScope, runtimePool);
       registerDriveRoutes(authScope, runtimePool);
+      registerRoomRoutes(authScope, runtimePool);
       registerAuthenticatedDeletionRoutes(authScope, runtimePool);
     });
   }

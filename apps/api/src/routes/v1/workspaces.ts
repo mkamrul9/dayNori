@@ -23,7 +23,12 @@ import {
   provisionPersonalWorkspace,
   getPersonalWorkspace,
 } from '../../db/index.js';
-import { NotFoundError, ConflictError, validateResponse } from '../../plugins/errorHandler.js';
+import {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+  validateResponse,
+} from '../../plugins/errorHandler.js';
 
 export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool): void {
   // POST /v1/workspaces/provision — Idempotent personal workspace & profile provisioning
@@ -150,6 +155,12 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
     const actor = request.actor!;
     // Strict schema parse rejects unknown fields
     const body = CreateWorkspaceRequestSchema.parse(request.body);
+
+    if (body.kind === 'room') {
+      throw new ValidationError(
+        'Create shared rooms via POST /v1/rooms. Generic workspace creation cannot establish shareable rooms.'
+      );
+    }
 
     try {
       const { workspace } = await withUserContext(runtimePool, actor.userId, async (client) => {

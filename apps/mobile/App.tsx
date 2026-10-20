@@ -63,6 +63,7 @@ import { ExpensesView } from './src/views/ExpensesView';
 import { CustomSectionsView } from './src/views/CustomSectionsView';
 import { VaultHarnessView } from './src/vault/VaultHarnessView';
 import { DriveConnectionsSheet } from './src/views/DriveConnectionsSheet';
+import { RoomsSheet } from './src/views/RoomsSheet';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -822,10 +823,29 @@ export default function App() {
                 ? () => setActiveModal('drive-connections')
                 : undefined
             }
+            onOpenRooms={
+              apiClient && userNamespace?.workspaceId
+                ? () => setActiveModal('rooms')
+                : undefined
+            }
             onClose={() => setActiveModal('none')}
           />
         </View>
       )}
+
+      {/* Phase 51 provisional shared rooms */}
+      {activeModal === 'rooms' && apiClient && userNamespace?.workspaceId ? (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+        >
+          <RoomsSheet
+            themeMode={themeMode}
+            personalWorkspaceId={userNamespace.workspaceId}
+            apiClient={apiClient}
+            onClose={() => setActiveModal('settings')}
+          />
+        </View>
+      ) : null}
 
       {/* Phase 49 provisional Drive connections */}
       {activeModal === 'drive-connections' && apiClient && userNamespace?.workspaceId ? (

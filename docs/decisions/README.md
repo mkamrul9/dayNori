@@ -48,6 +48,8 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0044: Android Vault Unlock Lifecycle (Provisional)](0044-android-vault-unlock-lifecycle-provisional.md)
 - [ADR-0045: Browser Vault Lifecycle (Provisional)](0045-browser-vault-lifecycle-provisional.md)
 - [ADR-0046: Drive Scope and External Folder Access](0046-drive-scope-and-folder-access.md)
+- [ADR-0047: Provisional Drive selected-file connector](0047-drive-selected-file-connector-provisional.md)
+- [ADR-0048: Shared rooms, invitations, and roles (provisional local)](0048-shared-rooms-invitations-and-roles.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.
 

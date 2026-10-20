@@ -266,6 +266,14 @@ import {
   DriveSelectFileResponseSchema,
   DrivePickerTokenResponseSchema,
   AcknowledgeDriveOfflineResponseSchema,
+  RoomListResponseSchema,
+  RoomResponseSchema,
+  RoomInvitationResponseSchema,
+  RoomInvitationListResponseSchema,
+  RoomInvitationPreviewResponseSchema,
+  AcceptRoomInvitationResponseSchema,
+  CopyPersonalItemToRoomPreviewResponseSchema,
+  CopyPersonalItemToRoomResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -277,6 +285,20 @@ import {
   type DriveSelectFileResponse,
   type DrivePickerTokenResponse,
   type AcknowledgeDriveOfflineResponse,
+  type CreateRoomRequest,
+  type CreateRoomInvitationRequest,
+  type AcceptRoomInvitationRequest,
+  type UpdateRoomMemberRoleRequest,
+  type TransferRoomOwnershipRequest,
+  type CopyPersonalItemToRoomRequest,
+  type RoomListResponse,
+  type RoomResponse,
+  type RoomInvitationResponse,
+  type RoomInvitationListResponse,
+  type RoomInvitationPreviewResponse,
+  type AcceptRoomInvitationResponse,
+  type CopyPersonalItemToRoomPreviewResponse,
+  type CopyPersonalItemToRoomResponse,
   type PreviewSchemaMigrationRequest,
   type SchemaMigrationPreviewResponse,
 } from '@daynori/contracts';
@@ -2932,6 +2954,180 @@ export class DaynoriApiClient {
       options
     );
     return AcknowledgeDriveOfflineResponseSchema.parse(raw);
+  }
+
+  // --- Phase 51 Rooms ---
+
+  async createRoom(request: CreateRoomRequest, options?: RequestOptions): Promise<RoomResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/rooms',
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoomResponseSchema.parse(raw);
+  }
+
+  async listRooms(options?: RequestOptions): Promise<RoomListResponse> {
+    const raw = await this.request<unknown>('/v1/rooms', { method: 'GET' }, options);
+    return RoomListResponseSchema.parse(raw);
+  }
+
+  async getRoom(roomId: string, options?: RequestOptions): Promise<RoomResponse> {
+    const raw = await this.request<unknown>(`/v1/rooms/${roomId}`, { method: 'GET' }, options);
+    return RoomResponseSchema.parse(raw);
+  }
+
+  async createRoomInvitation(
+    roomId: string,
+    request: CreateRoomInvitationRequest,
+    options?: RequestOptions
+  ): Promise<RoomInvitationResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/invitations`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoomInvitationResponseSchema.parse(raw);
+  }
+
+  async listRoomInvitations(
+    roomId: string,
+    options?: RequestOptions
+  ): Promise<RoomInvitationListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/invitations`,
+      { method: 'GET' },
+      options
+    );
+    return RoomInvitationListResponseSchema.parse(raw);
+  }
+
+  async revokeRoomInvitation(
+    roomId: string,
+    invitationId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { revoked: boolean }; meta: { requestId: string } }> {
+    return this.request(
+      `/v1/rooms/${roomId}/invitations/${invitationId}/revoke`,
+      { method: 'POST', body: JSON.stringify({}) },
+      options
+    );
+  }
+
+  async previewRoomInvitation(
+    token: string,
+    options?: RequestOptions
+  ): Promise<RoomInvitationPreviewResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/room-invitations/preview?token=${encodeURIComponent(token)}`,
+      { method: 'GET' },
+      options
+    );
+    return RoomInvitationPreviewResponseSchema.parse(raw);
+  }
+
+  async acceptRoomInvitation(
+    request: AcceptRoomInvitationRequest,
+    options?: RequestOptions
+  ): Promise<AcceptRoomInvitationResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/room-invitations/accept',
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AcceptRoomInvitationResponseSchema.parse(raw);
+  }
+
+  async listRoomMembers(roomId: string, options?: RequestOptions): Promise<MemberListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/members`,
+      { method: 'GET' },
+      options
+    );
+    return MemberListResponseSchema.parse(raw);
+  }
+
+  async updateRoomMemberRole(
+    roomId: string,
+    userId: string,
+    request: UpdateRoomMemberRoleRequest,
+    options?: RequestOptions
+  ): Promise<MemberResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/members/${userId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return MemberResponseSchema.parse(raw);
+  }
+
+  async removeRoomMember(
+    roomId: string,
+    userId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { removed: boolean }; meta: { requestId: string } }> {
+    return this.request(
+      `/v1/rooms/${roomId}/members/${userId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async leaveRoom(
+    roomId: string,
+    options?: RequestOptions
+  ): Promise<{ data: { left: boolean }; meta: { requestId: string } }> {
+    return this.request(
+      `/v1/rooms/${roomId}/leave`,
+      { method: 'POST', body: JSON.stringify({}) },
+      options
+    );
+  }
+
+  async transferRoomOwnership(
+    roomId: string,
+    request: TransferRoomOwnershipRequest,
+    options?: RequestOptions
+  ): Promise<RoomResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/transfer-ownership`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RoomResponseSchema.parse(raw);
+  }
+
+  async archiveRoom(roomId: string, options?: RequestOptions): Promise<RoomResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/archive`,
+      { method: 'POST', body: JSON.stringify({}) },
+      options
+    );
+    return RoomResponseSchema.parse(raw);
+  }
+
+  async previewCopyPersonalItemToRoom(
+    request: CopyPersonalItemToRoomRequest,
+    options?: RequestOptions
+  ): Promise<CopyPersonalItemToRoomPreviewResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/rooms/copy-preview',
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return CopyPersonalItemToRoomPreviewResponseSchema.parse(raw);
+  }
+
+  async copyPersonalItemToRoom(
+    request: CopyPersonalItemToRoomRequest,
+    options?: RequestOptions
+  ): Promise<CopyPersonalItemToRoomResponse> {
+    const raw = await this.request<unknown>(
+      '/v1/rooms/copy',
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return CopyPersonalItemToRoomResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

@@ -22,7 +22,9 @@ export type ActiveModal =
   /** Synthetic Phase 46 harness only — not a production vault enablement. */
   | 'vault-harness'
   /** Phase 49 provisional Drive connections — not production Google enablement. */
-  | 'drive-connections';
+  | 'drive-connections'
+  /** Phase 51 provisional shared rooms — not public invitation enablement. */
+  | 'rooms';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

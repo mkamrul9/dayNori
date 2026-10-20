@@ -35,6 +35,8 @@ export interface SettingsViewProps {
   onOpenVaultHarness?: () => void;
   /** Opens provisional Drive connections sheet (Phase 49). */
   onOpenDriveConnections?: () => void;
+  /** Opens provisional shared rooms sheet (Phase 51). */
+  onOpenRooms?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -66,6 +68,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenCustomSections,
   onOpenVaultHarness,
   onOpenDriveConnections,
+  onOpenRooms,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -485,6 +488,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
         </MobileCard>
       </View>
+
+      {/* Section 5c1a: Shared rooms (Phase 51 provisional) */}
+      {isAuthenticated && onOpenRooms ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Shared rooms
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Provisional local rooms with invite links. Joining never opens another personal
+              workspace. Public sharing stays disabled.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenRooms}
+                accessibilityLabel="Open shared rooms"
+              >
+                Manage rooms
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
 
       {/* Section 5c1b: Drive selected-file connector (Phase 49 provisional) */}
       {isAuthenticated && onOpenDriveConnections ? (

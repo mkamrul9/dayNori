@@ -39,7 +39,8 @@ Serialize instants as RFC 3339 UTC strings, local dates as `YYYY-MM-DD`, and zon
 - Finance/custom sections: expense commands/reports and versioned custom schema/record commands.
 - Sync: bootstrap, push, pull, device checkpoint and conflict resolution.
 - Recovery/privacy: exports, account deletion requests, job status and consent/revocation.
-- Deferred: provider connections/Drive refresh, rooms/invites/messages, AI sessions/proposals and entitlements.
+- Rooms (provisional local): `/v1/rooms`, invitations, accept/preview, members, leave, transfer, explicit personal→room copy — gated by local enablement (`DAYNORI_ROOMS_LOCAL_ENABLED` / test-dev); not public release (ADR 0048).
+- Deferred: broader Drive folder mirroring, room chat/messages, AI sessions/proposals and entitlements. Provider Drive selected-file connector remains separately gated.
 
 Keep endpoint naming consistent when concrete schemas are introduced. Do not publish fake handlers or production SDK methods in Phase 00.
 

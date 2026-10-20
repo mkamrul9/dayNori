@@ -93,4 +93,8 @@ Until then: keep vault disabled; keep selected-file connector only; do not expan
 
 ## Handoff
 
-Phase 50 is **deferred**, not complete. Narrow Drive selected-file connector remains the active product path. **Stop after Phase 50.** Do not start Phase 51 automatically. Phase 51 (vault / encrypted storage) remains gated by its own vault release prerequisites and stays ineligible while vault activation is disabled and earlier vault phases remain blocked. No deployment, paid provisioning, broader authorization, or real-user Drive activation.
+Phase 50 is **deferred**, not complete. Narrow Drive selected-file connector remains the active product path. Deferral alone does not start later phases.
+
+**Phase 51 identity correction:** Phase 51 is [Shared rooms, invitations, and roles](../roadmap/phases/51-shared-rooms-invitations-and-roles.md), **not** vault/encrypted storage. Its prerequisites are Phase 38 (controlled private beta) and Phase 10 (personal workspace and preferences). Drive and vault phases are **not** prerequisites for Phase 51. Vault activation remains disabled independently.
+
+Owner later selected Phase 51 for **bounded provisional local development** only (see [phase-51.md](phase-51.md)). That selection changes development order; it does not authorize public sharing, real-user invitations, deployment, or release enablement. Keep Phase 51 incomplete while Phase 38/10 and rooms release evidence remain unmet. No deployment, paid provisioning, broader Drive authorization, or real-user Drive activation from this deferral.

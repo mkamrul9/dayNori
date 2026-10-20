@@ -90,6 +90,11 @@ export function registerMemberRoutes(app: FastifyInstance, runtimePool: Pool): v
                 'Personal workspaces are owner-only in this release; adding additional members is forbidden.'
               );
             }
+            if (wsRes.rows[0].kind === 'room') {
+              throw new ValidationError(
+                'Room members must join through a single-use invitation. Direct member inserts cannot bypass invitation acceptance.'
+              );
+            }
             return addMembership(client, {
               workspaceId: params.workspaceId,
               userId: body.userId,

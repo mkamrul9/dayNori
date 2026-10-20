@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 51 — Shared rooms, invitations, and roles (blocked / provisional) — 2026-10-20
+
+- Provisional local shared rooms: separate `kind=room` workspaces, owner/editor/viewer roles, hashed expiring single-use invitations, last-owner DB protection, legacy `(Legacy Room)` quarantine, explicit personal→room note/todo copy with journal/vault exclusion.
+- API `/v1/rooms*` + typed api-client; web RoomsPanel and Android RoomsSheet with local invite-link copy (no outbound messages). Local gate: test/dev or `DAYNORI_ROOMS_LOCAL_ENABLED`.
+- ADR 0048. Corrected Phase 50 handoff: Phase 51 is rooms (prereqs 38/10), not vault. Phase remains blocked on private-beta/release evidence. Stop before Phase 52. Vault stays disabled.
+
 ## Phase 50 — External Drive folder mirroring (deferred) — 2026-10-20
 
 - Owner-authorized deferral: Phase 48’s narrow `drive.file` decision (ADR 0046) does not approve recursive external folder access; live folder evidence, broader-scope verification, and cost/assessment prerequisites are absent.

@@ -14,6 +14,7 @@ import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
 import { DriveConnectionsPanel } from '../../components/DriveConnectionsPanel';
+import { RoomsPanel } from '../../components/RoomsPanel';
 import { createWebApiClient } from '../../data/webApiClient';
 
 export default function SettingsPage() {
@@ -750,6 +751,17 @@ export default function SettingsPage() {
               workspaceId={workspaceId}
               csrfToken={csrfToken}
               themeMode={themeMode}
+            />
+          </Card>
+        ) : null}
+
+        {/* 7c. Shared rooms (Phase 51 provisional local) */}
+        {isAuthenticated ? (
+          <Card themeMode={themeMode} id="shared-rooms">
+            <RoomsPanel
+              csrfToken={csrfToken}
+              themeMode={themeMode}
+              personalWorkspaceId={workspaceId}
             />
           </Card>
         ) : null}
