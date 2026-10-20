@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 49 repair — Drive worker bytes, selection, OAuth resume (blocked) — 2026-10-20
+
+- Worker dispatches to shared `jobExecutor` with atomic lease claim, binding validation, and real provider I/O.
+- Imports use Phase 24 reserve→storage→finalize; uploads send verified local bytes; offline stays `pending_offline` until client acknowledge.
+- Session-bound Drive OAuth callback (`complete-by-state`); reject fake provider in production; fence-before-revoke; upload idempotency via `appProperties` + `drive_upload_operations`.
+- Classify Google HTTP 403s (permission / rate / quota / forbidden). Tests cover worker path, quarantine failure, transport-mocked Google adapter.
+- Live Google verification still unexecuted. Vault activation stays disabled.
+
 ## Phase 49 — Drive selected-file connector (blocked / provisional) — 2026-10-19
 
 - Provisional selected-file Google Drive connector: OAuth intents + PKCE, AES-256-GCM server token storage, connection lifecycle with disconnect fencing, linked-file link/import/upload/offline jobs, web Settings + Android connections UI.

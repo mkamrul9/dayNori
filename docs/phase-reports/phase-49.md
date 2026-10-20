@@ -3,9 +3,9 @@
 ## Identity and scope
 
 - **Phase ID/specification:** [Phase 49 — Drive selected-file connector](../roadmap/phases/49-drive-selected-file-connector.md).
-- **Status:** `blocked` (provisional local implementation delivered; live Google verification and production enablement unmet).
-- **Contributor and report date:** Cursor agent, 2026-10-19 (Asia/Dhaka).
-- **Base revision:** Phase 48 repair `777f31f`.
+- **Status:** `blocked` (local connector + repair delivered; live Google verification and production enablement unmet).
+- **Contributor and report date:** Cursor agent, 2026-10-20 (Asia/Dhaka).
+- **Base revision:** Phase 49 provisional `233f886`; this report covers the post-delivery repair.
 - **Prerequisites:**
   - Phase 48: blocked (spike + repairs; live Google matrix still unexecuted).
   - Phase 25: blocked (files/previews provisional; reused as safety boundary).
@@ -14,53 +14,58 @@
 
 | Lane | Delivered? |
 |---|---|
-| Local contracts, persistence, OAuth intents, encrypted tokens, jobs, web/Android UI | **Yes** (provisional) |
-| Fake-provider integration / unit tests | **Yes** |
+| Local contracts, persistence, OAuth intents, encrypted tokens, jobs, web/Android UI | **Yes** (repaired) |
+| Worker dispatch → shared executor with real provider I/O + byte lifecycle | **Yes** (repair) |
+| Fake-provider integration / unit / transport-mocked Google adapter tests | **Yes** |
 | Live Google account connection with clean `drive.file` grant | **No** |
 | Production enablement / real-user activation | **No** |
 | Vault activation | **No** — remains disabled |
 
 ## Result
 
-- Migration `00048_drive_selected_file_connector.sql`: connections, auth intents, linked files, drive jobs + RLS/grants.
-- API module `apps/api/src/modules/drive` + routes: connect start/complete, disconnect, picker token, select/link/import/upload jobs, unlink.
-- AES-256-GCM token crypto with external key + tenant binding; fail-closed without key.
-- Production Google provider fail-closed unless OAuth env + `DAYNORI_DRIVE_PRODUCTION_ENABLED=true`.
-- Fake provider for tests/labeled harness only.
-- Worker `drive_*` jobs with disconnect generation fencing.
-- Web Settings panel + `/api/drive/callback`; Android Settings → `DriveConnectionsSheet` (system browser / Custom Tabs).
-- ADR 0047 records provisional architecture.
+### Repair (post-`233f886`)
+
+| Defect | Fix |
+|---|---|
+| Worker updated job status without provider I/O | Shared `jobExecutor.ts`; worker `driveJobs.ts` loads it and requires real completion |
+| Downloads discarded / uploads used placeholder bytes | Import via reserve→put→finalize; upload loads verified local bytes; offline stays `pending_offline` until client ack |
+| Tautological selection check | Binding validation: workspace/account/connection/generation/linked-file/provider-file/idempotency |
+| OAuth codes copied into settings URLs; fabricated picker IDs | Session-bound `/api/drive/callback` + `complete-by-state`; harness uses labeled `fake-harness-*` only |
+| Fake provider selectable in production; factory lost auth state | Reject fake in production; process-global development singleton + test injection |
+| Disconnect waited on revoke before fencing | Fence/wipe locally first; bounded revoke; `provider_revoke_status` separate |
+| Google upload ignored idempotency | `appProperties` reconcile + `drive_upload_operations` table |
+| Every HTTP 403 treated as quota | `classifyGoogleHttpError` distinguishes permission/rate/quota/forbidden |
 
 ### Connector behavior delivered
 
 - Narrow `drive.file` only; exact scope validation shared with Phase 48.
 - Selected/app-created mode: link reference, import copy, upload to Drive, offline download jobs.
-- Shortcuts / unsupported shared-drive objects rejected.
+- Shortcuts / unsupported objects rejected using authoritative provider metadata.
 - Disconnect removes tokens, cancels jobs, explains retained copies; does not trash remote.
 - Cross-workspace access denied via membership + connection ownership.
+- Atomic drive-job claim with lease token; lease loss fails closed.
 
 ## Acceptance evidence
 
 | Condition | Method | Result |
 |---|---|---|
-| Domain/crypto/fake provider unit tests | `pnpm vitest run tests/security/phase49-drive-connector.test.ts` | See commands |
-| Fake-provider integration | `pnpm vitest run tests/integration/phase49-drive-connector.test.ts` | See commands |
+| Domain/crypto/fake/Google-adapter unit tests | `pnpm vitest run tests/security/phase49-drive-connector.test.ts` | 10 passed |
+| Fake-provider + worker-path integration | `pnpm vitest run tests/integration/phase49-drive-connector.test.ts` | 8 passed |
 | Live Google verification | Owner OAuth + production flag | **UNEXECUTED** |
 | Phase 48 live matrix | Owner `config.local.env` | **UNEXECUTED** |
 
 ### Commands run
 
-Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`.
+Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`. Report date 2026-10-20.
 
 | Command | Exit | Result |
 |---|---|---|
-| `pnpm --filter @daynori/domain build` | 0 | OK |
 | `pnpm --filter @daynori/contracts build` | 0 | OK |
 | `pnpm --filter @daynori/api-client build` | 0 | OK |
 | `pnpm --filter @daynori/api build` | 0 | OK |
 | `pnpm --filter @daynori/worker build` | 0 | OK |
-| `pnpm vitest run tests/security/phase49-drive-connector.test.ts` | 0 | 6 passed |
-| `pnpm vitest run tests/integration/phase49-drive-connector.test.ts` | 0 | 5 passed |
+| `pnpm vitest run tests/security/phase49-drive-connector.test.ts` | 0 | 10 passed |
+| `pnpm vitest run tests/integration/phase49-drive-connector.test.ts` | 0 | 8 passed |
 | `pnpm --filter @daynori/web typecheck` | 0 | OK |
 | `pnpm --filter @daynori/mobile typecheck` | 0 | OK |
 | `node scripts/validate-planning.mjs` | 0 | passed |
@@ -70,20 +75,22 @@ Environment: Windows 11, Node `v24.11.1`, pnpm `9.15.5`.
 ### Fake versus live
 
 - **Fake:** labeled `isDevelopmentFixture`; emails like `drive-fixture@daynori.test`; never claimed as Google proof.
-- **Live:** requires owner Google Cloud OAuth clients (web + Android redirect), Drive + Picker APIs, encryption key, `DAYNORI_DRIVE_PRODUCTION_ENABLED=true`, and clean narrow consent — not done.
+- **Transport-mocked Google adapter:** exercises `GoogleDriveProvider` with mocked `fetch` (idempotent upload reconcile, 403 classification) — not a live account.
+- **Live:** requires owner Google Cloud OAuth clients, Drive + Picker APIs, encryption key, `DAYNORI_DRIVE_PRODUCTION_ENABLED=true`, and clean narrow consent — not done.
 
 ## Defects, limitations and recovery
 
-- Full import byte path into Phase 24 quarantine reserve is metadata/job-fenced provisionally; production must finish byte ingest through existing file safety APIs.
 - Live scope proof still open from Phase 48.
 - Phase 38 / store / verification prerequisites unmet.
 - Vault remains disabled.
+- Production Google identity uses Drive About (compatible with `drive.file`); live proof of About-under-narrow-scope remains owner-gated.
+- Folder mirroring (Phase 50) is **not** authorized by this connector.
 
 ## Documentation and Git review
 
 - ADR 0047; phase report; CHANGELOG; progress.json (`49` blocked).
-- Commit subject target: `feat(drive): add provisional selected-file connector`
+- Repair commit subject target: `fix(drive): repair worker bytes, selection, and OAuth resume`
 
 ## Handoff
 
-Provisional local Drive connector delivered. **Next action:** owner supplies test OAuth + encryption keys and runs Phase 48 live spike + Phase 49 production-flagged connect against a test account; or continue only when selecting later phases. **Stop before Phase 50.** No deployment, paid provisioning, real-user Drive activation, or broader scopes.
+Repaired local Drive connector delivered. **Next action under owner selection:** Phase 50 readiness decision (expect deferral without broader-access approval). Live Google + Phase 48 matrix remain unmet. **Vault activation stays disabled.** No deployment, paid provisioning, real-user Drive activation, or broader scopes.

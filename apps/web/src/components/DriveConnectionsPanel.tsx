@@ -56,6 +56,21 @@ export function DriveConnectionsPanel({
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('drive') === 'connected') {
+      setFeedback({ severity: 'success', message: 'Google Drive connected.' });
+      void refresh();
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('drive_error')) {
+      setFeedback({
+        severity: 'danger',
+        message: `Drive connect failed: ${params.get('drive_error')}`,
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [refresh]);
+
   const onConnect = async () => {
     setBusy(true);
     setFeedback(null);
@@ -75,6 +90,23 @@ export function DriveConnectionsPanel({
             'Fake Drive harness ready — complete with the labeled code below (not a Google account).',
         });
       } else {
+        // Persist session-bound cookies, then redirect — codes are completed server-side.
+        const prep = await fetch('/api/drive/callback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken ?? '',
+          },
+          body: JSON.stringify({
+            workspaceId,
+            intentId: started.data.intentId,
+            returnPath: '/settings',
+            authorizationUrl: started.data.authorizationUrl,
+          }),
+        });
+        if (!prep.ok) {
+          throw new Error('Failed to prepare Drive OAuth redirect');
+        }
         window.location.assign(started.data.authorizationUrl);
       }
     } catch (err) {
@@ -128,16 +160,32 @@ export function DriveConnectionsPanel({
   const onLinkReference = async () => {
     setBusy(true);
     try {
-      await client.selectDriveFile(workspaceId, {
-        providerFileId: `picker-${Date.now()}`,
-        displayName: 'Selected fixture file',
-        mimeType: 'text/plain',
-        linkMode: 'link_reference',
-        isShortcut: false,
-        isSharedDrive: false,
-      });
+      if (connection?.isDevelopmentFixture) {
+        // Labeled harness only — fake-harness-* IDs are verified by the fake provider, not fabricated Google IDs.
+        await client.selectDriveFile(workspaceId, {
+          providerFileId: 'fake-harness-selected-file',
+          displayName: 'Harness selected file',
+          mimeType: 'text/plain',
+          linkMode: 'link_reference',
+          isShortcut: false,
+          isSharedDrive: false,
+        });
+        setFeedback({
+          severity: 'info',
+          message:
+            'Linked labeled fake-harness selection (not Google Picker). Production uses Picker + provider metadata verification.',
+        });
+      } else {
+        // Production: obtain short-lived picker token; caller must open Google Picker UI.
+        const token = await client.getDrivePickerToken(workspaceId);
+        setFeedback({
+          severity: 'info',
+          message: `Picker access token issued (expires ${token.data.expiresAt}). Open Google Picker with this token; selected IDs are verified server-side via provider metadata.`,
+        });
+        // Token is memory-only in the response; do not persist or log it.
+        void token.data.accessToken;
+      }
       await refresh();
-      setFeedback({ severity: 'success', message: 'Linked provider reference (selection boundary).' });
     } catch (err) {
       setFeedback({
         severity: 'danger',

@@ -119,7 +119,14 @@ export const DriveLinkedFileSchema = z
     providerVersion: z.string().nullable(),
     checksum: z.string().nullable(),
     localFileItemId: z.string().uuid().nullable(),
-    availability: z.enum(['linked', 'imported', 'offline_cached', 'source_unavailable', 'permission_lost']),
+    availability: z.enum([
+      'linked',
+      'imported',
+      'pending_offline',
+      'offline_cached',
+      'source_unavailable',
+      'permission_lost',
+    ]),
     lastReconciledAt: z.string().datetime().nullable(),
   })
   .strict();
@@ -197,3 +204,10 @@ export const DriveJobResponseSchema = z.object({
   data: DriveJobSchema,
   meta: ResponseMetaSchema,
 });
+
+/** Client acknowledges durable offline cache after server store — never set by download alone. */
+export const AcknowledgeDriveOfflineResponseSchema = z.object({
+  data: DriveLinkedFileSchema,
+  meta: ResponseMetaSchema,
+});
+export type AcknowledgeDriveOfflineResponse = z.infer<typeof AcknowledgeDriveOfflineResponseSchema>;

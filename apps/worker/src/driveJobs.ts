@@ -1,11 +1,56 @@
 /**
- * Phase 49 Drive background job fence + status transitions.
- * Provider I/O is executed by API `processDriveBackgroundJob` in integration harnesses.
- * Worker always enforces disconnect generation fencing before completion.
+ * Phase 49 Drive background jobs — dispatches to the shared API job executor
+ * so worker completion means real provider I/O + byte handling, not generation checks alone.
+ *
+ * The executor lives under apps/api; loaded via a runtime path string so the worker
+ * TypeScript project does not pull the API compilation graph into rootDir.
  */
 
-import { mayCompleteDriveWork, type DriveConnectionStatus } from '@daynori/domain';
+import { pathToFileURL } from 'node:url';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { DatabaseClient } from './worker.js';
+
+async function loadDriveExecutor(): Promise<{
+  executeDriveBackgroundJob: (
+    client: unknown,
+    payload: Record<string, unknown>
+  ) => Promise<{
+    status: 'succeeded' | 'fenced' | 'failed' | 'cancelled';
+    errorCode?: string;
+    details?: Record<string, unknown>;
+  }>;
+}> {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // Prefer compiled API output; fall back to tsx-friendly src path in tests.
+  const candidates = [
+    join(here, '../../api/dist/modules/drive/jobExecutor.js'),
+    join(here, '../../api/src/modules/drive/jobExecutor.ts'),
+  ];
+  let lastErr: unknown;
+  for (const candidate of candidates) {
+    try {
+      const href = pathToFileURL(candidate).href;
+      // Variable import prevents tsc from expanding the API project into worker rootDir.
+      const mod = (await import(href)) as {
+        executeDriveBackgroundJob: (
+          client: unknown,
+          payload: Record<string, unknown>
+        ) => Promise<{
+          status: 'succeeded' | 'fenced' | 'failed' | 'cancelled';
+          errorCode?: string;
+          details?: Record<string, unknown>;
+        }>;
+      };
+      return mod;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error('Unable to load Drive job executor from apps/api');
+}
 
 export async function handleDriveJob(
   client: DatabaseClient,
@@ -21,71 +66,32 @@ export async function handleDriveJob(
     throw new Error(`Unsupported drive task type: ${taskType}`);
   }
 
-  const driveJobId = String(payload['driveJobId'] ?? '');
-  const connectionId = String(payload['connectionId'] ?? '');
-  const connectionGeneration = Number(payload['connectionGeneration'] ?? -1);
+  const { executeDriveBackgroundJob } = await loadDriveExecutor();
 
-  if (!driveJobId || !connectionId) {
-    throw new Error('drive job payload incomplete');
-  }
+  const result = await executeDriveBackgroundJob(client, {
+    driveJobId: String(payload['driveJobId'] ?? ''),
+    connectionId: String(payload['connectionId'] ?? ''),
+    workspaceId: String(payload['workspaceId'] ?? ''),
+    accountId: String(payload['accountId'] ?? ''),
+    linkedFileId: String(payload['linkedFileId'] ?? ''),
+    connectionGeneration: Number(payload['connectionGeneration'] ?? -1),
+    providerFileId: String(payload['providerFileId'] ?? ''),
+    exportMimeType: (payload['exportMimeType'] as string | null) ?? null,
+    folderId: (payload['folderId'] as string | null) ?? null,
+    localFileItemId: (payload['localFileItemId'] as string | null) ?? null,
+    idempotencyKey: String(payload['idempotencyKey'] ?? ''),
+    kind: taskType.replace(/^drive_/, ''),
+  });
 
-  const connRes = await client.query<{
-    status: string;
-    generation: string | number;
-  }>(`SELECT status, generation FROM app.drive_connections WHERE id = $1`, [connectionId]);
-
-  const conn = connRes.rows[0];
-  if (
-    !conn ||
-    !mayCompleteDriveWork({
-      connectionStatus: conn.status as DriveConnectionStatus,
-      connectionGeneration: Number(conn.generation),
-      jobGeneration: connectionGeneration,
-    })
-  ) {
-    await client.query(
-      `UPDATE app.drive_jobs SET status = 'fenced', updated_at = now() WHERE id = $1`,
-      [driveJobId]
-    );
-    return { status: 'fenced', details: { driveJobId, reason: 'disconnect_fence' } };
-  }
-
-  await client.query(
-    `UPDATE app.drive_jobs SET status = 'running', updated_at = now() WHERE id = $1 AND status = 'pending'`,
-    [driveJobId]
-  );
-
-  // Re-check fence after "work" window so disconnect during execution cannot succeed.
-  const fresh = await client.query<{
-    status: string;
-    generation: string | number;
-  }>(`SELECT status, generation FROM app.drive_connections WHERE id = $1`, [connectionId]);
-  const freshConn = fresh.rows[0];
-  if (
-    !freshConn ||
-    !mayCompleteDriveWork({
-      connectionStatus: freshConn.status as DriveConnectionStatus,
-      connectionGeneration: Number(freshConn.generation),
-      jobGeneration: connectionGeneration,
-    })
-  ) {
-    await client.query(
-      `UPDATE app.drive_jobs SET status = 'fenced', updated_at = now() WHERE id = $1`,
-      [driveJobId]
-    );
-    return { status: 'fenced', details: { driveJobId, reason: 'disconnect_during_job' } };
-  }
-
-  await client.query(
-    `UPDATE app.drive_jobs SET status = 'succeeded', updated_at = now() WHERE id = $1`,
-    [driveJobId]
-  );
+  // Terminal drive_jobs states are already persisted; complete the background job
+  // (do not infinite-retry permanent application failures).
   return {
     status: 'completed',
     details: {
-      driveJobId,
-      taskType,
-      note: 'Worker fenced completion; provider byte I/O exercised via API processDriveBackgroundJob in tests',
+      driveJobId: payload['driveJobId'],
+      driveStatus: result.status,
+      errorCode: result.errorCode,
+      ...result.details,
     },
   };
 }

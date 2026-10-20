@@ -61,10 +61,63 @@ export interface DriveProvider {
 }
 
 export class DriveProviderUnavailableError extends Error {
-  constructor(message: string) {
+  readonly code: string;
+  constructor(message: string, code?: string) {
     super(message);
     this.name = 'DriveProviderUnavailableError';
+    this.code = code ?? message;
   }
+}
+
+const MAX_DRIVE_DOWNLOAD_BYTES = 25 * 1024 * 1024;
+const PROVIDER_FETCH_TIMEOUT_MS = 30_000;
+
+async function fetchDrive(
+  url: string,
+  init: RequestInit & { maxBytes?: number } = {}
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROVIDER_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function classifyGoogleHttpError(status: number, bodyText: string): DriveProviderUnavailableError {
+  const lower = bodyText.toLowerCase();
+  if (status === 401 || lower.includes('invalid_grant') || lower.includes('invalid credentials')) {
+    return new DriveProviderUnavailableError('invalid_grant', 'invalid_grant');
+  }
+  if (status === 429 || lower.includes('userratelimitexceeded') || lower.includes('ratelimitexceeded')) {
+    return new DriveProviderUnavailableError('rate_limited', 'rate_limited');
+  }
+  if (status === 403) {
+    if (
+      lower.includes('storagequotaexceeded') ||
+      lower.includes('storagequota') ||
+      (lower.includes('quotaexceeded') && lower.includes('storage'))
+    ) {
+      return new DriveProviderUnavailableError('drive_quota_exceeded', 'drive_quota_exceeded');
+    }
+    if (lower.includes('ratelimit') || lower.includes('rate limit')) {
+      return new DriveProviderUnavailableError('rate_limited', 'rate_limited');
+    }
+    if (
+      lower.includes('permission') ||
+      lower.includes('insufficientpermissions') ||
+      lower.includes('accessnotconfigured') ||
+      lower.includes('forbidden')
+    ) {
+      return new DriveProviderUnavailableError('permission_denied', 'permission_denied');
+    }
+    // Do not assume every 403 is quota exhaustion.
+    return new DriveProviderUnavailableError('forbidden', 'forbidden');
+  }
+  if (status === 404) return new DriveProviderUnavailableError('not_found', 'not_found');
+  return new DriveProviderUnavailableError(`http_${status}`, `http_${status}`);
 }
 
 /** Deterministic fake Google provider for tests / labeled harness. Never a real connection. */
@@ -148,13 +201,31 @@ export class FakeGoogleDriveProvider implements DriveProvider {
 
   async getFileMeta(accessToken: string, fileId: string): Promise<DriveProviderFileMeta> {
     if (!accessToken.startsWith('fake-access-')) {
-      throw new DriveProviderUnavailableError('unauthorized');
+      throw new DriveProviderUnavailableError('unauthorized', 'unauthorized');
     }
     if (this.deniedFileIds.has(fileId)) {
-      throw new DriveProviderUnavailableError('permission_denied');
+      throw new DriveProviderUnavailableError('permission_denied', 'permission_denied');
     }
-    const row = this.files.get(fileId);
-    if (!row) throw new DriveProviderUnavailableError('not_found');
+    let row = this.files.get(fileId);
+    // Labeled harness IDs may be selected before an explicit seed in UI tests.
+    if (!row && fileId.startsWith('fake-harness-')) {
+      this.seedAuthorizedFile(
+        {
+          id: fileId,
+          name: 'Harness selected file',
+          mimeType: 'text/plain',
+          md5Checksum: 'harness',
+          version: '1',
+          trashed: false,
+          isShortcut: false,
+          isSharedDrive: false,
+          shortcutTargetId: null,
+        },
+        Buffer.from('harness-bytes')
+      );
+      row = this.files.get(fileId);
+    }
+    if (!row) throw new DriveProviderUnavailableError('not_found', 'not_found');
     return row.meta;
   }
 
@@ -341,11 +412,14 @@ export class GoogleDriveProvider implements DriveProvider {
   async getFileMeta(accessToken: string, fileId: string): Promise<DriveProviderFileMeta> {
     const fields =
       'id,name,mimeType,md5Checksum,version,trashed,shortcutDetails,driveId';
-    const res = await fetch(
+    const res = await fetchDrive(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}&supportsAllDrives=true`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
-    if (!res.ok) throw new DriveProviderUnavailableError(`meta_${res.status}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw classifyGoogleHttpError(res.status, text);
+    }
     const json = (await res.json()) as {
       id: string;
       name: string;
@@ -377,26 +451,40 @@ export class GoogleDriveProvider implements DriveProvider {
     const meta = await this.getFileMeta(accessToken, fileId);
     if (meta.mimeType.startsWith('application/vnd.google-apps.')) {
       if (!opts?.exportMimeType) {
-        throw new DriveProviderUnavailableError('export_mime_required');
+        throw new DriveProviderUnavailableError('export_mime_required', 'export_mime_required');
       }
-      const res = await fetch(
+      const res = await fetchDrive(
         `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(opts.exportMimeType)}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      if (!res.ok) throw new DriveProviderUnavailableError(`export_${res.status}`);
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw classifyGoogleHttpError(res.status, text);
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > MAX_DRIVE_DOWNLOAD_BYTES) {
+        throw new DriveProviderUnavailableError('download_too_large', 'bytes_too_large');
+      }
       return {
-        bytes: Buffer.from(await res.arrayBuffer()),
+        bytes: buf,
         mimeType: opts.exportMimeType,
         exportUsed: true,
       };
     }
-    const res = await fetch(
+    const res = await fetchDrive(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
-    if (!res.ok) throw new DriveProviderUnavailableError(`download_${res.status}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw classifyGoogleHttpError(res.status, text);
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_DRIVE_DOWNLOAD_BYTES) {
+      throw new DriveProviderUnavailableError('download_too_large', 'bytes_too_large');
+    }
     return {
-      bytes: Buffer.from(await res.arrayBuffer()),
+      bytes: buf,
       mimeType: meta.mimeType,
       exportUsed: false,
     };
@@ -406,10 +494,47 @@ export class GoogleDriveProvider implements DriveProvider {
     accessToken: string,
     input: { name: string; mimeType: string; bytes: Buffer; idempotencyKey: string }
   ): Promise<DriveProviderFileMeta> {
-    // Multipart upload with idempotency via custom property checked by caller persistence.
-    void input.idempotencyKey;
+    // Reconcile prior upload by appProperties before creating a duplicate.
+    const q = encodeURIComponent(
+      `appProperties has { key='daynori_op' and value='${input.idempotencyKey.replace(/'/g, "\\'")}' } and trashed=false`
+    );
+    const existingRes = await fetchDrive(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,md5Checksum,version,trashed)&pageSize=1`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (existingRes.ok) {
+      const existingJson = (await existingRes.json()) as {
+        files?: Array<{
+          id: string;
+          name: string;
+          mimeType: string;
+          md5Checksum?: string;
+          version?: string;
+          trashed?: boolean;
+        }>;
+      };
+      const hit = existingJson.files?.[0];
+      if (hit) {
+        return {
+          id: hit.id,
+          name: hit.name,
+          mimeType: hit.mimeType,
+          md5Checksum: hit.md5Checksum ?? null,
+          version: hit.version ?? null,
+          trashed: Boolean(hit.trashed),
+          isShortcut: false,
+          isSharedDrive: false,
+          shortcutTargetId: null,
+        };
+      }
+    }
+
     const boundary = `daynori_${randomBytes(8).toString('hex')}`;
-    const meta = JSON.stringify({ name: input.name, mimeType: input.mimeType });
+    const meta = JSON.stringify({
+      name: input.name,
+      mimeType: input.mimeType,
+      appProperties: { daynori_op: input.idempotencyKey },
+    });
     const body = Buffer.concat([
       Buffer.from(
         `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`
@@ -418,7 +543,7 @@ export class GoogleDriveProvider implements DriveProvider {
       input.bytes,
       Buffer.from(`\r\n--${boundary}--`),
     ]);
-    const res = await fetch(
+    const res = await fetchDrive(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,md5Checksum,version,trashed',
       {
         method: 'POST',
@@ -429,8 +554,10 @@ export class GoogleDriveProvider implements DriveProvider {
         body,
       }
     );
-    if (res.status === 403) throw new DriveProviderUnavailableError('drive_quota_exceeded');
-    if (!res.ok) throw new DriveProviderUnavailableError(`upload_${res.status}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw classifyGoogleHttpError(res.status, text);
+    }
     const json = (await res.json()) as DriveProviderFileMeta & {
       md5Checksum?: string;
       version?: string;
@@ -449,62 +576,133 @@ export class GoogleDriveProvider implements DriveProvider {
     };
   }
 
+  /**
+   * Identity via Drive About API — compatible with drive.file without expanding to OpenID scopes.
+   */
   private async tokenInfo(accessToken: string): Promise<{ sub: string; email: string }> {
-    const res = await fetch(
-      `https://www.googleapis.com/oauth2/v3/userinfo`,
+    const res = await fetchDrive(
+      'https://www.googleapis.com/drive/v3/about?fields=user',
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
-    if (!res.ok) throw new DriveProviderUnavailableError(`userinfo_${res.status}`);
-    const json = (await res.json()) as { sub?: string; email?: string };
-    if (!json.sub || !json.email) throw new DriveProviderUnavailableError('userinfo_incomplete');
-    return { sub: json.sub, email: json.email };
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw classifyGoogleHttpError(res.status, text);
+    }
+    const json = (await res.json()) as {
+      user?: { permissionId?: string; emailAddress?: string; displayName?: string };
+    };
+    const sub = json.user?.permissionId;
+    const email = json.user?.emailAddress;
+    if (!sub || !email) {
+      throw new DriveProviderUnavailableError('drive_about_user_incomplete', 'identity_incomplete');
+    }
+    return { sub, email };
   }
 }
 
-let injectedProvider: DriveProvider | null = null;
+const DRIVE_PROVIDER_INJECTION_KEY = '__daynoriDriveProviderInjection';
+const DRIVE_FAKE_SINGLETON_KEY = '__daynoriDriveFakeSingleton';
+
+type DriveGlobal = typeof globalThis & {
+  [DRIVE_PROVIDER_INJECTION_KEY]?: DriveProvider | null;
+  [DRIVE_FAKE_SINGLETON_KEY]?: FakeGoogleDriveProvider | null;
+};
+
+function driveGlobal(): DriveGlobal {
+  return globalThis as DriveGlobal;
+}
+
+function allowTestProviderInjection(): boolean {
+  return (
+    process.env['NODE_ENV'] === 'test' ||
+    process.env['DAYNORI_ALLOW_DRIVE_TEST_INJECTION'] === 'true'
+  );
+}
 
 export function setDriveProviderForTests(provider: DriveProvider | null): void {
-  injectedProvider = provider;
+  if (provider && !allowTestProviderInjection()) {
+    throw new DriveProviderUnavailableError(
+      'Drive test provider injection is confined to test/development execution.',
+      'test_injection_forbidden'
+    );
+  }
+  // Process-global so worker dynamic imports share the same injected provider as API tests.
+  driveGlobal()[DRIVE_PROVIDER_INJECTION_KEY] = provider;
+}
+
+function unconfiguredStub(): DriveProvider {
+  return {
+    kind: 'unconfigured',
+    buildAuthorizationUrl() {
+      throw new DriveProviderUnavailableError(
+        'Drive provider unconfigured. Set DAYNORI_DRIVE_PROVIDER=fake for non-production harness or configure production OAuth.',
+        'provider_unconfigured'
+      );
+    },
+    async exchangeAuthorizationCode() {
+      throw new DriveProviderUnavailableError('Drive provider unconfigured', 'provider_unconfigured');
+    },
+    async refreshAccessToken() {
+      throw new DriveProviderUnavailableError('Drive provider unconfigured', 'provider_unconfigured');
+    },
+    async revoke() {
+      throw new DriveProviderUnavailableError('Drive provider unconfigured', 'provider_unconfigured');
+    },
+    async getFileMeta() {
+      throw new DriveProviderUnavailableError('Drive provider unconfigured', 'provider_unconfigured');
+    },
+    async downloadFile() {
+      throw new DriveProviderUnavailableError('Drive provider unconfigured', 'provider_unconfigured');
+    },
+    async uploadAppFile() {
+      throw new DriveProviderUnavailableError('Drive provider unconfigured', 'provider_unconfigured');
+    },
+  };
 }
 
 /**
- * Resolve provider: explicit test injection → fake when DAYNORI_DRIVE_PROVIDER=fake →
+ * Resolve provider: test injection (test only) → fake harness (never in production) →
  * production Google when configured → otherwise unconfigured fail-closed stub.
  */
 export function getDriveProvider(): DriveProvider {
-  if (injectedProvider) return injectedProvider;
-  const mode = process.env['DAYNORI_DRIVE_PROVIDER']?.trim();
-  if (mode === 'fake') {
-    return new FakeGoogleDriveProvider();
+  const injectedProvider = driveGlobal()[DRIVE_PROVIDER_INJECTION_KEY] ?? null;
+  if (injectedProvider) {
+    if (!allowTestProviderInjection()) {
+      throw new DriveProviderUnavailableError(
+        'Drive test provider injection is confined to test/development execution.',
+        'test_injection_forbidden'
+      );
+    }
+    return injectedProvider;
   }
+
+  const mode = process.env['DAYNORI_DRIVE_PROVIDER']?.trim();
+  const isProductionRuntime =
+    process.env['NODE_ENV'] === 'production' ||
+    process.env['DAYNORI_RUNTIME_ENV'] === 'production';
+
+  if (mode === 'fake') {
+    if (isProductionRuntime) {
+      throw new DriveProviderUnavailableError(
+        'Fake Drive provider is rejected in production runtimes.',
+        'fake_provider_forbidden_in_production'
+      );
+    }
+    const g = driveGlobal();
+    if (!g[DRIVE_FAKE_SINGLETON_KEY]) {
+      g[DRIVE_FAKE_SINGLETON_KEY] = new FakeGoogleDriveProvider();
+    }
+    return g[DRIVE_FAKE_SINGLETON_KEY]!;
+  }
+
   try {
     return new GoogleDriveProvider();
-  } catch {
-    return {
-      kind: 'unconfigured',
-      buildAuthorizationUrl() {
-        throw new DriveProviderUnavailableError(
-          'Drive provider unconfigured. Set DAYNORI_DRIVE_PROVIDER=fake for harness or configure production OAuth.'
-        );
-      },
-      async exchangeAuthorizationCode() {
-        throw new DriveProviderUnavailableError('Drive provider unconfigured');
-      },
-      async refreshAccessToken() {
-        throw new DriveProviderUnavailableError('Drive provider unconfigured');
-      },
-      async revoke() {
-        throw new DriveProviderUnavailableError('Drive provider unconfigured');
-      },
-      async getFileMeta() {
-        throw new DriveProviderUnavailableError('Drive provider unconfigured');
-      },
-      async downloadFile() {
-        throw new DriveProviderUnavailableError('Drive provider unconfigured');
-      },
-      async uploadAppFile() {
-        throw new DriveProviderUnavailableError('Drive provider unconfigured');
-      },
-    };
+  } catch (err) {
+    if (err instanceof DriveProviderUnavailableError && err.code === 'fake_provider_forbidden_in_production') {
+      throw err;
+    }
+    return unconfiguredStub();
   }
 }
+
+export { classifyGoogleHttpError, MAX_DRIVE_DOWNLOAD_BYTES, fetchDrive };

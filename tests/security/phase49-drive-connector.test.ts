@@ -24,7 +24,10 @@ import {
 } from '../../apps/api/src/modules/drive/tokenCrypto.js';
 import {
   FakeGoogleDriveProvider,
+  GoogleDriveProvider,
+  classifyGoogleHttpError,
   setDriveProviderForTests,
+  getDriveProvider,
 } from '../../apps/api/src/modules/drive/provider.js';
 
 describe('Phase 49 Drive connector domain', () => {
@@ -201,5 +204,102 @@ describe('Phase 49 fake Google provider', () => {
         idempotencyKey: 'idem-q',
       })
     ).rejects.toThrow(/drive_quota_exceeded/);
+  });
+});
+
+describe('Phase 49 Google HTTP error classification', () => {
+  it('does not treat every 403 as quota exhaustion', () => {
+    expect(classifyGoogleHttpError(403, 'storageQuotaExceeded').code).toBe('drive_quota_exceeded');
+    expect(classifyGoogleHttpError(403, 'Insufficient Permissions').code).toBe('permission_denied');
+    expect(classifyGoogleHttpError(403, 'userRateLimitExceeded').code).toBe('rate_limited');
+    expect(classifyGoogleHttpError(403, 'mysterious').code).toBe('forbidden');
+    expect(classifyGoogleHttpError(401, 'invalid_grant').code).toBe('invalid_grant');
+    expect(classifyGoogleHttpError(429, 'slow down').code).toBe('rate_limited');
+  });
+
+  it('rejects fake provider selection in production', () => {
+    setDriveProviderForTests(null);
+    const prevNode = process.env['NODE_ENV'];
+    const prevInject = process.env['DAYNORI_ALLOW_DRIVE_TEST_INJECTION'];
+    const prevMode = process.env['DAYNORI_DRIVE_PROVIDER'];
+    process.env['NODE_ENV'] = 'production';
+    delete process.env['DAYNORI_ALLOW_DRIVE_TEST_INJECTION'];
+    process.env['DAYNORI_DRIVE_PROVIDER'] = 'fake';
+    expect(() => getDriveProvider()).toThrow(/Fake Drive provider is rejected/);
+    process.env['NODE_ENV'] = prevNode;
+    if (prevInject === undefined) delete process.env['DAYNORI_ALLOW_DRIVE_TEST_INJECTION'];
+    else process.env['DAYNORI_ALLOW_DRIVE_TEST_INJECTION'] = prevInject;
+    process.env['DAYNORI_DRIVE_PROVIDER'] = prevMode;
+  });
+});
+
+describe('Phase 49 Google adapter (transport-mocked)', () => {
+  const prevFetch = globalThis.fetch;
+  const prevEnabled = process.env['DAYNORI_DRIVE_PRODUCTION_ENABLED'];
+  const prevId = process.env['DAYNORI_DRIVE_OAUTH_CLIENT_ID'];
+  const prevSecret = process.env['DAYNORI_DRIVE_OAUTH_CLIENT_SECRET'];
+
+  beforeEach(() => {
+    process.env['DAYNORI_DRIVE_PRODUCTION_ENABLED'] = 'true';
+    process.env['DAYNORI_DRIVE_OAUTH_CLIENT_ID'] = 'test-client';
+    process.env['DAYNORI_DRIVE_OAUTH_CLIENT_SECRET'] = 'test-secret';
+  });
+
+  afterEach(() => {
+    globalThis.fetch = prevFetch;
+    if (prevEnabled === undefined) delete process.env['DAYNORI_DRIVE_PRODUCTION_ENABLED'];
+    else process.env['DAYNORI_DRIVE_PRODUCTION_ENABLED'] = prevEnabled;
+    if (prevId === undefined) delete process.env['DAYNORI_DRIVE_OAUTH_CLIENT_ID'];
+    else process.env['DAYNORI_DRIVE_OAUTH_CLIENT_ID'] = prevId;
+    if (prevSecret === undefined) delete process.env['DAYNORI_DRIVE_OAUTH_CLIENT_SECRET'];
+    else process.env['DAYNORI_DRIVE_OAUTH_CLIENT_SECRET'] = prevSecret;
+  });
+
+  it('reconciles prior upload by appProperties instead of duplicating', async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('/drive/v3/files?q=')) {
+        return new Response(
+          JSON.stringify({
+            files: [
+              {
+                id: 'existing-op',
+                name: 'prior.txt',
+                mimeType: 'text/plain',
+                md5Checksum: 'abc',
+                version: '2',
+                trashed: false,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('unexpected', { status: 500 });
+    }) as typeof fetch;
+
+    const provider = new GoogleDriveProvider();
+    const meta = await provider.uploadAppFile('ya29.test', {
+      name: 'prior.txt',
+      mimeType: 'text/plain',
+      bytes: Buffer.from('x'),
+      idempotencyKey: 'op-key-1',
+    });
+    expect(meta.id).toBe('existing-op');
+    expect(calls.some((c) => c.includes('upload/drive'))).toBe(false);
+  });
+
+  it('classifies permission failures on metadata fetch', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: { message: 'Insufficient Permissions' } }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      })) as typeof fetch;
+    const provider = new GoogleDriveProvider();
+    await expect(provider.getFileMeta('ya29.test', 'file-1')).rejects.toMatchObject({
+      code: 'permission_denied',
+    });
   });
 });

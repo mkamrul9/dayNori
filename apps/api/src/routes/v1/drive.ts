@@ -14,6 +14,7 @@ import {
   DriveSelectFileRequestSchema,
   DriveSelectFileResponseSchema,
   DrivePickerTokenResponseSchema,
+  AcknowledgeDriveOfflineResponseSchema,
 } from '@daynori/contracts';
 import { withTenantContext } from '../../db/index.js';
 import { validateResponse } from '../../plugins/errorHandler.js';
@@ -27,6 +28,7 @@ import {
   selectOrActOnDriveFile,
   startDriveConnect,
   unlinkDriveReference,
+  acknowledgeDriveOfflineCache,
 } from '../../modules/drive/service.js';
 
 const LinkedFileParamsSchema = WorkspaceParamsSchema.extend({
@@ -105,6 +107,44 @@ export function registerDriveRoutes(app: FastifyInstance, pool: Pool): void {
             workspaceId,
             accountId: actor.userId,
             request: body,
+          })
+      );
+      reply.header('Cache-Control', 'no-store');
+      return reply.status(200).send(
+        validateResponse(CompleteDriveConnectResponseSchema, {
+          data,
+          meta: { requestId: request.id, serverTime: new Date().toISOString() },
+        })
+      );
+    } catch (err) {
+      return handleDriveError(err, reply);
+    }
+  });
+
+  app.post('/v1/workspaces/:workspaceId/drive/connect/complete-by-state', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+    const body = z
+      .object({
+        state: z.string().min(1).max(512),
+        code: z.string().min(1).max(4096).optional(),
+        error: z.string().max(256).optional(),
+      })
+      .strict()
+      .parse(request.body);
+    try {
+      const { completeDriveConnectByState } = await import('../../modules/drive/service.js');
+      const data = await withTenantContext(
+        pool,
+        { userId: actor.userId, workspaceId },
+        (client) =>
+          completeDriveConnectByState(client, {
+            workspaceId,
+            accountId: actor.userId,
+            state: body.state,
+            code: body.code,
+            error: body.error,
           })
       );
       reply.header('Cache-Control', 'no-store');
@@ -229,6 +269,35 @@ export function registerDriveRoutes(app: FastifyInstance, pool: Pool): void {
           data: { success: true, remoteOriginalDeleted: false },
           meta: { requestId: request.id, serverTime: new Date().toISOString() },
         });
+      } catch (err) {
+        return handleDriveError(err, reply);
+      }
+    }
+  );
+
+  app.post(
+    '/v1/workspaces/:workspaceId/drive/files/:linkedFileId/acknowledge-offline',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+      const { workspaceId, linkedFileId } = LinkedFileParamsSchema.parse(request.params);
+      try {
+        const data = await withTenantContext(
+          pool,
+          { userId: actor.userId, workspaceId },
+          (client) =>
+            acknowledgeDriveOfflineCache(client, {
+              workspaceId,
+              accountId: actor.userId,
+              linkedFileId,
+            })
+        );
+        return reply.status(200).send(
+          validateResponse(AcknowledgeDriveOfflineResponseSchema, {
+            data,
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          })
+        );
       } catch (err) {
         return handleDriveError(err, reply);
       }

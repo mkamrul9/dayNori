@@ -331,20 +331,31 @@ export class MemoryStorageProvider implements StorageProviderContract {
   }
 }
 
-// Global default storage provider restricted to explicit test/development mode
+// Process-global default so API tests and worker dynamic imports share one provider.
+const STORAGE_PROVIDER_KEY = '__daynoriDefaultStorageProvider';
+type StorageGlobal = typeof globalThis & {
+  [STORAGE_PROVIDER_KEY]?: StorageProviderContract;
+};
+
 const isTestOrDev =
   process.env['NODE_ENV'] === 'test' ||
   process.env['NODE_ENV'] === 'development' ||
   process.env['VITEST'] !== undefined;
 
-let defaultStorageProvider: StorageProviderContract = isTestOrDev
-  ? new MemoryStorageProvider()
-  : new UnavailableStorageProvider();
+function ensureDefaultStorage(): StorageProviderContract {
+  const g = globalThis as StorageGlobal;
+  if (!g[STORAGE_PROVIDER_KEY]) {
+    g[STORAGE_PROVIDER_KEY] = isTestOrDev
+      ? new MemoryStorageProvider()
+      : new UnavailableStorageProvider();
+  }
+  return g[STORAGE_PROVIDER_KEY]!;
+}
 
 export function getDefaultStorageProvider(): StorageProviderContract {
-  return defaultStorageProvider;
+  return ensureDefaultStorage();
 }
 
 export function setDefaultStorageProvider(provider: StorageProviderContract): void {
-  defaultStorageProvider = provider;
+  (globalThis as StorageGlobal)[STORAGE_PROVIDER_KEY] = provider;
 }

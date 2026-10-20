@@ -13,8 +13,6 @@ import {
   isAuthIntentUsable,
   isProviderObjectAuthorized,
   isVaultDriveTarget,
-  mayCompleteDriveWork,
-  type DriveConnectionStatus,
   type DriveLinkMode,
 } from '@daynori/domain';
 import type {
@@ -27,9 +25,10 @@ import type {
 import {
   DriveProviderUnavailableError,
   getDriveProvider,
-  type DriveProvider,
   type DriveTokenSet,
 } from './provider.js';
+
+export { processDriveBackgroundJob, executeDriveBackgroundJob } from './jobExecutor.js';
 import {
   DriveTokenEncryptionUnavailableError,
   isDriveTokenEncryptionConfigured,
@@ -40,16 +39,21 @@ import {
 const INTENT_TTL_MS = 10 * 60 * 1000;
 const ALLOWED_RETURN_PREFIXES = ['/settings', '/connections', '/library', '/dev/drive-harness'];
 
-export class DriveServiceError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: number,
-    readonly code: string
-  ) {
-    super(message);
-    this.name = 'DriveServiceError';
-  }
-}
+import {
+  DriveServiceError,
+  loadConnectionRow,
+  getAccessTokenForConnection,
+  cacheDriveAccessToken,
+  clearDriveAccessTokenCache,
+  type ConnectionRow,
+} from './serviceInternals.js';
+
+export {
+  DriveServiceError,
+  loadConnectionRow,
+  getAccessTokenForConnection,
+  type ConnectionRow,
+};
 
 function base64Url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -85,23 +89,6 @@ function redirectUriForPlatform(platform: 'web' | 'android'): string {
     503,
     'android_redirect_unconfigured'
   );
-}
-
-interface ConnectionRow {
-  id: string;
-  workspace_id: string;
-  account_id: string;
-  status: DriveConnectionStatus;
-  provider_kind: string;
-  provider_subject: string | null;
-  provider_account_email: string | null;
-  granted_scope: string | null;
-  generation: string | number;
-  refresh_token_ciphertext: string | null;
-  refresh_token_key_version: string | null;
-  access_token_expires_at: Date | null;
-  connected_at: Date | null;
-  last_reconciled_at: Date | null;
 }
 
 function toConnectionDto(row: ConnectionRow | null, workspaceId: string): DriveConnection {
@@ -146,14 +133,8 @@ async function loadConnection(
   workspaceId: string,
   accountId: string
 ): Promise<ConnectionRow | null> {
-  const res = await client.query<ConnectionRow>(
-    `SELECT * FROM app.drive_connections WHERE workspace_id = $1 AND account_id = $2`,
-    [workspaceId, accountId]
-  );
-  return res.rows[0] ?? null;
+  return loadConnectionRow(client, workspaceId, accountId);
 }
-
-const refreshLocks = new Map<string, Promise<string>>();
 
 async function requireWorkspaceRole(
   client: PoolClient,
@@ -423,156 +404,16 @@ export async function completeDriveConnect(
     [intent.id]
   );
 
-  // Cache short-lived access token in memory only (module-level); never persist access tokens.
-  accessTokenCache.set(conn.id, {
-    token: tokens.accessToken,
-    expiresAt: tokens.expiresAt.getTime(),
-    generation: Number(conn.generation),
-  });
+  // Cache short-lived access token in memory only; never persist access tokens.
+  cacheDriveAccessToken(
+    conn.id,
+    tokens.accessToken,
+    tokens.expiresAt.getTime(),
+    Number(conn.generation)
+  );
 
   const updated = await loadConnection(client, input.workspaceId, input.accountId);
   return toConnectionDto(updated, input.workspaceId);
-}
-
-const accessTokenCache = new Map<
-  string,
-  { token: string; expiresAt: number; generation: number }
->();
-
-async function getAccessToken(
-  client: PoolClient,
-  conn: ConnectionRow,
-  provider: DriveProvider
-): Promise<string> {
-  const cached = accessTokenCache.get(conn.id);
-  if (
-    cached &&
-    cached.generation === Number(conn.generation) &&
-    cached.expiresAt > Date.now() + 30_000
-  ) {
-    return cached.token;
-  }
-
-  const existing = refreshLocks.get(conn.id);
-  if (existing) return existing;
-
-  const work = (async () => {
-    if (!conn.refresh_token_ciphertext || !conn.refresh_token_key_version) {
-      throw new DriveServiceError('No stored refresh token', 400, 'not_connected');
-    }
-    const refresh = unsealDriveRefreshToken(
-      {
-        ciphertext: conn.refresh_token_ciphertext,
-        keyVersion: conn.refresh_token_key_version,
-      },
-      {
-        workspaceId: conn.workspace_id,
-        connectionId: conn.id,
-        accountId: conn.account_id,
-      }
-    );
-    let tokens: DriveTokenSet;
-    try {
-      tokens = await provider.refreshAccessToken(refresh);
-    } catch (err) {
-      if (err instanceof DriveProviderUnavailableError && err.message.includes('invalid_grant')) {
-        await markRevoked(client, conn, 'invalid_grant');
-      }
-      throw new DriveServiceError(
-        err instanceof Error ? err.message : 'refresh_failed',
-        401,
-        'refresh_failed'
-      );
-    }
-
-    // Fence: reload connection generation
-    const fresh = await loadConnection(client, conn.workspace_id, conn.account_id);
-    if (
-      !fresh ||
-      !mayCompleteDriveWork({
-        connectionStatus: fresh.status,
-        connectionGeneration: Number(fresh.generation),
-        jobGeneration: Number(conn.generation),
-      })
-    ) {
-      throw new DriveServiceError('Connection disconnected during refresh', 409, 'fenced');
-    }
-
-    if (tokens.refreshToken) {
-      const sealed = sealDriveRefreshToken(tokens.refreshToken, {
-        workspaceId: fresh.workspace_id,
-        connectionId: fresh.id,
-        accountId: fresh.account_id,
-      });
-      await client.query(
-        `UPDATE app.drive_connections SET
-          refresh_token_ciphertext = $2,
-          refresh_token_key_version = $3,
-          access_token_expires_at = $4,
-          updated_at = now()
-         WHERE id = $1 AND generation = $5 AND status = 'connected'`,
-        [
-          fresh.id,
-          sealed.ciphertext,
-          sealed.keyVersion,
-          tokens.expiresAt.toISOString(),
-          fresh.generation,
-        ]
-      );
-    } else {
-      await client.query(
-        `UPDATE app.drive_connections SET access_token_expires_at = $2, updated_at = now()
-         WHERE id = $1 AND generation = $3 AND status = 'connected'`,
-        [fresh.id, tokens.expiresAt.toISOString(), fresh.generation]
-      );
-    }
-
-    accessTokenCache.set(fresh.id, {
-      token: tokens.accessToken,
-      expiresAt: tokens.expiresAt.getTime(),
-      generation: Number(fresh.generation),
-    });
-    return tokens.accessToken;
-  })();
-
-  refreshLocks.set(conn.id, work);
-  try {
-    return await work;
-  } finally {
-    refreshLocks.delete(conn.id);
-  }
-}
-
-async function markRevoked(
-  client: PoolClient,
-  conn: ConnectionRow,
-  reason: 'provider_revocation' | 'invalid_grant'
-): Promise<void> {
-  await client.query(
-    `UPDATE app.drive_connections SET
-      status = 'revoked',
-      generation = generation + 1,
-      refresh_token_ciphertext = NULL,
-      refresh_token_key_version = NULL,
-      disconnected_at = now(),
-      updated_at = now()
-     WHERE id = $1`,
-    [conn.id]
-  );
-  accessTokenCache.delete(conn.id);
-  await client.query(
-    `UPDATE app.drive_jobs SET status = 'cancelled', updated_at = now()
-     WHERE connection_id = $1 AND status IN ('pending','running')`,
-    [conn.id]
-  );
-  await client.query(
-    `UPDATE app.background_jobs SET status = 'failed', last_error = 'Drive connection revoked', updated_at = now()
-     WHERE status = 'pending'
-       AND task_type LIKE 'drive_%'
-       AND payload->>'connectionId' = $1`,
-    [conn.id]
-  );
-  void reason;
 }
 
 export async function disconnectDrive(
@@ -593,11 +434,11 @@ export async function disconnectDrive(
     return { status: 'disconnected', jobsCancelled: 0, ...expl };
   }
 
-  // Best-effort provider revoke using sealed token before wipe
+  // Fence and wipe locally FIRST so late refresh/jobs cannot resurrect, then best-effort revoke.
+  let refreshForRevoke: string | null = null;
   if (conn.refresh_token_ciphertext && conn.refresh_token_key_version) {
     try {
-      const provider = getDriveProvider();
-      const refresh = unsealDriveRefreshToken(
+      refreshForRevoke = unsealDriveRefreshToken(
         {
           ciphertext: conn.refresh_token_ciphertext,
           keyVersion: conn.refresh_token_key_version,
@@ -608,9 +449,8 @@ export async function disconnectDrive(
           accountId: conn.account_id,
         }
       );
-      await provider.revoke(refresh);
     } catch {
-      // still wipe locally
+      refreshForRevoke = null;
     }
   }
 
@@ -621,11 +461,12 @@ export async function disconnectDrive(
       refresh_token_ciphertext = NULL,
       refresh_token_key_version = NULL,
       disconnected_at = now(),
+      provider_revoke_status = 'pending',
       updated_at = now()
      WHERE id = $1`,
     [conn.id]
   );
-  accessTokenCache.delete(conn.id);
+  clearDriveAccessTokenCache(conn.id);
 
   const jobs = await client.query(
     `UPDATE app.drive_jobs SET status = 'cancelled', updated_at = now()
@@ -646,6 +487,39 @@ export async function disconnectDrive(
     [input.workspaceId, input.accountId]
   );
 
+  // Bounded best-effort provider revoke AFTER local fence; local success does not require confirmed revoke.
+  if (refreshForRevoke) {
+    try {
+      const revokeTimeout = new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), 5_000)
+      );
+      const revokeResult = await Promise.race([
+        getDriveProvider()
+          .revoke(refreshForRevoke)
+          .then(() => 'ok' as const)
+          .catch(() => 'failed' as const),
+        revokeTimeout,
+      ]);
+      await client.query(
+        `UPDATE app.drive_connections SET provider_revoke_status = $2, updated_at = now() WHERE id = $1`,
+        [
+          conn.id,
+          revokeResult === 'ok' ? 'confirmed' : revokeResult === 'timeout' ? 'failed' : 'failed',
+        ]
+      );
+    } catch {
+      await client.query(
+        `UPDATE app.drive_connections SET provider_revoke_status = 'failed', updated_at = now() WHERE id = $1`,
+        [conn.id]
+      );
+    }
+  } else {
+    await client.query(
+      `UPDATE app.drive_connections SET provider_revoke_status = 'skipped', updated_at = now() WHERE id = $1`,
+      [conn.id]
+    );
+  }
+
   const expl = disconnectExplanation('local_disconnect');
   return { status: 'disconnected', jobsCancelled: jobs.rowCount ?? 0, ...expl };
 }
@@ -660,7 +534,7 @@ export async function issuePickerAccessToken(
     throw new DriveServiceError('Drive not connected', 400, 'not_connected');
   }
   const provider = getDriveProvider();
-  const accessToken = await getAccessToken(client, conn, provider);
+  const accessToken = await getAccessTokenForConnection(client, conn, provider);
   const expiresAt = new Date(Date.now() + PICKER_ACCESS_TOKEN_TTL_MS).toISOString();
   return { accessToken, expiresAt, cacheControl: 'no-store' };
 }
@@ -730,20 +604,7 @@ export async function selectOrActOnDriveFile(
     throw new DriveServiceError('Connection ownership mismatch', 403, 'connection_ownership');
   }
 
-  const support = evaluateSelectedObjectSupport({
-    providerFileId: input.request.providerFileId,
-    mimeType: input.request.mimeType,
-    name: input.request.displayName,
-    isShortcut: input.request.isShortcut,
-    isSharedDrive: input.request.isSharedDrive,
-    md5Checksum: input.request.checksum ?? null,
-    version: input.request.providerVersion ?? null,
-  });
-  if (!support.supported) {
-    throw new DriveServiceError(support.reason ?? 'unsupported', 400, 'unsupported_object');
-  }
-
-  // Reject vault targets
+  // Reject vault targets before provider I/O
   if (input.request.localFileItemId) {
     const item = await client.query<{ kind: string }>(
       `SELECT kind FROM app.items WHERE id = $1 AND workspace_id = $2`,
@@ -752,6 +613,37 @@ export async function selectOrActOnDriveFile(
     if (item.rows[0] && isVaultDriveTarget(item.rows[0].kind)) {
       throw new DriveServiceError('Vault content cannot use Drive connector', 403, 'vault_excluded');
     }
+  }
+
+  // Authoritative provider metadata — do not trust client MIME/shortcut/shared-drive flags alone.
+  const provider = getDriveProvider();
+  const accessToken = await getAccessTokenForConnection(client, conn, provider);
+  let authoritative;
+  try {
+    authoritative = await provider.getFileMeta(accessToken, input.request.providerFileId);
+  } catch (err) {
+    const code = err instanceof DriveProviderUnavailableError ? err.code : 'provider_meta_failed';
+    throw new DriveServiceError(
+      err instanceof Error ? err.message : 'provider_meta_failed',
+      400,
+      code
+    );
+  }
+
+  const support = evaluateSelectedObjectSupport({
+    providerFileId: authoritative.id,
+    mimeType: authoritative.mimeType,
+    name: authoritative.name,
+    isShortcut: authoritative.isShortcut,
+    isSharedDrive: authoritative.isSharedDrive,
+    md5Checksum: authoritative.md5Checksum,
+    version: authoritative.version,
+  });
+  if (!support.supported) {
+    throw new DriveServiceError(support.reason ?? 'unsupported', 400, 'unsupported_object');
+  }
+  if (authoritative.trashed) {
+    throw new DriveServiceError('Selected source is trashed', 410, 'source_unavailable');
   }
 
   const provenance =
@@ -779,22 +671,20 @@ export async function selectOrActOnDriveFile(
       input.workspaceId,
       conn.id,
       input.accountId,
-      input.request.providerFileId,
-      input.request.displayName,
-      input.request.mimeType,
+      authoritative.id,
+      authoritative.name,
+      authoritative.mimeType,
       provenance,
       input.request.linkMode,
-      input.request.providerVersion ?? null,
-      input.request.checksum ?? null,
+      authoritative.version,
+      authoritative.md5Checksum,
       input.request.localFileItemId ?? null,
-      input.request.linkMode === 'link_reference' ? 'linked' : 'linked',
+      'linked',
     ]
   );
   const linked = mapLinked(upsert.rows[0]!);
 
-  // Application selection boundary registry
-  const authorized = new Set([input.request.providerFileId]);
-  if (!isProviderObjectAuthorized(authorized, input.request.providerFileId)) {
+  if (!isProviderObjectAuthorized(new Set([authoritative.id]), linked.providerFileId)) {
     throw new DriveServiceError('Provider object not in selection boundary', 403, 'selection_boundary');
   }
 
@@ -865,149 +755,67 @@ export async function unlinkDriveReference(
   // Does not trash remote Drive original.
 }
 
-/** Worker entry: process a drive_* background job with disconnect fencing. */
-export async function processDriveBackgroundJob(
+/**
+ * Complete OAuth by state token (server callback path). Intent is looked up by state —
+ * authorization codes are not copied into general application URLs.
+ */
+export async function completeDriveConnectByState(
   client: PoolClient,
-  payload: {
-    driveJobId: string;
-    connectionId: string;
+  input: {
     workspaceId: string;
     accountId: string;
-    linkedFileId: string;
-    connectionGeneration: number;
-    providerFileId: string;
-    exportMimeType: string | null;
-    folderId: string | null;
-    localFileItemId: string | null;
-    idempotencyKey: string;
+    state: string;
+    code?: string;
+    error?: string;
   }
-): Promise<{ status: 'succeeded' | 'fenced' | 'failed'; errorCode?: string }> {
-  const conn = await loadConnection(client, payload.workspaceId, payload.accountId);
-  if (
-    !conn ||
-    !mayCompleteDriveWork({
-      connectionStatus: conn.status,
-      connectionGeneration: Number(conn.generation),
-      jobGeneration: payload.connectionGeneration,
-    })
-  ) {
-    await client.query(
-      `UPDATE app.drive_jobs SET status = 'fenced', updated_at = now() WHERE id = $1`,
-      [payload.driveJobId]
-    );
-    return { status: 'fenced' };
-  }
-
-  await client.query(
-    `UPDATE app.drive_jobs SET status = 'running', updated_at = now() WHERE id = $1`,
-    [payload.driveJobId]
+): Promise<DriveConnection> {
+  const intentRes = await client.query<{ id: string }>(
+    `SELECT id FROM app.drive_auth_intents
+     WHERE state_token = $1 AND workspace_id = $2 AND account_id = $3`,
+    [input.state, input.workspaceId, input.accountId]
   );
-
-  const provider = getDriveProvider();
-  try {
-    const accessToken = await getAccessToken(client, conn, provider);
-    const jobRow = await client.query<{ kind: string }>(
-      `SELECT kind FROM app.drive_jobs WHERE id = $1`,
-      [payload.driveJobId]
-    );
-    const kind = jobRow.rows[0]?.kind;
-
-    if (kind === 'import_copy' || kind === 'download_offline') {
-      // Selection boundary: only the authorized provider id from the job
-      if (payload.providerFileId !== payload.providerFileId) {
-        throw new DriveServiceError('selection boundary', 403, 'selection_boundary');
-      }
-      const meta = await provider.getFileMeta(accessToken, payload.providerFileId);
-      if (meta.trashed) {
-        await client.query(
-          `UPDATE app.drive_linked_files SET availability = 'source_unavailable', updated_at = now() WHERE id = $1`,
-          [payload.linkedFileId]
-        );
-        throw new DriveServiceError('Source deleted externally', 410, 'source_unavailable');
-      }
-      const downloaded = await provider.downloadFile(accessToken, payload.providerFileId, {
-        exportMimeType: payload.exportMimeType,
-      });
-      // Import bytes must enter normal file safety path — record checksum; actual quarantine via file reserve is a follow-on.
-      const sha = createHash('sha256').update(downloaded.bytes).digest('hex');
-      await client.query(
-        `UPDATE app.drive_linked_files SET
-          availability = $2,
-          checksum = $3,
-          provider_version = $4,
-          last_reconciled_at = now(),
-          updated_at = now()
-         WHERE id = $1`,
-        [
-          payload.linkedFileId,
-          kind === 'download_offline' ? 'offline_cached' : 'imported',
-          sha,
-          meta.version,
-        ]
-      );
-      // Bytes are not stored in this provisional path without going through file upload APIs;
-      // integration tests verify job fencing + metadata. Full byte ingest reuses Phase 24 reserve in follow-up wiring.
-      void downloaded;
-      void payload.folderId;
-    } else if (kind === 'upload_to_drive') {
-      // Idempotent upload: provider keyed by idempotencyKey
-      const bytes = Buffer.from(`daynori-upload-placeholder:${payload.idempotencyKey}`);
-      const meta = await provider.uploadAppFile(accessToken, {
-        name: `upload-${payload.idempotencyKey.slice(0, 12)}`,
-        mimeType: 'application/octet-stream',
-        bytes,
-        idempotencyKey: payload.idempotencyKey,
-      });
-      await client.query(
-        `UPDATE app.drive_linked_files SET
-          provider_file_id = $2,
-          provenance = 'upload',
-          checksum = $3,
-          provider_version = $4,
-          availability = 'linked',
-          last_reconciled_at = now(),
-          updated_at = now()
-         WHERE id = $1`,
-        [payload.linkedFileId, meta.id, meta.md5Checksum, meta.version]
-      );
-      void payload.localFileItemId;
-    }
-
-    // Re-fence before success
-    const fresh = await loadConnection(client, payload.workspaceId, payload.accountId);
-    if (
-      !fresh ||
-      !mayCompleteDriveWork({
-        connectionStatus: fresh.status,
-        connectionGeneration: Number(fresh.generation),
-        jobGeneration: payload.connectionGeneration,
-      })
-    ) {
-      await client.query(
-        `UPDATE app.drive_jobs SET status = 'fenced', updated_at = now() WHERE id = $1`,
-        [payload.driveJobId]
-      );
-      return { status: 'fenced' };
-    }
-
-    await client.query(
-      `UPDATE app.drive_jobs SET status = 'succeeded', updated_at = now() WHERE id = $1`,
-      [payload.driveJobId]
-    );
-    return { status: 'succeeded' };
-  } catch (err) {
-    const code = err instanceof DriveServiceError ? err.code : 'drive_job_failed';
-    const message = err instanceof Error ? err.message : 'drive_job_failed';
-    if (code === 'permission_denied' || message.includes('permission')) {
-      await client.query(
-        `UPDATE app.drive_linked_files SET availability = 'permission_lost', updated_at = now() WHERE id = $1`,
-        [payload.linkedFileId]
-      );
-    }
-    await client.query(
-      `UPDATE app.drive_jobs SET status = 'failed', error_code = $2, error_message = $3, updated_at = now() WHERE id = $1`,
-      [payload.driveJobId, code, message.slice(0, 500)]
-    );
-    return { status: 'failed', errorCode: code };
+  const intent = intentRes.rows[0];
+  if (!intent) {
+    throw new DriveServiceError('Auth intent not found for state', 404, 'intent_not_found');
   }
+  return completeDriveConnect(client, {
+    workspaceId: input.workspaceId,
+    accountId: input.accountId,
+    request: {
+      intentId: intent.id,
+      state: input.state,
+      code: input.code,
+      error: input.error,
+    },
+  });
+}
+
+/**
+ * Client acknowledges durable offline cache of an imported Drive file.
+ * Server download alone never sets offline_cached.
+ */
+export async function acknowledgeDriveOfflineCache(
+  client: PoolClient,
+  input: { workspaceId: string; accountId: string; linkedFileId: string }
+): Promise<DriveLinkedFile> {
+  await requireWorkspaceRole(client, input.workspaceId, 'editor');
+  const res = await client.query(
+    `UPDATE app.drive_linked_files SET
+       availability = 'offline_cached',
+       last_reconciled_at = now(),
+       updated_at = now()
+     WHERE id = $1 AND workspace_id = $2 AND account_id = $3
+       AND availability = 'pending_offline'
+       AND local_file_item_id IS NOT NULL
+     RETURNING *`,
+    [input.linkedFileId, input.workspaceId, input.accountId]
+  );
+  if (!res.rows[0]) {
+    throw new DriveServiceError(
+      'Linked file is not awaiting offline acknowledgment',
+      400,
+      'offline_ack_invalid'
+    );
+  }
+  return mapLinked(res.rows[0]);
 }

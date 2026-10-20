@@ -265,6 +265,7 @@ import {
   ListDriveLinkedFilesResponseSchema,
   DriveSelectFileResponseSchema,
   DrivePickerTokenResponseSchema,
+  AcknowledgeDriveOfflineResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -275,6 +276,7 @@ import {
   type ListDriveLinkedFilesResponse,
   type DriveSelectFileResponse,
   type DrivePickerTokenResponse,
+  type AcknowledgeDriveOfflineResponse,
   type PreviewSchemaMigrationRequest,
   type SchemaMigrationPreviewResponse,
 } from '@daynori/contracts';
@@ -2917,6 +2919,19 @@ export class DaynoriApiClient {
       { method: 'DELETE' },
       options
     );
+  }
+
+  async acknowledgeDriveOffline(
+    workspaceId: string,
+    linkedFileId: string,
+    options?: RequestOptions
+  ): Promise<AcknowledgeDriveOfflineResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/drive/files/${linkedFileId}/acknowledge-offline`,
+      { method: 'POST', body: JSON.stringify({}) },
+      options
+    );
+    return AcknowledgeDriveOfflineResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

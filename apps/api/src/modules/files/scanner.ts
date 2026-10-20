@@ -203,19 +203,30 @@ export class UnavailableMalwareScanner implements MalwareScannerContract {
   }
 }
 
+const SCANNER_KEY = '__daynoriDefaultMalwareScanner';
+type ScannerGlobal = typeof globalThis & {
+  [SCANNER_KEY]?: MalwareScannerContract;
+};
+
 const isTestOrDev =
   process.env['NODE_ENV'] === 'test' ||
   process.env['NODE_ENV'] === 'development' ||
   process.env['VITEST'] !== undefined;
 
-let defaultScanner: MalwareScannerContract = isTestOrDev
-  ? new PolicyMalwareScanner()
-  : new UnavailableMalwareScanner();
+function ensureDefaultScanner(): MalwareScannerContract {
+  const g = globalThis as ScannerGlobal;
+  if (!g[SCANNER_KEY]) {
+    g[SCANNER_KEY] = isTestOrDev
+      ? new PolicyMalwareScanner()
+      : new UnavailableMalwareScanner();
+  }
+  return g[SCANNER_KEY]!;
+}
 
 export function getDefaultMalwareScanner(): MalwareScannerContract {
-  return defaultScanner;
+  return ensureDefaultScanner();
 }
 
 export function setDefaultMalwareScanner(scanner: MalwareScannerContract): void {
-  defaultScanner = scanner;
+  (globalThis as ScannerGlobal)[SCANNER_KEY] = scanner;
 }
