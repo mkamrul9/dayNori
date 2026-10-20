@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { Button, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import type { Room, RoomChatMessage } from '@daynori/contracts';
+import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 import { createWebApiClient } from '../data/webApiClient';
 import { useAuth } from './AuthContext';
 import {
@@ -67,6 +68,7 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
   const [nextBeforeOrder, setNextBeforeOrder] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
+  const [needsTerms, setNeedsTerms] = useState(false);
   const eventCursorRef = useRef(0);
   const generationRef = useRef(0);
   const roomIdRef = useRef(room.id);
@@ -399,6 +401,84 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     }
   };
 
+  const acceptTerms = async () => {
+    try {
+      const res = await client.acceptUgcTerms({ policyVersion: CURRENT_UGC_POLICY_VERSION });
+      setNeedsTerms(res.data.requiresAcceptance);
+      setFeedback({
+        severity: 'success',
+        message: `Accepted community rules ${CURRENT_UGC_POLICY_VERSION}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Terms acceptance failed',
+      });
+    }
+  };
+
+  const onReportMessage = async (m: RoomChatMessage) => {
+    const category = window.prompt(
+      'Report category (harassment|hate|sexual_content|spam|scam|violence|illegal|other):',
+      'harassment'
+    );
+    if (!category) return;
+    try {
+      await client.createUgcReport({
+        clientReportId: crypto.randomUUID(),
+        targetType: 'message',
+        roomId: room.id,
+        messageId: m.id,
+        category: category as
+          | 'harassment'
+          | 'hate'
+          | 'sexual_content'
+          | 'spam'
+          | 'scam'
+          | 'violence'
+          | 'illegal'
+          | 'other',
+      });
+      setFeedback({ severity: 'success', message: 'Report submitted. Receipt recorded.' });
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Report failed',
+      });
+    }
+  };
+
+  const onBlockSender = async (senderId: string) => {
+    if (
+      !window.confirm(
+        'Block this user? They will not be able to invite you (and vice versa). In shared rooms they keep their membership; their messages are hidden for you only. Mute only suppresses notifications.'
+      )
+    ) {
+      return;
+    }
+    try {
+      await client.blockUser({ blockedUserId: senderId });
+      setMessages((prev) => prev.filter((m) => m.senderId !== senderId));
+      setFeedback({ severity: 'success', message: 'User blocked. Invitation path restricted.' });
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Block failed',
+      });
+    }
+  };
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const terms = await client.getUgcTermsStatus();
+        if (!isStale()) setNeedsTerms(terms.data.requiresAcceptance);
+      } catch {
+        /* terms endpoint may be gated; leave default */
+      }
+    })();
+  }, [client, room.id, isStale]);
+
   return (
     <section
       aria-label={`Chat for room ${room.name}`}
@@ -465,8 +545,13 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
           Load older
         </Button>
         <Button type="button" variant="subtle" size="compact" themeMode={themeMode} onClick={() => void toggleMute()}>
-          {muted ? 'Unmute' : 'Mute'}
+          {muted ? 'Unmute notifications' : 'Mute notifications'}
         </Button>
+        {needsTerms ? (
+          <Button type="button" size="compact" themeMode={themeMode} onClick={() => void acceptTerms()}>
+            Accept community rules {CURRENT_UGC_POLICY_VERSION}
+          </Button>
+        ) : null}
         <Button type="button" variant="subtle" size="compact" themeMode={themeMode} onClick={onClose}>
           Close
         </Button>
@@ -513,9 +598,31 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
                 m.body
               )}
             </div>
-            {!readOnly && !m.deletedAt && m.senderId === userId ? (
-              <div style={{ display: 'flex', gap: spacing.xs, marginTop: spacing.xs }}>
-                {editingId === m.id ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs }}>
+              {!m.deletedAt ? (
+                <Button
+                  type="button"
+                  size="compact"
+                  variant="subtle"
+                  themeMode={themeMode}
+                  onClick={() => void onReportMessage(m)}
+                >
+                  Report message
+                </Button>
+              ) : null}
+              {m.senderId !== userId ? (
+                <Button
+                  type="button"
+                  size="compact"
+                  variant="subtle"
+                  themeMode={themeMode}
+                  onClick={() => void onBlockSender(m.senderId)}
+                >
+                  Block sender
+                </Button>
+              ) : null}
+              {!readOnly && !m.deletedAt && m.senderId === userId ? (
+                editingId === m.id ? (
                   <>
                     <Button type="button" size="compact" themeMode={themeMode} onClick={() => void onSaveEdit()}>
                       Save edit
@@ -554,9 +661,9 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
                       Delete
                     </Button>
                   </>
-                )}
-              </div>
-            ) : null}
+                )
+              ) : null}
+            </div>
           </li>
         ))}
         {pending.map((p) => (

@@ -106,6 +106,15 @@ describe('Phase 53: room chat and realtime events', () => {
          ON CONFLICT (id) DO NOTHING`,
         [ownerId, 'Owner', editorId, 'Editor', viewerId, 'Viewer']
       );
+      // Phase 54 terms gate — accept current UGC policy for chat contribution tests.
+      const { CURRENT_UGC_POLICY_VERSION } = await import('@daynori/domain');
+      for (const uid of [ownerId, editorId, viewerId]) {
+        await setup.query(
+          `INSERT INTO app.ugc_terms_acceptances (user_id, policy_version)
+           VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [uid, CURRENT_UGC_POLICY_VERSION]
+        );
+      }
     } finally {
       setup.release();
     }

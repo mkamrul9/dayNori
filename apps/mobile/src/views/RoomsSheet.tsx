@@ -4,10 +4,12 @@ import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { MobileButton } from '@daynori/ui-mobile';
 import type { Room } from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
+import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 import {
   clearRoomChatLocal,
   loadRoomChatLocal,
   saveRoomChatLocal,
+  type RoomChatCachedMessage,
 } from '../data/roomChatLocalStore';
 
 export interface RoomsSheetProps {
@@ -42,6 +44,7 @@ export function RoomsSheet({
   const [busy, setBusy] = useState(false);
   const [contentSummary, setContentSummary] = useState<string | null>(null);
   const [chatLines, setChatLines] = useState<string[]>([]);
+  const [chatCache, setChatCache] = useState<RoomChatCachedMessage[]>([]);
   const [chatDraft, setChatDraft] = useState('');
   const [chatConnection, setChatConnection] = useState('idle');
   const [chatMuted, setChatMuted] = useState(false);
@@ -278,6 +281,7 @@ export function RoomsSheet({
                     messagesCache: cached,
                     draft: snap.draft,
                   });
+                  setChatCache(cached);
                   setChatLines(
                     cached.map((m) =>
                       m.deletedAt ? `#${m.serverOrder} (deleted)` : `#${m.serverOrder} ${m.body}`
@@ -462,7 +466,7 @@ export function RoomsSheet({
                 variant="subtle"
                 themeMode={themeMode}
                 disabled={busy}
-                accessibilityLabel={chatMuted ? 'Unmute room chat' : 'Mute room chat'}
+                accessibilityLabel={chatMuted ? 'Unmute room chat notifications' : 'Mute room chat notifications'}
                 onPress={() => {
                   void (async () => {
                     try {
@@ -476,7 +480,101 @@ export function RoomsSheet({
                   })();
                 }}
               >
-                {chatMuted ? 'Unmute chat' : 'Mute chat'}
+                {chatMuted ? 'Unmute notifications' : 'Mute notifications'}
+              </MobileButton>
+              <MobileButton
+                variant="subtle"
+                themeMode={themeMode}
+                disabled={busy}
+                accessibilityLabel="Accept community rules"
+                onPress={() => {
+                  void (async () => {
+                    try {
+                      await apiClient.acceptUgcTerms({
+                        policyVersion: CURRENT_UGC_POLICY_VERSION,
+                      });
+                      setMessage(`Accepted community rules ${CURRENT_UGC_POLICY_VERSION}`);
+                    } catch (err) {
+                      setMessage(err instanceof Error ? err.message : 'Terms failed');
+                    }
+                  })();
+                }}
+              >
+                Accept community rules
+              </MobileButton>
+              <MobileButton
+                variant="subtle"
+                themeMode={themeMode}
+                disabled={busy || chatCache.length === 0}
+                accessibilityLabel="Report last message"
+                onPress={() => {
+                  const last = chatCache[chatCache.length - 1];
+                  if (!last || !selected) return;
+                  Alert.alert('Report message', 'Submit a harassment report for the latest message?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Report',
+                      onPress: () => {
+                        void (async () => {
+                          try {
+                            await apiClient.createUgcReport({
+                              clientReportId: crypto.randomUUID(),
+                              targetType: 'message',
+                              roomId: selected.id,
+                              messageId: last.id,
+                              category: 'harassment',
+                            });
+                            setMessage('Report submitted');
+                          } catch (err) {
+                            setMessage(err instanceof Error ? err.message : 'Report failed');
+                          }
+                        })();
+                      },
+                    },
+                  ]);
+                }}
+              >
+                Report last message
+              </MobileButton>
+              <MobileButton
+                variant="subtle"
+                themeMode={themeMode}
+                disabled={busy || chatCache.length === 0}
+                accessibilityLabel="Block last message sender"
+                onPress={() => {
+                  const last = [...chatCache].reverse().find((m) => m.senderId !== userId);
+                  if (!last) {
+                    setMessage('No other sender to block');
+                    return;
+                  }
+                  Alert.alert(
+                    'Block user',
+                    'Blocks invitations between you. Shared-room membership is unchanged; their messages hide for you only.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Block',
+                        style: 'destructive',
+                        onPress: () => {
+                          void (async () => {
+                            try {
+                              await apiClient.blockUser({ blockedUserId: last.senderId });
+                              setChatCache((prev) => prev.filter((m) => m.senderId !== last.senderId));
+                              setChatLines((prev) =>
+                                prev.filter((_, i) => chatCache[i]?.senderId !== last.senderId)
+                              );
+                              setMessage('User blocked');
+                            } catch (err) {
+                              setMessage(err instanceof Error ? err.message : 'Block failed');
+                            }
+                          })();
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                Block last other sender
               </MobileButton>
             </View>
           ) : null}

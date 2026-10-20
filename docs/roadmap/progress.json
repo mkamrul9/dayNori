@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-20",
-  "activePhase": "53",
+  "activePhase": "54",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 53 repair then Phase 54 for bounded provisional local development after Phase 53 677c0a9. Phase 53 repair hardens chat idempotency/cursors/persistence/publication recovery (ADR 0050 amended). Status blocked pending rooms release gates. Phase 50 deferred; Phase 49 live Google unmet; vault disabled; rooms/chat fail-closed for production. Stop before Phase 55 after Phase 54.",
+  "schedulingDecision": "Owner selected Phase 53 repair then Phase 54 for bounded provisional local development. Phase 53 repair a5a274b; Phase 54 delivers reporting/block/terms/moderation gate (ADR 0051) provisionally. Status blocked: no staffed moderation owner; rooms/chat fail-closed for production. Phase 50 deferred; Phase 49 live Google unmet; vault disabled. Stop before Phase 55.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -326,7 +326,9 @@
     },
     {
       "id": "54",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local reporting, blocking, terms gate, invitation abuse limits, and moderation audit delivered (ADR 0051). Completion blocked pending named/staffed moderation owner, Phases 51–53 rooms release evidence, and Gate C UGC operational proof. No real-user sharing, outbound notifications, or production enablement. Vault remains disabled.",
+      "report": "docs/phase-reports/phase-54.md"
     },
     {
       "id": "55",

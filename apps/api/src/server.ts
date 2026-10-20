@@ -43,6 +43,7 @@ import { registerCustomSectionRoutes } from './routes/v1/customSections.js';
 import { registerDriveRoutes } from './routes/v1/drive.js';
 import { registerRoomRoutes } from './routes/v1/rooms.js';
 import { registerChatRoutes } from './routes/v1/chat.js';
+import { registerSafetyRoutes } from './routes/v1/safety.js';
 import {
   startChatPublicationRecovery,
   stopChatPublicationRecovery,
@@ -161,7 +162,9 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
     const url = request.url;
     const roomsBlocked =
       !allowRoomsLocal &&
-      (url.startsWith('/v1/rooms') || url.startsWith('/v1/room-invitations'));
+      (url.startsWith('/v1/rooms') ||
+        url.startsWith('/v1/room-invitations') ||
+        url.startsWith('/v1/safety'));
     if (
       (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
       url.startsWith('/v1/vault') ||
@@ -197,7 +200,9 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
         // 1. Unreleased feature scope barriers (403 Forbidden on direct access)
         const roomsBlockedAuth =
           !allowRoomsLocal &&
-          (url.startsWith('/v1/rooms') || url.startsWith('/v1/room-invitations'));
+          (url.startsWith('/v1/rooms') ||
+            url.startsWith('/v1/room-invitations') ||
+            url.startsWith('/v1/safety'));
         if (
           (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
           url.startsWith('/v1/vault') ||
@@ -254,6 +259,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerDriveRoutes(authScope, runtimePool);
       registerRoomRoutes(authScope, runtimePool);
       registerChatRoutes(authScope, runtimePool);
+      registerSafetyRoutes(authScope, runtimePool);
       registerAuthenticatedDeletionRoutes(authScope, runtimePool);
     });
   }

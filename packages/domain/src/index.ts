@@ -28,4 +28,5 @@ export * from './roomsGate.js';
 export * from './roomContent.js';
 export * from './roomRevocation.js';
 export * from './chat.js';
+export * from './collaborationSafety.js';
 

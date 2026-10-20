@@ -59,9 +59,9 @@ Test reboot, permission revocation, clock/time-zone changes, device idle/battery
 
 ### Rooms and chat
 
-Release invite-only sharing only after scoped memberships, invitations/expiry, authorization/realtime revocation, consent and ownership/exit semantics pass. User-generated content visible to other users creates moderation requirements even when the audience is a subset of users. Terms acceptance before contribution, objectionable-content rules, in-app report/block controls and a staffed moderation/action process are release prerequisites; a private-room label is not a policy exemption. [Play UGC policy](https://support.google.com/googleplay/android-developer/answer/9876937?hl=en) (checked 2026-10-13).
+Release invite-only sharing only after scoped memberships, invitations/expiry, authorization/realtime revocation, consent and ownership/exit semantics pass. User-generated content visible to other users creates moderation requirements even when the audience is a subset of users. Terms acceptance before contribution, objectionable-content rules, in-app report/block controls and a staffed moderation/action process are release prerequisites; a private-room label is not a policy exemption. [Play UGC policy](https://support.google.com/googleplay/android-developer/answer/9876937?hl=en) (checked 2026-10-13; Phase 54 dated review 2026-10-20 in `docs/policy/google-play-ugc-review-2026-10-20.md`).
 
-Test harassment reports, blocked interactions, attachment abuse, invitation guessing, rate limits and moderator access/audit. Decide target age/audience and evaluate applicable child-safety policy before opening any social feature. The initial product does not add public discovery or anonymous rooms.
+Phase 54 delivers provisional local report/block/terms/audit controls (ADR 0051). **Staffed moderation ownership remains unmet** and keeps rooms/chat release blocked. Test harassment reports, blocked interactions, attachment abuse, invitation guessing, rate limits and moderator access/audit. Decide target age/audience and evaluate applicable child-safety policy before opening any social feature. The initial product does not add public discovery or anonymous rooms.
 
 ### Google Drive
 

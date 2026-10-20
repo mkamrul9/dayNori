@@ -10,18 +10,20 @@ export type RoomChatPendingSend = {
   updatedAt: string;
 };
 
+export type RoomChatCachedMessage = {
+  id: string;
+  body: string;
+  serverOrder: number;
+  bodyRevision: number;
+  deletedAt: string | null;
+  senderId: string;
+};
+
 export type RoomChatLocalSnapshot = {
   draft: string;
   pending: RoomChatPendingSend[];
   eventCursor: number;
-  messagesCache: Array<{
-    id: string;
-    body: string;
-    serverOrder: number;
-    bodyRevision: number;
-    deletedAt: string | null;
-    senderId: string;
-  }>;
+  messagesCache: RoomChatCachedMessage[];
 };
 
 type MemoryStore = Map<string, string>;

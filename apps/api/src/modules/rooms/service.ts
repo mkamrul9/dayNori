@@ -30,6 +30,11 @@ import {
 } from '../../db/repositories/membershipRepository.js';
 import { recordAuditEvent } from '../../db/repositories/auditRepository.js';
 import {
+  assertInviteCreateRateLimit,
+  assertUsersNotBlocked,
+  SafetyServiceError,
+} from '../safety/service.js';
+import {
   insertChange,
   lockWorkspaceSyncState,
   updateWorkspaceSyncSeq,
@@ -236,16 +241,28 @@ export async function createRoomInvitation(
     throw new RoomServiceError('Cannot issue invitation with that role', 403, 'ROOM_FORBIDDEN');
   }
 
+  // Terms gate applies to UGC contribution (chat/content), not invitation issuance.
+  try {
+    await assertInviteCreateRateLimit(client, input.actorId);
+  } catch (err) {
+    if (err instanceof SafetyServiceError) {
+      throw new RoomServiceError(err.message, err.statusCode, err.code);
+    }
+    throw err;
+  }
+
   const ttl = input.expiresInHours ?? ROOM_INVITE_DEFAULT_TTL_HOURS;
   const ttlCheck = validateInvitationTtlHours(ttl);
   if (!ttlCheck.ok) throw new ValidationError(ttlCheck.message);
 
   if (input.recipientUserId) {
-    const profile = await client.query(`SELECT id FROM app.profiles WHERE id = $1`, [
-      input.recipientUserId,
-    ]);
-    if (!profile.rows[0]) {
-      throw new ValidationError('Recipient identity not found');
+    try {
+      await assertUsersNotBlocked(client, input.actorId, input.recipientUserId);
+    } catch (err) {
+      if (err instanceof SafetyServiceError) {
+        throw new RoomServiceError(err.message, err.statusCode, err.code);
+      }
+      throw err;
     }
   }
 
@@ -261,21 +278,30 @@ export async function createRoomInvitation(
   }
 
   const { token, hash, prefix } = generateInviteToken();
-  const ins = await client.query(
-    `INSERT INTO app.room_invitations (
-      workspace_id, created_by, role, token_hash, token_prefix, expires_at, recipient_user_id
-    ) VALUES ($1,$2,$3,$4,$5, now() + ($6 || ' hours')::interval, $7)
-    RETURNING id, workspace_id, role, status, token_prefix, expires_at, recipient_user_id, created_at`,
-    [
-      input.roomId,
-      input.actorId,
-      input.role,
-      hash,
-      prefix,
-      String(ttl),
-      input.recipientUserId ?? null,
-    ]
-  );
+  let ins;
+  try {
+    ins = await client.query(
+      `INSERT INTO app.room_invitations (
+        workspace_id, created_by, role, token_hash, token_prefix, expires_at, recipient_user_id
+      ) VALUES ($1,$2,$3,$4,$5, now() + ($6 || ' hours')::interval, $7)
+      RETURNING id, workspace_id, role, status, token_prefix, expires_at, recipient_user_id, created_at`,
+      [
+        input.roomId,
+        input.actorId,
+        input.role,
+        hash,
+        prefix,
+        String(ttl),
+        input.recipientUserId ?? null,
+      ]
+    );
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '23503' && input.recipientUserId) {
+      throw new ValidationError('Recipient identity not found');
+    }
+    throw err;
+  }
   const row = ins.rows[0]!;
 
   await recordAuditEvent(client, {
@@ -407,6 +433,21 @@ export async function acceptRoomInvitation(
 ) {
   assertRoomsLocallyEnabled();
   const hash = hashInviteToken(input.token);
+  const invCreator = await client.query<{ creator: string | null }>(
+    `SELECT app.get_invitation_creator_by_token_hash($1) AS creator`,
+    [hash]
+  );
+  const creatorId = invCreator.rows[0]?.creator;
+  if (creatorId) {
+    try {
+      await assertUsersNotBlocked(client, input.actorId, creatorId);
+    } catch (err) {
+      if (err instanceof SafetyServiceError) {
+        throw new RoomServiceError(err.message, err.statusCode, err.code);
+      }
+      throw err;
+    }
+  }
   let raw: { status: string; workspaceId: string; role: string; invitationId: string };
   try {
     const res = await client.query<{ res: typeof raw }>(

@@ -279,6 +279,11 @@ import {
   RoomChatMessageListResponseSchema,
   RoomChatReadStateResponseSchema,
   RoomChatEventsResponseSchema,
+  UgcReportResponseSchema,
+  UgcTermsStatusResponseSchema,
+  UserBlockResponseSchema,
+  UserBlockListResponseSchema,
+  ModerationReportListResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -307,6 +312,15 @@ import {
   type RoomChatMessageListResponse,
   type RoomChatReadStateResponse,
   type RoomChatEventsResponse,
+  type CreateUgcReportRequest,
+  type AcceptUgcTermsRequest,
+  type BlockUserRequest,
+  type UpdateModerationReportRequest,
+  type UgcReportResponse,
+  type UgcTermsStatusResponse,
+  type UserBlockResponse,
+  type UserBlockListResponse,
+  type ModerationReportListResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3268,6 +3282,84 @@ export class DaynoriApiClient {
       options
     );
     return RoomChatEventsResponseSchema.parse(raw);
+  }
+
+  // --- Phase 54 Collaboration safety ---
+
+  async getUgcTermsStatus(options?: RequestOptions): Promise<UgcTermsStatusResponse> {
+    const raw = await this.request<unknown>(`/v1/safety/terms`, { method: 'GET' }, options);
+    return UgcTermsStatusResponseSchema.parse(raw);
+  }
+
+  async acceptUgcTerms(
+    request: AcceptUgcTermsRequest,
+    options?: RequestOptions
+  ): Promise<UgcTermsStatusResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/safety/terms/accept`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return UgcTermsStatusResponseSchema.parse(raw);
+  }
+
+  async createUgcReport(
+    request: CreateUgcReportRequest,
+    options?: RequestOptions
+  ): Promise<UgcReportResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/safety/reports`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return UgcReportResponseSchema.parse(raw);
+  }
+
+  async listUserBlocks(options?: RequestOptions): Promise<UserBlockListResponse> {
+    const raw = await this.request<unknown>(`/v1/safety/blocks`, { method: 'GET' }, options);
+    return UserBlockListResponseSchema.parse(raw);
+  }
+
+  async blockUser(
+    request: BlockUserRequest,
+    options?: RequestOptions
+  ): Promise<UserBlockResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/safety/blocks`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return UserBlockResponseSchema.parse(raw);
+  }
+
+  async unblockUser(blockedUserId: string, options?: RequestOptions): Promise<void> {
+    await this.request<unknown>(
+      `/v1/safety/blocks/${blockedUserId}`,
+      { method: 'DELETE' },
+      options
+    );
+  }
+
+  async listModerationReports(options?: RequestOptions): Promise<ModerationReportListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/safety/moderation/reports`,
+      { method: 'GET' },
+      options
+    );
+    return ModerationReportListResponseSchema.parse(raw);
+  }
+
+  async updateModerationReport(
+    reportId: string,
+    request: UpdateModerationReportRequest,
+    options?: RequestOptions
+  ): Promise<ModerationReportListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/safety/moderation/reports/${reportId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return ModerationReportListResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

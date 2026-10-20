@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 54 — Collaboration safety and policy gate (blocked / provisional) — 2026-10-20
+
+- Durable UGC reports (categories, explanation bounds, idempotent client ids, rate limits, frozen evidence snapshots) and viewer-capable reporting.
+- User block/unblock with invitation restrictions and blocker-only message hide; mute remains notification-only (ADR 0051).
+- Versioned terms acceptance enforced on chat send; invitation create rate limits; platform-moderator allow-list queue + moderation audit (no staffed owner claimed).
+- Web/Android report, block, and terms controls under local rooms gate. Policy docs + Play UGC review 2026-10-20. Status blocked on staffing and rooms release prerequisites.
+
 ## Phase 53 repair — Chat idempotency, cursors, persistence, publication recovery (blocked) — 2026-10-20
 
 - Lock-first send: idempotency lookup and rate limits run under chat-state lock; immutable `original_payload_hash` survives edit/delete retries; replays do not republish.

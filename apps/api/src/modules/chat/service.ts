@@ -21,6 +21,7 @@ import {
 } from '@daynori/domain';
 import { NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
 import { publishRoomChatEvent } from './localRealtimeBus.js';
+import { assertCurrentTermsAccepted, SafetyServiceError } from '../safety/service.js';
 
 export class ChatServiceError extends Error {
   constructor(
@@ -272,6 +273,14 @@ export async function sendRoomMessage(
   }
 ): Promise<ChatMutationResult> {
   await assertRoomChatAccess(client, input.roomId, input.actorId, 'send');
+  try {
+    await assertCurrentTermsAccepted(client, input.actorId);
+  } catch (err) {
+    if (err instanceof SafetyServiceError) {
+      throw new ChatServiceError(err.message, err.statusCode, err.code);
+    }
+    throw err;
+  }
   const validated = validateRoomChatBody(input.body);
   if (!validated.ok) throw new ValidationError(validated.message);
 
@@ -398,9 +407,13 @@ export async function listRoomMessages(
   }
 ) {
   await assertRoomChatAccess(client, input.roomId, input.actorId, 'read');
+  // Hide blocked senders for this actor only — does not revoke their room membership.
   const limit = clampRoomChatPageSize(input.limit);
-  const params: unknown[] = [input.roomId];
-  let where = 'workspace_id = $1';
+  const params: unknown[] = [input.roomId, input.actorId];
+  let where = `workspace_id = $1
+     AND sender_id NOT IN (
+       SELECT blocked_id FROM app.user_blocks WHERE blocker_id = $2
+     )`;
   if (input.beforeOrder !== undefined) {
     params.push(input.beforeOrder);
     where += ` AND server_order < $${params.length}`;
