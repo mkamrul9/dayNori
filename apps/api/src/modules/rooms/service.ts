@@ -902,3 +902,94 @@ export async function listRoomMembers(client: PoolClient, roomId: string, actorI
   await requireActorRole(client, roomId, actorId, 'viewer');
   return listMemberships(client, roomId);
 }
+
+/**
+ * Phase 52: List approved shared content in a room workspace.
+ * Returns notes, tasks, and files that members can access.
+ */
+export async function listRoomContent(
+  client: PoolClient,
+  roomId: string,
+  actorId: string
+): Promise<{
+  notes: Array<{ id: string; title: string; createdAt: string; updatedAt: string }>;
+  tasks: Array<{ id: string; title: string; status: string; createdAt: string; updatedAt: string }>;
+  files: Array<{ id: string; fileName: string; mimeType: string; byteSize: number; createdAt: string }>;
+}> {
+  assertRoomsLocallyEnabled();
+  await requireActorRole(client, roomId, actorId, 'viewer');
+
+  // Fetch notes
+  const notesRes = await client.query<{
+    id: string;
+    title: string;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `SELECT n.id, n.title, i.created_at, i.updated_at
+     FROM app.notes n
+     JOIN app.items i ON i.workspace_id = n.workspace_id AND i.id = n.id
+     WHERE n.workspace_id = $1
+       AND i.deleted_at IS NULL
+       AND i.security_scope != 'vault'
+     ORDER BY i.updated_at DESC`,
+    [roomId]
+  );
+
+  // Fetch tasks
+  const tasksRes = await client.query<{
+    id: string;
+    title: string;
+    status: string;
+    created_at: Date;
+    updated_at: Date;
+  }>(
+    `SELECT t.id, t.title, t.status, i.created_at, i.updated_at
+     FROM app.tasks t
+     JOIN app.items i ON i.workspace_id = t.workspace_id AND i.id = t.id
+     WHERE t.workspace_id = $1
+       AND i.deleted_at IS NULL
+       AND i.security_scope != 'vault'
+     ORDER BY i.updated_at DESC`,
+    [roomId]
+  );
+
+  // Fetch files
+  const filesRes = await client.query<{
+    id: string;
+    file_name: string;
+    detected_mime_type: string;
+    byte_size: string;
+    created_at: Date;
+  }>(
+    `SELECT id, file_name, detected_mime_type, byte_size, created_at
+     FROM app.file_items
+     WHERE workspace_id = $1
+       AND quarantine_status = 'verified'
+     ORDER BY created_at DESC`,
+    [roomId]
+  );
+
+  return {
+    notes: notesRes.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      createdAt: r.created_at.toISOString(),
+      updatedAt: r.updated_at.toISOString(),
+    })),
+    tasks: tasksRes.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      createdAt: r.created_at.toISOString(),
+      updatedAt: r.updated_at.toISOString(),
+    })),
+    files: filesRes.rows.map(r => ({
+      id: r.id,
+      fileName: r.file_name,
+      mimeType: r.detected_mime_type,
+      byteSize: parseInt(r.byte_size, 10),
+      createdAt: r.created_at.toISOString(),
+    })),
+  };
+}

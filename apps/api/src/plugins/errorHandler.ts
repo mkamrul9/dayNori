@@ -77,6 +77,16 @@ export class StorageUnavailableError extends Error {
   }
 }
 
+export class MembershipRevokedError extends Error {
+  public statusCode = 403;
+  public code: string;
+  constructor(message = 'Membership revoked', code: 'MEMBERSHIP_REVOKED' | 'ROOM_ARCHIVED' = 'MEMBERSHIP_REVOKED') {
+    super(message);
+    this.name = 'MembershipRevokedError';
+    this.code = code;
+  }
+}
+
 export class ResponseValidationError extends Error {
   public override readonly cause?: unknown;
 
@@ -253,6 +263,18 @@ export function createErrorHandler(logger: SafeLogger) {
         },
       };
       return reply.status(503).send(body);
+    }
+
+    // 4i. Membership revoked errors (Phase 52)
+    if (error instanceof MembershipRevokedError) {
+      const body: ApiErrorResponse = {
+        error: {
+          code: error.code as any,
+          message: error.message,
+          requestId,
+        },
+      };
+      return reply.status(403).send(body);
     }
 
     // 5. Authentication errors

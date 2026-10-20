@@ -116,7 +116,8 @@ import {
   calculateCharCount,
 } from '@daynori/domain';
 import { withTenantContext } from '../../db/index.js';
-import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
+import { NotFoundError, ConflictError, ValidationError, MembershipRevokedError } from '../../plugins/errorHandler.js';
+import { isRoomContentBlocked } from '@daynori/domain';
 
 const VALID_ITEM_KINDS = new Set([
   'note',
@@ -130,6 +131,60 @@ const VALID_ITEM_KINDS = new Set([
   'folder',
   'expense',
 ]);
+
+/**
+ * Phase 52: Assert room sync access and enforce role-based permissions.
+ * Throws MembershipRevokedError if membership is removed or room is archived.
+ */
+async function assertRoomSyncAccess(
+  client: PoolClient,
+  workspaceId: string,
+  minRole: 'viewer' | 'editor'
+): Promise<{ kind: string; status: string | null }> {
+  // Query workspace kind, status, and user membership
+  // SECURITY DEFINER helper: RLS would hide room rows from removed members as 404;
+  // rooms need an explicit MEMBERSHIP_REVOKED signal so clients can purge caches.
+  const wsRes = await client.query<{
+    kind: string;
+    status: string | null;
+    user_role: string | null;
+  }>(`SELECT kind, status, user_role FROM app.get_workspace_sync_access($1, app.current_user_id())`, [
+    workspaceId,
+  ]);
+
+  if (wsRes.rows.length === 0) {
+    throw new NotFoundError('Workspace not found');
+  }
+
+  const ws = wsRes.rows[0]!;
+
+  // Check if room is archived
+  if (ws.kind === 'room' && ws.status === 'archived') {
+    throw new MembershipRevokedError('Room is archived', 'ROOM_ARCHIVED');
+  }
+
+  // Check membership — for rooms, removed members get MEMBERSHIP_REVOKED (not opaque 404).
+  if (!ws.user_role) {
+    if (ws.kind === 'room') {
+      throw new MembershipRevokedError('Membership not found or revoked', 'MEMBERSHIP_REVOKED');
+    }
+    throw new NotFoundError('Workspace not found or access revoked');
+  }
+
+  // Check role sufficiency
+  const roleHierarchy: Record<string, number> = { viewer: 1, editor: 2, owner: 3 };
+  const userLevel = roleHierarchy[ws.user_role] || 0;
+  const minLevel = roleHierarchy[minRole] || 0;
+
+  if (userLevel < minLevel) {
+    throw new MembershipRevokedError(
+      `Insufficient role: ${minRole} required but user has ${ws.user_role}`,
+      'MEMBERSHIP_REVOKED'
+    );
+  }
+
+  return { kind: ws.kind, status: ws.status };
+}
 
 export class SyncService {
   constructor(private pool: Pool) {}
@@ -524,13 +579,11 @@ export class SyncService {
         this.pool,
         { userId: actorUserId, workspaceId: cmd.workspaceId },
         async (client) => {
-          // 1. Authorize: Caller must have editor role in the workspace
-          const authCheck = await client.query<{ has_access: boolean }>(
-            `SELECT app.user_has_workspace_role($1, 'editor') as has_access;`,
-            [cmd.workspaceId]
-          );
-
-          if (!authCheck.rows[0]?.has_access) {
+          // Phase 52: Authorize with room-aware access control (editor required for push)
+          let wsInfo: { kind: string; status: string | null };
+          try {
+            wsInfo = await assertRoomSyncAccess(client, cmd.workspaceId, 'editor');
+          } catch (err) {
             return {
               operationId: cmd.operationId,
               status: 'rejected',
@@ -538,10 +591,31 @@ export class SyncService {
               revision: 0,
               seq: null,
               error: {
-                code: 'FORBIDDEN',
-                message: 'Caller lacks editor authorization in target workspace.',
+                code: err instanceof MembershipRevokedError ? err.code : 'FORBIDDEN',
+                message: err instanceof Error ? err.message : 'Access denied',
               },
             };
+          }
+
+          // Phase 52: Block journal/vault content in room workspaces
+          if (wsInfo.kind === 'room') {
+            const blocked = isRoomContentBlocked({
+              kind: cmd.entityType,
+              securityScope: (cmd.payload as any)?.securityScope,
+            });
+            if (blocked) {
+              return {
+                operationId: cmd.operationId,
+                status: 'rejected',
+                entityId: cmd.entityId,
+                revision: 0,
+                seq: null,
+                error: {
+                  code: 'FORBIDDEN',
+                  message: 'Journal and vault content cannot be synced to room workspaces',
+                },
+              };
+            }
           }
 
           // 2. Initial Durable Idempotency Check
@@ -553,12 +627,11 @@ export class SyncService {
           );
 
           if (existingReceipt) {
-            // Reauthorize viewer access in receipt workspace
-            const viewerCheck = await client.query<{ has_access: boolean }>(
-              `SELECT app.user_has_workspace_role($1, 'viewer') as has_access;`,
-              [existingReceipt.workspaceId]
-            );
-            if (!viewerCheck.rows[0]?.has_access) {
+            // Phase 52: Recheck membership before returning cached mutation receipt
+            // Prevents leaking private conflict payloads to removed members
+            try {
+              await assertRoomSyncAccess(client, existingReceipt.workspaceId, 'viewer');
+            } catch (err) {
               return {
                 operationId: cmd.operationId,
                 status: 'rejected',
@@ -566,7 +639,7 @@ export class SyncService {
                 revision: 0,
                 seq: null,
                 error: {
-                  code: 'FORBIDDEN',
+                  code: err instanceof MembershipRevokedError ? err.code : 'FORBIDDEN',
                   message: 'Access to target workspace has been revoked.',
                 },
               };
@@ -3996,14 +4069,8 @@ export class SyncService {
       this.pool,
       { userId: actorUserId, workspaceId: query.workspaceId },
       async (client) => {
-        // Authorize: Caller must have viewer role in target workspace
-        const auth = await client.query<{ has_access: boolean }>(
-          `SELECT app.user_has_workspace_role($1, 'viewer') as has_access;`,
-          [query.workspaceId]
-        );
-        if (!auth.rows[0]?.has_access) {
-          throw new NotFoundError('Workspace not found or access revoked');
-        }
+        // Phase 52: Assert room sync access (viewer role required for pull)
+        await assertRoomSyncAccess(client, query.workspaceId, 'viewer');
 
         const syncState = await getWorkspaceSyncState(client, query.workspaceId);
         if (!syncState) {
@@ -4101,14 +4168,8 @@ export class SyncService {
       this.pool,
       { userId: actorUserId, workspaceId },
       async (client) => {
-        // 1. Authorize: Caller must have viewer role
-        const auth = await client.query<{ has_access: boolean }>(
-          `SELECT app.user_has_workspace_role($1, 'viewer') as has_access;`,
-          [workspaceId]
-        );
-        if (!auth.rows[0]?.has_access) {
-          throw new NotFoundError('Workspace not found or access revoked');
-        }
+        // Phase 52: Assert room sync access (viewer role required for bootstrap)
+        await assertRoomSyncAccess(client, workspaceId, 'viewer');
 
         const syncState = await getWorkspaceSyncState(client, workspaceId);
         if (!syncState) {

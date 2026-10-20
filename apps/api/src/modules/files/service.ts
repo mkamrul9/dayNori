@@ -30,6 +30,7 @@ import {
   FileNotReadyError,
   FileValidationError,
   ConflictError,
+  MembershipRevokedError,
 } from '../../plugins/errorHandler.js';
 
 export const PRIVATE_ASSETS_BUCKET = 'private_assets';
@@ -869,6 +870,22 @@ export async function getFileDownloadCapability(
   mimeType: string;
   byteSize: number;
 }> {
+  // Phase 52: Recheck membership for room workspaces before issuing signed URL
+  const wsRes = await client.query<{
+    kind: string;
+    status: string | null;
+    user_role: string | null;
+  }>(`SELECT kind, status, user_role FROM app.get_workspace_sync_access($1, app.current_user_id())`, [
+    workspaceId,
+  ]);
+  const ws = wsRes.rows[0];
+  if (ws?.kind === 'room' && (ws.status === 'archived' || !ws.user_role)) {
+    throw new MembershipRevokedError(
+      ws.status === 'archived' ? 'Room is archived' : 'Membership not found or revoked',
+      ws.status === 'archived' ? 'ROOM_ARCHIVED' : 'MEMBERSHIP_REVOKED'
+    );
+  }
+
   const file = await getFileItem(client, workspaceId, fileId);
 
   // Guard: ONLY verified files may be downloaded!

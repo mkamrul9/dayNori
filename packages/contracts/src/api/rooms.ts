@@ -176,3 +176,44 @@ export const CopyPersonalItemToRoomResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type CopyPersonalItemToRoomResponse = z.infer<typeof CopyPersonalItemToRoomResponseSchema>;
+
+/**
+ * Phase 52: Room content listing response
+ */
+export const RoomContentItemSchema = z.object({
+  notes: z.array(
+    z.object({
+      id: z.string().uuid(),
+      title: z.string(),
+      createdAt: z.string().datetime(),
+      updatedAt: z.string().datetime(),
+    })
+  ),
+  tasks: z.array(
+    z.object({
+      id: z.string().uuid(),
+      title: z.string(),
+      status: z.string(),
+      createdAt: z.string().datetime(),
+      updatedAt: z.string().datetime(),
+    })
+  ),
+  files: z.array(
+    z.object({
+      id: z.string().uuid(),
+      fileName: z.string(),
+      mimeType: z.string(),
+      byteSize: z.number().int().nonnegative(),
+      createdAt: z.string().datetime(),
+    })
+  ),
+});
+
+export type RoomContent = z.infer<typeof RoomContentItemSchema>;
+
+export const RoomContentResponseSchema = z.object({
+  data: RoomContentItemSchema,
+  meta: ResponseMetaSchema,
+});
+
+export type RoomContentResponse = z.infer<typeof RoomContentResponseSchema>;

@@ -32,13 +32,18 @@ import type {
   JournalEntryRecord,
   CalendarEventRecord,
 } from './models.js';
-import { type SyncTransportPort, classifySyncError } from './transport.js';
+import { type SyncTransportPort } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
 import {
   MAX_OFFLINE_HORIZON_MS,
   validateFolderMovePolicy,
   mergeTaskFields,
 } from './recovery.js';
+import {
+  applyRoomRevocationPurge,
+  classifyRoomSyncFailure,
+  planRoomRevocationPurge,
+} from './roomRevocation.js';
 
 export interface SaveItemOptions {
   dependencyOperationIds?: string[];
@@ -74,6 +79,12 @@ export type SyncEngineEvent =
   | { type: 'sync_completed'; changesCount: number; pushedCount: number }
   | { type: 'conflict_detected'; conflict: ConflictRecord }
   | { type: 'conflict_resolved'; conflictId: string }
+  | {
+      type: 'room_revoked';
+      workspaceId: string;
+      reason: string;
+      message: string;
+    }
   | { type: 'error'; message: string; code?: string; isAuthError?: boolean };
 
 function defaultIdGenerator(): string {
@@ -2306,9 +2317,15 @@ export class SyncEngine {
 
         hasMore = pullRes.data.hasMore;
       } catch (err) {
-        const classified = classifySyncError(err);
+        const classified = classifyRoomSyncFailure(err);
+        if (classified.isMembershipRevoked) {
+          await this.handleRoomMembershipRevoked(classified.revocationReason ?? 'membership_removed');
+          return { changesCount: totalChanges };
+        }
         if (classified.isResetRequired) {
           this.log('warn', 'Cursor expired or epoch rotated; initiating bootstrap snapshot reset');
+          // For rooms, epoch rotation after membership change is handled as revocation above.
+          // Personal/workspace reset preserves drafts via bootstrap rebase.
           await this.resetAndBootstrap();
           return { changesCount: totalChanges };
         }
@@ -3308,9 +3325,51 @@ export class SyncEngine {
 
   // --- Internal Utilities ---
 
+  /**
+   * Observed room membership revocation: stop sync for this workspace, purge readable
+   * room caches, drop unauthorized queued writes. Does not publish drafts elsewhere.
+   * Offline devices may retain previously downloaded bytes until this path runs.
+   */
+  async handleRoomMembershipRevoked(
+    reason: string = 'membership_removed'
+  ): Promise<void> {
+    this.log('warn', `Room membership revoked (${reason}); purging local room cache`);
+    await this.stop();
+    const scope = planRoomRevocationPurge({
+      workspaceId: this.namespace.workspaceId,
+      userId: this.namespace.userId,
+      reason: reason as
+        | 'membership_removed'
+        | 'role_downgraded'
+        | 'room_archived'
+        | 'access_epoch_changed'
+        | 'cursor_invalid',
+    });
+    await applyRoomRevocationPurge(
+      this.repository,
+      scope,
+      this.abortController ?? undefined
+    );
+    this.itemStates.clear();
+    this.activeConflicts.clear();
+    this.setOverallStatus('needs_attention');
+    this.emit({
+      type: 'room_revoked',
+      workspaceId: this.namespace.workspaceId,
+      reason,
+      message:
+        'Room access was revoked. Shared caches for this room were cleared. Previously downloaded offline copies may remain on disconnected devices until reconnect.',
+    });
+  }
+
   private handleSyncFailure(error: unknown): void {
-    const classified = classifySyncError(error);
+    const classified = classifyRoomSyncFailure(error);
     this.consecutiveFailures++;
+
+    if (classified.isMembershipRevoked) {
+      void this.handleRoomMembershipRevoked(classified.revocationReason ?? 'membership_removed');
+      return;
+    }
 
     if (classified.isAuthError) {
       this.handleAuthLost();

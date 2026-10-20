@@ -40,6 +40,7 @@ import {
   revokeRoomInvitation,
   transferRoomOwnership,
   updateRoomMemberRole,
+  listRoomContent,
 } from '../../modules/rooms/service.js';
 
 const RoomParamsSchema = z.object({ roomId: z.string().uuid() });
@@ -420,6 +421,24 @@ export function registerRoomRoutes(app: FastifyInstance, pool: Pool): void {
           meta: { requestId: request.id, serverTime: new Date().toISOString() },
         })
       );
+    } catch (err) {
+      return sendRoomError(err, reply);
+    }
+  });
+
+  // Phase 52: List room content
+  app.get('/v1/rooms/:roomId/content', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const { roomId } = RoomParamsSchema.parse(request.params);
+    try {
+      const data = await withTenantContext(pool, { userId: actor.userId, workspaceId: roomId }, (client) =>
+        listRoomContent(client, roomId, actor.userId)
+      );
+      return reply.status(200).send({
+        data,
+        meta: { requestId: request.id, serverTime: new Date().toISOString() },
+      });
     } catch (err) {
       return sendRoomError(err, reply);
     }

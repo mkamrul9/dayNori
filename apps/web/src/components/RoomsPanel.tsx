@@ -5,6 +5,7 @@ import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/des
 import { Button, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import type { Room, RoomInvitation } from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
+import { RoomContentPanel } from './RoomContentPanel';
 
 export interface RoomsPanelProps {
   csrfToken: string | null;
@@ -39,6 +40,7 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
     null
   );
   const [busy, setBusy] = useState(false);
+  const [showContent, setShowContent] = useState(false);
 
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
 
@@ -288,6 +290,16 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
               ) : null}
               <Button
                 type="button"
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => setShowContent(true)}
+                disabled={busy}
+              >
+                Open shared content
+              </Button>
+              <Button
+                type="button"
                 variant="subtle"
                 size="compact"
                 themeMode={themeMode}
@@ -297,6 +309,15 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
                 Leave room
               </Button>
             </div>
+            {showContent ? (
+              <RoomContentPanel
+                csrfToken={csrfToken}
+                themeMode={themeMode}
+                room={selected}
+                personalWorkspaceId={personalWorkspaceId}
+                onClose={() => setShowContent(false)}
+              />
+            ) : null}
 
             {inviteToken ? (
               <div

@@ -26,6 +26,7 @@ export interface ClassifiedSyncError {
   isResetRequired: boolean;
   isRateLimited: boolean;
   isClientError: boolean;
+  isMembershipRevoked?: boolean;
   retryAfterMs?: number;
   message: string;
   code?: string;
@@ -70,6 +71,12 @@ export function classifySyncError(error: unknown): ClassifiedSyncError {
     code === 'AUTH_EXPIRED' ||
     code === 'TOKEN_REVOKED';
 
+  // Phase 52: Detect membership revocation signals
+  const isMembershipRevoked =
+    code === 'MEMBERSHIP_REVOKED' ||
+    code === 'ROOM_ARCHIVED' ||
+    (statusCode === 403 && message.toLowerCase().includes('access revoked'));
+
   // Specific protocol error code check: do NOT treat every HTTP 409 as a reset!
   const isResetRequired = code === 'SYNC_RESET_REQUIRED' || message.includes('SYNC_RESET_REQUIRED');
 
@@ -85,6 +92,7 @@ export function classifySyncError(error: unknown): ClassifiedSyncError {
     isResetRequired,
     isRateLimited,
     isClientError,
+    isMembershipRevoked,
     retryAfterMs: retryAfter,
     message,
     code,

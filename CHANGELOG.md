@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 52 — Shared content sync and revocation (blocked / provisional) — 2026-10-20
+
+- Room-scoped note/task/file sync with role revalidation on pull/push/bootstrap/receipts/downloads; journal/vault excluded.
+- Explicit `MEMBERSHIP_REVOKED` / `ROOM_ARCHIVED` signals; client purge protocol and SyncEngine `room_revoked` event; offline copy limits documented.
+- Concurrent shared edit conflicts reuse Phase 34 revision rules (no live OT). Web/Android room content UI under local gate.
+- ADR 0049. Phase 52 is sync/revocation — chat remains Phase 53. Status blocked on Phases 51/34 release evidence. Vault stays disabled.
+
 ## Phase 51 repair — Quarantine, ownership concurrency, copy boundaries (blocked) — 2026-10-20
 
 - Quarantine uses reconciliation inventory status (not the renameable Legacy Room name suffix); rename cannot unlock invites.

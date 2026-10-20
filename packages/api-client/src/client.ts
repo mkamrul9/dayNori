@@ -274,6 +274,7 @@ import {
   AcceptRoomInvitationResponseSchema,
   CopyPersonalItemToRoomPreviewResponseSchema,
   CopyPersonalItemToRoomResponseSchema,
+  RoomContentResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -293,6 +294,7 @@ import {
   type CopyPersonalItemToRoomRequest,
   type RoomListResponse,
   type RoomResponse,
+  type RoomContentResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3128,6 +3130,18 @@ export class DaynoriApiClient {
       options
     );
     return CopyPersonalItemToRoomResponseSchema.parse(raw);
+  }
+
+  /**
+   * Phase 52: List approved shared content in a room workspace.
+   */
+  async listRoomContent(roomId: string, options?: RequestOptions): Promise<RoomContentResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/rooms/${roomId}/content`,
+      { method: 'GET' },
+      options
+    );
+    return RoomContentResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

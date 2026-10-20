@@ -32,6 +32,7 @@ export function RoomsSheet({
   const [acceptToken, setAcceptToken] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [contentSummary, setContentSummary] = useState<string | null>(null);
 
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
 
@@ -174,6 +175,39 @@ export function RoomsSheet({
             </MobileButton>
           ) : null}
           <MobileButton
+            themeMode={themeMode}
+            disabled={busy}
+            accessibilityLabel="Open shared content"
+            onPress={() => {
+              void (async () => {
+                setBusy(true);
+                try {
+                  const res = await apiClient.listRoomContent(selected.id);
+                  setContentSummary(
+                    `Notes ${res.data.notes.length} · Tasks ${res.data.tasks.length} · Files ${res.data.files.length} · role ${selected.actorRole}`
+                  );
+                  setMessage(
+                    selected.actorRole === 'viewer'
+                      ? 'Viewer: read-only shared content loaded'
+                      : 'Shared content loaded (personal workspace stays separate)'
+                  );
+                } catch (err) {
+                  const msg = err instanceof Error ? err.message : 'Content failed';
+                  setContentSummary(null);
+                  setMessage(
+                    /MEMBERSHIP_REVOKED|revoked|403/i.test(msg)
+                      ? 'Room access revoked. Shared caches for this room should be cleared on reconnect.'
+                      : msg
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          >
+            Open shared content
+          </MobileButton>
+          <MobileButton
             variant="subtle"
             themeMode={themeMode}
             disabled={busy}
@@ -184,6 +218,7 @@ export function RoomsSheet({
                 try {
                   await apiClient.leaveRoom(selected.id);
                   setSelectedId(null);
+                  setContentSummary(null);
                   setMessage('Left room');
                   await refresh();
                 } catch (err) {
@@ -196,6 +231,14 @@ export function RoomsSheet({
           >
             Leave room
           </MobileButton>
+          {contentSummary ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{ color: palette.text.secondary, marginTop: spacing.sm }}
+            >
+              {contentSummary}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
