@@ -16,6 +16,7 @@ import { ReminderAgendaView } from '../../components/ReminderAgendaView';
 import { DriveConnectionsPanel } from '../../components/DriveConnectionsPanel';
 import { RoomsPanel } from '../../components/RoomsPanel';
 import { AiConsentHarness } from '../../components/AiConsentHarness';
+import { AssistantPanel } from '../../components/AssistantPanel';
 import { createWebApiClient } from '../../data/webApiClient';
 
 export default function SettingsPage() {
@@ -771,6 +772,17 @@ export default function SettingsPage() {
         {isAuthenticated ? (
           <Card themeMode={themeMode} id="ai-consent">
             <AiConsentHarness
+              csrfToken={csrfToken}
+              themeMode={themeMode}
+              personalWorkspaceId={workspaceId}
+            />
+          </Card>
+        ) : null}
+
+        {/* 7e. Assistant + reviewable proposals (Phase 56 provisional local) */}
+        {isAuthenticated ? (
+          <Card themeMode={themeMode} id="ai-assistant">
+            <AssistantPanel
               csrfToken={csrfToken}
               themeMode={themeMode}
               personalWorkspaceId={workspaceId}

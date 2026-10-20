@@ -288,6 +288,9 @@ import {
   AiIndexResultResponseSchema,
   AiRetrieveResponseSchema,
   AiPurgeResponseSchema,
+  AiAskResponseSchema,
+  AiProposalResponseSchema,
+  AiAssistantHistoryResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -333,6 +336,13 @@ import {
   type AiIndexResultResponse,
   type AiRetrieveResponse,
   type AiPurgeResponse,
+  type AiAskRequest,
+  type AiAskResponse,
+  type CreateAiProposalRequest,
+  type ConfirmAiProposalRequest,
+  type AiProposalResponse,
+  type AiAssistantHistoryResponse,
+  type SaveAiDraftRequest,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3432,6 +3442,77 @@ export class DaynoriApiClient {
   async purgeAiDerived(options?: RequestOptions): Promise<AiPurgeResponse> {
     const raw = await this.request<unknown>(`/v1/ai/purge`, { method: 'POST', body: '{}' }, options);
     return AiPurgeResponseSchema.parse(raw);
+  }
+
+  // --- Phase 56 Assistant + proposals ---
+
+  async askAssistant(request: AiAskRequest, options?: RequestOptions): Promise<AiAskResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/assistant/ask`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AiAskResponseSchema.parse(raw);
+  }
+
+  async listAssistantHistory(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<AiAssistantHistoryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/assistant/history?workspaceId=${encodeURIComponent(workspaceId)}`,
+      { method: 'GET' },
+      options
+    );
+    return AiAssistantHistoryResponseSchema.parse(raw);
+  }
+
+  async saveAssistantDraft(
+    request: SaveAiDraftRequest,
+    options?: RequestOptions
+  ): Promise<void> {
+    await this.request<unknown>(
+      `/v1/ai/assistant/draft`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+  }
+
+  async createAiProposal(
+    request: CreateAiProposalRequest,
+    options?: RequestOptions
+  ): Promise<AiProposalResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/proposals`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AiProposalResponseSchema.parse(raw);
+  }
+
+  async confirmAiProposal(
+    proposalId: string,
+    request: ConfirmAiProposalRequest,
+    options?: RequestOptions
+  ): Promise<AiProposalResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/proposals/${proposalId}/confirm`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AiProposalResponseSchema.parse(raw);
+  }
+
+  async cancelAiProposal(
+    proposalId: string,
+    options?: RequestOptions
+  ): Promise<AiProposalResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/proposals/${proposalId}/cancel`,
+      { method: 'POST', body: '{}' },
+      options
+    );
+    return AiProposalResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

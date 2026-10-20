@@ -24,7 +24,9 @@ export type ActiveModal =
   /** Phase 49 provisional Drive connections — not production Google enablement. */
   | 'drive-connections'
   /** Phase 51 provisional shared rooms — not public invitation enablement. */
-  | 'rooms';
+  | 'rooms'
+  /** Phase 56 provisional assistant — not live/production AI enablement. */
+  | 'assistant';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

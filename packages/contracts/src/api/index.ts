@@ -26,4 +26,5 @@ export * from './rooms.js';
 export * from './chat.js';
 export * from './safety.js';
 export * from './ai.js';
+export * from './assistant.js';
 

@@ -45,6 +45,7 @@ import { registerRoomRoutes } from './routes/v1/rooms.js';
 import { registerChatRoutes } from './routes/v1/chat.js';
 import { registerSafetyRoutes } from './routes/v1/safety.js';
 import { registerAiRoutes } from './routes/v1/ai.js';
+import { registerAssistantRoutes } from './routes/v1/assistant.js';
 import {
   startChatPublicationRecovery,
   stopChatPublicationRecovery,
@@ -265,6 +266,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerChatRoutes(authScope, runtimePool);
       registerSafetyRoutes(authScope, runtimePool);
       registerAiRoutes(authScope, runtimePool);
+      registerAssistantRoutes(authScope, runtimePool);
       registerAuthenticatedDeletionRoutes(authScope, runtimePool);
     });
   }

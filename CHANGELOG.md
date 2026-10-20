@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 56 — AI assistant and confirmed organizer actions (blocked / provisional) — 2026-10-20
+
+- Assistant ask reuses Phase 55 retrieval with labeled fake/gated answers, history/draft retention, and source citation links on web and Android.
+- Durable `ai_proposals` with opaque confirmation tokens; allow-listed personal task create/update and note create via existing domain services only after explicit Confirm.
+- Cancel, expiry, consent change, cross-tenant, vault scope, and payload-substitution rejects; concurrent confirm and retry return a single receipt.
+- Disable/purge and account deletion clear assistant turns and proposals. ADR 0053. Live provider and production AI remain disabled. Stop before Phase 57.
+
 ## Phase 55 repair — Consent fencing, durable budgets, citation binding (blocked) — 2026-10-20
 
 - Provider I/O outside reservation transactions; post-provider consent/generation revalidation; AbortSignal cancellation (non-recall documented).

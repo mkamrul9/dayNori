@@ -576,9 +576,12 @@ export class DeletionService {
     await client.query('DELETE FROM app.devices WHERE user_id = $1;', [userId]);
     await client.query('DELETE FROM app.web_push_subscriptions WHERE user_id = $1;', [userId]);
 
-    // 4b. Remove AI derived indexes, consent, and budgets (Phase 55).
+    // 4b. Remove AI derived indexes, consent, budgets, assistant history/proposals (Phase 55/56).
     // Does not recall content already transmitted to an external provider.
     await client.query('DELETE FROM app.ai_index_chunks WHERE owner_user_id = $1;', [userId]);
+    await client.query('DELETE FROM app.ai_proposals WHERE user_id = $1;', [userId]);
+    await client.query('DELETE FROM app.ai_assistant_turns WHERE user_id = $1;', [userId]);
+    await client.query('DELETE FROM app.ai_budget_requests WHERE user_id = $1;', [userId]);
     await client.query('DELETE FROM app.ai_consents WHERE user_id = $1;', [userId]);
     await client.query('DELETE FROM app.ai_budget_windows WHERE user_id = $1;', [userId]);
     await client.query(

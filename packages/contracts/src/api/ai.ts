@@ -85,6 +85,7 @@ export const AiCitationSchema = z
     excerpt: z.string().max(500),
   })
   .strict();
+export type AiCitation = z.infer<typeof AiCitationSchema>;
 
 export const AiRetrieveResponseSchema = z.object({
   data: z.object({

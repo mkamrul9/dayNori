@@ -37,6 +37,8 @@ export interface SettingsViewProps {
   onOpenDriveConnections?: () => void;
   /** Opens provisional shared rooms sheet (Phase 51). */
   onOpenRooms?: () => void;
+  /** Opens provisional assistant sheet (Phase 56). */
+  onOpenAssistant?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -69,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenVaultHarness,
   onOpenDriveConnections,
   onOpenRooms,
+  onOpenAssistant,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -488,6 +491,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
         </MobileCard>
       </View>
+
+      {/* Section 5c0: Assistant (Phase 56 provisional) */}
+      {isAuthenticated && onOpenAssistant ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Assistant
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Provisional local source-linked answers and reviewable task/note drafts. Fake/gated
+              provider only. Vault never accessed. Confirm is required before any write.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenAssistant}
+                accessibilityLabel="Open assistant"
+              >
+                Open assistant
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
 
       {/* Section 5c1a: Shared rooms (Phase 51 provisional) */}
       {isAuthenticated && onOpenRooms ? (

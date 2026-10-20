@@ -64,6 +64,7 @@ import { CustomSectionsView } from './src/views/CustomSectionsView';
 import { VaultHarnessView } from './src/vault/VaultHarnessView';
 import { DriveConnectionsSheet } from './src/views/DriveConnectionsSheet';
 import { RoomsSheet } from './src/views/RoomsSheet';
+import { AssistantSheet } from './src/views/AssistantSheet';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -828,10 +829,29 @@ export default function App() {
                 ? () => setActiveModal('rooms')
                 : undefined
             }
+            onOpenAssistant={
+              apiClient && userNamespace?.workspaceId
+                ? () => setActiveModal('assistant')
+                : undefined
+            }
             onClose={() => setActiveModal('none')}
           />
         </View>
       )}
+
+      {/* Phase 56 provisional assistant */}
+      {activeModal === 'assistant' && apiClient && userNamespace?.workspaceId ? (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+        >
+          <AssistantSheet
+            themeMode={themeMode}
+            workspaceId={userNamespace.workspaceId}
+            apiClient={apiClient}
+            onClose={() => setActiveModal('settings')}
+          />
+        </View>
+      ) : null}
 
       {/* Phase 51 provisional shared rooms */}
       {activeModal === 'rooms' && apiClient && userNamespace?.workspaceId ? (

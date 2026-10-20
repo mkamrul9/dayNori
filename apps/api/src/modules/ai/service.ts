@@ -180,6 +180,8 @@ export async function disableAi(
     deletedChunks = Number(res.rows[0]?.ai_purge_derived_for_user ?? 0);
   }
   await fencePendingAiIndexJobs(client, input.userId, 'ai_disabled');
+  const { purgeAssistantDataForUser } = await import('./assistantService.js');
+  await purgeAssistantDataForUser(client, input.userId);
   return { status: await getAiConsentStatus(client, input.userId), deletedChunks };
 }
 
