@@ -121,15 +121,19 @@ export function registerAiRoutes(app: FastifyInstance, pool: Pool): void {
     const actor = request.actor;
     if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
     const body = AiRetrieveRequestSchema.parse(request.body);
+    const ac = new AbortController();
+    request.raw.on('close', () => {
+      if (!request.raw.complete) ac.abort();
+    });
     try {
-      const data = await withUserContext(pool, actor.userId, (client) =>
-        retrieveAuthorizedAnswer(client, {
-          userId: actor.userId,
-          workspaceId: body.workspaceId,
-          query: body.query,
-          limit: body.limit,
-        })
-      );
+      // Provider I/O intentionally outside a single withUserContext transaction.
+      const data = await retrieveAuthorizedAnswer(pool, {
+        userId: actor.userId,
+        workspaceId: body.workspaceId,
+        query: body.query,
+        limit: body.limit,
+        signal: ac.signal,
+      });
       return reply.send(
         validateResponse(AiRetrieveResponseSchema, { data, meta: meta(request.id) })
       );

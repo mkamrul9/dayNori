@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 55 repair — Consent fencing, durable budgets, citation binding (blocked) — 2026-10-20
+
+- Provider I/O outside reservation transactions; post-provider consent/generation revalidation; AbortSignal cancellation (non-recall documented).
+- Durable `ai_budget_requests` with estimate-based reserve and actual-usage settle (may exceed reservation); concurrent connection tests.
+- Citations bound to authorized `[source:uuid#rN]`; eligibility filtered before ranking; referenced ≠ retrieved context.
+- Index lifecycle enqueue/invalidate from notes/tasks/journal/import; jobs require `consentGeneration`.
+- OpenAI adapter `store:false` + mock-transport validation; ADR 0052 amended. Executable fake eval runner. Live provider still disabled.
+
 ## Phase 55 — AI provider privacy and retrieval foundation (blocked / provisional) — 2026-10-20
 
 - Versioned AI consent with provider disclosure and distinct journal opt-in; default-off personal-workspace indexing/retrieval with citation checks.

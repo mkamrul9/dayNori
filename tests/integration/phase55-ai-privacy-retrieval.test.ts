@@ -357,33 +357,21 @@ describe('Phase 55: AI provider privacy and retrieval foundation', () => {
     expect(chunks).toBe(0);
   });
 
-  it('exhausts concurrent budget reservations atomically', async () => {
+  it('exhausts budget under concurrent independent connections', async () => {
     await acceptAi(clientA);
-    const note = await clientA.createNote(workspaceAId, {
-      title: 'Budget note',
-      document: {
-        version: 1,
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'budget token filler' }] }],
-      },
-    });
-    await clientA.indexAiSource({ workspaceId: workspaceAId, itemId: note.data.id });
-
     await withUserContext(runtimePool, userAId, async (client) => {
+      await client.query(`DELETE FROM app.ai_budget_requests WHERE user_id = $1`, [userAId]);
       await client.query(`DELETE FROM app.ai_budget_windows WHERE user_id = $1`, [userAId]);
-      // Tiny budget so concurrent 1200 estimates collide.
-      const r1 = await client.query<{ ok: boolean }>(
-        `SELECT ok FROM app.ai_reserve_tokens($1, 400, 500)`,
-        [userAId]
-      );
-      expect(r1.rows[0]!.ok).toBe(true);
-      const r2 = await client.query<{ ok: boolean }>(
-        `SELECT ok FROM app.ai_reserve_tokens($1, 400, 500)`,
-        [userAId]
-      );
-      expect(r2.rows[0]!.ok).toBe(false);
-      await client.query(`SELECT app.ai_settle_tokens($1, 400, 50)`, [userAId]);
     });
+    const run = () =>
+      withUserContext(runtimePool, userAId, (client) =>
+        client.query<{ ok: boolean }>(
+          `SELECT ok FROM app.ai_create_reservation($1, 400, 1, 500)`,
+          [userAId]
+        )
+      );
+    const results = await Promise.all([run(), run(), run()]);
+    expect(results.filter((r) => r.rows[0]!.ok).length).toBe(1);
   });
 
   it('redacts prompt/content keys from structured logs', () => {

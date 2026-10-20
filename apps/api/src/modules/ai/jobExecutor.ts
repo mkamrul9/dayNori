@@ -1,6 +1,7 @@
 /**
  * Durable AI index/purge jobs. Revalidates consent and eligibility before writing.
  * Stale jobs after disable/exclusion/deletion complete as fenced without recreating indexes.
+ * consentGeneration is required — missing metadata fails closed.
  */
 
 import type { PoolClient } from 'pg';
@@ -37,7 +38,22 @@ export async function executeAiBackgroundJob(
   if (task === 'ai_index_source') {
     const workspaceId = String(payload['workspaceId'] ?? '');
     const itemId = String(payload['itemId'] ?? '');
-    const expectedGeneration = Number(payload['consentGeneration'] ?? -1);
+    const rawGen = payload['consentGeneration'];
+    if (rawGen === undefined || rawGen === null || rawGen === '') {
+      return {
+        status: 'failed',
+        errorCode: 'AI_JOB_GENERATION_REQUIRED',
+        details: { reason: 'missing_consent_generation' },
+      };
+    }
+    const expectedGeneration = Number(rawGen);
+    if (!Number.isInteger(expectedGeneration) || expectedGeneration < 1) {
+      return {
+        status: 'failed',
+        errorCode: 'AI_JOB_GENERATION_REQUIRED',
+        details: { reason: 'invalid_consent_generation', value: rawGen },
+      };
+    }
     if (!workspaceId || !itemId) {
       return { status: 'failed', errorCode: 'AI_JOB_INVALID', details: { reason: 'missing_ids' } };
     }
@@ -50,13 +66,13 @@ export async function executeAiBackgroundJob(
     if (!row?.enabled) {
       return { status: 'fenced', errorCode: 'AI_CONSENT_DISABLED', details: { reason: 'disabled' } };
     }
-    if (expectedGeneration >= 0 && row.consent_generation !== expectedGeneration) {
+    if (Number(row.consent_generation) !== expectedGeneration) {
       return {
         status: 'fenced',
         errorCode: 'AI_CONSENT_GENERATION_STALE',
         details: {
           expected: expectedGeneration,
-          actual: row.consent_generation,
+          actual: Number(row.consent_generation),
         },
       };
     }
@@ -68,6 +84,26 @@ export async function executeAiBackgroundJob(
           status: 'fenced',
           errorCode: 'AI_SOURCE_INELIGIBLE',
           details: { reason: indexed.reason, chunkCount: indexed.chunkCount },
+        };
+      }
+      // Final fence after write attempt — purge if consent flipped mid-job.
+      const after = await client.query<{ enabled: boolean; consent_generation: number }>(
+        `SELECT enabled, consent_generation FROM app.ai_consents WHERE user_id = $1`,
+        [userId]
+      );
+      if (
+        !after.rows[0]?.enabled ||
+        Number(after.rows[0].consent_generation) !== expectedGeneration
+      ) {
+        await client.query(
+          `DELETE FROM app.ai_index_chunks
+           WHERE owner_user_id = $1 AND workspace_id = $2 AND source_item_id = $3`,
+          [userId, workspaceId, itemId]
+        );
+        return {
+          status: 'fenced',
+          errorCode: 'AI_CONSENT_GENERATION_STALE',
+          details: { reason: 'post_write_fence' },
         };
       }
       return { status: 'succeeded', details: { chunkCount: indexed.chunkCount } };
@@ -99,6 +135,19 @@ export async function enqueueAiIndexSource(
     consentGeneration: number;
   }
 ): Promise<string> {
+  if (!Number.isInteger(input.consentGeneration) || input.consentGeneration < 1) {
+    throw new Error('AI_JOB_GENERATION_REQUIRED');
+  }
+  // Fence older pending jobs for the same source so stale workers cannot recreate purged indexes.
+  await client.query(
+    `UPDATE app.background_jobs
+     SET status = 'failed', last_error = 'superseded by newer ai_index_source', updated_at = now()
+     WHERE status IN ('pending', 'running')
+       AND task_type = 'ai_index_source'
+       AND payload->>'userId' = $1
+       AND payload->>'itemId' = $2`,
+    [input.userId, input.itemId]
+  );
   const res = await client.query<{ id: string }>(
     `INSERT INTO app.background_jobs (task_type, payload, run_at, status, created_at, updated_at)
      VALUES ('ai_index_source', $1::jsonb, now(), 'pending', now(), now())
@@ -114,4 +163,25 @@ export async function enqueueAiIndexSource(
     ]
   );
   return res.rows[0]!.id;
+}
+
+export async function invalidateAiIndexSource(
+  client: PoolClient,
+  input: { userId: string; workspaceId: string; itemId: string }
+): Promise<number> {
+  await client.query(
+    `UPDATE app.background_jobs
+     SET status = 'failed', last_error = 'source invalidated', updated_at = now()
+     WHERE status IN ('pending', 'running')
+       AND task_type = 'ai_index_source'
+       AND payload->>'userId' = $1
+       AND payload->>'itemId' = $2`,
+    [input.userId, input.itemId]
+  );
+  const res = await client.query(
+    `DELETE FROM app.ai_index_chunks
+     WHERE owner_user_id = $1 AND workspace_id = $2 AND source_item_id = $3`,
+    [input.userId, input.workspaceId, input.itemId]
+  );
+  return res.rowCount ?? 0;
 }

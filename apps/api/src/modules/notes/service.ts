@@ -23,6 +23,10 @@ import {
   insertOutboxIntent,
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
+import {
+  onPersonalItemInvalidatedForAi,
+  onPersonalItemUpsertedForAi,
+} from '../ai/indexLifecycle.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
 
 interface NoteDbRow {
@@ -178,6 +182,13 @@ export async function createNote(
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: noteId,
+    kind: 'note',
+  });
 
   return {
     id: noteId,
@@ -522,6 +533,13 @@ export async function updateNote(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: noteId,
+    kind: 'note',
+  });
+
   return {
     id: noteId,
     workspaceId,
@@ -609,6 +627,12 @@ export async function trashNote(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
+  await onPersonalItemInvalidatedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: noteId,
+  });
+
   return { id: noteId, revision: nextRevision, seq };
 }
 
@@ -693,6 +717,13 @@ export async function restoreNote(
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: noteId,
+    kind: 'note',
+  });
 
   return {
     ...mapRowToNote(current),

@@ -23,6 +23,10 @@ import {
   insertOutboxIntent,
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
+import {
+  onPersonalItemInvalidatedForAi,
+  onPersonalItemUpsertedForAi,
+} from '../ai/indexLifecycle.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
 import { invalidateTargetReminders, rebuildTargetReminders } from '../reminders/service.js';
 
@@ -483,6 +487,13 @@ export async function createTask(
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: taskId,
+    kind: 'task',
+  });
 
   return {
     id: taskId,
@@ -1049,6 +1060,13 @@ export async function updateTask(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: taskId,
+    kind: 'task',
+  });
+
   return {
     ...current,
     title,
@@ -1349,6 +1367,12 @@ export async function trashTask(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
+  await onPersonalItemInvalidatedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: taskId,
+  });
+
   return { id: taskId, revision: nextRev, seq };
 }
 
@@ -1415,6 +1439,13 @@ export async function restoreTask(
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: taskId,
+    kind: 'task',
+  });
 
   return {
     ...current,

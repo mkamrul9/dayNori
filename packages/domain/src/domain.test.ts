@@ -30,6 +30,9 @@ import {
   isAiSourceKindEligible,
   validateAiContentScope,
   DEFAULT_AI_CONTENT_SCOPE,
+  bindAiCitations,
+  estimateAiReservationTokens,
+  parseAiSourceReferences,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2369,6 +2372,44 @@ describe('Domain Rules and Invariants', () => {
           journal: true,
         })
       ).toBe(true);
+    });
+
+    it('binds citations to authorized source/revision and rejects bare UUIDs', () => {
+      const id = '123e4567-e89b-12d3-a456-426614174000';
+      const authorized = [
+        { itemId: id, revision: 2, kind: 'note', excerpt: 'hello' },
+      ];
+      expect(parseAiSourceReferences(`[source:${id}#r2]`)).toEqual([
+        { itemId: id, revision: 2 },
+      ]);
+      const ok = bindAiCitations({
+        answer: `See [source:${id}#r2]`,
+        authorized,
+      });
+      expect(ok.ok).toBe(true);
+      expect(ok.referenced).toHaveLength(1);
+
+      const wrongRev = bindAiCitations({
+        answer: `See [source:${id}#r9]`,
+        authorized,
+      });
+      expect(wrongRev.ok).toBe(false);
+
+      const bare = bindAiCitations({
+        answer: `See ${id}`,
+        authorized,
+      });
+      expect(bare.ok).toBe(false);
+      expect(bare.abstainReason).toBe('unsupported_citation_format');
+    });
+
+    it('estimates reservation from input and max output without clipping actuals', () => {
+      const n = estimateAiReservationTokens({
+        systemPrompt: 'sys',
+        userPrompt: 'user question with context',
+        maxOutputTokens: 800,
+      });
+      expect(n).toBeGreaterThan(800);
     });
   });
 });

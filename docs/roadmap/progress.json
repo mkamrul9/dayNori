@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-20",
   "activePhase": "54",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 54 repair then Phase 55 for bounded provisional local development. Phase 54 repair 0072cb3 complete (blocked on staffing). Phase 55 delivers consent-based personal retrieval + FakeAiProvider + gated OpenAI adapter (ADR 0052); status blocked: no live provider/ZDR/residency/production AI. Phase 50 deferred; Phase 49 live Google unmet; vault disabled; rooms/chat fail-closed. Stop before Phase 56.",
+  "schedulingDecision": "Owner selected Phase 55 repair then Phase 56 for bounded provisional local development after fe01ed6. Phase 55 repair fences consent/cancel, durable per-request budgets, citation binding, and index lifecycle (ADR 0052 amended). Status blocked: no live provider/ZDR/residency/production AI. Phase 50 deferred; Phase 49 live Google unmet; vault disabled; rooms/chat fail-closed. Stop before Phase 57 after Phase 56.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -333,7 +333,7 @@
     {
       "id": "55",
       "status": "blocked",
-      "reason": "Provisional local AI consent/retrieval/budgets delivered (ADR 0052): FakeAiProvider + gated OpenAI adapter; personal-workspace scope; vault/journal/rooms exclusions; disable/purge. Completion blocked pending live-provider authorization, ZDR/residency owner choices, Phase 38 release evidence, and AI release gates. No real-user AI or private-content transmission. Vault remains disabled. Stop before Phase 56.",
+      "reason": "Provisional local AI repaired (ADR 0052 amended): consent/cancel fencing, durable per-request budgets outside provider I/O, bound citations, index lifecycle enqueue, store:false adapter, fake eval runner. Completion blocked pending live-provider authorization, ZDR/residency owner choices, Phase 38 release evidence, and AI release gates. No real-user AI or private-content transmission. Vault remains disabled.",
       "report": "docs/phase-reports/phase-55.md"
     },
     {

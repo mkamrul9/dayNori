@@ -25,6 +25,7 @@ import {
   ValidationError,
   ConflictError,
 } from '../../plugins/errorHandler.js';
+import { onPersonalItemUpsertedForAi } from '../ai/indexLifecycle.js';
 
 export const IMPORT_PREVIEW_TTL_SECONDS = 15 * 60; // 15 minutes
 
@@ -1018,6 +1019,12 @@ export async function executeConfirmedImport(
         );
         importedCounts.notes++;
         createdChanges.push({ entityType: 'note', entityId: targetNoteId, action: 'created' });
+        await onPersonalItemUpsertedForAi(client, {
+          userId: actorUserId,
+          workspaceId,
+          itemId: targetNoteId,
+          kind: 'note',
+        });
       }
     }
   }
@@ -1126,6 +1133,12 @@ export async function executeConfirmedImport(
         );
         importedCounts.tasks++;
         createdChanges.push({ entityType: 'task', entityId: targetTaskId, action: 'created' });
+        await onPersonalItemUpsertedForAi(client, {
+          userId: actorUserId,
+          workspaceId,
+          itemId: targetTaskId,
+          kind: 'task',
+        });
       }
     }
 
@@ -1283,6 +1296,12 @@ export async function executeConfirmedImport(
           entityType: 'journal_entry',
           entityId: targetJournalId,
           action: 'created',
+        });
+        await onPersonalItemUpsertedForAi(client, {
+          userId: actorUserId,
+          workspaceId,
+          itemId: targetJournalId,
+          kind: 'journal_entry',
         });
       }
     }

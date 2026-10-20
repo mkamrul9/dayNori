@@ -28,6 +28,10 @@ import {
   insertOutboxIntent,
   updateWorkspaceSyncSeq,
 } from '../sync/repository.js';
+import {
+  onPersonalItemInvalidatedForAi,
+  onPersonalItemUpsertedForAi,
+} from '../ai/indexLifecycle.js';
 import { NotFoundError, ConflictError, ValidationError } from '../../plugins/errorHandler.js';
 
 interface JournalEntryDbRow {
@@ -247,6 +251,13 @@ export async function createJournalEntry(
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: entryId,
+    kind: 'journal_entry',
+  });
 
   return {
     id: entryId,
@@ -618,6 +629,13 @@ export async function updateJournalEntry(
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
 
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: entryId,
+    kind: 'journal_entry',
+  });
+
   return {
     id: entryId,
     workspaceId,
@@ -706,6 +724,12 @@ export async function trashJournalEntry(
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  await onPersonalItemInvalidatedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: entryId,
+  });
 
   return { seq, revision: nextRevision };
 }
@@ -807,6 +831,13 @@ export async function restoreJournalEntry(
   });
 
   await updateWorkspaceSyncSeq(client, workspaceId, seq + 1);
+
+  await onPersonalItemUpsertedForAi(client, {
+    userId: actorUserId,
+    workspaceId,
+    itemId: entryId,
+    kind: 'journal_entry',
+  });
 
   return { seq, revision: nextRevision, entry: restoredEntry };
 }

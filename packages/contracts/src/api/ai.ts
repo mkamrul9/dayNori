@@ -90,10 +90,15 @@ export const AiRetrieveResponseSchema = z.object({
   data: z.object({
     answer: z.string(),
     abstained: z.boolean(),
+    /** Sources actually referenced by the answer (not the full retrieved context). */
     citations: z.array(AiCitationSchema),
+    /** Count of authorized sources supplied to the provider as context. */
+    retrievedSourceCount: z.number().int().nonnegative(),
     providerMode: z.enum(['fake', 'unavailable', 'live']),
     tokensReserved: z.number().int().nonnegative(),
+    /** Actual settled usage; may exceed tokensReserved when provider usage is larger. */
     tokensSettled: z.number().int().nonnegative(),
+    budgetRequestId: z.string().uuid(),
   }),
   meta: ResponseMetaSchema,
 });
