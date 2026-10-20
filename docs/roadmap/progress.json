@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-20",
   "activePhase": "49",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 49 repair then Phase 50 readiness. Phase 49 local connector repaired (worker bytes, selection, OAuth resume); live Google proof still unmet. Phase 50 assessed next under owner authorization to defer if broader-access evidence absent. Vault activation remains disabled.",
+  "schedulingDecision": "Owner selected Phase 50 readiness after Phase 49 repair 81e8de1. Phase 50 deferred: ADR 0046 narrow selected-file mode does not authorize recursive folder mirroring; live broader-access verification, Google assessment/cost evidence, and Phase 48–49 live prerequisites absent. Selected-file connector preserved. Active pointer remains Phase 49 (blocked). Vault activation remains disabled. Stop before Phase 51.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -302,7 +302,9 @@
     },
     {
       "id": "50",
-      "status": "planned"
+      "status": "deferred",
+      "reason": "Owner-authorized deferral. Phase 48 ADR 0046 keeps narrow drive.file selected/app-created mode; no approved broader-scope decision, live external-folder evidence, Google verification/assessment, or cost acceptance. Folder mirroring not implemented. Selected-file connector preserved. Reopen only when reopening requirements in docs/phase-reports/phase-50.md are met.",
+      "report": "docs/phase-reports/phase-50.md"
     },
     {
       "id": "51",

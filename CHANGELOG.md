@@ -1,5 +1,10 @@
 # Changelog
 
+## Phase 50 — External Drive folder mirroring (deferred) — 2026-10-20
+
+- Owner-authorized deferral: Phase 48’s narrow `drive.file` decision (ADR 0046) does not approve recursive external folder access; live folder evidence, broader-scope verification, and cost/assessment prerequisites are absent.
+- No folder-mirroring implementation or OAuth broadening. Selected-file connector preserved. Deferral is not implemented completion.
+
 ## Phase 49 repair — Drive worker bytes, selection, OAuth resume (blocked) — 2026-10-20
 
 - Worker dispatches to shared `jobExecutor` with atomic lease claim, binding validation, and real provider I/O.
