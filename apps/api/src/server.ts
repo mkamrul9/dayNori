@@ -38,12 +38,13 @@ import { registerSyncRoutes } from './modules/sync/index.js';
 import { storageTransferPlugin } from './modules/files/storageTransfer.js';
 import { registerBetaRoutes } from './routes/v1/beta.js';
 import { registerExpenseRoutes } from './routes/v1/expenses.js';
-import { isRoomsLocallyEnabled } from '@daynori/domain';
+import { isAiLocallyEnabled, isRoomsLocallyEnabled } from '@daynori/domain';
 import { registerCustomSectionRoutes } from './routes/v1/customSections.js';
 import { registerDriveRoutes } from './routes/v1/drive.js';
 import { registerRoomRoutes } from './routes/v1/rooms.js';
 import { registerChatRoutes } from './routes/v1/chat.js';
 import { registerSafetyRoutes } from './routes/v1/safety.js';
+import { registerAiRoutes } from './routes/v1/ai.js';
 import {
   startChatPublicationRecovery,
   stopChatPublicationRecovery,
@@ -155,6 +156,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
   const allowExpenses = options?.enableExpenses ?? process.env['ENABLE_EXPENSES'] === 'true';
   // Provisional local rooms only — DAYNORI_ROOMS_LOCAL_ENABLED never unlocks production.
   const allowRoomsLocal = isRoomsLocallyEnabled(process.env);
+  const allowAiLocal = isAiLocallyEnabled(process.env);
 
   // Global barrier for unreleased feature scope (expenses, vault, rooms, ai, billing)
   // Rejects direct calls with 403 Forbidden before router matching
@@ -165,11 +167,12 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       (url.startsWith('/v1/rooms') ||
         url.startsWith('/v1/room-invitations') ||
         url.startsWith('/v1/safety'));
+    const aiBlocked = !allowAiLocal && url.startsWith('/v1/ai');
     if (
       (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
       url.startsWith('/v1/vault') ||
       roomsBlocked ||
-      url.startsWith('/v1/ai') ||
+      aiBlocked ||
       url.startsWith('/v1/billing')
     ) {
       throw new ExplicitForbiddenError(
@@ -203,11 +206,12 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
           (url.startsWith('/v1/rooms') ||
             url.startsWith('/v1/room-invitations') ||
             url.startsWith('/v1/safety'));
+        const aiBlockedAuth = !allowAiLocal && url.startsWith('/v1/ai');
         if (
           (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
           url.startsWith('/v1/vault') ||
           roomsBlockedAuth ||
-          url.startsWith('/v1/ai') ||
+          aiBlockedAuth ||
           url.startsWith('/v1/billing')
         ) {
           throw new ExplicitForbiddenError(
@@ -260,6 +264,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerRoomRoutes(authScope, runtimePool);
       registerChatRoutes(authScope, runtimePool);
       registerSafetyRoutes(authScope, runtimePool);
+      registerAiRoutes(authScope, runtimePool);
       registerAuthenticatedDeletionRoutes(authScope, runtimePool);
     });
   }

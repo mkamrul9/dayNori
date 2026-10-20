@@ -25,6 +25,11 @@ import {
   isBlockSupported,
   createFallbackBlockRepresentation,
   APPROVED_SECTION_TEMPLATES,
+  isAiLocallyEnabled,
+  isAiLiveProviderEnabled,
+  isAiSourceKindEligible,
+  validateAiContentScope,
+  DEFAULT_AI_CONTENT_SCOPE,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2328,6 +2333,42 @@ describe('Domain Rules and Invariants', () => {
       expect(fallback.message).toContain('not supported by your current Daynori version');
       expect(fallback.rawData).toEqual(rawUnknownBlock);
       expect(fallback.isReadOnly).toBe(true);
+    });
+  });
+
+  describe('Phase 55 AI gate and consent scope', () => {
+    it('fails closed for AI in production even with local flag', () => {
+      expect(
+        isAiLocallyEnabled({ NODE_ENV: 'production', DAYNORI_AI_LOCAL_ENABLED: 'true' })
+      ).toBe(false);
+      expect(isAiLocallyEnabled({ NODE_ENV: 'test' })).toBe(true);
+      expect(
+        isAiLiveProviderEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_AI_LOCAL_ENABLED: 'true',
+          DAYNORI_AI_LIVE_ENABLED: 'true',
+        })
+      ).toBe(true);
+      expect(
+        isAiLiveProviderEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_AI_LOCAL_ENABLED: 'true',
+        })
+      ).toBe(false);
+    });
+
+    it('excludes vault and unconsented journal from eligible sources', () => {
+      const scope = validateAiContentScope({ notes: true, tasks: true });
+      expect(scope.journal).toBe(false);
+      expect(isAiSourceKindEligible('note', 'vault', scope)).toBe(false);
+      expect(isAiSourceKindEligible('journal_entry', 'standard', scope)).toBe(false);
+      expect(isAiSourceKindEligible('note', 'standard', scope)).toBe(true);
+      expect(
+        isAiSourceKindEligible('journal_entry', 'standard', {
+          ...DEFAULT_AI_CONTENT_SCOPE,
+          journal: true,
+        })
+      ).toBe(true);
     });
   });
 });

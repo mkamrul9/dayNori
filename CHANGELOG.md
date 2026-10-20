@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 55 — AI provider privacy and retrieval foundation (blocked / provisional) — 2026-10-20
+
+- Versioned AI consent with provider disclosure and distinct journal opt-in; default-off personal-workspace indexing/retrieval with citation checks.
+- FakeAiProvider for local tests; OpenAI-compatible live adapter remains gated (`DAYNORI_AI_LIVE_ENABLED` + credentials); missing keys → unavailable without breaking core organizer flows.
+- Derived index chunks, atomic monthly budgets, disable/purge lifecycle, account-deletion AI fence, durable `ai_index_source` / `ai_purge_derived` jobs.
+- Settings harness for consent/index/retrieve/disable. ADR 0052. Live provider, ZDR, residency, and production activation remain unmet. Stop before Phase 56.
+
 ## Phase 54 repair — Moderation DB auth, hide consistency, terms/idempotency (blocked) — 2026-10-20
 
 - Protected `app.platform_moderators` membership enforced inside SECURITY DEFINER helpers; audit actors bound to caller; self-service block audit separated.

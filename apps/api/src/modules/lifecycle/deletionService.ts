@@ -576,6 +576,20 @@ export class DeletionService {
     await client.query('DELETE FROM app.devices WHERE user_id = $1;', [userId]);
     await client.query('DELETE FROM app.web_push_subscriptions WHERE user_id = $1;', [userId]);
 
+    // 4b. Remove AI derived indexes, consent, and budgets (Phase 55).
+    // Does not recall content already transmitted to an external provider.
+    await client.query('DELETE FROM app.ai_index_chunks WHERE owner_user_id = $1;', [userId]);
+    await client.query('DELETE FROM app.ai_consents WHERE user_id = $1;', [userId]);
+    await client.query('DELETE FROM app.ai_budget_windows WHERE user_id = $1;', [userId]);
+    await client.query(
+      `UPDATE app.background_jobs
+       SET status = 'failed', last_error = 'Account deleted — AI job fenced', updated_at = now()
+       WHERE status IN ('pending', 'running')
+         AND task_type IN ('ai_index_source', 'ai_purge_derived')
+         AND payload->>'userId' = $1;`,
+      [userId]
+    );
+
     // 5. Reassign content in shared collaborative workspaces via Security Definer procedure
     // (Preserves mutation_receipts provenance and does not rewrite actor identity)
     await client.query('SELECT app.reassign_shared_workspace_content($1);', [userId]);

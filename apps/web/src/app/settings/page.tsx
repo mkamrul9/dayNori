@@ -15,6 +15,7 @@ import { useAuth } from '../../components/AuthContext';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
 import { DriveConnectionsPanel } from '../../components/DriveConnectionsPanel';
 import { RoomsPanel } from '../../components/RoomsPanel';
+import { AiConsentHarness } from '../../components/AiConsentHarness';
 import { createWebApiClient } from '../../data/webApiClient';
 
 export default function SettingsPage() {
@@ -759,6 +760,17 @@ export default function SettingsPage() {
         {isAuthenticated ? (
           <Card themeMode={themeMode} id="shared-rooms">
             <RoomsPanel
+              csrfToken={csrfToken}
+              themeMode={themeMode}
+              personalWorkspaceId={workspaceId}
+            />
+          </Card>
+        ) : null}
+
+        {/* 7d. AI consent harness (Phase 55 provisional local) */}
+        {isAuthenticated ? (
+          <Card themeMode={themeMode} id="ai-consent">
+            <AiConsentHarness
               csrfToken={csrfToken}
               themeMode={themeMode}
               personalWorkspaceId={workspaceId}

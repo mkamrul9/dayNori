@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-20",
   "activePhase": "54",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 54 repair then Phase 55 for bounded provisional local development after Phase 54 b27a581. Phase 54 repair enforces DB moderator membership, hide consistency, terms across UGC paths, and report idempotency (ADR 0051 amended). Status blocked: no staffed moderation owner; rooms/chat fail-closed. Phase 50 deferred; Phase 49 live Google unmet; vault disabled; AI live provider disabled. Stop before Phase 56 after Phase 55.",
+  "schedulingDecision": "Owner selected Phase 54 repair then Phase 55 for bounded provisional local development. Phase 54 repair 0072cb3 complete (blocked on staffing). Phase 55 delivers consent-based personal retrieval + FakeAiProvider + gated OpenAI adapter (ADR 0052); status blocked: no live provider/ZDR/residency/production AI. Phase 50 deferred; Phase 49 live Google unmet; vault disabled; rooms/chat fail-closed. Stop before Phase 56.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -332,7 +332,9 @@
     },
     {
       "id": "55",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local AI consent/retrieval/budgets delivered (ADR 0052): FakeAiProvider + gated OpenAI adapter; personal-workspace scope; vault/journal/rooms exclusions; disable/purge. Completion blocked pending live-provider authorization, ZDR/residency owner choices, Phase 38 release evidence, and AI release gates. No real-user AI or private-content transmission. Vault remains disabled. Stop before Phase 56.",
+      "report": "docs/phase-reports/phase-55.md"
     },
     {
       "id": "56",

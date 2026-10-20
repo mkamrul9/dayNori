@@ -284,6 +284,10 @@ import {
   UserBlockResponseSchema,
   UserBlockListResponseSchema,
   ModerationReportListResponseSchema,
+  AiConsentStatusResponseSchema,
+  AiIndexResultResponseSchema,
+  AiRetrieveResponseSchema,
+  AiPurgeResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -321,6 +325,14 @@ import {
   type UserBlockResponse,
   type UserBlockListResponse,
   type ModerationReportListResponse,
+  type AcceptAiConsentRequest,
+  type DisableAiRequest,
+  type AiIndexSourceRequest,
+  type AiRetrieveRequest,
+  type AiConsentStatusResponse,
+  type AiIndexResultResponse,
+  type AiRetrieveResponse,
+  type AiPurgeResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3360,6 +3372,66 @@ export class DaynoriApiClient {
       options
     );
     return ModerationReportListResponseSchema.parse(raw);
+  }
+
+  // --- Phase 55 AI consent / retrieval (provisional local; live provider gated) ---
+
+  async getAiConsentStatus(options?: RequestOptions): Promise<AiConsentStatusResponse> {
+    const raw = await this.request<unknown>(`/v1/ai/consent`, { method: 'GET' }, options);
+    return AiConsentStatusResponseSchema.parse(raw);
+  }
+
+  async acceptAiConsent(
+    request: AcceptAiConsentRequest,
+    options?: RequestOptions
+  ): Promise<AiConsentStatusResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/consent/accept`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AiConsentStatusResponseSchema.parse(raw);
+  }
+
+  async disableAi(
+    request?: DisableAiRequest,
+    options?: RequestOptions
+  ): Promise<AiConsentStatusResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/consent/disable`,
+      { method: 'POST', body: JSON.stringify(request ?? { purgeDerived: true }) },
+      options
+    );
+    return AiConsentStatusResponseSchema.parse(raw);
+  }
+
+  async indexAiSource(
+    request: AiIndexSourceRequest,
+    options?: RequestOptions
+  ): Promise<AiIndexResultResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/index`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AiIndexResultResponseSchema.parse(raw);
+  }
+
+  async retrieveAiAnswer(
+    request: AiRetrieveRequest,
+    options?: RequestOptions
+  ): Promise<AiRetrieveResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/retrieve`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return AiRetrieveResponseSchema.parse(raw);
+  }
+
+  async purgeAiDerived(options?: RequestOptions): Promise<AiPurgeResponse> {
+    const raw = await this.request<unknown>(`/v1/ai/purge`, { method: 'POST', body: '{}' }, options);
+    return AiPurgeResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

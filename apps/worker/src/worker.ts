@@ -679,6 +679,22 @@ export class DaynoriWorker {
     }
 
     // 2b. Drive selected-file connector jobs (Phase 49)
+    if ((taskType === 'ai_index_source' || taskType === 'ai_purge_derived') && client) {
+      const { handleAiJob } = await import('./aiJobs.js');
+      const aiResult = await handleAiJob(client, taskType, payload as Record<string, unknown>);
+      if (aiResult.status === 'failed') {
+        throw new Error(
+          `AI job failed: ${String(aiResult.details['errorCode'] ?? 'unknown')}`
+        );
+      }
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: { taskType, ...aiResult.details, fence: aiResult.status === 'fenced' },
+      };
+    }
+
     if (taskType.startsWith('drive_') && client) {
       const { handleDriveJob } = await import('./driveJobs.js');
       const driveRes = await handleDriveJob(client, taskType, payload ?? {});
