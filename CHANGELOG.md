@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 59 repair — Android signing and build-path (blocked) — 2026-10-21
+
+- `withReleaseSigningGuard` defers fail-closed signing to Gradle `taskGraph.whenReady`; debug/configure tasks usable without credentials; silent debug.keystore fallback neutralized.
+- Authoritative path: `scripts/mobile-android-release-path.mjs` (inspect / disposable prebuild / exercise-gradle). Launch checklist demotes overstated signing LV.
+- Stale workspace `android/` rejected until regenerated; disposable prebuild verified target/compile SDK 36 + fail-closed `assembleRelease`.
+
 ## Phase 59 — Google Play and web launch preparation (blocked / provisional) — 2026-10-21
 
 - Provisional release manifest, store/listing drafts, launch checklist; draft `/privacy` `/terms` `/support`; deletion contact no longer invents a monitored inbox.

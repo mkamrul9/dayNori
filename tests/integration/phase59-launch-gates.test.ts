@@ -1,6 +1,9 @@
 /**
- * Phase 59 — Local launch preparation: disabled modules stay unreachable;
- * public legal/deletion drafts are served without inventing production URLs.
+ * Phase 59 — Local launch preparation (development NODE_ENV API probes).
+ * Disabled modules stay unreachable; public deletion acknowledgment shape is checked.
+ *
+ * This is NOT production web/native verification. See
+ * tests/integration/phase60-release-boundaries.test.ts for production-mode gates.
  */
 import crypto from 'node:crypto';
 import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';

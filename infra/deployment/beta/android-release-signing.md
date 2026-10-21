@@ -12,8 +12,9 @@ This document establishes the reproducible build and signing procedure for Andro
 - **Application ID**: `com.daynori.app`
 - **Version Name**: `0.1.0-beta.1`
 - **Version Code**: `1` (incremented monotonically per internal build)
-- **Target SDK**: Android 15 (API level 35)
-- **Minimum SDK**: Android 10 (API level 29)
+- **Target / compile SDK**: Android API **36** (via `expo-build-properties`; verify generated Gradle — see `scripts/mobile-android-release-path.mjs`)
+- **Minimum SDK**: as generated from app config (currently 24 in `app.json` build-properties)
+- **Signing env (preferred)**: `DAYNORI_RELEASE_STORE_*` — aliases `ANDROID_KEYSTORE_*` / `ANDROID_KEY_*` also accepted by `withReleaseSigningGuard`
 
 ---
 

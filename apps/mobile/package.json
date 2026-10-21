@@ -11,7 +11,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "prebuild": "expo prebuild --no-install -p android && node -e \"if (!require('fs').existsSync('android/build.gradle')) { console.error('Native android generation failed'); process.exit(1); }\"",
+    "prebuild": "expo prebuild --no-install -p android && node -e \"if (!require('fs').existsSync('android/build.gradle')) { console.error('Native android generation failed'); process.exit(1); }\" && node ../../scripts/mobile-android-release-path.mjs inspect --android-dir android",
     "build": "expo export -p android"
   },
   "dependencies": {
