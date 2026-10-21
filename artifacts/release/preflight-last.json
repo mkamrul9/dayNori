@@ -1,0 +1,213 @@
+{
+  "createdAt": "2026-10-21T06:13:48.017Z",
+  "gitRevision": "bafe6d0b28084f838eec0e09ce1ecd56968a58c7",
+  "manifestPath": "docs/release/manifest-0.1.0-provisional.json",
+  "artifactHashes": {
+    "manifestSha256": "51b8d2e702a2233be5203212f889754cdeffb08d9b8535a8304186b68570f229",
+    "checklistSha256": "b609352e40bbbc499640f0e0cdc9d8a55af5a8a55233f77db3796c5405ae9281"
+  },
+  "notHumanAuthorization": true,
+  "releaseEligible": false,
+  "engineeringClear": false,
+  "summary": {
+    "pass": 20,
+    "fail": 1,
+    "blocked": 13,
+    "unexecuted": 1
+  },
+  "checks": [
+    {
+      "id": "git-revision",
+      "status": "PASS",
+      "detail": "HEAD bafe6d0b28084f838eec0e09ce1ecd56968a58c7"
+    },
+    {
+      "id": "manifest-not-approval",
+      "status": "PASS",
+      "detail": "Manifest explicitly denies launch approval"
+    },
+    {
+      "id": "manifest-provisional",
+      "status": "BLOCKED",
+      "detail": "Provisional/local-preparation manifest cannot become release-eligible without replacing vague evidence and owner OA"
+    },
+    {
+      "id": "version-web",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "version-mobile",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "version-api",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "version-monorepo",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "android-version-code",
+      "status": "BLOCKED",
+      "detail": "androidVersionCode unresolved until signed build evidence exists"
+    },
+    {
+      "id": "disabled-inventory-vault",
+      "status": "PASS",
+      "detail": "vault disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-roomsChat",
+      "status": "PASS",
+      "detail": "roomsChat disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-liveAi",
+      "status": "PASS",
+      "detail": "liveAi disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-productionBilling",
+      "status": "PASS",
+      "detail": "productionBilling disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-phase50DriveDeferred",
+      "status": "PASS",
+      "detail": "phase50DriveDeferred disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-phase49LiveGoogle",
+      "status": "PASS",
+      "detail": "phase49LiveGoogle disabled in inventory"
+    },
+    {
+      "id": "flag-prod-env",
+      "status": "UNEXECUTED",
+      "detail": "NODE_ENV=unset — production flag matrix not asserted in this process"
+    },
+    {
+      "id": "debug-release-signing",
+      "status": "PASS",
+      "detail": "Local-test debug release signing flag not set"
+    },
+    {
+      "id": "android-workspace-tree",
+      "status": "FAIL",
+      "detail": "Stale release signingConfig silently falls back to debug.keystore. Regenerate via Expo prebuild with withReleaseSigningGuard; do not treat this tree as release-eligible.; Missing daynoriReleaseSigningGuard in app/build.gradle — run authoritative prebuild before release packaging.; Effective targetSdk must be 36 (found unset). app.json alone is not artifact evidence.; Effective compileSdk must be 36 (found unset)."
+    },
+    {
+      "id": "android-disposable-prebuild",
+      "status": "PASS",
+      "detail": "artifacts/release/android-prebuild-inspection.json"
+    },
+    {
+      "id": "migrations",
+      "status": "PASS",
+      "detail": "through 00069_billing_role_password_align.sql"
+    },
+    {
+      "id": "db-roles",
+      "status": "BLOCKED",
+      "detail": "Required database roles not verified for this candidate"
+    },
+    {
+      "id": "evidence-deviceEvidence",
+      "status": "BLOCKED",
+      "detail": "Physical device / TalkBack / KeyStore evidence (Phase 37) missing or placeholder"
+    },
+    {
+      "id": "evidence-betaEvidence",
+      "status": "BLOCKED",
+      "detail": "Private beta cohort evidence (Phase 38) missing or placeholder"
+    },
+    {
+      "id": "evidence-accessibilityEvidence",
+      "status": "BLOCKED",
+      "detail": "Accessibility acceptance evidence missing or placeholder"
+    },
+    {
+      "id": "evidence-backupRecoveryEvidence",
+      "status": "BLOCKED",
+      "detail": "Backup/recovery drill for matching versions missing or placeholder"
+    },
+    {
+      "id": "evidence-opsEvidence",
+      "status": "BLOCKED",
+      "detail": "Operational ownership / monitoring / support missing or placeholder"
+    },
+    {
+      "id": "evidence-signedArtifactEvidence",
+      "status": "BLOCKED",
+      "detail": "Signed AAB/APK hash + signer identity missing or placeholder"
+    },
+    {
+      "id": "evidence-sixteenKbEvidence",
+      "status": "BLOCKED",
+      "detail": "16 KB page-size / native lib alignment on built artifact missing or placeholder"
+    },
+    {
+      "id": "evidence-ownerApproval",
+      "status": "BLOCKED",
+      "detail": "Owner/operator launch authorization for this exact candidate missing or placeholder"
+    },
+    {
+      "id": "evidence-enabled-personalNotes",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-tasksRoutinesJournal",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-filesLocal",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-searchSyncExport",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-accountDeletionPublicResource",
+      "status": "PASS",
+      "detail": "local routes + phase60 gate tests; public URL unverified"
+    },
+    {
+      "id": "node-engines",
+      "status": "BLOCKED",
+      "detail": "Installed v24.11.1 does not satisfy engines.node ^24.21.0; do not claim supported-runtime verification"
+    },
+    {
+      "id": "human-launch-authorization",
+      "status": "BLOCKED",
+      "detail": "Engineering preflight never grants operator approval or initiates publication"
+    }
+  ],
+  "androidInspection": {
+    "ok": false,
+    "errors": [
+      "Stale release signingConfig silently falls back to debug.keystore. Regenerate via Expo prebuild with withReleaseSigningGuard; do not treat this tree as release-eligible.",
+      "Missing daynoriReleaseSigningGuard in app/build.gradle — run authoritative prebuild before release packaging.",
+      "Effective targetSdk must be 36 (found unset). app.json alone is not artifact evidence.",
+      "Effective compileSdk must be 36 (found unset)."
+    ],
+    "warnings": [],
+    "findings": {
+      "androidDir": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\apps\\mobile\\android",
+      "guardPresent": false,
+      "silentDebugFallbackInReleaseSigningConfig": true,
+      "targetSdk": null,
+      "compileSdk": null,
+      "versionCode": 1
+    }
+  }
+}

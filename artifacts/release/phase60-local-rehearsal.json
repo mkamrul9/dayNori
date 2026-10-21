@@ -1,0 +1,57 @@
+{
+  "createdAt": "2026-10-21T06:13:55.686Z",
+  "gitRevision": "bafe6d0b28084f838eec0e09ce1ecd56968a58c7",
+  "notHumanAuthorization": true,
+  "results": [
+    {
+      "name": "explicit-test-target",
+      "status": "PASS",
+      "detail": "disposable-local"
+    },
+    {
+      "name": "node-runtime",
+      "status": "BLOCKED",
+      "detail": "installed v24.11.1; engines ^24.21.0"
+    },
+    {
+      "name": "release-preflight",
+      "status": "PASS",
+      "detail": "exit 0 (allow-partial-local; releaseEligible remains false)"
+    },
+    {
+      "name": "android-inspect-workspace",
+      "status": "PASS",
+      "detail": "expected FAIL on stale workspace android/; disposable prebuild evidence present"
+    },
+    {
+      "name": "android-prebuild-disposable",
+      "status": "PASS",
+      "detail": "reusing artifacts/release/android-prebuild-inspection.json"
+    },
+    {
+      "name": "db-isolation",
+      "status": "PASS",
+      "detail": "daynori_test"
+    },
+    {
+      "name": "integration-gates",
+      "status": "PASS",
+      "detail": "exit 0"
+    },
+    {
+      "name": "phase58-baseline-classification",
+      "status": "PASS",
+      "detail": "label=engineering-synthetic-baseline-short-local; notSustained100=true; getNote-no-id=20 (intentional negative when id absent)"
+    },
+    {
+      "name": "rollback-policy",
+      "status": "PASS",
+      "detail": "Prefer forward-fix; do not assume destructive DB rollback or Android downgrade is safe for installed clients"
+    },
+    {
+      "name": "human-authorization",
+      "status": "BLOCKED",
+      "detail": "Local rehearsal must never grant approval or initiate publication"
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-21",
-  "activePhase": "59",
+  "activePhase": "60",
   "nextPhase": null,
-  "schedulingDecision": "Owner authorized Phase 59 signing/build-path repair before Phase 60 local preflight. Phase 59 remains blocked. Phase 50 deferred; Phase 49 live Google unmet; vault/rooms/AI/billing production off.",
+  "schedulingDecision": "Owner selected Phase 60 for bounded local preflight/rehearsal after Phase 59 signing repair (67b2e81). Status blocked: no store upload, no verified live release, external blockers remain. Phase 50 deferred; Phase 49 live Google unmet; vault/rooms/AI/billing production off. Stop before Phase 61.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {
@@ -362,7 +362,9 @@
     },
     {
       "id": "60",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Local release preflight/rehearsal only (ADR 0057): executable preflight never grants OA; production-mode gate tests; web production smoke; publication runbook clarifies first Play publication vs %-staged updates. Incomplete until approved Android + matching web are live. External blockers and owner decisions unresolved.",
+      "report": "docs/phase-reports/phase-60.md"
     },
     {
       "id": "61",

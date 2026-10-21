@@ -1,0 +1,17 @@
+{
+  "candidateLabel": "0.1.0-provisional-local",
+  "notReleaseEligible": true,
+  "deviceEvidence": null,
+  "betaEvidence": null,
+  "accessibilityEvidence": null,
+  "backupRecoveryEvidence": "pending-candidate-match: docs/phase-reports/phase-58.md disposable DR (versions must match RC)",
+  "opsEvidence": null,
+  "signedArtifactEvidence": null,
+  "sixteenKbEvidence": null,
+  "ownerApproval": null,
+  "dbRolesVerified": null,
+  "notes": [
+    "Vague 'prior phase reports' pointers are not substitute for candidate-scoped hashes.",
+    "Phase 58 short local baseline is not sustained 100-user capacity or cloud recovery proof."
+  ]
+}

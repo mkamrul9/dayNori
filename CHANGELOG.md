@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 60 — Public Android and web release preflight / rehearsal (blocked) — 2026-10-21
+
+- Executable `pnpm release:preflight` fail-closes without human launch authorization; provisional manifest cannot become release-eligible from JSON validity alone.
+- Production-mode release boundary tests; web production smoke for legal/deletion pages + CSP; disposable local rehearsal script.
+- Publication runbook + ADR 0057: Play percentage staged rollouts are for **updates only**; first publication uses testing tracks / first production release.
+- No store upload, no public release tag, no verified live release. Stop before Phase 61.
+
 ## Phase 59 repair — Android signing and build-path (blocked) — 2026-10-21
 
 - `withReleaseSigningGuard` defers fail-closed signing to Gradle `taskGraph.whenReady`; debug/configure tasks usable without credentials; silent debug.keystore fallback neutralized.

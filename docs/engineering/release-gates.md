@@ -39,6 +39,10 @@ All policy links above were checked 2026-10-13. The evidence report must use its
 
 Provisional materials live under `docs/release/` and `docs/engineering/play-policy-review-2026-10-21.md`. Target API **36** is configured in mobile app config; built AAB evidence, signing credentials, public domain URLs, and operator approval remain unmet. Local preparation does **not** authorize store submission.
 
+### Phase 60 local preflight / rehearsal (2026-10-21)
+
+Executable `pnpm release:preflight` fail-closes without human OA. Android authoritative path is Expo prebuild + signing guard (stale `android/` debug fallback is rejected). Play **percentage staged rollouts are for updates only**; first publication uses testing tracks / first production release (ADR 0057, runbook `docs/engineering/runbooks/public-release-publication.md`). Phase 60 remains incomplete until approved Android + matching web are live.
+
 ## Gate D: paid product
 
 Choose free/paid feature boundaries and commercial countries before implementing purchase flows. Verify merchant eligibility for the owner's location and current Play regional programs. Paid digital features and cloud storage generally fall under the Play payments policy, with exceptions/programs that must be checked for the actual markets; do not steer Android users to web checkout by default. [Play Payments policy guidance](https://support.google.com/googleplay/android-developer/answer/10281818?hl=en) (checked 2026-10-13).
