@@ -63,6 +63,10 @@ Environment: Windows, Node `v24.11.1` (**BLOCKED** vs engines `^24.21.0`), pnpm 
 4. Node engines mismatch recorded — do not claim supported-runtime verification.
 5. Preserve: Phase 50 deferred, Phase 49 live Google pending, vault off, rooms/chat off for real users, live AI off, production billing off, expenses excluded.
 
+## Consolidation follow-up (2026-10-21, same phase)
+
+See [core-consolidation-status.md](../engineering/core-consolidation-status.md). Local Node 24.21.0 portable toolchain, regenerated Android inspect **PASS**, production web proxy account-deletion **PASS**, core organizer API walkthrough **PASS**. Installable APK **BLOCKED** on Windows path spaces (`UNIQUE WORK` breaks NDK prefab). **Do not start Phase 61 / iOS** until Android/web launch blockers above are closed.
+
 ## Handoff
 
-Next eligible when owner authorizes further work: remain on Phase 60 external/store path, or select Phase 61 only after Phase 60 acceptance. Do not create a public release tag without separate explicit owner authorization.
+Remain on Phases 59–60 consolidation and release blockers. Do not create a public release tag or start iOS without separate explicit owner authorization after a verified Android + web release.

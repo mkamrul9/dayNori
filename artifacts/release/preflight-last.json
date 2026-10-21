@@ -1,6 +1,6 @@
 {
-  "createdAt": "2026-10-21T06:13:48.017Z",
-  "gitRevision": "bafe6d0b28084f838eec0e09ce1ecd56968a58c7",
+  "createdAt": "2026-10-21T06:36:08.241Z",
+  "gitRevision": "3721fad36705099534837aac0a10cec9f38730ec",
   "manifestPath": "docs/release/manifest-0.1.0-provisional.json",
   "artifactHashes": {
     "manifestSha256": "51b8d2e702a2233be5203212f889754cdeffb08d9b8535a8304186b68570f229",
@@ -8,18 +8,18 @@
   },
   "notHumanAuthorization": true,
   "releaseEligible": false,
-  "engineeringClear": false,
+  "engineeringClear": true,
   "summary": {
-    "pass": 20,
-    "fail": 1,
-    "blocked": 13,
+    "pass": 21,
+    "fail": 0,
+    "blocked": 12,
     "unexecuted": 1
   },
   "checks": [
     {
       "id": "git-revision",
       "status": "PASS",
-      "detail": "HEAD bafe6d0b28084f838eec0e09ce1ecd56968a58c7"
+      "detail": "HEAD 3721fad36705099534837aac0a10cec9f38730ec"
     },
     {
       "id": "manifest-not-approval",
@@ -97,14 +97,9 @@
       "detail": "Local-test debug release signing flag not set"
     },
     {
-      "id": "android-workspace-tree",
-      "status": "FAIL",
-      "detail": "Stale release signingConfig silently falls back to debug.keystore. Regenerate via Expo prebuild with withReleaseSigningGuard; do not treat this tree as release-eligible.; Missing daynoriReleaseSigningGuard in app/build.gradle — run authoritative prebuild before release packaging.; Effective targetSdk must be 36 (found unset). app.json alone is not artifact evidence.; Effective compileSdk must be 36 (found unset)."
-    },
-    {
-      "id": "android-disposable-prebuild",
+      "id": "android-tree",
       "status": "PASS",
-      "detail": "artifacts/release/android-prebuild-inspection.json"
+      "detail": "targetSdk=36 compileSdk=36 guard=present"
     },
     {
       "id": "migrations",
@@ -183,8 +178,8 @@
     },
     {
       "id": "node-engines",
-      "status": "BLOCKED",
-      "detail": "Installed v24.11.1 does not satisfy engines.node ^24.21.0; do not claim supported-runtime verification"
+      "status": "PASS",
+      "detail": "v24.21.0 satisfies ^24.21.0"
     },
     {
       "id": "human-launch-authorization",
@@ -193,20 +188,15 @@
     }
   ],
   "androidInspection": {
-    "ok": false,
-    "errors": [
-      "Stale release signingConfig silently falls back to debug.keystore. Regenerate via Expo prebuild with withReleaseSigningGuard; do not treat this tree as release-eligible.",
-      "Missing daynoriReleaseSigningGuard in app/build.gradle — run authoritative prebuild before release packaging.",
-      "Effective targetSdk must be 36 (found unset). app.json alone is not artifact evidence.",
-      "Effective compileSdk must be 36 (found unset)."
-    ],
+    "ok": true,
+    "errors": [],
     "warnings": [],
     "findings": {
       "androidDir": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\apps\\mobile\\android",
-      "guardPresent": false,
-      "silentDebugFallbackInReleaseSigningConfig": true,
-      "targetSdk": null,
-      "compileSdk": null,
+      "guardPresent": true,
+      "silentDebugFallbackInReleaseSigningConfig": false,
+      "targetSdk": 36,
+      "compileSdk": 36,
       "versionCode": 1
     }
   }

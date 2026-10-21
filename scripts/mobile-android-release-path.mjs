@@ -72,7 +72,9 @@ export function inspectAndroidTree(androidDir) {
   }
 
   const appContents = readText(appGradle);
-  findings.guardPresent = appContents.includes(GUARD_MARKER);
+  const hasWhenReady = /gradle\.taskGraph\.whenReady/.test(appContents);
+  const hasGuardAnchor = appContents.includes(`// ${GUARD_MARKER}`);
+  findings.guardPresent = hasGuardAnchor && hasWhenReady;
 
   // Classic Expo/stale pattern: release signingConfigs block falls back to debug.keystore
   const hasSilentFallback =
@@ -80,7 +82,7 @@ export function inspectAndroidTree(androidDir) {
     (/signingConfigs\s*\{[\s\S]*\brelease\s*\{[\s\S]*storeFile\s+file\(['"]debug\.keystore['"]\)/.test(
       appContents
     ) &&
-      !/Populated only by daynoriReleaseSigningGuard/.test(appContents));
+      !hasWhenReady);
 
   findings.silentDebugFallbackInReleaseSigningConfig = hasSilentFallback;
 
@@ -92,10 +94,8 @@ export function inspectAndroidTree(androidDir) {
 
   if (!findings.guardPresent) {
     errors.push(
-      `Missing ${GUARD_MARKER} in app/build.gradle — run authoritative prebuild before release packaging.`
+      `Missing fail-closed ${GUARD_MARKER} whenReady block in app/build.gradle — run authoritative prebuild before release packaging.`
     );
-  } else if (!/gradle\.taskGraph\.whenReady/.test(appContents)) {
-    errors.push('Guard marker present but taskGraph.whenReady fail-closed path missing.');
   }
 
   // Prefer gradle.properties / root ext for SDK numbers
@@ -281,14 +281,28 @@ function exerciseGradle(androidDir) {
   delete env.ANDROID_KEY_PASSWORD;
   delete env.DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING;
 
+  function runGradle(gradleArgs) {
+    // Quote gradlew on Windows so paths with spaces (e.g. "UNIQUE WORK") survive.
+    if (process.platform === 'win32') {
+      const cmdline = `"${gradlew}" ${gradleArgs.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}`;
+      return spawnSync(cmdline, {
+        cwd: androidDir,
+        env,
+        encoding: 'utf8',
+        shell: true,
+      });
+    }
+    return spawnSync(gradlew, gradleArgs, {
+      cwd: androidDir,
+      env,
+      encoding: 'utf8',
+      shell: false,
+    });
+  }
+
   // Harmless configuration task — must succeed without credentials
   info('Running :app:tasks (expect success without release credentials)...');
-  const tasks = spawnSync(gradlew, [':app:tasks', '--all', '--console=plain'], {
-    cwd: androidDir,
-    env,
-    encoding: 'utf8',
-    shell: process.platform === 'win32',
-  });
+  const tasks = runGradle([':app:tasks', '--all', '--console=plain']);
   if (tasks.status !== 0) {
     if (tasks.stdout) process.stdout.write(tasks.stdout.slice(-4000));
     if (tasks.stderr) process.stderr.write(tasks.stderr.slice(-4000));
@@ -298,12 +312,7 @@ function exerciseGradle(androidDir) {
 
   // Distributable release packaging — must fail closed
   info('Running :app:assembleRelease without credentials (expect fail-closed)...');
-  const assemble = spawnSync(gradlew, [':app:assembleRelease', '--console=plain'], {
-    cwd: androidDir,
-    env,
-    encoding: 'utf8',
-    shell: process.platform === 'win32',
-  });
+  const assemble = runGradle([':app:assembleRelease', '--console=plain']);
   const combined = `${assemble.stdout ?? ''}\n${assemble.stderr ?? ''}`;
   const refused =
     assemble.status !== 0 &&

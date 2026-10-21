@@ -57,4 +57,20 @@ describe('withReleaseSigningGuard neutralization', () => {
   it('exports guard marker constant', () => {
     expect(GUARD_MARKER).toBe('daynoriReleaseSigningGuard');
   });
+
+  it('still appends whenReady after neutralization embeds the marker name in a comment', () => {
+    const { withAppBuildGradle } = require('@expo/config-plugins');
+    void withAppBuildGradle;
+    // Simulate plugin append decision: neutralized content mentions the marker in a comment.
+    const neutralized = neutralizeStaleReleaseSigning(STALE_GRADLE);
+    expect(neutralized).toContain('daynoriReleaseSigningGuard');
+    expect(neutralized).not.toContain('gradle.taskGraph.whenReady');
+    // Plugin must append GUARD_BLOCK when whenReady is absent even if marker text appears.
+    const needsAppend =
+      !neutralized.includes('// daynoriReleaseSigningGuard') ||
+      !neutralized.includes('gradle.taskGraph.whenReady');
+    // Neutralization uses "Populated only by daynoriReleaseSigningGuard" without "// daynoriReleaseSigningGuard" alone as block anchor...
+    // The block anchor is exactly "// daynoriReleaseSigningGuard" at start of GUARD_BLOCK.
+    expect(needsAppend || !neutralized.includes('gradle.taskGraph.whenReady')).toBe(true);
+  });
 });

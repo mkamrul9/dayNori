@@ -12,6 +12,8 @@
   "dbRolesVerified": null,
   "notes": [
     "Vague 'prior phase reports' pointers are not substitute for candidate-scoped hashes.",
-    "Phase 58 short local baseline is not sustained 100-user capacity or cloud recovery proof."
-  ]
+    "Phase 58 short local baseline is not sustained 100-user capacity or cloud recovery proof.",
+    "2026-10-21 consolidation: Node v24.21.0 via .tools portable; android inspect PASS after prebuild; core-organizer-local-validation PASS including web-proxy deletion; APK build BLOCKED on space in repo path."
+  ],
+  "localConsolidationEvidence": "docs/engineering/core-consolidation-status.md"
 }

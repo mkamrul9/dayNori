@@ -1,0 +1,77 @@
+{
+  "createdAt": "2026-10-21T06:35:33.483Z",
+  "node": "v24.21.0",
+  "notLaunchAuthorization": true,
+  "results": [
+    {
+      "name": "notes-create",
+      "status": "PASS",
+      "detail": "82efcc35-1cdb-4cdb-9e13-a8e1eaf3b0ea"
+    },
+    {
+      "name": "notes-update",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "tasks-create",
+      "status": "PASS",
+      "detail": "fc926287-7f1f-4fa8-8c79-c7d63180756a"
+    },
+    {
+      "name": "routines-create",
+      "status": "PASS",
+      "detail": "cbc8aec4-c8e1-4ab3-8532-a2fa7fb25317"
+    },
+    {
+      "name": "journal-create",
+      "status": "PASS",
+      "detail": "63050bb7-1c6a-42a4-bf3f-4cc48e2d802e"
+    },
+    {
+      "name": "files-quota",
+      "status": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "name": "sync-pull",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "optional-modules-denied",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /privacy",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /terms",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /support",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /account-deletion",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-proxy-account-deletion",
+      "status": "PASS",
+      "detail": "unknown=200 known=200"
+    },
+    {
+      "name": "web-proxy-deletion-verify-required",
+      "status": "PASS",
+      "detail": "status=404"
+    }
+  ]
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## Core consolidation — Android/web local gaps (blocked) — 2026-10-21
+
+- Portable Node `v24.21.0` under `.tools/` (gitignored); regenerate Android with fail-closed signing guard fix (whenReady always appended; Expo resolve via realpath).
+- `pnpm validate:core` / core-organizer local validation: production notes/tasks/routines/journal/files quota/sync + web proxy account-deletion.
+- Installable APK still blocked on Windows path spaces (`UNIQUE WORK` / NDK prefab). No Phase 61/iOS. See `docs/engineering/core-consolidation-status.md`.
+
 ## Phase 60 — Public Android and web release preflight / rehearsal (blocked) — 2026-10-21
 
 - Executable `pnpm release:preflight` fail-closes without human launch authorization; provisional manifest cannot become release-eligible from JSON validity alone.

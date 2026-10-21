@@ -8,9 +8,22 @@
  * - Accepts DAYNORI_RELEASE_* (preferred) or ANDROID_KEYSTORE_* (beta docs alias).
  * - Removes Expo/stale silent debug.keystore fallbacks from signingConfigs.release.
  */
-const { withAppBuildGradle } = require('@expo/config-plugins');
+const { createRequire } = require('node:module');
+const fs = require('node:fs');
+const path = require('node:path');
+// pnpm: resolve via realpath(expo) so Gradle createExpoConfig can load nested deps.
+function loadWithAppBuildGradle() {
+  const expoPkg = path.join(__dirname, '..', 'node_modules', 'expo', 'package.json');
+  if (!fs.existsSync(expoPkg)) {
+    throw new Error('expo package missing under apps/mobile/node_modules — run pnpm install');
+  }
+  return createRequire(fs.realpathSync(expoPkg))('@expo/config-plugins').withAppBuildGradle;
+}
+const withAppBuildGradle = loadWithAppBuildGradle();
 
 const GUARD_MARKER = 'daynoriReleaseSigningGuard';
+/** Present only when the fail-closed whenReady block was appended. */
+const GUARD_BLOCK_ANCHOR = `// ${GUARD_MARKER}`;
 
 /**
  * Find a balanced `{ ... }` block starting at openBraceIndex (index of `{`).
@@ -178,7 +191,8 @@ function withReleaseSigningGuard(config) {
       return cfg;
     }
     let contents = neutralizeStaleReleaseSigning(cfg.modResults.contents);
-    if (!contents.includes(GUARD_MARKER)) {
+    // Neutralization may mention GUARD_MARKER in comments; require the whenReady anchor.
+    if (!contents.includes(GUARD_BLOCK_ANCHOR) || !contents.includes('gradle.taskGraph.whenReady')) {
       contents = `${contents}\n${GUARD_BLOCK}\n`;
     }
     cfg.modResults.contents = contents;
@@ -189,3 +203,4 @@ function withReleaseSigningGuard(config) {
 module.exports = withReleaseSigningGuard;
 module.exports.neutralizeStaleReleaseSigning = neutralizeStaleReleaseSigning;
 module.exports.GUARD_MARKER = GUARD_MARKER;
+module.exports.GUARD_BLOCK_ANCHOR = GUARD_BLOCK_ANCHOR;
