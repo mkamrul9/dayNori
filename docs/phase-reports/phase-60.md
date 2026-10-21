@@ -111,3 +111,73 @@ Environment: Windows, portable Node `v24.21.0` prepended to PATH, pnpm `9.15.5`.
 Inspected `assets/brand/preview.png` in light and reversed presentation, and `artifacts/local/daynori-small-icon-check.png` at 16/24/32/48/64 px. Corrected inherited fill in the preview's custom lettering, then regenerated all copies. The masters have transparent backgrounds except the intentional opaque app/PWA icon backgrounds. Both native exports include the same bundled symbol.
 
 The in-app browser could not reach the local development host, so live browser screenshot review is unverified; production HTTP checks passed separately. Physical launcher masks, native splash behavior, notification appearance, VoiceOver/TalkBack and installed native binaries have not been verified here. Existing APKs retain their old icon until rebuilt. Public uniqueness/trademark clearance remains the existing naming gate. No store upload, public deployment or release authorization occurred.
+
+## Verification and closure attempt (2026-10-21)
+
+Owner resumed Phase 60 for Android/web release verification. Base revision: `63057ff` (Phase 62 local iOS package). Intended commit subject: `fix(launch): repair web unused-icon imports and re-verify Android/web preflight` — **not** “record the verified Android and web release”. Phases 61–62 native/TestFlight/store status preserved as blocked. No deploy, store upload, tester contact, paid services, or production activation.
+
+### Engineering defect repaired
+
+Unused `IconText` imports left from the semantic-icon migration broke `pnpm --filter @daynori/web build` (`noUnusedLocals`). Removed from seven web files that still use `<Icon />`. Shared icon system and no-emoji chrome rule preserved; user-authored content untouched.
+
+### Blocker classification (enabled Android/web core only)
+
+| Category | Items | Status |
+|---|---|---|
+| Code defects fixable now | Unused `IconText` imports breaking web production build | **Fixed this session** |
+| Physical-device / beta evidence | Phase 37 TalkBack/KeyStore/push/offline on hardware; Phase 38 private beta | **BLOCKED** — `adb devices` empty; no beta cohort |
+| Owner credentials / infra / support / publication | Domains, monitored support, legal entity, Play account, release keystore, signed AAB + 16 KB evidence, public URLs, operator OA | **BLOCKED** — owner-controlled; not invented |
+
+iOS is **not** required to finish Android/web launch. Optional modules (vault, rooms/chat, live AI, production billing, Drive, expenses) stay disabled.
+
+### Candidate identity (local, not release-eligible)
+
+| Field | Value |
+|---|---|
+| Git HEAD at verification | `63057ff` (+ pending IconText repair commit) |
+| Manifest | `docs/release/manifest-0.1.0-provisional.json` — `releaseEligible=false` |
+| Web | Production Next build after IconText repair |
+| Android installable candidate | Debug APK `artifacts/release/app-debug-arm64.apk` SHA-256 `0379F71CB48C953C5020CB393BA49084507D1F37AFA06066622EB351C800A5B7` (debug-signed; **not** Play-eligible) |
+| Signed AAB | **Absent** |
+| Destinations | Provisional only — no purchased/verified public web host or Play listing |
+| Support ownership | **Unassigned** |
+| Costs | Not measured for production (no live infra) |
+| Recovery | Forward-fix preferred per publication runbook |
+
+### Commands and results
+
+Environment: Windows, portable Node `v24.21.0`, pnpm `9.15.5`. No `adb` device.
+
+| Command | Exit | Status |
+|---|---|---|
+| `pnpm icons:check` | 0 | PASS — 83 names; no UI emoji chrome |
+| `pnpm release:android-path inspect` | 0 | PASS — target/compile SDK 36; signing guard present |
+| `npx vitest run` phase59/60 + signing-guard unit tests | 0 | PASS — 4 files / 17 tests |
+| `pnpm --filter @daynori/web build` (before repair) | 1 | FAIL — unused `IconText` |
+| `pnpm --filter @daynori/web build` (after repair) | 0 | PASS |
+| `pnpm validate:core` | 0 | PASS — notes/tasks/routines/journal/files/sync/export-gate/web-proxy deletion; optional modules 403 |
+| `node scripts/phase60-web-production-smoke.mjs` | 0 | PASS; proxy deletion **UNEXECUTED** without `DAYNORI_API_URL` (covered by `validate:core`) |
+| `node scripts/release-preflight.mjs --allow-partial-local` | 0 | PASS engineering; `releaseEligible=false`; **12 BLOCKED** + human OA |
+| `DAYNORI_REHEARSAL_TARGET=disposable-local node scripts/phase60-local-rehearsal.mjs` | 0 | PASS; human authorization **BLOCKED** |
+| `pnpm typecheck` / `pnpm lint` | 0 | PASS |
+| `pnpm validate:planning` / `pnpm audit:secrets` | 0 | PASS |
+| Physical device install / TalkBack / notifications / offline UI | — | **UNEXECUTED** (no device) |
+| Store upload / live URLs / signed RC | — | **UNEXECUTED** |
+
+### Publication decision — **NO-GO**
+
+Local engineering and disposable rehearsal remain at runbook state **prepared** only. Do **not** submit to Play, publish web, or mark Phase 60 complete until:
+
+1. Physical-device evidence (Phase 37) and private beta (Phase 38) for the enabled core.
+2. Owner identity/domains/monitored support + release signing credentials.
+3. Signed AAB with API 36 + 16 KB native evidence matching the candidate revision.
+4. Explicit operator launch authorization for exact revision + artifact hashes.
+5. Verified live smoke at intended Android + matching web destinations.
+
+### Phase 63 readiness (observations needed — none fabricated)
+
+After a real live release (Phase 60 acceptance), Phase 63 needs a dated operating window with privacy-safe: usage/support themes, crash/ANR and API error signals, reliability incidents, and measured operating cost — without inventing usage, incidents, feedback, or costs. **Not started**; prerequisite unmet.
+
+### Handoff
+
+Phase 60 remains **blocked**. Exact owner/device actions: attach Android → install debug APK for hardware QA; complete Phase 38; supply signing/domains/support; authorize publication when gates pass. Phases 61–62 remain pending native/TestFlight/store evidence. Stop before Phase 63.

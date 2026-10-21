@@ -1,6 +1,6 @@
 'use client';
 
-import { IconText, Icon } from '@daynori/ui-web';
+import { Icon } from '@daynori/ui-web';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';

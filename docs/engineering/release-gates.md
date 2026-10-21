@@ -43,6 +43,10 @@ Provisional materials live under `docs/release/` and `docs/engineering/play-poli
 
 Executable `pnpm release:preflight` fail-closes without human OA. Android authoritative path is Expo prebuild + signing guard (stale `android/` debug fallback is rejected). Play **percentage staged rollouts are for updates only**; first publication uses testing tracks / first production release (ADR 0057, runbook `docs/engineering/runbooks/public-release-publication.md`). Phase 60 remains incomplete until approved Android + matching web are live.
 
+### Phase 60 verification resume (2026-10-21)
+
+Owner resumed Android/web closure checks. Unused `IconText` imports that broke the web production build were repaired; core validation, smoke, preflight, and rehearsal re-ran with Node `v24.21.0`. Publication decision remains **NO-GO** (`releaseEligible=false`; no physical device, beta, signed AAB, or operator OA). Phases 61–62 stay blocked on native/TestFlight/store evidence. Phase 63 not started.
+
 ## Gate D: paid product
 
 Choose free/paid feature boundaries and commercial countries before implementing purchase flows. Verify merchant eligibility for the owner's location and current Play regional programs. Paid digital features and cloud storage generally fall under the Play payments policy, with exceptions/programs that must be checked for the actual markets; do not steer Android users to web checkout by default. [Play Payments policy guidance](https://support.google.com/googleplay/android-developer/answer/10281818?hl=en) (checked 2026-10-13).

@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 60 — Android/web verification resume (blocked / NO-GO) — 2026-10-21
+
+- Repaired web production build: removed unused `IconText` imports left from the semantic-icon migration (seven organizer pages/components).
+- Re-ran local release path: `icons:check`, web build, `validate:core`, phase 59/60 gates, web production smoke, `release:preflight` (`releaseEligible=false`), disposable rehearsal, typecheck, lint, planning, secrets.
+- Debug APK evidence unchanged (not release-eligible). No `adb` device; no signed AAB; no store/web publication. Phases 61–62 native/TestFlight status preserved. Stop before Phase 63.
+
 ## Phase 62 — iOS store release gate preparation (blocked) — 2026-10-21
 
 - Local App Store package under `docs/release/ios/` (RC identity/build, signing, TestFlight checklist, privacy/dependencies, support/deletion, reviewer access, screenshot rules, monitoring/recovery, owner actions).

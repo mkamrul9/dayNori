@@ -1,6 +1,6 @@
 'use client';
 
-import { Icon, IconText } from '@daynori/ui-web';
+import { Icon } from '@daynori/ui-web';
 import React from 'react';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
