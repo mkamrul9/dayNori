@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 59 — Google Play and web launch preparation (blocked / provisional) — 2026-10-21
+
+- Provisional release manifest, store/listing drafts, launch checklist; draft `/privacy` `/terms` `/support`; deletion contact no longer invents a monitored inbox.
+- Android target/compile SDK 36 via expo-build-properties; release signing fails closed without owner keystore (explicit local-test debug flag only). Play policy review 2026-10-21. ADR 0056.
+- Local preparation only — not store submission or launch authorization. Stop before Phase 60.
+
 ## Phase 58 repair — Workload validity, scoped faults, lint (blocked) — 2026-10-21
 
 - Heavy baseline seeds complete notes + depth-5 folders; 90s soak labeled short local baseline; quality.md targets reported separately.

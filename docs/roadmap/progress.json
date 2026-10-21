@@ -356,7 +356,9 @@
     },
     {
       "id": "59",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Local Play/web launch preparation recorded (ADR 0056): provisional manifest, legal/support drafts with unresolved owner fields, API-36 config, fail-closed release signing, dated policy review, gate tests. Completion blocked pending Phase 38/37 evidence, owner legal/domain/support, signing credentials, built AAB/16KB evidence, account-specific testers, and operator approval. Not an authorization to submit or launch.",
+      "report": "docs/phase-reports/phase-59.md"
     },
     {
       "id": "60",

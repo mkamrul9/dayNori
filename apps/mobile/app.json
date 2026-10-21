@@ -25,10 +25,22 @@
         {
           "color": "#0F172A"
         }
+      ],
+      "./plugins/withReleaseSigningGuard.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24
+          }
+        }
       ]
     ],
     "android": {
       "package": "com.daynori.app",
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",

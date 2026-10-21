@@ -35,6 +35,10 @@ Recheck the official policies in [the source register](../research/sources.md) i
 
 All policy links above were checked 2026-10-13. The evidence report must use its own current check date at release.
 
+### Phase 59 local preparation (2026-10-21)
+
+Provisional materials live under `docs/release/` and `docs/engineering/play-policy-review-2026-10-21.md`. Target API **36** is configured in mobile app config; built AAB evidence, signing credentials, public domain URLs, and operator approval remain unmet. Local preparation does **not** authorize store submission.
+
 ## Gate D: paid product
 
 Choose free/paid feature boundaries and commercial countries before implementing purchase flows. Verify merchant eligibility for the owner's location and current Play regional programs. Paid digital features and cloud storage generally fall under the Play payments policy, with exceptions/programs that must be checked for the actual markets; do not steer Android users to web checkout by default. [Play Payments policy guidance](https://support.google.com/googleplay/android-developer/answer/10281818?hl=en) (checked 2026-10-13).

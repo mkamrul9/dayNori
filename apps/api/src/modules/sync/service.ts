@@ -622,7 +622,11 @@ export class SyncService {
           if (wsInfo.kind === 'room') {
             const blocked = isRoomContentBlocked({
               kind: cmd.entityType,
-              securityScope: (cmd.payload as { securityScope?: unknown } | undefined)?.securityScope,
+              securityScope:
+                typeof (cmd.payload as { securityScope?: unknown } | undefined)?.securityScope ===
+                'string'
+                  ? ((cmd.payload as { securityScope?: string }).securityScope as string)
+                  : null,
             });
             if (blocked) {
               return {
@@ -3042,10 +3046,7 @@ export class SyncService {
               cmd.workspaceId,
               {
                 title: String(payload['title'] || 'Template'),
-                kind: (typeof payload['kind'] === 'string' ? payload['kind'] : 'expense') as
-                  | 'expense'
-                  | 'income'
-                  | 'transfer',
+                kind: (payload['kind'] === 'income' ? 'income' : 'expense') as 'expense' | 'income',
                 amount: String(payload['amount'] || '0'),
                 currency: String(payload['currency'] || 'USD'),
                 categoryId:
@@ -3053,7 +3054,14 @@ export class SyncService {
                 paymentLabel:
                   typeof payload['paymentLabel'] === 'string' ? payload['paymentLabel'] : null,
                 note: typeof payload['note'] === 'string' ? payload['note'] : null,
-                schedule: payload['schedule'] as Record<string, unknown> | undefined,
+                schedule: (payload['schedule'] ?? {
+                  frequency: 'monthly',
+                }) as {
+                  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+                  interval?: number;
+                  dayOfMonth?: number;
+                  dayOfWeek?: number;
+                },
                 timezone:
                   typeof payload['timezone'] === 'string' ? payload['timezone'] : 'UTC',
                 startDate: String(

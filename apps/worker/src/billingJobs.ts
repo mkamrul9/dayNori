@@ -1,6 +1,7 @@
 /**
  * Phase 57 repair — Durable billing event reconciliation and entitlement expiry.
  * Provider I/O runs outside short claim transactions (via API processBillingEvent).
+ * Privileged SQL uses the daynori_billing pool (Phase 57 authority repair).
  */
 
 import { pathToFileURL } from 'node:url';
@@ -9,64 +10,51 @@ import { fileURLToPath } from 'node:url';
 import type { Pool, PoolClient } from 'pg';
 import type { DatabaseClient } from './worker.js';
 
-async function loadBillingModule(): Promise<{
+type BillingServiceModule = {
   processBillingEvent: (
     pool: Pool,
     input: { eventId: string; leaseOwner?: string }
   ) => Promise<'skipped' | 'succeeded' | 'failed' | 'dead_letter'>;
   expireStaleEntitlements: (client: DatabaseClient, limit?: number) => Promise<number>;
   ensureBillingMaintenanceJobs: (client: DatabaseClient) => Promise<void>;
+};
+
+type BillingDbModule = {
   getDefaultBillingPool: () => Pool;
-}> {
+};
+
+async function importFirst<T>(candidates: string[]): Promise<T> {
+  let lastErr: unknown;
+  for (const candidate of candidates) {
+    try {
+      return (await import(pathToFileURL(candidate).href)) as T;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(`Unable to import ${candidates[0]}`);
+}
+
+async function loadBillingModules(): Promise<BillingServiceModule & BillingDbModule> {
   const here = dirname(fileURLToPath(import.meta.url));
-  const serviceCandidates = [
+  const service = await importFirst<BillingServiceModule>([
     join(here, '../../api/dist/modules/billing/service.js'),
     join(here, '../../api/src/modules/billing/service.ts'),
-  ];
-  const clientCandidates = [
+  ]);
+  const db = await importFirst<BillingDbModule>([
     join(here, '../../api/dist/db/client.js'),
     join(here, '../../api/src/db/client.ts'),
-  ];
-  let service: {
-    processBillingEvent: (
-      pool: Pool,
-      input: { eventId: string; leaseOwner?: string }
-    ) => Promise<'skipped' | 'succeeded' | 'failed' | 'dead_letter'>;
-    expireStaleEntitlements: (client: DatabaseClient, limit?: number) => Promise<number>;
-    ensureBillingMaintenanceJobs: (client: DatabaseClient) => Promise<void>;
-  } | null = null;
-  let lastErr: unknown;
-  for (const candidate of serviceCandidates) {
-    try {
-      service = (await import(pathToFileURL(candidate).href)) as NonNullable<typeof service>;
-      break;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  if (!service) {
-    throw lastErr instanceof Error ? lastErr : new Error('Unable to load billing service module');
-  }
-  let getDefaultBillingPool: (() => Pool) | null = null;
-  for (const candidate of clientCandidates) {
-    try {
-      const mod = (await import(pathToFileURL(candidate).href)) as {
-        getDefaultBillingPool: () => Pool;
-      };
-      getDefaultBillingPool = mod.getDefaultBillingPool;
-      break;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  if (!getDefaultBillingPool) {
-    throw lastErr instanceof Error ? lastErr : new Error('Unable to load billing pool module');
-  }
-  return { ...service, getDefaultBillingPool };
+  ]);
+  return {
+    processBillingEvent: service.processBillingEvent,
+    expireStaleEntitlements: service.expireStaleEntitlements,
+    ensureBillingMaintenanceJobs: service.ensureBillingMaintenanceJobs,
+    getDefaultBillingPool: db.getDefaultBillingPool,
+  };
 }
 
 async function withBillingClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const { getDefaultBillingPool } = await loadBillingModule();
+  const { getDefaultBillingPool } = await loadBillingModules();
   const pool = getDefaultBillingPool();
   const client = await pool.connect();
   try {
@@ -81,7 +69,7 @@ export async function reconcilePendingBillingEvents(
   pool: Pool,
   options?: { limit?: number }
 ): Promise<{ claimed: number; succeeded: number; failed: number; deadLetter: number }> {
-  const { processBillingEvent } = await loadBillingModule();
+  const { processBillingEvent } = await loadBillingModules();
   const limit = options?.limit ?? 20;
   const pending = await withBillingClient((billingClient) =>
     billingClient.query<{ id: string }>(`SELECT id FROM app.billing_list_pending_events($1)`, [
@@ -112,7 +100,7 @@ export async function runBillingExpireEntitlements(
   _client: DatabaseClient,
   options?: { limit?: number }
 ): Promise<{ expired: number }> {
-  const { expireStaleEntitlements } = await loadBillingModule();
+  const { expireStaleEntitlements } = await loadBillingModules();
   return withBillingClient(async (billingClient) => {
     const expired = await expireStaleEntitlements(billingClient, options?.limit ?? 50);
     return { expired };
@@ -120,6 +108,6 @@ export async function runBillingExpireEntitlements(
 }
 
 export async function scheduleBillingMaintenance(_client: DatabaseClient): Promise<void> {
-  const { ensureBillingMaintenanceJobs } = await loadBillingModule();
+  const { ensureBillingMaintenanceJobs } = await loadBillingModules();
   await withBillingClient((billingClient) => ensureBillingMaintenanceJobs(billingClient));
 }

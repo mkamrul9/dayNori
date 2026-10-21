@@ -346,10 +346,11 @@ export default function PublicAccountDeletionPage() {
                 Questions or Assistance
               </h3>
               <p style={{ margin: 0, color: palette.text.secondary }}>
-                If you have questions about your data privacy or encounter difficulties deleting
-                your account, contact our privacy team at{' '}
-                <a href="mailto:privacy@daynori.com" style={{ color: palette.action.primary }}>
-                  privacy@daynori.com
+                Support contact for deletion assistance is{' '}
+                <strong>UNRESOLVED</strong> — the owner must assign a monitored inbox before
+                launch. Do not treat provisional brand domains as verified contact channels. See{' '}
+                <a href="/support" style={{ color: palette.action.primary }}>
+                  Support (draft)
                 </a>
                 .
               </p>

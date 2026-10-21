@@ -57,6 +57,7 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0053: AI assistant and confirmed organizer actions (provisional local)](0053-ai-assistant-confirmed-actions.md)
 - [ADR-0054: Billing entitlements and purchase lifecycle (provisional local)](0054-billing-entitlements-and-purchase-lifecycle.md)
 - [ADR-0055: Reliability baseline and operating cost evidence (provisional local)](0055-reliability-baseline-and-operating-cost-evidence.md)
+- [ADR-0056: Play and web launch preparation (provisional local)](0056-play-and-web-launch-preparation.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.
 

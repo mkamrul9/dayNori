@@ -1,0 +1,60 @@
+{
+  "manifestVersion": "0.1.0-provisional",
+  "label": "local-launch-preparation",
+  "createdAt": "2026-10-21",
+  "gitRevisionAtAuthoring": "b559c23",
+  "gitRevisionNote": "Phase 59 commit supersedes this field in history after merge",
+  "notAnApprovalToLaunch": true,
+  "versions": {
+    "monorepo": "0.1.0",
+    "web": "0.1.0",
+    "mobile": "0.1.0",
+    "api": "0.1.0",
+    "androidVersionCode": "UNRESOLVED_UNTIL_SIGNED_BUILD",
+    "androidPackage": "com.daynori.app",
+    "urlScheme": "daynori",
+    "provisionalBrand": "Daynori"
+  },
+  "identityNotes": {
+    "brand": "Daynori is provisional pending owner clearance (docs/product/naming.md)",
+    "packageAndScheme": "Do not silently change; owner confirmation required before freeze",
+    "domains": {
+      "https://app.daynori.com": "PROVISIONAL intent-filter host — not purchased/verified",
+      "privacy@daynori.com": "UNRESOLVED — do not treat as monitored inbox"
+    }
+  },
+  "enabledInProposedRelease": {
+    "personalNotes": { "enabled": true, "evidence": "Phases 14+ reports" },
+    "tasksRoutinesJournal": { "enabled": true, "evidence": "prior phase reports" },
+    "filesLocal": { "enabled": true, "evidence": "file lifecycle phases" },
+    "searchSyncExport": { "enabled": true, "evidence": "search/sync/portability phases" },
+    "accountDeletionPublicResource": { "enabled": true, "evidence": "local routes; public URL unverified" },
+    "expenses": { "enabled": false, "flag": "ENABLE_EXPENSES", "reason": "not in proposed public scope unless owner enables" }
+  },
+  "disabledInProposedRelease": {
+    "vault": { "enabled": false, "gate": "always 403", "reason": "Phase 47 threat model unmet" },
+    "roomsChat": { "enabled": false, "flag": "DAYNORI_ROOMS_LOCAL_ENABLED", "reason": "off for real users; production fail-closed" },
+    "liveAi": { "enabled": false, "flags": ["DAYNORI_AI_LOCAL_ENABLED", "DAYNORI_AI_LIVE_ENABLED"], "reason": "live AI off" },
+    "productionBilling": { "enabled": false, "flags": ["DAYNORI_BILLING_LOCAL_ENABLED", "DAYNORI_BILLING_PRODUCTION_ENABLED"], "reason": "no real charges" },
+    "phase50DriveDeferred": { "enabled": false, "reason": "Phase 50 deferred" },
+    "phase49LiveGoogle": { "enabled": false, "reason": "live Google evidence pending" }
+  },
+  "migrationsRequired": "through 00069_billing_role_password_align.sql",
+  "compatibleClients": "0.1.x local provisional only",
+  "externalBlockers": [
+    "Phase 37 hardware/TalkBack/KeyStore/live push",
+    "Phase 38 private beta cohort/staging",
+    "Owner brand/domain/legal entity/support inbox",
+    "Play Console account + account-specific testing",
+    "Release signing credentials (no debug fallback for distributable)",
+    "Target API 36 artifact + 16KB page-size evidence",
+    "Commercial billing/catalog if marketing paid plans"
+  ],
+  "excludedClaims": [
+    "Store approval",
+    "Production capacity",
+    "Purchased RPO/RTO",
+    "Legal trademark clearance",
+    "Monitored support coverage"
+  ]
+}

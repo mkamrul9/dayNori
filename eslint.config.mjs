@@ -52,9 +52,13 @@ export default tseslint.config(
       },
     },
   },
-  // CommonJS KDF worker + Node spike runners.
+  // CommonJS KDF worker, Expo config plugins, Node spike runners.
   {
-    files: ['tests/security/vault/**/*.cjs', 'tests/spikes/drive/**/*.{mjs,js,ts}'],
+    files: [
+      'tests/security/vault/**/*.cjs',
+      'tests/spikes/drive/**/*.{mjs,js,ts}',
+      'apps/mobile/plugins/**/*.{js,cjs}',
+    ],
     languageOptions: {
       globals: {
         require: 'readonly',
