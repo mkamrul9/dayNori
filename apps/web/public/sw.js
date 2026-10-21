@@ -1,5 +1,5 @@
 // Daynori Service Worker (Phase 29/30/31: Web Reminders & Reviewed PWA Shell)
-const CACHE_VERSION = 'daynori-static-v2';
+const CACHE_VERSION = 'daynori-static-v3';
 
 // Strict allowlist: immutable public static assets only.
 // Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.
@@ -7,6 +7,15 @@ const ALLOWLISTED_STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
   '/favicon.ico',
+  '/icon.svg',
+  '/apple-touch-icon.png',
+  '/brand/daynori-logo.svg',
+  '/brand/daynori-logo-inverse.svg',
+  '/brand/daynori-symbol.svg',
+  '/brand/daynori-symbol-inverse.svg',
+  '/brand/icon-192.png',
+  '/brand/icon-512.png',
+  '/brand/icon-maskable-512.png',
 ];
 
 /**
@@ -188,9 +197,7 @@ self.addEventListener('fetch', (event) => {
             !response.headers.get('cache-control')?.includes('private')
           ) {
             const clone = response.clone();
-            event.waitUntil(
-              caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone))
-            );
+            event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone)));
           }
           return response;
         });

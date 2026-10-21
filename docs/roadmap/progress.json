@@ -363,7 +363,7 @@
     {
       "id": "60",
       "status": "blocked",
-      "reason": "Local release preflight/rehearsal only (ADR 0057): executable preflight never grants OA; production-mode gate tests; web production smoke; publication runbook clarifies first Play publication vs %-staged updates. Incomplete until approved Android + matching web are live. External blockers and owner decisions unresolved.",
+      "reason": "Local release preflight/rehearsal only (ADR 0057): executable preflight never grants OA; production-mode gate tests; web production smoke; publication runbook clarifies first Play publication vs %-staged updates. Owner-requested local logo kit and web/native asset integration delivered (ADR 0059); public brand clearance and physical launcher appearance remain unverified. Incomplete until approved Android + matching web are live. External blockers and owner decisions unresolved.",
       "report": "docs/phase-reports/phase-60.md"
     },
     {

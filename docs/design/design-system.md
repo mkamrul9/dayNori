@@ -4,6 +4,8 @@ Status: proposed visual specification. These values are not shipped tokens or pr
 
 ## Visual character
 
+The local application logo and platform exports are in the [Daynori logo kit](../../assets/brand/README.md). The folded D and custom vector wordmark implement this palette; [ADR 0059](../decisions/0059-daynori-vector-identity-and-platform-assets.md) records the asset and platform ownership. Public brand clearance remains pending.
+
 The app should feel like a well-made personal notebook with the clarity of a dependable tool: warm paper, dark ink, deep teal actions and small amber emphasis. Use generous spacing, clear alignment and modest rounded corners. Keep backgrounds quiet so notes, deadlines and personal writing are prominent.
 
 Avoid large decorative gradients, glass layers behind essential text, arbitrary violet accents and a different bright color for every module. A polished product comes from hierarchy and consistent states, not from filling every surface with brand color.

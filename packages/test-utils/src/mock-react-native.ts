@@ -29,6 +29,7 @@ export const StyleSheet = {
 
 export const Text = 'Text';
 export const View = 'View';
+export const Image = 'Image';
 export const SafeAreaView = 'SafeAreaView';
 export const Pressable = 'Pressable';
 export const TouchableOpacity = 'Pressable';

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 960" fill="none">
+  <rect width="1440" height="960" fill="#F7F5EF"/>
+  <g font-family="Segoe UI, sans-serif" fill="#172C2C">
+    <text x="80" y="78" font-size="16" letter-spacing="4">DAYNORI / VISUAL IDENTITY</text>
+    <text x="1360" y="78" font-size="14" text-anchor="end">01</text>
+    <g transform="translate(335 197) scale(2.3)"><g transform="translate(0 -1)"><g fill="#146B63" fill-rule="evenodd"><path d="M18 40 42 16H46C67 16 82 29 82 49S67 82 46 82H18V40ZM34 44V66H46C58 66 66 59 66 49S58 32 46 32L34 44Z"/><path d="M18 16H33L18 31Z"/></g></g><g transform="translate(108 17) scale(1.03)"><g fill="#172C2C"><path fill-rule="evenodd" d="M3 3H15C27 3 34 10 34 23S27 43 15 43H3V3ZM10 10V36H15C23 36 27 32 27 23S23 10 15 10H10Z"/><circle cx="204" cy="5" r="3.7"/></g><path d="M64 17V40M64 28.5C64 20.5 60 16 53 16S42 20.5 42 28.5 46 41 53 41 64 36.5 64 28.5ZM77 17 87 40M99 17 84 54M111 40V17M111 27C111 20 115 16 121 16S132 20 132 27V40M167 28.5C167 20.5 163 16 156 16S145 20.5 145 28.5 149 41 156 41 167 36.5 167 28.5ZM180 40V17M180 27C180 20 184 16 191 17M204 17V40" fill="none" stroke="#172C2C" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+    <text x="720" y="484" font-size="24" text-anchor="middle" fill="#526363">Your day, gathered.</text>
+    <path d="M80 555H1360" stroke="#D9DFDC"/>
+    <text x="80" y="605" font-size="13" letter-spacing="2">THE FOLDED D</text>
+    <g transform="translate(105 652) scale(1.8)"><g fill="#146B63" fill-rule="evenodd"><path d="M18 40 42 16H46C67 16 82 29 82 49S67 82 46 82H18V40ZM34 44V66H46C58 66 66 59 66 49S58 32 46 32L34 44Z"/><path d="M18 16H33L18 31Z"/></g></g>
+    <rect x="438" y="637" width="228" height="228" rx="50" fill="#146B63"/>
+    <g transform="translate(466.5 665.5) scale(1.78125)"><g fill="#FFFFFF" fill-rule="evenodd"><path d="M18 40 42 16H46C67 16 82 29 82 49S67 82 46 82H18V40ZM34 44V66H46C58 66 66 59 66 49S58 32 46 32L34 44Z"/><path d="M18 16H33L18 31Z"/></g></g>
+    <text x="438" y="605" font-size="13" letter-spacing="2">APP ICON</text>
+    <rect x="746" y="637" width="614" height="228" rx="20" fill="#172C2C"/>
+    <g transform="translate(806 679) scale(1.48)"><g transform="translate(0 -1)"><g fill="#F7F5EF" fill-rule="evenodd"><path d="M18 40 42 16H46C67 16 82 29 82 49S67 82 46 82H18V40ZM34 44V66H46C58 66 66 59 66 49S58 32 46 32L34 44Z"/><path d="M18 16H33L18 31Z"/></g></g><g transform="translate(108 17) scale(1.03)"><g fill="#F7F5EF"><path fill-rule="evenodd" d="M3 3H15C27 3 34 10 34 23S27 43 15 43H3V3ZM10 10V36H15C23 36 27 32 27 23S23 10 15 10H10Z"/><circle cx="204" cy="5" r="3.7"/></g><path d="M64 17V40M64 28.5C64 20.5 60 16 53 16S42 20.5 42 28.5 46 41 53 41 64 36.5 64 28.5ZM77 17 87 40M99 17 84 54M111 40V17M111 27C111 20 115 16 121 16S132 20 132 27V40M167 28.5C167 20.5 163 16 156 16S145 20.5 145 28.5 149 41 156 41 167 36.5 167 28.5ZM180 40V17M180 27C180 20 184 16 191 17M204 17V40" fill="none" stroke="#F7F5EF" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+    <text x="746" y="605" font-size="13" letter-spacing="2">REVERSED</text>
+    <text x="80" y="922" font-size="14" fill="#526363">Custom vector geometry. One color. Built to work small.</text>
+  </g></svg>

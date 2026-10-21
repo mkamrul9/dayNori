@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import brandSymbol from '../assets/daynori-symbol.png';
 
 export interface MobileHeaderProps {
   title: string;
@@ -35,6 +36,18 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         },
       ]}
     >
+      <Image
+        source={brandSymbol}
+        accessible={false}
+        importantForAccessibility="no"
+        resizeMode="contain"
+        style={{
+          width: 34,
+          height: 34,
+          marginRight: spacing.sm,
+          tintColor: palette.action.primary,
+        }}
+      />
       <View style={styles.titleContainer}>
         <Text numberOfLines={1} style={[styles.title, { color: palette.text.primary }]}>
           {title}

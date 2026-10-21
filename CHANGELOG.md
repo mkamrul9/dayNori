@@ -1,5 +1,12 @@
 # Changelog
 
+## Daynori logo — local application identity — 2026-10-21
+
+- Custom folded D symbol and vector lettering, with editable geometry, transparent SVG/PNG wordmarks, inverse/monochrome variants and a 1024 px app icon.
+- Web header, favicon, Apple touch icon and PWA any/maskable icons; versioned public asset caching. Native header symbol plus Expo launcher, adaptive/themed, notification and light/dark splash assets.
+- Rebuild/check scripts and usage guidance under `assets/brand/`; ADR 0059. Public clearance and native device appearance remain separate verification gates.
+- Pinned Metro compatibility patch enables bundled PNGs with the existing image-size 2.0.4 override; Android export includes the native logo.
+
 ## Phase 61 — iOS platform parity and native adaptation (blocked) — 2026-10-21
 
 - Expo iOS config: bundle id `com.daynori.app`, SQLCipher iOS, Keychain secure-store plugin, associated domains, microphone purpose string, deployment target 15.1.

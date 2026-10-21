@@ -15,6 +15,9 @@ overrides:
   postcss: ^8.5.30
 
 patchedDependencies:
+  metro@0.81.5:
+    hash: vhxihnwqupee4omeebm5yg2mam
+    path: patches/metro@0.81.5.patch
   tar@7.5.22:
     hash: hboorfjzhasutalo3nier3zs74
     path: patches/tar@7.5.22.patch
@@ -6886,7 +6889,7 @@ snapshots:
       chalk: 4.1.2
       execa: 5.1.1
       invariant: 2.2.4
-      metro: 0.81.5
+      metro: 0.81.5(patch_hash=vhxihnwqupee4omeebm5yg2mam)
       metro-config: 0.81.5
       metro-core: 0.81.5
       node-fetch: 2.7.0
@@ -9051,7 +9054,7 @@ snapshots:
       cosmiconfig: 5.2.1
       flow-enums-runtime: 0.0.6
       jest-validate: 29.7.0
-      metro: 0.81.5
+      metro: 0.81.5(patch_hash=vhxihnwqupee4omeebm5yg2mam)
       metro-cache: 0.81.5
       metro-core: 0.81.5
       metro-runtime: 0.81.5
@@ -9138,7 +9141,7 @@ snapshots:
       '@babel/parser': 7.29.9
       '@babel/types': 7.29.8
       flow-enums-runtime: 0.0.6
-      metro: 0.81.5
+      metro: 0.81.5(patch_hash=vhxihnwqupee4omeebm5yg2mam)
       metro-babel-transformer: 0.81.5
       metro-cache: 0.81.5
       metro-cache-key: 0.81.5
@@ -9151,7 +9154,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  metro@0.81.5:
+  metro@0.81.5(patch_hash=vhxihnwqupee4omeebm5yg2mam):
     dependencies:
       '@babel/code-frame': 7.29.7
       '@babel/core': 7.29.7

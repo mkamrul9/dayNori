@@ -70,32 +70,27 @@ export const AppHeader: React.FC = () => {
             textDecoration: 'none',
             color: palette.text.primary,
             display: 'flex',
-            alignItems: 'baseline',
-            gap: `${spacing.xs}px`,
+            alignItems: 'center',
             minHeight: `${touchTargets.webMin}px`,
             lineHeight: `${touchTargets.webMin}px`,
           }}
         >
-          <span
-            style={{
-              fontSize: '20px',
-              fontWeight: 800,
-              letterSpacing: '-0.5px',
-              color: palette.action.primary,
-            }}
-          >
-            Daynori
-          </span>
-          <span
+          <img
             className="desktop-only"
-            style={{
-              fontSize: '12px',
-              color: palette.text.secondary,
-              fontWeight: 500,
-            }}
-          >
-            gathered
-          </span>
+            src={`/brand/daynori-${themeMode === 'dark' ? 'logo-inverse' : 'logo'}.svg`}
+            alt="Daynori"
+            width={125}
+            height={36}
+            style={{ display: 'block', flexShrink: 0 }}
+          />
+          <img
+            className="mobile-only"
+            src={`/brand/daynori-symbol${themeMode === 'dark' ? '-inverse' : ''}.svg`}
+            alt="Daynori"
+            width={32}
+            height={32}
+            style={{ display: 'none', flexShrink: 0 }}
+          />
         </a>
       </div>
 
@@ -147,7 +142,7 @@ export const AppHeader: React.FC = () => {
           <span aria-hidden="true" style={{ marginRight: '4px', fontWeight: 'bold' }}>
             ＋
           </span>
-          <span>Create</span>
+          <span className="desktop-only">Create</span>
           <kbd
             className="desktop-only"
             style={{

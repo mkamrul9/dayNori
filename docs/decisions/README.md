@@ -60,6 +60,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0056: Play and web launch preparation (provisional local)](0056-play-and-web-launch-preparation.md)
 - [ADR-0057: Public release preflight and first Play publication](0057-public-release-preflight-and-first-publication.md)
 - [ADR-0058: iOS platform parity and native adapters](0058-ios-platform-parity-and-native-adapters.md)
+- [ADR-0059: Daynori vector identity and platform assets](0059-daynori-vector-identity-and-platform-assets.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.
-

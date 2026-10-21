@@ -64,6 +64,7 @@
       "postcss": "^8.5.30"
     },
     "patchedDependencies": {
+      "metro@0.81.5": "patches/metro@0.81.5.patch",
       "tar@7.5.22": "patches/tar@7.5.22.patch"
     }
   }
