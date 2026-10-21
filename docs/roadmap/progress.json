@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-21",
   "activePhase": "60",
   "nextPhase": null,
-  "schedulingDecision": "Owner directed: consolidate and validate existing Android/web core, repair defects, close release blockers — do not advance to iOS/Phase 61. Local Node 24.21 + regenerated Android + core/proxy validation recorded; APK blocked on path spaces; Phase 37–38 and owner launch requirements remain. Vault/AI/Drive/chat/billing stay off. Stop before Phase 61.",
+  "schedulingDecision": "Owner directed: consolidate Android/web core — do not advance to iOS/Phase 61. Debug APK built from D:\\d\\daynori; core/proxy validation PASS; Phase 37–38 device/beta, owner launch requirements, and signed publication remain. Vault/AI/Drive/chat/billing stay off. Stop before Phase 61.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
   "phases": [
     {

@@ -15,6 +15,11 @@ apps/mobile/ios/
 # Local toolchains (portable Node, etc.) — never commit binaries
 .tools/
 
+# Large local build products (record hashes in evidence JSON instead)
+artifacts/release/*.apk
+artifacts/release/*.aab
+artifacts/release/*.ipa
+
 
 # Local secrets and private material
 .env

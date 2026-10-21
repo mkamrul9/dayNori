@@ -65,7 +65,7 @@ Environment: Windows, Node `v24.11.1` (**BLOCKED** vs engines `^24.21.0`), pnpm 
 
 ## Consolidation follow-up (2026-10-21, same phase)
 
-See [core-consolidation-status.md](../engineering/core-consolidation-status.md). Local Node 24.21.0 portable toolchain, regenerated Android inspect **PASS**, production web proxy account-deletion **PASS**, core organizer API walkthrough **PASS**. Installable APK **BLOCKED** on Windows path spaces (`UNIQUE WORK` breaks NDK prefab). **Do not start Phase 61 / iOS** until Android/web launch blockers above are closed.
+See [core-consolidation-status.md](../engineering/core-consolidation-status.md). Local Node 24.21.0, regenerated Android, production web-proxy deletion, core + sync-push validation **PASS**. Installable **debug** APK built from `D:\d\daynori` (SHA-256 in `artifacts/release/android-debug-apk-evidence.json`) — **not** release-eligible. No adb device; Phase 37–38 and owner OA remain. **Do not start Phase 61 / iOS**.
 
 ## Handoff
 

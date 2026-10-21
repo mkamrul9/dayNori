@@ -12,12 +12,19 @@ const { createRequire } = require('node:module');
 const fs = require('node:fs');
 const path = require('node:path');
 // pnpm: resolve via realpath(expo) so Gradle createExpoConfig can load nested deps.
+// Supports package node_modules and hoisted monorepo-root node_modules.
 function loadWithAppBuildGradle() {
-  const expoPkg = path.join(__dirname, '..', 'node_modules', 'expo', 'package.json');
-  if (!fs.existsSync(expoPkg)) {
-    throw new Error('expo package missing under apps/mobile/node_modules — run pnpm install');
+  const candidates = [
+    path.join(__dirname, '..', 'node_modules', 'expo', 'package.json'),
+    path.join(__dirname, '..', '..', '..', 'node_modules', 'expo', 'package.json'),
+  ];
+  for (const expoPkg of candidates) {
+    if (!fs.existsSync(expoPkg)) continue;
+    return createRequire(fs.realpathSync(expoPkg))('@expo/config-plugins').withAppBuildGradle;
   }
-  return createRequire(fs.realpathSync(expoPkg))('@expo/config-plugins').withAppBuildGradle;
+  throw new Error(
+    'expo package missing (checked apps/mobile/node_modules and repo root) — run pnpm install'
+  );
 }
 const withAppBuildGradle = loadWithAppBuildGradle();
 

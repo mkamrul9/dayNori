@@ -1,10 +1,16 @@
 # Changelog
 
+## Core consolidation — installable debug APK + walkthrough (blocked) — 2026-10-21
+
+- Built installable **debug** arm64 APK from space-free `D:\d\daynori` (`node scripts/build-android-debug-apk.mjs`); SHA-256 recorded; **not** release-eligible.
+- Extended `pnpm validate:core`: sync push (offline stand-in), export denied without reauth, web-proxy deletion.
+- Signing-guard resolve supports hoisted monorepo `node_modules`. Device/beta/owner OA and signed AAB still blocked. No Phase 61/iOS.
+
 ## Core consolidation — Android/web local gaps (blocked) — 2026-10-21
 
 - Portable Node `v24.21.0` under `.tools/` (gitignored); regenerate Android with fail-closed signing guard fix (whenReady always appended; Expo resolve via realpath).
 - `pnpm validate:core` / core-organizer local validation: production notes/tasks/routines/journal/files quota/sync + web proxy account-deletion.
-- Installable APK still blocked on Windows path spaces (`UNIQUE WORK` / NDK prefab). No Phase 61/iOS. See `docs/engineering/core-consolidation-status.md`.
+- Installable APK path workaround documented. See `docs/engineering/core-consolidation-status.md`.
 
 ## Phase 60 — Public Android and web release preflight / rehearsal (blocked) — 2026-10-21
 

@@ -209,6 +209,47 @@ describe('Core organizer local validation (consolidation)', () => {
     expect(pull).toBeTruthy();
     record('sync-pull', 'PASS');
 
+    // Offline-edit stand-in: sync push createItem (client queue → server receipt)
+    const offlineItemId = crypto.randomUUID();
+    const push = await client.syncPush({
+      commands: [
+        {
+          operationId: crypto.randomUUID(),
+          deviceId: crypto.randomUUID(),
+          workspaceId,
+          commandVersion: 1,
+          schemaVersion: 1,
+          command: 'createItem',
+          entityType: 'item',
+          entityId: offlineItemId,
+          baseRevision: 0,
+          dependencyOperationIds: [],
+          clientTimestamp: new Date().toISOString(),
+          payload: {
+            kind: 'note',
+            rank: '0|hzzzzz:',
+            securityScope: 'standard',
+          },
+        },
+      ],
+    });
+    expect(push.data.results[0]?.status).toBe('accepted');
+    record('sync-push-offline-standin', 'PASS', offlineItemId);
+
+    // Export requires reauth — without token must not succeed as a silent export
+    const exportRes = await fetch(`${baseUrl}/v1/workspaces/${workspaceId}/export`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    // Must not return a successful export archive without reauth.
+    expect(exportRes.status).toBeGreaterThanOrEqual(400);
+    expect([200, 201, 202]).not.toContain(exportRes.status);
+    record('export-requires-reauth', 'PASS', `status=${exportRes.status}`);
+
     const auth = { Authorization: `Bearer ${token}` };
     expect((await fetch(`${baseUrl}/v1/vault/status`, { headers: auth })).status).toBe(403);
     expect((await fetch(`${baseUrl}/v1/rooms`, { headers: auth })).status).toBe(403);

@@ -1,0 +1,15 @@
+{
+    "adbDevices":  [
+                       "List of devices attached",
+                       ""
+                   ],
+    "architecture":  "arm64-v8a",
+    "createdAt":  "2026-10-21T06:45:37.5496398Z",
+    "targetSdk":  36,
+    "buildRoot":  "D:\\d\\daynori",
+    "sha256":  "0379F71CB48C953C5020CB393BA49084507D1F37AFA06066622EB351C800A5B7",
+    "compileSdk":  36,
+    "signing":  "debug (local-test only — not release-eligible)",
+    "apkPath":  "artifacts/release/app-debug-arm64.apk",
+    "note":  "Built from space-free short path with node-linker=hoisted; original UNIQUE WORK path remains NDK-hostile"
+}
