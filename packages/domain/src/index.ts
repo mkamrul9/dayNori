@@ -32,4 +32,5 @@ export * from './collaborationSafety.js';
 export * from './aiGate.js';
 export * from './aiConsent.js';
 export * from './billingGate.js';
+export * from './billingLifecycle.js';
 

@@ -12,16 +12,18 @@ import {
   VerifyPurchaseResponseSchema,
   WorkspaceParamsSchema,
 } from '@daynori/contracts';
-import { withUserContext, withTenantContext } from '../../db/index.js';
+import { withTenantContext } from '../../db/index.js';
 import { validateResponse } from '../../plugins/errorHandler.js';
 import {
   BillingServiceError,
   getBillingCatalog,
   getBillingUsage,
   getEntitlement,
-  ingestBillingEvent,
+  ingestProviderBillingNotification,
+  ingestSyntheticBillingEvent,
   restorePurchases,
   verifyAndGrantPurchase,
+  withBillingAuthority,
 } from '../../modules/billing/service.js';
 
 function meta(requestId: string) {
@@ -58,8 +60,8 @@ export function registerBillingRoutes(app: FastifyInstance, pool: Pool): void {
     const actor = request.actor;
     if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
     try {
-      const data = await withUserContext(pool, actor.userId, (client) =>
-        getEntitlement(client, actor.userId)
+      const data = await withBillingAuthority(pool, actor.userId, (client) =>
+        getEntitlement(client, actor.userId, { persistExpiry: true })
       );
       return reply.send(
         validateResponse(BillingEntitlementResponseSchema, { data, meta: meta(request.id) })
@@ -77,7 +79,11 @@ export function registerBillingRoutes(app: FastifyInstance, pool: Pool): void {
       const data = await withTenantContext(
         pool,
         { userId: actor.userId, workspaceId },
-        (client) => getBillingUsage(client, actor.userId, workspaceId)
+        async (client) => {
+          const { activateBillingAuthority } = await import('../../modules/billing/service.js');
+          await activateBillingAuthority(client);
+          return getBillingUsage(client, actor.userId, workspaceId);
+        }
       );
       return reply.send(
         validateResponse(BillingUsageResponseSchema, { data, meta: meta(request.id) })
@@ -92,13 +98,12 @@ export function registerBillingRoutes(app: FastifyInstance, pool: Pool): void {
     if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
     const body = VerifyPurchaseRequestSchema.parse(request.body);
     try {
-      const data = await withUserContext(pool, actor.userId, (client) =>
+      const data = await withBillingAuthority(pool, actor.userId, (client) =>
         verifyAndGrantPurchase(client, {
           userId: actor.userId,
           provider: body.provider,
           productId: body.productId,
           purchaseToken: body.purchaseToken,
-          obfuscatedAccountId: body.obfuscatedAccountId ?? actor.userId,
         })
       );
       return reply.send(
@@ -114,7 +119,7 @@ export function registerBillingRoutes(app: FastifyInstance, pool: Pool): void {
     if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
     const body = RestorePurchasesRequestSchema.parse(request.body);
     try {
-      const data = await withUserContext(pool, actor.userId, (client) =>
+      const data = await withBillingAuthority(pool, actor.userId, (client) =>
         restorePurchases(client, {
           userId: actor.userId,
           provider: body.provider,
@@ -129,20 +134,67 @@ export function registerBillingRoutes(app: FastifyInstance, pool: Pool): void {
     }
   });
 
+  app.post('/v1/billing/events/synthetic', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const body = BillingEventIngestRequestSchema.parse(request.body);
+    try {
+      if (body.provider !== 'fake_play' || body.authenticity !== 'fake_signed_local') {
+        throw new BillingServiceError(
+          'Synthetic harness requires fake_play + fake_signed_local',
+          400,
+          'BILLING_EVENT_AUTH_INVALID'
+        );
+      }
+      const data = await withBillingAuthority(pool, actor.userId, (client) =>
+        ingestSyntheticBillingEvent(client, {
+          provider: 'fake_play',
+          messageId: body.messageId,
+          eventType: body.eventType,
+          purchaseToken: body.purchaseToken,
+        })
+      );
+      return reply.status(202).send(
+        validateResponse(BillingEventIngestResponseSchema, { data, meta: meta(request.id) })
+      );
+    } catch (err) {
+      return sendBillingError(err, reply);
+    }
+  });
+
+  // Legacy path: keep /v1/billing/events as synthetic-only alias (explicitly not provider OIDC).
   app.post('/v1/billing/events', async (request, reply) => {
     const actor = request.actor;
     if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
     const body = BillingEventIngestRequestSchema.parse(request.body);
     try {
-      // Local harness: authenticated user may submit labeled fake RTDN.
-      // Production Pub/Sub path would authenticate via OIDC push, not end-user JWT.
-      const data = await withUserContext(pool, actor.userId, (client) =>
-        ingestBillingEvent(client, {
-          provider: body.provider,
+      if (body.authenticity === 'google_pubsub_oidc') {
+        const data = await withBillingAuthority(pool, actor.userId, (client) =>
+          ingestProviderBillingNotification(client, {
+            provider: 'google_play',
+            messageId: body.messageId,
+            eventType: body.eventType,
+            purchaseToken: body.purchaseToken,
+            oidcVerified: false,
+          })
+        );
+        return reply.status(202).send(
+          validateResponse(BillingEventIngestResponseSchema, { data, meta: meta(request.id) })
+        );
+      }
+      if (body.provider !== 'fake_play') {
+        throw new BillingServiceError(
+          'End-user event ingest is synthetic fake_play only',
+          400,
+          'BILLING_EVENT_AUTH_INVALID'
+        );
+      }
+      const data = await withBillingAuthority(pool, actor.userId, (client) =>
+        ingestSyntheticBillingEvent(client, {
+          provider: 'fake_play',
           messageId: body.messageId,
           eventType: body.eventType,
           purchaseToken: body.purchaseToken,
-          authenticity: body.authenticity,
         })
       );
       return reply.status(202).send(

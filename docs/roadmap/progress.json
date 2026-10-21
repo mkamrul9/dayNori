@@ -345,7 +345,7 @@
     {
       "id": "57",
       "status": "blocked",
-      "reason": "Provisional local entitlements (ADR 0054): synthetic catalog, fake_play verify/restore, durable events, account-bound tokens, web/Android surfaces. Completion blocked pending commercial decisions, Play/web sandbox evidence, and production activation authorization. No real charges. Billing does not unlock vault/rooms/AI. Stop before Phase 58.",
+      "reason": "Provisional local entitlements repaired (ADR 0054 amended): protected billing authority token, explicit Play states, durable pending events + scheduler, recompute aggregation, AI/storage ceiling binding. Completion blocked pending commercial decisions, Play/web sandbox evidence, and production activation. No real charges. Billing does not unlock vault/rooms/AI.",
       "report": "docs/phase-reports/phase-57.md"
     },
     {

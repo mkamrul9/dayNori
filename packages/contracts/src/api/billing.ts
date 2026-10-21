@@ -36,7 +36,7 @@ export type BillingCatalogResponse = z.infer<typeof BillingCatalogResponseSchema
 export const BillingEntitlementSchema = z
   .object({
     planId: BillingPlanIdSchema,
-    status: z.enum(['active', 'grace', 'hold', 'expired', 'revoked']),
+    status: z.enum(['pending', 'active', 'grace', 'hold', 'canceled', 'expired', 'revoked']),
     validFrom: z.string(),
     validUntil: z.string(),
     storageBytes: z.number().int().positive(),
@@ -77,7 +77,6 @@ export const VerifyPurchaseRequestSchema = z
     provider: z.enum(['fake_play', 'google_play']),
     productId: z.string().min(1).max(200),
     purchaseToken: z.string().min(8).max(4096),
-    obfuscatedAccountId: z.string().uuid().optional(),
   })
   .strict();
 export type VerifyPurchaseRequest = z.infer<typeof VerifyPurchaseRequestSchema>;

@@ -1,18 +1,22 @@
 /**
- * Phase 57 — Durable billing event reconciliation (provisional local).
- * Loads API processBillingEvent (same pattern as AI/Drive jobs).
+ * Phase 57 repair — Durable billing event reconciliation and entitlement expiry.
+ * Provider I/O runs outside short claim transactions (via API processBillingEvent).
  */
 
 import { pathToFileURL } from 'node:url';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Pool } from 'pg';
 import type { DatabaseClient } from './worker.js';
 
-async function loadProcessBillingEvent(): Promise<{
+async function loadBillingModule(): Promise<{
   processBillingEvent: (
-    client: DatabaseClient,
-    input: { eventId: string }
-  ) => Promise<void>;
+    pool: Pool,
+    input: { eventId: string; leaseOwner?: string }
+  ) => Promise<'skipped' | 'succeeded' | 'failed' | 'dead_letter'>;
+  activateBillingAuthority: (client: DatabaseClient) => Promise<void>;
+  expireStaleEntitlements: (client: DatabaseClient, limit?: number) => Promise<number>;
+  ensureBillingMaintenanceJobs: (client: DatabaseClient) => Promise<void>;
 }> {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
@@ -22,33 +26,29 @@ async function loadProcessBillingEvent(): Promise<{
   let lastErr: unknown;
   for (const candidate of candidates) {
     try {
-      const href = pathToFileURL(candidate).href;
-      return (await import(href)) as {
-        processBillingEvent: (
-          client: DatabaseClient,
-          input: { eventId: string }
-        ) => Promise<void>;
-      };
+      return (await import(pathToFileURL(candidate).href)) as Awaited<
+        ReturnType<typeof loadBillingModule>
+      >;
     } catch (err) {
       lastErr = err;
     }
   }
-  throw lastErr instanceof Error
-    ? lastErr
-    : new Error('Unable to load billing processBillingEvent');
+  throw lastErr instanceof Error ? lastErr : new Error('Unable to load billing service module');
 }
 
 export async function reconcilePendingBillingEvents(
   client: DatabaseClient,
+  pool: Pool,
   options?: { limit?: number }
 ): Promise<{ claimed: number; succeeded: number; failed: number; deadLetter: number }> {
+  const { activateBillingAuthority, processBillingEvent } = await loadBillingModule();
+  await activateBillingAuthority(client);
   const limit = options?.limit ?? 20;
   const pending = await client.query<{ id: string }>(
     `SELECT id FROM app.billing_list_pending_events($1)`,
     [limit]
   );
 
-  const { processBillingEvent } = await loadProcessBillingEvent();
   let claimed = 0;
   let succeeded = 0;
   let failed = 0;
@@ -56,16 +56,28 @@ export async function reconcilePendingBillingEvents(
 
   for (const row of pending.rows) {
     claimed += 1;
-    await processBillingEvent(client, { eventId: row.id });
-    const status = await client.query<{ processing_status: string }>(
-      `SELECT processing_status FROM app.billing_load_event($1)`,
-      [row.id]
-    );
-    const st = status.rows[0]?.processing_status;
-    if (st === 'succeeded') succeeded += 1;
-    else if (st === 'dead_letter') deadLetter += 1;
-    else if (st === 'failed') failed += 1;
+    const result = await processBillingEvent(pool, {
+      eventId: row.id,
+      leaseOwner: `worker-reconcile-${row.id}`,
+    });
+    if (result === 'succeeded') succeeded += 1;
+    else if (result === 'dead_letter') deadLetter += 1;
+    else if (result === 'failed') failed += 1;
   }
 
   return { claimed, succeeded, failed, deadLetter };
+}
+
+export async function runBillingExpireEntitlements(
+  client: DatabaseClient,
+  options?: { limit?: number }
+): Promise<{ expired: number }> {
+  const { expireStaleEntitlements } = await loadBillingModule();
+  const expired = await expireStaleEntitlements(client, options?.limit ?? 50);
+  return { expired };
+}
+
+export async function scheduleBillingMaintenance(client: DatabaseClient): Promise<void> {
+  const { ensureBillingMaintenanceJobs } = await loadBillingModule();
+  await ensureBillingMaintenanceJobs(client);
 }

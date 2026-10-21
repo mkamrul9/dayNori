@@ -427,6 +427,37 @@ export class DaynoriWorker {
     if (this.pool && options?.pollIntervalMs) {
       this.startPolling(this.pool, options.pollIntervalMs);
     }
+    if (this.pool) {
+      void this.bootstrapBillingScheduler();
+    }
+  }
+
+  /** Ensures periodic billing reconcile/expire jobs are enqueued (provisional local). */
+  private async bootstrapBillingScheduler(): Promise<void> {
+    if (!this.pool) return;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { scheduleBillingMaintenance } = await import('./billingJobs.js');
+      await scheduleBillingMaintenance(client);
+      await client.query('COMMIT');
+    } catch {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      // Quiet: billing local gate or migrations may be absent.
+    } finally {
+      client.release();
+    }
+  }
+
+  private getPoolForBilling(): pg.Pool {
+    if (!this.pool) {
+      throw new Error('Worker billing pool unavailable');
+    }
+    return this.pool as unknown as pg.Pool;
   }
 
   stop(): void {
@@ -710,15 +741,36 @@ export class DaynoriWorker {
     }
 
     if (taskType === 'billing_reconcile_events' && client) {
-      const { reconcilePendingBillingEvents } = await import('./billingJobs.js');
-      const billingRes = await reconcilePendingBillingEvents(client, {
+      const { reconcilePendingBillingEvents, scheduleBillingMaintenance } = await import(
+        './billingJobs.js'
+      );
+      const pool = this.getPoolForBilling();
+      const billingRes = await reconcilePendingBillingEvents(client, pool, {
         limit: typeof payload?.['limit'] === 'number' ? payload['limit'] : 20,
       });
+      // Re-enqueue next periodic pass (bounded scheduler).
+      await scheduleBillingMaintenance(client);
       return {
         jobId,
         status: 'completed',
         processedAt: new Date().toISOString(),
         details: { taskType, ...billingRes },
+      };
+    }
+
+    if (taskType === 'billing_expire_entitlements' && client) {
+      const { runBillingExpireEntitlements, scheduleBillingMaintenance } = await import(
+        './billingJobs.js'
+      );
+      const expireRes = await runBillingExpireEntitlements(client, {
+        limit: typeof payload?.['limit'] === 'number' ? payload['limit'] : 50,
+      });
+      await scheduleBillingMaintenance(client);
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: { taskType, ...expireRes },
       };
     }
 

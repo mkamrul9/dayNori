@@ -44,7 +44,16 @@ Distinguish: **measured local**, **provider quote**, **estimate**, **unknown**.
 - Production monthly quotas and paid-account provisioning.
 - Staffed billing support / refund operator runbooks.
 
+## Amendment (2026-10-21) — Phase 57 repair
+
+1. **Protected authority:** Privileged SECURITY DEFINER helpers require `app.billing_activate_service_session(token)` (token hash in `billing_service_secrets`, not readable by runtime). Ordinary EXECUTE without activation raises `BILLING_AUTHORITY_REQUIRED`.
+2. **Explicit states:** `mapVerifiedSubscriptionToAccess` uses full Play `SUBSCRIPTION_STATE_*` values; pending never grants; canceled retains access until `validUntil`; grace/hold/expire/revoke per lifecycle docs (reviewed 2026-10-21).
+3. **No RTDN override:** Reconciliation re-fetches provider state; notification labels do not rewrite verified state. Entitlement recompute aggregates purchases so one expired token cannot clobber another valid grant.
+4. **Ownership:** Client account hints are not verified ownership. Provider `obfuscatedAccountId` is authoritative when present; first-claim without provider account id is an explicit server option only.
+5. **Durable processing:** Synthetic harness is separate from gated provider OIDC ingest. Events stay pending for worker claim → provider I/O outside lock → fenced finalize. Periodic `billing_reconcile_events` / `billing_expire_entitlements` jobs are enqueued by the worker scheduler.
+6. **Quotas:** Effective entitlement drives storage ceiling recompute and AI monthly reservation limit when billing local is enabled.
+
 ## Consequences
 
 - Status remains **blocked/provisional** until sandbox/production evidence and commercial decisions land.
-- Stop before Phase 58.
+- Stop before Phase 58 (owner-selected after repair commit).

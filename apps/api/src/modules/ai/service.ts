@@ -18,6 +18,7 @@ import {
   isAiLocallyEnabled,
   isAiLiveProviderEnabled,
   isAiSourceKindEligible,
+  isBillingLocallyEnabled,
   treatRetrievedTextAsUntrustedData,
   validateAiContentScope,
   type AiContentScope,
@@ -25,6 +26,7 @@ import {
 import { withUserContext } from '../../db/index.js';
 import { NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
 import { resolveAiProvider, type AiProviderAdapter, type AiProviderMode } from './provider.js';
+import { getEffectiveAiMonthlyTokenBudget } from '../billing/service.js';
 
 export class AiServiceError extends Error {
   constructor(
@@ -506,6 +508,10 @@ export async function retrieveAuthorizedAnswer(
       maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
     });
 
+    const monthlyBudget = isBillingLocallyEnabled()
+      ? await getEffectiveAiMonthlyTokenBudget(client, input.userId)
+      : AI_DEFAULT_MONTHLY_TOKEN_BUDGET;
+
     const reserved = await client.query<{
       ok: boolean;
       request_id: string | null;
@@ -516,7 +522,7 @@ export async function retrieveAuthorizedAnswer(
       input.userId,
       reserveTokens,
       consent.consentGeneration,
-      AI_DEFAULT_MONTHLY_TOKEN_BUDGET,
+      monthlyBudget,
     ]);
     if (!reserved.rows[0]?.ok || !reserved.rows[0].request_id) {
       throw new AiServiceError('AI monthly token budget exhausted', 429, 'AI_BUDGET_EXHAUSTED');

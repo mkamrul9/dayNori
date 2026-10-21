@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 57 repair — Billing authority, lifecycle, durable events, quotas (blocked) — 2026-10-21
+
+- SECURITY DEFINER billing helpers require `billing_activate_service_session` (service token); ordinary bypass denied.
+- Explicit Play `SUBSCRIPTION_STATE_*` mapping; pending/canceled/grace/hold/expiry/revocation with validity windows; recompute aggregates purchases.
+- Synthetic harness separated from gated provider ingest; events pending until worker claim; RTDN labels do not override verified state.
+- AI monthly reservation uses effective entitlement ceiling; storage ceiling synced on recompute. ADR 0054 amended.
+
 ## Phase 57 — Entitlements, subscriptions, and purchase lifecycle (blocked / provisional) — 2026-10-21
 
 - Server-authoritative entitlements with synthetic local catalog; clients cannot grant premium via local state or SQL.

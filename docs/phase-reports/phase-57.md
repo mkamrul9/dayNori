@@ -88,7 +88,18 @@ Physical store sandbox, merchant console, and full a11y device matrix: **unexecu
 2. Fake verification is **not** provider proof; Expo Go / synthetic UI is **not** Play Billing Library verification.
 3. Web purchase provider explicitly **unsupported**; Android users are not steered to web checkout.
 4. Unresolved owner choices: commercial prices, tax/merchant accounts, whether web purchases are pursued under current policy, staffed billing support.
-5. Rollback: disable billing local flag; reverse migration `00065` after draining events. Existing personal content remains; entitlements drop to free defaults when rows removed.
+5. Rollback: disable billing local flag; reverse migrations `00065`–`00067` after draining events. Existing personal content remains; entitlements drop to free defaults when rows removed.
+
+### Phase 57 repair (same report family) — 2026-10-21
+
+| Repair | Result |
+|---|---|
+| A Protected billing service token for DEFINER helpers | **Pass** (ordinary helper bypass denied) |
+| B Explicit Play state mapping + validity windows | **Pass** (unit + integration) |
+| C Provider ownership / product validation; no client hint as proof | **Pass** |
+| D Durable pending events + worker scheduler; no RTDN override | **Pass** (local / fake) |
+| E Entitlement-driven storage + AI monthly ceiling | **Pass** (local when billing enabled) |
+| Commands: `npx vitest run tests/integration/phase57-billing-repair.test.ts tests/integration/phase57-billing-entitlements.test.ts` | **14 passed** |
 
 ## Documentation and Git review
 
