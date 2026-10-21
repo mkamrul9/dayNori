@@ -79,11 +79,7 @@ export function registerBillingRoutes(app: FastifyInstance, pool: Pool): void {
       const data = await withTenantContext(
         pool,
         { userId: actor.userId, workspaceId },
-        async (client) => {
-          const { activateBillingAuthority } = await import('../../modules/billing/service.js');
-          await activateBillingAuthority(client);
-          return getBillingUsage(client, actor.userId, workspaceId);
-        }
+        (client) => getBillingUsage(client, actor.userId, workspaceId)
       );
       return reply.send(
         validateResponse(BillingUsageResponseSchema, { data, meta: meta(request.id) })

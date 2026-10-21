@@ -4,9 +4,11 @@ import {
   type TenantContext,
   getRuntimeDatabaseConfig,
   getAdminDatabaseConfig,
+  getBillingDatabaseConfig,
 } from './config.js';
 
 let defaultRuntimePool: Pool | null = null;
+let defaultBillingPool: Pool | null = null;
 
 export function createRuntimePool(config?: DatabaseConfig): Pool {
   const cfg = config || getRuntimeDatabaseConfig();
@@ -16,6 +18,19 @@ export function createRuntimePool(config?: DatabaseConfig): Pool {
 export function createAdminPool(config?: DatabaseConfig): Pool {
   const cfg = config || getAdminDatabaseConfig();
   return new Pool(cfg);
+}
+
+/** Pool connected as daynori_billing — privileged billing helpers only. */
+export function createBillingPool(config?: DatabaseConfig): Pool {
+  const cfg = config || getBillingDatabaseConfig();
+  return new Pool(cfg);
+}
+
+export function getDefaultBillingPool(): Pool {
+  if (!defaultBillingPool) {
+    defaultBillingPool = createBillingPool();
+  }
+  return defaultBillingPool;
 }
 
 export function getDefaultRuntimePool(): Pool {

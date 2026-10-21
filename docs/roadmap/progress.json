@@ -345,7 +345,7 @@
     {
       "id": "57",
       "status": "blocked",
-      "reason": "Provisional local entitlements repaired (ADR 0054 amended): protected billing authority token, explicit Play states, durable pending events + scheduler, recompute aggregation, AI/storage ceiling binding. Completion blocked pending commercial decisions, Play/web sandbox evidence, and production activation. No real charges. Billing does not unlock vault/rooms/AI.",
+      "reason": "Provisional local entitlements repaired (ADR 0054 amended): daynori_billing role authority (not GUC/token self-assert), explicit Play states, durable pending events + scheduler, recompute aggregation, AI/storage ceiling binding. Completion blocked pending commercial decisions, Play/web sandbox evidence, and production activation. No real charges. Billing does not unlock vault/rooms/AI.",
       "report": "docs/phase-reports/phase-57.md"
     },
     {

@@ -70,3 +70,22 @@ export function getAdminDatabaseConfig(): DatabaseConfig {
     connectionTimeoutMillis: 5000,
   };
 }
+
+/**
+ * Protected billing service role — privileged entitlement/event helpers only.
+ * Must NOT be used for ordinary tenant API traffic. Local default password matches
+ * migration 00068 and is not a release credential.
+ */
+export function getBillingDatabaseConfig(): DatabaseConfig {
+  return {
+    host: process.env['BILLING_DB_HOST'] || process.env['DB_HOST'] || '127.0.0.1',
+    port: Number(process.env['BILLING_DB_PORT'] || process.env['DB_PORT'] || 5432),
+    database: process.env['BILLING_DB_NAME'] || process.env['DB_NAME'] || 'daynori_test',
+    user: process.env['BILLING_DB_USER'] || 'daynori_billing',
+    // Do not reuse DB_PASSWORD (runtime role). Local default matches migration 00068 only.
+    password: process.env['BILLING_DB_PASSWORD'] || 'billing_dev_secret_9876',
+    max: Number(process.env['BILLING_DB_POOL_MAX'] || 5),
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 5000,
+  };
+}

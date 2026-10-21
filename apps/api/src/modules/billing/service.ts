@@ -11,10 +11,10 @@ import {
   isBillingProductionActivationEnabled,
   mapVerifiedSubscriptionToAccess,
   planQuotas,
-  resolveBillingServiceToken,
   type BillingPlanId,
   type EntitlementAccessStatus,
 } from '@daynori/domain';
+import { getDefaultBillingPool } from '../../db/client.js';
 import { getStorageUsage } from '../files/quotaService.js';
 import {
   BillingProviderError,
@@ -47,25 +47,26 @@ function tokenPrefix(token: string): string {
   return token.slice(0, 12);
 }
 
-function billingServiceToken(): string {
-  try {
-    return resolveBillingServiceToken();
-  } catch {
-    throw new BillingServiceError('Billing service token unavailable', 503, 'BILLING_DISABLED');
-  }
-}
-
-/** Activate protected billing helpers inside an open transaction. */
+/**
+ * Confirm the connection is the protected billing role.
+ * Ordinary daynori_runtime cannot satisfy this via set_config or the local synthetic token.
+ */
 export async function activateBillingAuthority(client: PoolClient): Promise<void> {
-  await client.query(`SELECT app.billing_activate_service_session($1)`, [billingServiceToken()]);
+  await client.query(`SELECT app.billing_assert_service_authority()`);
 }
 
+/**
+ * Run privileged billing work on the daynori_billing pool.
+ * The `pool` argument is ignored for privilege (kept for call-site compatibility);
+ * tenant API pools must not gain DEFINER authority through a public token.
+ */
 export async function withBillingAuthority<T>(
-  pool: Pool,
+  _pool: Pool,
   userId: string,
   fn: (client: PoolClient) => Promise<T>
 ): Promise<T> {
-  const client = await pool.connect();
+  const billingPool = getDefaultBillingPool();
+  const client = await billingPool.connect();
   let discard = false;
   try {
     await client.query('BEGIN');
@@ -204,7 +205,10 @@ export async function getEffectiveAiMonthlyTokenBudget(
 }
 
 export async function getBillingUsage(client: PoolClient, userId: string, workspaceId: string) {
-  const entitlement = await getEntitlement(client, userId, { persistExpiry: true });
+  // Entitlement recompute requires the billing role; storage reads use the tenant runtime client.
+  const entitlement = await withBillingAuthority(getDefaultBillingPool(), userId, (billingClient) =>
+    getEntitlement(billingClient, userId, { persistExpiry: true })
+  );
   const storage = await getStorageUsage(client, workspaceId);
   return {
     planId: entitlement.planId,
@@ -799,6 +803,10 @@ export async function assertOrdinaryHelperBypassDenied(
     return false;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return msg.includes('BILLING_AUTHORITY_REQUIRED');
+    // Role grant removal → permission denied; role assert → BILLING_AUTHORITY_REQUIRED.
+    return (
+      msg.includes('BILLING_AUTHORITY_REQUIRED') ||
+      /permission denied|must be owner/i.test(msg)
+    );
   }
 }

@@ -94,11 +94,19 @@ Physical store sandbox, merchant console, and full a11y device matrix: **unexecu
 
 | Repair | Result |
 |---|---|
-| A Protected billing service token for DEFINER helpers | **Pass** (ordinary helper bypass denied) |
+| A Protected billing service token for DEFINER helpers | **Superseded** — GUC/token activation was self-assertable; see role repair below |
 | B Explicit Play state mapping + validity windows | **Pass** (unit + integration) |
 | C Provider ownership / product validation; no client hint as proof | **Pass** |
 | D Durable pending events + worker scheduler; no RTDN override | **Pass** (local / fake) |
 | E Entitlement-driven storage + AI monthly ceiling | **Pass** (local when billing enabled) |
+| Commands: `npx vitest run tests/integration/phase57-billing-repair.test.ts tests/integration/phase57-billing-entitlements.test.ts` | **14 passed** |
+
+### Phase 57 authority repair (2026-10-21, post Phase 58)
+
+| Repair | Result |
+|---|---|
+| A `daynori_billing` role + EXECUTE isolation; assert uses `session_user` | **Pass** — GUC self-assert, fixture-token activate, event load/claim/complete denied for runtime |
+| Migrations | `00068_billing_role_authority.sql`, `00069_billing_role_password_align.sql` |
 | Commands: `npx vitest run tests/integration/phase57-billing-repair.test.ts tests/integration/phase57-billing-entitlements.test.ts` | **14 passed** |
 
 ## Documentation and Git review

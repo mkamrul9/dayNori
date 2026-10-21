@@ -46,12 +46,18 @@ Distinguish: **measured local**, **provider quote**, **estimate**, **unknown**.
 
 ## Amendment (2026-10-21) — Phase 57 repair
 
-1. **Protected authority:** Privileged SECURITY DEFINER helpers require `app.billing_activate_service_session(token)` (token hash in `billing_service_secrets`, not readable by runtime). Ordinary EXECUTE without activation raises `BILLING_AUTHORITY_REQUIRED`.
+1. **Protected authority (superseded by role amendment below):** Privileged helpers initially required a session token activation. That design was insufficient because GUCs are caller-settable.
 2. **Explicit states:** `mapVerifiedSubscriptionToAccess` uses full Play `SUBSCRIPTION_STATE_*` values; pending never grants; canceled retains access until `validUntil`; grace/hold/expire/revoke per lifecycle docs (reviewed 2026-10-21).
 3. **No RTDN override:** Reconciliation re-fetches provider state; notification labels do not rewrite verified state. Entitlement recompute aggregates purchases so one expired token cannot clobber another valid grant.
 4. **Ownership:** Client account hints are not verified ownership. Provider `obfuscatedAccountId` is authoritative when present; first-claim without provider account id is an explicit server option only.
 5. **Durable processing:** Synthetic harness is separate from gated provider OIDC ingest. Events stay pending for worker claim → provider I/O outside lock → fenced finalize. Periodic `billing_reconcile_events` / `billing_expire_entitlements` jobs are enqueued by the worker scheduler.
 6. **Quotas:** Effective entitlement drives storage ceiling recompute and AI monthly reservation limit when billing local is enabled.
+
+## Amendment (2026-10-21) — Billing role authority
+
+1. Privileged billing helpers require `session_user = daynori_billing` (migration `00068`). Ordinary `daynori_runtime` has EXECUTE revoked; setting `app.billing_service_ok` or calling activate with the local synthetic token does **not** grant authority.
+2. API/worker use a dedicated billing pool (`createBillingPool` / `BILLING_DB_*`). Local password default is not a release credential.
+3. Token activation remains admin/billing-role only for secret rotation — never a public runtime credential.
 
 ## Consequences
 

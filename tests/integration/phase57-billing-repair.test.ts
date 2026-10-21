@@ -152,11 +152,9 @@ describe('Phase 57 repair: billing authority and lifecycle', () => {
     expect(deniedHelper).toBe(true);
     const anon = await runtimePool.connect();
     try {
-      await anon.query('BEGIN');
       await expect(
         anon.query(`SELECT app.billing_load_event($1)`, [crypto.randomUUID()])
-      ).rejects.toThrow(/BILLING_AUTHORITY_REQUIRED/);
-      await anon.query('ROLLBACK');
+      ).rejects.toThrow(/BILLING_AUTHORITY_REQUIRED|permission denied/i);
     } finally {
       anon.release();
     }
@@ -232,13 +230,58 @@ describe('Phase 57 repair: billing authority and lifecycle', () => {
     expect(usage.data.ai.monthlyTokenLimit).toBe(500_000);
   });
 
-  it('rejects wrong service token activation', async () => {
-    await expect(
-      withUserContext(runtimePool, userB, async (c) => {
-        await c.query(`SELECT app.billing_activate_service_session($1)`, [
-          'wrong-token-value-here!!',
-        ]);
-      })
-    ).rejects.toThrow(/BILLING_AUTHORITY_REQUIRED/);
+  it('rejects GUC self-assert, fixture token activation, and cross-user event access', async () => {
+    const deny = /BILLING_AUTHORITY_REQUIRED|permission denied/i;
+    const runtime = await runtimePool.connect();
+    try {
+      await runtime.query(`SELECT set_config('app.current_user_id', $1, false)`, [userB]);
+      // Ordinary callers can set GUCs — that must not unlock privileged helpers.
+      await runtime.query(`SELECT set_config('app.billing_service_ok', '1', false)`);
+      await expect(
+        runtime.query(
+          `SELECT app.billing_upsert_entitlement_from_purchase(
+             $1, NULL, 'plus_synthetic', 'active', now(), now() + interval '30 days', 999999999, 999999
+           )`,
+          [userB]
+        )
+      ).rejects.toThrow(deny);
+
+      // Known local synthetic token must not activate authority for daynori_runtime.
+      await expect(
+        runtime.query(`SELECT app.billing_activate_service_session($1)`, [
+          LOCAL_BILLING_SERVICE_TOKEN,
+        ])
+      ).rejects.toThrow(deny);
+
+      await expect(
+        runtime.query(`SELECT * FROM app.billing_load_event($1)`, [crypto.randomUUID()])
+      ).rejects.toThrow(deny);
+
+      await expect(
+        runtime.query(`SELECT app.billing_claim_event($1, 60, 'attacker')`, [crypto.randomUUID()])
+      ).rejects.toThrow(deny);
+
+      await expect(
+        runtime.query(`SELECT app.billing_complete_event($1, 'succeeded', NULL, 'attacker')`, [
+          crypto.randomUUID(),
+        ])
+      ).rejects.toThrow(deny);
+    } finally {
+      runtime.release(true); // discard — non-local GUCs must not poison the pool
+    }
+
+    // Fresh pool checkout must not inherit billing_service_ok from a prior borrower.
+    const borrowed = await runtimePool.connect();
+    try {
+      const flag = await borrowed.query<{ v: string | null }>(
+        `SELECT current_setting('app.billing_service_ok', true) AS v`
+      );
+      expect(flag.rows[0]?.v === '1').toBe(false);
+      await expect(borrowed.query(`SELECT app.billing_list_pending_events(5)`)).rejects.toThrow(
+        deny
+      );
+    } finally {
+      borrowed.release();
+    }
   });
 });

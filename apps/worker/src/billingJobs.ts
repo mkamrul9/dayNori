@@ -6,7 +6,7 @@
 import { pathToFileURL } from 'node:url';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { DatabaseClient } from './worker.js';
 
 async function loadBillingModule(): Promise<{
@@ -14,39 +14,79 @@ async function loadBillingModule(): Promise<{
     pool: Pool,
     input: { eventId: string; leaseOwner?: string }
   ) => Promise<'skipped' | 'succeeded' | 'failed' | 'dead_letter'>;
-  activateBillingAuthority: (client: DatabaseClient) => Promise<void>;
   expireStaleEntitlements: (client: DatabaseClient, limit?: number) => Promise<number>;
   ensureBillingMaintenanceJobs: (client: DatabaseClient) => Promise<void>;
+  getDefaultBillingPool: () => Pool;
 }> {
   const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
+  const serviceCandidates = [
     join(here, '../../api/dist/modules/billing/service.js'),
     join(here, '../../api/src/modules/billing/service.ts'),
   ];
+  const clientCandidates = [
+    join(here, '../../api/dist/db/client.js'),
+    join(here, '../../api/src/db/client.ts'),
+  ];
+  let service: {
+    processBillingEvent: (
+      pool: Pool,
+      input: { eventId: string; leaseOwner?: string }
+    ) => Promise<'skipped' | 'succeeded' | 'failed' | 'dead_letter'>;
+    expireStaleEntitlements: (client: DatabaseClient, limit?: number) => Promise<number>;
+    ensureBillingMaintenanceJobs: (client: DatabaseClient) => Promise<void>;
+  } | null = null;
   let lastErr: unknown;
-  for (const candidate of candidates) {
+  for (const candidate of serviceCandidates) {
     try {
-      return (await import(pathToFileURL(candidate).href)) as Awaited<
-        ReturnType<typeof loadBillingModule>
-      >;
+      service = (await import(pathToFileURL(candidate).href)) as NonNullable<typeof service>;
+      break;
     } catch (err) {
       lastErr = err;
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error('Unable to load billing service module');
+  if (!service) {
+    throw lastErr instanceof Error ? lastErr : new Error('Unable to load billing service module');
+  }
+  let getDefaultBillingPool: (() => Pool) | null = null;
+  for (const candidate of clientCandidates) {
+    try {
+      const mod = (await import(pathToFileURL(candidate).href)) as {
+        getDefaultBillingPool: () => Pool;
+      };
+      getDefaultBillingPool = mod.getDefaultBillingPool;
+      break;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (!getDefaultBillingPool) {
+    throw lastErr instanceof Error ? lastErr : new Error('Unable to load billing pool module');
+  }
+  return { ...service, getDefaultBillingPool };
+}
+
+async function withBillingClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const { getDefaultBillingPool } = await loadBillingModule();
+  const pool = getDefaultBillingPool();
+  const client = await pool.connect();
+  try {
+    return await fn(client);
+  } finally {
+    client.release();
+  }
 }
 
 export async function reconcilePendingBillingEvents(
-  client: DatabaseClient,
+  _client: DatabaseClient,
   pool: Pool,
   options?: { limit?: number }
 ): Promise<{ claimed: number; succeeded: number; failed: number; deadLetter: number }> {
-  const { activateBillingAuthority, processBillingEvent } = await loadBillingModule();
-  await activateBillingAuthority(client);
+  const { processBillingEvent } = await loadBillingModule();
   const limit = options?.limit ?? 20;
-  const pending = await client.query<{ id: string }>(
-    `SELECT id FROM app.billing_list_pending_events($1)`,
-    [limit]
+  const pending = await withBillingClient((billingClient) =>
+    billingClient.query<{ id: string }>(`SELECT id FROM app.billing_list_pending_events($1)`, [
+      limit,
+    ])
   );
 
   let claimed = 0;
@@ -69,15 +109,17 @@ export async function reconcilePendingBillingEvents(
 }
 
 export async function runBillingExpireEntitlements(
-  client: DatabaseClient,
+  _client: DatabaseClient,
   options?: { limit?: number }
 ): Promise<{ expired: number }> {
   const { expireStaleEntitlements } = await loadBillingModule();
-  const expired = await expireStaleEntitlements(client, options?.limit ?? 50);
-  return { expired };
+  return withBillingClient(async (billingClient) => {
+    const expired = await expireStaleEntitlements(billingClient, options?.limit ?? 50);
+    return { expired };
+  });
 }
 
-export async function scheduleBillingMaintenance(client: DatabaseClient): Promise<void> {
+export async function scheduleBillingMaintenance(_client: DatabaseClient): Promise<void> {
   const { ensureBillingMaintenanceJobs } = await loadBillingModule();
-  await ensureBillingMaintenanceJobs(client);
+  await withBillingClient((billingClient) => ensureBillingMaintenanceJobs(billingClient));
 }

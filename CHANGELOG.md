@@ -1,5 +1,10 @@
 # Changelog
 
+## Phase 57 authority repair — Billing role boundary (blocked) — 2026-10-21
+
+- Privileged billing helpers require `session_user = daynori_billing` (migrations 00068–00069); ordinary runtime cannot self-assert via `set_config` or the local synthetic token.
+- Dedicated billing DB pool; token activation revoked from `daynori_runtime`. ADR 0054 amended.
+
 ## Phase 58 — Reliability, scale, and operating cost gate (blocked / provisional) — 2026-10-21
 
 - Engineering synthetic baseline: 40 concurrent actors, 10k-item heavy workspace, depth-8 folders, full 90s paced soak; tails/errors in `tests/performance/results/phase58-baseline.json`.
