@@ -4,7 +4,7 @@ Date: 2026-10-21. **Not** launch authorization. Vault, AI, Drive, chat, and prod
 
 ## Goal
 
-Finish and test the existing Android/web core organizer before any iOS work. Close local release gaps; leave owner/device/beta blockers explicit.
+Finish and test the existing Android/web core organizer local engineering gaps. Leave owner/device/beta/publication blockers explicit. Owner later authorized Phase 61 (iOS) without inventing a live Play/web release.
 
 ## Closed this session
 
@@ -46,9 +46,13 @@ node scripts/build-android-debug-apk.mjs
 
 Primary workspace path with spaces remains hostile to NDK; always use `D:\d\daynori` (or `DAYNORI_SHORT_BUILD_ROOT`) for native APK builds.
 
-## Next (do not start Phase 61 / iOS)
+## Next (parallel tracks)
+
+**Android/web release (still open):**
 
 1. Attach Android device → install debug APK → manual TalkBack/offline/recovery evidence (Phase 37).  
 2. Private beta cohort (Phase 38).  
 3. Owner launch requirements + release keystore → signed AAB.  
 4. Explicit publication authorization → verify live Android + web.
+
+**iOS (Phase 61 — selected; native verification pending):** see [ios-development.md](ios-development.md) and [ios-support-matrix.md](ios-support-matrix.md). Stop before Phase 62.

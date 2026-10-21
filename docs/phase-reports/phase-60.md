@@ -65,8 +65,12 @@ Environment: Windows, Node `v24.11.1` (**BLOCKED** vs engines `^24.21.0`), pnpm 
 
 ## Consolidation follow-up (2026-10-21, same phase)
 
-See [core-consolidation-status.md](../engineering/core-consolidation-status.md). Local Node 24.21.0, regenerated Android, production web-proxy deletion, core + sync-push validation **PASS**. Installable **debug** APK built from `D:\d\daynori` (SHA-256 in `artifacts/release/android-debug-apk-evidence.json`) — **not** release-eligible. No adb device; Phase 37–38 and owner OA remain. **Do not start Phase 61 / iOS**.
+See [core-consolidation-status.md](../engineering/core-consolidation-status.md). Local Node 24.21.0, regenerated Android, production web-proxy deletion, core + sync-push validation **PASS**. Installable **debug** APK built from `D:\d\daynori` (SHA-256 in `artifacts/release/android-debug-apk-evidence.json`) — **not** release-eligible. No adb device; Phase 37–38 and owner OA remain.
+
+## Scheduling reconciliation (2026-10-21)
+
+Owner confirmed prior **local** release/consolidation work finished for scheduling and **explicitly selected Phase 61**. This does **not** mark Phase 60 complete: approved public Android + matching web at intended destinations remain **unmet**. Live publication, signed AAB, and operator OA stay blocked.
 
 ## Handoff
 
-Remain on Phases 59–60 consolidation and release blockers. Do not create a public release tag or start iOS without separate explicit owner authorization after a verified Android + web release.
+Phase 60 remains incomplete for public release. Owner-authorized next engineering track: **Phase 61** (iOS). Do not create a public release tag without separate explicit publication authorization.

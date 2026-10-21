@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-21",
-  "activePhase": "60",
+  "activePhase": "61",
   "nextPhase": null,
-  "schedulingDecision": "Owner directed: consolidate Android/web core — do not advance to iOS/Phase 61. Debug APK built from D:\\d\\daynori; core/proxy validation PASS; Phase 37–38 device/beta, owner launch requirements, and signed publication remain. Vault/AI/Drive/chat/billing stay off. Stop before Phase 61.",
-  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates.",
+  "schedulingDecision": "Owner selected Phase 61 (iOS parity). Prior local Android/web consolidation treated finished for scheduling; Phases 59–60 remain blocked for live public release (not invented complete). Phase 61 adapters/config delivered; native iOS verification blocked on non-macOS host. Vault/AI/Drive/chat/billing stay off. Stop before Phase 62.",
+  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phase 61 blocked on Mac/physical iOS evidence.",
   "phases": [
     {
       "id": "00",
@@ -368,7 +368,9 @@
     },
     {
       "id": "61",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "iOS Expo configuration, platform adapters, support matrix, and Apple policy review (2026-10-21) delivered. Acceptance blocked: no Xcode/Simulator/physical VoiceOver/Keychain/push/offline evidence on Windows host. Phases 59–60 live publication still unmet. Optional modules remain gated. Not App Store submission.",
+      "report": "docs/phase-reports/phase-61.md"
     },
     {
       "id": "62",

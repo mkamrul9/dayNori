@@ -54,6 +54,7 @@ export const MobileTextField: React.FC<MobileTextFieldProps> = ({
         accessibilityHint={errorMessage || helperText}
         accessibilityState={{ disabled: !editable }}
         editable={editable}
+        allowFontScaling={true}
         placeholderTextColor={palette.text.muted}
         style={[
           styles.input,

@@ -6,7 +6,13 @@ import {
   NotificationPayloadSchema,
   type NotificationPayload,
   type ApprovedDestination,
+  type DevicePlatform,
+  type DeviceTokenType,
 } from '@daynori/contracts';
+import {
+  describeOsVersion,
+  getNativeMobilePlatform,
+} from '../platform/nativePlatform.js';
 
 export type NotificationPermissionStatus =
   | 'granted'
@@ -20,8 +26,10 @@ export interface NotificationCapabilityState {
   canDeliverLocally: boolean;
   canDeliverPush: boolean;
   hasPushToken: boolean;
-  pushTokenType: 'fcm' | 'expo_push' | 'web_push' | 'none';
+  pushTokenType: DeviceTokenType;
+  /** Always false for ordinary organizer reminders — Android exact alarms do not transfer to iOS. */
   isExactAlarmPermitted: boolean;
+  platform: DevicePlatform;
   details: string;
 }
 
@@ -123,11 +131,10 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
 
     const storedPushToken = await defaultSecureStorage.getItemAsync(SECURE_KEY_PUSH_TOKEN);
     const storedTokenType = (await defaultSecureStorage.getItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE)) as
-      | 'fcm'
-      | 'expo_push'
-      | 'web_push'
+      | DeviceTokenType
       | null;
     const hasPushToken = Boolean(storedPushToken && status === 'granted');
+    const platform = getNativeMobilePlatform();
 
     const canDeliverLocally = status === 'granted';
     const canDeliverPush = status === 'granted' && hasPushToken;
@@ -140,7 +147,10 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
     } else if (status === 'channel_disabled') {
       details = 'Reminders channel is disabled in Android system settings.';
     } else if (status === 'denied') {
-      details = 'Notification permission was denied. All organizer features remain fully usable.';
+      details =
+        platform === 'ios'
+          ? 'Notification permission was denied. Open iOS Settings → Daynori → Notifications to re-enable. Organizer features remain usable.'
+          : 'Notification permission was denied. All organizer features remain fully usable.';
     }
 
     return {
@@ -148,8 +158,9 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
       canDeliverLocally,
       canDeliverPush,
       hasPushToken,
-      pushTokenType: hasPushToken ? storedTokenType || 'fcm' : 'none',
-      isExactAlarmPermitted: false, // Invariant: ordinary best-effort reminders, no restricted exact alarms
+      pushTokenType: hasPushToken ? storedTokenType || 'expo_push' : 'none',
+      isExactAlarmPermitted: false, // Invariant: ordinary best-effort reminders on both platforms
+      platform,
       details,
     };
   } catch {
@@ -160,6 +171,7 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
       hasPushToken: false,
       pushTokenType: 'none',
       isExactAlarmPermitted: false,
+      platform: getNativeMobilePlatform(),
       details: 'Unable to query notification permission status.',
     };
   }
@@ -226,24 +238,14 @@ export async function registerDeviceAsync(
     const capability = await getNotificationCapabilityAsync();
 
     let pushToken: string | null = null;
-    let tokenType: 'fcm' | 'expo_push' | 'none' = 'none';
+    let tokenType: DeviceTokenType = 'none';
+    const platform = getNativeMobilePlatform();
 
-    // Attempt to fetch push token honestly without throwing
+    // Attempt to fetch push token honestly without throwing.
+    // iOS: prefer Expo Push (schema has expo_push; native APNs direct type not in DeviceTokenType yet).
+    // Android: prefer FCM device token, then Expo Push.
     if (capability.status === 'granted') {
-      try {
-        // First try native device push token (FCM on Android)
-        const nativeResult = await Notifications.getDevicePushTokenAsync();
-        if (nativeResult?.data) {
-          pushToken =
-            typeof nativeResult.data === 'string'
-              ? nativeResult.data
-              : JSON.stringify(nativeResult.data);
-          tokenType = 'fcm';
-          await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN, pushToken);
-          await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE, tokenType);
-        }
-      } catch {
-        // Fallback to Expo Push Token if native device token is unavailable
+      if (platform === 'ios') {
         try {
           const expoResult = await Notifications.getExpoPushTokenAsync();
           if (expoResult?.data) {
@@ -258,22 +260,51 @@ export async function registerDeviceAsync(
           await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN);
           await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE);
         }
+      } else {
+        try {
+          const nativeResult = await Notifications.getDevicePushTokenAsync();
+          if (nativeResult?.data) {
+            pushToken =
+              typeof nativeResult.data === 'string'
+                ? nativeResult.data
+                : JSON.stringify(nativeResult.data);
+            tokenType = 'fcm';
+            await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN, pushToken);
+            await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE, tokenType);
+          }
+        } catch {
+          try {
+            const expoResult = await Notifications.getExpoPushTokenAsync();
+            if (expoResult?.data) {
+              pushToken = expoResult.data;
+              tokenType = 'expo_push';
+              await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN, pushToken);
+              await defaultSecureStorage.setItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE, tokenType);
+            }
+          } catch {
+            tokenType = 'none';
+            pushToken = null;
+            await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN);
+            await defaultSecureStorage.deleteItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE);
+          }
+        }
       }
     }
 
     const regResponse = await apiClient.registerDevice({
       installationId,
-      platform: 'android',
+      platform,
       tokenType,
       pushToken: pushToken ?? undefined,
       capabilities: {
         appVersion: options?.appVersion ?? '0.1.0',
-        osVersion: options?.osVersion ?? (Platform.Version ? String(Platform.Version) : '14'),
+        osVersion: options?.osVersion ?? describeOsVersion(),
         locale: options?.locale ?? 'en-US',
         timeZone: options?.timeZone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC'),
         localReminders: capability.canDeliverLocally,
         pushNotifications: capability.canDeliverPush,
-        exactAlarms: false, // Strict Play policy compliance: ordinary reminders
+        // Android exact-alarm APIs do not exist on iOS; never claim exact delivery.
+        exactAlarms: false,
         quietHours: true,
       },
     });
@@ -383,6 +414,19 @@ export async function scheduleLocalReminderAsync(
   };
 
   try {
+    // channelId is Android-only; iOS uses the system notification categories / default presentation.
+    const trigger: Notifications.NotificationTriggerInput =
+      Platform.OS === 'android'
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: targetDate,
+            channelId: 'reminders',
+          }
+        : {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: targetDate,
+          };
+
     const nativeId = await Notifications.scheduleNotificationAsync({
       content: {
         title: displayTitle,
@@ -390,11 +434,7 @@ export async function scheduleLocalReminderAsync(
         data: notificationData,
         sound: 'default',
       },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: targetDate,
-        channelId: 'reminders',
-      },
+      trigger,
     });
 
     // Acknowledge local schedule to backend if apiClient and deviceId are available

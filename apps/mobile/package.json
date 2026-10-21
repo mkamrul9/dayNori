@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "main": "index.ts",
-  "description": "Expo React Native mobile application for Daynori (Android-first)",
+  "description": "Expo React Native mobile application for Daynori (Android + iOS native shells)",
   "scripts": {
     "dev": "expo start",
     "start": "expo start",
@@ -12,7 +12,11 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "prebuild": "expo prebuild --no-install -p android && node -e \"if (!require('fs').existsSync('android/build.gradle')) { console.error('Native android generation failed'); process.exit(1); }\" && node ../../scripts/mobile-android-release-path.mjs inspect --android-dir android",
-    "build": "expo export -p android"
+    "prebuild:android": "pnpm run prebuild",
+    "prebuild:ios": "node -e \"if (process.platform !== 'darwin') { console.error('iOS prebuild requires macOS + Xcode'); process.exit(1); }\" && expo prebuild --no-install -p ios && node -e \"if (!require('fs').existsSync('ios')) { console.error('Native ios generation failed'); process.exit(1); }\" && node ../../scripts/mobile-ios-path.mjs inspect",
+    "ios:path": "node ../../scripts/mobile-ios-path.mjs",
+    "build": "expo export -p android",
+    "build:ios:export": "expo export -p ios"
   },
   "dependencies": {
     "@babel/runtime": "^7.26.0",

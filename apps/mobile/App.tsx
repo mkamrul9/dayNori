@@ -3,6 +3,8 @@ import {
   AppState,
   BackHandler,
   Linking,
+  PixelRatio,
+  Platform,
   SafeAreaView,
   Share,
   StatusBar,
@@ -27,7 +29,10 @@ import { parseDeepLinkUrl, type DeepLinkPayload } from '@daynori/contracts';
 import { defaultAuthAdapter } from './src/auth/authAdapter';
 import { MobileKeyManager } from './src/data/keyManager.js';
 import { SqliteLocalRepository } from './src/data/sqliteRepository.js';
-import { createMobileSyncEngine } from './src/data/syncAdapter.js';
+import {
+  createMobileSyncEngine,
+  getOrCreateMobileDeviceId,
+} from './src/data/syncAdapter.js';
 import { defaultSecureStorage } from './src/auth/secureStorage.js';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
 import type { SyncEngine, ConflictRecord, FileRecord } from '@daynori/sync';
@@ -82,7 +87,13 @@ import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
-  const [textScale, setTextScale] = useState<number>(1.0);
+  const [textScale, setTextScale] = useState<number>(() => {
+    try {
+      return Math.min(2, Math.max(1, PixelRatio.getFontScale()));
+    } catch {
+      return 1.0;
+    }
+  });
   const [currentTab, setCurrentTab] = useState<MobileTab>('today');
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
@@ -203,11 +214,12 @@ export default function App() {
     if (!repository || !userNamespace) return;
     const gen = sessionGenRef.current;
     try {
+      const deviceId = await getOrCreateMobileDeviceId(defaultSecureStorage);
       const exportData = await exportRecoveryData({
         repository,
         workspaceId: userNamespace.workspaceId,
         userId: userNamespace.userId,
-        deviceId: 'android-device',
+        deviceId,
         checkAttachmentCached: (f: FileRecord) =>
           MobileOfflineFileCache.hasBinary(
             userNamespace.userId,
@@ -352,8 +364,10 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  // 2. Android Hardware Back Handling
+  // 2. Android hardware back + shared dismiss stack (iOS uses sheet Close / system gestures)
   useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
     const onHardwareBack = (): boolean => {
       // 1. If any modal sheet is open, dismiss it
       if (activeModal !== 'none') {
@@ -609,7 +623,7 @@ export default function App() {
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
       <StatusBar
         barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'}
-        backgroundColor={palette.surface}
+        backgroundColor={Platform.OS === 'android' ? palette.surface : undefined}
       />
 
       {/* Main Top Header */}

@@ -1,7 +1,7 @@
 /**
  * Mobile Provider Authentication Adapter
  *
- * Implements real identity provider integration for the Android mobile shell:
+ * Implements real identity provider integration for the mobile shell (Android + iOS):
  * - Interfaces with Supabase Auth service (GoTrue) over HTTP transport.
  * - Manages session lifecycle: sign-up, sign-in, recovery, refresh, and sign-out.
  * - Stores credentials exclusively in OS-backed secure storage (expo-secure-store).

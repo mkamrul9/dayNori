@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "phase": 61,
+  "reviewedAt": "2026-10-21",
+  "inspection": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "findings": {
+      "bundleIdentifier": "com.daynori.app",
+      "scheme": "daynori",
+      "sqlCipherIos": true,
+      "sqlCipherTopLevel": true,
+      "microphoneUsageDescription": true,
+      "associatedDomains": true,
+      "deploymentTarget": "15.1",
+      "usesNonExemptEncryptionDeclared": true,
+      "iosDirPresent": false
+    }
+  },
+  "host": {
+    "platform": "win32",
+    "isDarwin": false,
+    "canRunNativeIosBuild": false,
+    "xcodebuildAvailable": false,
+    "cocoaPodsAvailable": false,
+    "simctlAvailable": false,
+    "xcodeVersionLine": null,
+    "note": "Non-macOS host — native iOS build/simulator verification cannot run here"
+  },
+  "nativeBuildStatus": "unavailable-on-host",
+  "disclaimer": "Config/host inspection is not a successful native iOS build, simulator run, or physical-device verification."
+}

@@ -9,7 +9,9 @@ const fail = (message) => errors.push(message);
 const readJSON = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
 const walk = (directory) =>
   fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (['.git', 'node_modules', '.next', '.expo'].includes(entry.name)) return [];
+    // .tools holds portable local Node installs (gitignored) — not planning docs.
+    if (['.git', 'node_modules', '.next', '.expo', '.tools', 'artifacts'].includes(entry.name))
+      return [];
     const absolute = path.join(directory, entry.name);
     return entry.isDirectory() ? walk(absolute) : [absolute];
   });

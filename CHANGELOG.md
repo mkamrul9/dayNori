@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 61 — iOS platform parity and native adaptation (blocked) — 2026-10-21
+
+- Expo iOS config: bundle id `com.daynori.app`, SQLCipher iOS, Keychain secure-store plugin, associated domains, microphone purpose string, deployment target 15.1.
+- Platform adapters: iOS device registration/`expo_push`, notification triggers without Android channels, Keychain WHEN_UNLOCKED writes, platform-prefixed sync device ids, sheet keyboard/safe-area tweaks.
+- Published iOS support matrix, Mac verification procedure, Apple privacy/notification/purchase review (2026-10-21), ADR 0058. `pnpm ios:path` inspect/host-capability/evidence.
+- Native Simulator/physical VoiceOver/Keychain/push evidence unexecuted on Windows. Vault/AI/Drive/chat/billing remain gated. Stop before Phase 62.
+
 ## Core consolidation — installable debug APK + walkthrough (blocked) — 2026-10-21
 
 - Built installable **debug** arm64 APK from space-free `D:\d\daynori` (`node scripts/build-android-debug-apk.mjs`); SHA-256 recorded; **not** release-eligible.

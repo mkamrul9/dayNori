@@ -56,6 +56,8 @@ export function DriveConnectionsSheet({
     setBusy(true);
     setMessage(null);
     try {
+      // Drive OAuth return surface is web/android in contracts; production Drive remains gated off.
+      // iOS uses the same provisional connect path when locally enabled for engineering harnesses.
       const started = await apiClient.startDriveConnect(workspaceId, {
         platform: 'android',
         returnPath: '/settings',

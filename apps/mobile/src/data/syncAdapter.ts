@@ -8,6 +8,7 @@ import {
 } from '@daynori/sync';
 import type { DaynoriApiClient } from '@daynori/api-client';
 import { defaultSecureStorage, type SecureStoreContract } from '../auth/secureStorage.js';
+import { createMobileDeviceId } from '../platform/nativePlatform.js';
 
 export interface MobileSyncAdapterOptions {
   repository: LocalRepositoryPort;
@@ -19,6 +20,11 @@ export interface MobileSyncAdapterOptions {
 }
 
 let cachedMobileDeviceId: string | null = null;
+
+/** Test helper — clears in-memory device id cache between cases. */
+export function resetMobileDeviceIdCacheForTests(): void {
+  cachedMobileDeviceId = null;
+}
 
 export async function getOrCreateMobileDeviceId(
   secureStore: SecureStoreContract = defaultSecureStorage
@@ -34,7 +40,7 @@ export async function getOrCreateMobileDeviceId(
     /* fallback to in-memory/cached */
   }
 
-  const newId = `mobile_android_${Math.random().toString(36).slice(2, 10)}`;
+  const newId = createMobileDeviceId();
   try {
     await secureStore.setItemAsync('daynori_native_device_id', newId);
   } catch {
@@ -45,15 +51,15 @@ export async function getOrCreateMobileDeviceId(
 }
 
 /**
- * Creates and initializes a SyncEngine instance configured specifically for
- * the mobile Android environment with persisted device ID.
+ * Creates and initializes a SyncEngine instance for the mobile native shell
+ * (Android or iOS) with a persisted device ID.
  */
 export function createMobileSyncEngine(options: MobileSyncAdapterOptions): SyncEngine {
   const deviceId =
     options.deviceId ||
     cachedMobileDeviceId ||
     (() => {
-      const id = `mobile_android_${Math.random().toString(36).slice(2, 10)}`;
+      const id = createMobileDeviceId();
       cachedMobileDeviceId = id;
       // Asynchronously persist to secure storage if available
       void (options.secureStore ?? defaultSecureStorage)

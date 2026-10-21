@@ -3,6 +3,7 @@
  *
  * Implements persistent secure secret storage:
  * - Uses platform-protected storage (Android KeyStore / iOS Keychain via expo-secure-store).
+ * - On iOS, writes use WHEN_UNLOCKED Keychain accessibility (device unlock required).
  * - Never persists session tokens in AsyncStorage, unencrypted SQLite, or plain files.
  * - Restricts in-memory storage strictly to explicit test environments (NODE_ENV === 'test').
  * - Propagates actionable SecureStorageError on storage or native module failures.
@@ -14,6 +15,15 @@ export interface SecureStoreContract {
   setItemAsync(key: string, value: string): Promise<void>;
   deleteItemAsync(key: string): Promise<void>;
 }
+
+type ExpoSecureStoreModule = SecureStoreContract & {
+  WHEN_UNLOCKED?: string;
+  setItemAsync(
+    key: string,
+    value: string,
+    options?: { keychainAccessible?: string }
+  ): Promise<void>;
+};
 
 export class SecureStorageError extends Error {
   override readonly cause?: unknown;
@@ -49,12 +59,12 @@ export class InMemorySecureStore implements SecureStoreContract {
 export const inMemorySecureStore = new InMemorySecureStore();
 
 export class SecureStorageAdapter implements SecureStoreContract {
-  private nativeStore: SecureStoreContract | null = null;
+  private nativeStore: ExpoSecureStoreModule | null = null;
   private memoryStore: InMemorySecureStore | null = null;
 
   constructor(customStore?: SecureStoreContract) {
     if (customStore) {
-      this.nativeStore = customStore;
+      this.nativeStore = customStore as ExpoSecureStoreModule;
       return;
     }
 
@@ -67,7 +77,7 @@ export class SecureStorageAdapter implements SecureStoreContract {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const SecureStore = require('expo-secure-store');
       if (SecureStore && typeof SecureStore.getItemAsync === 'function') {
-        this.nativeStore = SecureStore as SecureStoreContract;
+        this.nativeStore = SecureStore as ExpoSecureStoreModule;
       }
     } catch {
       this.nativeStore = null;
@@ -93,7 +103,12 @@ export class SecureStorageAdapter implements SecureStoreContract {
   async setItemAsync(key: string, value: string): Promise<void> {
     if (this.nativeStore) {
       try {
-        await this.nativeStore.setItemAsync(key, value);
+        const accessible = this.nativeStore.WHEN_UNLOCKED;
+        if (typeof accessible === 'string') {
+          await this.nativeStore.setItemAsync(key, value, { keychainAccessible: accessible });
+        } else {
+          await this.nativeStore.setItemAsync(key, value);
+        }
         return;
       } catch (err) {
         throw new SecureStorageError(`Failed to write to secure storage: key [${key}]`, err);

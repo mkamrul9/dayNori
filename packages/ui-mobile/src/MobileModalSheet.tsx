@@ -74,11 +74,14 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
         />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
           style={[
             styles.sheet,
             {
               backgroundColor: palette.surface,
               borderColor: palette.border.subtle,
+              // Home-indicator clearance on iOS; Android uses nav bar insets separately.
+              paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             },
           ]}
         >

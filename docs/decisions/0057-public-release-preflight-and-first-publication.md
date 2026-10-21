@@ -20,5 +20,5 @@ Stale generated `android/` trees can still silently debug-sign release builds; E
 ## Consequences
 
 - Preserve vault off, rooms/chat off for real users, live AI off, production billing off, Phase 50 deferred, Phase 49 live Google pending.
-- Stop before Phase 61 unless the owner selects further work.
+- Owner later selected Phase 61 for iOS adaptation; Phase 60 live-publication acceptance remains unmet.
 - Do not create a public release tag without separate explicit owner authorization.
