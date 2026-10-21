@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 62 — iOS store release gate preparation (blocked) — 2026-10-21
+
+- Local App Store package under `docs/release/ios/` (RC identity/build, signing, TestFlight checklist, privacy/dependencies, support/deletion, reviewer access, screenshot rules, monitoring/recovery, owner actions).
+- ADR 0060: preparation without inventing Phase 61 Simulator/physical evidence or fabricating iPhone screenshots.
+- No TestFlight upload, App Review, StoreKit, or gated-module activation. Stop before Phase 63.
+
 ## UI — professional icon system (no emoji chrome) — 2026-10-21
 
 - Shared semantic icon registry (`packages/design-tokens/src/icons.ts`) with web SVG and mobile PNG `Icon` components.

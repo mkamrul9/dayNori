@@ -74,4 +74,6 @@ Environment: Windows 10/11, Node `v24.21.0`, pnpm `9.15.5`. No Xcode / `xcodebui
 
 ## Handoff
 
-**Next action:** On a Mac with Xcode — `cd apps/mobile && pnpm prebuild:ios && pnpm ios`, then execute the physical-device checklist in `docs/engineering/ios-development.md`. Record device/OS/build outcomes in this report before considering acceptance. **Stop before Phase 62** (store release gate). Do not submit to App Store from this phase.
+**Next action:** On a Mac with Xcode — `cd apps/mobile && pnpm prebuild:ios && pnpm ios`, then execute the physical-device checklist in `docs/engineering/ios-development.md`. Record device/OS/build outcomes in this report before considering acceptance.
+
+**Scheduling note (2026-10-21):** Owner authorized Phase 62 *local preparation* while this phase remains blocked for native evidence. Phase 62 docs must not invent Simulator/device results. Do not submit to App Store until Phase 61 evidence and explicit publication authorization exist.

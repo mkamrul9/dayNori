@@ -85,4 +85,6 @@ Release only after provider/retention/cost decisions, explicit opt-in, workspace
 
 Treat iOS as a later platform gate: development hardware/build/signing, native adapter parity, background/notification/biometric behavior, accessibility, store policy/billing and physical-device QA must be established before advertising availability. Android tests cannot stand in for iOS evidence.
 
-Phase 61 delivers Expo iOS configuration, platform adapters, and an explicit [support matrix](ios-support-matrix.md). Acceptance still requires Mac development-build and physical-device evidence per [ios-development.md](ios-development.md). Phase 62 is the store release gate; this section does not authorize App Store submission.
+Phase 61 delivers Expo iOS configuration, platform adapters, and an explicit [support matrix](ios-support-matrix.md). Acceptance still requires Mac development-build and physical-device evidence per [ios-development.md](ios-development.md).
+
+Phase 62 local package: [docs/release/ios/](../release/ios/README.md) (ADR 0060). TestFlight/store submission remain unauthorized until native evidence and owner OA exist. This section does not authorize App Store submission.
