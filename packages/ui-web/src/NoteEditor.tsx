@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -751,7 +752,8 @@ export function NoteEditor({
           }}
         >
           <div style={{ fontWeight: 700 }}>
-            ⚠️ Sync Conflict: Another device edited this note (Server Rev {conflict.serverRevision})
+            <Icon name="warning" /> Sync Conflict: Another device edited this note (Server Rev{' '}
+            {conflict.serverRevision})
           </div>
           <div style={{ fontSize: `${typography.webScale.supporting}px` }}>
             Choose how to resolve this edit without losing changes:
@@ -993,7 +995,7 @@ export function NoteEditor({
               cursor: readOnly ? 'default' : 'pointer',
             }}
           >
-            ☑ Check
+            <Icon name="check-square" /> Check
           </button>
 
           <span style={{ color: palette.border.subtle, margin: '0 4px' }}>|</span>
@@ -1014,7 +1016,7 @@ export function NoteEditor({
               cursor: undoStack.length > 0 ? 'pointer' : 'default',
             }}
           >
-            ↩ Undo
+            <Icon name="undo" /> Undo
           </button>
           <button
             type="button"
@@ -1032,7 +1034,7 @@ export function NoteEditor({
               cursor: redoStack.length > 0 ? 'pointer' : 'default',
             }}
           >
-            ↪ Redo
+            <Icon name="redo" /> Redo
           </button>
         </div>
 
@@ -1075,10 +1077,10 @@ export function NoteEditor({
                   fontSize: `${typography.webScale.supporting}px`,
                 }}
               >
-                <option value="">📁 Inbox (Unfiled)</option>
+                <option value=""> Inbox (Unfiled)</option>
                 {folders.map((f) => (
                   <option key={f.id} value={f.id}>
-                    📁 {f.name}
+                    {f.name}
                   </option>
                 ))}
               </select>
@@ -1098,9 +1100,13 @@ export function NoteEditor({
               color: palette.text.secondary,
             }}
           >
-            <span data-testid="local-save-status">💾 {localSaveStatus}</span>
+            <span data-testid="local-save-status">
+              <Icon name="save" /> {localSaveStatus}
+            </span>
             <span>•</span>
-            <span data-testid="cloud-sync-status">☁️ {cloudSyncStatus}</span>
+            <span data-testid="cloud-sync-status">
+              <Icon name="cloud" /> {cloudSyncStatus}
+            </span>
           </div>
 
           {/* Metrics */}

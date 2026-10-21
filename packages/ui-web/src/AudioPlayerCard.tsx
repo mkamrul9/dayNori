@@ -1,7 +1,15 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState, useRef, useEffect } from 'react';
-import { colors, radii, spacing, touchTargets, typography, type ThemeMode } from '@daynori/design-tokens';
+import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  typography,
+  type ThemeMode,
+} from '@daynori/design-tokens';
 import { formatAudioDuration, formatByteSize, type AudioAttachment } from '@daynori/domain';
 
 export interface AudioPlayerCardProps {
@@ -61,13 +69,16 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => {
-        setIsPlaying(true);
-        setPlaybackError(null);
-      }).catch((err) => {
-        setPlaybackError(err instanceof Error ? err.message : 'Playback failed');
-        setIsPlaying(false);
-      });
+      audio
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setPlaybackError(null);
+        })
+        .catch((err) => {
+          setPlaybackError(err instanceof Error ? err.message : 'Playback failed');
+          setIsPlaying(false);
+        });
     }
   };
 
@@ -95,15 +106,20 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
         fontFamily: typography.fontFamily.sans,
       }}
     >
-      {audioUrl && (
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      )}
+      {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" />}
 
       {/* Header with audio metadata */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.sm,
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, overflow: 'hidden' }}>
           <span style={{ fontSize: '1.25rem' }} role="img" aria-label="Audio recording">
-            🎙️
+            <Icon name="microphone" />
           </span>
           <div style={{ overflow: 'hidden' }}>
             <span
@@ -120,7 +136,9 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
             >
               {attachment.fileName}
             </span>
-            <span style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary }}>
+            <span
+              style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary }}
+            >
               {formatByteSize(attachment.byteSize)} • {attachment.mimeType}
             </span>
           </div>
@@ -146,7 +164,7 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
                 justifyContent: 'center',
               }}
             >
-              📥 Download
+              <Icon name="download" /> Download
             </button>
           )}
           {onDelete && (
@@ -168,7 +186,7 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
                 justifyContent: 'center',
               }}
             >
-              🗑️ Delete
+              <Icon name="trash" /> Delete
             </button>
           )}
         </div>
@@ -183,7 +201,7 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
             padding: spacing.xs,
           }}
         >
-          ⚠️ {playbackError}
+          <Icon name="warning" /> {playbackError}
         </div>
       )}
 
@@ -208,7 +226,7 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
             fontSize: '1rem',
           }}
         >
-          {isPlaying ? '⏸' : '▶'}
+          <Icon name={isPlaying ? 'pause' : 'play'} />
         </button>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -230,7 +248,14 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
               cursor: audioUrl ? 'pointer' : 'default',
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: typography.webScale.supporting, color: palette.text.secondary }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: typography.webScale.supporting,
+              color: palette.text.secondary,
+            }}
+          >
             <span>{formatAudioDuration(currentTime)}</span>
             <span>{formatAudioDuration(totalDuration)}</span>
           </div>

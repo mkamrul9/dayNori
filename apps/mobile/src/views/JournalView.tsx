@@ -7,15 +7,22 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
+import {
+  Icon,
   MobileButton,
   MobileCard,
   MobileListRow,
   MobileTextField,
-  MobileEmptyState,
+  MobileEmptyState
 } from '@daynori/ui-mobile';
 import {
   generateInitialRank,
@@ -26,7 +33,7 @@ import {
   instantiateReflectionTemplate,
   createNoteDocumentFromPlainText,
   type JournalPromptItem,
-  type NoteDocument,
+  type NoteDocument
 } from '@daynori/domain';
 import type {
   ConflictRecord,
@@ -80,11 +87,11 @@ export interface LocalJournalItem {
 }
 
 const AVAILABLE_MOODS = [
-  { value: 'great', label: 'Great', emoji: '😊' },
-  { value: 'good', label: 'Good', emoji: '🙂' },
-  { value: 'okay', label: 'Okay', emoji: '😐' },
-  { value: 'difficult', label: 'Difficult', emoji: '🌧️' },
-  { value: 'reflective', label: 'Reflective', emoji: '🌱' },
+  { value: 'great', label: 'Great', icon: 'smile' },
+  { value: 'good', label: 'Good', icon: 'smile' },
+  { value: 'okay', label: 'Okay', icon: 'neutral' },
+  { value: 'difficult', label: 'Difficult', icon: 'rain' },
+  { value: 'reflective', label: 'Reflective', icon: 'leaf' },
 ];
 
 function getTodayIso(timeZone: string): string {
@@ -1226,7 +1233,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
       >
         <View style={styles.protectedCard}>
           <Text style={styles.lockIcon} aria-hidden={true}>
-            🔒
+            <Icon name="lock" />
           </Text>
           <Text
             accessibilityRole="header"
@@ -1293,7 +1300,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
       {activeConflict && (
         <View style={[styles.conflictBanner, { backgroundColor: palette.accent.subtle }]}>
           <Text style={[styles.conflictTitle, { color: palette.accent.label }]}>
-            ⚠️ Sync Conflict Detected
+            <Icon name="warning" /> Sync Conflict Detected
           </Text>
           <Text style={[styles.conflictDesc, { color: palette.text.secondary }]}>
             A cloud revision conflicts with local changes for this reflection.
@@ -1332,7 +1339,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
         <View style={[styles.draftBanner, { backgroundColor: palette.surfaceRaised }]}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 13 }}>
-              📝 Unsaved Draft Found
+              <Icon name="note" /> Unsaved Draft Found
             </Text>
             <Text style={{ fontSize: 12, color: palette.text.secondary }}>
               Saved {new Date(pendingDraft.savedAt).toLocaleTimeString()}
@@ -1377,7 +1384,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
             onPress={handleOpenNewEntry}
             accessibilityLabel="Write new reflection"
           >
-            ✍️ Write
+            <Icon name="edit" /> Write
           </MobileButton>
         )}
       </View>
@@ -1423,7 +1430,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 color: viewMode === 'trash' ? palette.action.primary : palette.text.secondary,
               }}
             >
-              🗑️ Trash
+              <Icon name="trash" /> Trash
             </Text>
           </Pressable>
         </View>
@@ -1441,7 +1448,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
             {saveError && (
               <View style={[styles.saveErrorBanner, { backgroundColor: palette.accent.subtle }]}>
                 <Text style={{ color: palette.accent.label, fontSize: 13, fontWeight: '600' }}>
-                  ⚠️ {saveError}
+                  <Icon name="warning" /> {saveError}
                 </Text>
               </View>
             )}
@@ -1458,7 +1465,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                     { backgroundColor: palette.accent.subtle, color: palette.accent.label },
                   ]}
                 >
-                  🕒 Backdated
+                  <Icon name="clock" /> Backdated
                 </Text>
               )}
             </View>
@@ -1524,7 +1531,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                                 : palette.text.primary,
                           }}
                         >
-                          📁 {f.name}
+                          <Icon name="folder" /> {f.name}
                         </Text>
                       </Pressable>
                     ))}
@@ -1564,7 +1571,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
                         },
                       ]}
                     >
-                      <Text style={{ fontSize: 13 }}>{m.emoji}</Text>
+                      <Text style={{ fontSize: 13 }}>
+                        <Icon name={m.icon} />
+                      </Text>
                       <Text
                         style={{
                           fontSize: 12,
@@ -1589,7 +1598,8 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 style={[styles.templateToggle, { borderColor: palette.border.subtle }]}
               >
                 <Text style={{ fontSize: 13, color: palette.text.primary }}>
-                  💡 {showPromptTray ? 'Hide Reflection Prompts' : 'Use Reflection Prompt'}
+                  <Icon name="bulb" />{' '}
+                  {showPromptTray ? 'Hide Reflection Prompts' : 'Use Reflection Prompt'}
                 </Text>
               </Pressable>
 
@@ -1663,7 +1673,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
                       onPress={() => handleRemoveTag(t)}
                       style={[styles.tagChip, { backgroundColor: palette.action.subtle }]}
                     >
-                      <Text style={{ fontSize: 12, color: palette.action.subtleText }}>#{t} ✕</Text>
+                      <Text style={{ fontSize: 12, color: palette.action.subtleText }}>
+                        #{t} <Icon name="x" />
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
@@ -1724,7 +1736,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
               accessibilityLabel="Previous month"
               style={[styles.navArrowBtn, { backgroundColor: palette.surfaceRaised }]}
             >
-              <Text style={{ fontSize: 12, color: palette.text.primary }}>◀ Mo</Text>
+              <Text style={{ fontSize: 12, color: palette.text.primary }}>
+                <Icon name="chevron-left" /> Mo
+              </Text>
             </Pressable>
 
             <Pressable
@@ -1733,7 +1747,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
               accessibilityLabel="Previous day"
               style={[styles.navArrowBtn, { backgroundColor: palette.surfaceRaised }]}
             >
-              <Text style={{ fontSize: 16, color: palette.text.primary }}>◀</Text>
+              <Text style={{ fontSize: 16, color: palette.text.primary }}>
+                <Icon name="chevron-left" />
+              </Text>
             </Pressable>
 
             <View style={{ alignItems: 'center' }}>
@@ -1753,7 +1769,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
               accessibilityLabel="Next day"
               style={[styles.navArrowBtn, { backgroundColor: palette.surfaceRaised }]}
             >
-              <Text style={{ fontSize: 16, color: palette.text.primary }}>▶</Text>
+              <Text style={{ fontSize: 16, color: palette.text.primary }}>
+                <Icon name="play" />
+              </Text>
             </Pressable>
 
             <Pressable
@@ -1762,7 +1780,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
               accessibilityLabel="Next month"
               style={[styles.navArrowBtn, { backgroundColor: palette.surfaceRaised }]}
             >
-              <Text style={{ fontSize: 12, color: palette.text.primary }}>Mo ▶</Text>
+              <Text style={{ fontSize: 12, color: palette.text.primary }}>
+                Mo <Icon name="play" />
+              </Text>
             </Pressable>
 
             <MobileButton
@@ -1807,7 +1827,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 style={styles.snippetToggle}
               >
                 <Text style={{ fontSize: 12, color: palette.text.secondary }}>
-                  {suppressSnippets ? '👁️ Show Snippets' : '🔒 Hide Snippets'}
+                  {suppressSnippets ? (<><Icon name='eye' /> {'Show Snippets'}</>) : (<><Icon name='lock' /> {'Hide Snippets'}</>)}
                 </Text>
               </Pressable>
             </View>

@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
@@ -122,11 +123,19 @@ export const MobileFilePreviewSheet: React.FC<MobileFilePreviewSheetProps> = ({
                 },
               ]}
             >
-              {file.quarantineStatus === 'verified'
-                ? '✓ Verified Clean'
-                : file.quarantineStatus === 'rejected'
-                  ? '✕ Security Rejected'
-                  : '⏳ Quarantined'}
+              {file.quarantineStatus === 'verified' ? (
+                <>
+                  <Icon name="check" color={palette.action.primary} /> Verified Clean
+                </>
+              ) : file.quarantineStatus === 'rejected' ? (
+                <>
+                  <Icon name="x" color={palette.status.danger} /> Security Rejected
+                </>
+              ) : (
+                <>
+                  <Icon name="hourglass" color={palette.status.warning} /> Quarantined
+                </>
+              )}
             </Text>
           </View>
 
@@ -142,7 +151,7 @@ export const MobileFilePreviewSheet: React.FC<MobileFilePreviewSheetProps> = ({
               ]}
             >
               <Text style={[styles.badgeText, { color: palette.text.secondary }]}>
-                📥 Offline Copy
+                <Icon name="download" color={palette.text.secondary} /> Offline Copy
               </Text>
             </View>
           )}
@@ -186,7 +195,9 @@ export const MobileFilePreviewSheet: React.FC<MobileFilePreviewSheetProps> = ({
             {/* 2. PDF Preview */}
             {previewKind === 'pdf' && (
               <View style={styles.pdfCard}>
-                <Text style={{ fontSize: 40, marginBottom: spacing.xs }}>📕</Text>
+                <Text style={{ fontSize: 40, marginBottom: spacing.xs }}>
+                  <Icon name="file" color={palette.text.primary} size={40} />
+                </Text>
                 <Text style={[styles.pdfTitle, { color: palette.text.primary }]}>
                   {file.fileName}
                 </Text>
@@ -199,7 +210,9 @@ export const MobileFilePreviewSheet: React.FC<MobileFilePreviewSheetProps> = ({
             {/* 3. Office Document Metadata Card */}
             {previewKind === 'office' && (
               <View style={styles.officeCard}>
-                <Text style={{ fontSize: 40, marginBottom: spacing.xs }}>📘</Text>
+                <Text style={{ fontSize: 40, marginBottom: spacing.xs }}>
+                  <Icon name="file" color={palette.text.primary} size={40} />
+                </Text>
                 <Text style={[styles.officeTitle, { color: palette.text.primary }]}>
                   {file.fileName}
                 </Text>
@@ -225,7 +238,9 @@ export const MobileFilePreviewSheet: React.FC<MobileFilePreviewSheetProps> = ({
               previewKind === 'unsupported' ||
               previewKind === 'audio') && (
               <View style={styles.fallbackCard}>
-                <Text style={{ fontSize: 36, marginBottom: spacing.xs }}>📄</Text>
+                <Text style={{ fontSize: 36, marginBottom: spacing.xs }}>
+                  <Icon name="file" color={palette.text.primary} size={36} />
+                </Text>
                 <Text style={[styles.officeTitle, { color: palette.text.primary }]}>
                   {file.fileName}
                 </Text>
@@ -275,7 +290,7 @@ export const MobileFilePreviewSheet: React.FC<MobileFilePreviewSheetProps> = ({
                   color: isOfflineActive ? palette.text.primary : palette.action.primary,
                 }}
               >
-                {isOfflineActive ? '✓ Available Offline' : '📥 Save Offline'}
+                {isOfflineActive ? (<><Icon name='check' /> {'Available Offline'}</>) : (<><Icon name='download' /> {'Save Offline'}</>)}
               </Text>
             </Pressable>
           )}

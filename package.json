@@ -36,7 +36,9 @@
     "release:rehearsal": "node scripts/phase60-local-rehearsal.mjs",
     "validate:core": "node scripts/core-organizer-local-validation.mjs",
     "build:android:debug-apk": "node scripts/build-android-debug-apk.mjs",
-    "ios:path": "node scripts/mobile-ios-path.mjs"
+    "ios:path": "node scripts/mobile-ios-path.mjs",
+    "icons:build": "node scripts/build-icon-assets.mjs",
+    "icons:check": "node scripts/check-ui-icons.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",

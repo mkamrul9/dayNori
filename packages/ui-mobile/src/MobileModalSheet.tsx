@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -94,7 +95,9 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
               accessibilityLabel="Close sheet"
               style={styles.closeButton}
             >
-              <Text style={[styles.closeText, { color: palette.text.secondary }]}>✕</Text>
+              <Text style={[styles.closeText, { color: palette.text.secondary }]}>
+                <Icon name="x" color={palette.text.secondary} />
+              </Text>
             </Pressable>
           </View>
           <ScrollView

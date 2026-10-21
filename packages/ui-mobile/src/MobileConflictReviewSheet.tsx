@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
@@ -131,8 +132,7 @@ export const MobileConflictReviewSheet: React.FC<MobileConflictReviewSheetProps>
     : formatPayloadSummary(conflict.serverState);
   const baseBody = formatPayloadSummary(conflict.baseState);
 
-  const isTaskConflict =
-    conflict.entityType === 'task' || conflict.entityType === 'todo';
+  const isTaskConflict = conflict.entityType === 'task' || conflict.entityType === 'todo';
 
   const handleAction = async (resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge') => {
     setIsResolving(true);
@@ -179,7 +179,8 @@ export const MobileConflictReviewSheet: React.FC<MobileConflictReviewSheetProps>
           <Text style={[styles.metaLabel, { color: palette.text.muted }]}>Entity:</Text>
           <MobileTypeBadge kind={conflict.entityType} themeMode={themeMode} />
           <Text style={[styles.metaRevs, { color: palette.text.secondary }]}>
-            Base Rev {conflict.baseRevision} → Server Rev {conflict.serverRevision}
+            Base Rev {conflict.baseRevision} <Icon name="arrow-right" color={palette.text.secondary} /> Server
+            Rev {conflict.serverRevision}
           </Text>
         </View>
 
@@ -265,11 +266,7 @@ export const MobileConflictReviewSheet: React.FC<MobileConflictReviewSheetProps>
           ]}
         >
           <Text style={[styles.cardTitle, { color: palette.text.primary }]}>
-            {activeTab === 'local'
-              ? localTitle
-              : activeTab === 'server'
-                ? serverTitle
-                : baseTitle}
+            {activeTab === 'local' ? localTitle : activeTab === 'server' ? serverTitle : baseTitle}
           </Text>
 
           <ScrollView style={styles.cardScroll} nestedScrollEnabled={true}>
@@ -310,7 +307,9 @@ export const MobileConflictReviewSheet: React.FC<MobileConflictReviewSheetProps>
             themeMode={themeMode}
             disabled={isResolving}
             onPress={() => void handleAction('keep_local')}
-            accessibilityLabel={isEditVsDelete ? 'Restore and apply local edits' : 'Keep local edits'}
+            accessibilityLabel={
+              isEditVsDelete ? 'Restore and apply local edits' : 'Keep local edits'
+            }
           >
             {isEditVsDelete ? 'Restore & Apply Local Edits' : 'Keep Local Edits'}
           </MobileButton>

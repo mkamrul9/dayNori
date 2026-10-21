@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useCallback, useEffect, useId, useState } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -173,11 +174,19 @@ export const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                     : palette.status.warning,
             }}
           >
-            {file.quarantineStatus === 'verified'
-              ? '✓ Verified Clean'
-              : file.quarantineStatus === 'rejected'
-                ? '✕ Security Rejected'
-                : '⏳ Quarantine Pending'}
+            {file.quarantineStatus === 'verified' ? (
+              <>
+                <Icon name="check" /> Verified Clean
+              </>
+            ) : file.quarantineStatus === 'rejected' ? (
+              <>
+                <Icon name="x" /> Security Rejected
+              </>
+            ) : (
+              <>
+                <Icon name="hourglass" /> Quarantine Pending
+              </>
+            )}
           </span>
 
           {isOfflineActive && (
@@ -192,7 +201,7 @@ export const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                 border: `1px solid ${palette.border.subtle}`,
               }}
             >
-              📥 Available Offline
+              <Icon name="download" /> Available Offline
             </span>
           )}
 
@@ -267,7 +276,7 @@ export const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
                   <span style={{ fontSize: 36 }} aria-hidden="true">
-                    📄
+                    <Icon name="file" />
                   </span>
                   <div>
                     <div style={{ fontWeight: 600, color: palette.text.primary }}>
@@ -307,7 +316,7 @@ export const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                     style={{ textDecoration: 'none' }}
                   >
                     <Button variant="primary" themeMode={themeMode}>
-                      📥 Download Document
+                      <Icon name="download" /> Download Document
                     </Button>
                   </a>
                 </div>
@@ -397,7 +406,7 @@ export const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                               fontWeight: 500,
                             }}
                           >
-                            Open PDF in full tab ↗
+                            Open PDF in full tab <Icon name="arrow-up-right" />
                           </a>
                         </div>
                       </div>

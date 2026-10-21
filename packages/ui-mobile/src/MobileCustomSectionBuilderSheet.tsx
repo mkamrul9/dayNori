@@ -346,7 +346,7 @@ export const MobileCustomSectionBuilderSheet: React.FC<MobileCustomSectionBuilde
 
             <MobileButton
               variant="primary"
-              title="Next: Fields →"
+              title="Next: Fields"
               onPress={() => {
                 if (!title.trim()) {
                   setError('Please enter a section name');
@@ -390,7 +390,7 @@ export const MobileCustomSectionBuilderSheet: React.FC<MobileCustomSectionBuilde
                     <View style={{ flexDirection: 'row', gap: spacing.xs }}>
                       <MobileButton
                         variant="subtle"
-                        title="↑"
+                        title="Move up"
                         disabled={idx === 0}
                         onPress={() => handleMoveField(idx, 'up')}
                         accessibilityLabel={`Move ${f.label} up`}
@@ -401,7 +401,7 @@ export const MobileCustomSectionBuilderSheet: React.FC<MobileCustomSectionBuilde
                       />
                       <MobileButton
                         variant="subtle"
-                        title="↓"
+                        title="Move down"
                         disabled={idx === fields.length - 1}
                         onPress={() => handleMoveField(idx, 'down')}
                         accessibilityLabel={`Move ${f.label} down`}
@@ -412,7 +412,7 @@ export const MobileCustomSectionBuilderSheet: React.FC<MobileCustomSectionBuilde
                       />
                       <MobileButton
                         variant="danger"
-                        title="✕"
+                        title="Close"
                         onPress={() => handleRemoveField(f.id)}
                         accessibilityLabel={`Remove ${f.label}`}
                         style={{
@@ -453,13 +453,13 @@ export const MobileCustomSectionBuilderSheet: React.FC<MobileCustomSectionBuilde
             <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
               <MobileButton
                 variant="secondary"
-                title="← Back"
+                title="Back"
                 onPress={() => setStep(1)}
                 style={{ flex: 1 }}
               />
               <MobileButton
                 variant="primary"
-                title="Next: Review →"
+                title="Next: Review"
                 onPress={() => setStep(3)}
                 style={{ flex: 1 }}
               />
@@ -494,7 +494,7 @@ export const MobileCustomSectionBuilderSheet: React.FC<MobileCustomSectionBuilde
             <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
               <MobileButton
                 variant="secondary"
-                title="← Back"
+                title="Back"
                 onPress={() => setStep(2)}
                 style={{ flex: 1 }}
               />

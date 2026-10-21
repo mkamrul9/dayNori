@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { colors, radii, spacing, typography, touchTargets } from '@daynori/design-tokens';
 import type { CurrencyMonthlySummary } from '@daynori/contracts';
@@ -79,7 +80,13 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
         }}
       >
         <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }}>
-          <span style={{ fontSize: typography.webScale.supporting, fontWeight: '500', color: palette.text.secondary }}>
+          <span
+            style={{
+              fontSize: typography.webScale.supporting,
+              fontWeight: '500',
+              color: palette.text.secondary,
+            }}
+          >
             Currency:
           </span>
           {summaries.map((s, idx) => (
@@ -109,7 +116,7 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
             onClick={() => onExportCsv(activeSummary.currency)}
             aria-label={`Export ${activeSummary.currency} transactions to CSV`}
           >
-            📥 Export CSV ({activeSummary.currency})
+            <Icon name="download" /> Export CSV ({activeSummary.currency})
           </Button>
         )}
       </div>
@@ -131,7 +138,9 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
             padding: spacing.md,
           }}
         >
-          <div style={{ fontSize: typography.webScale.metadata, color: '#166534', fontWeight: '500' }}>
+          <div
+            style={{ fontSize: typography.webScale.metadata, color: '#166534', fontWeight: '500' }}
+          >
             Total Income
           </div>
           <div
@@ -155,7 +164,9 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
             padding: spacing.md,
           }}
         >
-          <div style={{ fontSize: typography.webScale.metadata, color: '#991B1B', fontWeight: '500' }}>
+          <div
+            style={{ fontSize: typography.webScale.metadata, color: '#991B1B', fontWeight: '500' }}
+          >
             Gross Spending
           </div>
           <div
@@ -179,7 +190,9 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
             padding: spacing.md,
           }}
         >
-          <div style={{ fontSize: typography.webScale.metadata, color: '#1E40AF', fontWeight: '500' }}>
+          <div
+            style={{ fontSize: typography.webScale.metadata, color: '#1E40AF', fontWeight: '500' }}
+          >
             Total Refunds Received
           </div>
           <div
@@ -203,7 +216,9 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
             padding: spacing.md,
           }}
         >
-          <div style={{ fontSize: typography.webScale.metadata, color: '#6B21A8', fontWeight: '500' }}>
+          <div
+            style={{ fontSize: typography.webScale.metadata, color: '#6B21A8', fontWeight: '500' }}
+          >
             Net Spending (Gross - Refunds)
           </div>
           <div
@@ -227,7 +242,9 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
             padding: spacing.md,
           }}
         >
-          <div style={{ fontSize: typography.webScale.metadata, color: '#334155', fontWeight: '500' }}>
+          <div
+            style={{ fontSize: typography.webScale.metadata, color: '#334155', fontWeight: '500' }}
+          >
             Net Savings (Income - Net Spending)
           </div>
           <div
@@ -273,10 +290,18 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
             {activeSummary.categoryBreakdown.map((cat, idx) => {
               const spentNum = parseFloat(cat.spentFormatted);
               const totalNetNum = parseFloat(activeSummary.netExpenseFormatted);
-              const percentage = totalNetNum > 0 && spentNum > 0 ? (spentNum / totalNetNum) * 100 : 0;
+              const percentage =
+                totalNetNum > 0 && spentNum > 0 ? (spentNum / totalNetNum) * 100 : 0;
               if (percentage <= 0) return null;
 
-              const defaultColors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#6366F1'];
+              const defaultColors = [
+                '#3B82F6',
+                '#10B981',
+                '#F59E0B',
+                '#8B5CF6',
+                '#EC4899',
+                '#6366F1',
+              ];
               const barColor = cat.categoryColor || defaultColors[idx % defaultColors.length]!;
 
               return (
@@ -303,28 +328,74 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
                 fontFamily: typography.fontFamily.sans,
               }}
             >
-              <caption style={{ textAlign: 'left', marginBottom: spacing.xs, fontSize: typography.webScale.metadata, color: palette.text.secondary }}>
+              <caption
+                style={{
+                  textAlign: 'left',
+                  marginBottom: spacing.xs,
+                  fontSize: typography.webScale.metadata,
+                  color: palette.text.secondary,
+                }}
+              >
                 Detailed tabular spending by category with exact arithmetic
               </caption>
               <thead>
                 <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
-                  <th style={{ padding: spacing.sm, fontSize: typography.webScale.supporting, color: palette.text.secondary }}>Category</th>
-                  <th style={{ padding: spacing.sm, fontSize: typography.webScale.supporting, color: palette.text.secondary, textAlign: 'right' }}>
+                  <th
+                    style={{
+                      padding: spacing.sm,
+                      fontSize: typography.webScale.supporting,
+                      color: palette.text.secondary,
+                    }}
+                  >
+                    Category
+                  </th>
+                  <th
+                    style={{
+                      padding: spacing.sm,
+                      fontSize: typography.webScale.supporting,
+                      color: palette.text.secondary,
+                      textAlign: 'right',
+                    }}
+                  >
                     Net Spent
                   </th>
-                  <th style={{ padding: spacing.sm, fontSize: typography.webScale.supporting, color: palette.text.secondary, textAlign: 'right' }}>
+                  <th
+                    style={{
+                      padding: spacing.sm,
+                      fontSize: typography.webScale.supporting,
+                      color: palette.text.secondary,
+                      textAlign: 'right',
+                    }}
+                  >
                     Transactions
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {activeSummary.categoryBreakdown.map((cat, idx) => {
-                  const defaultColors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#6366F1'];
+                  const defaultColors = [
+                    '#3B82F6',
+                    '#10B981',
+                    '#F59E0B',
+                    '#8B5CF6',
+                    '#EC4899',
+                    '#6366F1',
+                  ];
                   const dotColor = cat.categoryColor || defaultColors[idx % defaultColors.length]!;
 
                   return (
-                    <tr key={cat.categoryId || `uncat-${idx}`} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: spacing.sm, display: 'flex', alignItems: 'center', gap: spacing.xs }}>
+                    <tr
+                      key={cat.categoryId || `uncat-${idx}`}
+                      style={{ borderBottom: '1px solid #F1F5F9' }}
+                    >
+                      <td
+                        style={{
+                          padding: spacing.sm,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: spacing.xs,
+                        }}
+                      >
                         <span
                           style={{
                             display: 'inline-block',
@@ -343,12 +414,20 @@ export const ExpenseReportView: React.FC<ExpenseReportViewProps> = ({
                           padding: spacing.sm,
                           textAlign: 'right',
                           fontWeight: 'bold',
-                          color: cat.spentMinorUnits.startsWith('-') ? '#059669' : palette.text.primary,
+                          color: cat.spentMinorUnits.startsWith('-')
+                            ? '#059669'
+                            : palette.text.primary,
                         }}
                       >
                         {cat.spentFormatted} {activeSummary.currency}
                       </td>
-                      <td style={{ padding: spacing.sm, textAlign: 'right', color: palette.text.secondary }}>
+                      <td
+                        style={{
+                          padding: spacing.sm,
+                          textAlign: 'right',
+                          color: palette.text.secondary,
+                        }}
+                      >
                         {cat.transactionCount}
                       </td>
                     </tr>

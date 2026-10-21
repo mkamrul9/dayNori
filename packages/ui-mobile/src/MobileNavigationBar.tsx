@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
@@ -18,10 +19,10 @@ interface TabConfig {
 }
 
 const TABS: TabConfig[] = [
-  { key: 'today', label: 'Today', icon: '☀️' },
-  { key: 'plan', label: 'Plan', icon: '📋' },
-  { key: 'library', label: 'Library', icon: '📚' },
-  { key: 'journal', label: 'Journal', icon: '✍️' },
+  { key: 'today', label: 'Today', icon: 'sun' },
+  { key: 'plan', label: 'Plan', icon: 'clipboard' },
+  { key: 'library', label: 'Library', icon: 'library' },
+  { key: 'journal', label: 'Journal', icon: 'edit' },
 ];
 
 export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
@@ -67,7 +68,7 @@ export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
             ]}
           >
             <Text style={styles.tabIcon} aria-hidden={true}>
-              {tab.icon}
+              <Icon name={tab.icon} color={palette.text.primary} />
             </Text>
             <Text
               numberOfLines={1}

@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
@@ -109,7 +110,14 @@ export default function SettingsPage() {
         message: `Preferences saved successfully (Revision ${res.updated?.revision ?? 1}).`,
       });
     }
-  }, [formTimeZone, formLocale, formWeekStart, formCompactMode, formExpensesEnabled, savePreferences]);
+  }, [
+    formTimeZone,
+    formLocale,
+    formWeekStart,
+    formCompactMode,
+    formExpensesEnabled,
+    savePreferences,
+  ]);
 
   const handleProvisionWorkspace = useCallback(async () => {
     setIsProvisioning(true);
@@ -186,7 +194,7 @@ export default function SettingsPage() {
               onClick={() => setTheme('light')}
               id="set-theme-light"
             >
-              ☀️ Warm Paper (Light)
+              <Icon name="sun" /> Warm Paper (Light)
             </Button>
             <Button
               variant={themeMode === 'dark' ? 'primary' : 'secondary'}
@@ -195,7 +203,7 @@ export default function SettingsPage() {
               onClick={() => setTheme('dark')}
               id="set-theme-dark"
             >
-              🌙 Deep Ink (Dark)
+              <Icon name="moon" /> Deep Ink (Dark)
             </Button>
           </div>
         </Card>
@@ -734,7 +742,7 @@ export default function SettingsPage() {
             onClick={() => openModal('onboarding-replay')}
             id="replay-onboarding-btn"
           >
-            ✨ Replay Onboarding Tutorial
+            <Icon name="sparkle" /> Replay Onboarding Tutorial
           </Button>
         </Card>
 
@@ -826,7 +834,7 @@ export default function SettingsPage() {
               onClick={() => openModal('sync-diagnostics')}
               id="open-sync-diagnostics-btn"
             >
-              🔄 View Sync Diagnostics
+              <Icon name="refresh" /> View Sync Diagnostics
             </Button>
             <Button
               variant="secondary"
@@ -835,7 +843,7 @@ export default function SettingsPage() {
               onClick={() => openModal('recovery-export')}
               id="open-recovery-export-btn"
             >
-              💾 Export Recovery Drafts
+              <Icon name="save" /> Export Recovery Drafts
             </Button>
           </div>
         </Card>
@@ -865,7 +873,7 @@ export default function SettingsPage() {
               onClick={() => openModal('workspace-portability')}
               id="open-workspace-portability-btn"
             >
-              📦 Export / Import Workspace
+              <Icon name="archive" /> Export / Import Workspace
             </Button>
           </div>
         </Card>
@@ -954,7 +962,7 @@ export default function SettingsPage() {
                 onClick={() => setIsDeletionDialogOpen(true)}
                 id="open-account-deletion-btn"
               >
-                🗑️ Delete Account
+                <Icon name="trash" /> Delete Account
               </Button>
             </div>
           </Card>

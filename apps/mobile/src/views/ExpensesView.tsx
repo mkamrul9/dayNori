@@ -5,10 +5,17 @@ import {
   Share,
   StyleSheet,
   Text,
-  View,
+  View
 } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
+import {
+  Icon,
   MobileButton,
   MobileCard,
   MobileEmptyState,
@@ -16,13 +23,13 @@ import {
   MobileExpenseCaptureSheet,
   MobileExpenseReportView,
   MobileModalSheet,
-  MobileTextField,
+  MobileTextField
 } from '@daynori/ui-mobile';
 import type {
   ExpenseCategory,
   ExpenseItem,
   ExpenseBudget,
-  CurrencyMonthlySummary,
+  CurrencyMonthlySummary
 } from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
 import { defaultSecureStorage } from '../auth/secureStorage.js';
@@ -75,14 +82,19 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [budgets, setBudgets] = useState<ExpenseBudget[]>([]);
   const [monthlySummaries, setMonthlySummaries] = useState<CurrencyMonthlySummary[]>([]);
-  const [availableReceipts, setAvailableReceipts] = useState<Array<{ id: string; fileName?: string }>>([]);
+  const [availableReceipts, setAvailableReceipts] = useState<
+    Array<{ id: string; fileName?: string }>
+  >([]);
   const [eligibleOriginalExpenses, setEligibleOriginalExpenses] = useState<ExpenseItem[]>([]);
 
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('');
   const [selectedKindFilter, setSelectedKindFilter] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [feedback, setFeedback] = useState<{ severity: 'success' | 'warning' | 'danger' | 'info'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    severity: 'success' | 'warning' | 'danger' | 'info';
+    message: string;
+  } | null>(null);
 
   // Pagination state
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -451,7 +463,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           onPress={onClose}
           accessibilityLabel="Close expenses"
         >
-          ✕ Done
+          <Icon name="x" /> Done
         </MobileButton>
       </View>
 
@@ -463,7 +475,9 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           style={styles.navArrow}
           accessibilityLabel="Previous month"
         >
-          <Text style={{ fontSize: 18, color: palette.text.primary }}>◀</Text>
+          <Text style={{ fontSize: 18, color: palette.text.primary }}>
+            <Icon name="chevron-left" />
+          </Text>
         </Pressable>
         <Text style={[styles.monthText, { color: palette.text.primary }]}>
           {MONTH_NAMES[currentMonth - 1]} {currentYear}
@@ -474,7 +488,9 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           style={styles.navArrow}
           accessibilityLabel="Next month"
         >
-          <Text style={{ fontSize: 18, color: palette.text.primary }}>▶</Text>
+          <Text style={{ fontSize: 18, color: palette.text.primary }}>
+            <Icon name="play" />
+          </Text>
         </Pressable>
       </View>
 
@@ -492,7 +508,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
             }}
             accessibilityLabel="Record new transaction"
           >
-            ➕ Record Transaction
+            <Icon name="plus" /> Record Transaction
           </MobileButton>
         </View>
         <View style={{ flex: 1 }}>
@@ -503,7 +519,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
             onPress={handleExportCsv}
             accessibilityLabel="Export CSV"
           >
-            📥 Export CSV
+            <Icon name="download" /> Export CSV
           </MobileButton>
         </View>
       </View>
@@ -575,7 +591,9 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                     style={[
                       styles.filterChip,
                       {
-                        backgroundColor: isSelected ? palette.action.primary : palette.surfaceRaised,
+                        backgroundColor: isSelected
+                          ? palette.action.primary
+                          : palette.surfaceRaised,
                         borderColor: palette.border.subtle,
                       },
                     ]}
@@ -595,14 +613,21 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
             {/* Category Filters */}
             {categories.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.xs }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginBottom: spacing.xs }}
+              >
                 <View style={styles.filterRow}>
                   <Pressable
                     onPress={() => setSelectedCategoryFilter('')}
                     style={[
                       styles.filterChip,
                       {
-                        backgroundColor: selectedCategoryFilter === '' ? palette.action.primary : palette.surfaceRaised,
+                        backgroundColor:
+                          selectedCategoryFilter === ''
+                            ? palette.action.primary
+                            : palette.surfaceRaised,
                         borderColor: palette.border.subtle,
                       },
                     ]}
@@ -625,7 +650,9 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                         style={[
                           styles.filterChip,
                           {
-                            backgroundColor: isSelected ? palette.action.primary : palette.surfaceRaised,
+                            backgroundColor: isSelected
+                              ? palette.action.primary
+                              : palette.surfaceRaised,
                             borderColor: palette.border.subtle,
                           },
                         ]}
@@ -653,7 +680,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
               />
             ) : (
               transactions.map((tx) => {
-                const sign = tx.kind === 'income' ? '+' : tx.kind === 'refund' ? '↺ +' : '-';
+                const sign = tx.kind === 'income' ? '+' : tx.kind === 'refund' ? '+' : '-';
                 const color =
                   tx.kind === 'income'
                     ? palette.status.success
@@ -666,7 +693,9 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                   <MobileCard key={tx.id} themeMode={themeMode}>
                     <View style={styles.txRow}>
                       <View style={{ flex: 1, paddingRight: spacing.sm }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                        <View
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
+                        >
                           <Text style={[styles.txDate, { color: palette.text.secondary }]}>
                             {tx.transactionDate}
                           </Text>
@@ -689,7 +718,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                           )}
                           {tx.receiptFileId && (
                             <Text style={{ fontSize: 12 }} accessibilityLabel="Receipt attached">
-                              📎
+                              <Icon name="attachment" />
                             </Text>
                           )}
                         </View>
@@ -743,7 +772,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                   disabled={isLoadingMore}
                   accessibilityLabel="Load more transactions"
                 >
-                  {isLoadingMore ? 'Loading More...' : '⬇️ Load More Transactions'}
+                  {isLoadingMore ? (<Icon name='Loading More...' />) : (<><Icon name='arrow-down' /> {'Load More Transactions'}</>)}
                 </MobileButton>
               </View>
             )}
@@ -939,9 +968,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                           backgroundColor: isSelected
                             ? palette.action.primary
                             : palette.surfaceRaised,
-                          borderColor: isSelected
-                            ? palette.action.primary
-                            : palette.border.subtle,
+                          borderColor: isSelected ? palette.action.primary : palette.border.subtle,
                         },
                       ]}
                     >

@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon, IconText } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef, useId, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
@@ -72,16 +73,16 @@ const MODULE_SHORTCUT_HREFS: Record<ModuleShortcutId, string> = {
 };
 
 const MODULE_SHORTCUT_ICONS: Record<ModuleShortcutId, string> = {
-  today: '☀️',
-  plan: '📋',
-  library: '📚',
-  journal: '📖',
-  notes: '📝',
-  tasks: '✓',
-  routines: '🔁',
-  calendar: '📅',
-  files: '📁',
-  knowledge: '💡',
+  today: 'sun',
+  plan: 'clipboard',
+  library: 'library',
+  journal: 'book',
+  notes: 'note',
+  tasks: 'check',
+  routines: 'repeat',
+  calendar: 'calendar',
+  files: 'folder',
+  knowledge: 'bulb',
 };
 
 function getRecentItemHref(item: RecentItemEntry): string {
@@ -1510,7 +1511,7 @@ export const TodayView: React.FC = () => {
               themeMode={themeMode}
               onClick={() => setIsCustomizing(true)}
             >
-              ⚙️ Customize Today
+              <Icon name="settings" /> Customize Today
             </Button>
 
             <Button
@@ -1569,7 +1570,7 @@ export const TodayView: React.FC = () => {
           }}
         >
           <div style={{ fontWeight: 700, color: palette.text.primary, fontSize: '14px' }}>
-            ⚠️ Layout Conflict Detected
+            <Icon name="warning" /> Layout Conflict Detected
           </div>
           <div style={{ fontSize: '13px', color: palette.text.secondary }}>
             Your settings were modified on another device (revision {conflictState.serverRevision}).
@@ -1631,7 +1632,9 @@ export const TodayView: React.FC = () => {
                   textDecoration: 'none',
                 }}
               >
-                <span>{MODULE_SHORTCUT_ICONS[shortcut.id]}</span>
+                <span>
+                  <Icon name={MODULE_SHORTCUT_ICONS[shortcut.id]} />
+                </span>
                 <span>{label}</span>
               </Link>
             );
@@ -1741,7 +1744,7 @@ export const TodayView: React.FC = () => {
           actionLabel="Customize Home"
           onAction={() => setIsCustomizing(true)}
           themeMode={themeMode}
-          icon="☀️"
+          icon={<Icon name="sun" size={32} />}
         />
       ) : (
         /* Render Customizable Cards in Configured Order */
@@ -1883,7 +1886,9 @@ export const TodayView: React.FC = () => {
                             padding: '4px 0',
                           }}
                         >
-                          <span>{isOverdueExpanded ? '▼' : '▶'}</span>
+                          <span>
+                            <Icon name={isOverdueExpanded ? 'chevron-down' : 'chevron-right'} />
+                          </span>
                           <span>
                             {overdueTasks.length} overdue task{overdueTasks.length === 1 ? '' : 's'}
                           </span>
@@ -1956,7 +1961,7 @@ export const TodayView: React.FC = () => {
                           minHeight: '32px',
                         }}
                       >
-                        View all tasks in Plan →
+                        View all tasks in Plan <Icon name="arrow-right" />
                       </Link>
                     </div>
                   </div>
@@ -2157,7 +2162,7 @@ export const TodayView: React.FC = () => {
                           textDecoration: 'none',
                         }}
                       >
-                        Open Plan →
+                        Open Plan <Icon name="arrow-right" />
                       </Link>
                     </div>
 
@@ -2268,7 +2273,10 @@ export const TodayView: React.FC = () => {
                           gap: '4px',
                         }}
                       >
-                        <span>✓</span> New Task
+                        <span>
+                          <Icon name="check" />
+                        </span>{' '}
+                        New Task
                       </Link>
 
                       <Link
@@ -2288,7 +2296,10 @@ export const TodayView: React.FC = () => {
                           gap: '4px',
                         }}
                       >
-                        <span>📝</span> New Note
+                        <span>
+                          <Icon name="note" />
+                        </span>{' '}
+                        New Note
                       </Link>
 
                       <button
@@ -2312,7 +2323,10 @@ export const TodayView: React.FC = () => {
                           gap: '4px',
                         }}
                       >
-                        <span>🔄</span> Routine
+                        <span>
+                          <Icon name="refresh" />
+                        </span>{' '}
+                        Routine
                       </button>
 
                       <Link
@@ -2332,7 +2346,10 @@ export const TodayView: React.FC = () => {
                           gap: '4px',
                         }}
                       >
-                        <span>📖</span> Write Journal
+                        <span>
+                          <Icon name="book" />
+                        </span>{' '}
+                        Write Journal
                       </Link>
 
                       <Link
@@ -2352,7 +2369,10 @@ export const TodayView: React.FC = () => {
                           gap: '4px',
                         }}
                       >
-                        <span>📁</span> Upload File
+                        <span>
+                          <Icon name="folder" />
+                        </span>{' '}
+                        Upload File
                       </Link>
                     </div>
                   </div>
@@ -2406,7 +2426,7 @@ export const TodayView: React.FC = () => {
                           minHeight: '32px',
                         }}
                       >
-                        Write reflection →
+                        Write reflection <Icon name="arrow-right" />
                       </Link>
                     </div>
                   </div>
@@ -2536,7 +2556,7 @@ export const TodayView: React.FC = () => {
                           textDecoration: 'none',
                         }}
                       >
-                        Browse all →
+                        Browse all <Icon name="arrow-right" />
                       </Link>
                     </div>
 
@@ -2571,7 +2591,10 @@ export const TodayView: React.FC = () => {
                               gap: '4px',
                             }}
                           >
-                            <span>📁</span> {f.name}
+                            <span>
+                              <Icon name="folder" />
+                            </span>{' '}
+                            {f.name}
                           </Link>
                         ))
                       )}
@@ -2702,7 +2725,7 @@ export const TodayView: React.FC = () => {
                   padding: '4px 8px',
                 }}
               >
-                ✕
+                <Icon name="x" />
               </button>
             </div>
 
@@ -2806,7 +2829,7 @@ export const TodayView: React.FC = () => {
                             color: palette.text.primary,
                           }}
                         >
-                          ▲
+                          <Icon name="chevron-up" />
                         </button>
                         <button
                           type="button"
@@ -2825,7 +2848,7 @@ export const TodayView: React.FC = () => {
                             color: palette.text.primary,
                           }}
                         >
-                          ▼
+                          <Icon name="chevron-down" />
                         </button>
                       </div>
                     </div>
@@ -2885,7 +2908,7 @@ export const TodayView: React.FC = () => {
                         <span
                           style={{ fontSize: '13px', fontWeight: 600, color: palette.text.primary }}
                         >
-                          {MODULE_SHORTCUT_ICONS[shortcut.id]}{' '}
+                          <Icon name={MODULE_SHORTCUT_ICONS[shortcut.id]} />{' '}
                           {DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id}
                         </span>
                       </label>
@@ -2929,7 +2952,7 @@ export const TodayView: React.FC = () => {
                             color: palette.text.primary,
                           }}
                         >
-                          ▲
+                          <Icon name="chevron-up" />
                         </button>
                         <button
                           type="button"
@@ -2948,7 +2971,7 @@ export const TodayView: React.FC = () => {
                             color: palette.text.primary,
                           }}
                         >
-                          ▼
+                          <Icon name="chevron-down" />
                         </button>
                       </div>
                     </div>
@@ -3089,7 +3112,9 @@ export const TodayView: React.FC = () => {
                           accentColor: palette.action.primary,
                         }}
                       />
-                      <span>📁 {folder.name}</span>
+                      <span>
+                        <Icon name="folder" /> {folder.name}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -3110,7 +3135,8 @@ export const TodayView: React.FC = () => {
                 }}
               >
                 <div style={{ fontWeight: 700, color: palette.text.primary, fontSize: '13px' }}>
-                  ⚠️ Cloud Settings Conflict (revision {conflictState.serverRevision})
+                  <Icon name="warning" /> Cloud Settings Conflict (revision{' '}
+                  {conflictState.serverRevision})
                 </div>
                 <div style={{ fontSize: '12px', color: palette.text.secondary }}>
                   Another device saved preferences since this page was loaded. Your unsaved edits

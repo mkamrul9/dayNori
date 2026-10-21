@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon, IconText } from '@daynori/ui-web';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
@@ -929,7 +930,7 @@ export default function JournalPage() {
           actionLabel="Sign In or Create Account"
           onAction={() => openAuthModal('/journal')}
           themeMode={themeMode}
-          icon="🔒"
+          icon={<Icon name="lock" size={32} />}
         />
       </div>
     );
@@ -1034,7 +1035,7 @@ export default function JournalPage() {
             data-testid="write-entry-button"
             onClick={() => handleOpenNewEntry(selectedDate)}
           >
-            ✍️ Write Entry
+            <Icon name="edit" /> Write Entry
           </Button>
         </div>
       </div>
@@ -1072,7 +1073,7 @@ export default function JournalPage() {
         >
           <div>
             <span style={{ fontWeight: 600, color: palette.action.subtleText }}>
-              📝 Recoverable draft found
+              <Icon name="note" /> Recoverable draft found
             </span>
             <span style={{ marginLeft: '8px', fontSize: '13px', color: palette.text.secondary }}>
               Unsaved draft from {new Date(pendingDraft.savedAt).toLocaleTimeString()}
@@ -1164,7 +1165,7 @@ export default function JournalPage() {
               data-testid="prev-month-button"
               onClick={() => setSelectedDate((d) => offsetMonthIso(d, -1))}
             >
-              ◀ Month
+              <Icon name="chevron-left" /> Month
             </Button>
             <Button
               size="compact"
@@ -1174,7 +1175,7 @@ export default function JournalPage() {
               data-testid="prev-day-button"
               onClick={() => setSelectedDate((d) => offsetDateIso(d, -1))}
             >
-              ◀
+              <Icon name="chevron-left" />
             </Button>
             <input
               type="date"
@@ -1202,7 +1203,7 @@ export default function JournalPage() {
               data-testid="next-day-button"
               onClick={() => setSelectedDate((d) => offsetDateIso(d, 1))}
             >
-              ▶
+              <Icon name="play" />
             </Button>
             <Button
               size="compact"
@@ -1212,7 +1213,7 @@ export default function JournalPage() {
               data-testid="next-month-button"
               onClick={() => setSelectedDate((d) => offsetMonthIso(d, 1))}
             >
-              Month ▶
+              Month <Icon name="play" />
             </Button>
             <Button
               size="compact"
@@ -1281,7 +1282,7 @@ export default function JournalPage() {
             }
             onClick={handleToggleSnippets}
           >
-            {suppressSnippets ? '👁️ Show Snippets' : '🔒 Hide Snippets'}
+            {suppressSnippets ? (<><Icon name='eye' /> {'Show Snippets'}</>) : (<><Icon name='lock' /> {'Hide Snippets'}</>)}
           </Button>
         </div>
       </div>
@@ -1357,7 +1358,7 @@ export default function JournalPage() {
               : () => handleOpenNewEntry(selectedDate)
           }
           themeMode={themeMode}
-          icon={viewMode === 'trash' ? '🗑️' : '📖'}
+          icon={viewMode === 'trash' ? 'trash' : 'book'}
         />
       ) : (
         <div
@@ -1393,7 +1394,7 @@ export default function JournalPage() {
                         color: palette.action.primary,
                       }}
                     >
-                      📅 {entry.entryDate}
+                      <Icon name="calendar" /> {entry.entryDate}
                     </span>
                     {isEntryBackdated(entry.entryDate, entry.createdAt, entry.timezone) && (
                       <span
@@ -1407,7 +1408,7 @@ export default function JournalPage() {
                           fontWeight: 600,
                         }}
                       >
-                        🕒 Backdated
+                        <Icon name="clock" /> Backdated
                       </span>
                     )}
                     {entry.mood && (
@@ -1447,7 +1448,7 @@ export default function JournalPage() {
                           data-testid={`edit-entry-${entry.id}`}
                           onClick={() => handleEditEntry(entry)}
                         >
-                          ✏️ Edit
+                          <Icon name="edit" /> Edit
                         </Button>
                         <Button
                           size="compact"
@@ -1456,7 +1457,7 @@ export default function JournalPage() {
                           data-testid={`trash-entry-${entry.id}`}
                           onClick={() => handleTrashEntry(entry)}
                         >
-                          🗑️
+                          <Icon name="trash" />
                         </Button>
                       </>
                     )}

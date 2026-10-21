@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
@@ -22,23 +23,23 @@ export const MobileFeedback: React.FC<MobileFeedbackProps> = ({
   let bg: string = palette.status.infoBg;
   let fg: string = palette.status.info;
   let border: string = palette.status.infoBorder;
-  let icon = 'ℹ️';
+  let icon = 'info';
 
   if (severity === 'success') {
     bg = palette.status.successBg;
     fg = palette.status.success;
     border = palette.status.successBorder;
-    icon = '✓';
+    icon = 'check';
   } else if (severity === 'warning') {
     bg = palette.status.warningBg;
     fg = palette.status.warning;
     border = palette.status.warningBorder;
-    icon = '⚠';
+    icon = 'warning';
   } else if (severity === 'danger') {
     bg = palette.status.dangerBg;
     fg = palette.status.danger;
     border = palette.status.dangerBorder;
-    icon = '✕';
+    icon = 'x';
   }
 
   return (
@@ -48,7 +49,9 @@ export const MobileFeedback: React.FC<MobileFeedbackProps> = ({
       accessibilityLiveRegion={severity === 'danger' ? 'assertive' : 'polite'}
       style={[styles.container, { backgroundColor: bg, borderColor: border }]}
     >
-      <Text style={[styles.icon, { color: fg }]}>{icon}</Text>
+      <Text style={[styles.icon, { color: fg }]}>
+        <Icon name={icon} color={fg} />
+      </Text>
       <View style={styles.textContainer}>
         {title ? <Text style={[styles.title, { color: fg }]}>{title}</Text> : null}
         <Text style={[styles.message, { color: fg }]}>{message}</Text>

@@ -1,18 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { LocalRepositoryPort, SyncEngine, FileRecord } from '@daynori/sync';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import type { LocalRepositoryPort,
+  SyncEngine,
+  FileRecord } from '@daynori/sync';
 import type { DaynoriApiClient } from '@daynori/api-client';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Clipboard from 'expo-clipboard';
+import { MobileOfflineFileCache, computeMobileBufferSha256, arrayBufferToBase64, base64ToArrayBuffer } from '../data/offlineFileCache.js';
 import {
-  MobileOfflineFileCache,
-  computeMobileBufferSha256,
-  arrayBufferToBase64,
-  base64ToArrayBuffer,
-} from '../data/offlineFileCache.js';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
 import {
+  Icon,
   MobileBreadcrumb,
   MobileButton,
   MobileCard,
@@ -28,7 +38,7 @@ import {
   MobileQuickReferenceView,
   type MobileBreadcrumbSegment,
   type MobileFileItem,
-  type MobileSelectedFile,
+  type MobileSelectedFile
 } from '@daynori/ui-mobile';
 import {
   calculateFolderDepth,
@@ -46,7 +56,7 @@ import {
   sortKnowledgeItems,
   type NoteDocument,
   type SavedView,
-  type ResolvedItemLink,
+  type ResolvedItemLink
 } from '@daynori/domain';
 import type { LibraryFilter } from '../navigation/types';
 
@@ -103,7 +113,7 @@ export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     id: '11111111-1111-4111-8111-111111111111',
     name: 'Software',
     parentId: null,
-    icon: '💻',
+    icon: 'code',
     rank: '00001000',
     revision: 1,
   },
@@ -111,7 +121,7 @@ export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     id: '22222222-2222-4222-8222-222222222222',
     name: 'Guides',
     parentId: '11111111-1111-4111-8111-111111111111',
-    icon: '📚',
+    icon: 'library',
     rank: '00001000',
     revision: 1,
   },
@@ -119,7 +129,7 @@ export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     id: '33333333-3333-4333-8333-333333333333',
     name: 'Projects',
     parentId: '11111111-1111-4111-8111-111111111111',
-    icon: '🚀',
+    icon: 'rocket',
     rank: '00002000',
     revision: 1,
   },
@@ -127,7 +137,7 @@ export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     id: '44444444-4444-4444-8444-444444444444',
     name: 'Government jobs',
     parentId: null,
-    icon: '🏛️',
+    icon: 'landmark',
     rank: '00002000',
     revision: 1,
   },
@@ -135,7 +145,7 @@ export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     id: '55555555-5555-4555-8555-555555555555',
     name: 'Applications',
     parentId: '44444444-4444-4444-8444-444444444444',
-    icon: '📋',
+    icon: 'clipboard',
     rank: '00001000',
     revision: 1,
   },
@@ -143,7 +153,7 @@ export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     id: '66666666-6666-4666-8666-666666666666',
     name: 'Personal',
     parentId: null,
-    icon: '🌱',
+    icon: 'leaf',
     rank: '00003000',
     revision: 1,
   },
@@ -151,7 +161,7 @@ export const SAMPLE_MOBILE_FOLDERS: MobileFolderItem[] = [
     id: '77777777-7777-4777-8777-777777777777',
     name: 'Learning',
     parentId: null,
-    icon: '🎓',
+    icon: 'graduation',
     rank: '00004000',
     revision: 1,
   },
@@ -595,7 +605,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     for (const node of path) {
       segs.push({
         id: node.id,
-        label: `${node.icon ?? '📁'} ${node.name}`,
+        label: `${node.icon ?? 'folder'} ${node.name}`,
       });
     }
 
@@ -742,7 +752,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       id: generateUuid(),
       name: trimmed,
       parentId: currentFolderId,
-      icon: '📁',
+      icon: 'folder',
       rank: generateInitialRank(subfolders.length),
       revision: 1,
     };
@@ -1230,9 +1240,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               id: noteRes.data.id,
               title: noteRes.data.title,
               kind:
-                noteRes.data.purpose && noteRes.data.purpose !== 'standard'
-                  ? 'knowledge'
-                  : 'note',
+                noteRes.data.purpose && noteRes.data.purpose !== 'standard' ? 'knowledge' : 'note',
               purpose: noteRes.data.purpose,
               folderId: noteRes.data.folderId,
               rank: '00001000',
@@ -1643,7 +1651,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
             if (!target) {
               const repo =
-                repository ?? (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
+                repository ??
+                (syncEngine as unknown as { repository?: LocalRepositoryPort })?.repository;
               if (repo && workspaceId) {
                 try {
                   const header = await repo.getItemHeader(workspaceId, targetId);
@@ -1762,7 +1771,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         ]}
       >
         <Text style={[styles.statusText, { color: palette.text.secondary }]}>
-          💾 {localStatus} • ☁️ {isOffline ? 'Offline' : syncStatus}
+          <Icon name="save" /> {localStatus} • <Icon name="cloud" /> {isOffline ? 'Offline' : syncStatus}
         </Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           <Pressable
@@ -1958,7 +1967,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     },
                   ]}
                 >
-                  🔖 {sv.name}
+                  <Icon name="bookmark" /> {sv.name}
                 </Text>
               </Pressable>
             );
@@ -2020,7 +2029,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   }}
                   style={styles.folderTouchableArea}
                 >
-                  <Text style={styles.folderIcon}>{folder.icon ?? '📁'}</Text>
+                  <Text style={styles.folderIcon}>
+                    <Icon name={folder.icon ?? 'folder'} />
+                  </Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.folderName, { color: palette.text.primary }]}>
                       {folder.name}
@@ -2040,7 +2051,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     onPress={() => handleReorder(folder.id, 'up')}
                     style={[styles.reorderBtn, index === 0 && { opacity: 0.3 }]}
                   >
-                    <Text style={{ color: palette.text.primary, fontSize: 16 }}>▲</Text>
+                    <Text style={{ color: palette.text.primary, fontSize: 16 }}>
+                      <Icon name="chevron-up" />
+                    </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
@@ -2049,7 +2062,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     onPress={() => handleReorder(folder.id, 'down')}
                     style={[styles.reorderBtn, index === subfolders.length - 1 && { opacity: 0.3 }]}
                   >
-                    <Text style={{ color: palette.text.primary, fontSize: 16 }}>▼</Text>
+                    <Text style={{ color: palette.text.primary, fontSize: 16 }}>
+                      <Icon name="chevron-down" />
+                    </Text>
                   </Pressable>
                 </View>
 
@@ -2061,7 +2076,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     onPress={() => handleOpenMove(folder)}
                     style={styles.actionIconBtn}
                   >
-                    <Text style={{ fontSize: 16 }}>➡️</Text>
+                    <Text style={{ fontSize: 16 }}>
+                      <Icon name="arrow-right" />
+                    </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
@@ -2073,7 +2090,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     }}
                     style={styles.actionIconBtn}
                   >
-                    <Text style={{ fontSize: 16 }}>✏️</Text>
+                    <Text style={{ fontSize: 16 }}>
+                      <Icon name="edit" />
+                    </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
@@ -2081,7 +2100,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     onPress={() => setTrashTargetFolder(folder)}
                     style={styles.actionIconBtn}
                   >
-                    <Text style={{ fontSize: 16 }}>🗑️</Text>
+                    <Text style={{ fontSize: 16 }}>
+                      <Icon name="trash" />
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -2298,7 +2319,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             ]}
           >
             <Text style={{ color: palette.text.primary, fontWeight: '600' }}>
-              📁 Workspace Root (Top Level)
+              <Icon name="folder" /> Workspace Root (Top Level)
             </Text>
           </Pressable>
 
@@ -2324,7 +2345,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   ]}
                 >
                   <Text style={{ color: palette.text.primary, fontWeight: '500' }}>
-                    {f.icon ?? '📁'} {f.name} {isCycle ? '(Descendant)' : ''}
+                    <Icon name={f.icon ?? 'folder'} /> {f.name} {isCycle ? '(Descendant)' : ''}
                   </Text>
                 </Pressable>
               );
@@ -2371,7 +2392,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             ]}
           >
             <Text style={[styles.policyText, { color: palette.text.primary }]}>
-              🗑️ Delete entire subtree (folder and all contents)
+              <Icon name="trash" /> Delete entire subtree (folder and all contents)
             </Text>
           </Pressable>
 
@@ -2389,7 +2410,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             ]}
           >
             <Text style={[styles.policyText, { color: palette.text.primary }]}>
-              📦 Preserve contents (move items to parent folder)
+              <Icon name="archive" /> Preserve contents (move items to parent folder)
             </Text>
           </Pressable>
 

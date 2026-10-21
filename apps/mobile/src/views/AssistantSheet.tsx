@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
-import { MobileButton } from '@daynori/ui-mobile';
-import type { AiCitation, AiProposal } from '@daynori/contracts';
+import {
+  MobileButton
+} from '@daynori/ui-mobile';
+import type { AiCitation,
+  AiProposal
+} from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
 
 export interface AssistantSheetProps {

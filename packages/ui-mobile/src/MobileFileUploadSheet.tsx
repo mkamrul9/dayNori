@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
@@ -183,7 +184,11 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
                 { color: targetFolderId === null ? palette.action.primary : palette.text.primary },
               ]}
             >
-              📥 Inbox
+              <Icon
+                name="download"
+                color={targetFolderId === null ? palette.action.primary : palette.text.primary}
+              />{' '}
+              Inbox
             </Text>
           </Pressable>
 
@@ -210,7 +215,11 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
                     { color: isSelected ? palette.action.primary : palette.text.primary },
                   ]}
                 >
-                  {f.icon ?? '📁'} {f.name}
+                  <Icon
+                    name={f.icon ?? 'folder'}
+                    color={isSelected ? palette.action.primary : palette.text.primary}
+                  />{' '}
+                  {f.name}
                 </Text>
               </Pressable>
             );
@@ -225,7 +234,9 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
               { backgroundColor: palette.surfaceRaised, borderColor: palette.border.subtle },
             ]}
           >
-            <Text style={{ fontSize: 32, marginBottom: spacing.xs }}>📄</Text>
+            <Text style={{ fontSize: 32, marginBottom: spacing.xs }}>
+              <Icon name="file" color={palette.text.primary} size={32} />
+            </Text>
             <Text style={[styles.pickerTitle, { color: palette.text.primary }]}>
               {selectedFile ? selectedFile.name : 'Select document to upload'}
             </Text>
@@ -250,7 +261,7 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
                 ]}
               >
                 <Text style={[styles.devicePickBtnText, { color: palette.action.primary }]}>
-                  📂 Browse Device Storage
+                  <Icon name="folder-open" color={palette.action.primary} /> Browse Device Storage
                 </Text>
               </Pressable>
             )}
@@ -263,7 +274,9 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
                 onPress={() => handleSelectMockDocument('image')}
                 style={[styles.quickPickBtn, { borderColor: palette.border.subtle }]}
               >
-                <Text style={{ color: palette.text.primary, fontSize: 12 }}>🖼️ Image</Text>
+                <Text style={{ color: palette.text.primary, fontSize: 12 }}>
+                  <Icon name="image" color={palette.text.primary} size={12} /> Image
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -271,7 +284,9 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
                 onPress={() => handleSelectMockDocument('pdf')}
                 style={[styles.quickPickBtn, { borderColor: palette.border.subtle }]}
               >
-                <Text style={{ color: palette.text.primary, fontSize: 12 }}>📕 PDF</Text>
+                <Text style={{ color: palette.text.primary, fontSize: 12 }}>
+                  <Icon name="file" color={palette.text.primary} size={12} /> PDF
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -279,7 +294,9 @@ export const MobileFileUploadSheet: React.FC<MobileFileUploadSheetProps> = ({
                 onPress={() => handleSelectMockDocument('doc')}
                 style={[styles.quickPickBtn, { borderColor: palette.border.subtle }]}
               >
-                <Text style={{ color: palette.text.primary, fontSize: 12 }}>📘 DOCX</Text>
+                <Text style={{ color: palette.text.primary, fontSize: 12 }}>
+                  <Icon name="file" color={palette.text.primary} size={12} /> DOCX
+                </Text>
               </Pressable>
             </View>
           </View>

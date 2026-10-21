@@ -5,11 +5,16 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
+  ActivityIndicator
 } from 'react-native';
 import { colors, spacing, radii, type ThemeMode } from '@daynori/design-tokens';
-import { MobileListRow, MobileModalSheet, MobileTextField } from '@daynori/ui-mobile';
-import type { DaynoriApiClient } from '@daynori/api-client';
+import {
+  MobileListRow,
+  MobileModalSheet,
+  MobileTextField
+} from '@daynori/ui-mobile';
+import type { DaynoriApiClient
+} from '@daynori/api-client';
 import type { LocalRepositoryPort } from '@daynori/sync';
 import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 import { searchDownloadedRecords } from '@daynori/domain';

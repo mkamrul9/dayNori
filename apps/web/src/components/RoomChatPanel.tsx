@@ -23,10 +23,7 @@ export interface RoomChatPanelProps {
   onClose: () => void;
 }
 
-function mergeByRevision(
-  prev: RoomChatMessage[],
-  incoming: RoomChatMessage[]
-): RoomChatMessage[] {
+function mergeByRevision(prev: RoomChatMessage[], incoming: RoomChatMessage[]): RoomChatMessage[] {
   const byId = new Map(prev.map((m) => [m.id, m]));
   for (const next of incoming) {
     const cur = byId.get(next.id);
@@ -59,9 +56,9 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     null
   );
   const [busy, setBusy] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'reconnecting' | 'offline'>(
-    'connected'
-  );
+  const [connectionStatus, setConnectionStatus] = useState<
+    'connected' | 'reconnecting' | 'offline'
+  >('connected');
   const [unreadCount, setUnreadCount] = useState(0);
   const [muted, setMuted] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -119,18 +116,21 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
     setMessages((prev) => mergeByRevision(prev, incoming));
   }, []);
 
-  const applyEvents = useCallback((events: Array<{ messageId: string; message: RoomChatMessage | null }>) => {
-    const fresh: RoomChatMessage[] = [];
-    const hideIds = new Set<string>();
-    for (const ev of events) {
-      if (ev.message) fresh.push(ev.message);
-      else hideIds.add(ev.messageId);
-    }
-    setMessages((prev) => {
-      const kept = prev.filter((m) => !hideIds.has(m.id));
-      return mergeByRevision(kept, fresh);
-    });
-  }, []);
+  const applyEvents = useCallback(
+    (events: Array<{ messageId: string; message: RoomChatMessage | null }>) => {
+      const fresh: RoomChatMessage[] = [];
+      const hideIds = new Set<string>();
+      for (const ev of events) {
+        if (ev.message) fresh.push(ev.message);
+        else hideIds.add(ev.messageId);
+      }
+      setMessages((prev) => {
+        const kept = prev.filter((m) => !hideIds.has(m.id));
+        return mergeByRevision(kept, fresh);
+      });
+    },
+    []
+  );
 
   const drainEvents = useCallback(
     async (since: number): Promise<number> => {
@@ -332,7 +332,9 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
         // Do not advance event cursor from ack — poll/drain owns that.
         setPending((p) => p.filter((x) => x.clientMessageId !== clientMessageId));
         // Clear draft only if user has not typed further since this send started.
-        setDraft((current) => (current === draftAtSendRef.current || current === body ? '' : current));
+        setDraft((current) =>
+          current === draftAtSendRef.current || current === body ? '' : current
+        );
       } catch (err) {
         if (isStale()) return;
         const message = err instanceof Error ? err.message : 'Send failed';
@@ -350,7 +352,12 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
         setPending((p) =>
           p.map((x) =>
             x.clientMessageId === clientMessageId
-              ? { ...x, status: 'failed' as const, error: message, updatedAt: new Date().toISOString() }
+              ? {
+                  ...x,
+                  status: 'failed' as const,
+                  error: message,
+                  updatedAt: new Date().toISOString(),
+                }
               : x
           )
         );
@@ -618,15 +625,32 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
         >
           Load older
         </Button>
-        <Button type="button" variant="subtle" size="compact" themeMode={themeMode} onClick={() => void toggleMute()}>
+        <Button
+          type="button"
+          variant="subtle"
+          size="compact"
+          themeMode={themeMode}
+          onClick={() => void toggleMute()}
+        >
           {muted ? 'Unmute notifications' : 'Mute notifications'}
         </Button>
         {needsTerms ? (
-          <Button type="button" size="compact" themeMode={themeMode} onClick={() => void acceptTerms()}>
+          <Button
+            type="button"
+            size="compact"
+            themeMode={themeMode}
+            onClick={() => void acceptTerms()}
+          >
             Review & accept rules {CURRENT_UGC_POLICY_VERSION}
           </Button>
         ) : null}
-        <Button type="button" variant="subtle" size="compact" themeMode={themeMode} onClick={onClose}>
+        <Button
+          type="button"
+          variant="subtle"
+          size="compact"
+          themeMode={themeMode}
+          onClick={onClose}
+        >
           Close
         </Button>
       </div>
@@ -638,7 +662,12 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
             {blocks.map((b) => (
               <li
                 key={b.blockedUserId}
-                style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', marginBottom: spacing.xs }}
+                style={{
+                  display: 'flex',
+                  gap: spacing.sm,
+                  alignItems: 'center',
+                  marginBottom: spacing.xs,
+                }}
               >
                 <span style={{ fontSize: 12, color: palette.text.secondary }}>
                   {b.blockedUserId.slice(0, 8)}…
@@ -699,7 +728,9 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
                 m.body
               )}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs }}>
+            <div
+              style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs }}
+            >
               {!m.deletedAt ? (
                 <Button
                   type="button"
@@ -736,7 +767,12 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
               {!readOnly && !m.deletedAt && m.senderId === userId ? (
                 editingId === m.id ? (
                   <>
-                    <Button type="button" size="compact" themeMode={themeMode} onClick={() => void onSaveEdit()}>
+                    <Button
+                      type="button"
+                      size="compact"
+                      themeMode={themeMode}
+                      onClick={() => void onSaveEdit()}
+                    >
                       Save edit
                     </Button>
                     <Button
@@ -780,9 +816,7 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
         ))}
         {pending.map((p) => (
           <li key={p.clientMessageId} style={{ padding: spacing.sm, opacity: 0.85 }}>
-            <span style={{ fontSize: 12, color: palette.text.secondary }}>
-              You · {p.status}
-            </span>
+            <span style={{ fontSize: 12, color: palette.text.secondary }}>You · {p.status}</span>
             <div>{p.body}</div>
             {p.status === 'failed' ? (
               <Button

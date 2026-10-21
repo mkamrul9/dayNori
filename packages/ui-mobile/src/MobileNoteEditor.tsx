@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
@@ -619,7 +620,8 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
       <View style={[styles.header, { borderBottomColor: palette.border.subtle }]}>
         <View style={styles.headerLeft}>
           <Text style={[styles.headerStatusText, { color: palette.text.secondary }]}>
-            💾 {localSaveStatus} • ☁️ {cloudSyncStatus}
+            <Icon name="save" color={palette.text.secondary} /> {localSaveStatus} •{' '}
+            <Icon name="cloud" color={palette.text.secondary} /> {cloudSyncStatus}
           </Text>
           <Text style={[styles.headerMetricsText, { color: palette.text.muted }]}>
             {wordCount} words • {charCount} chars
@@ -638,7 +640,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
               style={[styles.actionBtn, { backgroundColor: palette.surfaceRaised }]}
             >
               <Text style={[styles.actionBtnText, { color: palette.text.primary }]}>
-                📁 {currentFolderName}
+                <Icon name="folder" color={palette.text.primary} /> {currentFolderName}
               </Text>
             </Pressable>
           )}
@@ -718,7 +720,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
                 }}
               >
                 <Text style={[styles.folderOptionText, { color: palette.text.primary }]}>
-                  📁 Inbox (Unfiled)
+                  <Icon name="folder" color={palette.text.primary} /> Inbox (Unfiled)
                 </Text>
               </Pressable>
               {folders.map((f) => (
@@ -737,7 +739,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
                   }}
                 >
                   <Text style={[styles.folderOptionText, { color: palette.text.primary }]}>
-                    📁 {f.name}
+                    <Icon name="folder" color={palette.text.primary} /> {f.name}
                   </Text>
                 </Pressable>
               ))}
@@ -759,7 +761,8 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
           ]}
         >
           <Text style={[styles.conflictTitle, { color: palette.status.warning }]}>
-            ⚠️ Sync Conflict (Server Rev {conflict.serverRevision})
+            <Icon name="warning" color={palette.status.warning} /> Sync Conflict (Server Rev{' '}
+            {conflict.serverRevision})
           </Text>
           <Text style={[styles.conflictSubtitle, { color: palette.text.primary }]}>
             Choose how to resolve concurrent changes:
@@ -883,7 +886,9 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
             onPress={() => setBlockType('checklist')}
             style={styles.toolBtn}
           >
-            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>☑ Check</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>
+              <Icon name="check-square" color={palette.text.primary} /> Check
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -893,7 +898,9 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
             onPress={handleUndo}
             style={[styles.toolBtn, undoStack.length === 0 && { opacity: 0.4 }]}
           >
-            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>↩</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>
+              <Icon name="undo" color={palette.text.primary} />
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -903,7 +910,9 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
             onPress={handleRedo}
             style={[styles.toolBtn, redoStack.length === 0 && { opacity: 0.4 }]}
           >
-            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>↪</Text>
+            <Text style={[styles.toolBtnText, { color: palette.text.primary }]}>
+              <Icon name="redo" color={palette.text.primary} />
+            </Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -1069,7 +1078,11 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
                               it.checked && { backgroundColor: palette.action.primary },
                             ]}
                           >
-                            {it.checked && <Text style={styles.checkmark}>✓</Text>}
+                            {it.checked && (
+                              <Text style={styles.checkmark}>
+                                <Icon name="check" color={palette.text.primary} />
+                              </Text>
+                            )}
                           </Pressable>
                           <TextInput
                             multiline={true}

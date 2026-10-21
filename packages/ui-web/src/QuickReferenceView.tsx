@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState, useCallback, useId } from 'react';
 import {
   type NoteDocument,
@@ -123,7 +124,7 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
                   border: `1px solid ${palette.border.subtle}`,
                 }}
               >
-                📁 {folderName}
+                <Icon name="folder" /> {folderName}
               </span>
             )}
             {isPinned && (
@@ -137,7 +138,7 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
                   borderRadius: 4,
                 }}
               >
-                📌 Pinned
+                <Icon name="pin" /> Pinned
               </span>
             )}
             {tags.map((t) => (
@@ -187,7 +188,7 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
               cursor: 'pointer',
             }}
           >
-            ✏️ Edit Note
+            <Icon name="edit" /> Edit Note
           </button>
         )}
       </header>
@@ -304,7 +305,7 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
                             transition: 'all 0.15s ease',
                           }}
                         >
-                          {isCopied ? '✓ Copied!' : 'Copy'}
+                          {isCopied ? (<><Icon name='check' /> {'Copied!'}</>) : (<Icon name='Copy' />)}
                         </button>
                       </div>
                     );
@@ -443,7 +444,9 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
                             width: '100%',
                           }}
                         >
-                          <span>🔗</span>
+                          <span>
+                            <Icon name="link" />
+                          </span>
                           <span style={{ fontWeight: 600 }}>{link.target.title}</span>
                           <span style={{ color: palette.text.secondary, fontSize: 11 }}>
                             ({link.target.kind})
@@ -464,7 +467,9 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
                             fontSize: 12,
                           }}
                         >
-                          <span>⚠️</span>
+                          <span>
+                            <Icon name="warning" />
+                          </span>
                           <span style={{ textDecoration: 'line-through' }}>
                             {link.target.title}
                           </span>
@@ -527,7 +532,9 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
                             width: '100%',
                           }}
                         >
-                          <span>↩️</span>
+                          <span>
+                            <Icon name="undo" />
+                          </span>
                           <span style={{ fontWeight: 600 }}>{link.target.title}</span>
                           <span style={{ color: palette.text.secondary, fontSize: 11 }}>
                             ({link.target.kind})
@@ -548,7 +555,9 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
                             fontSize: 12,
                           }}
                         >
-                          <span>⚠️</span>
+                          <span>
+                            <Icon name="warning" />
+                          </span>
                           <span style={{ textDecoration: 'line-through' }}>
                             {link.target.title}
                           </span>

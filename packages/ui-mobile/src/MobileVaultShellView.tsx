@@ -142,10 +142,15 @@ export const MobileVaultShellView: React.FC<MobileVaultShellViewProps> = ({
 
       {unlocked && selectedDetail && selectedId ? (
         <View
-          style={[styles.detail, { borderColor: palette.border.subtle, backgroundColor: palette.surface }]}
+          style={[
+            styles.detail,
+            { borderColor: palette.border.subtle, backgroundColor: palette.surface },
+          ]}
           accessibilityLabel={`Vault item detail. ${selectedDetail.title}`}
         >
-          <Text style={[styles.heading, { color: palette.text.primary }]}>{selectedDetail.title}</Text>
+          <Text style={[styles.heading, { color: palette.text.primary }]}>
+            {selectedDetail.title}
+          </Text>
           <Text style={{ color: palette.text.primary, lineHeight: 22 }}>{selectedDetail.body}</Text>
           <MobileButton
             testID={`${testID}-clear-detail`}
@@ -196,7 +201,10 @@ export const MobileVaultShellView: React.FC<MobileVaultShellViewProps> = ({
       ) : null}
 
       <View
-        style={[styles.transfer, { borderColor: palette.border.subtle, backgroundColor: palette.surface }]}
+        style={[
+          styles.transfer,
+          { borderColor: palette.border.subtle, backgroundColor: palette.surface },
+        ]}
         accessibilityLabel={`Transfer to vault status. ${transfer.message}`}
       >
         <Text style={[styles.heading, { color: palette.text.primary }]}>Transfer to vault</Text>
@@ -252,6 +260,11 @@ const styles = StyleSheet.create({
   detail: { borderWidth: 1, borderRadius: radii.card, padding: spacing.md, gap: spacing.sm },
   transfer: { borderWidth: 1, borderRadius: radii.card, padding: spacing.md, gap: spacing.sm },
   transferActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  chip: { borderWidth: 1, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 6 },
+  chip: {
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
   meta: { fontSize: 12, lineHeight: 18 },
 });

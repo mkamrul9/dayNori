@@ -259,5 +259,6 @@ export interface DaynoriColors {
 }
 
 export type ThemeMode = 'light' | 'dark';
+export { iconPaths, resolveIconName, splitIconText, type IconName } from './icons.js';
 export type SpacingTokens = typeof spacing;
 export type RadiiTokens = typeof radii;

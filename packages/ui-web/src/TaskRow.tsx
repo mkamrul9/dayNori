@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React from 'react';
 import {
   colors,
@@ -179,7 +180,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           flexShrink: 0,
         }}
       >
-        {isCompleted && '✓'}
+        {isCompleted ? <Icon name="check" /> : null}
       </button>
 
       {/* Title & Secondary Details */}
@@ -238,7 +239,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 flexShrink: 0,
               }}
             >
-              📁 {folderName}
+              <Icon name="folder" /> {folderName}
             </span>
           )}
 
@@ -254,7 +255,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 flexShrink: 0,
               }}
             >
-              ↳ {subtaskCount.completed}/{subtaskCount.total} subtasks
+              <Icon name="corner-down-right" /> {subtaskCount.completed}/{subtaskCount.total} subtasks
             </span>
           )}
         </div>
@@ -288,11 +289,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             >
               {deadlineExp.isOverdue && !isCompleted ? (
                 <>
-                  <span aria-hidden="true">⚠️</span>
+                  <span aria-hidden="true">
+                    <Icon name="warning" />
+                  </span>
                   <span>{deadlineExp.overdueText || deadlineExp.label}</span>
                 </>
               ) : (
-                <span>🗓 {deadlineExp.label}</span>
+                <span>
+                  <Icon name="calendar" /> {deadlineExp.label}
+                </span>
               )}
             </span>
           )}

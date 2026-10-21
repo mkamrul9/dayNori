@@ -1,5 +1,12 @@
 # Changelog
 
+## UI — professional icon system (no emoji chrome) — 2026-10-21
+
+- Shared semantic icon registry (`packages/design-tokens/src/icons.ts`) with web SVG and mobile PNG `Icon` components.
+- Replaced application-authored emoji/Unicode pictograms across web and mobile organizer UI with semantic icon names.
+- Design-system no-emoji chrome rule + artwork provenance (`docs/design/icon-artwork.md`); `pnpm icons:check` / `pnpm icons:build`.
+- Daynori logo/identity assets preserved (ADR 0059). User content emoji left untouched.
+
 ## Daynori logo — local application identity — 2026-10-21
 
 - Custom folded D symbol and vector lettering, with editable geometry, transparent SVG/PNG wordmarks, inverse/monochrome variants and a 1024 px app icon.

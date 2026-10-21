@@ -1,10 +1,28 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
-import { Button, Dialog, Feedback, ListRow, TextField, SyncDiagnosticsDialog, RecoveryExportDialog, ConflictReviewDialog, WorkspacePortabilityDialog } from '@daynori/ui-web';
-import { exportRecoveryData, getRedactedSyncDiagnostics, type RedactedSyncDiagnostics, type RecoveryExport, type ConflictRecord, type FileRecord } from '@daynori/sync';
+import {
+  Button,
+  Dialog,
+  Feedback,
+  ListRow,
+  TextField,
+  SyncDiagnosticsDialog,
+  RecoveryExportDialog,
+  ConflictReviewDialog,
+  WorkspacePortabilityDialog,
+} from '@daynori/ui-web';
+import {
+  exportRecoveryData,
+  getRedactedSyncDiagnostics,
+  type RedactedSyncDiagnostics,
+  type RecoveryExport,
+  type ConflictRecord,
+  type FileRecord,
+} from '@daynori/sync';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
@@ -90,8 +108,16 @@ export const AppModals: React.FC = () => {
         userId: user.id,
         deviceId: 'web-browser',
         isLeader: false,
-        networkStatus: typeof navigator !== 'undefined' && !navigator.onLine ? ('offline' as const) : ('online' as const),
-        cloudSyncStatus: activeConflicts.length > 0 ? ('conflict' as const) : pending.length > 0 ? ('saved_locally' as const) : ('synced' as const),
+        networkStatus:
+          typeof navigator !== 'undefined' && !navigator.onLine
+            ? ('offline' as const)
+            : ('online' as const),
+        cloudSyncStatus:
+          activeConflicts.length > 0
+            ? ('conflict' as const)
+            : pending.length > 0
+              ? ('saved_locally' as const)
+              : ('synced' as const),
         queueLength: pending.length,
         inFlightCount: 0,
         failedCount: pending.filter((m) => m.status === 'failed').length,
@@ -120,12 +146,7 @@ export const AppModals: React.FC = () => {
         userId: user.id,
         deviceId: 'web-browser',
         checkAttachmentCached: (f: FileRecord) =>
-          OfflineFileCache.hasBinary(
-            user.id,
-            workspaceId,
-            f.id,
-            Number(f.version) || 1
-          ),
+          OfflineFileCache.hasBinary(user.id, workspaceId, f.id, Number(f.version) || 1),
       });
       setRecoveryExport(exportData);
     } catch {
@@ -219,61 +240,60 @@ export const AppModals: React.FC = () => {
     }
   }, [activeModal, loadDiagnostics, loadRecoveryExport]);
 
-
   const searchableDestinations = [
     {
       title: 'Today',
       subtitle: 'Immediate action, upcoming tasks and daily routines',
       href: '/today',
-      icon: '☀️',
+      icon: 'sun',
     },
     {
       title: 'Plan: Tasks & Routines',
       subtitle: 'Organize tasks, recurring habits, and priorities',
       href: '/plan',
-      icon: '📋',
+      icon: 'clipboard',
     },
     {
       title: 'Plan: Calendar',
       subtitle: 'Agenda and calendar projection under Plan',
       href: '/plan/calendar',
-      icon: '📅',
+      icon: 'calendar',
     },
     {
       title: 'Library: Folders & Files',
       subtitle: 'Workspace folder hierarchy, notes, and documents',
       href: '/library',
-      icon: '📚',
+      icon: 'library',
     },
     {
       title: 'Files & Storage',
       subtitle: 'Upload files, safe previews, and storage quota',
       href: '/library?type=files',
-      icon: '📎',
+      icon: 'attachment',
     },
     {
       title: 'Journal: Reflection Timeline',
       subtitle: 'Date-grouped timeline and private writing',
       href: '/journal',
-      icon: '📖',
+      icon: 'book',
     },
     {
       title: 'Settings',
       subtitle: 'Theme, text size, motion, and language settings',
       href: '/settings',
-      icon: '⚙️',
+      icon: 'settings',
     },
     {
       title: 'Help & Shortcuts',
       subtitle: 'Keyboard shortcuts and accessible navigation guide',
       href: '/help',
-      icon: '❓',
+      icon: 'help',
     },
     {
       title: 'Component Review Gallery',
       subtitle: 'Phase 04 design token and primitive test gallery',
       href: '/review',
-      icon: '🎨',
+      icon: 'palette',
     },
   ];
 
@@ -420,9 +440,16 @@ export const AppModals: React.FC = () => {
 
           if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
 
-          const displayPrefs = (prefSnapshot?.preferences as Record<string, unknown>)?.displayPreferences as Record<string, unknown> | undefined;
-          const journalPreviewHidden = displayPrefs?.journalPreviewHidden !== undefined ? Boolean(displayPrefs.journalPreviewHidden) : true;
-          const suppressBodySnippets = displayPrefs?.suppressBodySnippets !== undefined ? Boolean(displayPrefs.suppressBodySnippets) : true;
+          const displayPrefs = (prefSnapshot?.preferences as Record<string, unknown>)
+            ?.displayPreferences as Record<string, unknown> | undefined;
+          const journalPreviewHidden =
+            displayPrefs?.journalPreviewHidden !== undefined
+              ? Boolean(displayPrefs.journalPreviewHidden)
+              : true;
+          const suppressBodySnippets =
+            displayPrefs?.suppressBodySnippets !== undefined
+              ? Boolean(displayPrefs.suppressBodySnippets)
+              : true;
 
           const localRes = searchDownloadedRecords({
             workspaceId,
@@ -471,7 +498,18 @@ export const AppModals: React.FC = () => {
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [searchQuery, selectedType, startDate, endDate, offset, workspaceId, csrfToken, activeModal, user?.id, retryTrigger]);
+  }, [
+    searchQuery,
+    selectedType,
+    startDate,
+    endDate,
+    offset,
+    workspaceId,
+    csrfToken,
+    activeModal,
+    user?.id,
+    retryTrigger,
+  ]);
 
   const typeFilters: Array<{ id: SearchItemType; label: string }> = [
     { id: 'all', label: 'All' },
@@ -485,19 +523,19 @@ export const AppModals: React.FC = () => {
   const getItemIcon = (type: SearchResultItem['displayType']) => {
     switch (type) {
       case 'note':
-        return '📝';
+        return 'note';
       case 'knowledge':
-        return '📖';
+        return 'book';
       case 'task':
-        return '📋';
+        return 'clipboard';
       case 'journal':
-        return '🖋️';
+        return 'edit';
       case 'file':
-        return '📎';
+        return 'attachment';
       case 'folder':
-        return '📁';
+        return 'folder';
       default:
-        return '📄';
+        return 'file';
     }
   };
 
@@ -523,7 +561,9 @@ export const AppModals: React.FC = () => {
     );
   };
 
-  const hasSearchActive = Boolean(searchQuery.trim() || selectedType !== 'all' || startDate || endDate);
+  const hasSearchActive = Boolean(
+    searchQuery.trim() || selectedType !== 'all' || startDate || endDate
+  );
 
   return (
     <>
@@ -631,7 +671,12 @@ export const AppModals: React.FC = () => {
             <div style={{ flex: 1 }}>
               <label
                 htmlFor="search-start-date"
-                style={{ fontSize: '11px', color: palette.text.muted, display: 'block', marginBottom: '2px' }}
+                style={{
+                  fontSize: '11px',
+                  color: palette.text.muted,
+                  display: 'block',
+                  marginBottom: '2px',
+                }}
               >
                 From Date
               </label>
@@ -657,7 +702,12 @@ export const AppModals: React.FC = () => {
             <div style={{ flex: 1 }}>
               <label
                 htmlFor="search-end-date"
-                style={{ fontSize: '11px', color: palette.text.muted, display: 'block', marginBottom: '2px' }}
+                style={{
+                  fontSize: '11px',
+                  color: palette.text.muted,
+                  display: 'block',
+                  marginBottom: '2px',
+                }}
               >
                 To Date
               </label>
@@ -762,7 +812,8 @@ export const AppModals: React.FC = () => {
                       <span
                         style={{ fontWeight: '600', color: palette.text.primary, fontSize: '14px' }}
                       >
-                        {getItemIcon(item.displayType)} {renderHighlight(item.title, searchQuery)}
+                        <Icon name={getItemIcon(item.displayType)} />{' '}
+                        {renderHighlight(item.title, searchQuery)}
                       </span>
                       <span
                         style={{
@@ -798,9 +849,13 @@ export const AppModals: React.FC = () => {
                         color: palette.text.muted,
                       }}
                     >
-                      <span>📁 {item.folderPath}</span>
+                      <span>
+                        <Icon name="folder" /> {item.folderPath}
+                      </span>
                       {item.tags.length > 0 && (
-                        <span>🏷️ {item.tags.map((t) => `#${t}`).join(' ')}</span>
+                        <span>
+                          <Icon name="tag" /> {item.tags.map((t) => `#${t}`).join(' ')}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -917,37 +972,37 @@ export const AppModals: React.FC = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
             <ListRow
-              title="📝 New Task"
+              title="New Task"
               subtitle="Add a one-off task with optional deadline and priority"
               onClick={() => navigateTo('/plan')}
               themeMode={themeMode}
             />
             <ListRow
-              title="🔄 New Routine"
+              title="New Routine"
               subtitle="Add a recurring daily or weekday habit with independent completion"
               onClick={() => navigateTo('/plan')}
               themeMode={themeMode}
             />
             <ListRow
-              title="📄 New Note"
+              title="New Note"
               subtitle="Save reference knowledge, guides, or rich documents"
               onClick={() => navigateTo('/library?create=note')}
               themeMode={themeMode}
             />
             <ListRow
-              title="📎 Upload File"
+              title="Upload File"
               subtitle="Upload PDFs, images, or documents to workspace folders"
               onClick={() => navigateTo('/library?create=file')}
               themeMode={themeMode}
             />
             <ListRow
-              title="📖 New Journal Entry"
+              title="New Journal Entry"
               subtitle="Open a quiet writing surface for reflection"
               onClick={() => navigateTo('/journal')}
               themeMode={themeMode}
             />
             <ListRow
-              title="📁 New Folder"
+              title="New Folder"
               subtitle="Create a workspace folder to group tasks and documents"
               onClick={() => navigateTo('/library')}
               themeMode={themeMode}
@@ -1125,31 +1180,31 @@ export const AppModals: React.FC = () => {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
           <ListRow
-            title="☀️ Today"
+            title="Today"
             subtitle="Immediate action, due tasks and routines"
             onClick={() => navigateTo('/today')}
             themeMode={themeMode}
           />
           <ListRow
-            title="📋 Plan: Tasks & Routines"
+            title="Plan: Tasks & Routines"
             subtitle="Task backlog, scheduled routines, and filters"
             onClick={() => navigateTo('/plan')}
             themeMode={themeMode}
           />
           <ListRow
-            title="📅 Plan: Calendar"
+            title="Plan: Calendar"
             subtitle="Agenda and month projections under Plan"
             onClick={() => navigateTo('/plan/calendar')}
             themeMode={themeMode}
           />
           <ListRow
-            title="📚 Library"
+            title="Library"
             subtitle="Folder hierarchy, notes, and files"
             onClick={() => navigateTo('/library')}
             themeMode={themeMode}
           />
           <ListRow
-            title="📖 Journal"
+            title="Journal"
             subtitle="Reflective date timeline and entry editor"
             onClick={() => navigateTo('/journal')}
             themeMode={themeMode}
@@ -1161,19 +1216,19 @@ export const AppModals: React.FC = () => {
             }}
           />
           <ListRow
-            title="🎨 Component Gallery"
+            title="Component Gallery"
             subtitle="Phase 04 design system and primitive test gallery"
             onClick={() => navigateTo('/review')}
             themeMode={themeMode}
           />
           <ListRow
-            title="⚙️ Settings"
+            title="Settings"
             subtitle="Theme, text scaling, language, and motion"
             onClick={() => navigateTo('/settings')}
             themeMode={themeMode}
           />
           <ListRow
-            title="🔄 Sync Diagnostics"
+            title="Sync Diagnostics"
             subtitle="Queue status, connection health, and offline metrics"
             onClick={() => {
               closeModal();
@@ -1182,7 +1237,7 @@ export const AppModals: React.FC = () => {
             themeMode={themeMode}
           />
           <ListRow
-            title="💾 Local Recovery Export"
+            title="Local Recovery Export"
             subtitle="Export offline drafts, conflicts, and pending work"
             onClick={() => {
               closeModal();
@@ -1228,7 +1283,9 @@ export const AppModals: React.FC = () => {
 
       {/* 10. Phase 34 Conflict Review Dialog */}
       <ConflictReviewDialog
-        isOpen={activeModal === 'conflict-review' || (activeConflict !== null && activeModal === null)}
+        isOpen={
+          activeModal === 'conflict-review' || (activeConflict !== null && activeModal === null)
+        }
         onClose={() => {
           setActiveConflict(null);
           if (activeModal === 'conflict-review') closeModal();

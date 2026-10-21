@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon, IconText } from '@daynori/ui-web';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
@@ -51,7 +52,10 @@ function parseExpenseCaptureDraft(raw: unknown): ExpenseCaptureDraft | null {
     amount: typeof o.amount === 'string' ? o.amount : undefined,
     currency: typeof o.currency === 'string' ? o.currency : undefined,
     transactionDate: typeof o.transactionDate === 'string' ? o.transactionDate : undefined,
-    categoryId: typeof o.categoryId === 'string' || o.categoryId === null ? (o.categoryId as string | null) : undefined,
+    categoryId:
+      typeof o.categoryId === 'string' || o.categoryId === null
+        ? (o.categoryId as string | null)
+        : undefined,
     paymentLabel:
       typeof o.paymentLabel === 'string' || o.paymentLabel === null
         ? (o.paymentLabel as string | null)
@@ -104,7 +108,9 @@ export default function ExpensesPage() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [budgets, setBudgets] = useState<ExpenseBudget[]>([]);
   const [monthlySummaries, setMonthlySummaries] = useState<CurrencyMonthlySummary[]>([]);
-  const [availableReceipts, setAvailableReceipts] = useState<Array<{ id: string; fileName: string }>>([]);
+  const [availableReceipts, setAvailableReceipts] = useState<
+    Array<{ id: string; fileName: string }>
+  >([]);
   const [eligibleOriginalExpenses, setEligibleOriginalExpenses] = useState<ExpenseItem[]>([]);
 
   const [paginationCursor, setPaginationCursor] = useState<string | null>(null);
@@ -116,7 +122,9 @@ export default function ExpensesPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(
+    null
+  );
 
   const draftStorageKey = workspaceId ? `daynori_expense_draft_${workspaceId}` : null;
   const [createDraft, setCreateDraft] = useState<ExpenseCaptureDraft | null>(null);
@@ -362,7 +370,12 @@ export default function ExpensesPage() {
   };
 
   // Budget management
-  const handleCreateBudget = async (data: { period: string; currency: string; categoryId?: string | null; amount: string }) => {
+  const handleCreateBudget = async (data: {
+    period: string;
+    currency: string;
+    categoryId?: string | null;
+    amount: string;
+  }) => {
     if (!workspaceId) return;
     await apiClient.createExpenseBudget(workspaceId, data);
     await loadExpenseData();
@@ -381,7 +394,10 @@ export default function ExpensesPage() {
   };
 
   // CSV Export with explicit filtered vs all-records modes
-  const handleExportCsv = async (mode: 'filtered' | 'all' = 'filtered', currencyFilter?: string) => {
+  const handleExportCsv = async (
+    mode: 'filtered' | 'all' = 'filtered',
+    currencyFilter?: string
+  ) => {
     if (!workspaceId) return;
     try {
       const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
@@ -445,17 +461,57 @@ export default function ExpensesPage() {
   // Opt-in gate: If user has not enabled the module, keep it strictly off default views
   if (!isModuleEnabled) {
     return (
-      <main style={{ padding: spacing.xl, maxWidth: '800px', margin: '0 auto', fontFamily: typography.fontFamily.sans }}>
+      <main
+        style={{
+          padding: spacing.xl,
+          maxWidth: '800px',
+          margin: '0 auto',
+          fontFamily: typography.fontFamily.sans,
+        }}
+      >
         <Card>
-          <div style={{ padding: spacing.xxl, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: spacing.md }}>
-            <span style={{ fontSize: '3rem' }}>📊</span>
-            <h1 style={{ fontSize: typography.webScale.pageTitle, fontWeight: 'bold', margin: 0, color: palette.text.primary }}>
+          <div
+            style={{
+              padding: spacing.xxl,
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: spacing.md,
+            }}
+          >
+            <span style={{ fontSize: '3rem' }}>
+              <Icon name="chart" />
+            </span>
+            <h1
+              style={{
+                fontSize: typography.webScale.pageTitle,
+                fontWeight: 'bold',
+                margin: 0,
+                color: palette.text.primary,
+              }}
+            >
               Personal Expenses & Budgets
             </h1>
-            <p style={{ fontSize: typography.webScale.body, color: palette.text.secondary, maxWidth: '520px', lineHeight: typography.lineHeight.relaxed, margin: 0 }}>
-              Track personal expenses, income, and refunds with exact minor-unit arithmetic, multi-currency isolation, category summaries, and monthly budgets.
+            <p
+              style={{
+                fontSize: typography.webScale.body,
+                color: palette.text.secondary,
+                maxWidth: '520px',
+                lineHeight: typography.lineHeight.relaxed,
+                margin: 0,
+              }}
+            >
+              Track personal expenses, income, and refunds with exact minor-unit arithmetic,
+              multi-currency isolation, category summaries, and monthly budgets.
             </p>
-            <p style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary, margin: 0 }}>
+            <p
+              style={{
+                fontSize: typography.webScale.supporting,
+                color: palette.text.secondary,
+                margin: 0,
+              }}
+            >
               This module is optional and kept separate from your default workspace home.
             </p>
 
@@ -505,7 +561,13 @@ export default function ExpensesPage() {
           >
             Expenses & Budgets
           </h1>
-          <p style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary, margin: `${spacing.xs}px 0 0 0` }}>
+          <p
+            style={{
+              fontSize: typography.webScale.supporting,
+              color: palette.text.secondary,
+              margin: `${spacing.xs}px 0 0 0`,
+            }}
+          >
             Manage expenses, review monthly reports, and track budgets.
           </p>
         </div>
@@ -534,7 +596,7 @@ export default function ExpensesPage() {
                 fontSize: '1rem',
               }}
             >
-              ◀
+              <Icon name="chevron-left" />
             </button>
             <span
               style={{
@@ -558,16 +620,16 @@ export default function ExpensesPage() {
                 fontSize: '1rem',
               }}
             >
-              ▶
+              <Icon name="play" />
             </button>
           </div>
 
           <Button variant="primary" onClick={() => setIsCaptureOpen(true)}>
-            ➕ Record Transaction
+            <Icon name="plus" /> Record Transaction
           </Button>
 
           <Button variant="secondary" onClick={() => handleExportCsv()}>
-            📥 Export CSV
+            <Icon name="download" /> Export CSV
           </Button>
         </div>
       </div>
@@ -714,12 +776,20 @@ export default function ExpensesPage() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
                       <span style={{ fontSize: '1.5rem' }}>
-                        {isExpense ? '💸' : isIncome ? '💰' : '↩️'}
+                        <Icon name={isExpense ? 'wallet' : 'undo'} />
                       </span>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
-                          <span style={{ fontWeight: 'bold', color: palette.text.primary, fontSize: typography.webScale.body }}>
-                            {tx.note || tx.paymentLabel || (isExpense ? 'Expense' : isIncome ? 'Income' : 'Refund')}
+                          <span
+                            style={{
+                              fontWeight: 'bold',
+                              color: palette.text.primary,
+                              fontSize: typography.webScale.body,
+                            }}
+                          >
+                            {tx.note ||
+                              tx.paymentLabel ||
+                              (isExpense ? 'Expense' : isIncome ? 'Income' : 'Refund')}
                           </span>
                           {tx.categoryName && (
                             <span
@@ -735,12 +805,20 @@ export default function ExpensesPage() {
                             </span>
                           )}
                           {tx.receiptFileId && (
-                            <span title="Receipt attached" style={{ fontSize: typography.webScale.metadata }}>
-                              📎
+                            <span
+                              title="Receipt attached"
+                              style={{ fontSize: typography.webScale.metadata }}
+                            >
+                              <Icon name="attachment" />
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: typography.webScale.metadata, color: palette.text.secondary }}>
+                        <div
+                          style={{
+                            fontSize: typography.webScale.metadata,
+                            color: palette.text.secondary,
+                          }}
+                        >
                           {tx.transactionDate} {tx.paymentLabel ? `• ${tx.paymentLabel}` : ''}
                         </div>
                       </div>
@@ -748,7 +826,13 @@ export default function ExpensesPage() {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: spacing.lg }}>
                       <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: typography.webScale.sectionHeading, fontWeight: 'bold', color }}>
+                        <span
+                          style={{
+                            fontSize: typography.webScale.sectionHeading,
+                            fontWeight: 'bold',
+                            color,
+                          }}
+                        >
                           {sign}
                           {tx.amountFormatted} {tx.currency}
                         </span>
@@ -761,9 +845,14 @@ export default function ExpensesPage() {
                             setEditingExpense(tx);
                             if (tx.receiptFileId && workspaceId) {
                               try {
-                                const fileRes = await apiClient.getFileMetadata(workspaceId, tx.receiptFileId);
+                                const fileRes = await apiClient.getFileMetadata(
+                                  workspaceId,
+                                  tx.receiptFileId
+                                );
                                 if (fileRes?.data) {
-                                  setAvailableReceipts([{ id: fileRes.data.id, fileName: fileRes.data.fileName }]);
+                                  setAvailableReceipts([
+                                    { id: fileRes.data.id, fileName: fileRes.data.fileName },
+                                  ]);
                                 }
                               } catch {
                                 setAvailableReceipts([]);
@@ -810,11 +899,7 @@ export default function ExpensesPage() {
 
           {hasMore && (
             <div style={{ textAlign: 'center', marginTop: spacing.md }}>
-              <Button
-                variant="secondary"
-                onClick={handleLoadMore}
-                disabled={isLoadingMore}
-              >
+              <Button variant="secondary" onClick={handleLoadMore} disabled={isLoadingMore}>
                 {isLoadingMore ? 'Loading More...' : 'Load More Transactions'}
               </Button>
             </div>
@@ -824,18 +909,19 @@ export default function ExpensesPage() {
 
       {activeTab === 'report' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' }}>
-            <Button
-              variant="secondary"
-              onClick={() => handleExportCsv('filtered')}
-            >
-              📥 Export CSV ({MONTH_NAMES[currentMonth - 1]} {currentYear})
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: spacing.sm,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Button variant="secondary" onClick={() => handleExportCsv('filtered')}>
+              <Icon name="download" /> Export CSV ({MONTH_NAMES[currentMonth - 1]} {currentYear})
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleExportCsv('all')}
-            >
-              📥 Export All Records
+            <Button variant="secondary" onClick={() => handleExportCsv('all')}>
+              <Icon name="download" /> Export All Records
             </Button>
           </div>
           <ExpenseReportView

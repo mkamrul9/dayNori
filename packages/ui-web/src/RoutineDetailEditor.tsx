@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState, useEffect } from 'react';
 import {
   colors,
@@ -236,7 +237,7 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
               padding: `${spacing.xs}px`,
             }}
           >
-            ✕
+            <Icon name="x" />
           </button>
         </div>
 

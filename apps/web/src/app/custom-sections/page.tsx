@@ -1,5 +1,6 @@
 'use client';
 
+import { IconText, Icon } from '@daynori/ui-web';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
@@ -46,7 +47,9 @@ export default function CustomSectionsPage() {
   // Sections State
   const [sections, setSections] = useState<CustomSectionItem[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
-  const [personalTemplates, setPersonalTemplates] = useState<CustomSectionTemplateResponse['data'][]>([]);
+  const [personalTemplates, setPersonalTemplates] = useState<
+    CustomSectionTemplateResponse['data'][]
+  >([]);
   const [availableFolders, setAvailableFolders] = useState<Array<{ id: string; name: string }>>([]);
 
   // Active Section Data
@@ -57,17 +60,25 @@ export default function CustomSectionsPage() {
 
   // Loading & Feedback
   const [isLoading, setIsLoading] = useState(true);
-  const [feedback, setFeedback] = useState<{ severity: 'success' | 'danger' | 'info'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    severity: 'success' | 'danger' | 'info';
+    message: string;
+  } | null>(null);
 
   // Dialog States
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [isEntryDialogOpen, setIsEntryDialogOpen] = useState(false);
-  const [activeCollectionBlock, setActiveCollectionBlock] = useState<FieldCollectionBlock | null>(null);
-  const [activeEditingRecord, setActiveEditingRecord] = useState<CustomSectionRecordViewData | null>(null);
+  const [activeCollectionBlock, setActiveCollectionBlock] = useState<FieldCollectionBlock | null>(
+    null
+  );
+  const [activeEditingRecord, setActiveEditingRecord] =
+    useState<CustomSectionRecordViewData | null>(null);
 
   // Schema Migration Preview
   const [migrationPreview, setMigrationPreview] = useState<SchemaMigrationPreview | null>(null);
-  const [pendingProposedBlocks, setPendingProposedBlocks] = useState<CustomBlockDefinition[] | null>(null);
+  const [pendingProposedBlocks, setPendingProposedBlocks] = useState<
+    CustomBlockDefinition[] | null
+  >(null);
   const [isApplyingMigration, setIsApplyingMigration] = useState(false);
 
   // Starter Selection Modal
@@ -88,7 +99,10 @@ export default function CustomSectionsPage() {
       setSections(loadedSections);
       setPersonalTemplates(templatesRes.data || []);
       setAvailableFolders(
-        (foldersRes.data || []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }))
+        (foldersRes.data || []).map((f: { id: string; name: string }) => ({
+          id: f.id,
+          name: f.name,
+        }))
       );
 
       // Auto-select first active section if none selected
@@ -120,20 +134,22 @@ export default function CustomSectionsPage() {
       // A. Load records
       const recsRes = await apiClient.listCustomSectionRecords(workspaceId, activeSection.id);
       const rawRecords = recsRes.data || [];
-      const mappedRecords: CustomSectionRecordViewData[] = rawRecords.map((r: CustomSectionRecordItem) => ({
-        id: r.id,
-        sectionId: r.sectionId,
-        schemaVersion: r.schemaVersion,
-        collectionBlockId: r.collectionId,
-        collectionId: r.collectionId,
-        folderId: r.folderId,
-        values: r.fieldValues || {},
-        fieldValues: r.fieldValues || {},
-        archivedValues: r.archivedValues,
-        revision: r.revision,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-      }));
+      const mappedRecords: CustomSectionRecordViewData[] = rawRecords.map(
+        (r: CustomSectionRecordItem) => ({
+          id: r.id,
+          sectionId: r.sectionId,
+          schemaVersion: r.schemaVersion,
+          collectionBlockId: r.collectionId,
+          collectionId: r.collectionId,
+          folderId: r.folderId,
+          values: r.fieldValues || {},
+          fieldValues: r.fieldValues || {},
+          archivedValues: r.archivedValues,
+          revision: r.revision,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        })
+      );
       setRecords(mappedRecords);
 
       // B. Query existing record view blocks
@@ -210,7 +226,9 @@ export default function CustomSectionsPage() {
   };
 
   // 4. Create Section from Personal Template
-  const handleCreateFromPersonalTemplate = async (template: CustomSectionTemplateResponse['data']) => {
+  const handleCreateFromPersonalTemplate = async (
+    template: CustomSectionTemplateResponse['data']
+  ) => {
     if (!workspaceId) return;
     try {
       setIsLoading(true);
@@ -222,7 +240,10 @@ export default function CustomSectionsPage() {
         initialSchema: template.schema as unknown as CreateCustomSectionRequest['initialSchema'],
       });
 
-      setFeedback({ severity: 'success', message: `Created section from template "${template.name}".` });
+      setFeedback({
+        severity: 'success',
+        message: `Created section from template "${template.name}".`,
+      });
       setIsStarterModalOpen(false);
       await loadWorkspaceSections();
       setSelectedSectionId(created.data.id);
@@ -271,7 +292,8 @@ export default function CustomSectionsPage() {
           layoutMode: 'single_column',
           schema: {
             version: 1,
-            blocks: data.blocks as unknown as CreateCustomSectionTemplateRequest['schema']['blocks'],
+            blocks:
+              data.blocks as unknown as CreateCustomSectionTemplateRequest['schema']['blocks'],
           },
         });
       }
@@ -299,9 +321,13 @@ export default function CustomSectionsPage() {
         description: activeSection.description || undefined,
         icon: activeSection.icon || 'folder',
         layoutMode: activeSection.layoutMode,
-        schema: activeSection.currentSchema as unknown as CreateCustomSectionTemplateRequest['schema'],
+        schema:
+          activeSection.currentSchema as unknown as CreateCustomSectionTemplateRequest['schema'],
       });
-      setFeedback({ severity: 'success', message: `Saved section as personal template "${name}".` });
+      setFeedback({
+        severity: 'success',
+        message: `Saved section as personal template "${name}".`,
+      });
       await loadWorkspaceSections();
     } catch (err: unknown) {
       setFeedback({
@@ -447,7 +473,8 @@ export default function CustomSectionsPage() {
 
   const handleDeleteSection = async () => {
     if (!workspaceId || !activeSection) return;
-    if (!window.confirm(`Permanently remove section "${activeSection.name}" and its entries?`)) return;
+    if (!window.confirm(`Permanently remove section "${activeSection.name}" and its entries?`))
+      return;
     try {
       await apiClient.deleteCustomSection(workspaceId, activeSection.id);
       setFeedback({ severity: 'success', message: 'Section removed.' });
@@ -512,7 +539,10 @@ export default function CustomSectionsPage() {
       await apiClient.createCustomSectionSchema(workspaceId, activeSection.id, {
         blocks: pendingProposedBlocks as unknown as CreateCustomSectionSchemaRequest['blocks'],
       });
-      setFeedback({ severity: 'success', message: 'Schema evolved successfully with non-destructive archive retention.' });
+      setFeedback({
+        severity: 'success',
+        message: 'Schema evolved successfully with non-destructive archive retention.',
+      });
       setMigrationPreview(null);
       setPendingProposedBlocks(null);
       await loadWorkspaceSections();
@@ -574,16 +604,10 @@ export default function CustomSectionsPage() {
         </div>
 
         <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
-          <Button
-            variant="secondary"
-            onClick={() => setIsStarterModalOpen(true)}
-          >
+          <Button variant="secondary" onClick={() => setIsStarterModalOpen(true)}>
             + From Template / Starter
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => setIsBuilderOpen(true)}
-          >
+          <Button variant="primary" onClick={() => setIsBuilderOpen(true)}>
             + Create Section
           </Button>
         </div>
@@ -629,7 +653,9 @@ export default function CustomSectionsPage() {
                     padding: `${spacing.sm}px ${spacing.md}px`,
                     borderRadius: `${radii.sm}px ${radii.sm}px 0 0`,
                     border: 'none',
-                    borderBottom: isSelected ? `3px solid ${palette.action.primary}` : '3px solid transparent',
+                    borderBottom: isSelected
+                      ? `3px solid ${palette.action.primary}`
+                      : '3px solid transparent',
                     backgroundColor: isSelected ? palette.surface : 'transparent',
                     color: isSelected ? palette.action.primary : palette.text.secondary,
                     fontWeight: isSelected ? 700 : 500,
@@ -641,7 +667,9 @@ export default function CustomSectionsPage() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <span>{sec.icon ? '📑' : '📁'}</span>
+                  <span>
+                    <Icon name={sec.icon ? 'clipboard' : 'folder'} />
+                  </span>
                   <span>{sec.name}</span>
                   {sec.status === 'archived' && (
                     <span
@@ -700,18 +728,10 @@ export default function CustomSectionsPage() {
                   >
                     Evolve Schema
                   </Button>
-                  <Button
-                    size="compact"
-                    variant="subtle"
-                    onClick={handleToggleHideSection}
-                  >
+                  <Button size="compact" variant="subtle" onClick={handleToggleHideSection}>
                     {activeSection.status === 'archived' ? 'Restore' : 'Hide'}
                   </Button>
-                  <Button
-                    size="compact"
-                    variant="danger"
-                    onClick={handleDeleteSection}
-                  >
+                  <Button size="compact" variant="danger" onClick={handleDeleteSection}>
                     Remove
                   </Button>
                 </div>
@@ -761,7 +781,7 @@ export default function CustomSectionsPage() {
           }}
           collection={activeCollectionBlock}
           recordId={activeEditingRecord?.id}
-          initialValues={activeEditingRecord ? (activeEditingRecord.values || {}) : {}}
+          initialValues={activeEditingRecord ? activeEditingRecord.values || {} : {}}
           initialFolderId={activeEditingRecord?.folderId}
           availableFolders={availableFolders}
           themeMode={themeMode}
@@ -828,16 +848,24 @@ export default function CustomSectionsPage() {
                   color: palette.text.secondary,
                 }}
               >
-                ✕
+                <Icon name="x" />
               </button>
             </div>
 
             <p style={{ margin: 0, fontSize: '0.875rem', color: palette.text.secondary }}>
-              Starters provide safe, pre-approved field collections and view blocks designed for common workflows.
+              Starters provide safe, pre-approved field collections and view blocks designed for
+              common workflows.
             </p>
 
             {/* Approved Starters */}
-            <h3 style={{ margin: 0, fontSize: '1rem', color: palette.text.primary, marginTop: spacing.sm }}>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: '1rem',
+                color: palette.text.primary,
+                marginTop: spacing.sm,
+              }}
+            >
               Approved Starters
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
@@ -876,7 +904,14 @@ export default function CustomSectionsPage() {
             {/* Personal Templates */}
             {personalTemplates.length > 0 && (
               <>
-                <h3 style={{ margin: 0, fontSize: '1rem', color: palette.text.primary, marginTop: spacing.md }}>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: '1rem',
+                    color: palette.text.primary,
+                    marginTop: spacing.md,
+                  }}
+                >
                   Your Saved Templates
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>

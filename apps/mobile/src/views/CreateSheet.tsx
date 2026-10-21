@@ -1,8 +1,20 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
-import { MobileButton, MobileModalSheet, MobileTextField } from '@daynori/ui-mobile';
-import type { CreateDraft } from '../navigation/types';
+import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
+import {
+  Icon,
+  MobileButton,
+  MobileModalSheet,
+  MobileTextField
+} from '@daynori/ui-mobile';
+import type { CreateDraft
+} from '../navigation/types';
 
 export interface CreateSheetProps {
   visible: boolean;
@@ -152,7 +164,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
               }}
               accessibilityLabel="Record voice memo"
             >
-              🎙️ Record Voice Memo
+              <Icon name="microphone" /> Record Voice Memo
             </MobileButton>
           </View>
         )}

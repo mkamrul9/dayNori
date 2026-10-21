@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
@@ -150,7 +151,7 @@ export default function LibraryPage() {
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createParentId, setCreateParentId] = useState<string | null>(null);
-  const [createIcon, setCreateIcon] = useState('📁');
+  const [createIcon, setCreateIcon] = useState('folder');
   const [createColor, setCreateColor] = useState('#3b82f6');
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -354,7 +355,7 @@ export default function LibraryPage() {
                   name: h.name ?? 'Untitled Folder',
                   parentId: h.parentId ?? h.folderId ?? null,
                   color: h.color ?? null,
-                  icon: h.icon ?? '📁',
+                  icon: h.icon ?? 'folder',
                   rank: h.rank ?? '00001000',
                   scope: h.securityScope === 'vault' ? 'private' : 'workspace',
                   revision: h.serverRevision,
@@ -454,7 +455,7 @@ export default function LibraryPage() {
               name: f.name,
               parentId: f.parentId,
               color: f.color ?? null,
-              icon: f.icon ?? '📁',
+              icon: f.icon ?? 'folder',
               rank: f.rank,
               scope: f.securityScope === 'vault' ? 'private' : 'workspace',
               revision: f.revision,
@@ -571,7 +572,7 @@ export default function LibraryPage() {
     for (const node of path) {
       trail.push({
         id: node.id,
-        label: `${node.icon ?? '📁'} ${node.name}`,
+        label: `${node.icon ?? 'folder'} ${node.name}`,
         onClick: () => {
           setCurrentFolderId(node.id);
           setPage(1);
@@ -628,8 +629,7 @@ export default function LibraryPage() {
         if (typeFilter === 'notes' && item.kind !== 'note') return false;
         if (typeFilter === 'knowledge' && item.kind !== 'knowledge') return false;
         if (typeFilter === 'files' && item.kind !== 'file') return false;
-        if (typeFilter === 'tasks' && item.kind !== 'task' && item.kind !== 'routine')
-          return false;
+        if (typeFilter === 'tasks' && item.kind !== 'task' && item.kind !== 'routine') return false;
       }
 
       // Search query match
@@ -693,7 +693,7 @@ export default function LibraryPage() {
   const handleOpenCreateModal = (parent: string | null = currentFolderId) => {
     setCreateParentId(parent);
     setCreateName('');
-    setCreateIcon('📁');
+    setCreateIcon('folder');
     setCreateColor('#3b82f6');
     setCreateError(null);
     setCreateModalOpen(true);
@@ -1315,7 +1315,7 @@ export default function LibraryPage() {
         id: swId,
         name: 'Software',
         parentId: null,
-        icon: '💻',
+        icon: 'code',
         color: '#3b82f6',
         rank: '00001000',
         scope: 'workspace',
@@ -1325,7 +1325,7 @@ export default function LibraryPage() {
         id: guidesId,
         name: 'Guides',
         parentId: swId,
-        icon: '📚',
+        icon: 'library',
         color: '#10b981',
         rank: '00001000',
         scope: 'workspace',
@@ -1335,7 +1335,7 @@ export default function LibraryPage() {
         id: projectsId,
         name: 'Projects',
         parentId: swId,
-        icon: '🚀',
+        icon: 'rocket',
         color: '#8b5cf6',
         rank: '00002000',
         scope: 'workspace',
@@ -1345,7 +1345,7 @@ export default function LibraryPage() {
         id: govId,
         name: 'Government jobs',
         parentId: null,
-        icon: '🏛️',
+        icon: 'landmark',
         color: '#f59e0b',
         rank: '00002000',
         scope: 'workspace',
@@ -1355,7 +1355,7 @@ export default function LibraryPage() {
         id: appsId,
         name: 'Applications',
         parentId: govId,
-        icon: '📋',
+        icon: 'clipboard',
         color: '#ef4444',
         rank: '00001000',
         scope: 'workspace',
@@ -2211,11 +2211,7 @@ export default function LibraryPage() {
       if (!activeConflict) return;
       try {
         if (syncEngineRef.current) {
-          await syncEngineRef.current.resolveConflict(
-            activeConflict.id,
-            resolution,
-            customPayload
-          );
+          await syncEngineRef.current.resolveConflict(activeConflict.id, resolution, customPayload);
           if (isOnline) {
             await syncEngineRef.current.syncNow();
           }
@@ -2235,7 +2231,7 @@ export default function LibraryPage() {
                 name: h.name ?? 'Untitled Folder',
                 parentId: h.parentId ?? h.folderId ?? null,
                 color: h.color ?? null,
-                icon: h.icon ?? '📁',
+                icon: h.icon ?? 'folder',
                 rank: h.rank ?? '00001000',
                 scope: h.securityScope === 'vault' ? 'private' : 'workspace',
                 revision: h.serverRevision,
@@ -2266,9 +2262,7 @@ export default function LibraryPage() {
           setItems(loadedItems);
         }
       } catch (err) {
-        announce(
-          `Failed to resolve conflict: ${err instanceof Error ? err.message : String(err)}`
-        );
+        announce(`Failed to resolve conflict: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
     [activeConflict, isOnline, announce, workspaceId, showArchived]
@@ -2590,7 +2584,7 @@ export default function LibraryPage() {
               onClick={() => setActiveQuickRef(null)}
               aria-label="Back to Library"
             >
-              ← Back to Library
+              <Icon name="arrow-left" /> Back to Library
             </Button>
             <Button
               variant="primary"
@@ -2609,7 +2603,7 @@ export default function LibraryPage() {
               }}
               aria-label={`Edit ${activeQuickRef.title}`}
             >
-              ✏️ Edit Note
+              <Icon name="edit" /> Edit Note
             </Button>
           </div>
           <QuickReferenceView
@@ -2648,7 +2642,7 @@ export default function LibraryPage() {
               onClick={() => setEditingNote(null)}
               aria-label="Back to Library"
             >
-              ← Back to Library
+              <Icon name="arrow-left" /> Back to Library
             </Button>
           </div>
           <NoteEditor
@@ -2798,7 +2792,7 @@ export default function LibraryPage() {
                 onClick={() => setAudioRecorderOpen(true)}
                 aria-label="Record deliberate audio note"
               >
-                🎙️ Record Audio
+                <Icon name="microphone" /> Record Audio
               </Button>
 
               <Button
@@ -2930,7 +2924,7 @@ export default function LibraryPage() {
                       fontWeight: isSelected ? '600' : '400',
                     }}
                   >
-                    🔖 {sv.name}
+                    <Icon name="bookmark" /> {sv.name}
                   </button>
                   <button
                     type="button"
@@ -2945,7 +2939,7 @@ export default function LibraryPage() {
                       cursor: 'pointer',
                     }}
                   >
-                    ✕
+                    <Icon name="x" />
                   </button>
                 </span>
               );
@@ -3019,7 +3013,7 @@ export default function LibraryPage() {
                         }}
                       >
                         <span style={{ fontSize: typography.webScale.sectionHeading }}>
-                          {f.icon ?? '📁'}
+                          <Icon name={f.icon ?? 'folder'} />
                         </span>
                         <div>
                           <div
@@ -3058,7 +3052,7 @@ export default function LibraryPage() {
                             opacity: index === 0 ? 0.3 : 1,
                           }}
                         >
-                          ▲
+                          <Icon name="chevron-up" />
                         </button>
                         <button
                           onClick={() => handleReorder(f.id, 'down')}
@@ -3074,7 +3068,7 @@ export default function LibraryPage() {
                             opacity: index === currentSubfolders.length - 1 ? 0.3 : 1,
                           }}
                         >
-                          ▼
+                          <Icon name="chevron-down" />
                         </button>
                         <button
                           onClick={() => handleOpenRename(f)}
@@ -3087,7 +3081,7 @@ export default function LibraryPage() {
                             cursor: 'pointer',
                           }}
                         >
-                          ✏️
+                          <Icon name="edit" />
                         </button>
                         <button
                           onClick={() => handleOpenMove(f)}
@@ -3100,7 +3094,7 @@ export default function LibraryPage() {
                             cursor: 'pointer',
                           }}
                         >
-                          ➡️
+                          <Icon name="arrow-right" />
                         </button>
                         <button
                           onClick={() => handleToggleArchive(f)}
@@ -3113,7 +3107,7 @@ export default function LibraryPage() {
                             cursor: 'pointer',
                           }}
                         >
-                          📦
+                          <Icon name="archive" />
                         </button>
                         <button
                           onClick={() => handleOpenTrash(f)}
@@ -3126,7 +3120,7 @@ export default function LibraryPage() {
                             cursor: 'pointer',
                           }}
                         >
-                          🗑️
+                          <Icon name="trash" />
                         </button>
                       </div>
                     </div>
@@ -3401,13 +3395,13 @@ export default function LibraryPage() {
                   color: palette.text.primary,
                 }}
               >
-                <option value="📁">📁 Folder</option>
-                <option value="💻">💻 Code / Tech</option>
-                <option value="📚">📚 Guides</option>
-                <option value="🚀">🚀 Projects</option>
-                <option value="🏛️">🏛️ Government</option>
-                <option value="🌱">🌱 Personal</option>
-                <option value="🎓">🎓 Learning</option>
+                <option value="folder"> Folder</option>
+                <option value="code"> Code / Tech</option>
+                <option value="library"> Guides</option>
+                <option value="rocket"> Projects</option>
+                <option value="landmark"> Government</option>
+                <option value="leaf"> Personal</option>
+                <option value="graduation"> Learning</option>
               </select>
             </div>
 

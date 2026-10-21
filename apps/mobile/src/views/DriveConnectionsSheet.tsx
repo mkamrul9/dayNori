@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
-import { MobileButton } from '@daynori/ui-mobile';
-import type { DriveConnection, DriveLinkedFile } from '@daynori/contracts';
+import {
+  MobileButton
+} from '@daynori/ui-mobile';
+import type { DriveConnection,
+  DriveLinkedFile
+} from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
 
 export interface DriveConnectionsSheetProps {

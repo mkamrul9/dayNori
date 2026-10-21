@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
@@ -61,12 +62,15 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
   // Update active adapter if prop changes
   useEffect(() => {
     if (recorderAdapter) {
-      activeAdapter.requestPermissionsAsync = recorderAdapter.requestPermissionsAsync.bind(recorderAdapter);
+      activeAdapter.requestPermissionsAsync =
+        recorderAdapter.requestPermissionsAsync.bind(recorderAdapter);
       activeAdapter.startRecordingAsync = recorderAdapter.startRecordingAsync.bind(recorderAdapter);
       activeAdapter.pauseRecordingAsync = recorderAdapter.pauseRecordingAsync.bind(recorderAdapter);
-      activeAdapter.resumeRecordingAsync = recorderAdapter.resumeRecordingAsync.bind(recorderAdapter);
+      activeAdapter.resumeRecordingAsync =
+        recorderAdapter.resumeRecordingAsync.bind(recorderAdapter);
       activeAdapter.stopRecordingAsync = recorderAdapter.stopRecordingAsync.bind(recorderAdapter);
-      activeAdapter.discardRecordingAsync = recorderAdapter.discardRecordingAsync.bind(recorderAdapter);
+      activeAdapter.discardRecordingAsync =
+        recorderAdapter.discardRecordingAsync.bind(recorderAdapter);
       activeAdapter.isRecording = recorderAdapter.isRecording.bind(recorderAdapter);
       activeAdapter.isPaused = recorderAdapter.isPaused.bind(recorderAdapter);
     }
@@ -74,7 +78,10 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
 
   const [phase, setPhase] = useState<RecorderPhase>('idle');
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
-  const [feedback, setFeedback] = useState<{ severity: 'danger' | 'warning' | 'info'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    severity: 'danger' | 'warning' | 'info';
+    message: string;
+  } | null>(null);
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [recordedBytes, setRecordedBytes] = useState<number>(0);
   const [recordedDuration, setRecordedDuration] = useState<number>(0);
@@ -118,7 +125,8 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
         setPhase('paused');
         setFeedback({
           severity: 'warning',
-          message: 'Recording paused due to app interruption or phone call. You can resume or save.',
+          message:
+            'Recording paused due to app interruption or phone call. You can resume or save.',
         });
       }
     };
@@ -138,7 +146,8 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
         setPhase('error');
         setFeedback({
           severity: 'danger',
-          message: 'Microphone permission was denied. Daynori organizer functions remain fully usable without recording.',
+          message:
+            'Microphone permission was denied. Daynori organizer functions remain fully usable without recording.',
         });
         return;
       }
@@ -240,7 +249,8 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
 
     try {
       const durationSeconds = recordedDuration || Math.max(1, elapsedSeconds);
-      const fileName = recordedFileName || `voice-note-${new Date().toISOString().slice(0, 10)}-${Date.now()}.m4a`;
+      const fileName =
+        recordedFileName || `voice-note-${new Date().toISOString().slice(0, 10)}-${Date.now()}.m4a`;
       const byteSize = recordedBytes || 16384;
 
       await onSaveAudio({
@@ -263,7 +273,10 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
   };
 
   const isNearLimit = elapsedSeconds >= AUDIO_WARNING_THRESHOLD_SECONDS;
-  const progressPercent = Math.min(100, Math.round((elapsedSeconds / MAX_AUDIO_RECORDING_SECONDS) * 100));
+  const progressPercent = Math.min(
+    100,
+    Math.round((elapsedSeconds / MAX_AUDIO_RECORDING_SECONDS) * 100)
+  );
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -273,7 +286,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
           <View style={[styles.headerRow, { borderBottomColor: palette.border.subtle }]}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.title, { color: palette.text.primary }]}>
-                🎙️ Record Audio Memo
+                <Icon name="microphone" color={palette.text.primary} /> Record Audio Memo
               </Text>
               <Text style={[styles.subtitle, { color: palette.text.secondary }]}>
                 {attachedItemTitle
@@ -287,7 +300,9 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
               accessibilityRole="button"
               accessibilityLabel="Close audio recorder"
             >
-              <Text style={{ fontSize: 18, color: palette.text.secondary }}>✕</Text>
+              <Text style={{ fontSize: 18, color: palette.text.secondary }}>
+                <Icon name="x" color={palette.text.secondary} size={18} />
+              </Text>
             </Pressable>
           </View>
 
@@ -298,7 +313,9 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
             {phase === 'idle' && (
               <View style={styles.centerArea}>
                 <View style={[styles.micCircle, { backgroundColor: '#FEE2E2' }]}>
-                  <Text style={{ fontSize: 36 }}>🎙️</Text>
+                  <Text style={{ fontSize: 36 }}>
+                    <Icon name="microphone" color={palette.text.primary} size={36} />
+                  </Text>
                 </View>
                 <Text style={[styles.bodyText, { color: palette.text.secondary }]}>
                   Recording requires explicit permission. Maximum recording duration is{' '}
@@ -306,7 +323,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
                 </Text>
                 <View style={{ width: '100%', marginTop: spacing.md }}>
                   <MobileButton
-                    title="🔴 Request Mic & Start Recording"
+                    title="Request Mic & Start Recording"
                     variant="primary"
                     themeMode={themeMode}
                     onPress={handleStartRecording}
@@ -356,9 +373,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
 
                 {/* Progress bar towards 10 min */}
                 <View style={{ width: '100%', gap: 4 }}>
-                  <View
-                    style={[styles.progressBarBg, { backgroundColor: palette.border.subtle }]}
-                  >
+                  <View style={[styles.progressBarBg, { backgroundColor: palette.border.subtle }]}>
                     <View
                       style={[
                         styles.progressBarFill,
@@ -371,7 +386,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
                   </View>
                   <View style={styles.progressRow}>
                     <Text style={{ fontSize: 11, color: palette.text.secondary }}>
-                      {isNearLimit ? '⚠️ Approaching 10:00 limit' : 'Max 10 minutes'}
+                      {isNearLimit ? (<><Icon name='warning' /> {'Approaching 10:00 limit'}</>) : (<Icon name='Max 10 minutes' />)}
                     </Text>
                     <Text style={{ fontSize: 11, color: palette.text.secondary }}>
                       {formatAudioDuration(MAX_AUDIO_RECORDING_SECONDS)}
@@ -384,7 +399,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
                   {phase === 'recording' ? (
                     <View style={{ flex: 1 }}>
                       <MobileButton
-                        title="⏸ Pause"
+                        title="Pause"
                         variant="secondary"
                         themeMode={themeMode}
                         onPress={handlePauseRecording}
@@ -394,7 +409,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
                   ) : (
                     <View style={{ flex: 1 }}>
                       <MobileButton
-                        title="▶ Resume"
+                        title="Resume"
                         variant="secondary"
                         themeMode={themeMode}
                         onPress={handleResumeRecording}
@@ -404,7 +419,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
                   )}
                   <View style={{ flex: 1 }}>
                     <MobileButton
-                      title="⏹ Stop"
+                      title="Stop"
                       variant="primary"
                       themeMode={themeMode}
                       onPress={handleStopRecording}
@@ -447,7 +462,7 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
 
                 <View style={{ gap: spacing.sm }}>
                   <MobileButton
-                    title={phase === 'uploading' ? 'Saving...' : '💾 Save & Attach Audio'}
+                    title={phase === 'uploading' ? 'Saving...' : 'Save & Attach Audio'}
                     variant="primary"
                     themeMode={themeMode}
                     onPress={handleSaveAndAttach}

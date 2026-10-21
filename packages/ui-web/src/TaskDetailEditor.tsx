@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -127,7 +128,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
         const result = checkLocalTimeDisambiguation(deadlineDate, deadlineTime, deadlineZone);
         setDisambiguationResult(result);
         if (result.type === 'nonexistent') {
-          setDisambiguationNotice(`⚠️ Nonexistent local time: ${result.explanation}`);
+          setDisambiguationNotice(`Nonexistent local time: ${result.explanation}`);
         } else if (result.type === 'ambiguous') {
           setDisambiguationNotice(`ℹ️ Ambiguous local time: ${result.explanation}`);
         } else {
@@ -316,7 +317,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
             {id ? 'Task Details' : 'New Task'}
           </h2>
           <Button variant="subtle" size="compact" onClick={onClose} aria-label="Close task editor">
-            ✕
+            <Icon name="x" />
           </Button>
         </div>
 
@@ -817,7 +818,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
                 <option value="">(None / Root)</option>
                 {folders.map((f) => (
                   <option key={f.id} value={f.id}>
-                    📁 {f.name}
+                    {f.name}
                   </option>
                 ))}
               </select>
@@ -980,7 +981,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
                           fontSize: '14px',
                         }}
                       >
-                        ✕
+                        <Icon name="x" />
                       </button>
                     )}
                   </div>

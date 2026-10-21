@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon, IconText } from '@daynori/ui-web';
 import React from 'react';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
@@ -60,7 +61,7 @@ export const AppHeader: React.FC = () => {
           className="mobile-only"
         >
           <span aria-hidden="true" style={{ fontSize: '18px' }}>
-            ☰
+            <Icon name="menu" />
           </span>
         </button>
 
@@ -108,7 +109,7 @@ export const AppHeader: React.FC = () => {
           style={buttonStyle}
         >
           <span aria-hidden="true" style={{ marginRight: '4px' }}>
-            🔍
+            <Icon name="search" />
           </span>
           <span className="desktop-only">Search</span>
           <kbd
@@ -140,7 +141,7 @@ export const AppHeader: React.FC = () => {
           }}
         >
           <span aria-hidden="true" style={{ marginRight: '4px', fontWeight: 'bold' }}>
-            ＋
+            <Icon name="plus" />
           </span>
           <span className="desktop-only">Create</span>
           <kbd
@@ -165,7 +166,9 @@ export const AppHeader: React.FC = () => {
           onClick={toggleTheme}
           style={buttonStyle}
         >
-          <span aria-hidden="true">{themeMode === 'light' ? '🌙' : '☀️'}</span>
+          <span aria-hidden="true">
+            <Icon name={themeMode === 'light' ? 'moon' : 'sun'} />
+          </span>
         </button>
 
         <button
@@ -175,7 +178,9 @@ export const AppHeader: React.FC = () => {
           onClick={() => openModal('help')}
           style={buttonStyle}
         >
-          <span aria-hidden="true">❓</span>
+          <span aria-hidden="true">
+            <Icon name="help" />
+          </span>
         </button>
 
         <button
@@ -185,7 +190,9 @@ export const AppHeader: React.FC = () => {
           onClick={() => openModal('account')}
           style={buttonStyle}
         >
-          <span aria-hidden="true">👤</span>
+          <span aria-hidden="true">
+            <Icon name="user" />
+          </span>
         </button>
       </div>
     </header>

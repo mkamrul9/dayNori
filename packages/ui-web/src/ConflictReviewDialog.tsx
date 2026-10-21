@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { colors, radii, spacing } from '@daynori/design-tokens';
 import { Button } from './Button.js';
@@ -98,7 +99,9 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
   const palette = colors[themeMode];
   const [isResolving, setIsResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'side_by_side' | 'local' | 'server' | 'base'>('side_by_side');
+  const [activeTab, setActiveTab] = useState<'side_by_side' | 'local' | 'server' | 'base'>(
+    'side_by_side'
+  );
 
   if (!conflict) return null;
 
@@ -128,8 +131,7 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
     : formatPayloadSummary(conflict.serverState);
   const baseBody = formatPayloadSummary(conflict.baseState);
 
-  const isTaskConflict =
-    conflict.entityType === 'task' || conflict.entityType === 'todo';
+  const isTaskConflict = conflict.entityType === 'task' || conflict.entityType === 'todo';
 
   const handleAction = async (resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge') => {
     setIsResolving(true);
@@ -184,7 +186,9 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
         </span>
       </div>
 
-      <div style={{ fontWeight: 600, fontSize: '14px', color: palette.text.primary, marginTop: '4px' }}>
+      <div
+        style={{ fontWeight: 600, fontSize: '14px', color: palette.text.primary, marginTop: '4px' }}
+      >
         {titleText}
       </div>
 
@@ -203,7 +207,9 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
           marginTop: '4px',
         }}
       >
-        {bodyText || <span style={{ color: palette.text.muted, fontStyle: 'italic' }}>[No content]</span>}
+        {bodyText || (
+          <span style={{ color: palette.text.muted, fontStyle: 'italic' }}>[No content]</span>
+        )}
       </div>
     </div>
   );
@@ -235,7 +241,7 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
           <span style={{ fontSize: '12px', color: palette.text.muted }}>Entity:</span>
           <ItemTypeBadge kind={conflict.entityType} themeMode={themeMode} />
           <span style={{ fontSize: '12px', color: palette.text.secondary }}>
-            Base Rev {conflict.baseRevision} → Server Rev {conflict.serverRevision}
+            Base Rev {conflict.baseRevision} <Icon name="arrow-right" /> Server Rev {conflict.serverRevision}
           </span>
         </div>
 
@@ -243,7 +249,12 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
         <div
           role="tablist"
           aria-label="Comparison views"
-          style={{ display: 'flex', gap: `${spacing.xs}px`, borderBottom: `1px solid ${palette.border.subtle}`, paddingBottom: '4px' }}
+          style={{
+            display: 'flex',
+            gap: `${spacing.xs}px`,
+            borderBottom: `1px solid ${palette.border.subtle}`,
+            paddingBottom: '4px',
+          }}
         >
           <button
             type="button"
@@ -326,9 +337,20 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
           {(activeTab === 'side_by_side' || activeTab === 'local') &&
             renderVersionColumn('Local Changes', 'This Device', localTitle, localBody)}
           {(activeTab === 'side_by_side' || activeTab === 'server') &&
-            renderVersionColumn('Server Version', `Rev ${conflict.serverRevision}`, serverTitle, serverBody, isEditVsDelete)}
-          {(activeTab === 'side_by_side' && conflict.baseState || activeTab === 'base') &&
-            renderVersionColumn('Base Original', `Rev ${conflict.baseRevision}`, baseTitle, baseBody)}
+            renderVersionColumn(
+              'Server Version',
+              `Rev ${conflict.serverRevision}`,
+              serverTitle,
+              serverBody,
+              isEditVsDelete
+            )}
+          {((activeTab === 'side_by_side' && conflict.baseState) || activeTab === 'base') &&
+            renderVersionColumn(
+              'Base Original',
+              `Rev ${conflict.baseRevision}`,
+              baseTitle,
+              baseBody
+            )}
         </div>
 
         {/* Action Controls */}
@@ -383,15 +405,16 @@ export const ConflictReviewDialog: React.FC<ConflictReviewDialogProps> = ({
 
           {resolveError && (
             <div style={{ width: '100%', marginTop: '6px' }}>
-              <Feedback
-                severity="danger"
-                message={resolveError}
-                themeMode={themeMode}
-              />
+              <Feedback severity="danger" message={resolveError} themeMode={themeMode} />
             </div>
           )}
 
-          <Button variant="secondary" themeMode={themeMode} onClick={onClose} disabled={isResolving}>
+          <Button
+            variant="secondary"
+            themeMode={themeMode}
+            onClick={onClose}
+            disabled={isResolving}
+          >
             Cancel Review
           </Button>
         </div>

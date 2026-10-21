@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon, IconText } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef, useId, useCallback, useMemo } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, EmptyState, Feedback, TaskRow, TaskDetailEditor } from '@daynori/ui-web';
@@ -31,13 +32,7 @@ import {
 } from '@daynori/domain';
 
 export type PlanViewFilter =
-  | 'today'
-  | 'upcoming'
-  | 'overdue'
-  | 'completed'
-  | 'undated'
-  | 'reminders'
-  | 'all';
+  'today' | 'upcoming' | 'overdue' | 'completed' | 'undated' | 'reminders' | 'all';
 export type PlanSortBy = 'deadline' | 'priority' | 'createdAt';
 export type PlanSortDir = 'asc' | 'desc';
 
@@ -602,7 +597,10 @@ export default function PlanPage() {
       const reminderInstanceId = searchParams.get('reminderInstanceId');
 
       if (paramWsId && paramWsId !== workspaceId) {
-        console.warn('[Plan] Ignoring notification deep link for unauthorized workspace:', paramWsId);
+        console.warn(
+          '[Plan] Ignoring notification deep link for unauthorized workspace:',
+          paramWsId
+        );
         return;
       }
 
@@ -1100,7 +1098,7 @@ export default function PlanPage() {
               border: `1px solid ${hasConsent ? palette.border.subtle : palette.status.warningBorder}`,
             }}
           >
-            💾 {localSaveStatus}
+            <Icon name="save" /> {localSaveStatus}
           </span>
 
           <span
@@ -1127,7 +1125,15 @@ export default function PlanPage() {
               gap: '4px',
             }}
           >
-            {isOnline ? `☁️ ${cloudSyncStatus}` : '⚡ Offline'}
+            {isOnline ? (
+              <>
+                <Icon name="cloud" /> {cloudSyncStatus}
+              </>
+            ) : (
+              <>
+                <Icon name="offline" /> Offline
+              </>
+            )}
           </span>
 
           <Button variant="primary" size="compact" onClick={() => setIsCreatingNew(true)}>
@@ -1148,7 +1154,7 @@ export default function PlanPage() {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <span style={{ fontSize: '14px', fontWeight: 600, color: palette.text.primary }}>
-              🔒 Trusted-Device Local Storage Consent
+              <Icon name="lock" /> Trusted-Device Local Storage Consent
             </span>
             <p
               style={{
@@ -1334,295 +1340,307 @@ export default function PlanPage() {
       ) : (
         <>
           {/* Filter and Sort Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: `${spacing.sm}px`,
-          marginBottom: `${spacing.base}px`,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: `${spacing.sm}px`,
-            flexWrap: 'wrap',
-          }}
-        >
-          {/* Select all checkbox */}
-          {displayedTasks.length > 0 && (
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={
-                  selectedTaskIds.size === displayedTasks.length && displayedTasks.length > 0
-                }
-                onChange={(e) => handleSelectAllVisible(e.target.checked)}
-                aria-label="Select all visible tasks"
-              />
-              Select all
-            </label>
-          )}
-
-          {/* Priority Filter */}
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value as 'all' | TaskPriority)}
-            aria-label="Filter by priority"
-            style={{
-              padding: '4px 8px',
-              fontSize: '13px',
-              borderRadius: radii.sm,
-              border: `1px solid ${palette.border.subtle}`,
-              backgroundColor: palette.surface,
-              color: palette.text.primary,
-            }}
-          >
-            <option value="all">All Priorities</option>
-            <option value="urgent">Urgent only</option>
-            <option value="high">High only</option>
-            <option value="normal">Normal only</option>
-            <option value="low">Low only</option>
-          </select>
-
-          {/* Folder Filter */}
-          {folders.length > 0 && (
-            <select
-              value={selectedFolderId || ''}
-              onChange={(e) => setSelectedFolderId(e.target.value ? e.target.value : null)}
-              aria-label="Filter by folder"
-              style={{
-                padding: '4px 8px',
-                fontSize: '13px',
-                borderRadius: radii.sm,
-                border: `1px solid ${palette.border.subtle}`,
-                backgroundColor: palette.surface,
-                color: palette.text.primary,
-              }}
-            >
-              <option value="">All Folders</option>
-              {folders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  📁 {f.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Sort Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '12px', color: palette.text.secondary }}>Sort:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as PlanSortBy)}
-            aria-label="Sort tasks by"
-            style={{
-              padding: '4px 8px',
-              fontSize: '13px',
-              borderRadius: radii.sm,
-              border: `1px solid ${palette.border.subtle}`,
-              backgroundColor: palette.surface,
-              color: palette.text.primary,
-            }}
-          >
-            <option value="deadline">Deadline</option>
-            <option value="priority">Priority</option>
-            <option value="createdAt">Created time</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-            aria-label={`Sort direction ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
-            style={{
-              padding: '4px 8px',
-              fontSize: '13px',
-              borderRadius: radii.sm,
-              border: `1px solid ${palette.border.subtle}`,
-              backgroundColor: palette.surface,
-              color: palette.text.primary,
-              cursor: 'pointer',
-            }}
-          >
-            {sortDir === 'asc' ? '↑' : '↓'}
-          </button>
-        </div>
-      </div>
-
-      {/* Bulk Action Bar (when tasks are selected) */}
-      {selectedTaskIds.size > 0 && (
-        <div
-          role="region"
-          aria-label="Bulk actions"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: `${spacing.sm}px`,
-            padding: `${spacing.sm}px ${spacing.base}px`,
-            backgroundColor: themeMode === 'dark' ? '#1e293b' : '#eff6ff',
-            border: `1px solid ${palette.action.primary}`,
-            borderRadius: radii.card,
-            marginBottom: `${spacing.base}px`,
-          }}
-        >
-          <span style={{ fontSize: '14px', fontWeight: 600, color: palette.action.primary }}>
-            {selectedTaskIds.size} {selectedTaskIds.size === 1 ? 'task' : 'tasks'} selected
-          </span>
           <div
             style={{
               display: 'flex',
-              gap: `${spacing.xs}px`,
               alignItems: 'center',
+              justifyContent: 'space-between',
               flexWrap: 'wrap',
+              gap: `${spacing.sm}px`,
+              marginBottom: `${spacing.base}px`,
             }}
           >
-            <Button
-              size="compact"
-              variant="secondary"
-              onClick={() => handleOpenBulkConfirm('complete')}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: `${spacing.sm}px`,
+                flexWrap: 'wrap',
+              }}
             >
-              Mark Complete
-            </Button>
-            {folders.length > 0 && (
-              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <select
-                  value={bulkMoveTargetFolderId}
-                  onChange={(e) => setBulkMoveTargetFolderId(e.target.value)}
-                  aria-label="Select target folder for bulk move"
+              {/* Select all checkbox */}
+              {displayedTasks.length > 0 && (
+                <label
                   style={{
-                    padding: '3px 8px',
-                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedTaskIds.size === displayedTasks.length && displayedTasks.length > 0
+                    }
+                    onChange={(e) => handleSelectAllVisible(e.target.checked)}
+                    aria-label="Select all visible tasks"
+                  />
+                  Select all
+                </label>
+              )}
+
+              {/* Priority Filter */}
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value as 'all' | TaskPriority)}
+                aria-label="Filter by priority"
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '13px',
+                  borderRadius: radii.sm,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                }}
+              >
+                <option value="all">All Priorities</option>
+                <option value="urgent">Urgent only</option>
+                <option value="high">High only</option>
+                <option value="normal">Normal only</option>
+                <option value="low">Low only</option>
+              </select>
+
+              {/* Folder Filter */}
+              {folders.length > 0 && (
+                <select
+                  value={selectedFolderId || ''}
+                  onChange={(e) => setSelectedFolderId(e.target.value ? e.target.value : null)}
+                  aria-label="Filter by folder"
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '13px',
                     borderRadius: radii.sm,
                     border: `1px solid ${palette.border.subtle}`,
                     backgroundColor: palette.surface,
                     color: palette.text.primary,
                   }}
                 >
-                  <option value="">Move to Inbox (None)</option>
+                  <option value="">All Folders</option>
                   {folders.map((f) => (
                     <option key={f.id} value={f.id}>
-                      📁 {f.name}
+                      {f.name}
                     </option>
                   ))}
                 </select>
+              )}
+            </div>
+
+            {/* Sort Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', color: palette.text.secondary }}>Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as PlanSortBy)}
+                aria-label="Sort tasks by"
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '13px',
+                  borderRadius: radii.sm,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                }}
+              >
+                <option value="deadline">Deadline</option>
+                <option value="priority">Priority</option>
+                <option value="createdAt">Created time</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                aria-label={`Sort direction ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '13px',
+                  borderRadius: radii.sm,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name={sortDir === 'asc' ? 'arrow-up' : 'arrow-down'} />
+              </button>
+            </div>
+          </div>
+
+          {/* Bulk Action Bar (when tasks are selected) */}
+          {selectedTaskIds.size > 0 && (
+            <div
+              role="region"
+              aria-label="Bulk actions"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: `${spacing.sm}px`,
+                padding: `${spacing.sm}px ${spacing.base}px`,
+                backgroundColor: themeMode === 'dark' ? '#1e293b' : '#eff6ff',
+                border: `1px solid ${palette.action.primary}`,
+                borderRadius: radii.card,
+                marginBottom: `${spacing.base}px`,
+              }}
+            >
+              <span style={{ fontSize: '14px', fontWeight: 600, color: palette.action.primary }}>
+                {selectedTaskIds.size} {selectedTaskIds.size === 1 ? 'task' : 'tasks'} selected
+              </span>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: `${spacing.xs}px`,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                }}
+              >
                 <Button
                   size="compact"
                   variant="secondary"
-                  onClick={() => handleOpenBulkConfirm('move', bulkMoveTargetFolderId || null)}
+                  onClick={() => handleOpenBulkConfirm('complete')}
                 >
-                  Move
+                  Mark Complete
+                </Button>
+                {folders.length > 0 && (
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <select
+                      value={bulkMoveTargetFolderId}
+                      onChange={(e) => setBulkMoveTargetFolderId(e.target.value)}
+                      aria-label="Select target folder for bulk move"
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '12px',
+                        borderRadius: radii.sm,
+                        border: `1px solid ${palette.border.subtle}`,
+                        backgroundColor: palette.surface,
+                        color: palette.text.primary,
+                      }}
+                    >
+                      <option value="">Move to Inbox (None)</option>
+                      {folders.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="compact"
+                      variant="secondary"
+                      onClick={() => handleOpenBulkConfirm('move', bulkMoveTargetFolderId || null)}
+                    >
+                      Move
+                    </Button>
+                  </div>
+                )}
+                <Button
+                  size="compact"
+                  variant="danger"
+                  onClick={() => handleOpenBulkConfirm('delete')}
+                >
+                  Delete Selected
+                </Button>
+                <Button
+                  size="compact"
+                  variant="subtle"
+                  onClick={() => setSelectedTaskIds(new Set())}
+                >
+                  Clear
                 </Button>
               </div>
-            )}
-            <Button size="compact" variant="danger" onClick={() => handleOpenBulkConfirm('delete')}>
-              Delete Selected
-            </Button>
-            <Button size="compact" variant="subtle" onClick={() => setSelectedTaskIds(new Set())}>
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* Task List */}
-      {isLoading ? (
-        <div
-          style={{ padding: `${spacing.xl}px`, textAlign: 'center', color: palette.text.secondary }}
-        >
-          Loading tasks...
-        </div>
-      ) : displayedTasks.length === 0 ? (
-        <EmptyState
-          title={
-            activeView === 'today'
-              ? 'No tasks due today'
-              : activeView === 'overdue'
-                ? 'No overdue tasks'
-                : activeView === 'upcoming'
-                  ? 'No upcoming tasks'
-                  : activeView === 'completed'
-                    ? 'No completed tasks'
-                    : activeView === 'undated'
-                      ? 'No undated tasks'
-                      : 'No tasks found'
-          }
-          description="Keep focused on what matters today, or capture a new task above."
-          actionLabel="+ Add Task"
-          onAction={() => setIsCreatingNew(true)}
-        />
-      ) : (
-        <div
-          role="list"
-          aria-label="Task list"
-          style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
-        >
-          {displayedTasks.map((task) => {
-            const childSubtasks = getSubtasksForParent(task.id);
-            const completedCount = childSubtasks.filter((s) => s.status === 'completed').length;
-            const subtaskCount =
-              childSubtasks.length > 0
-                ? { completed: completedCount, total: childSubtasks.length }
-                : undefined;
+          {/* Task List */}
+          {isLoading ? (
+            <div
+              style={{
+                padding: `${spacing.xl}px`,
+                textAlign: 'center',
+                color: palette.text.secondary,
+              }}
+            >
+              Loading tasks...
+            </div>
+          ) : displayedTasks.length === 0 ? (
+            <EmptyState
+              title={
+                activeView === 'today'
+                  ? 'No tasks due today'
+                  : activeView === 'overdue'
+                    ? 'No overdue tasks'
+                    : activeView === 'upcoming'
+                      ? 'No upcoming tasks'
+                      : activeView === 'completed'
+                        ? 'No completed tasks'
+                        : activeView === 'undated'
+                          ? 'No undated tasks'
+                          : 'No tasks found'
+              }
+              description="Keep focused on what matters today, or capture a new task above."
+              actionLabel="+ Add Task"
+              onAction={() => setIsCreatingNew(true)}
+            />
+          ) : (
+            <div
+              role="list"
+              aria-label="Task list"
+              style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
+            >
+              {displayedTasks.map((task) => {
+                const childSubtasks = getSubtasksForParent(task.id);
+                const completedCount = childSubtasks.filter((s) => s.status === 'completed').length;
+                const subtaskCount =
+                  childSubtasks.length > 0
+                    ? { completed: completedCount, total: childSubtasks.length }
+                    : undefined;
 
-            return (
-              <React.Fragment key={task.id}>
-                <TaskRow
-                  id={task.id}
-                  title={task.title}
-                  details={task.details}
-                  priority={task.priority}
-                  status={task.status}
-                  deadline={task.deadline}
-                  folderName={folders.find((f) => f.id === task.folderId)?.name}
-                  tags={task.tags}
-                  subtaskCount={subtaskCount}
-                  depth={1}
-                  isSelected={selectedTaskIds.has(task.id)}
-                  themeMode={themeMode}
-                  userTimezone={viewingTimezone}
-                  onToggleComplete={handleToggleComplete}
-                  onSelect={handleSelectTask}
-                  onClick={() => setEditingTask(task)}
-                />
+                return (
+                  <React.Fragment key={task.id}>
+                    <TaskRow
+                      id={task.id}
+                      title={task.title}
+                      details={task.details}
+                      priority={task.priority}
+                      status={task.status}
+                      deadline={task.deadline}
+                      folderName={folders.find((f) => f.id === task.folderId)?.name}
+                      tags={task.tags}
+                      subtaskCount={subtaskCount}
+                      depth={1}
+                      isSelected={selectedTaskIds.has(task.id)}
+                      themeMode={themeMode}
+                      userTimezone={viewingTimezone}
+                      onToggleComplete={handleToggleComplete}
+                      onSelect={handleSelectTask}
+                      onClick={() => setEditingTask(task)}
+                    />
 
-                {/* Indented Subtask Rows */}
-                {childSubtasks.map((subtask) => (
-                  <TaskRow
-                    key={subtask.id}
-                    id={subtask.id}
-                    title={subtask.title}
-                    details={subtask.details}
-                    priority={subtask.priority}
-                    status={subtask.status}
-                    deadline={subtask.deadline}
-                    tags={subtask.tags}
-                    depth={2}
-                    isSelected={selectedTaskIds.has(subtask.id)}
-                    themeMode={themeMode}
-                    userTimezone={viewingTimezone}
-                    onToggleComplete={handleToggleComplete}
-                    onSelect={handleSelectTask}
-                    onClick={() => setEditingTask(subtask)}
-                  />
-                ))}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
+                    {/* Indented Subtask Rows */}
+                    {childSubtasks.map((subtask) => (
+                      <TaskRow
+                        key={subtask.id}
+                        id={subtask.id}
+                        title={subtask.title}
+                        details={subtask.details}
+                        priority={subtask.priority}
+                        status={subtask.status}
+                        deadline={subtask.deadline}
+                        tags={subtask.tags}
+                        depth={2}
+                        isSelected={selectedTaskIds.has(subtask.id)}
+                        themeMode={themeMode}
+                        userTimezone={viewingTimezone}
+                        onToggleComplete={handleToggleComplete}
+                        onSelect={handleSelectTask}
+                        onClick={() => setEditingTask(subtask)}
+                      />
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 

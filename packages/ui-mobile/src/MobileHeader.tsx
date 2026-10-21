@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
@@ -74,7 +75,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             ]}
           >
             <Text style={styles.actionIcon} aria-hidden={true}>
-              🔍
+              <Icon name="search" color={palette.text.primary} />
             </Text>
           </Pressable>
         )}
@@ -93,7 +94,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             ]}
           >
             <Text style={styles.actionIcon} aria-hidden={true}>
-              ➕
+              <Icon name="plus" color={palette.text.primary} />
             </Text>
           </Pressable>
         )}
@@ -112,7 +113,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             ]}
           >
             <Text style={styles.actionIcon} aria-hidden={true}>
-              ⚙️
+              <Icon name="settings" color={palette.text.primary} />
             </Text>
           </Pressable>
         )}

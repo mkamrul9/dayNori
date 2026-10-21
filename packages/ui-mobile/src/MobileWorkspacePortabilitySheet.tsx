@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
@@ -19,7 +20,10 @@ export interface MobileWorkspacePortabilitySheetProps {
   testID?: string;
   onExportWorkspace: (password?: string) => Promise<CreateExportResponse>;
   onPreviewImport: (archiveBase64: string) => Promise<ImportPreviewResponse>;
-  onExecuteImport: (previewId: string, strategy: ImportDuplicateStrategy) => Promise<ExecuteImportResponse>;
+  onExecuteImport: (
+    previewId: string,
+    strategy: ImportDuplicateStrategy
+  ) => Promise<ExecuteImportResponse>;
   onPickArchive?: () => Promise<{ name: string; base64: string } | null>;
   onDownloadExport?: (downloadUrl: string) => Promise<void>;
 }
@@ -110,7 +114,11 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                 { color: activeTab === 'export' ? palette.action.label : palette.text.secondary },
               ]}
             >
-              📦 Export
+              <Icon
+                name="archive"
+                color={activeTab === 'export' ? palette.action.label : palette.text.secondary}
+              />{' '}
+              Export
             </Text>
           </Pressable>
           <Pressable
@@ -129,7 +137,11 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                 { color: activeTab === 'import' ? palette.action.label : palette.text.secondary },
               ]}
             >
-              📥 Import
+              <Icon
+                name="download"
+                color={activeTab === 'import' ? palette.action.label : palette.text.secondary}
+              />{' '}
+              Import
             </Text>
           </Pressable>
         </View>
@@ -138,8 +150,8 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
         {activeTab === 'export' && (
           <View style={styles.section}>
             <Text style={[styles.bodyText, { color: palette.text.secondary }]}>
-              Export your notes, tasks, routines, journal, calendar, and clean attachments in standard
-              open formats with a cryptographic manifest.
+              Export your notes, tasks, routines, journal, calendar, and clean attachments in
+              standard open formats with a cryptographic manifest.
             </Text>
 
             <MobileFeedback
@@ -182,27 +194,41 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                     disabled={isExporting}
                     accessibilityLabel="Export Workspace"
                   >
-                    {isExporting ? 'Generating Archive...' : '🔒 Verify & Export (.zip)'}
+                    {isExporting ? (<Icon name='Generating Archive...' />) : (<><Icon name='lock' /> {'Verify & Export (.zip)'}</>)}
                   </MobileButton>
                 </View>
               </View>
             ) : (
               <View style={[styles.card, { backgroundColor: palette.surfaceRaised }]}>
                 <Text style={[styles.successTitle, { color: palette.status.success }]}>
-                  ✓ Export Archive Ready
+                  <Icon name="check" color={palette.status.success} /> Export Archive Ready
                 </Text>
                 <Text style={[styles.summaryText, { color: palette.text.primary }]}>
-                  📁 Folders: {exportResult.manifestSummary.foldersCount}
-                  {'\n'}📝 Notes: {exportResult.manifestSummary.notesCount}
-                  {'\n'}✅ Tasks: {exportResult.manifestSummary.tasksCount}
-                  {'\n'}🔄 Routines: {exportResult.manifestSummary.routinesCount}
-                  {'\n'}📖 Journal: {exportResult.manifestSummary.journalCount}
-                  {'\n'}📅 Calendar: {exportResult.manifestSummary.calendarCount}
-                  {'\n'}📎 Files: {exportResult.manifestSummary.filesCount} (
+                  <Icon name="folder" color={palette.text.primary} /> Folders:{' '}
+                  {exportResult.manifestSummary.foldersCount}
+                  {'\n'}
+                  <Icon name="note" color={palette.text.primary} /> Notes:{' '}
+                  {exportResult.manifestSummary.notesCount}
+                  {'\n'}
+                  <Icon name="check-circle" color={palette.text.primary} /> Tasks:{' '}
+                  {exportResult.manifestSummary.tasksCount}
+                  {'\n'}
+                  <Icon name="refresh" color={palette.text.primary} /> Routines:{' '}
+                  {exportResult.manifestSummary.routinesCount}
+                  {'\n'}
+                  <Icon name="book" color={palette.text.primary} /> Journal:{' '}
+                  {exportResult.manifestSummary.journalCount}
+                  {'\n'}
+                  <Icon name="calendar" color={palette.text.primary} /> Calendar:{' '}
+                  {exportResult.manifestSummary.calendarCount}
+                  {'\n'}
+                  <Icon name="attachment" color={palette.text.primary} /> Files:{' '}
+                  {exportResult.manifestSummary.filesCount} (
                   {(exportResult.manifestSummary.totalBinaryBytes / 1024).toFixed(1)} KB)
                 </Text>
                 <Text style={[styles.expiryText, { color: palette.status.warning }]}>
-                  ⏳ Ephemeral link expires: {new Date(exportResult.expiresAt).toLocaleTimeString()}
+                  <Icon name="hourglass" color={palette.status.warning} /> Ephemeral link expires:{' '}
+                  {new Date(exportResult.expiresAt).toLocaleTimeString()}
                 </Text>
                 {exportResult.downloadUrl && onDownloadExport && (
                   <View style={{ marginTop: spacing.sm }}>
@@ -217,7 +243,7 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                       }}
                       accessibilityLabel="Download and save export archive"
                     >
-                      💾 Save Archive to Device
+                      <Icon name="save" /> Save Archive to Device
                     </MobileButton>
                   </View>
                 )}
@@ -252,7 +278,8 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                   Select Export Archive:
                 </Text>
                 <Text style={{ fontSize: 13, color: palette.text.secondary }}>
-                  Choose a previously exported Daynori .zip archive to preview content and resolve conflicts.
+                  Choose a previously exported Daynori .zip archive to preview content and resolve
+                  conflicts.
                 </Text>
                 <View style={{ marginTop: spacing.xs }}>
                   <MobileButton
@@ -283,7 +310,7 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                     disabled={isUploading}
                     accessibilityLabel="Choose Archive to Preview"
                   >
-                    {isUploading ? 'Inspecting Archive...' : '📂 Choose Archive to Preview'}
+                    {isUploading ? (<Icon name='Inspecting Archive...' />) : (<><Icon name='folder-open' /> {'Choose Archive to Preview'}</>)}
                   </MobileButton>
                 </View>
               </View>
@@ -295,18 +322,30 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                   Archive Summary
                 </Text>
                 <Text style={[styles.summaryText, { color: palette.text.primary }]}>
-                  📝 Notes: {importPreview.manifestSummary.notesCount}
-                  {'\n'}✅ Tasks: {importPreview.manifestSummary.tasksCount}
-                  {'\n'}📖 Journal: {importPreview.manifestSummary.journalCount}
-                  {'\n'}📎 Attachments: {importPreview.manifestSummary.filesCount}
+                  <Icon name="note" color={palette.text.primary} /> Notes:{' '}
+                  {importPreview.manifestSummary.notesCount}
+                  {'\n'}
+                  <Icon name="check-circle" color={palette.text.primary} /> Tasks:{' '}
+                  {importPreview.manifestSummary.tasksCount}
+                  {'\n'}
+                  <Icon name="book" color={palette.text.primary} /> Journal:{' '}
+                  {importPreview.manifestSummary.journalCount}
+                  {'\n'}
+                  <Icon name="attachment" color={palette.text.primary} /> Attachments:{' '}
+                  {importPreview.manifestSummary.filesCount}
                 </Text>
 
                 {importPreview.detectedDuplicates.length > 0 && (
                   <View style={{ marginTop: spacing.xs }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: palette.status.warning }}>
-                      ⚠️ {importPreview.detectedDuplicates.length} duplicates detected
+                    <Text
+                      style={{ fontSize: 13, fontWeight: '600', color: palette.status.warning }}
+                    >
+                      <Icon name="warning" color={palette.status.warning} size={13} />{' '}
+                      {importPreview.detectedDuplicates.length} duplicates detected
                     </Text>
-                    <Text style={{ fontSize: 12, color: palette.text.secondary, marginVertical: 4 }}>
+                    <Text
+                      style={{ fontSize: 12, color: palette.text.secondary, marginVertical: 4 }}
+                    >
                       Strategy:
                     </Text>
                     {(['create_copy', 'skip', 'overwrite_if_newer'] as const).map((strat) => (
@@ -327,7 +366,10 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                         <Text
                           style={{
                             fontSize: 13,
-                            color: selectedStrategy === strat ? palette.action.primary : palette.text.primary,
+                            color:
+                              selectedStrategy === strat
+                                ? palette.action.primary
+                                : palette.text.primary,
                             fontWeight: selectedStrategy === strat ? '700' : '500',
                           }}
                         >
@@ -351,7 +393,7 @@ export const MobileWorkspacePortabilitySheet: React.FC<MobileWorkspacePortabilit
                     disabled={isImporting || !importPreview.storageQuota.isQuotaSufficient}
                     accessibilityLabel="Confirm Import"
                   >
-                    {isImporting ? 'Importing...' : '✓ Confirm & Import'}
+                    {isImporting ? (<Icon name='Importing...' />) : (<><Icon name='check' /> {'Confirm & Import'}</>)}
                   </MobileButton>
                   <MobileButton
                     testID="mobile-btn-cancel-preview"

@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   colors,
@@ -264,10 +265,10 @@ export const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
   };
 
   const folderOptions = [
-    { id: '', name: '📁 Workspace Inbox (Unfiled)' },
+    { id: '', name: 'Workspace Inbox (Unfiled)' },
     ...folders.map((f) => ({
       id: f.id,
-      name: `${f.icon ?? '📁'} ${f.name}`,
+      name: `${f.icon ?? 'folder'} ${f.name}`,
     })),
   ];
 
@@ -386,7 +387,7 @@ export const FileUploadDialog: React.FC<FileUploadDialogProps> = ({
             />
 
             <div style={{ fontSize: '32px' }} aria-hidden="true">
-              📤
+              <Icon name="upload" />
             </div>
 
             <div style={{ color: palette.text.primary, fontWeight: 600 }}>

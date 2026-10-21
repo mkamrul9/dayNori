@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useEffect, useId, useRef } from 'react';
 import {
   colors,
@@ -193,7 +194,7 @@ export const Dialog: React.FC<DialogProps> = ({
               e.currentTarget.style.outline = 'none';
             }}
           >
-            ✕
+            <Icon name="x" />
           </button>
         </div>
 

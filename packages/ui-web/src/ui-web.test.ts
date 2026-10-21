@@ -731,8 +731,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
           onClose: () => {},
           workspaceId: 'ws-test',
           folders: [
-            { id: 'f-1', name: 'Software', parentId: null, icon: '💻' },
-            { id: 'f-2', name: 'Guides', parentId: 'f-1', icon: '📚' },
+            { id: 'f-1', name: 'Software', parentId: null, icon: 'code' },
+            { id: 'f-2', name: 'Guides', parentId: 'f-1', icon: 'library' },
           ],
           initialFolderId: 'f-2',
           storedBytes: 10 * 1024 * 1024,
@@ -777,7 +777,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
 
       expect(html).toContain('role="dialog"');
       expect(html).toContain('architecture-diagram.png');
-      expect(html).toContain('✓ Verified Clean');
+      expect(html).toContain('Verified Clean');
+      expect(html).toContain('data-icon="check"');
       expect(html).toContain('512 KB');
     });
 
@@ -831,7 +832,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
         })
       );
 
-      expect(html).toContain('✕ Security Rejected');
+      expect(html).toContain('Security Rejected');
+      expect(html).toContain('data-icon="x"');
       expect(html).toContain('rejected by malware and active content inspection');
       expect(html).not.toContain('<iframe');
       expect(html).not.toContain('<img');
@@ -990,6 +992,7 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
             {
               id: 'rec-1',
               sectionId: 'sec-1',
+              collectionId: 'col-1',
               schemaVersion: 2,
               values: { title: 'Designing Data-Intensive Applications', rating: 5 },
               archivedValues: {

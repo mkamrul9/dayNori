@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -47,11 +48,7 @@ export interface CustomSectionRendererProps {
   onAddEntry?: (collectionBlockId: string) => void;
   onEditEntry?: (record: CustomSectionRecordViewData) => void;
   onDeleteEntry?: (recordId: string) => void;
-  onRecoverArchive?: (
-    recordId: string,
-    fieldId: string,
-    archiveEntry: ArchivedFieldValue
-  ) => void;
+  onRecoverArchive?: (recordId: string, fieldId: string, archiveEntry: ArchivedFieldValue) => void;
   onOpenSourceItem?: (itemId: string, targetKind: string) => void;
   onEditSchema?: () => void;
 }
@@ -508,10 +505,8 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                     </div>
                     <div style={{ fontSize: '0.7rem', color: palette.text.secondary }}>
                       Archived at:{' '}
-                      {arch.archivedAt
-                        ? new Date(arch.archivedAt).toLocaleString()
-                        : 'Unknown'}{' '}
-                      ({arch.previousFieldType || arch.type || 'legacy'})
+                      {arch.archivedAt ? new Date(arch.archivedAt).toLocaleString() : 'Unknown'} (
+                      {arch.previousFieldType || arch.type || 'legacy'})
                     </div>
                   </div>
                   {onRecoverArchive && (
@@ -552,7 +547,16 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
 
   if (field.type === 'checklist' && Array.isArray(value)) {
     return (
-      <ul style={{ margin: 0, paddingLeft: 0, listStyleType: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <ul
+        style={{
+          margin: 0,
+          paddingLeft: 0,
+          listStyleType: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}
+      >
         {value.map((item: unknown, idx: number) => {
           const itemObj = (typeof item === 'object' && item !== null ? item : {}) as {
             completed?: boolean;
@@ -563,7 +567,10 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
           const text = itemObj.text || itemObj.label || String(item);
           const isDone = itemObj.completed || itemObj.checked;
           return (
-            <li key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+            <li
+              key={idx}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}
+            >
               <input
                 type="checkbox"
                 checked={!!isDone}
@@ -571,7 +578,12 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
                 aria-label={text}
                 style={{ margin: 0, cursor: 'default' }}
               />
-              <span style={{ textDecoration: isDone ? 'line-through' : 'none', color: isDone ? '#6b7280' : 'inherit' }}>
+              <span
+                style={{
+                  textDecoration: isDone ? 'line-through' : 'none',
+                  color: isDone ? '#6b7280' : 'inherit',
+                }}
+              >
                 {text}
               </span>
             </li>
@@ -598,7 +610,9 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
             wordBreak: 'break-all',
           }}
         >
-          <span aria-hidden="true">🔗</span>
+          <span aria-hidden="true">
+            <Icon name="link" />
+          </span>
           <span>{url}</span>
         </a>
       );
@@ -625,7 +639,9 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
             color: '#374151',
           }}
         >
-          <span aria-hidden="true">📎</span>
+          <span aria-hidden="true">
+            <Icon name="attachment" />
+          </span>
           <span style={{ fontWeight: 600 }}>{name}</span>
           <span style={{ color: '#6b7280' }}>{sizeStr}</span>
         </span>
@@ -645,7 +661,9 @@ function renderFieldValue(field: CustomFieldDefinition, value: unknown): React.R
           color: '#374151',
         }}
       >
-        <span aria-hidden="true">📎</span>
+        <span aria-hidden="true">
+          <Icon name="attachment" />
+        </span>
         <span>{String(value)}</span>
       </span>
     );

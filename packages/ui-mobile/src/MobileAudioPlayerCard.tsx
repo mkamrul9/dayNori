@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
@@ -66,13 +67,9 @@ export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
     };
   }, [audioUrl, playerAdapter]);
 
-  const activePlaying = playerAdapter
-    ? playerStatus.isPlaying
-    : isPlaying || internalPlaying;
+  const activePlaying = playerAdapter ? playerStatus.isPlaying : isPlaying || internalPlaying;
 
-  const displayedSeconds = playerAdapter
-    ? localPosSeconds
-    : currentSeconds;
+  const displayedSeconds = playerAdapter ? localPosSeconds : currentSeconds;
 
   const handleToggle = async () => {
     if (playerAdapter) {
@@ -115,7 +112,7 @@ export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
       <View style={styles.headerRow}>
         <View style={styles.titleArea}>
           <Text style={{ fontSize: 18 }} accessibilityLabel="Audio attachment">
-            🎙️
+            <Icon name="microphone" color={palette.text.primary} size={18} />
           </Text>
           <View style={{ flex: 1 }}>
             <Text
@@ -139,7 +136,9 @@ export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
             accessibilityLabel={`Delete ${attachment.fileName}`}
             hitSlop={8}
           >
-            <Text style={[styles.deleteText, { color: palette.status.danger }]}>🗑️</Text>
+            <Text style={[styles.deleteText, { color: palette.status.danger }]}>
+              <Icon name="trash" color={palette.status.danger} />
+            </Text>
           </Pressable>
         )}
       </View>
@@ -157,7 +156,9 @@ export const MobileAudioPlayerCard: React.FC<MobileAudioPlayerCardProps> = ({
           accessibilityRole="button"
           accessibilityLabel={activePlaying ? 'Pause audio recording' : 'Play audio recording'}
         >
-          <Text style={styles.playIcon}>{activePlaying ? '⏸' : '▶'}</Text>
+          <Text style={styles.playIcon}>
+            <Icon name={activePlaying ? 'pause' : 'play'} color={palette.text.primary} />
+          </Text>
         </Pressable>
 
         <View style={{ flex: 1, gap: 2 }}>

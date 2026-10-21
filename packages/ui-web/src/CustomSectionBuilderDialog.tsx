@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -464,7 +465,7 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
                   setStep(2);
                 }}
               >
-                Next: Configure Fields →
+                Next: Configure Fields <Icon name="arrow-right" />
               </Button>
             </div>
           </div>
@@ -540,7 +541,7 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
                           onClick={() => handleMoveField(idx, 'up')}
                           aria-label={`Move ${f.label} up`}
                         >
-                          ↑ Up
+                          <Icon name="arrow-up" /> Up
                         </Button>
                         <Button
                           size="compact"
@@ -549,7 +550,7 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
                           onClick={() => handleMoveField(idx, 'down')}
                           aria-label={`Move ${f.label} down`}
                         >
-                          ↓ Down
+                          <Icon name="arrow-down" /> Down
                         </Button>
                         <Button
                           size="compact"
@@ -800,10 +801,10 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
               style={{ display: 'flex', justifyContent: 'space-between', marginTop: spacing.md }}
             >
               <Button variant="secondary" onClick={() => setStep(1)}>
-                ← Back: Basics
+                <Icon name="arrow-left" /> Back: Basics
               </Button>
               <Button variant="primary" onClick={() => setStep(3)}>
-                Next: Review & Placement →
+                Next: Review & Placement <Icon name="arrow-right" />
               </Button>
             </div>
           </div>
@@ -942,7 +943,7 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
               style={{ display: 'flex', justifyContent: 'space-between', marginTop: spacing.md }}
             >
               <Button variant="secondary" onClick={() => setStep(2)}>
-                ← Back: Fields
+                <Icon name="arrow-left" /> Back: Fields
               </Button>
               <Button variant="primary" loading={isSubmitting} onClick={handleSubmit}>
                 Confirm & Create Section

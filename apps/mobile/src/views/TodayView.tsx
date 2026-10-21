@@ -7,17 +7,18 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import {
+  Icon,
   MobileButton,
   MobileCard,
   MobileEmptyState,
   MobileFeedback,
   MobileListRow,
   MobileModalSheet,
-  MobileRoutineRow,
+  MobileRoutineRow
 } from '@daynori/ui-mobile';
 import {
   calculateGentleProgress,
@@ -47,7 +48,7 @@ import {
   type HomeWidgetId,
   type ModuleShortcutId,
   type HomeDensity,
-  type RecentItemEntry,
+  type RecentItemEntry
 } from '@daynori/domain';
 import type {
   LocalRepositoryPort,
@@ -60,16 +61,16 @@ import type { DaynoriApiClient } from '@daynori/api-client';
 import { ApiClientError } from '@daynori/api-client';
 
 const MOBILE_MODULE_SHORTCUT_ICONS: Record<ModuleShortcutId, string> = {
-  today: '☀️',
-  plan: '📋',
-  library: '📚',
-  journal: '📖',
-  notes: '📝',
-  tasks: '✓',
-  routines: '🔁',
-  calendar: '📅',
-  files: '📁',
-  knowledge: '💡',
+  today: 'sun',
+  plan: 'clipboard',
+  library: 'library',
+  journal: 'book',
+  notes: 'note',
+  tasks: 'check',
+  routines: 'repeat',
+  calendar: 'calendar',
+  files: 'folder',
+  knowledge: 'bulb',
 };
 
 export interface MobileRoutineItem {
@@ -1354,7 +1355,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             style={{ padding: spacing.xs }}
           >
             <Text style={{ fontSize: 13, fontWeight: '700', color: palette.action.primary }}>
-              ⚙️ Customize
+              <Icon name="settings" /> Customize
             </Text>
           </Pressable>
         </View>
@@ -1433,7 +1434,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
           }}
         >
           <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 13 }}>
-            ⚠️ Settings Conflict Detected
+            <Icon name="warning" /> Settings Conflict Detected
           </Text>
           <Text style={{ fontSize: 12, color: palette.text.secondary }}>
             Preferences were updated on another device (rev {conflictState.serverRevision}). Your
@@ -1486,7 +1487,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                   borderColor: palette.border.subtle,
                 }}
               >
-                <Text style={{ fontSize: 14 }}>{MOBILE_MODULE_SHORTCUT_ICONS[shortcut.id]}</Text>
+                <Text style={{ fontSize: 14 }}>
+                  <Icon name={MOBILE_MODULE_SHORTCUT_ICONS[shortcut.id]} />
+                </Text>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: palette.text.primary }}>
                   {label}
                 </Text>
@@ -1651,7 +1654,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         <Text
                           style={{ fontSize: 12, fontWeight: '700', color: palette.status.danger }}
                         >
-                          {isOverdueExpanded ? '▼' : '▶'} {overdueTasks.length} Overdue Task
+                          <Icon name={isOverdueExpanded ? 'chevron-down' : 'chevron-right'} /> {overdueTasks.length}{' '}
+                          Overdue Task
                           {overdueTasks.length === 1 ? '' : 's'}
                         </Text>
                       </Pressable>
@@ -1695,7 +1699,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         onPress={onNavigateToPlan}
                         accessibilityLabel="View full schedule in Plan"
                       >
-                        View Full Schedule in Plan &rarr;
+                        View Full Schedule in Plan <Icon name="arrow-right" />
                       </MobileButton>
                     </View>
                   </MobileCard>
@@ -1720,7 +1724,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         <Text
                           style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
                         >
-                          ✓ Task
+                          <Icon name="check" /> Task
                         </Text>
                       </Pressable>
                       <Pressable
@@ -1731,7 +1735,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         <Text
                           style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
                         >
-                          🔄 Routine
+                          <Icon name="refresh" /> Routine
                         </Text>
                       </Pressable>
                       <Pressable
@@ -1742,7 +1746,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         <Text
                           style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
                         >
-                          📖 Journal
+                          <Icon name="book" /> Journal
                         </Text>
                       </Pressable>
                     </View>
@@ -1772,7 +1776,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         onPress={onNavigateToJournal}
                         accessibilityLabel="Write reflection in Journal"
                       >
-                        ✍️ Write in Journal
+                        <Icon name="edit" /> Write in Journal
                       </MobileButton>
                     </View>
                   </MobileCard>
@@ -1878,7 +1882,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                           <Text
                             style={{ color: palette.text.primary, fontSize: 14, fontWeight: '600' }}
                           >
-                            📁 {f.name}
+                            <Icon name="folder" /> {f.name}
                           </Text>
                         </Pressable>
                       ))
@@ -2022,7 +2026,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                     onPress={() => handleToggleWidget(w.id)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1 }}
                   >
-                    <Text style={{ fontSize: 14 }}>{w.visible ? '☑' : '☐'}</Text>
+                    <Text style={{ fontSize: 14 }}>
+                      <Icon name={w.visible ? 'check-square' : 'square'} />
+                    </Text>
                     <Text style={{ color: palette.text.primary, fontSize: 13, fontWeight: '600' }}>
                       {DEFAULT_WIDGET_LABELS[w.id]}
                     </Text>
@@ -2054,7 +2060,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                       disabled={idx === 0}
                       style={{ padding: 4, opacity: idx === 0 ? 0.3 : 1 }}
                     >
-                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▲</Text>
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>
+                        <Icon name="chevron-up" />
+                      </Text>
                     </Pressable>
                     <Pressable
                       testID={`mobile-move-down-${w.id}`}
@@ -2062,7 +2070,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                       disabled={idx === arr.length - 1}
                       style={{ padding: 4, opacity: idx === arr.length - 1 ? 0.3 : 1 }}
                     >
-                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▼</Text>
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>
+                        <Icon name="chevron-down" />
+                      </Text>
                     </Pressable>
                   </View>
                 </View>
@@ -2100,9 +2110,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
                     onPress={() => handleToggleShortcut(sc.id)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1 }}
                   >
-                    <Text style={{ fontSize: 14 }}>{sc.visible ? '☑' : '☐'}</Text>
+                    <Text style={{ fontSize: 14 }}>
+                      <Icon name={sc.visible ? 'check-square' : 'square'} />
+                    </Text>
                     <Text style={{ color: palette.text.primary, fontSize: 13, fontWeight: '600' }}>
-                      {MOBILE_MODULE_SHORTCUT_ICONS[sc.id]} {DEFAULT_MODULE_LABELS[sc.id] || sc.id}
+                      <Icon name={MOBILE_MODULE_SHORTCUT_ICONS[sc.id]} />{' '}
+                      {DEFAULT_MODULE_LABELS[sc.id] || sc.id}
                     </Text>
                   </Pressable>
 
@@ -2132,7 +2145,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                       disabled={idx === 0}
                       style={{ padding: 4, opacity: idx === 0 ? 0.3 : 1 }}
                     >
-                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▲</Text>
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>
+                        <Icon name="chevron-up" />
+                      </Text>
                     </Pressable>
                     <Pressable
                       testID={`mobile-shortcut-move-down-${sc.id}`}
@@ -2140,7 +2155,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
                       disabled={idx === arr.length - 1}
                       style={{ padding: 4, opacity: idx === arr.length - 1 ? 0.3 : 1 }}
                     >
-                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>▼</Text>
+                      <Text style={{ color: palette.action.primary, fontSize: 14 }}>
+                        <Icon name="chevron-down" />
+                      </Text>
                     </Pressable>
                   </View>
                 </View>
@@ -2165,7 +2182,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
                 <Text style={{ fontSize: 14 }}>
-                  {homeLayout.density === 'comfortable' ? '🔘' : '⚪'}
+                  <Icon name={homeLayout.density === 'comfortable' ? 'radio-selected' : 'circle'} />
                 </Text>
                 <Text style={{ color: palette.text.primary, fontSize: 13 }}>Comfortable</Text>
               </Pressable>
@@ -2175,7 +2192,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
                 <Text style={{ fontSize: 14 }}>
-                  {homeLayout.density === 'compact' ? '🔘' : '⚪'}
+                  <Icon name={homeLayout.density === 'compact' ? 'radio-selected' : 'circle'} />
                 </Text>
                 <Text style={{ color: palette.text.primary, fontSize: 13 }}>Compact</Text>
               </Pressable>
@@ -2209,9 +2226,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         paddingVertical: 4,
                       }}
                     >
-                      <Text style={{ fontSize: 14 }}>{isFav ? '☑' : '☐'}</Text>
+                      <Text style={{ fontSize: 14 }}>
+                        <Icon name={isFav ? 'check-square' : 'square'} />
+                      </Text>
                       <Text style={{ color: palette.text.primary, fontSize: 13 }}>
-                        📁 {folder.name}
+                        <Icon name="folder" /> {folder.name}
                       </Text>
                     </Pressable>
                   );
@@ -2233,7 +2252,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 }}
               >
                 <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 12 }}>
-                  ⚠️ Cloud Conflict (rev {conflictState.serverRevision})
+                  <Icon name="warning" /> Cloud Conflict (rev {conflictState.serverRevision})
                 </Text>
                 <View style={{ flexDirection: 'row', gap: spacing.xs, marginTop: 4 }}>
                   <MobileButton variant="primary" themeMode={themeMode} onPress={handleKeepMyEdits}>

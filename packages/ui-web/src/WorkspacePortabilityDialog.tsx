@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import type {
@@ -21,7 +22,10 @@ export interface WorkspacePortabilityDialogProps {
   onRequestExport: (password?: string) => Promise<CreateExportResponse>;
   // Import callbacks
   onPreviewImport: (archiveBase64: string) => Promise<ImportPreviewResponse>;
-  onExecuteImport: (previewId: string, strategy: ImportDuplicateStrategy) => Promise<ExecuteImportResponse>;
+  onExecuteImport: (
+    previewId: string,
+    strategy: ImportDuplicateStrategy
+  ) => Promise<ExecuteImportResponse>;
 }
 
 export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProps> = ({
@@ -149,7 +153,7 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
               minHeight: `${touchTargets.webMin}px`,
             }}
           >
-            📦 Export Workspace
+            <Icon name="archive" /> Export Workspace
           </button>
           <button
             role="tab"
@@ -171,17 +175,24 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
               minHeight: `${touchTargets.webMin}px`,
             }}
           >
-            📥 Import Archive
+            <Icon name="download" /> Import Archive
           </button>
         </div>
 
         {/* Tab 1: Export Flow */}
         {activeTab === 'export' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
-            <p style={{ margin: 0, fontSize: '14px', color: palette.text.secondary, lineHeight: 1.5 }}>
-              Create a portable archive of your core workspace. Notes, tasks, routines, journal entries,
-              calendar events, and file attachments are bundled in open, documented formats (JSON,
-              Markdown, CSV, and binaries) with a cryptographic manifest.
+            <p
+              style={{
+                margin: 0,
+                fontSize: '14px',
+                color: palette.text.secondary,
+                lineHeight: 1.5,
+              }}
+            >
+              Create a portable archive of your core workspace. Notes, tasks, routines, journal
+              entries, calendar events, and file attachments are bundled in open, documented formats
+              (JSON, Markdown, CSV, and binaries) with a cryptographic manifest.
             </p>
 
             <Feedback
@@ -235,7 +246,7 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                   onClick={handleStartExport}
                   disabled={isExporting}
                 >
-                  {isExporting ? 'Generating Export Archive...' : '🔒 Verify & Export Workspace (.zip)'}
+                  {isExporting ? (<Icon name='Generating Export Archive...' />) : (<><Icon name='lock' /> {'Verify & Export Workspace (.zip)'}</>)}
                 </Button>
               </div>
             ) : (
@@ -250,21 +261,34 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                 }}
               >
                 <h4 style={{ margin: 0, fontSize: '15px', color: palette.status.success }}>
-                  ✓ Export Archive Ready
+                  <Icon name="check" /> Export Archive Ready
                 </h4>
                 <div style={{ fontSize: '13px', color: palette.text.primary, lineHeight: 1.6 }}>
-                  <div>📁 Folders: {exportResult.manifestSummary.foldersCount}</div>
-                  <div>📝 Notes: {exportResult.manifestSummary.notesCount}</div>
-                  <div>✅ Tasks: {exportResult.manifestSummary.tasksCount}</div>
-                  <div>🔄 Routines: {exportResult.manifestSummary.routinesCount}</div>
-                  <div>📖 Journal Entries: {exportResult.manifestSummary.journalCount}</div>
-                  <div>📅 Calendar Events: {exportResult.manifestSummary.calendarCount}</div>
                   <div>
-                    📎 Attachments: {exportResult.manifestSummary.filesCount} (
+                    <Icon name="folder" /> Folders: {exportResult.manifestSummary.foldersCount}
+                  </div>
+                  <div>
+                    <Icon name="note" /> Notes: {exportResult.manifestSummary.notesCount}
+                  </div>
+                  <div>
+                    <Icon name="check-circle" /> Tasks: {exportResult.manifestSummary.tasksCount}
+                  </div>
+                  <div>
+                    <Icon name="refresh" /> Routines: {exportResult.manifestSummary.routinesCount}
+                  </div>
+                  <div>
+                    <Icon name="book" /> Journal Entries: {exportResult.manifestSummary.journalCount}
+                  </div>
+                  <div>
+                    <Icon name="calendar" /> Calendar Events: {exportResult.manifestSummary.calendarCount}
+                  </div>
+                  <div>
+                    <Icon name="attachment" /> Attachments: {exportResult.manifestSummary.filesCount} (
                     {(exportResult.manifestSummary.totalBinaryBytes / 1024).toFixed(1)} KB)
                   </div>
                   <div style={{ color: palette.status.warning, marginTop: '6px' }}>
-                    ⏳ Ephemeral link expires: {new Date(exportResult.expiresAt).toLocaleTimeString()}
+                    <Icon name="hourglass" /> Ephemeral link expires:{' '}
+                    {new Date(exportResult.expiresAt).toLocaleTimeString()}
                   </div>
                 </div>
 
@@ -291,7 +315,7 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                       textAlign: 'center',
                     }}
                   >
-                    ⬇️ Download Export Archive (.zip)
+                    <Icon name="arrow-down" /> Download Export Archive (.zip)
                   </a>
                 )}
               </div>
@@ -302,9 +326,17 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
         {/* Tab 2: Import Flow */}
         {activeTab === 'import' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
-            <p style={{ margin: 0, fontSize: '14px', color: palette.text.secondary, lineHeight: 1.5 }}>
-              Import a validated Daynori workspace archive. The archive will be inspected for safety,
-              path traversal, and duplicate entities before any database records are modified.
+            <p
+              style={{
+                margin: 0,
+                fontSize: '14px',
+                color: palette.text.secondary,
+                lineHeight: 1.5,
+              }}
+            >
+              Import a validated Daynori workspace archive. The archive will be inspected for
+              safety, path traversal, and duplicate entities before any database records are
+              modified.
             </p>
 
             {importError && (
@@ -373,18 +405,31 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                 }}
               >
                 <h4 style={{ margin: 0, fontSize: '15px', color: palette.text.primary }}>
-                  🔍 Import Archive Preview
+                  <Icon name="search" /> Import Archive Preview
                 </h4>
 
                 <div style={{ fontSize: '13px', color: palette.text.primary, lineHeight: 1.6 }}>
-                  <div>📁 Folders: {importPreview.manifestSummary.foldersCount}</div>
-                  <div>📝 Notes: {importPreview.manifestSummary.notesCount}</div>
-                  <div>✅ Tasks: {importPreview.manifestSummary.tasksCount}</div>
-                  <div>🔄 Routines: {importPreview.manifestSummary.routinesCount}</div>
-                  <div>📖 Journal Entries: {importPreview.manifestSummary.journalCount}</div>
-                  <div>📅 Calendar Events: {importPreview.manifestSummary.calendarCount}</div>
                   <div>
-                    📎 Attachments: {importPreview.manifestSummary.filesCount} (
+                    <Icon name="folder" /> Folders: {importPreview.manifestSummary.foldersCount}
+                  </div>
+                  <div>
+                    <Icon name="note" /> Notes: {importPreview.manifestSummary.notesCount}
+                  </div>
+                  <div>
+                    <Icon name="check-circle" /> Tasks: {importPreview.manifestSummary.tasksCount}
+                  </div>
+                  <div>
+                    <Icon name="refresh" /> Routines: {importPreview.manifestSummary.routinesCount}
+                  </div>
+                  <div>
+                    <Icon name="book" /> Journal Entries: {importPreview.manifestSummary.journalCount}
+                  </div>
+                  <div>
+                    <Icon name="calendar" /> Calendar Events:{' '}
+                    {importPreview.manifestSummary.calendarCount}
+                  </div>
+                  <div>
+                    <Icon name="attachment" /> Attachments: {importPreview.manifestSummary.filesCount} (
                     {(importPreview.storageQuota.requiredBytes / 1024).toFixed(1)} KB)
                   </div>
                 </div>
@@ -393,12 +438,12 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                 <div style={{ fontSize: '13px' }}>
                   {importPreview.storageQuota.isQuotaSufficient ? (
                     <span style={{ color: palette.status.success }}>
-                      ✓ Storage quota sufficient (
+                      <Icon name="check" /> Storage quota sufficient (
                       {(importPreview.storageQuota.availableBytes / 1024).toFixed(1)} KB available)
                     </span>
                   ) : (
                     <span style={{ color: palette.status.danger }}>
-                      ✗ Insufficient storage quota (requires{' '}
+                      <Icon name="x" /> Insufficient storage quota (requires{' '}
                       {(importPreview.storageQuota.requiredBytes / 1024).toFixed(1)} KB, only{' '}
                       {(importPreview.storageQuota.availableBytes / 1024).toFixed(1)} KB available)
                     </span>
@@ -416,15 +461,27 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                       border: `1px solid ${palette.border.subtle}`,
                     }}
                   >
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: palette.status.warning }}>
-                      ⚠️ {importPreview.detectedDuplicates.length} Duplicate Entities Detected:
+                    <div
+                      style={{ fontSize: '13px', fontWeight: 600, color: palette.status.warning }}
+                    >
+                      <Icon name="warning" /> {importPreview.detectedDuplicates.length} Duplicate
+                      Entities Detected:
                     </div>
-                    <ul style={{ margin: '6px 0 10px 16px', padding: 0, fontSize: '12px', color: palette.text.secondary }}>
-                      {importPreview.detectedDuplicates.slice(0, 4).map((d: ImportDuplicateItem, i: number) => (
-                        <li key={i}>
-                          [{d.entityType}] {d.title}
-                        </li>
-                      ))}
+                    <ul
+                      style={{
+                        margin: '6px 0 10px 16px',
+                        padding: 0,
+                        fontSize: '12px',
+                        color: palette.text.secondary,
+                      }}
+                    >
+                      {importPreview.detectedDuplicates
+                        .slice(0, 4)
+                        .map((d: ImportDuplicateItem, i: number) => (
+                          <li key={i}>
+                            [{d.entityType}] {d.title}
+                          </li>
+                        ))}
                       {importPreview.detectedDuplicates.length > 4 && (
                         <li>...and {importPreview.detectedDuplicates.length - 4} more</li>
                       )}
@@ -432,14 +489,21 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
 
                     <label
                       htmlFor="duplicate-strategy-select"
-                      style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}
+                      style={{
+                        display: 'block',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        marginBottom: '4px',
+                      }}
                     >
                       Duplicate Resolution Strategy:
                     </label>
                     <select
                       id="duplicate-strategy-select"
                       value={selectedStrategy}
-                      onChange={(e) => setSelectedStrategy(e.target.value as ImportDuplicateStrategy)}
+                      onChange={(e) =>
+                        setSelectedStrategy(e.target.value as ImportDuplicateStrategy)
+                      }
                       style={{
                         width: '100%',
                         padding: '6px 10px',
@@ -451,15 +515,21 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                         minHeight: `${touchTargets.webMin}px`,
                       }}
                     >
-                      <option value="create_copy">Create separate copies with "(Copy)" suffix</option>
+                      <option value="create_copy">
+                        Create separate copies with "(Copy)" suffix
+                      </option>
                       <option value="skip">Skip duplicates and keep existing items</option>
-                      <option value="overwrite_if_newer">Overwrite existing items only if imported is newer</option>
+                      <option value="overwrite_if_newer">
+                        Overwrite existing items only if imported is newer
+                      </option>
                     </select>
                   </div>
                 )}
 
                 {/* Confirmation Actions */}
-                <div style={{ display: 'flex', gap: `${spacing.sm}px`, marginTop: `${spacing.sm}px` }}>
+                <div
+                  style={{ display: 'flex', gap: `${spacing.sm}px`, marginTop: `${spacing.sm}px` }}
+                >
                   <Button
                     id="btn-confirm-import-execute"
                     variant="primary"
@@ -467,7 +537,7 @@ export const WorkspacePortabilityDialog: React.FC<WorkspacePortabilityDialogProp
                     onClick={handleConfirmImport}
                     disabled={isImporting || !importPreview.storageQuota.isQuotaSufficient}
                   >
-                    {isImporting ? 'Importing Workspace Data...' : '✓ Confirm & Import Data'}
+                    {isImporting ? (<Icon name='Importing Workspace Data...' />) : (<><Icon name='check' /> {'Confirm & Import Data'}</>)}
                   </Button>
                   <Button
                     id="btn-cancel-import-preview"

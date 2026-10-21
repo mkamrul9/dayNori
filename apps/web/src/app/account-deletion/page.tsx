@@ -346,9 +346,9 @@ export default function PublicAccountDeletionPage() {
                 Questions or Assistance
               </h3>
               <p style={{ margin: 0, color: palette.text.secondary }}>
-                Support contact for deletion assistance is{' '}
-                <strong>UNRESOLVED</strong> — the owner must assign a monitored inbox before
-                launch. Do not treat provisional brand domains as verified contact channels. See{' '}
+                Support contact for deletion assistance is <strong>UNRESOLVED</strong> — the owner
+                must assign a monitored inbox before launch. Do not treat provisional brand domains
+                as verified contact channels. See{' '}
                 <a href="/support" style={{ color: palette.action.primary }}>
                   Support (draft)
                 </a>

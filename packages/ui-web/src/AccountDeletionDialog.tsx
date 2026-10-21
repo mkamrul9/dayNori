@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import type {
@@ -114,7 +115,7 @@ export const AccountDeletionDialog: React.FC<AccountDeletionDialogProps> = ({
                   fontSize: '1rem',
                 }}
               >
-                ⚠️ Irreversible Action
+                <Icon name="warning" /> Irreversible Action
               </h4>
               <p
                 style={{
@@ -216,7 +217,7 @@ export const AccountDeletionDialog: React.FC<AccountDeletionDialogProps> = ({
                   fontSize: '0.95rem',
                 }}
               >
-                📋 Data Retention & Recovery Disclosure
+                <Icon name="clipboard" /> Data Retention & Recovery Disclosure
               </h4>
               <p
                 style={{

@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { colors, radii, spacing, typography, touchTargets } from '@daynori/design-tokens';
 import type { ExpenseBudget } from '@daynori/contracts';
@@ -13,7 +14,12 @@ export interface ExpenseBudgetViewProps {
   budgets: ExpenseBudget[];
   period: string; // YYYY-MM
   categories: Array<{ id: string; name: string }>;
-  onCreateBudget: (data: { period: string; currency: string; categoryId?: string | null; amount: string }) => Promise<void>;
+  onCreateBudget: (data: {
+    period: string;
+    currency: string;
+    categoryId?: string | null;
+    amount: string;
+  }) => Promise<void>;
   onUpdateBudget: (budgetId: string, amount: string) => Promise<void>;
   onDeleteBudget: (budgetId: string) => Promise<void>;
   isLoading?: boolean;
@@ -36,7 +42,10 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
   const [formCurrency, setFormCurrency] = useState<string>('USD');
   const [formCategoryId, setFormCategoryId] = useState<string>('');
   const [formAmount, setFormAmount] = useState<string>('');
-  const [formFeedback, setFormFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(null);
+  const [formFeedback, setFormFeedback] = useState<{
+    severity: FeedbackSeverity;
+    message: string;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const palette = colors.light;
@@ -117,17 +126,39 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
       {/* Header & Add Button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: spacing.sm,
+        }}
+      >
         <div>
-          <h3 style={{ fontSize: typography.webScale.sectionHeading, fontWeight: 'bold', margin: 0, color: palette.text.primary }}>
+          <h3
+            style={{
+              fontSize: typography.webScale.sectionHeading,
+              fontWeight: 'bold',
+              margin: 0,
+              color: palette.text.primary,
+            }}
+          >
             Monthly Budgets ({period})
           </h3>
-          <p style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary, margin: `${spacing.xs}px 0 0 0` }}>
-            Track planned targets against actual net spending. Information is presented neutrally without financial advice.
+          <p
+            style={{
+              fontSize: typography.webScale.supporting,
+              color: palette.text.secondary,
+              margin: `${spacing.xs}px 0 0 0`,
+            }}
+          >
+            Track planned targets against actual net spending. Information is presented neutrally
+            without financial advice.
           </p>
         </div>
         <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
-          ➕ Set New Budget
+          <Icon name="plus" /> Set New Budget
         </Button>
       </div>
 
@@ -135,14 +166,22 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
       {budgets.length === 0 ? (
         <Card>
           <div style={{ padding: spacing.xl, textAlign: 'center', color: palette.text.secondary }}>
-            <p style={{ fontSize: typography.webScale.body, margin: 0 }}>No budgets configured for {period}.</p>
+            <p style={{ fontSize: typography.webScale.body, margin: 0 }}>
+              No budgets configured for {period}.
+            </p>
             <p style={{ fontSize: typography.webScale.supporting, marginTop: spacing.xs }}>
               Create an overall or category-specific budget to track monthly spending progress.
             </p>
           </div>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: spacing.md }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: spacing.md,
+          }}
+        >
           {budgets.map((b) => {
             const budgetMinor = BigInt(b.amountMinorUnits || '0');
             const spentMinor = BigInt(b.spentMinorUnits || '0');
@@ -150,7 +189,12 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
             const diffMinor = isExceeded ? spentMinor - budgetMinor : budgetMinor - spentMinor;
 
             // Approximate percentage for progress width only (derived ratio, bounded [0, 100])
-            const percent = budgetMinor > 0n ? Number((spentMinor * 10000n) / budgetMinor) / 100 : (spentMinor > 0n ? 100 : 0);
+            const percent =
+              budgetMinor > 0n
+                ? Number((spentMinor * 10000n) / budgetMinor) / 100
+                : spentMinor > 0n
+                  ? 100
+                  : 0;
             const isNear = percent >= 80 && !isExceeded;
             const progressWidth = Math.min(Math.max(percent, 0), 100);
 
@@ -169,8 +213,21 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
 
             return (
               <Card key={b.id}>
-                <div style={{ padding: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div
+                  style={{
+                    padding: spacing.lg,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: spacing.md,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                    }}
+                  >
                     <div>
                       <span
                         style={{
@@ -185,7 +242,9 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
                           marginBottom: spacing.xs,
                         }}
                       >
-                        {b.categoryName ? `Category: ${b.categoryName}` : 'Overall Workspace Budget'}
+                        {b.categoryName
+                          ? `Category: ${b.categoryName}`
+                          : 'Overall Workspace Budget'}
                       </span>
                       <h4
                         style={{
@@ -248,7 +307,9 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
                         marginBottom: spacing.xs,
                       }}
                     >
-                      <span>Spent: {b.spentFormatted || '0.00'} {b.currency}</span>
+                      <span>
+                        Spent: {b.spentFormatted || '0.00'} {b.currency}
+                      </span>
                       <span>{percent.toFixed(0)}%</span>
                     </div>
                     <div
@@ -328,12 +389,23 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
               fontFamily: typography.fontFamily.sans,
             }}
           >
-            <h3 style={{ margin: 0, fontSize: typography.webScale.sectionHeading, fontWeight: 'bold' }}>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: typography.webScale.sectionHeading,
+                fontWeight: 'bold',
+              }}
+            >
               Set Monthly Budget ({period})
             </h3>
-            {formFeedback && <Feedback severity={formFeedback.severity} message={formFeedback.message} />}
+            {formFeedback && (
+              <Feedback severity={formFeedback.severity} message={formFeedback.message} />
+            )}
 
-            <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+            <form
+              onSubmit={handleCreateSubmit}
+              style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}
+            >
               <div style={{ display: 'flex', gap: spacing.sm }}>
                 <div style={{ flex: 2 }}>
                   <TextField
@@ -346,7 +418,15 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: typography.webScale.supporting, marginBottom: spacing.xs }}>Currency</label>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: typography.webScale.supporting,
+                      marginBottom: spacing.xs,
+                    }}
+                  >
+                    Currency
+                  </label>
                   <select
                     value={formCurrency}
                     onChange={(e) => setFormCurrency(e.target.value)}
@@ -369,7 +449,13 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: typography.webScale.supporting, marginBottom: spacing.xs }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: typography.webScale.supporting,
+                    marginBottom: spacing.xs,
+                  }}
+                >
                   Scope / Category
                 </label>
                 <select
@@ -393,8 +479,19 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
                 </select>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.sm }}>
-                <Button variant="secondary" onClick={() => setIsCreateOpen(false)} disabled={isSubmitting}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: spacing.sm,
+                  marginTop: spacing.sm,
+                }}
+              >
+                <Button
+                  variant="secondary"
+                  onClick={() => setIsCreateOpen(false)}
+                  disabled={isSubmitting}
+                >
                   Cancel
                 </Button>
                 <Button variant="primary" type="submit" disabled={isSubmitting}>
@@ -438,12 +535,23 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
               fontFamily: typography.fontFamily.sans,
             }}
           >
-            <h3 style={{ margin: 0, fontSize: typography.webScale.sectionHeading, fontWeight: 'bold' }}>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: typography.webScale.sectionHeading,
+                fontWeight: 'bold',
+              }}
+            >
               Edit Budget: {editingBudget.categoryName || 'Overall'} ({editingBudget.currency})
             </h3>
-            {formFeedback && <Feedback severity={formFeedback.severity} message={formFeedback.message} />}
+            {formFeedback && (
+              <Feedback severity={formFeedback.severity} message={formFeedback.message} />
+            )}
 
-            <form onSubmit={handleUpdateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+            <form
+              onSubmit={handleUpdateSubmit}
+              style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}
+            >
               <TextField
                 label={`Budget Amount (${editingBudget.currency})`}
                 name="amount"
@@ -453,8 +561,19 @@ export const ExpenseBudgetView: React.FC<ExpenseBudgetViewProps> = ({
                 required
               />
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.sm }}>
-                <Button variant="secondary" onClick={() => setEditingBudget(null)} disabled={isSubmitting}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: spacing.sm,
+                  marginTop: spacing.sm,
+                }}
+              >
+                <Button
+                  variant="secondary"
+                  onClick={() => setEditingBudget(null)}
+                  disabled={isSubmitting}
+                >
                   Cancel
                 </Button>
                 <Button variant="primary" type="submit" disabled={isSubmitting}>

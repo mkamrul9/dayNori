@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
@@ -59,7 +60,9 @@ export const MobileBreadcrumb: React.FC<MobileBreadcrumbProps> = ({
             },
           ]}
         >
-          <Text style={[styles.backIcon, { color: palette.text.primary }]}>&larr;</Text>
+          <Text style={[styles.backIcon, { color: palette.text.primary }]}>
+            <Icon name="arrow-left" color={palette.text.primary} />
+          </Text>
           <Text style={[styles.backText, { color: palette.text.primary }]}>Up</Text>
         </Pressable>
       )}

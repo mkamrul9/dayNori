@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { colors, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import { Button, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
@@ -15,11 +16,7 @@ export interface BillingPanelProps {
  * Phase 57 provisional billing UI — synthetic catalog only.
  * Production Play/web charges remain disabled. Entitlements are server-authoritative.
  */
-export function BillingPanel({
-  csrfToken,
-  themeMode,
-  personalWorkspaceId,
-}: BillingPanelProps) {
+export function BillingPanel({ csrfToken, themeMode, personalWorkspaceId }: BillingPanelProps) {
   const palette = colors[themeMode];
   const client = useMemo(() => createWebApiClient({ csrfToken }), [csrfToken]);
   const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(
@@ -130,8 +127,8 @@ export function BillingPanel({
         </Button>
       </div>
       <p style={{ fontSize: 12, marginTop: spacing.md, color: palette.text.secondary }}>
-        Manage real Play subscriptions in Google Play → Payments & subscriptions (when production
-        is authorized). Web checkout is not offered as an Android alternative here.
+        Manage real Play subscriptions in Google Play <Icon name="arrow-right" /> Payments & subscriptions
+        (when production is authorized). Web checkout is not offered as an Android alternative here.
       </p>
     </div>
   );

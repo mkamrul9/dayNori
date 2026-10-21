@@ -1,14 +1,30 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
+import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
+import {
+  Icon,
+  IconText,
   MobileCard,
   MobileListRow,
   MobileModalSheet,
   MobileButton,
-  MobileTextField,
+  MobileTextField
 } from '@daynori/ui-mobile';
-import type { PlanSubView } from '../navigation/types';
+import type { PlanSubView
+} from '../navigation/types';
 import type {
   LocalRepositoryPort,
   SyncEngine,
@@ -39,7 +55,7 @@ import {
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
-  type CalendarItem,
+  type CalendarItem
 } from '@daynori/domain';
 
 function resolveLocalTimeToUtc(dateStr: string, timeStr: string, timezone: string): string {
@@ -1266,7 +1282,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
                           },
                         ]}
                       >
-                        {isCompleted && <Text style={styles.checkmarkText}>✓</Text>}
+                        {isCompleted && (
+                          <Text style={styles.checkmarkText}>
+                            <Icon name="check" />
+                          </Text>
+                        )}
                       </Pressable>
 
                       {/* Content */}
@@ -1326,9 +1346,16 @@ export const PlanView: React.FC<PlanViewProps> = ({
                                 },
                               ]}
                             >
-                              {deadlineExp.isOverdue && !isCompleted
-                                ? `⚠️ ${deadlineExp.overdueText || deadlineExp.label}`
-                                : `🗓 ${deadlineExp.label}`}
+                              {deadlineExp.isOverdue && !isCompleted ? (
+                                <>
+                                  <Icon name="warning" />{' '}
+                                  {deadlineExp.overdueText || deadlineExp.label}
+                                </>
+                              ) : (
+                                <>
+                                  <Icon name="calendar" /> {deadlineExp.label}
+                                </>
+                              )}
                             </Text>
                           )}
                         </View>
@@ -1343,7 +1370,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                             <Text
                               style={[styles.subtaskIndentMarker, { color: palette.text.muted }]}
                             >
-                              ↳
+                              <Icon name="corner-down-right" />
                             </Text>
                             <Pressable
                               accessibilityRole="checkbox"
@@ -1364,7 +1391,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
                               ]}
                             >
                               {st.status === 'completed' && (
-                                <Text style={styles.checkmarkText}>✓</Text>
+                                <Text style={styles.checkmarkText}>
+                                  <Icon name="check" />
+                                </Text>
                               )}
                             </Pressable>
                             <Text
@@ -1501,7 +1530,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   { color: filterIncludeTasks ? palette.action.label : palette.text.secondary },
                 ]}
               >
-                ⏱ Tasks {filterIncludeTasks ? '✓' : ''}
+                <Icon name="timer" /> Tasks <IconText text={filterIncludeTasks ? 'check' : ''} />
               </Text>
             </Pressable>
 
@@ -1525,7 +1554,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   { color: filterIncludeRoutines ? palette.action.label : palette.text.secondary },
                 ]}
               >
-                🔄 Routines {filterIncludeRoutines ? '✓' : ''}
+                <Icon name="refresh" /> Routines <IconText text={filterIncludeRoutines ? 'check' : ''} />
               </Text>
             </Pressable>
 
@@ -1549,7 +1578,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   { color: filterIncludeEvents ? palette.action.label : palette.text.secondary },
                 ]}
               >
-                🗓 Events {filterIncludeEvents ? '✓' : ''}
+                <Icon name="calendar" /> Events <IconText text={filterIncludeEvents ? 'check' : ''} />
               </Text>
             </Pressable>
           </View>
@@ -1571,21 +1600,21 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   let badgeColor: string = palette.text.primary;
 
                   if (item.sourceType === 'calendar_event') {
-                    badgeLabel = '🗓 Event';
+                    badgeLabel = 'Event';
                     timeLabel = item.allDay
                       ? `All-day (${item.startDate})`
                       : item.startAt && item.endAt
                         ? `${getCalendarDateTimeParts(new Date(item.startAt), userTimezone).time} – ${getCalendarDateTimeParts(new Date(item.endAt), userTimezone).time}`
                         : item.startDate;
                   } else if (item.sourceType === 'task_deadline') {
-                    badgeLabel = item.isOverdue ? '⚠️ Overdue Task' : '⏱ Task';
+                    badgeLabel = item.isOverdue ? 'Overdue Task' : 'Task';
                     badgeBg = item.isOverdue ? '#fee2e2' : '#fef3c7';
                     badgeColor = item.isOverdue ? '#991b1b' : '#92400e';
                     timeLabel = item.deadlineTime
                       ? getCalendarDateTimeParts(new Date(item.deadlineTime), userTimezone).time
                       : item.deadlineDate;
                   } else {
-                    badgeLabel = item.status === 'done' ? '✓ Routine Done' : '🔄 Routine';
+                    badgeLabel = item.status === 'done' ? 'Routine Done' : 'Routine';
                     timeLabel = item.scheduledDate;
                   }
 
@@ -1624,7 +1653,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
                     { backgroundColor: palette.surface, borderColor: palette.border.subtle },
                   ]}
                 >
-                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>←</Text>
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>
+                    <Icon name="arrow-left" />
+                  </Text>
                 </Pressable>
                 <Text style={[styles.monthTitleText, { color: palette.text.primary }]}>
                   {calendarSelectedDate}
@@ -1638,7 +1669,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
                     { backgroundColor: palette.surface, borderColor: palette.border.subtle },
                   ]}
                 >
-                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>→</Text>
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>
+                    <Icon name="arrow-right" />
+                  </Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -1678,7 +1711,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                           }}
                         >
                           <Text style={{ fontSize: 12, color: palette.text.primary }}>
-                            📓 Journal: {journalInd.count}{' '}
+                            <Icon name="journal" /> Journal: {journalInd.count}{' '}
                             {journalInd.count === 1 ? 'entry' : 'entries'} on this date (private)
                           </Text>
                         </View>
@@ -1706,7 +1739,10 @@ export const PlanView: React.FC<PlanViewProps> = ({
                                       ? `${getCalendarDateTimeParts(new Date(item.startAt), userTimezone).time} – ${getCalendarDateTimeParts(new Date(item.endAt), userTimezone).time}`
                                       : 'Scheduled'
                                   : item.sourceType === 'task_deadline' && item.deadlineTime
-                                    ? getCalendarDateTimeParts(new Date(item.deadlineTime), userTimezone).time
+                                    ? getCalendarDateTimeParts(
+                                        new Date(item.deadlineTime),
+                                        userTimezone
+                                      ).time
                                     : 'Scheduled'}
                               </Text>
                             </View>
@@ -1722,11 +1758,19 @@ export const PlanView: React.FC<PlanViewProps> = ({
                                   { color: palette.text.primary },
                                 ]}
                               >
-                                {item.sourceType === 'calendar_event'
-                                  ? '🗓 Event'
-                                  : item.sourceType === 'task_deadline'
-                                    ? '⏱ Task'
-                                    : '🔄 Routine'}
+                                {item.sourceType === 'calendar_event' ? (
+                                  <>
+                                    <Icon name="calendar" /> Event
+                                  </>
+                                ) : item.sourceType === 'task_deadline' ? (
+                                  <>
+                                    <Icon name="timer" /> Task
+                                  </>
+                                ) : (
+                                  <>
+                                    <Icon name="repeat" /> Routine
+                                  </>
+                                )}
                               </Text>
                             </View>
                           </View>
@@ -1747,14 +1791,18 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Previous month"
                   onPress={() =>
-                    setCalendarMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+                    setCalendarMonthDate(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                    )
                   }
                   style={[
                     styles.monthNavBtn,
                     { backgroundColor: palette.surface, borderColor: palette.border.subtle },
                   ]}
                 >
-                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>←</Text>
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>
+                    <Icon name="arrow-left" />
+                  </Text>
                 </Pressable>
                 <Text style={[styles.monthTitleText, { color: palette.text.primary }]}>
                   {calendarMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
@@ -1763,14 +1811,18 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Next month"
                   onPress={() =>
-                    setCalendarMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+                    setCalendarMonthDate(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                    )
                   }
                   style={[
                     styles.monthNavBtn,
                     { backgroundColor: palette.surface, borderColor: palette.border.subtle },
                   ]}
                 >
-                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>→</Text>
+                  <Text style={[styles.monthNavBtnText, { color: palette.text.primary }]}>
+                    <Icon name="arrow-right" />
+                  </Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -2210,7 +2262,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                     { color: eventSheetAllDay ? palette.action.label : palette.text.primary },
                   ]}
                 >
-                  {eventSheetAllDay ? '✓ All-Day Event' : 'Timed Event'}
+                  {eventSheetAllDay ? (<><Icon name='check' /> {'All-Day Event'}</>) : (<Icon name='Timed Event' />)}
                 </Text>
               </Pressable>
             </View>

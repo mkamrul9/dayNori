@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -63,12 +64,12 @@ export interface JournalEditorProps {
   autoFocus?: boolean;
 }
 
-const AVAILABLE_MOODS: Array<{ value: JournalMoodOption; label: string; emoji: string }> = [
-  { value: 'great', label: 'Great', emoji: '😊' },
-  { value: 'good', label: 'Good', emoji: '🙂' },
-  { value: 'okay', label: 'Okay', emoji: '😐' },
-  { value: 'difficult', label: 'Difficult', emoji: '🌧️' },
-  { value: 'reflective', label: 'Reflective', emoji: '🌱' },
+const AVAILABLE_MOODS: Array<{ value: JournalMoodOption; label: string; icon: string }> = [
+  { value: 'great', label: 'Great', icon: 'smile' },
+  { value: 'good', label: 'Good', icon: 'smile' },
+  { value: 'okay', label: 'Okay', icon: 'neutral' },
+  { value: 'difficult', label: 'Difficult', icon: 'rain' },
+  { value: 'reflective', label: 'Reflective', icon: 'leaf' },
 ];
 
 export const JournalEditor: React.FC<JournalEditorProps> = ({
@@ -402,13 +403,13 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 border: `1px solid ${palette.accent.warm}`,
               }}
             >
-              🕒 Backdated
+              <Icon name="clock" /> Backdated
             </span>
           )}
           <span
             style={{ fontSize: `${typography.webScale.metadata}px`, color: palette.text.muted }}
           >
-            🌐 {timezone}
+            <Icon name="globe" /> {timezone}
           </span>
         </div>
 
@@ -437,7 +438,9 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               minHeight: '44px',
             }}
           >
-            <span>💡</span>
+            <span>
+              <Icon name="bulb" />
+            </span>
             <span>{showPromptTray ? 'Hide Prompts' : 'Reflection Prompts'}</span>
           </button>
         </div>
@@ -498,7 +501,9 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   minHeight: '44px',
                 }}
               >
-                <span>{m.emoji}</span>
+                <span>
+                  <Icon name={m.icon} />
+                </span>
                 <span>{m.label}</span>
               </button>
             );
@@ -574,7 +579,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                     padding: '0 2px',
                   }}
                 >
-                  ✕
+                  <Icon name="x" />
                 </button>
               )}
             </span>
@@ -692,7 +697,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   minHeight: '36px',
                 }}
               >
-                ✕ Clear & Dismiss
+                <Icon name="x" /> Clear & Dismiss
               </button>
             </div>
           </div>
@@ -733,7 +738,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                       minHeight: '36px',
                     }}
                   >
-                    ✕
+                    <Icon name="x" />
                   </button>
                 )}
               </div>

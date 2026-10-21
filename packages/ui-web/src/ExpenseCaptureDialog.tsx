@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState, useEffect, useId } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button } from './Button.js';
@@ -70,7 +71,9 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
   const titleId = useId();
   const descId = useId();
 
-  const [kind, setKind] = useState<'expense' | 'income' | 'refund'>(initialValues?.kind || 'expense');
+  const [kind, setKind] = useState<'expense' | 'income' | 'refund'>(
+    initialValues?.kind || 'expense'
+  );
   const [amount, setAmount] = useState<string>(initialValues?.amount || '');
   const [currency, setCurrency] = useState<string>(initialValues?.currency || 'USD');
   const [transactionDate, setTransactionDate] = useState<string>(
@@ -79,7 +82,9 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
   const [categoryId, setCategoryId] = useState<string | null>(initialValues?.categoryId || null);
   const [paymentLabel, setPaymentLabel] = useState<string>(initialValues?.paymentLabel || '');
   const [note, setNote] = useState<string>(initialValues?.note || '');
-  const [receiptFileId, setReceiptFileId] = useState<string | null>(initialValues?.receiptFileId || null);
+  const [receiptFileId, setReceiptFileId] = useState<string | null>(
+    initialValues?.receiptFileId || null
+  );
   const [originalExpenseId, setOriginalExpenseId] = useState<string | null>(
     initialValues?.originalExpenseId || null
   );
@@ -87,7 +92,9 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
     initialValues?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   );
 
-  const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ severity: FeedbackSeverity; message: string } | null>(
+    null
+  );
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
@@ -101,7 +108,9 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
       setNote(initialValues?.note || '');
       setReceiptFileId(initialValues?.receiptFileId || null);
       setOriginalExpenseId(initialValues?.originalExpenseId || null);
-      setTimezone(initialValues?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+      setTimezone(
+        initialValues?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      );
       setFeedback(null);
     }
   }, [isOpen, initialValues]);
@@ -243,7 +252,7 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
               justifyContent: 'center',
             }}
           >
-            ✕
+            <Icon name="x" />
           </button>
         </div>
 
@@ -262,7 +271,10 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
 
         {feedback && <Feedback severity={feedback.severity} message={feedback.message} />}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}
+        >
           {/* Kind Selector */}
           <div>
             <label
@@ -295,7 +307,19 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
                     minHeight: touchTargets.webMin,
                   }}
                 >
-                  {k === 'expense' ? '💸 Expense' : k === 'income' ? '💰 Income' : '↩️ Refund'}
+                  {k === 'expense' ? (
+                    <>
+                      <Icon name="wallet" /> Expense
+                    </>
+                  ) : k === 'income' ? (
+                    <>
+                      <Icon name="wallet" /> Income
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="undo" /> Refund
+                    </>
+                  )}
                 </button>
               ))}
             </div>
@@ -412,7 +436,8 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
                   padding: `${spacing.sm}px ${spacing.md}px`,
                   borderRadius: radii.sm,
                   border: '1px solid #CBD5E1',
-                  backgroundColor: kind === 'refund' && Boolean(originalExpenseId) ? '#F1F5F9' : '#FFFFFF',
+                  backgroundColor:
+                    kind === 'refund' && Boolean(originalExpenseId) ? '#F1F5F9' : '#FFFFFF',
                   color: palette.text.primary,
                   height: touchTargets.webMin,
                   fontSize: typography.webScale.body,
@@ -503,7 +528,7 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
                 <option value="">(No Receipt Attached)</option>
                 {availableReceipts.map((f) => (
                   <option key={f.id} value={f.id}>
-                    📄 {f.fileName}
+                    {f.fileName}
                   </option>
                 ))}
               </select>
@@ -523,7 +548,11 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
               Cancel
             </Button>
             <Button variant="primary" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : mode === 'create' ? 'Record Transaction' : 'Save Changes'}
+              {isSubmitting
+                ? 'Saving...'
+                : mode === 'create'
+                  ? 'Record Transaction'
+                  : 'Save Changes'}
             </Button>
           </div>
         </form>

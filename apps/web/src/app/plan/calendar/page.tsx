@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef, useId, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
@@ -393,7 +394,10 @@ export default function PlanCalendarPage() {
         startResult.type === 'exact'
           ? startResult.utcTimestamp
           : startResult.type === 'nonexistent'
-            ? startResult.suggestedUtcTimestamp || new Date(`${startDatePart || eventStartDate}T${startTimePart || '09:00'}:00.000Z`).toISOString()
+            ? startResult.suggestedUtcTimestamp ||
+              new Date(
+                `${startDatePart || eventStartDate}T${startTimePart || '09:00'}:00.000Z`
+              ).toISOString()
             : startResult.earlierUtcTimestamp;
 
       const endResult = checkLocalTimeDisambiguation(
@@ -405,7 +409,10 @@ export default function PlanCalendarPage() {
         endResult.type === 'exact'
           ? endResult.utcTimestamp
           : endResult.type === 'nonexistent'
-            ? endResult.suggestedUtcTimestamp || new Date(`${endDatePart || eventStartDate}T${endTimePart || '10:00'}:00.000Z`).toISOString()
+            ? endResult.suggestedUtcTimestamp ||
+              new Date(
+                `${endDatePart || eventStartDate}T${endTimePart || '10:00'}:00.000Z`
+              ).toISOString()
             : endResult.earlierUtcTimestamp;
     }
 
@@ -544,7 +551,7 @@ export default function PlanCalendarPage() {
             minHeight: '36px',
           }}
         >
-          ← Return to Plan
+          <Icon name="arrow-left" /> Return to Plan
         </Link>
       </nav>
 
@@ -661,7 +668,7 @@ export default function PlanCalendarPage() {
             themeMode={themeMode}
             onClick={() => handleOpenAddEvent()}
           >
-            ＋ Add Event
+            <Icon name="plus" /> Add Event
           </Button>
         </div>
       </div>
@@ -697,7 +704,7 @@ export default function PlanCalendarPage() {
               onClick={handlePrevMonth}
               aria-label="Previous month"
             >
-              ← Prev
+              <Icon name="arrow-left" /> Prev
             </Button>
             <Button
               size="compact"
@@ -715,7 +722,7 @@ export default function PlanCalendarPage() {
               onClick={handleNextMonth}
               aria-label="Next month"
             >
-              Next →
+              Next <Icon name="arrow-right" />
             </Button>
           </div>
 
@@ -888,7 +895,7 @@ export default function PlanCalendarPage() {
                           color: palette.text.secondary,
                         }}
                       >
-                        📓 Journal recorded
+                        <Icon name="journal" /> Journal recorded
                       </span>
                     )}
                   </h3>
@@ -937,7 +944,7 @@ export default function PlanCalendarPage() {
               themeMode={themeMode}
               onClick={() => handleOpenAddEvent(selectedDateStr)}
             >
-              ＋ Add Event on this Day
+              <Icon name="plus" /> Add Event on this Day
             </Button>
           </div>
 
@@ -1135,7 +1142,7 @@ export default function PlanCalendarPage() {
                 themeMode={themeMode}
                 onClick={() => handleOpenAddEvent(selectedDateStr)}
               >
-                ＋ Add Event
+                <Icon name="plus" /> Add Event
               </Button>
             </div>
 
@@ -1422,7 +1429,7 @@ function CalendarItemRow({ item, themeMode, onEditEvent, onDeleteEvent }: Calend
                 fontWeight: 600,
               }}
             >
-              View Task ↗
+              View Task <Icon name="arrow-up-right" />
             </Link>
           )}
         </div>
@@ -1461,7 +1468,7 @@ function CalendarItemRow({ item, themeMode, onEditEvent, onDeleteEvent }: Calend
             onClick={() => onDeleteEvent(item.id, title)}
             aria-label={`Delete ${title}`}
           >
-            ✕
+            <Icon name="x" />
           </Button>
         </div>
       )}

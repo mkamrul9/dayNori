@@ -7,10 +7,21 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
-import { MobileButton, MobileCard, MobileModalSheet } from '@daynori/ui-mobile';
+import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
+import {
+  Icon,
+  MobileButton,
+  MobileCard,
+  MobileModalSheet
+} from '@daynori/ui-mobile';
 import {
   TUTORIAL_STEPS,
   ONBOARDING_STEP_METADATA,
@@ -30,7 +41,7 @@ import {
   type OnboardingInterest,
   type OnboardingStep,
   type OnboardingState,
-  type HomeLayout,
+  type HomeLayout
 } from '@daynori/domain';
 import type { DaynoriApiClient } from '@daynori/api-client';
 import type { LocalRepositoryPort } from '@daynori/sync';
@@ -749,7 +760,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                         >
                           {isChecked && (
                             <Text style={[styles.checkIcon, { color: palette.action.label }]}>
-                              ✓
+                              <Icon name="check" />
                             </Text>
                           )}
                         </View>
@@ -782,9 +793,9 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
               ]}
             >
               <Text style={[styles.noticeText, { color: palette.text.secondary }]}>
-                🔒 <Text style={{ fontWeight: '600' }}>Transparency Notice:</Text> Selecting
-                interests only adjusts shortcut visibility on your Home screen. It never restricts
-                data access or feature availability.
+                <Icon name="lock" /> <Text style={{ fontWeight: '600' }}>Transparency Notice:</Text>{' '}
+                Selecting interests only adjusts shortcut visibility on your Home screen. It never
+                restricts data access or feature availability.
               </Text>
             </View>
           </View>
@@ -805,7 +816,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
               <View testID="card-tasks-explanation">
                 <MobileCard themeMode={themeMode}>
                   <Text style={[styles.cardTitle, { color: palette.text.primary }]}>
-                    📋 Upcoming Tasks
+                    <Icon name="clipboard" /> Upcoming Tasks
                   </Text>
                   <Text style={[styles.cardBody, { color: palette.text.secondary }]}>
                     One-time actionable items with deadlines or flexible target dates. Completed
@@ -817,7 +828,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
               <View testID="card-routines-explanation">
                 <MobileCard themeMode={themeMode}>
                   <Text style={[styles.cardTitle, { color: palette.text.primary }]}>
-                    🔁 Daily Routines
+                    <Icon name="repeat" /> Daily Routines
                   </Text>
                   <Text style={[styles.cardBody, { color: palette.text.secondary }]}>
                     Recurring daily rhythms (morning reflection, review sessions). Each day
@@ -834,9 +845,10 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
               ]}
             >
               <Text style={[styles.noticeText, { color: palette.text.secondary }]}>
-                🛡️ <Text style={{ fontWeight: '600' }}>Contextual Permissions:</Text> We do not ask
-                for camera, microphone, or push notification access right now. You will be prompted
-                only when you deliberately use those tools.
+                <Icon name="shield" />{' '}
+                <Text style={{ fontWeight: '600' }}>Contextual Permissions:</Text> We do not ask for
+                camera, microphone, or push notification access right now. You will be prompted only
+                when you deliberately use those tools.
               </Text>
             </View>
           </View>
@@ -882,12 +894,15 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                   ]}
                 >
                   {createStarterFolder && (
-                    <Text style={[styles.checkIcon, { color: palette.action.label }]}>✓</Text>
+                    <Text style={[styles.checkIcon, { color: palette.action.label }]}>
+                      <Icon name="check" />
+                    </Text>
                   )}
                 </View>
                 <View style={styles.sampleTextContainer}>
                   <Text style={[styles.sampleTitle, { color: palette.text.primary }]}>
-                    📁 Starter Folder: &ldquo;{SAMPLE_STARTER_TEMPLATE.folderName}&rdquo;
+                    <Icon name="folder" /> Starter Folder: &ldquo;{SAMPLE_STARTER_TEMPLATE.folderName}
+                    &rdquo;
                   </Text>
                   <Text style={[styles.sampleDesc, { color: palette.text.secondary }]}>
                     Organize your first notes, tasks, and files.
@@ -921,12 +936,15 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                   ]}
                 >
                   {createStarterNote && (
-                    <Text style={[styles.checkIcon, { color: palette.action.label }]}>✓</Text>
+                    <Text style={[styles.checkIcon, { color: palette.action.label }]}>
+                      <Icon name="check" />
+                    </Text>
                   )}
                 </View>
                 <View style={styles.sampleTextContainer}>
                   <Text style={[styles.sampleTitle, { color: palette.text.primary }]}>
-                    📝 Welcome Note: &ldquo;{SAMPLE_STARTER_TEMPLATE.noteTitle}&rdquo;
+                    <Icon name="note" /> Welcome Note: &ldquo;{SAMPLE_STARTER_TEMPLATE.noteTitle}
+                    &rdquo;
                   </Text>
                   <Text style={[styles.sampleDesc, { color: palette.text.secondary }]}>
                     A quick reference guide to shortcuts, offline sync, and private journaling.
@@ -960,12 +978,14 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                   ]}
                 >
                   {createStarterTask && (
-                    <Text style={[styles.checkIcon, { color: palette.action.label }]}>✓</Text>
+                    <Text style={[styles.checkIcon, { color: palette.action.label }]}>
+                      <Icon name="check" />
+                    </Text>
                   )}
                 </View>
                 <View style={styles.sampleTextContainer}>
                   <Text style={[styles.sampleTitle, { color: palette.text.primary }]}>
-                    ✓ Sample Task: &ldquo;{SAMPLE_STARTER_TEMPLATE.taskTitle}&rdquo;
+                    <Icon name="check" /> Sample Task: &ldquo;{SAMPLE_STARTER_TEMPLATE.taskTitle}&rdquo;
                   </Text>
                   <Text style={[styles.sampleDesc, { color: palette.text.secondary }]}>
                     Check off your first task on the Today dashboard.
@@ -980,7 +1000,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
         {errorMessage && (
           <View style={[styles.errorBox, { backgroundColor: palette.status.dangerBg }]}>
             <Text style={[styles.errorText, { color: palette.status.danger }]}>
-              ⚠️ {errorMessage}
+              <Icon name="warning" /> {errorMessage}
             </Text>
           </View>
         )}
@@ -996,7 +1016,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                 onPress={handleBack}
                 accessibilityLabel="Go back to previous tutorial step"
               >
-                &larr; Back
+                <Icon name="arrow-left" /> Back
               </MobileButton>
             ) : (
               <MobileButton
@@ -1018,7 +1038,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                 onPress={handleNext}
                 accessibilityLabel="Proceed to next tutorial step"
               >
-                Next &rarr;
+                Next <Icon name="arrow-right" />
               </MobileButton>
             ) : (
               <MobileButton
@@ -1035,7 +1055,7 @@ export const OnboardingSheet: React.FC<OnboardingSheetProps> = ({
                 ) : isReplay ? (
                   'Finish Replay'
                 ) : (
-                  'Get Started ✨'
+                  'Get Started '
                 )}
               </MobileButton>
             )}

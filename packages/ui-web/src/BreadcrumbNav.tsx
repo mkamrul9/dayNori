@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React from 'react';
 import {
   colors,
@@ -69,7 +70,10 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
             minHeight: '32px',
           }}
         >
-          <span aria-hidden="true">&larr;</span> Up
+          <span aria-hidden="true">
+            <Icon name="arrow-left" />
+          </span>{' '}
+          Up
         </button>
       )}
 

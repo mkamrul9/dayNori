@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useCallback, useEffect, useId, useState } from 'react';
 import { colors, radii, spacing, typography } from '@daynori/design-tokens';
 import { Button, Dialog, Feedback } from '@daynori/ui-web';
@@ -742,7 +743,9 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                               color: palette.text.primary,
                             }}
                           >
-                            <span style={{ marginRight: '6px' }}>{info.icon}</span>
+                            <span style={{ marginRight: '6px' }}>
+                              <Icon name={info.icon} />
+                            </span>
                             {info.label}
                           </div>
                           <div
@@ -821,7 +824,10 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     marginBottom: `${spacing.xs}px`,
                   }}
                 >
-                  <span>✓</span> One-off Tasks
+                  <span>
+                    <Icon name="check" />
+                  </span>{' '}
+                  One-off Tasks
                 </div>
                 <p
                   style={{
@@ -856,7 +862,10 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     marginBottom: `${spacing.xs}px`,
                   }}
                 >
-                  <span>🔁</span> Daily Routines
+                  <span>
+                    <Icon name="repeat" />
+                  </span>{' '}
+                  Daily Routines
                 </div>
                 <p
                   style={{
@@ -882,8 +891,8 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 borderRadius: `${radii.sm}px`,
               }}
             >
-              💡 Reminders are scheduled per item. Notification permissions are requested only when
-              you explicitly add a reminder.
+              <Icon name="bulb" /> Reminders are scheduled per item. Notification permissions are
+              requested only when you explicitly add a reminder.
             </div>
           </div>
         )}
@@ -997,8 +1006,8 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 borderRadius: `${radii.sm}px`,
               }}
             >
-              🔒 Samples are clearly labeled and completely removable. We never silently populate
-              your workspace.
+              <Icon name="lock" /> Samples are clearly labeled and completely removable. We never
+              silently populate your workspace.
             </div>
           </div>
         )}

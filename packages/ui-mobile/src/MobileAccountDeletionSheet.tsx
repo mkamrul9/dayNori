@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
@@ -109,7 +110,7 @@ export const MobileAccountDeletionSheet: React.FC<MobileAccountDeletionSheetProp
               ]}
             >
               <Text style={[styles.warningTitle, { color: palette.status.danger }]}>
-                ⚠️ Permanent Action
+                <Icon name="warning" color={palette.status.danger} /> Permanent Action
               </Text>
               <Text style={[styles.bodyText, { color: palette.text.primary }]}>
                 Deleting your Daynori account permanently erases your personal notes, tasks,
@@ -180,7 +181,7 @@ export const MobileAccountDeletionSheet: React.FC<MobileAccountDeletionSheetProp
               ]}
             >
               <Text style={[styles.warningTitle, { color: palette.status.warning }]}>
-                📋 Retention & Recovery Disclosure
+                <Icon name="clipboard" color={palette.status.warning} /> Retention & Recovery Disclosure
               </Text>
               <Text style={[styles.bodyText, { color: palette.text.primary }]}>
                 {disclosure ||

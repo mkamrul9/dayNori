@@ -1,13 +1,6 @@
+import { Icon } from './Icon.js';
 import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TextInput,
-  ScrollView,
-  Pressable,
-  StyleSheet,
-} from 'react-native';
+import { Modal, View, Text, TextInput, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import { MobileButton } from './MobileButton.js';
 import { MobileFeedback } from './MobileFeedback.js';
@@ -71,7 +64,9 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
 }) => {
   const palette = colors[themeMode];
 
-  const [kind, setKind] = useState<'expense' | 'income' | 'refund'>(initialValues?.kind || 'expense');
+  const [kind, setKind] = useState<'expense' | 'income' | 'refund'>(
+    initialValues?.kind || 'expense'
+  );
   const [amount, setAmount] = useState<string>(initialValues?.amount || '');
   const [currency, setCurrency] = useState<string>(initialValues?.currency || 'USD');
   const [transactionDate, setTransactionDate] = useState<string>(
@@ -80,8 +75,12 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
   const [categoryId, setCategoryId] = useState<string | null>(initialValues?.categoryId || null);
   const [paymentLabel, setPaymentLabel] = useState<string>(initialValues?.paymentLabel || '');
   const [note, setNote] = useState<string>(initialValues?.note || '');
-  const [receiptFileId, setReceiptFileId] = useState<string | null>(initialValues?.receiptFileId || null);
-  const [originalExpenseId, setOriginalExpenseId] = useState<string | null>(initialValues?.originalExpenseId || null);
+  const [receiptFileId, setReceiptFileId] = useState<string | null>(
+    initialValues?.receiptFileId || null
+  );
+  const [originalExpenseId, setOriginalExpenseId] = useState<string | null>(
+    initialValues?.originalExpenseId || null
+  );
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -148,12 +147,19 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
               accessibilityLabel="Close"
               hitSlop={8}
             >
-              <Text style={{ fontSize: 18, color: palette.text.secondary }}>✕</Text>
+              <Text style={{ fontSize: 18, color: palette.text.secondary }}>
+                <Icon name="x" color={palette.text.secondary} size={18} />
+              </Text>
             </Pressable>
           </View>
 
-          <ScrollView style={styles.body} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}>
-            {errorMsg && <MobileFeedback severity="danger" message={errorMsg} themeMode={themeMode} />}
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}
+          >
+            {errorMsg && (
+              <MobileFeedback severity="danger" message={errorMsg} themeMode={themeMode} />
+            )}
 
             {/* Kind Switcher */}
             <View style={styles.segmentContainer}>
@@ -214,7 +220,12 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
                         currency === c && { backgroundColor: palette.action.primary },
                       ]}
                     >
-                      <Text style={{ fontSize: 12, color: currency === c ? '#fff' : palette.text.primary }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: currency === c ? '#fff' : palette.text.primary,
+                        }}
+                      >
                         {c}
                       </Text>
                     </Pressable>
@@ -227,7 +238,11 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
             {kind === 'refund' && availableOriginalExpenses.length > 0 && (
               <View>
                 <Text style={[styles.label, { color: '#DC2626' }]}>Original Expense to Refund</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: spacing.xs }}
+                >
                   {availableOriginalExpenses.map((exp) => (
                     <Pressable
                       key={exp.id}
@@ -238,10 +253,18 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
                       }}
                       style={[
                         styles.chip,
-                        originalExpenseId === exp.id && { backgroundColor: '#DC2626', borderColor: '#DC2626' },
+                        originalExpenseId === exp.id && {
+                          backgroundColor: '#DC2626',
+                          borderColor: '#DC2626',
+                        },
                       ]}
                     >
-                      <Text style={{ fontSize: 12, color: originalExpenseId === exp.id ? '#fff' : palette.text.primary }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: originalExpenseId === exp.id ? '#fff' : palette.text.primary,
+                        }}
+                      >
                         {exp.transactionDate} ({exp.amountFormatted || exp.amount} {exp.currency})
                       </Text>
                     </Pressable>
@@ -253,7 +276,11 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
             {/* Category Selector */}
             <View>
               <Text style={[styles.label, { color: palette.text.primary }]}>Category</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: spacing.xs }}
+              >
                 <Pressable
                   onPress={() => setCategoryId(null)}
                   style={[
@@ -303,7 +330,9 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
 
             {/* Payment Label */}
             <View>
-              <Text style={[styles.label, { color: palette.text.primary }]}>Payment Method / Label</Text>
+              <Text style={[styles.label, { color: palette.text.primary }]}>
+                Payment Method / Label
+              </Text>
               <TextInput
                 value={paymentLabel}
                 onChangeText={setPaymentLabel}
@@ -342,8 +371,14 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
             {/* Receipt File */}
             {availableReceipts.length > 0 && (
               <View>
-                <Text style={[styles.label, { color: palette.text.primary }]}>Attached Receipt</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+                <Text style={[styles.label, { color: palette.text.primary }]}>
+                  Attached Receipt
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: spacing.xs }}
+                >
                   <Pressable
                     onPress={() => setReceiptFileId(null)}
                     style={[
@@ -364,8 +399,14 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
                         receiptFileId === file.id && { backgroundColor: palette.action.primary },
                       ]}
                     >
-                      <Text style={{ color: receiptFileId === file.id ? '#fff' : palette.text.primary }}>
-                        📎 {file.fileName || file.filename}
+                      <Text
+                        style={{ color: receiptFileId === file.id ? '#fff' : palette.text.primary }}
+                      >
+                        <Icon
+                          name="attachment"
+                          color={receiptFileId === file.id ? '#fff' : palette.text.primary}
+                        />{' '}
+                        {file.fileName || file.filename}
                       </Text>
                     </Pressable>
                   ))}

@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React from 'react';
 import {
   colors,
@@ -136,7 +137,7 @@ export const RoutineHistoryViewer: React.FC<RoutineHistoryViewerProps> = ({
               padding: `${spacing.xs}px`,
             }}
           >
-            ✕
+            <Icon name="x" />
           </button>
         </div>
 

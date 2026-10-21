@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useCallback } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, EmptyState, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
@@ -31,10 +32,7 @@ export function ReminderAgendaView({
   onNavigateToItem,
 }: ReminderAgendaViewProps) {
   const palette = colors[themeMode];
-  const apiClient = React.useMemo(
-    () => passedApiClient || createWebApiClient(),
-    [passedApiClient]
-  );
+  const apiClient = React.useMemo(() => passedApiClient || createWebApiClient(), [passedApiClient]);
 
   const [capability, setCapability] = useState<WebPushCapabilityState | null>(null);
   const [instances, setInstances] = useState<ReminderInstance[]>([]);
@@ -176,7 +174,8 @@ export function ReminderAgendaView({
       } else if (updated.permission === 'denied') {
         setFeedback({
           severity: 'warning',
-          message: 'Notification permission was denied. You can re-enable it in browser site settings.',
+          message:
+            'Notification permission was denied. You can re-enable it in browser site settings.',
         });
       }
     } catch (err: unknown) {
@@ -230,16 +229,20 @@ export function ReminderAgendaView({
 
       {/* 2. Feedback Alert */}
       {feedback && (
-        <Feedback
-          severity={feedback.severity}
-          message={feedback.message}
-          themeMode={themeMode}
-        />
+        <Feedback severity={feedback.severity} message={feedback.message} themeMode={themeMode} />
       )}
 
       {/* 3. Browser Capability & Push Controls */}
       <Card themeMode={themeMode}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: `${spacing.sm}px` }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            flexWrap: 'wrap',
+            gap: `${spacing.sm}px`,
+          }}
+        >
           <div>
             <h2
               style={{
@@ -250,7 +253,14 @@ export function ReminderAgendaView({
             >
               Browser Reminders & Web Push
             </h2>
-            <p style={{ margin: 0, fontSize: '13px', color: palette.text.secondary, maxWidth: '520px' }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '13px',
+                color: palette.text.secondary,
+                maxWidth: '520px',
+              }}
+            >
               {capability?.statusDetails || 'Detecting browser notification capabilities...'}
             </p>
           </div>
@@ -265,40 +275,55 @@ export function ReminderAgendaView({
               backgroundColor: capability?.isSubscribed
                 ? palette.status.success + '20'
                 : capability?.permission === 'denied'
-                ? palette.status.danger + '20'
-                : palette.surfaceRaised,
+                  ? palette.status.danger + '20'
+                  : palette.surfaceRaised,
               color: capability?.isSubscribed
                 ? palette.status.success
                 : capability?.permission === 'denied'
-                ? palette.status.danger
-                : palette.text.secondary,
+                  ? palette.status.danger
+                  : palette.text.secondary,
               border: `1px solid ${palette.border.subtle}`,
             }}
           >
-            {capability?.isSubscribed
-              ? '✓ Web Push Subscribed'
-              : capability?.permission === 'denied'
-              ? '✕ Permission Blocked'
-              : !capability?.isSupported
-              ? 'Push Unsupported'
-              : 'Push Inactive'}
+            {capability?.isSubscribed ? (
+              <>
+                <Icon name="check" /> Web Push Subscribed
+              </>
+            ) : capability?.permission === 'denied' ? (
+              <>
+                <Icon name="x" /> Permission Blocked
+              </>
+            ) : !capability?.isSupported ? (
+              'Push Unsupported'
+            ) : (
+              'Push Inactive'
+            )}
           </div>
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: 'flex', gap: `${spacing.sm}px`, marginTop: `${spacing.base}px`, flexWrap: 'wrap' }}>
-          {capability?.isSupported && !capability.isSubscribed && capability.permission !== 'denied' && (
-            <Button
-              variant="primary"
-              size="compact"
-              themeMode={themeMode}
-              onClick={handleSubscribe}
-              disabled={isMutatingPush || !isAuthenticated}
-              id="enable-web-push-btn"
-            >
-              {isMutatingPush ? 'Connecting...' : 'Enable Browser Notifications'}
-            </Button>
-          )}
+        <div
+          style={{
+            display: 'flex',
+            gap: `${spacing.sm}px`,
+            marginTop: `${spacing.base}px`,
+            flexWrap: 'wrap',
+          }}
+        >
+          {capability?.isSupported &&
+            !capability.isSubscribed &&
+            capability.permission !== 'denied' && (
+              <Button
+                variant="primary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={handleSubscribe}
+                disabled={isMutatingPush || !isAuthenticated}
+                id="enable-web-push-btn"
+              >
+                {isMutatingPush ? 'Connecting...' : 'Enable Browser Notifications'}
+              </Button>
+            )}
 
           {capability?.isSubscribed && (
             <Button
@@ -339,13 +364,22 @@ export function ReminderAgendaView({
             lineHeight: 1.4,
           }}
         >
-          <strong>Platform Delivery Matrix:</strong> PWA installation or background tabs do not establish guaranteed local timers. Reminders are reliably monitored through this in-app agenda and delivered via Web Push when supported and authorized.
+          <strong>Platform Delivery Matrix:</strong> PWA installation or background tabs do not
+          establish guaranteed local timers. Reminders are reliably monitored through this in-app
+          agenda and delivered via Web Push when supported and authorized.
         </div>
       </Card>
 
       {/* 4. Agenda Reminders List */}
       <Card themeMode={themeMode}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: `${spacing.sm}px` }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: `${spacing.sm}px`,
+          }}
+        >
           <h2
             style={{
               margin: 0,
@@ -356,7 +390,11 @@ export function ReminderAgendaView({
             Scheduled Reminders ({sortedInstances.length})
           </h2>
           <span style={{ fontSize: '12px', color: palette.text.secondary }}>
-            {isLoading ? 'Checking schedule...' : isOnline ? 'Synced with server' : 'Cached offline'}
+            {isLoading
+              ? 'Checking schedule...'
+              : isOnline
+                ? 'Synced with server'
+                : 'Cached offline'}
           </span>
         </div>
 
@@ -394,7 +432,9 @@ export function ReminderAgendaView({
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: palette.text.primary }}>
+                      <span
+                        style={{ fontSize: '14px', fontWeight: 600, color: palette.text.primary }}
+                      >
                         {inst.targetType === 'task' ? 'Task Reminder' : 'Routine Reminder'}
                       </span>
                       {inst.snoozeUntil && (

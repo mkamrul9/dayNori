@@ -7,14 +7,14 @@ import {
   MobileCustomSectionEntrySheet,
   MobileCustomSectionRenderer,
   MobileEmptyState,
-  MobileFeedback,
+  MobileFeedback
 } from '@daynori/ui-mobile';
 import {
   APPROVED_CUSTOM_SECTION_TEMPLATES,
   type CustomBlockDefinition,
   type ExistingRecordViewBlock,
   type FieldCollectionBlock,
-  type CustomSectionStarterTemplate,
+  type CustomSectionStarterTemplate
 } from '@daynori/domain';
 import type {
   CreateCustomSectionRequest,
@@ -66,9 +66,14 @@ export const CustomSectionsView: React.FC<CustomSectionsViewProps> = ({
   const [availableFolders, setAvailableFolders] = useState<Array<{ id: string; name: string }>>([]);
 
   const [isEntrySheetVisible, setIsEntrySheetVisible] = useState(false);
-  const [activeCollectionBlock, setActiveCollectionBlock] = useState<FieldCollectionBlock | null>(null);
+  const [activeCollectionBlock, setActiveCollectionBlock] = useState<FieldCollectionBlock | null>(
+    null
+  );
   const [activeEditingRecord, setActiveEditingRecord] = useState<MobileRecordViewData | null>(null);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // 1. Load Sections & Folders
@@ -112,20 +117,22 @@ export const CustomSectionsView: React.FC<CustomSectionsViewProps> = ({
 
     try {
       const recRes = await apiClient.listCustomSectionRecords(workspaceId, activeSection.id);
-      const mapped: MobileRecordViewData[] = (recRes.data || []).map((r: CustomSectionRecordItem) => ({
-        id: r.id,
-        sectionId: r.sectionId,
-        schemaVersion: r.schemaVersion,
-        collectionBlockId: r.collectionId,
-        collectionId: r.collectionId,
-        folderId: r.folderId,
-        values: r.fieldValues || {},
-        fieldValues: r.fieldValues || {},
-        archivedValues: r.archivedValues,
-        revision: r.revision,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-      }));
+      const mapped: MobileRecordViewData[] = (recRes.data || []).map(
+        (r: CustomSectionRecordItem) => ({
+          id: r.id,
+          sectionId: r.sectionId,
+          schemaVersion: r.schemaVersion,
+          collectionBlockId: r.collectionId,
+          collectionId: r.collectionId,
+          folderId: r.folderId,
+          values: r.fieldValues || {},
+          fieldValues: r.fieldValues || {},
+          archivedValues: r.archivedValues,
+          revision: r.revision,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        })
+      );
       setRecords(mapped);
 
       const viewsMap: Record<string, ExistingRecordViewItemSummary[]> = {};
@@ -143,7 +150,12 @@ export const CustomSectionsView: React.FC<CustomSectionsViewProps> = ({
                 tags: filter.tags,
               }
             : undefined;
-          const vRes = await apiClient.queryExistingRecordView(workspaceId, activeSection.id, vb.id, queryPayload);
+          const vRes = await apiClient.queryExistingRecordView(
+            workspaceId,
+            activeSection.id,
+            vb.id,
+            queryPayload
+          );
           viewsMap[vb.id] = vRes.data || [];
         } catch {
           viewsMap[vb.id] = [];
@@ -273,7 +285,7 @@ export const CustomSectionsView: React.FC<CustomSectionsViewProps> = ({
         <Text style={{ fontSize: 18, fontWeight: '700', color: palette.text.primary }}>
           Custom Sections
         </Text>
-        <MobileButton variant="subtle" title="✕ Done" onPress={onClose} themeMode={themeMode} />
+        <MobileButton variant="subtle" title="Done" onPress={onClose} themeMode={themeMode} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
@@ -322,7 +334,9 @@ export const CustomSectionsView: React.FC<CustomSectionsViewProps> = ({
 
         {/* Starters quick add */}
         <MobileCard themeMode={themeMode}>
-          <Text style={{ fontWeight: '600', color: palette.text.primary, marginBottom: spacing.xs }}>
+          <Text
+            style={{ fontWeight: '600', color: palette.text.primary, marginBottom: spacing.xs }}
+          >
             Approved Starters
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
@@ -381,7 +395,7 @@ export const CustomSectionsView: React.FC<CustomSectionsViewProps> = ({
           }}
           collection={activeCollectionBlock}
           recordId={activeEditingRecord?.id}
-          initialValues={activeEditingRecord ? (activeEditingRecord.values || {}) : {}}
+          initialValues={activeEditingRecord ? activeEditingRecord.values || {} : {}}
           initialFolderId={activeEditingRecord?.folderId}
           availableFolders={availableFolders}
           themeMode={themeMode}

@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
@@ -219,7 +220,10 @@ export const MobileCustomSectionEntrySheet: React.FC<MobileCustomSectionEntryShe
           }
 
           if (field.type === 'checklist') {
-            const items = (Array.isArray(val) ? val : []) as Array<{ text: string; completed: boolean }>;
+            const items = (Array.isArray(val) ? val : []) as Array<{
+              text: string;
+              completed: boolean;
+            }>;
             return (
               <View key={field.id} style={{ gap: spacing.xs }}>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: palette.text.primary }}>
@@ -237,7 +241,12 @@ export const MobileCustomSectionEntrySheet: React.FC<MobileCustomSectionEntryShe
                       paddingVertical: 4,
                     }}
                   >
-                    <Text style={{ fontSize: 14 }}>{it.completed ? '☑' : '☐'}</Text>
+                    <Text style={{ fontSize: 14 }}>
+                      <Icon name={it.completed ? 'check-square' : 'square'}
+                        color={palette.text.primary}
+                        size={14}
+                      />
+                    </Text>
                     <Text
                       style={{
                         fontSize: 13,
@@ -259,8 +268,16 @@ export const MobileCustomSectionEntrySheet: React.FC<MobileCustomSectionEntryShe
                 key={field.id}
                 label={`${field.label} (Attachment Reference)`}
                 placeholder="Enter file or attachment name"
-                value={typeof val === 'string' ? val : typeof val === 'object' && val !== null ? (val as { fileName?: string }).fileName || '' : ''}
-                onChangeText={(text) => handleFieldChange(field.id, text ? { fileName: text } : null)}
+                value={
+                  typeof val === 'string'
+                    ? val
+                    : typeof val === 'object' && val !== null
+                      ? (val as { fileName?: string }).fileName || ''
+                      : ''
+                }
+                onChangeText={(text) =>
+                  handleFieldChange(field.id, text ? { fileName: text } : null)
+                }
                 themeMode={themeMode}
               />
             );
@@ -269,8 +286,20 @@ export const MobileCustomSectionEntrySheet: React.FC<MobileCustomSectionEntryShe
           return null;
         })}
 
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.md }}>
-          <MobileButton variant="secondary" title="Cancel" onPress={onClose} themeMode={themeMode} />
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            gap: spacing.sm,
+            marginTop: spacing.md,
+          }}
+        >
+          <MobileButton
+            variant="secondary"
+            title="Cancel"
+            onPress={onClose}
+            themeMode={themeMode}
+          />
           <MobileButton
             variant="primary"
             title={isSubmitting ? 'Saving...' : recordId ? 'Save' : 'Add Entry'}

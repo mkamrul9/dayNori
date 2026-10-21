@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
@@ -122,7 +123,11 @@ export const MobileRoutineRow: React.FC<MobileRoutineRowProps> = ({
             },
           ]}
         >
-          {isDone && <Text style={styles.checkmarkText}>✓</Text>}
+          {isDone && (
+            <Text style={styles.checkmarkText}>
+              <Icon name="check" color={palette.text.primary} />
+            </Text>
+          )}
         </Pressable>
       )}
 

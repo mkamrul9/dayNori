@@ -37,3 +37,4 @@ export * from './CustomSectionRenderer.js';
 export * from './CustomSectionEntryDialog.js';
 export * from './VaultUnlockPanel.js';
 export * from './VaultShellView.js';
+export { Icon, IconText, type IconProps } from './Icon.js';

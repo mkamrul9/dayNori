@@ -31,3 +31,4 @@ export * from './MobileCustomSectionEntrySheet.js';
 export * from './MobileVaultUnlockSheet.js';
 export * from './MobileVaultShellView.js';
 
+export { Icon, IconText, type IconProps } from './Icon.js';

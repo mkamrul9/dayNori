@@ -1,7 +1,15 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState, useEffect, useRef, useId, useCallback } from 'react';
-import { colors, radii, spacing, touchTargets, typography, type ThemeMode } from '@daynori/design-tokens';
+import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  typography,
+  type ThemeMode,
+} from '@daynori/design-tokens';
 import {
   formatAudioDuration,
   formatByteSize,
@@ -60,7 +68,10 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [recordedMimeType, setRecordedMimeType] = useState<string>('audio/webm');
-  const [feedback, setFeedback] = useState<{ severity: 'danger' | 'warning' | 'info'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    severity: 'danger' | 'warning' | 'info';
+    message: string;
+  } | null>(null);
   const [hasRecoverableDraft, setHasRecoverableDraft] = useState<boolean>(false);
   const [recoveredDraft, setRecoveredDraft] = useState<DurableAudioDraft | null>(null);
 
@@ -375,7 +386,10 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
   if (!isOpen) return null;
 
   const isNearLimit = elapsedSeconds >= AUDIO_WARNING_THRESHOLD_SECONDS;
-  const progressPercent = Math.min(100, Math.round((elapsedSeconds / MAX_AUDIO_RECORDING_SECONDS) * 100));
+  const progressPercent = Math.min(
+    100,
+    Math.round((elapsedSeconds / MAX_AUDIO_RECORDING_SECONDS) * 100)
+  );
 
   return (
     <div
@@ -421,9 +435,16 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                 margin: 0,
               }}
             >
-              🎙️ Record Audio Memo
+              <Icon name="microphone" /> Record Audio Memo
             </h2>
-            <p id={descId} style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary, margin: '2px 0 0 0' }}>
+            <p
+              id={descId}
+              style={{
+                fontSize: typography.webScale.supporting,
+                color: palette.text.secondary,
+                margin: '2px 0 0 0',
+              }}
+            >
               {attachedItemTitle
                 ? `Attach spoken memo to ${attachedItemType}: ${attachedItemTitle}`
                 : `Deliberate voice recording for ${attachedItemType} with private storage`}
@@ -446,7 +467,7 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
               justifyContent: 'center',
             }}
           >
-            ✕
+            <Icon name="x" />
           </button>
         </div>
 
@@ -490,8 +511,16 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
             {recoveredDraft ? (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: typography.webScale.supporting, fontWeight: '600', color: '#1E40AF' }}>
-                    ⚠️ Recovered previous recording session ({formatAudioDuration(recoveredDraft.durationSeconds)}, {formatByteSize(recoveredDraft.byteSize)}).
+                  <span
+                    style={{
+                      fontSize: typography.webScale.supporting,
+                      fontWeight: '600',
+                      color: '#1E40AF',
+                    }}
+                  >
+                    <Icon name="warning" /> Recovered previous recording session (
+                    {formatAudioDuration(recoveredDraft.durationSeconds)},{' '}
+                    {formatByteSize(recoveredDraft.byteSize)}).
                   </span>
                   <span style={{ fontSize: '0.75rem', color: '#3B82F6' }}>
                     Durable audio binary preserved across restart.
@@ -533,7 +562,8 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
             ) : (
               <>
                 <span style={{ fontSize: typography.webScale.supporting, color: '#B91C1C' }}>
-                  ⚠️ A previous recording session was interrupted before data could be finalized and is unrecoverable.
+                  <Icon name="warning" /> A previous recording session was interrupted before data could
+                  be finalized and is unrecoverable.
                 </span>
                 <button
                   type="button"
@@ -556,7 +586,15 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
 
         {/* Phase 1: Idle - Deliberate Start Button */}
         {phase === 'idle' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, alignItems: 'center', padding: `${spacing.lg}px 0` }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: spacing.md,
+              alignItems: 'center',
+              padding: `${spacing.lg}px 0`,
+            }}
+          >
             <div
               style={{
                 width: 72,
@@ -569,24 +607,41 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                 fontSize: '2rem',
               }}
             >
-              🎙️
+              <Icon name="microphone" />
             </div>
-            <p style={{ fontSize: typography.webScale.body, color: palette.text.secondary, textAlign: 'center', margin: 0, maxWidth: 360 }}>
-              Audio recording requires explicit permission. Maximum recording length is <strong>10 minutes (25 MB)</strong>.
+            <p
+              style={{
+                fontSize: typography.webScale.body,
+                color: palette.text.secondary,
+                textAlign: 'center',
+                margin: 0,
+                maxWidth: 360,
+              }}
+            >
+              Audio recording requires explicit permission. Maximum recording length is{' '}
+              <strong>10 minutes (25 MB)</strong>.
             </p>
             <Button
               variant="primary"
               onClick={handleStartRecording}
               style={{ backgroundColor: '#DC2626', borderColor: '#DC2626' }}
             >
-              🔴 Request Mic & Start Recording
+              <Icon name="circle" /> Request Mic & Start Recording
             </Button>
           </div>
         )}
 
         {/* Phase 2: Recording / Paused Active Indicator */}
         {(phase === 'recording' || phase === 'paused') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, alignItems: 'center', padding: `${spacing.md}px 0` }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: spacing.md,
+              alignItems: 'center',
+              padding: `${spacing.md}px 0`,
+            }}
+          >
             {/* Pulsing indicator banner */}
             <div
               style={{
@@ -609,7 +664,13 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                   animation: phase === 'recording' ? 'pulse 1.5s infinite' : 'none',
                 }}
               />
-              <span style={{ fontSize: typography.webScale.supporting, fontWeight: 'bold', color: phase === 'recording' ? '#991B1B' : '#92400E' }}>
+              <span
+                style={{
+                  fontSize: typography.webScale.supporting,
+                  fontWeight: 'bold',
+                  color: phase === 'recording' ? '#991B1B' : '#92400E',
+                }}
+              >
                 {phase === 'recording' ? 'RECORDING ACTIVE' : 'RECORDING PAUSED'}
               </span>
             </div>
@@ -647,8 +708,17 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: typography.webScale.supporting, color: palette.text.secondary }}>
-                <span>{isNearLimit ? '⚠️ Approaching 10:00 limit' : 'Max 10 minutes'}</span>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: typography.webScale.supporting,
+                  color: palette.text.secondary,
+                }}
+              >
+                <span>
+                  {isNearLimit ? (<><Icon name='warning' /> {'Approaching 10:00 limit'}</>) : (<Icon name='Max 10 minutes' />)}
+                </span>
                 <span>{formatAudioDuration(MAX_AUDIO_RECORDING_SECONDS)}</span>
               </div>
             </div>
@@ -657,11 +727,11 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
             <div style={{ display: 'flex', gap: spacing.sm, marginTop: spacing.sm }}>
               {phase === 'recording' ? (
                 <Button variant="secondary" onClick={handlePauseRecording}>
-                  ⏸ Pause
+                  <Icon name="pause" /> Pause
                 </Button>
               ) : (
                 <Button variant="secondary" onClick={handleResumeRecording}>
-                  ▶ Resume
+                  <Icon name="play" /> Resume
                 </Button>
               )}
               <Button
@@ -669,7 +739,7 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                 onClick={handleStopRecording}
                 style={{ backgroundColor: '#DC2626', borderColor: '#DC2626' }}
               >
-                ⏹ Stop & Review
+                <Icon name="stop" /> Stop & Review
               </Button>
               <Button variant="subtle" onClick={handleDiscard}>
                 Cancel
@@ -691,12 +761,26 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                 gap: spacing.sm,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: typography.webScale.body, fontWeight: '600', color: palette.text.primary }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <span
+                  style={{
+                    fontSize: typography.webScale.body,
+                    fontWeight: '600',
+                    color: palette.text.primary,
+                  }}
+                >
                   Audio Preview
                 </span>
-                <span style={{ fontSize: typography.webScale.supporting, color: palette.text.secondary }}>
-                  {formatAudioDuration(elapsedSeconds)} • {recordedBlob ? formatByteSize(recordedBlob.size) : '0 B'}
+                <span
+                  style={{
+                    fontSize: typography.webScale.supporting,
+                    color: palette.text.secondary,
+                  }}
+                >
+                  {formatAudioDuration(elapsedSeconds)} •{' '}
+                  {recordedBlob ? formatByteSize(recordedBlob.size) : '0 B'}
                 </span>
               </div>
 
@@ -719,7 +803,7 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
                 onClick={handleSaveAndAttach}
                 disabled={phase === 'uploading'}
               >
-                {phase === 'uploading' ? 'Uploading & Verifying...' : '💾 Save & Attach Audio'}
+                {phase === 'uploading' ? (<Icon name='Uploading & Verifying...' />) : (<><Icon name='save' /> {'Save & Attach Audio'}</>)}
               </Button>
             </div>
           </div>
@@ -727,7 +811,14 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
 
         {/* Phase 4: Error Stage */}
         {phase === 'error' && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.sm }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: spacing.sm,
+              marginTop: spacing.sm,
+            }}
+          >
             <Button variant="secondary" onClick={onClose}>
               Dismiss
             </Button>

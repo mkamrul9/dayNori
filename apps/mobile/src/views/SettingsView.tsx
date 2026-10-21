@@ -1,8 +1,27 @@
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
-import { MobileButton, MobileCard } from '@daynori/ui-mobile';
-import type { NotificationCapabilityState } from '../notifications/adapter.js';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import {
+  colors,
+  radii,
+  spacing,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
+import {
+  Icon,
+  IconText,
+  MobileButton,
+  MobileCard
+} from '@daynori/ui-mobile';
+import type { NotificationCapabilityState
+} from '../notifications/adapter.js';
 
 export interface SettingsViewProps {
   themeMode: ThemeMode;
@@ -114,7 +133,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           onPress={onClose}
           accessibilityLabel="Close settings"
         >
-          ✕ Done
+          <Icon name="x" /> Done
         </MobileButton>
       </View>
 
@@ -135,7 +154,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={onToggleTheme}
               accessibilityLabel={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
             >
-              {themeMode === 'light' ? '🌙 Dark' : '☀️ Light'}
+              {themeMode === 'light' ? (<><Icon name='moon' /> {'Dark'}</>) : (<><Icon name='sun' /> {'Light'}</>)}
             </MobileButton>
           </View>
         </MobileCard>
@@ -205,9 +224,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 { color: isReducedMotion ? palette.status.success : palette.text.secondary },
               ]}
             >
-              {isReducedMotion
-                ? '✓ Enabled (Animations disabled)'
-                : 'Standard (Smooth slide animations)'}
+              {isReducedMotion ? (
+                <>
+                  <Icon name="check" /> Enabled (Animations disabled)
+                </>
+              ) : (
+                'Standard (Smooth slide animations)'
+              )}
             </Text>
           </View>
         </MobileCard>
@@ -308,7 +331,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={() => setShowDevReview(true)}
               accessibilityLabel="Show development review authentication tools"
             >
-              🛠️ Show Dev Review Tools
+              <Icon name="tools" /> Show Dev Review Tools
             </MobileButton>
           )}
         </MobileCard>
@@ -335,7 +358,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 },
               ]}
             >
-              {workspaceId ? `✓ Active (ID: ${workspaceId})` : 'Workspace not provisioned'}
+              <IconText
+                text={workspaceId ? `Active (ID:  ${workspaceId})` : 'Workspace not provisioned'}
+              />
             </Text>
           </View>
 
@@ -438,13 +463,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 },
               ]}
             >
-              {notificationCapability?.status === 'granted'
-                ? '✓ Enabled (Granted by OS)'
-                : notificationCapability?.status === 'channel_disabled'
-                  ? '⚠️ Channel Disabled in Android System Settings'
-                  : notificationCapability?.status === 'denied'
-                    ? '✗ Denied (Organizer functions remain fully usable)'
-                    : 'Undetermined (Not Yet Requested)'}
+              {notificationCapability?.status === 'granted' ? (
+                <>
+                  <Icon name="check" /> Enabled (Granted by OS)
+                </>
+              ) : notificationCapability?.status === 'channel_disabled' ? (
+                <>
+                  <Icon name="warning" /> Channel Disabled in Android System Settings
+                </>
+              ) : notificationCapability?.status === 'denied' ? (
+                <>
+                  <Icon name="x" /> Denied (Organizer functions remain fully usable)
+                </>
+              ) : (
+                'Undetermined (Not Yet Requested)'
+              )}
             </Text>
           </View>
 
@@ -488,7 +521,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 onPress={() => void onRequestNotificationPermission()}
                 accessibilityLabel="Enable notifications for reminder alerts"
               >
-                🔔 Enable Reminder Notifications
+                <Icon name="bell" /> Enable Reminder Notifications
               </MobileButton>
             </View>
           )}
@@ -498,9 +531,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Section 5b9: Billing (Phase 57 provisional) */}
       {isAuthenticated && onOpenBilling ? (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            Plan & billing
-          </Text>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Plan & billing</Text>
           <MobileCard themeMode={themeMode}>
             <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
               Synthetic local catalog and server entitlements. Not Play Billing proof. Production
@@ -523,9 +554,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Section 5c0: Assistant (Phase 56 provisional) */}
       {isAuthenticated && onOpenAssistant ? (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            Assistant
-          </Text>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Assistant</Text>
           <MobileCard themeMode={themeMode}>
             <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
               Provisional local source-linked answers and reviewable task/note drafts. Fake/gated
@@ -548,9 +577,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Section 5c1a: Shared rooms (Phase 51 provisional) */}
       {isAuthenticated && onOpenRooms ? (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            Shared rooms
-          </Text>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Shared rooms</Text>
           <MobileCard themeMode={themeMode}>
             <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
               Provisional local rooms with invite links. Joining never opens another personal
@@ -668,7 +695,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 onPress={onOpenExpenses}
                 accessibilityLabel="Open Expenses Tracker"
               >
-                💳 Open Expense Tracker &rarr;
+                <Icon name="credit-card" /> Open Expense Tracker <Icon name="arrow-right" />
               </MobileButton>
             </View>
           )}
@@ -677,9 +704,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Section 5e: Custom Sections (Phase 43) */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-          Custom Sections
-        </Text>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Custom Sections</Text>
         <MobileCard themeMode={themeMode}>
           <Text
             style={[
@@ -697,7 +722,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={onOpenCustomSections}
               accessibilityLabel="Open Custom Sections"
             >
-              📑 Open Custom Sections &rarr;
+              <Icon name="clipboard" /> Open Custom Sections <Icon name="arrow-right" />
             </MobileButton>
           )}
         </MobileCard>
@@ -725,7 +750,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onPress={onOpenOnboarding}
             accessibilityLabel="Replay Onboarding Tutorial"
           >
-            📖 Replay Onboarding Tutorial &rarr;
+            <Icon name="book" /> Replay Onboarding Tutorial <Icon name="arrow-right" />
           </MobileButton>
         </MobileCard>
       </View>
@@ -753,7 +778,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={onOpenSyncDiagnostics}
               accessibilityLabel="View Sync Diagnostics"
             >
-              🔄 View Sync Diagnostics &rarr;
+              <Icon name="refresh" /> View Sync Diagnostics <Icon name="arrow-right" />
             </MobileButton>
             <MobileButton
               testID="btn-open-recovery-export"
@@ -762,7 +787,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={onOpenRecoveryExport}
               accessibilityLabel="Export Recovery Drafts"
             >
-              💾 Export Recovery Drafts &rarr;
+              <Icon name="save" /> Export Recovery Drafts <Icon name="arrow-right" />
             </MobileButton>
           </View>
         </MobileCard>
@@ -790,7 +815,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onPress={onOpenPortability}
             accessibilityLabel="Export or Import Workspace"
           >
-            📦 Export / Import Workspace &rarr;
+            <Icon name="archive" /> Export / Import Workspace <Icon name="arrow-right" />
           </MobileButton>
         </MobileCard>
       </View>
@@ -818,7 +843,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={onOpenAccountDeletion}
               accessibilityLabel="Delete Account and Data"
             >
-              🗑️ Delete Account &rarr;
+              <Icon name="trash" /> Delete Account <Icon name="arrow-right" />
             </MobileButton>
           </MobileCard>
         </View>
@@ -844,7 +869,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onPress={onOpenGallery}
             accessibilityLabel="Open Component Gallery"
           >
-            🎨 Open Component Gallery &rarr;
+            <Icon name="palette" /> Open Component Gallery <Icon name="arrow-right" />
           </MobileButton>
         </MobileCard>
       </View>

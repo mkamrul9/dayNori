@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, AccessibilityInfo } from 'react-native';
 import {
@@ -83,7 +84,7 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
               ]}
             >
               <Text style={[styles.badgeText, { color: palette.text.secondary }]}>
-                📁 {folderName}
+                <Icon name="folder" color={palette.text.secondary} /> {folderName}
               </Text>
             </View>
           )}
@@ -97,7 +98,7 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
               <Text
                 style={[styles.badgeText, { color: palette.action.primary, fontWeight: '700' }]}
               >
-                📌 Pinned
+                <Icon name="pin" color={palette.action.primary} /> Pinned
               </Text>
             </View>
           )}
@@ -134,7 +135,9 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
                 { backgroundColor: palette.surfaceRaised, borderColor: palette.border.strong },
               ]}
             >
-              <Text style={[styles.editButtonText, { color: palette.text.primary }]}>✏️ Edit</Text>
+              <Text style={[styles.editButtonText, { color: palette.text.primary }]}>
+                <Icon name="edit" color={palette.text.primary} /> Edit
+              </Text>
             </Pressable>
           )}
         </View>
@@ -209,7 +212,7 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
                         { color: isCopied ? palette.text.inverse : palette.text.primary },
                       ]}
                     >
-                      {isCopied ? '✓ Copied' : 'Copy'}
+                      {isCopied ? (<><Icon name='check' /> {'Copied'}</>) : (<Icon name='Copy' />)}
                     </Text>
                   </Pressable>
                 </View>
@@ -219,7 +222,9 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
             {/* Checklists */}
             {sec.checklistItems.map((chk) => (
               <View key={chk.id} style={styles.checkItem}>
-                <Text style={{ fontSize: 16 }}>{chk.checked ? '☑' : '☐'}</Text>
+                <Text style={{ fontSize: 16 }}>
+                  <Icon name={chk.checked ? 'check-square' : 'square'} color={palette.text.primary} size={16} />
+                </Text>
                 <Text
                   style={[
                     styles.checkText,
@@ -270,7 +275,7 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
                       ]}
                     >
                       <Text style={[styles.linkTitle, { color: palette.text.primary }]}>
-                        🔗 {link.target.title}
+                        <Icon name="link" color={palette.text.primary} /> {link.target.title}
                       </Text>
                       <Text style={[styles.linkMeta, { color: palette.text.secondary }]}>
                         ({link.target.kind})
@@ -285,7 +290,7 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
                       ]}
                     >
                       <Text style={[styles.unavailableTitle, { color: palette.text.muted }]}>
-                        ⚠️ {link.target.title}
+                        <Icon name="warning" color={palette.text.muted} /> {link.target.title}
                       </Text>
                       <Text style={[styles.unavailableReason, { color: palette.text.secondary }]}>
                         {formatUnavailableLinkNotice(link.target.unavailableReason)}
@@ -317,7 +322,7 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
                       ]}
                     >
                       <Text style={[styles.linkTitle, { color: palette.text.primary }]}>
-                        ↩️ {link.target.title}
+                        <Icon name="undo" color={palette.text.primary} /> {link.target.title}
                       </Text>
                       <Text style={[styles.linkMeta, { color: palette.text.secondary }]}>
                         ({link.target.kind})
@@ -332,7 +337,7 @@ export const MobileQuickReferenceView: React.FC<MobileQuickReferenceViewProps> =
                       ]}
                     >
                       <Text style={[styles.unavailableTitle, { color: palette.text.muted }]}>
-                        ⚠️ {link.target.title}
+                        <Icon name="warning" color={palette.text.muted} /> {link.target.title}
                       </Text>
                       <Text style={[styles.unavailableReason, { color: palette.text.secondary }]}>
                         {formatUnavailableLinkNotice(link.target.unavailableReason)}

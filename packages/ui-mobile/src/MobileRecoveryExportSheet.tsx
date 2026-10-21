@@ -46,7 +46,9 @@ export const MobileRecoveryExportSheet: React.FC<MobileRecoveryExportSheetProps>
   const handleAction = async (actionType: 'copy' | 'share' = 'share') => {
     if (!onShareOrCopy) {
       setActionStatus('unavailable');
-      setActionError('Platform sharing and clipboard capabilities are not available in this environment.');
+      setActionError(
+        'Platform sharing and clipboard capabilities are not available in this environment.'
+      );
       return;
     }
 
@@ -121,25 +123,46 @@ export const MobileRecoveryExportSheet: React.FC<MobileRecoveryExportSheetProps>
         )}
 
         {/* Summary Card */}
-        <View style={[styles.card, { backgroundColor: palette.surfaceRaised, borderColor: palette.border.subtle }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: palette.surfaceRaised, borderColor: palette.border.subtle },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
             Local Items for Recovery
           </Text>
           <View style={styles.metricRow}>
-            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>Offline Drafts:</Text>
-            <Text style={[styles.metricValue, { color: palette.text.primary }]}>{exportData.summary.draftsCount}</Text>
+            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>
+              Offline Drafts:
+            </Text>
+            <Text style={[styles.metricValue, { color: palette.text.primary }]}>
+              {exportData.summary.draftsCount}
+            </Text>
           </View>
           <View style={styles.metricRow}>
-            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>Queued Mutations:</Text>
-            <Text style={[styles.metricValue, { color: palette.text.primary }]}>{exportData.summary.pendingMutationsCount}</Text>
+            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>
+              Queued Mutations:
+            </Text>
+            <Text style={[styles.metricValue, { color: palette.text.primary }]}>
+              {exportData.summary.pendingMutationsCount}
+            </Text>
           </View>
           <View style={styles.metricRow}>
-            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>Unresolved Conflicts:</Text>
-            <Text style={[styles.metricValue, { color: palette.text.primary }]}>{exportData.summary.conflictsCount}</Text>
+            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>
+              Unresolved Conflicts:
+            </Text>
+            <Text style={[styles.metricValue, { color: palette.text.primary }]}>
+              {exportData.summary.conflictsCount}
+            </Text>
           </View>
           <View style={styles.metricRow}>
-            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>Unfinalized Files:</Text>
-            <Text style={[styles.metricValue, { color: palette.text.primary }]}>{exportData.summary.unfinalizedFilesCount}</Text>
+            <Text style={[styles.metricLabel, { color: palette.text.secondary }]}>
+              Unfinalized Files:
+            </Text>
+            <Text style={[styles.metricValue, { color: palette.text.primary }]}>
+              {exportData.summary.unfinalizedFilesCount}
+            </Text>
           </View>
         </View>
 
@@ -156,7 +179,10 @@ export const MobileRecoveryExportSheet: React.FC<MobileRecoveryExportSheetProps>
 
         {showJson && (
           <ScrollView
-            style={[styles.jsonBox, { backgroundColor: palette.surface, borderColor: palette.border.subtle }]}
+            style={[
+              styles.jsonBox,
+              { backgroundColor: palette.surface, borderColor: palette.border.subtle },
+            ]}
             nestedScrollEnabled={true}
           >
             <Text style={[styles.jsonText, { color: palette.text.secondary }]}>{jsonString}</Text>
@@ -174,7 +200,12 @@ export const MobileRecoveryExportSheet: React.FC<MobileRecoveryExportSheetProps>
             {actionStatus === 'success' ? 'Export Copied / Shared!' : 'Copy / Share Recovery JSON'}
           </MobileButton>
 
-          <MobileButton variant="subtle" themeMode={themeMode} onPress={onClose} accessibilityLabel="Close export dialog">
+          <MobileButton
+            variant="subtle"
+            themeMode={themeMode}
+            onPress={onClose}
+            accessibilityLabel="Close export dialog"
+          >
             Close
           </MobileButton>
         </View>

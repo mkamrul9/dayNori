@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -12,10 +13,10 @@ export const AppBottomNav: React.FC = () => {
   const palette = colors[themeMode];
 
   const primaryTabs = [
-    { href: '/today', label: 'Today', icon: '☀️' },
-    { href: '/plan', label: 'Plan', icon: '📋' },
-    { href: '/library', label: 'Library', icon: '📚' },
-    { href: '/journal', label: 'Journal', icon: '📖' },
+    { href: '/today', label: 'Today', icon: 'sun' },
+    { href: '/plan', label: 'Plan', icon: 'clipboard' },
+    { href: '/library', label: 'Library', icon: 'library' },
+    { href: '/journal', label: 'Journal', icon: 'book' },
   ];
 
   return (
@@ -69,7 +70,7 @@ export const AppBottomNav: React.FC = () => {
             }}
           >
             <span aria-hidden="true" style={{ fontSize: '18px', marginBottom: '2px' }}>
-              {tab.icon}
+              <Icon name={tab.icon} />
             </span>
             <span>{tab.label}</span>
           </Link>

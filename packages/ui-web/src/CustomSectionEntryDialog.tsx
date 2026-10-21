@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React, { useState, useEffect } from 'react';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import type { CustomFieldDefinition, FieldCollectionBlock } from '@daynori/domain';
@@ -116,7 +117,10 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
       description="Fill in the structured fields below. Values are saved securely within your workspace."
       themeMode={themeMode}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}
+      >
         {error && <Feedback severity="danger" message={error} themeMode={themeMode} />}
 
         {/* Folder Placement */}
@@ -208,9 +212,15 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
 
           // 4. Checklist Field
           if (field.type === 'checklist') {
-            const items = (Array.isArray(val) ? val : []) as Array<{ text: string; completed: boolean }>;
+            const items = (Array.isArray(val) ? val : []) as Array<{
+              text: string;
+              completed: boolean;
+            }>;
             return (
-              <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+              <div
+                key={field.id}
+                style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}
+              >
                 <label
                   style={{
                     fontSize: '0.875rem',
@@ -241,7 +251,14 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
                         gap: spacing.sm,
                       }}
                     >
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: spacing.xs, fontSize: '0.85rem' }}>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: spacing.xs,
+                          fontSize: '0.85rem',
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={it.completed}
@@ -263,7 +280,7 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
                         }}
                         aria-label={`Remove ${it.text}`}
                       >
-                        ✕
+                        <Icon name="x" />
                       </button>
                     </div>
                   ))}
@@ -336,7 +353,10 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
                   : null;
 
             return (
-              <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+              <div
+                key={field.id}
+                style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}
+              >
                 <label
                   htmlFor={`field-${field.id}`}
                   style={{
@@ -361,7 +381,7 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
                     }}
                   >
                     <span style={{ fontSize: '0.85rem', color: palette.text.primary }}>
-                      📎 {currentAttachment.fileName || 'Attached File'}
+                      <Icon name="attachment" /> {currentAttachment.fileName || 'Attached File'}
                     </span>
                     <button
                       type="button"
@@ -404,7 +424,14 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
           return null;
         })}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.sm }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: spacing.sm,
+            marginTop: spacing.sm,
+          }}
+        >
           <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>

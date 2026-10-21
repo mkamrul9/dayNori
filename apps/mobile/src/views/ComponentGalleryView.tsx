@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
+  colors,
+  spacing,
+  typography,
+  touchTargets,
+  type ThemeMode
+} from '@daynori/design-tokens';
+import {
+  Icon,
   MobileButton,
   MobileCard,
   MobileFeedback,
   MobileListRow,
   MobileModalSheet,
-  MobileTextField,
+  MobileTextField
 } from '@daynori/ui-mobile';
 
 export interface ComponentGalleryViewProps {
@@ -45,7 +52,7 @@ export const ComponentGalleryView: React.FC<ComponentGalleryViewProps> = ({
             onPress={onClose}
             accessibilityLabel="Back to Settings"
           >
-            &larr; Back to Settings
+            <Icon name="arrow-left" /> Back to Settings
           </MobileButton>
         </View>
 
@@ -65,7 +72,7 @@ export const ComponentGalleryView: React.FC<ComponentGalleryViewProps> = ({
             onPress={onToggleTheme}
             accessibilityLabel={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
           >
-            {themeMode === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+            {themeMode === 'light' ? (<><Icon name='moon' /> {'Dark Mode'}</>) : (<><Icon name='sun' /> {'Light Mode'}</>)}
           </MobileButton>
         </View>
       </View>
