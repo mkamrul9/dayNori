@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 58 — Reliability, scale, and operating cost gate (blocked / provisional) — 2026-10-21
+
+- Engineering synthetic baseline: 40 concurrent actors, 10k-item heavy workspace, depth-8 folders, full 90s paced soak; tails/errors in `tests/performance/results/phase58-baseline.json`.
+- Fault drills: worker crash/lease reclaim; development kill switches return 403 (not success) while core organizer remains usable.
+- Re-ran disposable DR drill + Phase 57 billing regressions. Provisional cost model and incident runbooks (ownership unassigned). ADR 0055.
+- Not beta-derived production capacity; cloud PITR/commercial/ops unmet. Stop before Phase 59.
+
 ## Phase 57 repair — Billing authority, lifecycle, durable events, quotas (blocked) — 2026-10-21
 
 - SECURITY DEFINER billing helpers require `billing_activate_service_session` (service token); ordinary bypass denied.

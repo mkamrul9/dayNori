@@ -737,7 +737,7 @@ export async function ensureBillingMaintenanceJobs(client: PoolClient): Promise<
     WHERE NOT EXISTS (
       SELECT 1 FROM app.background_jobs
       WHERE task_type = 'billing_reconcile_events'
-        AND status IN ('pending', 'processing')
+        AND status IN ('pending', 'running')
         AND payload->>'source' = 'billing_scheduler'
         AND run_at > now() - interval '5 minutes'
     )`
@@ -752,7 +752,7 @@ export async function ensureBillingMaintenanceJobs(client: PoolClient): Promise<
     WHERE NOT EXISTS (
       SELECT 1 FROM app.background_jobs
       WHERE task_type = 'billing_expire_entitlements'
-        AND status IN ('pending', 'processing')
+        AND status IN ('pending', 'running')
         AND payload->>'source' = 'billing_scheduler'
         AND run_at > now() - interval '5 minutes'
     )`

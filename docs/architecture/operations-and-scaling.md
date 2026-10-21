@@ -52,6 +52,8 @@ Keep financial spend visible: database compute/storage, object storage/egress, b
 
 Phase 57 (provisional local; ADR 0054): entitlements grant only after provider verification (`fake_play` locally; Google Play `subscriptionsv2` when production activation + credentials are set). Durable `billing_events` use claim/lease/dead-letter; RTDN is a reconciliation trigger, not trusted state. Downgrade/expiry preserves personal content and required read/export/delete; new allocations may refuse when over quota. Billing never overrides vault/rooms/Drive/AI release gates. Commercial prices, merchant accounts, and sandbox/store evidence remain owner decisions.
 
+Phase 58 (provisional local; ADR 0055): engineering synthetic reliability baseline and operating-cost evidence live under `tests/performance/phase58-*.test.ts` and `docs/engineering/operating-cost-model.md`. Not beta-derived production capacity. Kill-switch and fault runbooks: `docs/engineering/runbooks/phase58-incidents.md`. Isolated DR drill remains `scripts/disaster-recovery-drill.mjs`.
+
 ## Incident and rollout runbooks
 
 Each risky phase adds steps for detect, contain, recover, verify and communicate. At minimum cover compromised account/key, signing-key rotation, data isolation incident, failed migration, database/object restore, duplicate reminders, runaway jobs/AI cost, revoked Drive grant and app version rollback. Runbooks state who can perform privileged actions and how audit evidence is retained.

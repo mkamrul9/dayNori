@@ -350,7 +350,9 @@
     },
     {
       "id": "58",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Engineering synthetic reliability baseline recorded (ADR 0055): 40-actor / 10k-item / 90s soak, fault+kill-switch drills, disposable DR restore, provisional cost model. Completion blocked pending Phase 37 hardware, real beta observations, cloud PITR/commercial quotes, and staffed ops ownership. Not production capacity. Optional modules remain gated.",
+      "report": "docs/phase-reports/phase-58.md"
     },
     {
       "id": "59",

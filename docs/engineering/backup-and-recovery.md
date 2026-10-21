@@ -194,6 +194,12 @@ Daynori maintains an automated, repeatable disaster recovery verification harnes
 1. Drill executed on local PostgreSQL instance using disposable target database; multi-region cross-cloud replication remains a proposed production capability.
 2. Object storage simulation used local filesystem replication adapter; S3 cross-region replication requires cloud deployment credentials.
 
+#### Phase 58 re-validation (2026-10-21)
+
+- Command: `npx vitest run tests/integration/disaster-recovery-drill.test.ts` (exit 0) → `scripts/disaster-recovery-drill.mjs` against disposable `daynori_dr_src_*` / `daynori_dr_dst_*` only.
+- Demonstrates local logical DB + fixture object restore with independent deletion-suppression application **before** reopen.
+- **Does not** satisfy purchased cloud PITR or the proposed production RPO/RTO above. See ADR 0055 and `docs/phase-reports/phase-58.md`.
+
 ---
 
 ## 5. Google Play Account Deletion Policy Compliance
