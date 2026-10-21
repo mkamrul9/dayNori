@@ -709,6 +709,19 @@ export class DaynoriWorker {
       };
     }
 
+    if (taskType === 'billing_reconcile_events' && client) {
+      const { reconcilePendingBillingEvents } = await import('./billingJobs.js');
+      const billingRes = await reconcilePendingBillingEvents(client, {
+        limit: typeof payload?.['limit'] === 'number' ? payload['limit'] : 20,
+      });
+      return {
+        jobId,
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        details: { taskType, ...billingRes },
+      };
+    }
+
     // 3. Built-in: Orphan reservation cleanup
     if (taskType === 'file_orphan_cleanup') {
       let deletedStorageObjects = 0;

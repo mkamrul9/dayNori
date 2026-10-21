@@ -293,6 +293,12 @@ import {
   AiAssistantHistoryResponseSchema,
   AiAssistantDraftResponseSchema,
   AiSourceAccessResponseSchema,
+  BillingCatalogResponseSchema,
+  BillingEntitlementResponseSchema,
+  BillingUsageResponseSchema,
+  VerifyPurchaseResponseSchema,
+  RestorePurchasesResponseSchema,
+  BillingEventIngestResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -349,6 +355,15 @@ import {
   type SaveAiDraftRequest,
   type ClearAiDraftRequest,
   type AiSourceAccessRequest,
+  type BillingCatalogResponse,
+  type BillingEntitlementResponse,
+  type BillingUsageResponse,
+  type VerifyPurchaseRequest,
+  type VerifyPurchaseResponse,
+  type RestorePurchasesRequest,
+  type RestorePurchasesResponse,
+  type BillingEventIngestRequest,
+  type BillingEventIngestResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3554,6 +3569,66 @@ export class DaynoriApiClient {
       options
     );
     return AiProposalResponseSchema.parse(raw);
+  }
+
+  // --- Phase 57 Billing (provisional local; production activation gated) ---
+
+  async getBillingCatalog(options?: RequestOptions): Promise<BillingCatalogResponse> {
+    const raw = await this.request<unknown>(`/v1/billing/catalog`, { method: 'GET' }, options);
+    return BillingCatalogResponseSchema.parse(raw);
+  }
+
+  async getBillingEntitlement(options?: RequestOptions): Promise<BillingEntitlementResponse> {
+    const raw = await this.request<unknown>(`/v1/billing/entitlement`, { method: 'GET' }, options);
+    return BillingEntitlementResponseSchema.parse(raw);
+  }
+
+  async getBillingUsage(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<BillingUsageResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${workspaceId}/billing/usage`,
+      { method: 'GET' },
+      options
+    );
+    return BillingUsageResponseSchema.parse(raw);
+  }
+
+  async verifyBillingPurchase(
+    request: VerifyPurchaseRequest,
+    options?: RequestOptions
+  ): Promise<VerifyPurchaseResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/billing/purchases/verify`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return VerifyPurchaseResponseSchema.parse(raw);
+  }
+
+  async restoreBillingPurchases(
+    request: RestorePurchasesRequest,
+    options?: RequestOptions
+  ): Promise<RestorePurchasesResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/billing/purchases/restore`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return RestorePurchasesResponseSchema.parse(raw);
+  }
+
+  async ingestBillingEvent(
+    request: BillingEventIngestRequest,
+    options?: RequestOptions
+  ): Promise<BillingEventIngestResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/billing/events`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return BillingEventIngestResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

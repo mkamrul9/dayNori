@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 57 — Entitlements, subscriptions, and purchase lifecycle (blocked / provisional) — 2026-10-21
+
+- Server-authoritative entitlements with synthetic local catalog; clients cannot grant premium via local state or SQL.
+- Fake Play verify/restore + durable billing events (idempotent message ids, claim/lease, dead-letter); Google Play `subscriptionsv2` adapter gated off.
+- Purchase tokens bound to authenticated app accounts; cross-account reuse rejected. Downgrade/expiry preserves content; quotas update personal storage ceilings.
+- Web BillingPanel and Android BillingSheet (synthetic labels; Expo Go ≠ Play Billing). ADR 0054. Production activation and real charges remain disabled. Stop before Phase 58.
+
 ## Phase 56 repair — Proposal recovery, durable status, drafts, source access (blocked) — 2026-10-20
 
 - Create recovery binds to proposal `operation_id` + mutation receipt/`request_hash`; unrelated id collision → conflict, not recovered success.

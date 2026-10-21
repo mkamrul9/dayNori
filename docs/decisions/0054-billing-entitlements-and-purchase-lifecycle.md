@@ -1,0 +1,50 @@
+# ADR-0054: Billing entitlements and purchase lifecycle (provisional local)
+
+- Status: accepted (provisional local).
+- Date: 2026-10-20.
+- Related: Phase 57; ADR 0012; [release-gates — billing](../engineering/release-gates.md); [operations-and-scaling](../architecture/operations-and-scaling.md).
+
+## Primary sources reviewed (2026-10-20)
+
+| Topic | Source | Notes |
+|---|---|---|
+| Backend integration | [Integrate Google Play with your server backend](https://developer.android.com/google/play/billing/backend) (updated 2026-09-01) | RTDN + Developer API; do not trust client claims alone; dedupe `messageId`. |
+| Subscription lifecycle | [Subscription lifecycle](https://developer.android.com/google/play/billing/lifecycle/subscriptions) | Authoritative state via `purchases.subscriptionsv2.get`; acknowledge within 3 days; handle renew/grace/hold/expire/revoke. |
+| Payments policy | [Google Play payments policy](https://support.google.com/googleplay/android-developer/answer/9858738?hl=en) | Digital goods on Play require Play Billing where applicable; do not auto-steer Android users to web checkout without current policy authorization. |
+
+Merchant jurisdiction, legal entity, approved commercial prices, and regional payment-program eligibility are **owner decisions** — not inferred from project timezone.
+
+## Cost model (provisional)
+
+| Cost driver | Classification | Notes |
+|---|---|---|
+| DB compute/storage + backups | estimate / unknown quote | Depends on provider plan; measure in staging. |
+| Object storage + egress | estimate | Bound by plan `storageBytes`; egress unmeasured. |
+| Scanning/rendering | estimate | Existing file pipeline; not re-priced here. |
+| AI tokens | reuses Phase 55 budgets | Plan raises monthly ceiling; server still settles usage. |
+| Play fees | unknown until merchant account | Not activated. |
+
+Distinguish: **measured local**, **provider quote**, **estimate**, **unknown**.
+
+## Decision
+
+1. **Server authority:** Entitlements grant/revoke only after provider verification (fake local or gated Google Play). Clients cannot grant premium via local flags, product names, or checkout success callbacks.
+2. **Catalog:** Labeled `synthetic-local-catalog` until commercial prices/countries/entity are approved. Synthetic price strings must remain visibly synthetic.
+3. **Gates:** `isBillingLocallyEnabled` fail-closed in production; `DAYNORI_BILLING_PRODUCTION_ENABLED` required for live Play verification. Web provider path is explicitly **unsupported** in this phase.
+4. **Binding:** Purchase tokens hashed server-side; bound to authenticated app account (`obfuscatedAccountId` / ownership row). Cross-account restore/reuse rejected.
+5. **Lifecycle:** Durable `billing_events` with idempotent `messageId`, claim/lease, succeed/fail/dead_letter. Notifications are reconciliation triggers; re-fetch authoritative provider state.
+6. **Quotas:** Plan updates personal workspace `max_storage_bytes` and AI monthly ceiling. Downgrade/expiry **preserves content**; new allocations may refuse when over quota; read/export/delete remain available.
+7. **Independence:** Billing never overrides vault/rooms/Drive/AI release gates or consent.
+8. **Native:** Expo Development Build required for real Play Billing (ADR 0012). Expo Go / fake adapter ≠ Play verification.
+
+## Unresolved owner choices
+
+- Legal entity, tax/merchant accounts, approved SKUs and prices, countries.
+- Whether to pursue web purchases for web-only users under current policy.
+- Production monthly quotas and paid-account provisioning.
+- Staffed billing support / refund operator runbooks.
+
+## Consequences
+
+- Status remains **blocked/provisional** until sandbox/production evidence and commercial decisions land.
+- Stop before Phase 58.

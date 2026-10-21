@@ -65,6 +65,7 @@ import { VaultHarnessView } from './src/vault/VaultHarnessView';
 import { DriveConnectionsSheet } from './src/views/DriveConnectionsSheet';
 import { RoomsSheet } from './src/views/RoomsSheet';
 import { AssistantSheet } from './src/views/AssistantSheet';
+import { BillingSheet } from './src/views/BillingSheet';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -834,10 +835,29 @@ export default function App() {
                 ? () => setActiveModal('assistant')
                 : undefined
             }
+            onOpenBilling={
+              apiClient && userNamespace?.workspaceId
+                ? () => setActiveModal('billing')
+                : undefined
+            }
             onClose={() => setActiveModal('none')}
           />
         </View>
       )}
+
+      {/* Phase 57 provisional billing */}
+      {activeModal === 'billing' && apiClient && userNamespace?.workspaceId ? (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+        >
+          <BillingSheet
+            themeMode={themeMode}
+            workspaceId={userNamespace.workspaceId}
+            apiClient={apiClient}
+            onClose={() => setActiveModal('settings')}
+          />
+        </View>
+      ) : null}
 
       {/* Phase 56 provisional assistant */}
       {activeModal === 'assistant' && apiClient && userNamespace?.workspaceId ? (

@@ -31,4 +31,5 @@ export * from './chat.js';
 export * from './collaborationSafety.js';
 export * from './aiGate.js';
 export * from './aiConsent.js';
+export * from './billingGate.js';
 

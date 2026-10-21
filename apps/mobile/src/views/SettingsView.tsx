@@ -39,6 +39,8 @@ export interface SettingsViewProps {
   onOpenRooms?: () => void;
   /** Opens provisional assistant sheet (Phase 56). */
   onOpenAssistant?: () => void;
+  /** Opens provisional billing sheet (Phase 57). */
+  onOpenBilling?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -72,6 +74,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenDriveConnections,
   onOpenRooms,
   onOpenAssistant,
+  onOpenBilling,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -491,6 +494,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
         </MobileCard>
       </View>
+
+      {/* Section 5b9: Billing (Phase 57 provisional) */}
+      {isAuthenticated && onOpenBilling ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Plan & billing
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Synthetic local catalog and server entitlements. Not Play Billing proof. Production
+              charges stay disabled.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenBilling}
+                accessibilityLabel="Open plan and billing"
+              >
+                Open billing
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
 
       {/* Section 5c0: Assistant (Phase 56 provisional) */}
       {isAuthenticated && onOpenAssistant ? (

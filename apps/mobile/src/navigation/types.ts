@@ -26,7 +26,9 @@ export type ActiveModal =
   /** Phase 51 provisional shared rooms — not public invitation enablement. */
   | 'rooms'
   /** Phase 56 provisional assistant — not live/production AI enablement. */
-  | 'assistant';
+  | 'assistant'
+  /** Phase 57 provisional billing — not production purchase activation. */
+  | 'billing';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

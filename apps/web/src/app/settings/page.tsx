@@ -17,6 +17,7 @@ import { DriveConnectionsPanel } from '../../components/DriveConnectionsPanel';
 import { RoomsPanel } from '../../components/RoomsPanel';
 import { AiConsentHarness } from '../../components/AiConsentHarness';
 import { AssistantPanel } from '../../components/AssistantPanel';
+import { BillingPanel } from '../../components/BillingPanel';
 import { createWebApiClient } from '../../data/webApiClient';
 
 export default function SettingsPage() {
@@ -783,6 +784,17 @@ export default function SettingsPage() {
         {isAuthenticated ? (
           <Card themeMode={themeMode} id="ai-assistant">
             <AssistantPanel
+              csrfToken={csrfToken}
+              themeMode={themeMode}
+              personalWorkspaceId={workspaceId}
+            />
+          </Card>
+        ) : null}
+
+        {/* 7f. Plan & billing (Phase 57 provisional local) */}
+        {isAuthenticated ? (
+          <Card themeMode={themeMode} id="billing-plan">
+            <BillingPanel
               csrfToken={csrfToken}
               themeMode={themeMode}
               personalWorkspaceId={workspaceId}

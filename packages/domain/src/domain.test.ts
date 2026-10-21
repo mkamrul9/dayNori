@@ -26,6 +26,8 @@ import {
   createFallbackBlockRepresentation,
   APPROVED_SECTION_TEMPLATES,
   isAiLocallyEnabled,
+  isBillingLocallyEnabled,
+  isBillingProductionActivationEnabled,
   isAiLiveProviderEnabled,
   isAiSourceKindEligible,
   validateAiContentScope,
@@ -2336,6 +2338,31 @@ describe('Domain Rules and Invariants', () => {
       expect(fallback.message).toContain('not supported by your current Daynori version');
       expect(fallback.rawData).toEqual(rawUnknownBlock);
       expect(fallback.isReadOnly).toBe(true);
+    });
+  });
+
+  describe('Phase 57 billing gate', () => {
+    it('fails closed for billing in production even with local flag', () => {
+      expect(
+        isBillingLocallyEnabled({
+          NODE_ENV: 'production',
+          DAYNORI_BILLING_LOCAL_ENABLED: 'true',
+        })
+      ).toBe(false);
+      expect(isBillingLocallyEnabled({ NODE_ENV: 'test' })).toBe(true);
+      expect(
+        isBillingProductionActivationEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_BILLING_LOCAL_ENABLED: 'true',
+          DAYNORI_BILLING_PRODUCTION_ENABLED: 'true',
+        })
+      ).toBe(true);
+      expect(
+        isBillingProductionActivationEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_BILLING_LOCAL_ENABLED: 'true',
+        })
+      ).toBe(false);
     });
   });
 
