@@ -654,7 +654,8 @@ describe('Phase 39: Expense Tracking Domain & Exact Money Invariants', () => {
         },
         body: JSON.stringify({
           kind: 'expense',
-          amount: 9007199254740993, // raw number!
+          // eslint-disable-next-line no-loss-of-precision -- intentional unsafe integer probe
+          amount: 9007199254740993,
           currency: 'JPY',
           transactionDate: '2026-10-19',
         }),

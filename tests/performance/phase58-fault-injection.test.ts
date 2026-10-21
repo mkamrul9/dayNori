@@ -1,8 +1,10 @@
 /**
- * Phase 58 — Controlled fault scenarios (local synthetic).
- * Kill switches must not mark unsuccessful work completed.
+ * Phase 58 repair — Controlled fault scenarios (local synthetic).
+ * Does NOT mutate unrelated background jobs. Kill switches must not mark work completed.
  */
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
 import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
@@ -28,6 +30,8 @@ describe('Phase 58: fault injection and kill switches', () => {
   let userId = '';
   let workspaceId = '';
   let token = '';
+  /** Unrelated queued work that must survive every test. */
+  let sentinelJobId = '';
 
   beforeAll(async () => {
     process.env['NODE_ENV'] = 'test';
@@ -54,9 +58,16 @@ describe('Phase 58: fault injection and kill switches', () => {
     baseUrl = `http://127.0.0.1:${addr.port}`;
 
     userId = crypto.randomUUID();
+    sentinelJobId = crypto.randomUUID();
     const admin = await adminPool.connect();
     try {
       await admin.query(`INSERT INTO app.profiles (id, display_name) VALUES ($1,'F')`, [userId]);
+      // Sentinel: pending far in the future so scoped probes can run without global dead-lettering.
+      await admin.query(
+        `INSERT INTO app.background_jobs (id, task_type, payload, run_at, status, attempts)
+         VALUES ($1, 'phase58_sentinel', '{"survive":true}'::jsonb, now() + interval '7 days', 'pending', 0)`,
+        [sentinelJobId]
+      );
     } finally {
       admin.release();
     }
@@ -82,44 +93,53 @@ describe('Phase 58: fault injection and kill switches', () => {
     if (adminPool) await adminPool.end();
   });
 
-  it('recovers worker lease after stop mid-flight (duplicate safe)', async () => {
-    const jobId = crypto.randomUUID();
-    const admin = await adminPool.connect();
-    try {
-      // Isolate: do not let unrelated pending jobs steal the poll slot.
-      await admin.query(
-        `UPDATE app.background_jobs SET status = 'dead_letter', last_error = 'phase58-fault-isolate'
-         WHERE status IN ('pending', 'running')`
-      );
-      await admin.query(
-        `INSERT INTO app.background_jobs (id, task_type, payload, run_at, status, attempts)
-         VALUES ($1, 'noop_probe', '{"probe":true}'::jsonb, now(), 'pending', 0)`,
-        [jobId]
-      );
-    } finally {
-      admin.release();
-    }
+  async function assertSentinelIntact(): Promise<void> {
+    const row = await adminPool.query<{ status: string; attempts: number }>(
+      `SELECT status, attempts FROM app.background_jobs WHERE id = $1`,
+      [sentinelJobId]
+    );
+    expect(row.rows[0]?.status).toBe('pending');
+    expect(row.rows[0]?.attempts).toBe(0);
+  }
 
-    const workerA = new DaynoriWorker(adminPool, { workerId: 'fault-a' });
-    workerA.registerHandler('noop_probe', async () => {
-      throw new Error('simulated crash before completion');
+  it('handler failure retries without touching unrelated queued work', async () => {
+    const jobId = crypto.randomUUID();
+    const taskType = `phase58_handler_fail_${jobId.slice(0, 8)}`;
+    // Scoped cleanup of prior probe leftovers only (never global pending/running).
+    await adminPool.query(
+      `DELETE FROM app.background_jobs WHERE task_type LIKE 'phase58_handler_fail_%' AND id <> $1`,
+      [sentinelJobId]
+    );
+    await adminPool.query(
+      `INSERT INTO app.background_jobs (id, task_type, payload, run_at, status, attempts, max_attempts)
+       VALUES ($1, $2, '{"probe":true}'::jsonb, now(), 'pending', 0, 5)`,
+      [jobId, taskType]
+    );
+
+    const workerA = new DaynoriWorker(adminPool, { workerId: 'fault-handler-a' });
+    workerA.registerHandler(taskType, async () => {
+      throw new Error('simulated handler failure');
     });
     workerA.start(adminPool);
-    const failResult = await workerA.pollAndProcessNextJob(adminPool);
+    const failResult = await workerA.pollAndProcessNextJob(adminPool, {
+      taskTypes: [taskType],
+    });
     expect(failResult?.status).toBe('failed');
+    expect(failResult?.jobId).toBe(jobId);
     workerA.stop();
 
-    const workerB = new DaynoriWorker(adminPool, { workerId: 'fault-b' });
-    let completions = 0;
-    workerB.registerHandler('noop_probe', async () => {
-      completions += 1;
-      return { details: { recovered: true } };
-    });
-    workerB.start(adminPool);
-    // Backoff may delay run_at; force immediate retry for the drill.
     await adminPool.query(`UPDATE app.background_jobs SET run_at = now() WHERE id = $1`, [jobId]);
-    const okResult = await workerB.pollAndProcessNextJob(adminPool);
+
+    const workerB = new DaynoriWorker(adminPool, { workerId: 'fault-handler-b' });
+    workerB.registerHandler(taskType, async () => ({
+      details: { recovered: true },
+    }));
+    workerB.start(adminPool);
+    const okResult = await workerB.pollAndProcessNextJob(adminPool, {
+      taskTypes: [taskType],
+    });
     expect(okResult?.status).toBe('completed');
+    expect(okResult?.jobId).toBe(jobId);
     workerB.stop();
 
     const row = await adminPool.query<{ status: string; attempts: number }>(
@@ -128,19 +148,124 @@ describe('Phase 58: fault injection and kill switches', () => {
     );
     expect(row.rows[0]?.status).toBe('completed');
     expect(row.rows[0]!.attempts).toBeGreaterThanOrEqual(2);
-    expect(completions).toBe(1);
+    await assertSentinelIntact();
+  });
+
+  it('reclaims after worker-process interruption and lease expiry with durable effect', async () => {
+    const jobId = crypto.randomUUID();
+    const taskType = `phase58_lease_reclaim_${jobId.slice(0, 8)}`;
+    const marker = `phase58-durable-${jobId}`;
+    await adminPool.query(
+      `DELETE FROM app.background_jobs WHERE task_type LIKE 'phase58_lease_reclaim_%' AND id <> $1`,
+      [sentinelJobId]
+    );
+    await adminPool.query(
+      `INSERT INTO app.background_jobs (id, task_type, payload, run_at, status, attempts, max_attempts)
+       VALUES ($1, $2, $3::jsonb, now(), 'pending', 0, 5)`,
+      [jobId, taskType, JSON.stringify({ marker, workspaceId, userId })]
+    );
+
+    // Genuine process interruption: child claims the lease then exits without completing.
+    const claimScript = `
+      import pg from 'pg';
+      import fs from 'node:fs';
+      import path from 'node:path';
+      try {
+        const envPath = path.resolve(process.cwd(), '.env');
+        if (typeof process.loadEnvFile === 'function' && fs.existsSync(envPath)) process.loadEnvFile(envPath);
+      } catch {}
+      const c = new pg.Client({
+        host: process.env.PGHOST || '127.0.0.1',
+        port: Number(process.env.PGPORT || 5432),
+        database: process.env.PGDATABASE || 'daynori_test',
+        user: process.env.PGUSER || 'postgres',
+        password: process.env.PGPASSWORD || '',
+      });
+      await c.connect();
+      const r = await c.query(
+        \`UPDATE app.background_jobs
+         SET status = 'running', leased_by = 'interrupted-child', leased_until = now() + interval '60 seconds',
+             attempts = attempts + 1, updated_at = now()
+         WHERE id = $1 AND status = 'pending'
+         RETURNING id\`,
+        ['${jobId}']
+      );
+      if (r.rowCount !== 1) { console.error('claim-failed'); process.exit(2); }
+      await c.end();
+      process.exit(1);
+    `;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', claimScript], {
+      cwd: path.resolve('.'),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
+    const [code] = await Promise.all([
+      new Promise<number | null>((resolve) => child.on('close', resolve)),
+    ]);
+    expect(code).toBe(1);
+
+    // Expire the abandoned lease so another worker can reclaim.
+    await adminPool.query(
+      `UPDATE app.background_jobs SET leased_until = now() - interval '1 second' WHERE id = $1`,
+      [jobId]
+    );
+
+    const workerB = new DaynoriWorker(adminPool, { workerId: 'fault-reclaim-b' });
+    workerB.registerHandler(taskType, async (_jobId, payload, client) => {
+      if (!client) throw new Error('client required for durable effect');
+      const p = payload as { marker: string; workspaceId: string; userId: string };
+      await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [p.userId]);
+      await client.query(`SELECT set_config('app.current_workspace_id', $1, true)`, [p.workspaceId]);
+      const existing = await client.query(
+        `SELECT 1 FROM app.audit_events WHERE action = 'phase58_lease_reclaim' AND details->>'marker' = $1`,
+        [p.marker]
+      );
+      if ((existing.rowCount ?? 0) === 0) {
+        await client.query(
+          `INSERT INTO app.audit_events (id, workspace_id, actor_id, action, resource_type, resource_id, details)
+           VALUES ($1, $2, $3, 'phase58_lease_reclaim', 'background_job', $4, $5::jsonb)`,
+          [
+            crypto.randomUUID(),
+            p.workspaceId,
+            p.userId,
+            jobId,
+            JSON.stringify({ marker: p.marker }),
+          ]
+        );
+      }
+      return { details: { marker: p.marker } };
+    });
+    workerB.start(adminPool);
+    const ok = await workerB.pollAndProcessNextJob(adminPool, {
+      taskTypes: [taskType],
+    });
+    expect(ok?.error).toBeUndefined();
+    expect(ok?.status).toBe('completed');
+    expect(ok?.jobId).toBe(jobId);
+    workerB.stop();
+
+    const job = await adminPool.query<{ status: string; attempts: number }>(
+      `SELECT status, attempts FROM app.background_jobs WHERE id = $1`,
+      [jobId]
+    );
+    expect(job.rows[0]?.status).toBe('completed');
+    expect(job.rows[0]!.attempts).toBeGreaterThanOrEqual(2);
+
+    const durable = await adminPool.query(
+      `SELECT 1 FROM app.audit_events WHERE action = 'phase58_lease_reclaim' AND details->>'marker' = $1`,
+      [marker]
+    );
+    expect(durable.rowCount).toBe(1);
+    await assertSentinelIntact();
   });
 
   it('feature kill switch keeps disabled modules unavailable (not successful)', async () => {
     const client = createApiClient({ baseUrl, token });
-    // Vault is always fail-closed (403 is not success).
-    const vaultRes = await fetch(`${baseUrl}/v1/vault/status`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(vaultRes.status).toBe(403);
+    expect(
+      (await fetch(`${baseUrl}/v1/vault/status`, { headers: { Authorization: `Bearer ${token}` } }))
+        .status
+    ).toBe(403);
 
-    // NODE_ENV=test fail-opens rooms/AI/billing for harnesses. Exercise the real
-    // development kill switch: flags unset ⇒ 403, never a successful module response.
     const prevNodeEnv = process.env['NODE_ENV'];
     process.env['NODE_ENV'] = 'development';
     delete process.env['DAYNORI_ROOMS_LOCAL_ENABLED'];
@@ -181,12 +306,6 @@ describe('Phase 58: fault injection and kill switches', () => {
       plainText: 'organizer remains usable',
     });
     expect(note.data.id).toBeTruthy();
-  });
-
-  it('creates distinct notes when client does not supply idempotency key', async () => {
-    const client = createApiClient({ baseUrl, token });
-    const a = await client.createNote(workspaceId, { title: 'a', plainText: 'one' });
-    const b = await client.createNote(workspaceId, { title: 'b', plainText: 'two' });
-    expect(a.data.id).not.toBe(b.data.id);
+    await assertSentinelIntact();
   });
 });

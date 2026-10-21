@@ -1404,7 +1404,7 @@ export async function createExpenseRecurringTemplate(
     throw new ValidationError(`Invalid endDate: '${input.endDate}'`);
   }
 
-  let categoryId = input.categoryId || null;
+  const categoryId = input.categoryId || null;
   if (categoryId) {
     const cRes = await client.query<{ id: string }>(
       `SELECT id FROM app.expense_categories
@@ -1643,7 +1643,7 @@ export async function createExpenseBudget(
   const currencyInfo = getCurrencyInfo(input.currency);
   const amountMinorUnits = parseDecimalToMinorUnits(input.amount, currencyInfo.code);
 
-  let categoryId = input.categoryId || null;
+  const categoryId = input.categoryId || null;
   if (categoryId) {
     const cRes = await client.query<{ id: string }>(
       `SELECT id FROM app.expense_categories

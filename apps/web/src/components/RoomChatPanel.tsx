@@ -310,7 +310,6 @@ export function RoomChatPanel({ csrfToken, themeMode, room, onClose }: RoomChatP
         }
       })();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once per room mount
   }, [room.id]);
 
   const sendBody = useCallback(

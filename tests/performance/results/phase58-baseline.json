@@ -1,6 +1,8 @@
 {
-  "label": "engineering-synthetic-baseline",
+  "label": "engineering-synthetic-baseline-short-local",
   "notBetaDerived": true,
+  "notSustained100UserCapacity": true,
+  "notLongDurationMemoryStability": true,
   "stopReason": "soak_elapsed",
   "host": {
     "platform": "win32",
@@ -12,47 +14,140 @@
   "workload": {
     "concurrentActors": 40,
     "heavyItems": 10000,
-    "folderDepth": 8,
+    "folderDepth": 5,
     "warmUp": 20,
     "maxSamples": 100000,
     "soakMs": 90000,
     "paceMs": 25,
-    "mix": "70% list, 20% create, 10% search"
+    "seed": 58,
+    "mix": "50% list, 15% getNote, 20% create, 15% search",
+    "heavyListShareOfListOps": 0.017768408372233098,
+    "searchMarker": "HeavySearchMarker"
   },
-  "durationMs": 90230,
-  "sampleCount": 33996,
-  "errorCount": 0,
-  "errorRate": 0,
+  "durationMs": 90163,
+  "sampleCount": 26588,
+  "errorCount": 29,
+  "timedOutCount": 0,
+  "errorRate": 0.0010907176169700616,
+  "failedOps": [
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    }
+  ],
   "latencyMs": {
     "all": {
-      "samples": 33996,
-      "min": 28.97270000000026,
-      "max": 419.6915000000008,
-      "mean": 79.61317217319652,
-      "p50": 76.50379999999859,
-      "p95": 115.27950000000419,
-      "p99": 171.7887999999948
+      "samples": 26559,
+      "min": 36.64019999999982,
+      "max": 4087.1911,
+      "mean": 109.0548157536053,
+      "p50": 97.26690000000235,
+      "p95": 192.8824999999997,
+      "p99": 263.1754000000001
     },
     "read": {
-      "samples": 27211,
-      "min": 28.97270000000026,
-      "max": 419.6915000000008,
-      "mean": 77.40100738671853,
-      "p50": 74.37000000000262,
-      "p95": 111.86329999999725,
-      "p99": 172.24630000001343
+      "samples": 21178,
+      "min": 36.64019999999982,
+      "max": 4087.1911,
+      "mean": 109.50077006327349,
+      "p50": 95.79950000000099,
+      "p95": 201.21099999999933,
+      "p99": 272.3266999999978
     },
     "write": {
-      "samples": 6785,
-      "min": 42.10370000000057,
-      "max": 288.6087000000002,
-      "mean": 88.48497998526139,
-      "p50": 86.67339999999967,
-      "p95": 118.87749999998778,
-      "p99": 168.46899999999732
+      "samples": 5381,
+      "min": 54.1239000000005,
+      "max": 347.15009999999893,
+      "mean": 107.29967351793329,
+      "p50": 101.71219999999448,
+      "p95": 158.98190000000614,
+      "p99": 199.55189999999857
     }
   },
-  "heapGrowthMb": 34.33049774169922,
-  "throughputRps": 376.7704754516236,
-  "recordedAt": "2026-10-21T04:37:05.622Z"
+  "qualityTargets": {
+    "readP95TargetMs": 300,
+    "writeP95TargetMs": 500,
+    "readP95": true,
+    "writeP95": true,
+    "note": "quality.md ~100-user targets evaluated separately; this run is a 40-actor short local baseline"
+  },
+  "heapGrowthMb": 42.657508850097656,
+  "throughputRps": 294.8881470226146,
+  "recordedAt": "2026-10-21T05:47:15.769Z"
 }

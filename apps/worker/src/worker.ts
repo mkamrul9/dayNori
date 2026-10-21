@@ -514,7 +514,10 @@ export class DaynoriWorker {
    * Polls app.background_jobs using PostgreSQL FOR UPDATE SKIP LOCKED
    * for cross-process lease ownership, bounded retries, and crash recovery.
    */
-  async pollAndProcessNextJob(pool?: DatabasePool): Promise<JobResult | null> {
+  async pollAndProcessNextJob(
+    pool?: DatabasePool,
+    options?: { taskTypes?: string[] }
+  ): Promise<JobResult | null> {
     const activePool = pool ?? this.pool;
     if (!activePool || !this.isRunning) return null;
 
@@ -524,11 +527,13 @@ export class DaynoriWorker {
     let payload: Record<string, unknown> = {};
     let attempts = 0;
     let maxAttempts = 5;
+    const taskTypes = options?.taskTypes?.filter(Boolean) ?? [];
 
     try {
       await client.query('BEGIN');
 
-      // Atomic lease acquisition with SKIP LOCKED and restart recovery
+      // Atomic lease acquisition with SKIP LOCKED and restart recovery.
+      // Optional taskTypes scopes the poll for isolated tests without mutating other jobs.
       const leaseRes = await client.query<{
         id: string;
         task_type: string;
@@ -547,17 +552,23 @@ export class DaynoriWorker {
             SELECT id
             FROM app.background_jobs
             WHERE (
-                status = 'pending' AND (run_at IS NULL OR run_at <= now())
-            ) OR (
-                status = 'running' AND leased_until < now()
-            )
+                (
+                  status = 'pending' AND (run_at IS NULL OR run_at <= now())
+                ) OR (
+                  status = 'running' AND leased_until < now()
+                )
+              )
+              AND (
+                cardinality($2::text[]) = 0
+                OR task_type = ANY($2::text[])
+              )
             ORDER BY COALESCE(run_at, created_at) ASC
             LIMIT 1
             FOR UPDATE SKIP LOCKED
         )
         RETURNING id, task_type, payload, attempts, max_attempts
         `,
-        [this.workerId]
+        [this.workerId, taskTypes]
       );
 
       if (leaseRes.rowCount === 0) {

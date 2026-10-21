@@ -36,7 +36,14 @@ export interface VaultShellViewProps {
 
 /** Escape plaintext for safe text rendering (filenames/titles treated as text, never HTML). */
 export function safeDisplayText(value: string): string {
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  let out = '';
+  for (const ch of value) {
+    const code = ch.codePointAt(0) ?? 0;
+    // Keep TAB(9), LF(10), CR(13); strip other C0 controls.
+    if (code < 32 && code !== 9 && code !== 10 && code !== 13) continue;
+    out += ch;
+  }
+  return out;
 }
 
 export const VaultShellView: React.FC<VaultShellViewProps> = ({

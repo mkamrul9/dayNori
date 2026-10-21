@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 58 repair — Workload validity, scoped faults, lint (blocked) — 2026-10-21
+
+- Heavy baseline seeds complete notes + depth-5 folders; 90s soak labeled short local baseline; quality.md targets reported separately.
+- Fault suite: no global job dead-letter; sentinel survival; handler-failure vs process-interrupt lease reclaim with durable audit effect.
+- Repo-wide `pnpm lint` cleaned (harness env overrides + code fixes). ADR 0055 amended.
+
 ## Phase 57 authority repair — Billing role boundary (blocked) — 2026-10-21
 
 - Privileged billing helpers require `session_user = daynori_billing` (migrations 00068–00069); ordinary runtime cannot self-assert via `set_config` or the local synthetic token.

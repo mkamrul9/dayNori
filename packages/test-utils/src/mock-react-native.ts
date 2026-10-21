@@ -1,7 +1,19 @@
-if (typeof globalThis !== 'undefined' && !(globalThis as any).expo) {
-  (globalThis as any).expo = {
+type ExpoShim = {
+  EventEmitter: new () => {
+    addListener: () => { remove: () => void };
+    removeListener: () => void;
+    emit: () => void;
+  };
+  modules: Record<string, unknown>;
+  ExpoModulesCore: Record<string, unknown>;
+};
+const globalWithExpo = globalThis as typeof globalThis & { expo?: ExpoShim };
+if (typeof globalThis !== 'undefined' && !globalWithExpo.expo) {
+  globalWithExpo.expo = {
     EventEmitter: class MockEventEmitter {
-      addListener() { return { remove: () => {} }; }
+      addListener() {
+        return { remove: () => {} };
+      }
       removeListener() {}
       emit() {}
     },

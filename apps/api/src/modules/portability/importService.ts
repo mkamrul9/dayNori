@@ -1550,7 +1550,14 @@ export async function executeConfirmedImport(
             `INSERT INTO app.expense_categories (id, workspace_id, name, color, icon, display_order)
              VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (id) DO NOTHING;`,
-            [newCatId, workspaceId, cat.name.trim(), cat.color || null, cat.icon || null, (cat as any).displayOrder ?? 0]
+            [
+              newCatId,
+              workspaceId,
+              cat.name.trim(),
+              cat.color || null,
+              cat.icon || null,
+              (cat as { displayOrder?: number }).displayOrder ?? 0,
+            ]
           );
           importedCounts.expenseCategories++;
           createdChanges.push({

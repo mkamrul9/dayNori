@@ -6,10 +6,7 @@ import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
 import { createAdminPool, createRuntimePool } from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
-import {
-  parseDecimalToMinorUnits,
-  formatMinorUnitsToDecimal,
-} from '@daynori/domain';
+import { formatMinorUnitsToDecimal } from '@daynori/domain';
 
 describe('Phase 40: Expense Capture, Reports, Budgets & CSV Export', () => {
   let adminPool: Pool;
@@ -35,7 +32,7 @@ describe('Phase 40: Expense Capture, Reports, Budgets & CSV Export', () => {
   let clientB: DaynoriApiClient;
 
   let workspaceAId: string;
-  let workspaceBId: string;
+  let _workspaceBId: string;
 
   async function createToken(userId: string, email: string): Promise<string> {
     return new SignJWT({
@@ -106,7 +103,7 @@ describe('Phase 40: Expense Capture, Reports, Budgets & CSV Export', () => {
     workspaceAId = provA.data.workspace.id;
 
     const provB = await clientB.provisionPersonalWorkspace();
-    workspaceBId = provB.data.workspace.id;
+    _workspaceBId = provB.data.workspace.id;
   });
 
   afterAll(async () => {
@@ -149,7 +146,7 @@ describe('Phase 40: Expense Capture, Reports, Budgets & CSV Export', () => {
 
   describe('2. Multi-Currency Fast Manual Entry & Refund Linkage', () => {
     let groceriesCategoryId: string;
-    let transportCategoryId: string;
+    let _transportCategoryId: string;
     let originalExpenseId: string;
 
     it('creates categories for tracking', async () => {
@@ -166,7 +163,7 @@ describe('Phase 40: Expense Capture, Reports, Budgets & CSV Export', () => {
         color: '#3B82F6',
         icon: 'bus',
       });
-      transportCategoryId = cat2.data.id;
+      _transportCategoryId = cat2.data.id;
       expect(cat2.data.name).toBe('Transport');
     });
 

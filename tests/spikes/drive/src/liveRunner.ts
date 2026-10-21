@@ -16,7 +16,7 @@
  * - DAYNORI_DRIVE_SELECTED_FILE_ID (skip in-page Picker if already known)
  */
 
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

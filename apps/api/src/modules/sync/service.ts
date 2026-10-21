@@ -622,7 +622,7 @@ export class SyncService {
           if (wsInfo.kind === 'room') {
             const blocked = isRoomContentBlocked({
               kind: cmd.entityType,
-              securityScope: (cmd.payload as any)?.securityScope,
+              securityScope: (cmd.payload as { securityScope?: unknown } | undefined)?.securityScope,
             });
             if (blocked) {
               return {
@@ -2846,7 +2846,10 @@ export class SyncService {
               actorUserId,
               {
                 id: cmd.entityId,
-                kind: (payload['kind'] as any) || 'expense',
+                kind: (typeof payload['kind'] === 'string' ? payload['kind'] : 'expense') as
+                  | 'expense'
+                  | 'income'
+                  | 'refund',
                 amount: String(payload['amount'] || '0'),
                 currency: String(payload['currency'] || 'USD'),
                 transactionDate: String(
@@ -3039,7 +3042,10 @@ export class SyncService {
               cmd.workspaceId,
               {
                 title: String(payload['title'] || 'Template'),
-                kind: (payload['kind'] as any) || 'expense',
+                kind: (typeof payload['kind'] === 'string' ? payload['kind'] : 'expense') as
+                  | 'expense'
+                  | 'income'
+                  | 'transfer',
                 amount: String(payload['amount'] || '0'),
                 currency: String(payload['currency'] || 'USD'),
                 categoryId:
@@ -3047,7 +3053,7 @@ export class SyncService {
                 paymentLabel:
                   typeof payload['paymentLabel'] === 'string' ? payload['paymentLabel'] : null,
                 note: typeof payload['note'] === 'string' ? payload['note'] : null,
-                schedule: payload['schedule'] as any,
+                schedule: payload['schedule'] as Record<string, unknown> | undefined,
                 timezone:
                   typeof payload['timezone'] === 'string' ? payload['timezone'] : 'UTC',
                 startDate: String(

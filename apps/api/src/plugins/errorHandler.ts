@@ -269,7 +269,7 @@ export function createErrorHandler(logger: SafeLogger) {
     if (error instanceof MembershipRevokedError) {
       const body: ApiErrorResponse = {
         error: {
-          code: error.code as any,
+          code: error.code as ApiErrorResponse['error']['code'],
           message: error.message,
           requestId,
         },
