@@ -847,7 +847,6 @@ Phases 61–62 unchanged. Phase 60 remains **blocked** for full public/store rel
 - Physical Android Chrome installed-PWA session (owner device).
 - Authenticated create→save→reopen on live preview (needs owner login/email confirm
   in a browser tab — do not send passwords in chat).
-- After push: confirm Render serves `manifest.start_url=/today` and SW `v5`.
 - Full Phase 60 live release gates.
 
 Live preview: https://daynori-web-preview.onrender.com
@@ -855,7 +854,7 @@ Install: Chrome menu → **Install app** / **Add to Home screen** (or the in-app
 banner when Chrome offers it). API: https://daynori-api-preview.onrender.com
 Budget remains $0 Free only.
 
-## Everyday PWA reliability follow-up (2026-10-22, HEAD after 6a9cff7)
+## Everyday PWA reliability follow-up (2026-10-22, HEAD `0037025`)
 
 Owner request: simpler Library, progressive disclosure, persistent login, safe updates,
 honest offline reopen, Help/Support, and Rooms/chat feasibility — without inventing
@@ -900,9 +899,30 @@ not verified mailboxes; password recovery by email may fail. Agent cannot comple
 human password entry. Owner must sign in in a browser tab for create→save→reopen and
 cross-account isolation evidence.
 
+### Live deploy verification (2026-10-22, post-push)
+
+Anonymous HTTPS probes against https://daynori-web-preview.onrender.com after
+`0037025` was on `origin/codex/free-core-preview`:
+
+| Probe | Result |
+|---|---|
+| `GET /sw.js` | HTTP 200; `CACHE_VERSION = 'daynori-static-v6'` |
+| `GET /manifest.json` | HTTP 200; `start_url` `/today`; `display` standalone |
+| `GET /offline.html` | HTTP 200; honest offline shell present |
+| `GET /today`, `/library`, `/help`, `/support`, `/settings` | HTTP 200 |
+
+This confirms the Free Render web service is serving the SW v6 / manifest revision.
+It does **not** certify physical Android viewport layout, authenticated cloud save,
+or cross-account isolation.
+
 ### Remaining
 
-- Physical Android installed-PWA session.
-- Two-account authenticated durable save on live preview (owner login).
-- Full offline cold-reopen organizer shell (ADR 0066 tracks gap).
-- Phase 60 public/store gates.
+- Physical Android installed-PWA session (owner device; distinguish from headless emulation).
+- Two-account authenticated durable save on live preview: owner signs in as
+  `kamrul@daynori.com` and `shahrin@daynori.com` in a browser tab (dummy emails —
+  not real mailboxes; password recovery by email may fail). Do not paste passwords
+  into chat or Git.
+- Full offline cold-reopen organizer shell (ADR 0066 tracks the private-cache gap).
+- Rooms/chat on hosted preview (needs separate owner-reviewed capability; local flag
+  cannot unlock production).
+- Phase 60 public/store gates; phases 61–62 unchanged; Phase 63 not started.
