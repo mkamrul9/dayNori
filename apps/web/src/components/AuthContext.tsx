@@ -281,8 +281,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session.authenticated && session.user) {
           setUser(session.user);
           setIsAuthenticated(true);
-          provisionPersonalWorkspace();
+          void provisionPersonalWorkspace();
         } else {
+          // Explicit unauthenticated response — clear local auth UI state
           setUser(null);
           setIsAuthenticated(false);
           setWorkspaceId(null);
@@ -291,18 +292,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session.csrfToken) {
           setCsrfToken(session.csrfToken);
         }
-      } else {
+      } else if (res.status === 401 || res.status === 403) {
         setUser(null);
         setIsAuthenticated(false);
         setWorkspaceId(null);
         setPreferences(null);
       }
+      // Other HTTP errors (5xx / cold start): keep last-known session; cookies may still be valid
     } catch (err) {
+      // Network / free-server wake failures must not erase a still-valid cookie session
       if ((err as Error)?.name !== 'AbortError') {
-        setUser(null);
-        setIsAuthenticated(false);
-        setWorkspaceId(null);
-        setPreferences(null);
+        console.warn('[auth] session check deferred (network/temporary):', err);
       }
     } finally {
       setIsLoading(false);

@@ -1175,38 +1175,44 @@ export const AppModals: React.FC = () => {
       <Dialog
         isOpen={isMobileDrawerOpen}
         onClose={() => setMobileDrawerOpen(false)}
-        title="Navigation Menu"
-        description="All organizer sections and workspace tools."
+        title="Menu"
+        description="Main places and more tools."
         themeMode={themeMode}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: palette.text.secondary,
+            }}
+          >
+            Everyday
+          </p>
           <ListRow
             title="Today"
-            subtitle="Immediate action, due tasks and routines"
+            subtitle="What needs attention now"
             onClick={() => navigateTo('/today')}
             themeMode={themeMode}
           />
           <ListRow
-            title="Plan: Tasks & Routines"
-            subtitle="Task backlog, scheduled routines, and filters"
+            title="Plan"
+            subtitle="Tasks and repeating routines"
             onClick={() => navigateTo('/plan')}
             themeMode={themeMode}
           />
           <ListRow
-            title="Plan: Calendar"
-            subtitle="Agenda and month projections under Plan"
-            onClick={() => navigateTo('/plan/calendar')}
-            themeMode={themeMode}
-          />
-          <ListRow
             title="Library"
-            subtitle="Folder hierarchy, notes, and files"
+            subtitle="Notes and folders"
             onClick={() => navigateTo('/library')}
             themeMode={themeMode}
           />
           <ListRow
             title="Journal"
-            subtitle="Reflective date timeline and entry editor"
+            subtitle="Private daily writing"
             onClick={() => navigateTo('/journal')}
             themeMode={themeMode}
           />
@@ -1216,21 +1222,45 @@ export const AppModals: React.FC = () => {
               margin: `${spacing.xs}px 0`,
             }}
           />
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: palette.text.secondary,
+            }}
+          >
+            More
+          </p>
           <ListRow
-            title="Component Gallery"
-            subtitle="Phase 04 design system and primitive test gallery"
-            onClick={() => navigateTo('/review')}
+            title="Calendar"
+            subtitle="See Plan on a calendar"
+            onClick={() => navigateTo('/plan/calendar')}
+            themeMode={themeMode}
+          />
+          <ListRow
+            title="Help & tutorial"
+            subtitle="How-tos and replay the beginner guide"
+            onClick={() => navigateTo('/help')}
+            themeMode={themeMode}
+          />
+          <ListRow
+            title="Support"
+            subtitle="Self-serve links and contact status"
+            onClick={() => navigateTo('/support')}
             themeMode={themeMode}
           />
           <ListRow
             title="Settings"
-            subtitle="Theme, text scaling, language, and motion"
+            subtitle="Theme, language, and account tools"
             onClick={() => navigateTo('/settings')}
             themeMode={themeMode}
           />
           <ListRow
-            title="Sync Diagnostics"
-            subtitle="Queue status, connection health, and offline metrics"
+            title="Sync status"
+            subtitle="Connection and offline queue"
             onClick={() => {
               closeModal();
               openModal('sync-diagnostics');
@@ -1238,8 +1268,8 @@ export const AppModals: React.FC = () => {
             themeMode={themeMode}
           />
           <ListRow
-            title="Local Recovery Export"
-            subtitle="Export offline drafts, conflicts, and pending work"
+            title="Recovery export"
+            subtitle="Export local drafts if needed"
             onClick={() => {
               closeModal();
               openModal('recovery-export');

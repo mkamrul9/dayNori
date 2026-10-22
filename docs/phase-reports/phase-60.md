@@ -854,3 +854,55 @@ Live preview: https://daynori-web-preview.onrender.com
 Install: Chrome menu → **Install app** / **Add to Home screen** (or the in-app Install
 banner when Chrome offers it). API: https://daynori-api-preview.onrender.com
 Budget remains $0 Free only.
+
+## Everyday PWA reliability follow-up (2026-10-22, HEAD after 6a9cff7)
+
+Owner request: simpler Library, progressive disclosure, persistent login, safe updates,
+honest offline reopen, Help/Support, and Rooms/chat feasibility — without inventing
+paid infra or store release.
+
+### Delivered
+
+- Library default chrome: Search + Write note + New folder; filters/uploads/saved views /
+  storage under **More tools**; Clear filters chip; Demo Journeys removed from ordinary UI.
+- Menu: Everyday vs More; Help & tutorial + Support links; Component Gallery demoted.
+- Stacked Install/Update banners (`AppStatusBanners`); Update refused while
+  `data-daynori-unsaved`; no unconditional dirty reload (ADR 0066). SW cache `v6`.
+- Session: network/cold-start failures no longer clear auth UI; refresh single-flight;
+  httpOnly cookie refresh (30d) unchanged.
+- Improved public `offline.html` (honest cold-offline limits; private SW cache unchanged).
+- Settings: Rooms/chat/AI/billing shown as unavailable on core preview (not broken panels).
+- Support page: self-serve + troubleshooting; no invented inbox.
+
+### Commands (this follow-up)
+
+Recorded in commit message / CI of this revision:
+
+| Command | Expected |
+|---|---|
+| `pnpm exec vitest run tests/unit/pwa-session-and-banners.test.ts tests/unit/mobile-pwa-usability.test.ts` | PASS |
+| `pnpm exec vitest run tests/integration/phase31-onboarding.test.ts` | PASS |
+| `pnpm --filter @daynori/web build` | PASS |
+| `pnpm validate:planning` / `pnpm audit:secrets` | PASS |
+
+### Rooms / chat
+
+**Blocked on free hosted preview.** Implementation exists (Phases 51–54) but
+`isRoomsLocallyEnabled` is always false in production; `DAYNORI_ROOMS_LOCAL_ENABLED`
+cannot unlock production. Enabling private chat for kamrul@/shahrin@ needs an explicit
+owner-reviewed preview capability (not the local flag), moderation ownership, and
+acceptance that free Render sleep breaks realtime reliability. Not enabled in this commit.
+
+### Accounts
+
+Identifiers `kamrul@daynori.com` and `shahrin@daynori.com` are dummy login emails —
+not verified mailboxes; password recovery by email may fail. Agent cannot complete
+human password entry. Owner must sign in in a browser tab for create→save→reopen and
+cross-account isolation evidence.
+
+### Remaining
+
+- Physical Android installed-PWA session.
+- Two-account authenticated durable save on live preview (owner login).
+- Full offline cold-reopen organizer shell (ADR 0066 tracks gap).
+- Phase 60 public/store gates.

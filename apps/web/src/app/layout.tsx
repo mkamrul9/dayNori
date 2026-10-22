@@ -5,7 +5,6 @@ import './globals.css';
 import { AuthProvider } from '../components/AuthContext';
 import { ShellProvider } from '../components/ShellContext';
 import { AppShell } from '../components/AppShell';
-import { ServiceWorkerRegistration } from '../components/ServiceWorkerRegistration';
 
 export const metadata: Metadata = {
   title: 'Daynori — Your day, gathered',
@@ -34,10 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <AuthProvider>
           <ShellProvider>
-            <AppShell>
-              <ServiceWorkerRegistration />
-              {children}
-            </AppShell>
+            <AppShell>{children}</AppShell>
           </ShellProvider>
         </AuthProvider>
       </body>

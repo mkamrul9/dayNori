@@ -39,11 +39,19 @@ export default function HelpPage() {
           title: 'Install on your phone',
           body: PWA_INSTALL_GUIDE_STEPS.join(' '),
         },
+        {
+          title: 'Stay signed in',
+          body: 'Daynori keeps you signed in across refresh and reopen until you choose Log out. A sleeping free server may need one retry.',
+        },
+        {
+          title: 'Offline and updates',
+          body: 'Edits on this device queue while offline. When an update is ready, save your work then tap Update — Later waits. Cold offline reopen shows a simple offline page.',
+        },
         ...(isCorePreview
           ? [
               {
                 title: 'Preview limits',
-                body: 'File uploads, audio, and reminder delivery are off in this free testing preview.',
+                body: 'File uploads, audio, reminder delivery, rooms/chat, live AI, and billing are off in this free testing preview.',
               },
             ]
           : []),
@@ -251,6 +259,33 @@ export default function HelpPage() {
               themeMode={themeMode}
             />
           </div>
+        </Card>
+
+        <Card themeMode={themeMode}>
+          <h2
+            style={{
+              margin: '0 0 8px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Need more help?
+          </h2>
+          <p className="daynori-break" style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
+            See Support for troubleshooting and contact status. Screenshots of this interface live in
+            the repository under artifacts for contributors; this preview does not embed private
+            user data.
+          </p>
+          <Button
+            variant="secondary"
+            size="compact"
+            themeMode={themeMode}
+            onClick={() => {
+              window.location.href = '/support';
+            }}
+          >
+            Open Support
+          </Button>
         </Card>
       </div>
     </div>

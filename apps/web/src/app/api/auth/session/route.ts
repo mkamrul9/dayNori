@@ -9,6 +9,7 @@ import {
   setSessionCookies,
   clearSessionCookies,
 } from '../../../../auth/session.js';
+import { refreshSingleFlight } from '../../../../auth/refreshSingleFlight.js';
 import type { AuthSession } from '@daynori/contracts';
 
 export const dynamic = 'force-dynamic';
@@ -44,7 +45,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     } else if (refreshToken) {
       // Access token was invalid/expired, attempt refresh token rotation
       try {
-        const refreshed = await authProxy.refresh(refreshToken);
+        const refreshed = await refreshSingleFlight(refreshToken);
         const reVerified = await authProxy.verifySession(refreshed.accessToken);
         if (reVerified) {
           setSessionCookies(response, refreshed.accessToken, refreshed.refreshToken, csrfToken);
@@ -69,7 +70,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   } else if (refreshToken) {
     // Attempt automatic background refresh
     try {
-      const refreshed = await authProxy.refresh(refreshToken);
+      const refreshed = await refreshSingleFlight(refreshToken);
       const reVerified = await authProxy.verifySession(refreshed.accessToken);
       if (reVerified) {
         setSessionCookies(response, refreshed.accessToken, refreshed.refreshToken, csrfToken);

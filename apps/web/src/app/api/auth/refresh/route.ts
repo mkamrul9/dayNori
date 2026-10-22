@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import {
   REFRESH_COOKIE_NAME,
   CSRF_COOKIE_NAME,
-  authProxy,
   setSessionCookies,
   clearSessionCookies,
   validateCsrfAndOrigin,
   parseCookies,
 } from '../../../../auth/session.js';
+import { refreshSingleFlight } from '../../../../auth/refreshSingleFlight.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +37,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   try {
-    const refreshed = await authProxy.refresh(refreshToken);
+    const refreshed = await refreshSingleFlight(refreshToken);
     const res = NextResponse.json({ status: 'ok', csrfToken: existingCsrf });
     const csrfToken = setSessionCookies(
       res,

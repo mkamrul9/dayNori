@@ -27,9 +27,9 @@ export const AppSidebar: React.FC = () => {
   ];
 
   const secondaryItems = [
-    { href: '/review', label: 'Component Gallery', icon: 'palette' },
+    { href: '/help', label: 'Help & tutorial', icon: 'help', shortcut: '?' },
+    { href: '/support', label: 'Support', icon: 'user' },
     { href: '/settings', label: 'Settings', icon: 'settings', shortcut: ',' },
-    { href: '/help', label: 'Help & Shortcuts', icon: 'help', shortcut: '?' },
   ];
 
   const renderNavLink = (

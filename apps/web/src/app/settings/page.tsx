@@ -773,8 +773,27 @@ export default function SettingsPage() {
           </Card>
         ) : null}
 
-        {/* 7c. Shared rooms (Phase 51 provisional local) */}
-        {isAuthenticated ? (
+        {/* Shared rooms / AI / billing — honest gates on free preview */}
+        {isAuthenticated && isCorePreview ? (
+          <Card themeMode={themeMode} id="shared-rooms">
+            <h2
+              style={{
+                margin: `0 0 ${spacing.sm}px`,
+                fontSize: typography.webScale.sectionHeading,
+                color: palette.text.primary,
+              }}
+            >
+              Rooms &amp; chat
+            </h2>
+            <p className="daynori-break" style={{ margin: 0, color: palette.text.secondary, fontSize: 14 }}>
+              Private rooms and chat are built in the codebase but stay off on this free hosted
+              preview. Production never enables them via a local development flag. Turning them on
+              needs an explicit owner decision, reviewed deployment capability, and staffed
+              moderation/support — not done here.
+            </p>
+          </Card>
+        ) : null}
+        {isAuthenticated && !isCorePreview ? (
           <Card themeMode={themeMode} id="shared-rooms">
             <RoomsPanel
               csrfToken={csrfToken}
@@ -784,37 +803,47 @@ export default function SettingsPage() {
           </Card>
         ) : null}
 
-        {/* 7d. AI consent harness (Phase 55 provisional local) */}
-        {isAuthenticated ? (
-          <Card themeMode={themeMode} id="ai-consent">
-            <AiConsentHarness
-              csrfToken={csrfToken}
-              themeMode={themeMode}
-              personalWorkspaceId={workspaceId}
-            />
+        {isAuthenticated && isCorePreview ? (
+          <Card themeMode={themeMode} id="optional-modules">
+            <h2
+              style={{
+                margin: `0 0 ${spacing.sm}px`,
+                fontSize: typography.webScale.sectionHeading,
+                color: palette.text.primary,
+              }}
+            >
+              Other optional modules
+            </h2>
+            <p className="daynori-break" style={{ margin: 0, color: palette.text.secondary, fontSize: 14 }}>
+              Live AI assistant and production billing stay disabled in this preview. Vault and Drive
+              keep their separate release gates.
+            </p>
           </Card>
         ) : null}
-
-        {/* 7e. Assistant + reviewable proposals (Phase 56 provisional local) */}
-        {isAuthenticated ? (
-          <Card themeMode={themeMode} id="ai-assistant">
-            <AssistantPanel
-              csrfToken={csrfToken}
-              themeMode={themeMode}
-              personalWorkspaceId={workspaceId}
-            />
-          </Card>
-        ) : null}
-
-        {/* 7f. Plan & billing (Phase 57 provisional local) */}
-        {isAuthenticated ? (
-          <Card themeMode={themeMode} id="billing-plan">
-            <BillingPanel
-              csrfToken={csrfToken}
-              themeMode={themeMode}
-              personalWorkspaceId={workspaceId}
-            />
-          </Card>
+        {isAuthenticated && !isCorePreview ? (
+          <>
+            <Card themeMode={themeMode} id="ai-consent">
+              <AiConsentHarness
+                csrfToken={csrfToken}
+                themeMode={themeMode}
+                personalWorkspaceId={workspaceId}
+              />
+            </Card>
+            <Card themeMode={themeMode} id="ai-assistant">
+              <AssistantPanel
+                csrfToken={csrfToken}
+                themeMode={themeMode}
+                personalWorkspaceId={workspaceId}
+              />
+            </Card>
+            <Card themeMode={themeMode} id="billing-plan">
+              <BillingPanel
+                csrfToken={csrfToken}
+                themeMode={themeMode}
+                personalWorkspaceId={workspaceId}
+              />
+            </Card>
+          </>
         ) : null}
 
         {/* 8. Sync & Offline Recovery (Phase 34) */}

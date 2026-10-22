@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 60 — Library simplify, session resilience, safe updates (preview) — 2026-10-22
+
+- Library default: search, Write note, New folder; filters/uploads/saved views under More tools; demo controls removed from ordinary use.
+- Stacked Install/Update banners; Update blocked while unsaved (`data-daynori-unsaved`); SW `v6`; improved offline.html (ADR 0066).
+- Session check no longer clears auth on network/cold-start failures; refresh single-flight; honest Rooms/chat and Support copy.
+- Menu progressive disclosure (Everyday / More). Phase 60 store release still incomplete.
+
 ## Phase 60 — Mobile PWA usability follow-up (preview, blocked) — 2026-10-22
 
 - Narrow-safe Library/Settings/Review grids; Today shortcut `/today`; shorter Today/bottom-nav chrome; Help/Today text wrapping.

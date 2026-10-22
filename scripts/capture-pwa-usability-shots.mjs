@@ -66,6 +66,10 @@ if (!chrome) {
 
 await waitReady(`${baseUrl}/privacy`);
 
+/**
+ * File size alone is not layout acceptance. Dump metrics via a small evaluation
+ * page when Chrome remote debugging is unavailable — record known limitations.
+ */
 const results = [];
 for (const width of widths) {
   for (const route of routes) {
@@ -75,6 +79,7 @@ for (const width of widths) {
       '--headless=new',
       '--disable-gpu',
       '--hide-scrollbars',
+      '--force-device-scale-factor=1',
       `--window-size=${width},844`,
       `--screenshot=${file}`,
       url,
@@ -84,9 +89,19 @@ for (const width of widths) {
       child.on('error', reject);
       child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`chrome exit ${code}`))));
     });
-    const ok = fs.existsSync(file) && fs.statSync(file).size > 1000;
-    results.push({ width, route: route.path, file, ok });
-    console.log(ok ? `[PASS] ${route.name}@${width}` : `[FAIL] ${route.name}@${width}`);
+    const exists = fs.existsSync(file) && fs.statSync(file).size > 1000;
+    // Emulation caveat: --window-size is not a guaranteed CSS viewport; owners must
+    // still verify on a physical Android PWA. Mark as capture-ok, not layout-certified.
+    const ok = exists;
+    results.push({
+      width,
+      route: route.path,
+      file,
+      ok,
+      layoutCertified: false,
+      note: 'headless window-size emulation — not physical CSS viewport certification',
+    });
+    console.log(ok ? `[CAPTURE] ${route.name}@${width}` : `[FAIL] ${route.name}@${width}`);
   }
 }
 

@@ -104,6 +104,8 @@ export default function LibraryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(1);
+  /** Progressive disclosure: filters, saved views, storage, and less-common creates. */
+  const [libraryToolsOpen, setLibraryToolsOpen] = useState(false);
 
   // Status & Sync Indicators
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -1300,177 +1302,6 @@ export default function LibraryPage() {
     });
   };
 
-  // Seeder for Canonical Demo Journeys (Software & Government Jobs)
-  const handleLoadSampleJourneys = async () => {
-    const ws = workspaceId || 'ws-canonical';
-    const now = new Date().toISOString();
-
-    const swId = generateUuid();
-    const guidesId = generateUuid();
-    const projectsId = generateUuid();
-    const govId = generateUuid();
-    const appsId = generateUuid();
-
-    const sampleFolders: FolderNode[] = [
-      {
-        id: swId,
-        name: 'Software',
-        parentId: null,
-        icon: 'code',
-        color: '#3b82f6',
-        rank: '00001000',
-        scope: 'workspace',
-        revision: 1,
-      },
-      {
-        id: guidesId,
-        name: 'Guides',
-        parentId: swId,
-        icon: 'library',
-        color: '#10b981',
-        rank: '00001000',
-        scope: 'workspace',
-        revision: 1,
-      },
-      {
-        id: projectsId,
-        name: 'Projects',
-        parentId: swId,
-        icon: 'rocket',
-        color: '#8b5cf6',
-        rank: '00002000',
-        scope: 'workspace',
-        revision: 1,
-      },
-      {
-        id: govId,
-        name: 'Government jobs',
-        parentId: null,
-        icon: 'landmark',
-        color: '#f59e0b',
-        rank: '00002000',
-        scope: 'workspace',
-        revision: 1,
-      },
-      {
-        id: appsId,
-        name: 'Applications',
-        parentId: govId,
-        icon: 'clipboard',
-        color: '#ef4444',
-        rank: '00001000',
-        scope: 'workspace',
-        revision: 1,
-      },
-    ];
-
-    const sampleItems: LibraryItemRecord[] = [
-      {
-        id: generateUuid(),
-        title: 'TypeScript reference handbook',
-        kind: 'knowledge',
-        folderId: guidesId,
-        rank: '00001000',
-        scope: 'workspace',
-        revision: 1,
-        ext: '.pdf',
-        metadata: 'Knowledge Note • Updated yesterday',
-      },
-      {
-        id: generateUuid(),
-        title: 'TypeScript handbook deep-dive.pdf',
-        kind: 'file',
-        folderId: guidesId,
-        rank: '00002000',
-        scope: 'workspace',
-        revision: 1,
-        ext: '.pdf',
-        metadata: 'PDF Document (2.4 MB) • Sep 28',
-      },
-      {
-        id: generateUuid(),
-        title: 'Read generics chapter in handbook',
-        kind: 'task',
-        folderId: guidesId,
-        rank: '00003000',
-        scope: 'workspace',
-        revision: 1,
-        metadata: 'Task Note • Due Friday',
-      },
-      {
-        id: generateUuid(),
-        title: 'New offline sync engine idea',
-        kind: 'note',
-        folderId: projectsId,
-        rank: '00001000',
-        scope: 'workspace',
-        revision: 1,
-        ext: '.txt',
-        metadata: 'Markdown Note • Draft',
-      },
-      {
-        id: generateUuid(),
-        title: 'Government Application Form.pdf',
-        kind: 'file',
-        folderId: appsId,
-        rank: '00001000',
-        scope: 'workspace',
-        revision: 1,
-        ext: '.pdf',
-        metadata: 'PDF Document (1.1 MB) • Oct 2',
-      },
-      {
-        id: generateUuid(),
-        title: 'Submit civil service exam application',
-        kind: 'task',
-        folderId: appsId,
-        rank: '00002000',
-        scope: 'workspace',
-        revision: 1,
-        metadata: 'Task Note • Deadline next week',
-      },
-    ];
-
-    setFolders((prev) => [...prev, ...sampleFolders]);
-    setItems((prev) => [...prev, ...sampleItems]);
-    announce('Loaded Software and Government jobs sample journeys');
-
-    // Persist folders to local storage if available
-    if (syncEngineRef.current) {
-      for (const f of sampleFolders) {
-        const header: ItemHeaderRecord = {
-          id: f.id,
-          workspaceId: ws,
-          kind: 'folder',
-          name: f.name,
-          parentId: f.parentId,
-          folderId: f.parentId,
-          color: f.color,
-          icon: f.icon,
-          rank: f.rank,
-          securityScope: 'standard',
-          isArchived: false,
-          isPinned: false,
-          serverRevision: 0,
-          createdAt: now,
-          updatedAt: now,
-          deletedAt: null,
-        };
-        await syncEngineRef.current.saveItem(header, undefined, 'createFolder');
-      }
-      if (isOnline) {
-        void syncEngineRef.current.syncNow();
-      }
-    }
-  };
-
-  const handleClearDemoJourneys = () => {
-    setFolders([]);
-    setItems([]);
-    setCurrentFolderId(null);
-    announce('Cleared sample journeys. Library is now empty.');
-  };
-
   // Note Editor Handlers
   const handleOpenNewNote = useCallback(() => {
     const newId = generateUuid();
@@ -2656,9 +2487,18 @@ export default function LibraryPage() {
             localSaveStatus={localSaveStatus}
             cloudSyncStatus={cloudSyncStatus}
             conflict={editingNote.conflict}
-            onSave={handleSaveNote}
+            onChange={() => {
+              void import('../../editing/unsavedWork.js').then((m) => m.setUnsavedWork(true));
+            }}
+            onSave={async (saved) => {
+              await handleSaveNote(saved);
+              void import('../../editing/unsavedWork.js').then((m) => m.setUnsavedWork(false));
+            }}
             onResolveConflict={handleResolveConflict}
-            onClose={() => setEditingNote(null)}
+            onClose={() => {
+              void import('../../editing/unsavedWork.js').then((m) => m.setUnsavedWork(false));
+              setEditingNote(null);
+            }}
             onDelete={handleDeleteNote}
           />
         </div>
@@ -2669,164 +2509,200 @@ export default function LibraryPage() {
             <BreadcrumbNav items={breadcrumbItems} onNavigateBack={handleNavigateUp} />
           </div>
 
-          {/* Storage Quota Usage Bar */}
-          <div style={{ marginBottom: spacing.md }}>
-            <StorageUsageBar
-              storedBytes={storageUsage.storedBytes}
-              reservedBytes={storageUsage.reservedBytes}
-              maxBytes={storageUsage.maxBytes}
-              themeMode={themeMode}
-            />
-          </div>
-
-          {/* Toolbar: Search, Filters, and Actions */}
+          {/* Primary Library chrome: search + Add + optional tools */}
           <div
             style={{
               display: 'flex',
               flexWrap: 'wrap',
               alignItems: 'center',
-              justifyContent: 'space-between',
               gap: spacing.sm,
               marginBottom: spacing.md,
+              minWidth: 0,
             }}
           >
-            {/* Module Filter Tabs */}
-            <div
-              role="tablist"
-              aria-label="Filter library content by type"
-              style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
+            <input
+              type="search"
+              placeholder="Search notes and folders…"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Search library"
+              className="daynori-break"
+              style={{
+                flex: '1 1 12rem',
+                minWidth: 0,
+                padding: '6px 12px',
+                borderRadius: radii.sm,
+                border: `1px solid ${palette.border.subtle}`,
+                backgroundColor: palette.surface,
+                color: palette.text.primary,
+                fontSize: typography.webScale.supporting,
+                minHeight: touchTargets.webMin,
+                boxSizing: 'border-box',
+              }}
+            />
+            <Button variant="primary" onClick={handleOpenNewNote} aria-label="Write a new note">
+              <Icon name="plus" /> Write note
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleOpenCreateModal(currentFolderId)}
+              aria-label="Create new folder"
             >
-              {(
-                [
-                  { key: 'all', label: 'All Items' },
-                  { key: 'notes', label: 'Notes' },
-                  { key: 'knowledge', label: 'Knowledge' },
-                  { key: 'files', label: 'Files' },
-                  { key: 'tasks', label: 'Tasks' },
-                ] as const
-              ).map((tab) => {
-                const isSelected = typeFilter === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    role="tab"
-                    aria-selected={isSelected}
-                    onClick={() => {
-                      setTypeFilter(tab.key);
-                      setPage(1);
-                      announce(`Filtered view by ${tab.label}`);
-                    }}
-                    style={{
-                      minHeight: touchTargets.webMin,
-                      padding: '6px 12px',
-                      borderRadius: radii.sm,
-                      fontSize: typography.webScale.supporting,
-                      fontWeight: isSelected ? '600' : '400',
-                      border: isSelected
-                        ? `1px solid ${palette.action.primary}`
-                        : `1px solid ${palette.border.subtle}`,
-                      backgroundColor: isSelected ? palette.action.subtle : palette.surface,
-                      color: isSelected ? palette.action.primary : palette.text.secondary,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+              New folder
+            </Button>
+            <Button
+              variant="subtle"
+              aria-expanded={libraryToolsOpen}
+              aria-controls="library-more-tools"
+              onClick={() => setLibraryToolsOpen((v) => !v)}
+            >
+              {libraryToolsOpen ? 'Hide tools' : 'More tools'}
+            </Button>
+          </div>
 
-            {/* Action Buttons */}
+          {(typeFilter !== 'all' || activeSavedViewId || showArchived || searchQuery.trim()) && (
             <div
-              style={{ display: 'flex', gap: spacing.xs, alignItems: 'center', flexWrap: 'wrap' }}
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: spacing.xs,
+                marginBottom: spacing.sm,
+                minWidth: 0,
+              }}
             >
-              <input
-                type="search"
-                placeholder="Search items..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
+              <span
+                className="daynori-break"
+                style={{ fontSize: 12, color: palette.text.secondary, fontWeight: 600 }}
+              >
+                Active filters
+                {typeFilter !== 'all' ? ` · ${typeFilter}` : ''}
+                {searchQuery.trim() ? ' · search' : ''}
+                {activeSavedViewId ? ' · saved view' : ''}
+                {showArchived ? ' · archived' : ''}
+              </span>
+              <Button
+                variant="subtle"
+                size="compact"
+                onClick={() => {
+                  setTypeFilter('all');
+                  setSearchQuery('');
+                  setActiveSavedViewId(null);
+                  setShowArchived(false);
                   setPage(1);
+                  announce('Filters cleared');
                 }}
-                aria-label="Search items"
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: radii.sm,
-                  border: `1px solid ${palette.border.subtle}`,
-                  backgroundColor: palette.surface,
-                  color: palette.text.primary,
-                  fontSize: typography.webScale.supporting,
-                  minHeight: touchTargets.webMin,
-                }}
-              />
-
-              <Button variant="primary" onClick={handleOpenNewNote} aria-label="Create new note">
-                + New Note
-              </Button>
-
-              <Button
-                variant="secondary"
-                onClick={() => handleOpenNewPresetNote('guide')}
-                aria-label="Create new knowledge guide"
               >
-                + Guide
+                Clear filters
               </Button>
+            </div>
+          )}
 
-              <Button
-                variant="secondary"
-                onClick={() => handleOpenNewPresetNote('cheatsheet')}
-                aria-label="Create new cheatsheet"
+          {libraryToolsOpen && (
+            <div
+              id="library-more-tools"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: spacing.sm,
+                marginBottom: spacing.md,
+                padding: spacing.sm,
+                borderRadius: radii.card,
+                border: `1px solid ${palette.border.subtle}`,
+                backgroundColor: palette.surfaceRaised,
+                minWidth: 0,
+              }}
+            >
+              <div
+                role="tablist"
+                aria-label="Filter by type"
+                style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
               >
-                + Cheatsheet
-              </Button>
+                {(
+                  [
+                    { key: 'all', label: 'All' },
+                    { key: 'notes', label: 'Notes' },
+                    { key: 'knowledge', label: 'Guides' },
+                    { key: 'files', label: 'Files' },
+                    { key: 'tasks', label: 'Tasks' },
+                  ] as const
+                ).map((tab) => {
+                  const isSelected = typeFilter === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setTypeFilter(tab.key);
+                        setPage(1);
+                        announce(`Showing ${tab.label}`);
+                      }}
+                      style={{
+                        minHeight: touchTargets.webMin,
+                        padding: '6px 12px',
+                        borderRadius: radii.sm,
+                        fontSize: typography.webScale.supporting,
+                        fontWeight: isSelected ? '600' : '400',
+                        border: isSelected
+                          ? `1px solid ${palette.action.primary}`
+                          : `1px solid ${palette.border.subtle}`,
+                        backgroundColor: isSelected ? palette.action.subtle : palette.surface,
+                        color: isSelected ? palette.action.primary : palette.text.secondary,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-              <Button
-                variant="secondary"
-                onClick={() => setFileUploadOpen(true)}
-                aria-label="Upload file to workspace folder"
-                disabled={isCorePreview}
-              >
-                + Upload File
-              </Button>
-
-              <Button
-                variant="secondary"
-                onClick={() => setAudioRecorderOpen(true)}
-                aria-label="Record deliberate audio note"
-                disabled={isCorePreview}
-              >
-                <Icon name="microphone" /> Record Audio
-              </Button>
-
-              <Button
-                variant="secondary"
-                onClick={() => handleOpenCreateModal(currentFolderId)}
-                aria-label="Create new workspace folder"
-              >
-                + New Folder
-              </Button>
-
-              {folders.length === 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs }}>
                 <Button
-                  id="load-demo-journeys-btn"
                   variant="secondary"
-                  onClick={handleLoadSampleJourneys}
-                  aria-label="Load demo journeys"
+                  size="compact"
+                  onClick={() => handleOpenNewPresetNote('guide')}
                 >
-                  Demo Journeys
+                  New guide
                 </Button>
-              )}
-
-              {folders.length > 0 && (
                 <Button
-                  id="clear-demo-journeys-btn"
-                  variant="subtle"
-                  onClick={handleClearDemoJourneys}
-                  aria-label="Clear demo journeys"
+                  variant="secondary"
+                  size="compact"
+                  onClick={() => handleOpenNewPresetNote('cheatsheet')}
                 >
-                  Clear Demo
+                  New cheatsheet
                 </Button>
-              )}
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  onClick={() => setFileUploadOpen(true)}
+                  disabled={isCorePreview}
+                  title={isCorePreview ? 'Uploads unavailable in this testing preview' : undefined}
+                >
+                  Upload file
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  onClick={() => setAudioRecorderOpen(true)}
+                  disabled={isCorePreview}
+                  title={isCorePreview ? 'Audio unavailable in this testing preview' : undefined}
+                >
+                  Record audio
+                </Button>
+                <Button
+                  variant="subtle"
+                  size="compact"
+                  onClick={() => setIsSaveViewDialogOpen(true)}
+                >
+                  Save this view
+                </Button>
+              </div>
 
               <label
                 style={{
@@ -2836,7 +2712,7 @@ export default function LibraryPage() {
                   fontSize: typography.webScale.metadata,
                   color: palette.text.secondary,
                   cursor: 'pointer',
-                  marginLeft: spacing.xs,
+                  minHeight: touchTargets.webMin,
                 }}
               >
                 <input
@@ -2845,117 +2721,105 @@ export default function LibraryPage() {
                   onChange={(e) => setShowArchived(e.target.checked)}
                   aria-label="Show archived items and folders"
                 />
-                Show Archived
+                Show archived
               </label>
-            </div>
-          </div>
 
-          {/* Saved Views Bar */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: spacing.xs,
-              flexWrap: 'wrap',
-              marginBottom: spacing.md,
-              padding: '6px 12px',
-              backgroundColor: palette.surfaceRaised,
-              borderRadius: radii.card,
-              border: `1px solid ${palette.border.subtle}`,
-            }}
-          >
-            <span
-              style={{
-                fontSize: typography.webScale.metadata,
-                fontWeight: '600',
-                color: palette.text.secondary,
-                marginRight: 4,
-              }}
-            >
-              Saved Views:
-            </span>
-            <button
-              type="button"
-              role="button"
-              aria-pressed={activeSavedViewId === null}
-              onClick={() => {
-                setActiveSavedViewId(null);
-                announce('Showing standard folder view');
-              }}
-              style={{
-                padding: '4px 10px',
-                borderRadius: radii.sm,
-                fontSize: typography.webScale.metadata,
-                border: `1px solid ${activeSavedViewId === null ? palette.action.primary : palette.border.subtle}`,
-                backgroundColor:
-                  activeSavedViewId === null ? palette.action.subtle : palette.surface,
-                color: activeSavedViewId === null ? palette.action.primary : palette.text.secondary,
-                cursor: 'pointer',
-                fontWeight: activeSavedViewId === null ? '600' : '400',
-              }}
-            >
-              Default
-            </button>
-            {savedViews.map((sv) => {
-              const isSelected = activeSavedViewId === sv.id;
-              return (
-                <span
-                  key={sv.id}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    borderRadius: radii.sm,
-                    border: `1px solid ${isSelected ? palette.action.primary : palette.border.subtle}`,
-                    backgroundColor: isSelected ? palette.action.subtle : palette.surface,
-                  }}
-                >
+              {savedViews.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs, minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: palette.text.secondary }}>
+                    Saved views
+                  </span>
                   <button
                     type="button"
-                    role="button"
-                    aria-pressed={isSelected}
+                    aria-pressed={activeSavedViewId === null}
                     onClick={() => {
-                      setActiveSavedViewId(sv.id);
-                      announce(`Switched to saved view ${sv.name}`);
+                      setActiveSavedViewId(null);
+                      announce('Default folder view');
                     }}
                     style={{
-                      padding: '4px 8px',
-                      border: 'none',
-                      background: 'none',
+                      padding: '4px 10px',
+                      borderRadius: radii.sm,
                       fontSize: typography.webScale.metadata,
-                      color: isSelected ? palette.action.primary : palette.text.primary,
-                      cursor: 'pointer',
-                      fontWeight: isSelected ? '600' : '400',
-                    }}
-                  >
-                    <Icon name="bookmark" /> {sv.name}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteSavedView(sv.id)}
-                    aria-label={`Delete view ${sv.name}`}
-                    style={{
-                      padding: '4px 6px',
-                      border: 'none',
-                      background: 'none',
-                      color: palette.text.muted,
-                      fontSize: '11px',
+                      border: `1px solid ${activeSavedViewId === null ? palette.action.primary : palette.border.subtle}`,
+                      backgroundColor:
+                        activeSavedViewId === null ? palette.action.subtle : palette.surface,
+                      color:
+                        activeSavedViewId === null
+                          ? palette.action.primary
+                          : palette.text.secondary,
                       cursor: 'pointer',
                     }}
                   >
-                    <Icon name="x" />
+                    Default
                   </button>
-                </span>
-              );
-            })}
-            <Button
-              variant="subtle"
-              onClick={() => setIsSaveViewDialogOpen(true)}
-              aria-label="Save current filter as view"
-              style={{ padding: '2px 8px', fontSize: typography.webScale.metadata, minHeight: 28 }}
-            >
-              + Save View
-            </Button>
-          </div>
+                  {savedViews.map((sv) => {
+                    const isSelected = activeSavedViewId === sv.id;
+                    return (
+                      <span
+                        key={sv.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          borderRadius: radii.sm,
+                          border: `1px solid ${isSelected ? palette.action.primary : palette.border.subtle}`,
+                          backgroundColor: isSelected ? palette.action.subtle : palette.surface,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => {
+                            setActiveSavedViewId(sv.id);
+                            announce(`View ${sv.name}`);
+                          }}
+                          className="daynori-break"
+                          style={{
+                            padding: '4px 8px',
+                            border: 'none',
+                            background: 'none',
+                            fontSize: typography.webScale.metadata,
+                            color: isSelected ? palette.action.primary : palette.text.primary,
+                            cursor: 'pointer',
+                            maxWidth: '10rem',
+                          }}
+                        >
+                          {sv.name}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteSavedView(sv.id)}
+                          aria-label={`Delete view ${sv.name}`}
+                          style={{
+                            padding: '4px 6px',
+                            border: 'none',
+                            background: 'none',
+                            color: palette.text.muted,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Icon name="x" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              <details style={{ fontSize: 12, color: palette.text.secondary }}>
+                <summary style={{ cursor: 'pointer', minHeight: touchTargets.webMin }}>
+                  Storage on this account
+                </summary>
+                <div style={{ marginTop: spacing.xs }}>
+                  <StorageUsageBar
+                    storedBytes={storageUsage.storedBytes}
+                    reservedBytes={storageUsage.reservedBytes}
+                    maxBytes={storageUsage.maxBytes}
+                    themeMode={themeMode}
+                  />
+                </div>
+              </details>
+            </div>
+          )}
 
           {/* Subfolders Section */}
           {currentSubfolders.length > 0 && (
@@ -3152,15 +3016,21 @@ export default function LibraryPage() {
                 id="library-empty-state"
                 title={folders.length === 0 ? 'Your library is empty' : 'No items found'}
                 description={
-                  currentSubfolders.length === 0
-                    ? 'Your library is empty. Create a folder or load demo journeys.'
-                    : 'No items in this folder matching your active filters.'
+                  searchQuery.trim() || typeFilter !== 'all'
+                    ? 'Nothing matches these filters. Clear filters or write a new note.'
+                    : 'Write a note or create a folder to get started.'
                 }
-                actionLabel={folders.length === 0 ? 'Load Demo Journeys' : 'New Folder'}
+                actionLabel={searchQuery.trim() || typeFilter !== 'all' ? 'Clear filters' : 'Write note'}
                 onAction={
-                  folders.length === 0
-                    ? handleLoadSampleJourneys
-                    : () => handleOpenCreateModal(currentFolderId)
+                  searchQuery.trim() || typeFilter !== 'all'
+                    ? () => {
+                        setTypeFilter('all');
+                        setSearchQuery('');
+                        setActiveSavedViewId(null);
+                        setShowArchived(false);
+                        setPage(1);
+                      }
+                    : handleOpenNewNote
                 }
               />
             ) : (
