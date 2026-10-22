@@ -204,5 +204,20 @@
     "setupToken": "project-only; private local file; not sent to Render/GitHub",
     "hostedWeb": "pending",
     "standaloneApk": "pending"
+  },
+  "hostedCorePreview": {
+    "date": "2026-10-22",
+    "api": "https://daynori-api-preview.onrender.com",
+    "web": "https://daynori-web-preview.onrender.com",
+    "apiHealth": 200,
+    "apiReady": 200,
+    "webHealth": 200,
+    "previewNotice": true,
+    "region": "Singapore",
+    "plan": "Free",
+    "authenticatedSmoke": "pending",
+    "androidRun": "39731382027",
+    "androidArtifact": "pending",
+    "emailConfirmationRequired": true
   }
 }

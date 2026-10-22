@@ -1,6 +1,13 @@
 # Android and web testing deployment
 
-Selected Phase 60 preparation, 2026-10-21. **Not deployed and not release-ready.**
+Selected Phase 60 testing preview. Hosted health/readiness verified 2026-10-22;
+signed-in cloud and physical-phone checks remain open. **Not release-ready.**
+
+- Web: https://daynori-web-preview.onrender.com (Render Free, Singapore).
+- API readiness: https://daynori-api-preview.onrender.com/v1/ready (Free, Singapore).
+- Source: `codex/free-core-preview`; reviewed checkpoint `cbac95a`.
+- Android build: [39731382027](https://github.com/mkamrul9/dayNori/actions/runs/39731382027),
+  not yet a verified download at this checkpoint.
 
 The closest fit for the current code is a Node/container host such as Render for
 Next.js and Fastify, with Supabase for identity and PostgreSQL. The web app has
@@ -42,7 +49,7 @@ initialization is skipped in the core profile. Missing privileged Auth cleanup
 credentials leave account deletion in `processing`; both interfaces disclose
 pending cleanup rather than claim full erasure.
 
-Use the filtered Node build commands `corepack enable && pnpm install --frozen-lockfile
+Use the filtered Node build commands `corepack enable && pnpm install --frozen-lockfile --prod=false
 && pnpm --filter @daynori/web... build` and the equivalent `@daynori/api...` filter.
 Start web with `pnpm --filter @daynori/web start --hostname 0.0.0.0`. Start the API
 from the repository root with

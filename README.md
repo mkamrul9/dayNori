@@ -12,7 +12,10 @@ The initial target is a responsive web application and an Android application. i
 
 The owner selected a **$0 testing preview**. Its Supabase project and 74-entry
 managed schema are verified, including the restricted TLS runtime login;
-Render deployment and a standalone Android download are still pending. The free
+The [web preview](https://daynori-web-preview.onrender.com) and
+[API readiness endpoint](https://daynori-api-preview.onrender.com/v1/ready) are
+live on Render Free. Signed-in cloud journeys, the standalone Android download
+and physical-phone verification remain pending. The free
 profile excludes uploads/audio attachments and reminder delivery, with visible
 in-app limits. Follow the [deployment handoff](infra/deployment/README.md).
 

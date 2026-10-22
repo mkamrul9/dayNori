@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 60 — hosted core preview — 2026-10-22
+
+- Deploy the restricted API and existing web service on Render Free in Singapore; verify API health/readiness and website health over HTTPS.
+- Configure exact live web/Android authentication return URLs with email verification retained. Send only restricted app credentials to the API host under owner approval.
+- Trigger the free Android standalone build against the verified hosted API.
+- Repair the live sign-in panel to use existing themed Dialog/Button/TextField controls with focus containment and remove an unsupported absolute security claim.
+- Keep authenticated cloud journeys, APK verification/download, hardware and existing release gates pending.
+
 ## Phase 60 — managed preview database setup — 2026-10-22
 
 - Verify 74 cloud migration receipts using the owner's project-only setup token; keep setup credentials local and activate only the restricted runtime login.

@@ -637,3 +637,43 @@ verified all 74 receipts, adaptation hashes and the restricted TLS login.
 
 The preview source checkpoint is authorized to support deployment; it does not
 complete Phase 60 or resolve the previously documented release blockers.
+
+### Authorized free hosting — 2026-10-22
+
+Owner approved both free previews and sending only the restricted app database
+password and reauthentication signing secret to the API service's server env.
+The setup token/administrator password were not sent. New API service:
+`srv-dbcqb4psrm7s73bls8h0`, Singapore Free. The existing web service
+`srv-dbcfm9ei0phs73a857ag` had failed on old main `9177502`; it was reused and
+switched to reviewed source checkpoint `cbac95a` on codex/free-core-preview.
+Other Render services were not changed. Build commands explicitly install dev
+build tools with `--prod=false`; the API loads the public CA before Node starts.
+
+Actual HTTPS checks returned 200 for API `/v1/health`, API `/v1/ready`, and web
+`/api/health`. URLs:
+https://daynori-api-preview.onrender.com and
+https://daynori-web-preview.onrender.com. Browser verification confirms the final
+web build's free-preview limitations notice. This is endpoint/UI evidence, not
+yet an authenticated cross-device smoke pass.
+
+Scoped Management API Auth reads succeeded but configuration PATCH returned 403.
+The owner's existing dashboard session saved only the live Site URL and exact
+web `/api/auth/callback` and `daynori://auth` return allowlist instead. Read-back
+verified those values and `mailer_autoconfirm=false` (email verification retained).
+
+GitHub received only public mobile connection inputs and the publishable client
+key. Pushing reviewed source to codex/android-preview-build started standalone
+APK workflow [39731382027](https://github.com/mkamrul9/dayNori/actions/runs/39731382027).
+Its build is not yet a verified downloadable artifact at this checkpoint.
+
+Live browser QA found the auth panel's uncompiled Tailwind class strings left
+it unstyled at the bottom of the page. Replace that isolated panel with existing
+themed Dialog, Button, TextField and Feedback primitives, preserving provider
+actions and adopting the Dialog's focus containment/restore. Remove an unsupported
+"zero credential leakage" guarantee. Validate the web update before redeployment.
+Signed-in synthetic journeys and Android installation remain pending.
+
+Auth panel repair validation: `pnpm --filter @daynori/web typecheck`,
+`node node_modules/eslint/bin/eslint.js apps/web/src/components/AuthModal.tsx`,
+and `NEXT_PUBLIC_DAYNORI_CORE_PREVIEW=true pnpm --filter @daynori/web build`
+passed (exit 0). Build log: `artifacts/release/hosted-auth-dialog-build.log`.

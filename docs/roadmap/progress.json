@@ -363,7 +363,7 @@
     {
       "id": "60",
       "status": "blocked",
-      "reason": "Free core preview prepared (ADRs 0061–0063); Supabase project created and $0 budget selected. Final build/lint and 33 focused tests pass; type checks validated after test typing repair. Latest full suite 1337 passed/3 failed; mobile config fixed, isolated keyset mean still 80.67ms vs <80ms. GitHub sign-in confirmed. Project-scoped setup approved; 74 cloud receipts and restricted TLS runtime login verified (ADR 0064). Await Render deployment, hosted smoke and standalone APK. No live web URL or APK. Two HIGH dependency advisories, physical-device and public-release gates remain. releaseEligible=false; Phases 61–62 unchanged, Phase 63 not started.",
+      "reason": "Free core preview prepared (ADRs 0061–0063); Supabase project created and $0 budget selected. Final build/lint and 33 focused tests pass; type checks validated after test typing repair. Latest full suite 1337 passed/3 failed; mobile config fixed, isolated keyset mean still 80.67ms vs <80ms. GitHub sign-in confirmed. Project-scoped setup approved; 74 cloud receipts and restricted TLS runtime login verified (ADR 0064). Free API/web now live with HTTP 200 health/readiness and preview notice. Authenticated journeys and Android build verification remain pending. Two HIGH dependency advisories, physical-device and public-release gates remain. releaseEligible=false; Phases 61–62 unchanged, Phase 63 not started.",
       "report": "docs/phase-reports/phase-60.md"
     },
     {
