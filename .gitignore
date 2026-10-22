@@ -33,6 +33,7 @@ artifacts/release/*.ipa
 *.pem
 credentials.json
 service-account*.json
+google-services.json
 uploads/
 recordings/
 local-data/

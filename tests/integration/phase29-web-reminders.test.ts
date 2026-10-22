@@ -577,7 +577,9 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
       // Device A acknowledged local schedule -> suppressed_local_schedule
       expect(devADelivery).toBeDefined();
       expect(devADelivery.status).toBe('suppressed_local_schedule');
-      expect(devADelivery.redacted_body).toContain('Suppressed by device local schedule acknowledgment');
+      expect(devADelivery.redacted_body).toContain(
+        'Suppressed by device local schedule acknowledgment'
+      );
 
       // Device B did NOT acknowledge local schedule -> delivered via push
       expect(devBDelivery).toBeDefined();
@@ -732,7 +734,11 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
       expect(delivery1.rows[0].error_message).toContain('503');
 
       // Verify a durable background retry job was persisted in app.background_jobs
-      const retryJobRes = await adminPool.query<{ id: string; status: string; payload: Record<string, unknown> }>(
+      const retryJobRes = await adminPool.query<{
+        id: string;
+        status: string;
+        payload: Record<string, unknown>;
+      }>(
         `SELECT id, status, payload FROM app.background_jobs
          WHERE task_type = 'reminder_delivery' AND status = 'pending'
            AND (payload->>'instanceId') = $1 AND (payload->>'isRetry') = 'true';`,
@@ -783,7 +789,7 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
     });
 
     it('includes static public allowlist and versioned cache name', () => {
-      expect(swContent).toContain('daynori-static-v2');
+      expect(swContent).toMatch(/const CACHE_VERSION = 'daynori-static-v\d+';/);
       expect(swContent).toContain('ALLOWLISTED_STATIC_ASSETS');
       expect(swContent).toContain('/offline.html');
       expect(swContent).toContain('/manifest.json');
@@ -832,7 +838,10 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
         delete: async (key: string) => inMemoryCache.delete(key),
       };
 
-      const eventHandlers: Record<string, ((e: Record<string, unknown>) => Promise<void> | void)[]> = {};
+      const eventHandlers: Record<
+        string,
+        ((e: Record<string, unknown>) => Promise<void> | void)[]
+      > = {};
       const notificationsShown: { title: string; options: Record<string, unknown> }[] = [];
       const openedWindows: string[] = [];
 
@@ -858,7 +867,10 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
           notificationsShown.push({ title, options });
         },
       };
-      const sandboxAddEventListener = (event: string, handler: (e: Record<string, unknown>) => void) => {
+      const sandboxAddEventListener = (
+        event: string,
+        handler: (e: Record<string, unknown>) => void
+      ) => {
         if (!eventHandlers[event]) eventHandlers[event] = [];
         eventHandlers[event]!.push(handler);
       };
@@ -941,7 +953,13 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
           json: () => ({
             title: 'Confidential Medical Alert: Prescription refill',
             body: 'Private patient details that should never be shown unauthenticated',
-            data: { itemId: 'item_123', workspaceId: 'ws_abc', instanceId: 'inst_xyz', targetType: 'task', deliveryGeneration: '1' },
+            data: {
+              itemId: 'item_123',
+              workspaceId: 'ws_abc',
+              instanceId: 'inst_xyz',
+              targetType: 'task',
+              deliveryGeneration: '1',
+            },
           }),
         },
         waitUntil: (p: Promise<unknown>) => {

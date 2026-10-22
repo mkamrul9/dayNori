@@ -122,47 +122,47 @@ Unused `IconText` imports left from the semantic-icon migration broke `pnpm --fi
 
 ### Blocker classification (enabled Android/web core only)
 
-| Category | Items | Status |
-|---|---|---|
-| Code defects fixable now | Unused `IconText` imports breaking web production build | **Fixed this session** |
-| Physical-device / beta evidence | Phase 37 TalkBack/KeyStore/push/offline on hardware; Phase 38 private beta | **BLOCKED** — `adb devices` empty; no beta cohort |
-| Owner credentials / infra / support / publication | Domains, monitored support, legal entity, Play account, release keystore, signed AAB + 16 KB evidence, public URLs, operator OA | **BLOCKED** — owner-controlled; not invented |
+| Category                                          | Items                                                                                                                           | Status                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Code defects fixable now                          | Unused `IconText` imports breaking web production build                                                                         | **Fixed this session**                            |
+| Physical-device / beta evidence                   | Phase 37 TalkBack/KeyStore/push/offline on hardware; Phase 38 private beta                                                      | **BLOCKED** — `adb devices` empty; no beta cohort |
+| Owner credentials / infra / support / publication | Domains, monitored support, legal entity, Play account, release keystore, signed AAB + 16 KB evidence, public URLs, operator OA | **BLOCKED** — owner-controlled; not invented      |
 
 iOS is **not** required to finish Android/web launch. Optional modules (vault, rooms/chat, live AI, production billing, Drive, expenses) stay disabled.
 
 ### Candidate identity (local, not release-eligible)
 
-| Field | Value |
-|---|---|
-| Git HEAD at verification | `63057ff` (+ pending IconText repair commit) |
-| Manifest | `docs/release/manifest-0.1.0-provisional.json` — `releaseEligible=false` |
-| Web | Production Next build after IconText repair |
+| Field                         | Value                                                                                                                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Git HEAD at verification      | `63057ff` (+ pending IconText repair commit)                                                                                                                       |
+| Manifest                      | `docs/release/manifest-0.1.0-provisional.json` — `releaseEligible=false`                                                                                           |
+| Web                           | Production Next build after IconText repair                                                                                                                        |
 | Android installable candidate | Debug APK `artifacts/release/app-debug-arm64.apk` SHA-256 `0379F71CB48C953C5020CB393BA49084507D1F37AFA06066622EB351C800A5B7` (debug-signed; **not** Play-eligible) |
-| Signed AAB | **Absent** |
-| Destinations | Provisional only — no purchased/verified public web host or Play listing |
-| Support ownership | **Unassigned** |
-| Costs | Not measured for production (no live infra) |
-| Recovery | Forward-fix preferred per publication runbook |
+| Signed AAB                    | **Absent**                                                                                                                                                         |
+| Destinations                  | Provisional only — no purchased/verified public web host or Play listing                                                                                           |
+| Support ownership             | **Unassigned**                                                                                                                                                     |
+| Costs                         | Not measured for production (no live infra)                                                                                                                        |
+| Recovery                      | Forward-fix preferred per publication runbook                                                                                                                      |
 
 ### Commands and results
 
 Environment: Windows, portable Node `v24.21.0`, pnpm `9.15.5`. No `adb` device.
 
-| Command | Exit | Status |
-|---|---|---|
-| `pnpm icons:check` | 0 | PASS — 83 names; no UI emoji chrome |
-| `pnpm release:android-path inspect` | 0 | PASS — target/compile SDK 36; signing guard present |
-| `npx vitest run` phase59/60 + signing-guard unit tests | 0 | PASS — 4 files / 17 tests |
-| `pnpm --filter @daynori/web build` (before repair) | 1 | FAIL — unused `IconText` |
-| `pnpm --filter @daynori/web build` (after repair) | 0 | PASS |
-| `pnpm validate:core` | 0 | PASS — notes/tasks/routines/journal/files/sync/export-gate/web-proxy deletion; optional modules 403 |
-| `node scripts/phase60-web-production-smoke.mjs` | 0 | PASS; proxy deletion **UNEXECUTED** without `DAYNORI_API_URL` (covered by `validate:core`) |
-| `node scripts/release-preflight.mjs --allow-partial-local` | 0 | PASS engineering; `releaseEligible=false`; **12 BLOCKED** + human OA |
-| `DAYNORI_REHEARSAL_TARGET=disposable-local node scripts/phase60-local-rehearsal.mjs` | 0 | PASS; human authorization **BLOCKED** |
-| `pnpm typecheck` / `pnpm lint` | 0 | PASS |
-| `pnpm validate:planning` / `pnpm audit:secrets` | 0 | PASS |
-| Physical device install / TalkBack / notifications / offline UI | — | **UNEXECUTED** (no device) |
-| Store upload / live URLs / signed RC | — | **UNEXECUTED** |
+| Command                                                                              | Exit | Status                                                                                              |
+| ------------------------------------------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------------- |
+| `pnpm icons:check`                                                                   | 0    | PASS — 83 names; no UI emoji chrome                                                                 |
+| `pnpm release:android-path inspect`                                                  | 0    | PASS — target/compile SDK 36; signing guard present                                                 |
+| `npx vitest run` phase59/60 + signing-guard unit tests                               | 0    | PASS — 4 files / 17 tests                                                                           |
+| `pnpm --filter @daynori/web build` (before repair)                                   | 1    | FAIL — unused `IconText`                                                                            |
+| `pnpm --filter @daynori/web build` (after repair)                                    | 0    | PASS                                                                                                |
+| `pnpm validate:core`                                                                 | 0    | PASS — notes/tasks/routines/journal/files/sync/export-gate/web-proxy deletion; optional modules 403 |
+| `node scripts/phase60-web-production-smoke.mjs`                                      | 0    | PASS; proxy deletion **UNEXECUTED** without `DAYNORI_API_URL` (covered by `validate:core`)          |
+| `node scripts/release-preflight.mjs --allow-partial-local`                           | 0    | PASS engineering; `releaseEligible=false`; **12 BLOCKED** + human OA                                |
+| `DAYNORI_REHEARSAL_TARGET=disposable-local node scripts/phase60-local-rehearsal.mjs` | 0    | PASS; human authorization **BLOCKED**                                                               |
+| `pnpm typecheck` / `pnpm lint`                                                       | 0    | PASS                                                                                                |
+| `pnpm validate:planning` / `pnpm audit:secrets`                                      | 0    | PASS                                                                                                |
+| Physical device install / TalkBack / notifications / offline UI                      | —    | **UNEXECUTED** (no device)                                                                          |
+| Store upload / live URLs / signed RC                                                 | —    | **UNEXECUTED**                                                                                      |
 
 ### Publication decision — **NO-GO**
 
@@ -180,4 +180,460 @@ After a real live release (Phase 60 acceptance), Phase 63 needs a dated operatin
 
 ### Handoff
 
-Phase 60 remains **blocked**. Exact owner/device actions: attach Android → install debug APK for hardware QA; complete Phase 38; supply signing/domains/support; authorize publication when gates pass. Phases 61–62 remain pending native/TestFlight/store evidence. Stop before Phase 63.
+Phase 60 remains **blocked**. Exact owner/device actions: attach Android → build a standalone test APK for hardware QA; complete Phase 38; supply signing/domains/support; authorize publication when gates pass. Phases 61–62 remain pending native/TestFlight/store evidence. Stop before Phase 63.
+
+## Whole-project audit and Android testing preparation — 2026-10-21
+
+Owner requested checking the entire project and hosting it for browser/Android
+testing, then authorized choosing the best approach. This permits test-deployment
+preparation; it is not a paid-service, store-submission or unrestricted public
+launch approval. Phase 60 remains selected and **blocked**. Base revision:
+`531e811`; iOS and Phase 63 status are preserved.
+
+### Observed defects and repairs
+
+- API `start`/`dev` ran library exports and did not listen. A separate process
+  entry point now listens on `PORT`, handles shutdown, and retains authentication
+  requirements. A real subprocess regression checks health and unauthenticated
+  rejection.
+- Mobile auth read server-only variables that Expo cannot inline; sync used
+  `http://localhost:3000` without a bearer token. Public build configuration now
+  validates service URLs and the native client resolves the secure adapter's
+  token per request. Renewal/logout token changes are checked using synthetic
+  requests.
+- Mobile lacked a normal account entry point. Added provider-backed sign-in,
+  account creation and recovery initiation. Workspace provisioning now causes
+  the account-scoped repository/sync lifecycle to initialize. These are adapter
+  and mounted-control checks, not live-provider or physical-device evidence.
+- Global mobile quick-create invoked an empty callback and cleared its draft.
+  It now commits typed notes/tasks/routines/journal entries and pending operations
+  through the existing local sync transaction, waits for success, retains failed
+  content and prevents duplicate concurrent submissions. File capture directs the
+  user to Library rather than fabricating a saved binary. Pending records survive
+  a repository close/reopen in the regression test.
+- Native task/subtask quick-add now uses UUIDs accepted by server contracts;
+  the Today header uses the current date. Account storage failures are visible.
+- Account deletion rolled back with `permission denied for table ai_consents`.
+  Append-only migration `00070` grants only DELETE under the existing forced
+  own-user RLS policy. Own deletion and denied cross-account deletion pass.
+- Missing-user item reads spent 5,828 ms evaluating membership against 307,250
+  rejected synthetic rows. Restrictive read guards in migration `00071` retain
+  existing membership policies and cache the row-independent identity check.
+  Repeating the measured query returned zero records in 31.829 ms; workspace
+  denial took 0.771 ms. This is a local query-plan comparison, not production
+  capacity evidence.
+- Historical tests used obsolete direct room/member creation, omitted current
+  UGC acceptance, assumed an old PWA cache version, or exercised local-test
+  feature flags while claiming production beta denial. Fixtures now follow the
+  current contracts. Release barriers and negative authorization assertions
+  remain enabled.
+- Simulated restores processed suppression entries outside their own snapshot;
+  a blob cleanup test erased the entire shared synthetic job queue; the lease
+  benchmark could process unrelated queued provider work. Scope these fixtures
+  to their own accounts, snapshot entries or task types. Preserve the original
+  five-second timeouts and 75 ms lease budget.
+
+### Commands, results and evidence
+
+Host: Windows; portable Node `v24.21.0`, pnpm `9.15.5`. The default shell still
+finds Node `v24.11.1`; commands below prepended
+`.tools/node-v24.21.0-win-x64` to PATH. Sandbox runs initially failed on temporary
+file renames, Next build directories and local service connections; meaningful
+build/database/browser runs used the approved local execution path. No cloud
+database or real-user fixtures were used.
+
+- `node --env-file=.env node_modules/vitest/vitest.mjs run` (baseline): exit 1,
+  86/99 files passed; 1,259 tests passed, 21 failed, 19 skipped. The failures
+  included real deletion/wiring defects and stale fixtures.
+- Same full command after the main repairs: exit 1, 105/107 files passed;
+  1,315/1,317 tests passed. The two remaining failures were the unscoped restore
+  and queue benchmark described above.
+- `node --env-file=.env node_modules/vitest/vitest.mjs run
+tests/security/tenant-isolation.test.ts
+tests/integration/phase37-prerequisite-repairs.test.ts`: exit 0, 54/54 pass
+  with unchanged timeouts after migration `00071` and restore isolation.
+- `node --env-file=.env node_modules/vitest/vitest.mjs run
+tests/integration/phase36-deletion-recovery.test.ts
+tests/performance/performance.test.ts`: exit 0, 24/24 pass after the remaining
+  fixture repairs; 75 ms lease gate retained.
+- Final complete-suite command: exit 1, **106/107 files pass; 1,316/1,317 tests
+  pass**, no skipped tests. The remaining failure is keyset-pagination **mean
+  84.11 ms versus the unchanged <80 ms budget**. Its p95 <150 ms assertion passed.
+  The worker lease benchmark passed in this final run. The performance suite
+  passed on its preceding isolated run, so full-workload performance remains an
+  unresolved gate rather than a claimed pass. Exact output:
+  `artifacts/release/project-audit-complete-tests.log`.
+- `pnpm build`: exit 0, all workspace packages, Next production app and Expo
+  Android bundle built. `pnpm --filter @daynori/mobile build`: exit 0 after the
+  final native storage-lifecycle edit. An Expo export is not an APK.
+- `pnpm typecheck`: exit 0; `pnpm lint`: exit 0.
+- After the final pending-save control lock, `pnpm --filter @daynori/mobile
+typecheck` and `node node_modules/vitest/vitest.mjs run
+apps/mobile/src/views/CreateSheet.test.ts apps/mobile/src/views/AccountSheet.test.ts`:
+  exit 0, 3/3 mounted account/capture regressions pass.
+- `pnpm validate:planning`, `pnpm audit:secrets` and `git diff --check`: exit 0.
+- `pnpm test:e2e:web`: exit 0, 50/50 actual headless browser checks pass.
+  Inspected the 320 px Today and desktop Library screenshots. This suite covers
+  the documented responsive/interaction and synthetic API scenarios; it does not
+  prove live email, cloud storage, notification delivery or phone behavior.
+- `pnpm test:e2e:android`: exit 2, missing connected device/emulator and the
+  runner's compiled native APK. No physical test evidence was fabricated.
+- `pnpm audit:deps`: exit 1, two unapproved high advisories remain:
+  [node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv) and
+  [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm). Their advisory
+  pages list no patched version as checked 2026-10-21. Existing exception proposals
+  remain unapproved; no suppression or approval was invented.
+- `pnpm format:check`: exit 1, repository-wide pre-existing formatting debt
+  (276 files before final fixture formatting). Changed source/docs were formatted
+  separately; the whole repository was not reformatted.
+- `node scripts/release-preflight.mjs --allow-partial-local`: exit 0 for partial
+  engineering validation; **`releaseEligible=false`** and external gates remain.
+- `docker info --format '{{.ServerVersion}}'`: exit 1, Linux daemon unavailable.
+  Docker image builds are unexecuted and are not claimed as verified.
+
+Local logs use `artifacts/release/project-audit-*.log` (Git-ignored). New browser
+and performance snapshots are retained under `artifacts/local/project-audit/`
+instead of replacing clean historical snapshots. Pre-existing mobile notification
+and release-evidence edits remain outside this repair scope.
+
+### Deployment and Android artifact findings
+
+The provided `artifacts/release/app-debug-arm64.apk` is 56,991,982 bytes, SHA-256
+`0379F71CB48C953C5020CB393BA49084507D1F37AFA06066622EB351C800A5B7`.
+ZIP inspection found the Expo development launcher bundle and **no application
+`assets/index.android.bundle`**. This is not a standalone phone-testing download
+and predates the current repairs.
+
+Added [container targets](../../infra/deployment/Dockerfile),
+[deployment instructions](../../infra/deployment/README.md), and an internal
+[Expo preview APK profile](../../apps/mobile/eas.json) with
+`developmentClient: false`. Render plus Supabase is the proposed fit for the
+existing Node services; no adapter migration, paid plan or service provisioning
+has been performed. Available Render/Supabase integrations were offered; neither
+account connection is confirmed.
+
+**Still required:** connected test hosting/auth/database accounts; a live storage
+adapter and malware scanner (production defaults fail closed); verified worker
+storage cleanup/push providers; an APK built against the actual hosted URL and
+installed with Metro stopped on a physical phone. The worker's
+`createConfiguredStorageService()` also currently returns `undefined`, so bucket
+credentials alone do not establish file cleanup functionality. Optional vault,
+Drive, rooms/chat, AI and billing retain their independent release gates.
+
+No web URL or new downloadable APK exists from this audit. Phase 60 is not
+complete. No completion commit is made while its acceptance/release gates remain
+unmet; changes remain reviewable locally. See [ADR 0061](../decisions/0061-preview-runtime-and-account-cleanup.md)
+for the bounded runtime, cleanup and RLS decisions. Continue Phase 60 only; stop
+before Phase 63.
+
+## Remaining provider implementation continuation — 2026-10-21
+
+Owner asked to implement the remaining prerequisites and request account actions
+in tabs. Scope remains Phase 60 preview preparation; no store submission or
+paid provisioning is inferred. Base revision remains `531e811` and the existing
+unrelated notification, web-session and release-evidence edits are preserved.
+
+### Implemented behavior
+
+- Supabase private-object HTTP transport is shared by API and worker through
+  an explicit server-only API export. It bounds bytes/time, disables redirects,
+  enforces non-overwrite writes and suppresses provider details in errors.
+- The production API wires durable HMAC transfer capabilities to current actor,
+  path, operation, expiry, declared bytes, membership/workspace state, deletion
+  suppression and the persisted reservation or verified file. Capabilities
+  survive replica restart. A reservation lock fences provider writes against
+  cancellation/finalization. Browser transfers use the exact configured CORS
+  origin, raw byte parsing, and noncached private downloads.
+- Migration `00073` denies direct authenticated `private_assets` operations so
+  Storage cannot bypass API quota/quarantine checks. Service-role credentials
+  remain server-only. Migration `00072` adds the matching live-item cursor index;
+  existing latency budgets are unchanged.
+- Private-network ClamAV INSTREAM transport rejects errors, truncation and
+  unknown responses. API and worker bootstrap configure the scanner. Missing
+  scanner/storage or object bytes cannot produce a clean result.
+- Worker storage cleanup now performs real provider deletion and keeps failures
+  retryable. Physical deletion does not subtract quota already released by the
+  API transaction. Scan updates target current tables and cannot revive deleted
+  file records or cancelled reservations.
+- Diff review also removed precommit physical deletion from the API. The
+  rollback regression proves file bytes remain readable after a failed delete
+  transaction, then verifies cleanup retries leave already-released quota alone.
+- Native FCM HTTP v1 delivery uses a signed short-lived OAuth assertion and a
+  cached access token. Explicit Expo Push transport is also supported; statuses
+  represent provider acceptance, never proven device display. Expired-token
+  responses feed the existing durable invalidation/retry path.
+- Migration `00074` creates a separate NOLOGIN application-worker role with
+  explicit application DML/RLS policies and no database administration, schema
+  creation or migration writes. API runtime cannot assume it. Production worker
+  configuration requires separate service credentials; operator activation and
+  cloud credential rotation remain pending.
+- Container targets now package server production dependencies separately from
+  mobile/build tooling. A local packaged API import succeeds. Docker's Linux
+  daemon is still unavailable, so no image-build success is claimed.
+- A manual GitHub Android-preview workflow checks hosted HTTPS/public-key
+  inputs, builds an ARM64 APK with explicit test-only signing and embedded JS,
+  checks its signature and uploads checksum/download artifacts for seven days.
+  This workflow has not run remotely. Dynamic Expo config supports an ignored
+  Firebase Android client file and an Expo project ID; it preserves existing
+  app.json settings. Android client config and server service-account keys are
+  distinct. No provider configuration has been committed.
+
+See [ADR 0062](../decisions/0062-durable-preview-provider-boundaries.md) and the
+[variable template](../../infra/deployment/preview.env.example).
+
+### Executed validation
+
+Commands used portable Node `v24.21.0` and pnpm `9.15.5`. Database data and
+transport fixtures are synthetic. Logs are ignored under `artifacts/release/`.
+
+- `node --env-file=.env node_modules/vitest/vitest.mjs run`: exit 0, **111/111
+  files and 1,331/1,331 tests pass**, 240.53 seconds. This resolves the previous
+  pagination failure. Budgets were not relaxed.
+- `node --env-file=.env node_modules/vitest/vitest.mjs run
+tests/integration/worker-service-role.test.ts
+tests/integration/live-storage-capabilities.test.ts
+tests/integration/phase25-repairs.test.ts
+tests/unit/android-preview-config.test.ts apps/api/src/providers
+apps/worker/src/providers`: exit 0, **32/32 tests**. Includes real PostgreSQL
+  upload/inspection/scan/download state, size/overwrite rejection, deleted-file
+  denial, upload/cancellation serialization, worker-role isolation, ClamAV socket
+  framing/errors and signed FCM credential exchange. A CORS regression was added
+  afterward and is included in the final full-suite run recorded below.
+- Final `node --env-file=.env node_modules/vitest/vitest.mjs run`: **exit 0,
+  113/113 files, 1,336/1,336 tests**, 242.31 seconds. This includes the worker
+  service-role tests, Android configuration gate and the CORS regression.
+- After the final diff review, `node --env-file=.env
+node_modules/vitest/vitest.mjs run
+tests/integration/live-storage-capabilities.test.ts
+tests/integration/phase24-binary-upload.test.ts`: **exit 0, 14/14 tests**,
+  6.61 seconds. This adds deletion rollback/retry evidence after removing
+  precommit provider deletion. The complete suite above preceded this bounded
+  final repair; the affected lifecycle suites were rerun afterward.
+- `pnpm build`: exit 0, including Next.js production, API/worker compilation and
+  Expo Android Hermes export. This export is not an APK.
+- `pnpm typecheck` and `pnpm lint`: exit 0 across the workspace.
+- `pnpm --filter @daynori/api deploy --prod artifacts/local/packaged-api`: exit 0;
+  importing the packaged API and its production dependencies also succeeds.
+  Offline dependency installation first lacked a cached tarball; normal install
+  from the official npm registry restored the workspace. Lockfile dependency
+  change is limited to the new worker-to-API workspace dependency.
+- `pnpm --filter @daynori/worker deploy --prod artifacts/local/packaged-worker`:
+  exit 0; the packaged worker imports its shared provider dependency successfully.
+- `pnpm --filter @daynori/mobile exec expo config --type public`: exit 0. A Node
+  assertion smoke also confirms optional native push config preserves the base
+  package, plugins and app metadata.
+- `node scripts/scan-secrets.mjs`: exit 0, 6,208 files. No real credentials added.
+- `node scripts/validate-planning.mjs`: exit 0, 64 phases, 22 requirements and
+  296 Markdown files at that check.
+- `pnpm audit:deps`: **exit 1**. The same two HIGH toolchain advisories remain:
+  `node-forge` GHSA-86w9-cpqp-85rv and `braces` GHSA-vfj7-8cjw-p6xm. The refreshed
+  registry report lists no patched versions. No exceptions were fabricated.
+
+### Real account actions and remaining boundary
+
+The owner signed into the opened Render and Supabase tabs. The free Supabase
+organization **Daynori Preview** was created. The `daynori-preview` project form
+is prepared for Singapore with Data API disabled. Project creation has not been
+submitted: new database password entry/submission is handed to the owner under
+browser credential-entry rules. The owner was asked to keep the password private.
+
+The existing GitHub repository is visible to Render. A separate
+`daynori-web-preview` service form is prepared with the free plan, Singapore,
+filtered workspace build and Next.js start commands. It has not been deployed.
+No existing Render service was modified. Browser access is confirmed;
+Render/Supabase plugins themselves remain unconnected.
+
+The hosting budget question is pending. Free web services sleep and cannot
+establish reliable background jobs or sufficiently provisioned ClamAV scanning.
+Do not silently create paid worker/scanner services. The owner must finish the
+Supabase project step before cloud migration/role activation and auth/storage
+configuration can be verified.
+
+Still required: actual cloud setup and provider smoke; native Firebase/Expo
+configuration and signed internal APK build against those verified origins;
+phone installation and cold-launch/sync/notification checks; dependency gate
+resolution and the remaining public release evidence. Optional vault, rooms,
+Drive, AI and billing gates remain unchanged. There is **no live web URL or new
+APK download link** from this continuation. Phase 60 remains incomplete and
+there is no completion commit or production/store publication.
+
+### Free core preview selection and preparation — 2026-10-21
+
+The owner selected **$0 only** and confirmed creation of `daynori-preview` in the
+free `Daynori Preview` Supabase organization. Browser evidence shows Healthy,
+Singapore, Nano Free, with the IPv4 session pooler available. Data API was left
+disabled. This supersedes the project-creation and budget prerequisites above.
+Render billing inspection shows no card on file, available service quota and
+free hours; no existing service or payment setting was changed.
+
+Implemented [ADR 0063](../decisions/0063-free-core-testing-preview.md): explicit
+core-preview API barriers, visible web/mobile limitations, disabled upload/audio
+controls, and 75-second API client deadlines for free-service wake-up. The
+GitHub preview workflow embeds this profile. The worker and scanner are not
+deployed; background physical erasure, file processing and reminder delivery
+remain unavailable/unverified. Use sample content.
+
+`scripts/provision-free-preview.ts` targets only the new project with verified
+TLS. It reads the owner's replacement DB password from an ignored local file,
+generates a separate runtime credential, and secures roles inside each immutable
+migration transaction before commit. Unused billing/worker logins stay disabled.
+No historical migration checksum was rewritten. Cloud execution is pending the
+private input; the old password posted in chat was not used or stored.
+
+Validation uses Node `v24.21.0`, pnpm `9.15.5`, and the local synthetic DB:
+
+- `pnpm typecheck`: exit 0; `pnpm lint`: exit 0.
+- `NEXT_PUBLIC_DAYNORI_CORE_PREVIEW=true EXPO_PUBLIC_DAYNORI_CORE_PREVIEW=true pnpm build`
+  (PowerShell environment assignments): exit 0 across the workspace, including
+  Next.js production and Android Hermes export. This preceded the final bounded
+  API deadline adjustment, which requires affected builds to be rerun.
+- `node --env-file=.env node_modules/vitest/vitest.mjs run tests/unit/core-preview.test.ts tests/integration/preview-migration-safety.test.ts tests/integration/api-startup.test.ts apps/mobile/src/views/CreateSheet.test.ts`:
+  first sandbox run could not write Vitest's temporary cache. Outside the sandbox,
+  5/6 tests passed and API startup timed out during simultaneous compiler work.
+  `node --env-file=.env node_modules/vitest/vitest.mjs run tests/integration/api-startup.test.ts`
+  rerun alone: exit 0, 1/1 passes in 1.89 seconds. Safeguard rollback, role limits,
+  direct API feature denials and quick-capture tests pass. No timeout budget was
+  relaxed in that test. Logs: `artifacts/release/free-preview-*.log` (ignored).
+
+GitHub push access check found no authenticated credential. A device authorization
+tab is handed to the owner; broad CLI repository/workflow permissions require
+their confirmation. No branch was pushed and no workflow was dispatched. The
+Render web form is still unsubmitted. There is no verified live web URL or APK
+download link yet; public release, phone and dependency gates remain unchanged.
+
+### Final free-preview checks and remaining blockers
+
+The final diff review found that both deletion dialogs ignored a `processing`
+response and announced full erasure. Web and mobile now distinguish pending
+cleanup from completion, reject unsuccessful/unexpected statuses, and avoid
+unverified immediate-erasure fallback copy. The core API disclosure explicitly
+states that Auth-provider cleanup needs an operator. The private API env output
+includes the public Auth URL/key and a separate generated reauthentication secret;
+without the Auth URL, password verification would incorrectly target localhost.
+The free API skips storage initialization even with the Auth origin configured.
+The provision command also verifies an actual least-privilege runtime connection
+before writing service configuration; cloud execution is still pending.
+
+- Final complete run, `node --env-file=.env node_modules/vitest/vitest.mjs run`:
+  **exit 1, 1,337 passed / 3 failed, 115 files, 252.66 seconds**. This supersedes
+  any inference that the earlier 1,336-test pass verifies the current tree. One
+  failure was the added property in mobile runtime configuration; that public
+  return contract is restored, with the timeout exported separately. Two were
+  performance budgets: pagination mean 81.21 ms versus <80 ms; concurrent-read
+  p95 341.91 ms versus <300 ms. Budgets were not relaxed.
+- `node --env-file=.env node_modules/vitest/vitest.mjs run tests/performance/performance.test.ts`
+  with the local preview stopped: **exit 1, 3/4 pass**, 10.24 seconds. Concurrent
+  reads now pass, but pagination mean remains **80.67 ms versus <80 ms**. This
+  remains an open performance gate, not a successful full suite.
+- `node --env-file=.env node_modules/vitest/vitest.mjs run apps/mobile/src/views/AccountDeletionResult.test.ts tests/unit/core-preview.test.ts apps/mobile/src/config/runtime.test.ts tests/integration/phase36-deletion-recovery.test.ts tests/integration/preview-migration-safety.test.ts`:
+  **exit 0, 33/33 tests across 5 files**, 18.46 seconds. Includes pending,
+  completed, unsuccessful and unexpected deletion statuses. Initial test import
+  and literal-typing problems were corrected; tests consume the UI public export.
+- Final free-profile `pnpm build`: **exit 0**, including API, Next.js production,
+  shared UI packages and Android Hermes export. Log:
+  `artifacts/release/free-preview-closure-build.log`. This is not an APK.
+- `pnpm lint`: **exit 0**. Workspace typecheck passed all packages except the new
+  regression test's inferred literal type; after correction,
+  `pnpm --filter @daynori/mobile typecheck`: **exit 0**. The provision script also
+  passes explicit strict TypeScript checking. No app type error remains known.
+- Built local web browser check: preview notice visible; Upload File and Record
+  Audio disabled; Create menu omits Upload. Screenshot:
+  `artifacts/local/free-core-library-preview.png` (ignored). This is not hosted
+  Supabase/Render QA. The local server and inspection tabs were closed afterward.
+
+The owner's private password input is still empty. GitHub's first authorization
+code expired without approval; authentication must be refreshed for the owner.
+No schema command, source push, Render deployment or APK workflow was executed.
+No paid resources were provisioned. The dependency findings, remaining timing
+gate and physical-device/public-release evidence keep Phase 60 incomplete; no
+phase completion commit is made. Phases 61–62 and Phase 63 are unchanged.
+
+Final planning validation: exit 0, 64 phases / 22 mapped requirements / 297
+Markdown files. Final secret scan: exit 0, 6,253 files and no unapproved secrets.
+`git diff --check`: exit 0; index remains empty. The expired GitHub device flow
+was refreshed into a new authorization tab for the owner; no permission was
+granted by the agent. Render/Supabase/GitHub tabs are retained as handoffs.
+
+### Owner-directed deployment continuation
+
+The owner asked the agent to perform the remaining setup and confirmed GitHub
+authorization. The original device code had expired; the renewed permission
+flow reached GitHub's two-factor verification, which the owner completed.
+`gh auth status` confirms `mkamrul9` with keyring storage and repository/workflow
+scopes. Bringing the calling chat/Browser panel into view succeeded. The Supabase integration is available but unconnected, and the ignored
+password input is still empty; the database password is not recoverable from
+the project dashboard. No password from chat was used, and no password reset was
+performed by the agent.
+
+The repository is publicly visible. A dedicated `codex/android-preview-build`
+push trigger is added because manual dispatch requires a workflow on the default
+branch, which still predates this app. It can run the guarded APK build after
+the real API URL is verified, without merging unfinished work into `main`.
+The requested deployment requires a reviewed preview source checkpoint; that
+checkpoint is not a phase completion or public-release approval. Unrelated
+notification formatting and generated evidence edits remain outside that source
+checkpoint. Hosting, schema application and APK output remain unexecuted.
+
+A 24-hour project-only Supabase setup-token form is prepared for
+`daynori-preview`. Automatic approval review rejected selecting database
+read-write access without approval of the exact scope/recipient. The owner was
+asked to authorize database and Auth-configuration setup access kept privately
+on this PC. No token exists yet, no broader account access was selected, and no
+database password was reset. This is an access prerequisite, not a code failure.
+
+### Managed preview database continuation — 2026-10-22
+
+The owner resumed the deployment work and created the equivalent replacement
+24-hour project-only token. The generated credential was copied by the owner;
+the agent saved that exact token from the tab clipboard to an ignored local file
+without displaying it. No password was recovered/reset and the token was not
+sent to GitHub/Render.
+
+The Management API accepts bound values but rejects parameterized multi-statement
+queries. The dedicated runner therefore commits immutable migrations and a
+NOLOGIN safeguard together, and activates only runtime via a temporary restricted
+SECURITY INVOKER function using a bound value, then removes that function.
+
+Actual cloud execution initially stopped at 00007: managed Storage denies CREATE
+in its schema. ADR 0064 records the core-only adapter: use existing managed tables,
+preserve ownership and enabled RLS, apply identity helpers/policies/grants, create
+no bucket. 00069's local fixture-login operation also requires an adaptation:
+billing remains NOLOGIN/PASSWORD NULL. Both source and execution hashes are
+recorded atomically in app.preview_migration_adaptations. The ordinary migrator
+refuses this history pending explicit promotion.
+
+The initial runtime connection correctly failed certificate validation with
+SELF_SIGNED_CERT_IN_CHAIN. The public CA was downloaded from the link in this
+project's Database Settings. With the CA explicitly trusted, the actual restricted
+pooler login passed certificate/hostname checks and privilege checks (no superuser,
+role/database creation, RLS bypass, app schema CREATE or worker membership).
+
+`node --import tsx scripts/provision-free-preview-management.ts`: final exit 0,
+74 migration receipts verified; restricted TLS login passed; ignored API env file
+created. Failed attempts rolled back their migration transaction; no fixture
+credential became a committed active cloud login. Logs:
+`artifacts/release/managed-cloud-schema.log` (initial permission failure),
+`artifacts/release/managed-cloud-schema-resume.log` (final success).
+
+Initial local safeguard check:
+`node --env-file=.env node_modules/vitest/vitest.mjs run tests/integration/management-preview-safety.test.ts tests/integration/preview-migration-safety.test.ts`:
+exit 0, 5/5 tests, 2 files, 2.99s. Additional managed-policy/redaction tests are
+included in the final checkpoint checks. Hosted web/API and APK remain pending;
+physical-device, dependency/performance and public-release gates remain open.
+
+Final checkpoint checks on 2026-10-22: the combined five-file focused run had
+14 passing tests and one API-startup readiness timeout (14.22s overall). Its
+isolated rerun passed (1/1, 2.09s); no application runtime code was changed to
+relax the check. Strict provisioning TypeScript, changed-file ESLint (scripts are
+excluded by repository lint configuration), planning
+validation (64 phases, 22 requirements, 298 Markdown files), secret scanning
+(6,274 files), formatting and diff checks passed. The final idempotent managed
+runner rerun initially hit pooler authentication error 28P01 after redundantly
+resetting an active SCRAM verifier. The runner now preserves active verifiers on
+retries; the next verification result is recorded separately.
+
+After that retry repair, the same managed setup command exited 0 and again
+verified all 74 receipts, adaptation hashes and the restricted TLS login.
+
+The preview source checkpoint is authorized to support deployment; it does not
+complete Phase 60 or resolve the previously documented release blockers.

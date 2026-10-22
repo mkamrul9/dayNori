@@ -74,6 +74,21 @@ export function isAllowedOrigin(origin: string): boolean {
     if (ALLOWED_ORIGINS.includes(parsed.origin)) {
       return true;
     }
+    // Deployment origins are operator configuration, never inferred from an untrusted Host header.
+    const configured = process.env['DAYNORI_WEB_ORIGIN'];
+    if (configured) {
+      const target = new URL(configured);
+      if (
+        target.protocol === 'https:' &&
+        !target.username &&
+        !target.password &&
+        target.pathname === '/' &&
+        !target.search &&
+        !target.hash &&
+        target.origin === parsed.origin
+      )
+        return true;
+    }
     // Allow loopback hostnames in non-production or test runs
     if (
       process.env.NODE_ENV !== 'production' ||

@@ -14,9 +14,22 @@ export const storageTransferPlugin: FastifyPluginAsync<StorageTransferOptions> =
   options: StorageTransferOptions = {}
 ): Promise<void> => {
   // Use raw buffer parser for all storage uploads within this encapsulated plugin
+  app.removeAllContentTypeParsers();
   app.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body, done) => {
     done(null, body);
   });
+
+  app.addHook('onRequest', async (request, reply) => {
+    const origin = request.headers.origin;
+    if (origin && origin === process.env['DAYNORI_WEB_ORIGIN']) {
+      reply
+        .header('Access-Control-Allow-Origin', origin)
+        .header('Vary', 'Origin')
+        .header('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS')
+        .header('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token');
+    }
+  });
+  app.options('/v1/storage/*', async (_request, reply) => reply.status(204).send());
 
   // PUT /v1/storage/upload/:bucket/*
   app.put(
@@ -47,8 +60,11 @@ export const storageTransferPlugin: FastifyPluginAsync<StorageTransferOptions> =
       }
 
       // Check with provider if capability is valid / not revoked
-      if (typeof provider.validateUploadToken === 'function') {
-        const validation = provider.validateUploadToken(token, bucket, objectPath);
+      if (typeof provider.validateUploadToken !== 'function') {
+        return reply.status(503).send({ error: 'Storage capability validation unavailable' });
+      }
+      {
+        const validation = await provider.validateUploadToken(token, bucket, objectPath);
         if (!validation.isValid) {
           return reply.status(403).send({
             error: 'Forbidden',
@@ -80,10 +96,21 @@ export const storageTransferPlugin: FastifyPluginAsync<StorageTransferOptions> =
       const bytes = (request.body as Buffer) || Buffer.alloc(0);
       const contentType = request.headers['content-type'] || 'application/octet-stream';
 
-      await provider.putObject(bucket, objectPath, bytes, {
-        contentType,
-        upsert: false,
-      });
+      if (provider.storeAuthorizedUpload) {
+        const result = await provider.storeAuthorizedUpload(
+          token,
+          bucket,
+          objectPath,
+          bytes,
+          contentType
+        );
+        if (result === 'invalid')
+          return reply.status(403).send({ error: 'Upload capability is no longer valid' });
+        if (result === 'too_large')
+          return reply.status(413).send({ error: 'Upload exceeds capability byte limit' });
+      } else {
+        await provider.putObject(bucket, objectPath, bytes, { contentType, upsert: false });
+      }
 
       return reply.status(200).send({
         success: true,
@@ -121,8 +148,11 @@ export const storageTransferPlugin: FastifyPluginAsync<StorageTransferOptions> =
         });
       }
 
-      if (typeof provider.validateDownloadToken === 'function') {
-        const validation = provider.validateDownloadToken(token, bucket, objectPath);
+      if (typeof provider.validateDownloadToken !== 'function') {
+        return reply.status(503).send({ error: 'Storage capability validation unavailable' });
+      }
+      {
+        const validation = await provider.validateDownloadToken(token, bucket, objectPath);
         if (!validation.isValid) {
           return reply.status(403).send({
             error: 'Forbidden',
@@ -151,7 +181,7 @@ export const storageTransferPlugin: FastifyPluginAsync<StorageTransferOptions> =
         .status(200)
         .header('Content-Type', meta.contentType || 'application/octet-stream')
         .header('Content-Length', bytes.length)
-        .header('Cache-Control', 'private, no-transform, max-age=300')
+        .header('Cache-Control', 'private, no-store')
         .header('X-Content-Type-Options', 'nosniff')
         .send(bytes);
     }

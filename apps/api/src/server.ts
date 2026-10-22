@@ -38,7 +38,11 @@ import { registerSyncRoutes } from './modules/sync/index.js';
 import { storageTransferPlugin } from './modules/files/storageTransfer.js';
 import { registerBetaRoutes } from './routes/v1/beta.js';
 import { registerExpenseRoutes } from './routes/v1/expenses.js';
-import { isAiLocallyEnabled, isBillingLocallyEnabled, isRoomsLocallyEnabled } from '@daynori/domain';
+import {
+  isAiLocallyEnabled,
+  isBillingLocallyEnabled,
+  isRoomsLocallyEnabled,
+} from '@daynori/domain';
 import { registerCustomSectionRoutes } from './routes/v1/customSections.js';
 import { registerDriveRoutes } from './routes/v1/drive.js';
 import { registerRoomRoutes } from './routes/v1/rooms.js';
@@ -53,6 +57,7 @@ import {
 } from './modules/chat/publicationRecovery.js';
 import { BetaAccessService } from './modules/beta/betaAccessService.js';
 import { ExplicitForbiddenError } from './plugins/errorHandler.js';
+import { isUnavailableInCorePreview } from './config/corePreview.js';
 
 export interface ServerOptions {
   runtimePool?: Pool;
@@ -160,11 +165,17 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
   const allowRoomsLocal = isRoomsLocallyEnabled(process.env);
   const allowAiLocal = isAiLocallyEnabled(process.env);
   const allowBillingLocal = isBillingLocallyEnabled(process.env);
+  const corePreview = process.env['DAYNORI_CORE_PREVIEW'] === 'true';
 
   // Global barrier for unreleased feature scope (expenses, vault, rooms, ai, billing)
   // Rejects direct calls with 403 Forbidden before router matching
   app.addHook('onRequest', async (request) => {
     const url = request.url;
+    if (corePreview && isUnavailableInCorePreview(request.method, url)) {
+      throw new ExplicitForbiddenError(
+        'File uploads and reminder delivery are unavailable in this free preview.'
+      );
+    }
     const roomsBlocked =
       !allowRoomsLocal &&
       (url.startsWith('/v1/rooms') ||
@@ -172,8 +183,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
         url.startsWith('/v1/safety'));
     const aiBlocked = !allowAiLocal && url.startsWith('/v1/ai');
     const billingBlocked =
-      !allowBillingLocal &&
-      (url.startsWith('/v1/billing') || /\/billing(?:\/|$|\?)/.test(url));
+      !allowBillingLocal && (url.startsWith('/v1/billing') || /\/billing(?:\/|$|\?)/.test(url));
     if (
       (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
       url.startsWith('/v1/vault') ||
@@ -214,8 +224,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
             url.startsWith('/v1/safety'));
         const aiBlockedAuth = !allowAiLocal && url.startsWith('/v1/ai');
         const billingBlockedAuth =
-          !allowBillingLocal &&
-          (url.startsWith('/v1/billing') || /\/billing(?:\/|$|\?)/.test(url));
+          !allowBillingLocal && (url.startsWith('/v1/billing') || /\/billing(?:\/|$|\?)/.test(url));
         if (
           (!allowExpenses && (url.startsWith('/v1/expenses') || url.includes('/expenses'))) ||
           url.startsWith('/v1/vault') ||

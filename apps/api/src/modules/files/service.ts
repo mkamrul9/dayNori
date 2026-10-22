@@ -142,6 +142,7 @@ export async function reserveFileUpload(
       upsert: false, // Strict: never permit overwrite
       contentType: request.declaredMimeType,
       maxByteLimit: request.declaredBytes,
+      actorId,
     });
 
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
@@ -804,6 +805,10 @@ export async function cancelUploadReservation(
   _actorId: string,
   reservationId: string
 ): Promise<{ reservationId: string; status: 'cancelled'; reconciled: boolean }> {
+  await client.query(
+    'SELECT id FROM app.upload_reservations WHERE workspace_id = $1 AND id = $2 FOR UPDATE',
+    [workspaceId, reservationId]
+  );
   const reservation = await getUploadReservationStatus(client, workspaceId, reservationId);
 
   if (reservation.status === 'finalized' || reservation.status === 'verified') {
@@ -875,9 +880,10 @@ export async function getFileDownloadCapability(
     kind: string;
     status: string | null;
     user_role: string | null;
-  }>(`SELECT kind, status, user_role FROM app.get_workspace_sync_access($1, app.current_user_id())`, [
-    workspaceId,
-  ]);
+  }>(
+    `SELECT kind, status, user_role FROM app.get_workspace_sync_access($1, app.current_user_id())`,
+    [workspaceId]
+  );
   const ws = wsRes.rows[0];
   if (ws?.kind === 'room' && (ws.status === 'archived' || !ws.user_role)) {
     throw new MembershipRevokedError(
@@ -900,11 +906,13 @@ export async function getFileDownloadCapability(
     throw new StorageUnavailableError('Storage provider is not configured or unavailable');
   }
 
+  const actor = await client.query<{ id: string }>('SELECT app.current_user_id() AS id');
   const { signedUrl, expiresInSeconds } = await storageProvider.createSignedDownloadUrl(
     PRIVATE_ASSETS_BUCKET,
     file.object_path,
     {
       expiresInSeconds: DOWNLOAD_CAPABILITY_EXPIRY_SECONDS,
+      actorId: actor.rows[0]?.id,
     }
   );
 
@@ -1065,15 +1073,8 @@ export async function deleteFileItem(
   });
   await updateWorkspaceSyncSeq(client, workspaceId, syncState.nextChangeSeq + 1);
 
-  // 6. Proactively attempt storage deletion (if it fails, the background job retries)
-  const storageProvider = getDefaultStorageProvider();
-  if (storageProvider.isConfigured()) {
-    try {
-      await storageProvider.deleteObject(PRIVATE_ASSETS_BUCKET, file.object_path);
-    } catch {
-      // Handled dually by background job
-    }
-  }
+  // Physical deletion belongs exclusively to the committed job. Provider I/O
+  // here could destroy bytes even if a later database commit/transaction fails.
 }
 
 /**
@@ -1263,11 +1264,7 @@ export async function linkItemAttachment(
 /**
  * Lists active attachments for an item.
  */
-export async function listItemAttachments(
-  client: PoolClient,
-  workspaceId: string,
-  itemId: string
-) {
+export async function listItemAttachments(client: PoolClient, workspaceId: string, itemId: string) {
   const res = await client.query(
     `
     SELECT

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import pg from 'pg';
+import { createConfiguredObjectStore } from '@daynori/api/providers';
 import {
   isTimeInQuietHours,
   calculateNextQuietHoursEnd,
@@ -168,7 +169,23 @@ export function createConfiguredWebPushAdapter(options?: {
 }
 
 export function createWorkerDatabasePool(): DatabasePool | undefined {
-  const databaseUrl = process.env['DATABASE_URL'];
+  const production = process.env['NODE_ENV'] === 'production';
+  const databaseUrl =
+    process.env['WORKER_DATABASE_URL'] || (!production ? process.env['DATABASE_URL'] : undefined);
+  if (production) {
+    const user = databaseUrl
+      ? decodeURIComponent(new URL(databaseUrl).username)
+      : process.env['WORKER_DB_USER'];
+    if (
+      !user ||
+      !/^daynori_worker(?:\.[a-z0-9]+)?$/.test(user) ||
+      (!databaseUrl && !process.env['WORKER_DB_PASSWORD'])
+    ) {
+      throw new Error(
+        'Production worker requires separate application-worker database credentials'
+      );
+    }
+  }
   if (databaseUrl) {
     return new pg.Pool({
       connectionString: databaseUrl,
@@ -183,8 +200,16 @@ export function createWorkerDatabasePool(): DatabasePool | undefined {
       host,
       port: Number(process.env['DB_PORT'] || process.env['PGPORT'] || 5432),
       database: process.env['DB_NAME'] || process.env['PGDATABASE'] || 'daynori_test',
-      user: process.env['DB_USER'] || process.env['PGUSER'] || 'daynori_runtime',
-      password: process.env['DB_PASSWORD'] || process.env['PGPASSWORD'] || '',
+      user:
+        process.env['WORKER_DB_USER'] ||
+        process.env['DB_USER'] ||
+        process.env['PGUSER'] ||
+        'daynori_runtime',
+      password:
+        process.env['WORKER_DB_PASSWORD'] ||
+        process.env['DB_PASSWORD'] ||
+        process.env['PGPASSWORD'] ||
+        '',
       max: Number(process.env['DB_POOL_MAX'] || 10),
       idleTimeoutMillis: 30000,
     });
@@ -251,9 +276,7 @@ export function createConfiguredAuthProvider(): AuthProviderContract | undefined
             },
           });
           if (checkRes.status === 404) return;
-          throw new Error(
-            `Provider user deletion returned 404 but user '${userId}' still exists`
-          );
+          throw new Error(`Provider user deletion returned 404 but user '${userId}' still exists`);
         }
         const errText = await res.text().catch(() => '');
         throw new Error(`Provider user deletion failed: HTTP ${res.status} - ${errText}`);
@@ -271,9 +294,7 @@ export function createConfiguredAuthProvider(): AuthProviderContract | undefined
   return undefined;
 }
 
-export function createConfiguredDeletionEmailAdapter():
-  | DeletionEmailAdapterContract
-  | undefined {
+export function createConfiguredDeletionEmailAdapter(): DeletionEmailAdapterContract | undefined {
   if (process.env['DELETION_EMAIL_ADAPTER'] === 'capture') {
     return {
       async sendVerificationEmail(toEmail, requestId, token) {
@@ -287,7 +308,7 @@ export function createConfiguredDeletionEmailAdapter():
 }
 
 export function createConfiguredStorageService(): StorageServiceContract | undefined {
-  return undefined;
+  return createConfiguredObjectStore();
 }
 
 export interface JobResult {
@@ -361,7 +382,7 @@ export class DaynoriWorker {
   private webPushAdapter?: WebPushNotificationAdapter;
   private authProvider?: AuthProviderContract;
   private deletionEmailAdapter?: DeletionEmailAdapterContract;
-  private defaultBucket: string = 'files';
+  private defaultBucket: string = 'private_assets';
 
   constructor(pool?: DatabasePool, options?: DaynoriWorkerOptions) {
     if (pool) {
@@ -725,9 +746,7 @@ export class DaynoriWorker {
       const { handleAiJob } = await import('./aiJobs.js');
       const aiResult = await handleAiJob(client, taskType, payload as Record<string, unknown>);
       if (aiResult.status === 'failed') {
-        throw new Error(
-          `AI job failed: ${String(aiResult.details['errorCode'] ?? 'unknown')}`
-        );
+        throw new Error(`AI job failed: ${String(aiResult.details['errorCode'] ?? 'unknown')}`);
       }
       return {
         jobId,
@@ -752,9 +771,8 @@ export class DaynoriWorker {
     }
 
     if (taskType === 'billing_reconcile_events' && client) {
-      const { reconcilePendingBillingEvents, scheduleBillingMaintenance } = await import(
-        './billingJobs.js'
-      );
+      const { reconcilePendingBillingEvents, scheduleBillingMaintenance } =
+        await import('./billingJobs.js');
       const pool = this.getPoolForBilling();
       const billingRes = await reconcilePendingBillingEvents(client, pool, {
         limit: typeof payload?.['limit'] === 'number' ? payload['limit'] : 20,
@@ -770,9 +788,8 @@ export class DaynoriWorker {
     }
 
     if (taskType === 'billing_expire_entitlements' && client) {
-      const { runBillingExpireEntitlements, scheduleBillingMaintenance } = await import(
-        './billingJobs.js'
-      );
+      const { runBillingExpireEntitlements, scheduleBillingMaintenance } =
+        await import('./billingJobs.js');
       const expireRes = await runBillingExpireEntitlements(client, {
         limit: typeof payload?.['limit'] === 'number' ? payload['limit'] : 50,
       });
@@ -815,13 +832,10 @@ export class DaynoriWorker {
           ]);
 
           // Delete from storage if storageService is configured and object path exists
-          if (this.storageService && row.object_path) {
-            try {
-              await this.storageService.deleteObject(this.defaultBucket, row.object_path);
-              deletedStorageObjects++;
-            } catch {
-              /* ignore if object wasn't written to storage */
-            }
+          if (row.object_path) {
+            if (!this.storageService) throw new Error('Storage cleanup is unconfigured');
+            await this.storageService.deleteObject(this.defaultBucket, row.object_path);
+            deletedStorageObjects++;
           }
 
           // Reconcile quota: decrement reserved bytes
@@ -865,72 +879,17 @@ export class DaynoriWorker {
       };
     }
 
-    // 4. Built-in: Physical file deletion and quota reconciliation
+    // 4. Built-in: Physical file deletion. The API transaction already owns
+    // metadata removal and quota release; retries must not debit quota again.
     if (taskType === 'file_deletion') {
       const objectPath = (payload?.objectPath || payload?.storagePath) as string | undefined;
       const fileId = payload?.fileId as string | undefined;
       const bucket = (payload?.bucket as string | undefined) || this.defaultBucket;
 
       // Delete from physical storage if storageService is configured
-      if (this.storageService && objectPath) {
+      if (objectPath) {
+        if (!this.storageService) throw new Error('Storage deletion is unconfigured');
         await this.storageService.deleteObject(bucket, objectPath);
-      }
-
-      // Reconcile database and storage quota
-      if (client && fileId) {
-        let byteSize = Number(payload?.byteSize) || 0;
-        let wsId = (payload?.workspaceId as string | undefined) || null;
-
-        try {
-          const fileRes = await client.query<{ byte_size: number; workspace_id: string }>(
-            `
-            UPDATE app.files
-            SET status = 'deleted',
-                deleted_at = now(),
-                updated_at = now()
-            WHERE id = $1
-            RETURNING byte_size, workspace_id
-            `,
-            [fileId]
-          );
-
-          if (fileRes.rowCount && fileRes.rowCount > 0) {
-            byteSize = Number(fileRes.rows[0]!.byte_size) || byteSize;
-            wsId = fileRes.rows[0]!.workspace_id || wsId;
-          }
-        } catch {
-          // If app.files table doesn't exist, try app.file_items or payload
-          try {
-            const fiRes = await client.query<{ byte_size: number; workspace_id: string }>(
-              `
-              UPDATE app.file_items
-              SET quarantine_status = 'deleted',
-                  updated_at = now()
-              WHERE id = $1
-              RETURNING byte_size, workspace_id
-              `,
-              [fileId]
-            );
-            if (fiRes.rowCount && fiRes.rowCount > 0) {
-              byteSize = Number(fiRes.rows[0]!.byte_size) || byteSize;
-              wsId = fiRes.rows[0]!.workspace_id || wsId;
-            }
-          } catch {
-            /* ignore if table does not exist */
-          }
-        }
-
-        if (wsId && byteSize > 0) {
-          await client.query(
-            `
-            UPDATE app.workspace_storage_usage
-            SET stored_bytes = GREATEST(0, stored_bytes - $1),
-                updated_at = now()
-            WHERE workspace_id = $2
-            `,
-            [byteSize, wsId]
-          );
-        }
       }
 
       return {
@@ -957,18 +916,15 @@ export class DaynoriWorker {
         (payload?.mimeType as string | undefined) ||
         'application/octet-stream';
 
-      let isClean = true;
-      let threatName: string | undefined;
-
       // Perform real malware scan if services and path are present
-      if (this.scannerService && this.storageService && objectPath) {
-        const bytes = await this.storageService.getObject(bucket, objectPath);
-        if (bytes) {
-          const scanResult = await this.scannerService.scanBytes(bytes, { fileName, detectedMime });
-          isClean = scanResult.isClean === true;
-          threatName = scanResult.threatName;
-        }
+      if (!this.scannerService || !this.storageService || !objectPath) {
+        throw new Error('File scan requires configured storage, scanner, and object path');
       }
+      const bytes = await this.storageService.getObject(bucket, objectPath);
+      if (!bytes) throw new Error('File scan object is missing');
+      const scanResult = await this.scannerService.scanBytes(bytes, { fileName, detectedMime });
+      const isClean = scanResult.isClean === true;
+      const threatName = scanResult.threatName;
 
       const newStatus = isClean ? 'verified' : 'rejected';
       const rejectionReason = isClean ? null : threatName || 'Malware detected';
@@ -979,41 +935,23 @@ export class DaynoriWorker {
             `
             UPDATE app.upload_reservations
             SET status = $1,
-                rejection_reason = $2,
                 updated_at = now()
-            WHERE id = $3
+            WHERE id = $2 AND workspace_id = $3 AND status IN ('uploaded', 'quarantined')
             `,
-            [newStatus, rejectionReason, reservationId]
+            [newStatus, reservationId, workspaceId]
           );
         }
         if (fileId) {
-          try {
-            await client.query(
-              `
-              UPDATE app.files
-              SET status = $1,
-                  quarantine_reason = $2,
+          await client.query(
+            `UPDATE app.file_items
+              SET quarantine_status = $1,
+                  rejection_reason = $2,
                   verified_at = CASE WHEN $1 = 'verified' THEN now() ELSE NULL END,
                   updated_at = now()
-              WHERE id = $3
+              WHERE id = $3 AND workspace_id = $4 AND quarantine_status = 'quarantined'
               `,
-              [newStatus, rejectionReason, fileId]
-            );
-          } catch {
-            await client
-              .query(
-                `
-                UPDATE app.file_items
-                SET quarantine_status = $1,
-                    rejection_reason = $2,
-                    verified_at = CASE WHEN $1 = 'verified' THEN now() ELSE NULL END,
-                    updated_at = now()
-                WHERE id = $3
-                `,
-                [newStatus, rejectionReason, fileId]
-              )
-              .catch(() => {});
-          }
+            [newStatus, rejectionReason, fileId, workspaceId]
+          );
         }
       }
 
@@ -1862,10 +1800,10 @@ export class DaynoriWorker {
       const storagePaths = (payload?.storagePaths as string[]) || [];
       const bucket = (payload?.bucket as string | undefined) || this.defaultBucket;
       const deletionId = (payload?.deletionId || payload?.workspaceDeletionId) as
-        | string
-        | undefined;
+        string | undefined;
       const deletionType =
-        (payload?.deletionType as string) || (payload?.workspaceDeletionId ? 'workspace' : 'account');
+        (payload?.deletionType as string) ||
+        (payload?.workspaceDeletionId ? 'workspace' : 'account');
       let purgedCount = 0;
 
       if (!this.storageService) {

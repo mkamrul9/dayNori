@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type ClientBase, Pool } from 'pg';
+import { type ClientBase, type PoolConfig, Pool } from 'pg';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,14 +49,19 @@ export interface MigratorConfig {
   user?: string;
   password?: string;
   migrationsDir?: string;
+  ssl?: PoolConfig['ssl'];
+  /** Runs inside each migration transaction, before credentials or grants become visible. */
+  beforeCommit?: (client: ClientBase) => Promise<void>;
 }
 
 export class Migrator {
   private pool: Pool;
   private migrationsDir: string;
+  private beforeCommit?: MigratorConfig['beforeCommit'];
 
   constructor(config?: MigratorConfig) {
     this.migrationsDir = config?.migrationsDir || path.resolve(__dirname, 'migrations');
+    this.beforeCommit = config?.beforeCommit;
 
     this.pool = new Pool({
       connectionString: config?.connectionString || process.env['DATABASE_ADMIN_URL'],
@@ -66,6 +71,8 @@ export class Migrator {
       user: config?.user || process.env['PGUSER'] || 'postgres',
       password: config?.password || process.env['PGPASSWORD'] || '',
       max: 2,
+      ssl: config?.ssl,
+      connectionTimeoutMillis: 15000,
     });
   }
 
@@ -124,6 +131,14 @@ export class Migrator {
       await client.query("SELECT pg_advisory_lock(hashtext('daynori_schema_migrations'));");
 
       await this.initMigrationTable(client);
+      const previewHistory = await client.query(
+        "SELECT to_regclass('app.preview_migration_adaptations') AS relation"
+      );
+      if (previewHistory.rows[0]?.relation) {
+        throw new Error(
+          'Managed core preview history requires its dedicated runner and an explicit promotion plan'
+        );
+      }
       const appliedRecords = await this.getAppliedMigrations(client);
       const appliedMap = new Map(appliedRecords.map((r) => [r.version, r]));
 
@@ -147,6 +162,7 @@ export class Migrator {
         await client.query('BEGIN');
         try {
           await client.query(mig.sql);
+          await this.beforeCommit?.(client);
           await client.query(
             'INSERT INTO app.schema_migrations (version, name, checksum) VALUES ($1, $2, $3);',
             [mig.version, mig.name, mig.checksum]

@@ -2,6 +2,9 @@
   "name": "@daynori/domain",
   "version": "0.1.0",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "description": "Framework-independent business rules, value objects, and domain invariants for Daynori",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

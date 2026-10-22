@@ -1,5 +1,43 @@
 # Changelog
 
+## Phase 60 — managed preview database setup — 2026-10-22
+
+- Verify 74 cloud migration receipts using the owner's project-only setup token; keep setup credentials local and activate only the restricted runtime login.
+- Record managed Storage and disabled-billing adaptations separately from immutable source checksums. Preserve Storage ownership, RLS and policies; create no buckets.
+- Verify the real pooler login with the Supabase-provided public CA and TLS validation; normal migration tooling refuses adapted preview histories pending explicit promotion.
+- Keep hosted web/API, APK, physical-device checks and full release acceptance pending.
+
+## Phase 60 — $0 core preview preparation — 2026-10-21
+
+- Record the owner's $0 budget and newly created Singapore Supabase preview project.
+- Add explicit free-preview API barriers and web/Android notices for unavailable uploads, audio attachments and reminder delivery; allow bounded server wake-up time.
+- Add a TLS-verified, project-pinned migration runner with transactional role safeguards. Fixture passwords never become committed cloud credentials; unused billing/worker logins remain disabled.
+- Display pending account cleanup accurately on web and Android, preserve the mobile runtime-config contract, and configure separate API reauthentication credentials.
+- Keep deployment, APK download and physical-phone verification pending. Phase 60 remains incomplete.
+- Add a dedicated preview-build branch trigger for the public repository, allowing an APK build without merging unfinished release work into the old default branch.
+
+## Phase 60 — durable preview providers (blocked on live setup) — 2026-10-21
+
+- Add a live Supabase object transport and durable, tenant-checked API capabilities; serialize upload/cancel races and close direct Storage quarantine bypasses.
+- Wire bounded private-network ClamAV scanning and FCM/Expo push adapters into executable services. Missing scanner/storage cannot produce false completion.
+- Remove duplicate quota adjustments from physical file cleanup and target the current file schema.
+- Keep object deletion in the committed durable job so transaction rollback preserves bytes; the final affected lifecycle suites pass 14/14 checks.
+- Add a separate application-worker database role with explicit production credentials; API runtime cannot assume it.
+- Add the cursor-order index without relaxing performance gates; the final full suite passes 1,336 tests across 113 files, including the new provider and deployment regressions.
+- Package production server dependencies separately and add a manual standalone Android preview workflow with a public-configuration gate and bundle/signature checks.
+- Confirm Supabase/Render browser sign-in, create the free Daynori Preview organization, and prepare free Singapore web hosting. Database password/project creation and a hosting budget decision remain with the owner. No deployed URL or new APK yet; dependency advisories and hardware/release gates remain open.
+
+## Phase 60 — project audit and phone-preview prerequisites (blocked) — 2026-10-21
+
+- Repair API process startup, configurable web origin checks, mobile public service configuration and per-request bearer credentials.
+- Add the real mobile account sheet and initialize storage after workspace provisioning; clean up account-specific repositories and sync engines.
+- Persist mobile quick capture through the existing local sync transaction, retain failed drafts, use UUIDs for native task/subtask capture, and show the current date.
+- Append migration 00070 to permit own-consent deletion under existing forced RLS, fixing account-deletion rollback.
+- Add restrictive context-free read guards (migration 00071) and scope the simulated restore to its own fixture; retain membership policies and test timeouts.
+- Update old integration fixtures to the current room invitation/UGC terms and versioned PWA cache contracts; retain the actual authorization checks.
+- Add independent container targets, an internal standalone APK build profile, and an explicit deployment handoff (ADR 0061).
+- No live deployment or new APK produced. Production file storage/scanning, push, connected accounts, dependency advisories, and hardware evidence remain blockers; see the Phase 60 audit report for exact checks and limits.
+
 ## Phase 60 — Android/web verification resume (blocked / NO-GO) — 2026-10-21
 
 - Repaired web production build: removed unused `IconText` imports left from the semantic-icon migration (seven organizer pages/components).

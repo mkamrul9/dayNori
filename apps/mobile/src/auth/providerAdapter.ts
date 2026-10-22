@@ -14,6 +14,7 @@
 
 import { parseDeepLinkUrl, type Profile, type UpdatePreferencesRequest } from '@daynori/contracts';
 import { createApiClient } from '@daynori/api-client';
+import { getMobileRuntimeConfig, mobileApiTimeoutMs } from '../config/runtime.js';
 import {
   defaultSecureStorage,
   SecureStorageError,
@@ -127,11 +128,10 @@ export class MobileProviderAuthAdapter {
     const opts = typeof options === 'boolean' ? { initialAuthenticated: options } : options;
     this.secureStore = opts?.secureStore ?? defaultSecureStorage;
     this.quarantineManager = opts?.quarantineManager ?? defaultDraftQuarantine;
-    this.supabaseUrl =
-      opts?.supabaseUrl ?? process.env['SUPABASE_AUTH_URL'] ?? 'http://127.0.0.1:54321';
-    this.supabaseAnonKey =
-      opts?.supabaseAnonKey ?? process.env['SUPABASE_ANON_KEY'] ?? 'test-anon-key';
-    this.apiBaseUrl = opts?.apiBaseUrl ?? process.env['DAYNORI_API_URL'] ?? 'http://127.0.0.1:3001';
+    const runtime = getMobileRuntimeConfig();
+    this.supabaseUrl = opts?.supabaseUrl ?? runtime.supabaseUrl;
+    this.supabaseAnonKey = opts?.supabaseAnonKey ?? runtime.supabaseAnonKey;
+    this.apiBaseUrl = opts?.apiBaseUrl ?? runtime.apiBaseUrl;
     this.requestTimeoutMs =
       opts?.requestTimeoutMs ?? (process.env['NODE_ENV'] === 'test' ? 1000 : 5000);
     this.customProvider = opts?.providerClient ?? null;
@@ -193,7 +193,11 @@ export class MobileProviderAuthAdapter {
     }
 
     try {
-      const apiClient = createApiClient({ baseUrl: this.apiBaseUrl, token });
+      const apiClient = createApiClient({
+        baseUrl: this.apiBaseUrl,
+        token,
+        defaultTimeoutMs: mobileApiTimeoutMs,
+      });
       const res = await apiClient.provisionPersonalWorkspace({
         displayName: this.currentUser.name,
       });
@@ -220,7 +224,11 @@ export class MobileProviderAuthAdapter {
     }
 
     try {
-      const apiClient = createApiClient({ baseUrl: this.apiBaseUrl, token });
+      const apiClient = createApiClient({
+        baseUrl: this.apiBaseUrl,
+        token,
+        defaultTimeoutMs: mobileApiTimeoutMs,
+      });
       const res = await apiClient.getUserPreferences();
       return res.data;
     } catch {
@@ -241,7 +249,11 @@ export class MobileProviderAuthAdapter {
     }
 
     try {
-      const apiClient = createApiClient({ baseUrl: this.apiBaseUrl, token });
+      const apiClient = createApiClient({
+        baseUrl: this.apiBaseUrl,
+        token,
+        defaultTimeoutMs: mobileApiTimeoutMs,
+      });
       const res = await apiClient.updateUserPreferences(params);
       return res.data;
     } catch {

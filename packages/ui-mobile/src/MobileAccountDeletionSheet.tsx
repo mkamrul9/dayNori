@@ -39,6 +39,8 @@ export const MobileAccountDeletionSheet: React.FC<MobileAccountDeletionSheetProp
   const [disclosure, setDisclosure] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [deletionResult, setDeletionResult] = useState<ConfirmAccountDeletionResponse | null>(null);
+  const fullyDeleted = deletionResult?.status === 'completed';
 
   if (!visible) return null;
 
@@ -68,7 +70,12 @@ export const MobileAccountDeletionSheet: React.FC<MobileAccountDeletionSheetProp
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      await onConfirmDeletion(confirmationToken);
+      const result = await onConfirmDeletion(confirmationToken);
+      if (!result.success || !['completed', 'processing'].includes(result.status))
+        throw new Error(
+          'Deletion could not be confirmed. Please check its status before retrying.'
+        );
+      setDeletionResult(result);
       setStep('completed');
       if (onSuccess) {
         setTimeout(onSuccess, 1500);
@@ -84,7 +91,13 @@ export const MobileAccountDeletionSheet: React.FC<MobileAccountDeletionSheetProp
     <MobileModalSheet
       visible={visible}
       onClose={step === 'completed' ? () => {} : onClose}
-      title={step === 'completed' ? 'Account Deleted' : 'Delete Account'}
+      title={
+        step === 'completed'
+          ? fullyDeleted
+            ? 'Account Deleted'
+            : 'Cleanup Pending'
+          : 'Delete Account'
+      }
       themeMode={themeMode}
       testID={testID}
     >
@@ -181,11 +194,12 @@ export const MobileAccountDeletionSheet: React.FC<MobileAccountDeletionSheetProp
               ]}
             >
               <Text style={[styles.warningTitle, { color: palette.status.warning }]}>
-                <Icon name="clipboard" color={palette.status.warning} /> Retention & Recovery Disclosure
+                <Icon name="clipboard" color={palette.status.warning} /> Retention & Recovery
+                Disclosure
               </Text>
               <Text style={[styles.bodyText, { color: palette.text.primary }]}>
                 {disclosure ||
-                  'Your personal data will be erased immediately upon confirmation. Backup snapshots expire in 30 days. Tombstone hashes are retained for 90 days to prevent unintended reactivation during recovery.'}
+                  'Confirmation removes your organizer records. Provider and file cleanup may remain pending. Full deletion is confirmed only after cleanup succeeds.'}
               </Text>
             </View>
 
@@ -219,9 +233,13 @@ export const MobileAccountDeletionSheet: React.FC<MobileAccountDeletionSheetProp
         {step === 'completed' && (
           <View style={styles.completedContainer}>
             <MobileFeedback
-              severity="success"
-              title="Account Deleted"
-              message="Your account and data have been removed. Redirecting..."
+              severity={fullyDeleted ? 'success' : 'info'}
+              title={fullyDeleted ? 'Account Deleted' : 'Cleanup Pending'}
+              message={
+                fullyDeleted
+                  ? 'Your account and data have been removed. Redirecting...'
+                  : 'Your organizer records were removed. Account-provider or file cleanup is still pending; full deletion has not been confirmed.'
+              }
               themeMode={themeMode}
             />
           </View>

@@ -19,6 +19,12 @@ import { withUserContext } from '../../db/index.js';
 export const DELETION_DISCLOSURE =
   'Your notes, tasks, routines, journal entries, uploaded files, and account profile will be permanently deleted upon confirmation. Data cannot be recovered after completion. Transient backup snapshots rotate out within 30 days. Cryptographic tombstones are retained in the suppression ledger for 90 days solely to prevent unintentional reactivation during disaster recovery drills.';
 
+export function getDeletionDisclosure(): string {
+  return process.env['DAYNORI_CORE_PREVIEW'] === 'true'
+    ? 'Confirmation removes your organizer records and blocks account access. Auth-provider cleanup remains pending until an operator completes it in this free preview. Full account erasure and backup retention have not been verified. Use sample content.'
+    : DELETION_DISCLOSURE;
+}
+
 export interface DeletionEmailDelivery {
   sendVerificationEmail(toEmail: string, requestId: string, token: string): Promise<void>;
 }
@@ -113,7 +119,7 @@ export class DeletionService {
       confirmationRequired: true,
       confirmationToken,
       cancellationDeadline: row.cancellation_deadline.toISOString(),
-      retainedDataDisclosure: DELETION_DISCLOSURE,
+      retainedDataDisclosure: getDeletionDisclosure(),
     };
   }
 
@@ -227,9 +233,7 @@ export class DeletionService {
         deletionId: deletion.id,
         status: 'completed',
         alreadyCompleted: true,
-        completedAt: deletion.completed_at
-          ? deletion.completed_at.toISOString()
-          : undefined,
+        completedAt: deletion.completed_at ? deletion.completed_at.toISOString() : undefined,
         storagePaths: [],
       };
     }
@@ -989,7 +993,7 @@ export class DeletionService {
         success: true,
         message:
           'If an account is associated with this email address, a confirmation email with deletion instructions has been dispatched.',
-        disclosure: DELETION_DISCLOSURE,
+        disclosure: getDeletionDisclosure(),
       };
     }
 
@@ -1017,7 +1021,7 @@ export class DeletionService {
       success: true,
       message:
         'If an account is associated with this email address, a confirmation email with deletion instructions has been dispatched.',
-      disclosure: DELETION_DISCLOSURE,
+      disclosure: getDeletionDisclosure(),
     };
   }
 

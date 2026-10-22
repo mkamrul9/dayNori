@@ -8,6 +8,7 @@ export type ActiveModal =
   | 'search'
   | 'create'
   | 'settings'
+  | 'account'
   | 'gallery'
   | 'onboarding'
   | 'onboarding-replay'

@@ -674,7 +674,23 @@ describe('Phase 24: Private Binary Upload Lifecycle (Integration Tests)', () => 
     const deleteRes = await clientA.deleteFile(workspaceAId, finalizedDoc.data.fileId);
     expect(deleteRes.data.success).toBe(true);
 
-    // Verify storage object was purged
+    // The committed API transaction publishes durable cleanup intent. Physical
+    // deletion happens in the worker so a database rollback cannot lose bytes.
+    const pendingDeletion = await adminPool.query<{ id: string; payload: Record<string, unknown> }>(
+      `SELECT id, payload FROM app.background_jobs WHERE task_type = 'file_deletion' AND payload->>'objectPath' = $1`,
+      [deleteReserve.data.objectPath]
+    );
+    expect(pendingDeletion.rows).toHaveLength(1);
+    const cleanupWorker = new DaynoriWorker(undefined, { storageService: memoryStorage });
+    cleanupWorker.start();
+    try {
+      const job = pendingDeletion.rows[0]!;
+      expect((await cleanupWorker.processJob(job.id, 'file_deletion', job.payload)).status).toBe(
+        'completed'
+      );
+    } finally {
+      cleanupWorker.stop();
+    }
     const storedObject = await memoryStorage.getObject(
       'private_assets',
       deleteReserve.data.objectPath

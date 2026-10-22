@@ -330,28 +330,36 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
   // Benchmark 4: Worker Job Lease Acquisition & Queue Dispatch Latency
   // --------------------------------------------------------------------------
   it('Benchmark 4: worker poll and SKIP LOCKED lease acquisition executes under 75ms budget', async () => {
+    const taskType = `phase37_lease_${crypto.randomUUID()}`;
+    // Measure only the seeded lease/dispatch probes, not unrelated reminder,
+    // billing, or provider work left in the shared synthetic queue.
+    worker.registerHandler(taskType, async () => ({ details: { outcome: 'lease_probe' } }));
     const admin = await adminPool.connect();
     try {
       // Enqueue 21 background jobs (1 warmup + 20 measured)
       for (let i = 0; i < 21; i++) {
-        await admin.query(`
+        await admin.query(
+          `
           INSERT INTO app.background_jobs (task_type, payload, status, created_at, updated_at)
-          VALUES ('blob_purge', '{"storagePaths":[],"bucket":"files"}'::jsonb, 'pending', now(), now());
-        `);
+          VALUES ($1, '{}'::jsonb, 'pending', now(), now());
+        `,
+          [taskType]
+        );
       }
     } finally {
       admin.release();
     }
 
     // Warm-up poll
-    await worker.pollAndProcessNextJob();
+    await worker.pollAndProcessNextJob(undefined, { taskTypes: [taskType] });
 
     const leaseLatencies: number[] = [];
     for (let i = 0; i < 20; i++) {
       const start = performance.now();
-      const job = await worker.pollAndProcessNextJob();
+      const job = await worker.pollAndProcessNextJob(undefined, { taskTypes: [taskType] });
       leaseLatencies.push(performance.now() - start);
       expect(job).not.toBeNull();
+      expect(job?.details?.outcome).toBe('lease_probe');
     }
 
     const stats = calculatePercentiles(leaseLatencies);

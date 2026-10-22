@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { isCorePreview } from '../config/runtime.js';
 import {
   Pressable,
   ScrollView,
@@ -1995,6 +1996,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <MobileButton
               variant="secondary"
               accessibilityLabel="Upload file"
+              disabled={isCorePreview}
               onPress={() => setFileUploadSheetOpen(true)}
             >
               + Upload

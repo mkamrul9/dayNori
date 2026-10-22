@@ -16,6 +16,7 @@ import {
   ApiForbiddenError,
 } from '@daynori/api-client';
 import { encodeSyncCursor } from '../../apps/api/src/modules/sync/types.js';
+import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 
 describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () => {
   let adminPool: Pool;
@@ -62,6 +63,7 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
   }
 
   beforeAll(async () => {
+    process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] = 'true';
     adminPool = createAdminPool();
     runtimePool = createRuntimePool();
 
@@ -107,6 +109,13 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
 
     const wsBRes = await clientB.provisionPersonalWorkspace({ displayName: 'Bob' });
     workspaceBId = wsBRes.data.workspace.id;
+  });
+
+  beforeAll(async () => {
+    await adminPool.query(
+      `INSERT INTO app.ugc_terms_acceptances (user_id, policy_version) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [userAId, CURRENT_UGC_POLICY_VERSION]
+    );
   });
 
   afterAll(async () => {
@@ -409,9 +418,8 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
 
     it('rejects operationId reuse across different workspace as IDEMPOTENCY_KEY_REUSED', async () => {
       // Create a shared workspace where Alice is also an editor
-      const sharedWsRes = await clientA.createWorkspace({
+      const sharedWsRes = await clientA.createRoom({
         name: 'Room Workspace For Alice',
-        kind: 'room',
       });
       const sharedWsId = sharedWsRes.data.id;
 
@@ -1074,7 +1082,7 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
 
     it('rotates access epoch on membership change causing SYNC_RESET_REQUIRED and repairs receipt RLS', async () => {
       // 1. Alice creates a room workspace
-      const roomRes = await clientA.createWorkspace({ name: 'Team Project Room', kind: 'room' });
+      const roomRes = await clientA.createRoom({ name: 'Team Project Room' });
       const roomWsId = roomRes.data.id;
 
       // 2. Initialize sync state with a createItem push
@@ -1102,10 +1110,8 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
       const validCursor = bootstrap.data.watermarkCursor;
 
       // 4. Add User B to Room Workspace
-      await clientA.addMember(roomWsId, {
-        userId: userBId,
-        role: 'editor',
-      });
+      const invitation = await clientA.createRoomInvitation(roomWsId, { role: 'editor' });
+      await clientB.acceptRoomInvitation({ token: invitation.data.inviteToken! });
 
       // 5. Old cursor now has a stale access epoch -> 409 SYNC_RESET_REQUIRED
       await expect(
@@ -1117,7 +1123,7 @@ describe('Phase 12: Server Mutation Receipts and Change Feed Integration', () =>
       expect(userBPull.data.changes).toBeDefined();
 
       // 7. Remove User B from Room Workspace
-      await clientA.removeMember(roomWsId, userBId);
+      await clientA.removeRoomMember(roomWsId, userBId);
 
       // 8. User B can no longer pull or push mutations (membership revoked)
       await expect(clientB.syncPull({ workspaceId: roomWsId })).rejects.toThrow();

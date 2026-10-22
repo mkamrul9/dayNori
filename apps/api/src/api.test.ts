@@ -38,6 +38,7 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
   const suffix = crypto.randomUUID().slice(0, 8);
 
   beforeAll(async () => {
+    process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] = 'true';
     adminPool = createAdminPool();
     runtimePool = createRuntimePool();
 
@@ -439,14 +440,13 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       // User 1 creates a workspace
       const createRes = await server.inject({
         method: 'POST',
-        url: '/v1/workspaces',
+        url: '/v1/rooms',
         headers: {
           authorization: `Bearer ${tokenUser1}`,
           'content-type': 'application/json',
         },
         payload: JSON.stringify({
           name: `User 1 Space ${suffix}`,
-          kind: 'room',
         }),
       });
 
@@ -523,20 +523,27 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
     });
 
     it('IMMEDIATE MEMBERSHIP REVOCATION: revoked user loses access on next request', async () => {
-      // 1. User 1 adds User 2 as viewer
-      const addRes = await server.inject({
+      // Membership is admitted through a single-use invitation, never direct insert.
+      const inviteRes = await server.inject({
         method: 'POST',
-        url: `/v1/workspaces/${workspace1Id}/members`,
+        url: `/v1/rooms/${workspace1Id}/invitations`,
         headers: {
           authorization: `Bearer ${tokenUser1}`,
           'content-type': 'application/json',
         },
         payload: JSON.stringify({
-          userId: user2Id,
           role: 'viewer',
         }),
       });
-      expect(addRes.statusCode).toBe(201);
+      expect(inviteRes.statusCode).toBe(201);
+      const invite = JSON.parse(inviteRes.body);
+      const addRes = await server.inject({
+        method: 'POST',
+        url: '/v1/room-invitations/accept',
+        headers: { authorization: `Bearer ${tokenUser2}`, 'content-type': 'application/json' },
+        payload: JSON.stringify({ token: invite.data.inviteToken }),
+      });
+      expect(addRes.statusCode).toBe(200);
 
       // 2. User 2 can now access workspace
       const accessRes = await server.inject({
@@ -551,7 +558,7 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       // 3. User 1 deletes User 2's membership
       const delRes = await server.inject({
         method: 'DELETE',
-        url: `/v1/workspaces/${workspace1Id}/members/${user2Id}`,
+        url: `/v1/rooms/${workspace1Id}/members/${user2Id}`,
         headers: {
           authorization: `Bearer ${tokenUser1}`,
         },
@@ -593,14 +600,13 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       // Create workspace for pagination tests
       const wsRes = await server.inject({
         method: 'POST',
-        url: '/v1/workspaces',
+        url: '/v1/rooms',
         headers: {
           authorization: `Bearer ${tokenUser1}`,
           'content-type': 'application/json',
         },
         payload: JSON.stringify({
           name: `Pagination Test Workspace ${suffix}`,
-          kind: 'room',
         }),
       });
       paginatedWsId = JSON.parse(wsRes.body).data.id;
@@ -840,23 +846,23 @@ describe('Phase 08: API Contracts, Authentication & Service Foundation', () => {
       const tokenUser1 = await createToken({ sub: user1Id });
       const wsRes1 = await server.inject({
         method: 'POST',
-        url: '/v1/workspaces',
+        url: '/v1/rooms',
         headers: {
           authorization: `Bearer ${tokenUser1}`,
           'content-type': 'application/json',
         },
-        payload: JSON.stringify({ name: 'Phase 08 Workspace 1', kind: 'room' }),
+        payload: JSON.stringify({ name: 'Phase 08 Workspace 1' }),
       });
       workspace1Id = JSON.parse(wsRes1.body).data.id;
 
       const wsRes2 = await server.inject({
         method: 'POST',
-        url: '/v1/workspaces',
+        url: '/v1/rooms',
         headers: {
           authorization: `Bearer ${tokenUser1}`,
           'content-type': 'application/json',
         },
-        payload: JSON.stringify({ name: 'Phase 08 Workspace 2', kind: 'room' }),
+        payload: JSON.stringify({ name: 'Phase 08 Workspace 2' }),
       });
       workspace2Id = JSON.parse(wsRes2.body).data.id;
     });

@@ -24,7 +24,7 @@ describe('DaynoriWorker', () => {
     );
   });
 
-  it('processes file_scan job with valid reservationId payload', async () => {
+  it('keeps a file unverified when storage or scanner is missing', async () => {
     const worker = new DaynoriWorker();
     worker.start();
 
@@ -32,8 +32,8 @@ describe('DaynoriWorker', () => {
       reservationId: '12345678-1234-1234-1234-123456789abc',
     });
 
-    expect(res.status).toBe('completed');
-    expect(res.details?.action).toBe('scanned_and_verified');
+    expect(res.status).toBe('failed');
+    expect(res.error).toContain('requires configured storage, scanner');
     worker.stop();
   });
 

@@ -36,6 +36,8 @@ export const AccountDeletionDialog: React.FC<AccountDeletionDialogProps> = ({
   const [disclosure, setDisclosure] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [deletionResult, setDeletionResult] = useState<ConfirmAccountDeletionResponse | null>(null);
+  const fullyDeleted = deletionResult?.status === 'completed';
 
   if (!isOpen) return null;
 
@@ -66,7 +68,12 @@ export const AccountDeletionDialog: React.FC<AccountDeletionDialogProps> = ({
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      await onConfirmDeletion(confirmationToken);
+      const result = await onConfirmDeletion(confirmationToken);
+      if (!result.success || !['completed', 'processing'].includes(result.status))
+        throw new Error(
+          'Deletion could not be confirmed. Please check its status before retrying.'
+        );
+      setDeletionResult(result);
       setStep('completed');
       if (onSuccess) {
         setTimeout(onSuccess, 1500);
@@ -82,7 +89,13 @@ export const AccountDeletionDialog: React.FC<AccountDeletionDialogProps> = ({
     <Dialog
       isOpen={isOpen}
       onClose={step === 'completed' ? () => {} : onClose}
-      title={step === 'completed' ? 'Account Deleted' : 'Delete Daynori Account'}
+      title={
+        step === 'completed'
+          ? fullyDeleted
+            ? 'Account Deleted'
+            : 'Cleanup Pending'
+          : 'Delete Daynori Account'
+      }
       themeMode={themeMode}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md, maxWidth: 520 }}>
@@ -228,7 +241,7 @@ export const AccountDeletionDialog: React.FC<AccountDeletionDialogProps> = ({
                 }}
               >
                 {disclosure ||
-                  'Your personal data will be erased immediately upon confirmation. Backup snapshots expire in 30 days. Tombstone hashes are retained for 90 days to prevent unintended resurrection during disaster recovery drills.'}
+                  'Confirmation removes your organizer records. Provider and file cleanup may remain pending. Full deletion is confirmed only after cleanup succeeds.'}
               </p>
             </div>
 
@@ -275,9 +288,13 @@ export const AccountDeletionDialog: React.FC<AccountDeletionDialogProps> = ({
         {step === 'completed' && (
           <div style={{ textAlign: 'center', padding: spacing.md }}>
             <Feedback
-              severity="success"
-              title="Account Permanently Deleted"
-              message="Your account, personal records, and files have been removed. Redirecting..."
+              severity={fullyDeleted ? 'success' : 'info'}
+              title={fullyDeleted ? 'Account Permanently Deleted' : 'Cleanup Pending'}
+              message={
+                fullyDeleted
+                  ? 'Your account, personal records, and files have been removed. Redirecting...'
+                  : 'Your organizer records were removed. Account-provider or file cleanup is still pending; full deletion has not been confirmed.'
+              }
               themeMode={themeMode}
             />
           </div>

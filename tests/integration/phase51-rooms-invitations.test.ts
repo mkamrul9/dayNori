@@ -7,9 +7,14 @@ import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
-import { createAdminPool, createRuntimePool, withTenantContext } from '../../apps/api/src/db/index.js';
+import {
+  createAdminPool,
+  createRuntimePool,
+  withTenantContext,
+} from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
+import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 
 describe('Phase 51: shared rooms invitations and roles', () => {
   let adminPool: Pool;
@@ -95,6 +100,13 @@ describe('Phase 51: shared rooms invitations and roles', () => {
       setup.release();
     }
   }, 120_000);
+
+  beforeAll(async () => {
+    await adminPool.query(
+      `INSERT INTO app.ugc_terms_acceptances (user_id, policy_version) VALUES ($1, $3), ($2, $3) ON CONFLICT DO NOTHING`,
+      [ownerId, editorId, CURRENT_UGC_POLICY_VERSION]
+    );
+  });
 
   afterAll(async () => {
     if (server) await server.close();

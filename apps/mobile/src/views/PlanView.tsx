@@ -1,19 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
-import {
-  colors,
-  radii,
-  spacing,
-  touchTargets,
-  type ThemeMode
-} from '@daynori/design-tokens';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   Icon,
   IconText,
@@ -21,10 +8,9 @@ import {
   MobileListRow,
   MobileModalSheet,
   MobileButton,
-  MobileTextField
+  MobileTextField,
 } from '@daynori/ui-mobile';
-import type { PlanSubView
-} from '../navigation/types';
+import type { PlanSubView } from '../navigation/types';
 import type {
   LocalRepositoryPort,
   SyncEngine,
@@ -55,7 +41,7 @@ import {
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
-  type CalendarItem
+  type CalendarItem,
 } from '@daynori/domain';
 
 function resolveLocalTimeToUtc(dateStr: string, timeStr: string, timezone: string): string {
@@ -725,7 +711,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       deadline = { type: 'date', date: tomorrowDateStr };
     }
 
-    const newId = `t-${Date.now()}`;
+    const newId = generateUuid();
     const nowIso = now.toISOString();
 
     const newTask: TaskRecord = {
@@ -983,7 +969,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     const trimmed = newSubtaskTitle.trim();
     if (!trimmed) return;
 
-    const newId = `st-${Date.now()}`;
+    const newId = generateUuid();
     const nowIso = new Date().toISOString();
     const newSubtask: TaskRecord = {
       id: newId,
@@ -1554,7 +1540,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   { color: filterIncludeRoutines ? palette.action.label : palette.text.secondary },
                 ]}
               >
-                <Icon name="refresh" /> Routines <IconText text={filterIncludeRoutines ? 'check' : ''} />
+                <Icon name="refresh" /> Routines{' '}
+                <IconText text={filterIncludeRoutines ? 'check' : ''} />
               </Text>
             </Pressable>
 
@@ -1578,7 +1565,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   { color: filterIncludeEvents ? palette.action.label : palette.text.secondary },
                 ]}
               >
-                <Icon name="calendar" /> Events <IconText text={filterIncludeEvents ? 'check' : ''} />
+                <Icon name="calendar" /> Events{' '}
+                <IconText text={filterIncludeEvents ? 'check' : ''} />
               </Text>
             </Pressable>
           </View>
@@ -2262,7 +2250,13 @@ export const PlanView: React.FC<PlanViewProps> = ({
                     { color: eventSheetAllDay ? palette.action.label : palette.text.primary },
                   ]}
                 >
-                  {eventSheetAllDay ? (<><Icon name='check' /> {'All-Day Event'}</>) : (<Icon name='Timed Event' />)}
+                  {eventSheetAllDay ? (
+                    <>
+                      <Icon name="check" /> {'All-Day Event'}
+                    </>
+                  ) : (
+                    <Icon name="Timed Event" />
+                  )}
                 </Text>
               </Pressable>
             </View>

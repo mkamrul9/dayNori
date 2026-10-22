@@ -922,25 +922,28 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
           );
         }
 
-        // 7. Execute restore drill post-restore sanitization procedure
-        await admin.query(`
-          -- Runbook post-restore sanitization
+        // This simulation restores only this fixture. Apply only its independent
+        // ledger entries, preserving unrelated accounts in the shared test DB.
+        await admin.query(
+          `
           SELECT app.reassign_shared_workspace_content(entity_id)
           FROM app.deletion_suppression_ledger
-          WHERE entity_type = 'account';
-
-          DELETE FROM app.workspaces
-          WHERE id IN (
-            SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'workspace'
-          ) OR owner_id IN (
-            SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account'
-          );
-
-          DELETE FROM app.profiles
-          WHERE id IN (
-            SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account'
-          );
-        `);
+          WHERE entity_type = 'account' AND entity_id = $1;
+        `,
+          [drillUserId]
+        );
+        await admin.query(
+          `DELETE FROM app.workspaces
+          WHERE (id = $1 OR owner_id = $2)
+          AND (id IN (SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'workspace' AND entity_id = $1)
+            OR owner_id IN (SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account' AND entity_id = $2));`,
+          [drillWsId, drillUserId]
+        );
+        await admin.query(
+          `DELETE FROM app.profiles WHERE id = $1 AND id IN (
+          SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account' AND entity_id = $1);`,
+          [drillUserId]
+        );
 
         // Purge restored storage objects for suppressed workspaces
         await memoryStorage.deleteObject(PRIVATE_ASSETS_BUCKET, drillStoragePath);
@@ -1120,7 +1123,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
              VALUES ($1, 'fake_session_hash', 'processing');`,
             [userStrangerId]
           )
-        ).rejects.toThrow(/UNAUTHORIZED: Initial account deletion requests must be pending_confirmation/);
+        ).rejects.toThrow(
+          /UNAUTHORIZED: Initial account deletion requests must be pending_confirmation/
+        );
       });
 
       await withUserContext(runtimePool, userStrangerId, async (client) => {
@@ -1131,7 +1136,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
              VALUES ($1, 'fake_session_hash', 'completed');`,
             [userStrangerId]
           )
-        ).rejects.toThrow(/UNAUTHORIZED: Initial account deletion requests must be pending_confirmation/);
+        ).rejects.toThrow(
+          /UNAUTHORIZED: Initial account deletion requests must be pending_confirmation/
+        );
       });
     });
 
@@ -1144,7 +1151,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
              VALUES ($1, $2, 'fake_session_hash', 'processing');`,
             [victimWsId, userStrangerId]
           )
-        ).rejects.toThrow(/UNAUTHORIZED: Initial workspace deletion requests must be pending_confirmation/);
+        ).rejects.toThrow(
+          /UNAUTHORIZED: Initial workspace deletion requests must be pending_confirmation/
+        );
       });
     });
 
@@ -1157,7 +1166,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
             `INSERT INTO app.public_deletion_requests (email, email_hash, status)
              VALUES ('forged@example.test', encode(sha256('forged@example.test'::bytea), 'hex'), 'processing');`
           )
-        ).rejects.toThrow(/UNAUTHORIZED: Initial public deletion requests must be pending_verification/);
+        ).rejects.toThrow(
+          /UNAUTHORIZED: Initial public deletion requests must be pending_verification/
+        );
 
         // Direct insert with non-null target_user_id must be rejected
         await expect(
@@ -1166,7 +1177,9 @@ describe('Phase 37 Prerequisite Repairs: Deletion Confirmation, RLS Boundaries, 
              VALUES ('forged@example.test', encode(sha256('forged@example.test'::bytea), 'hex'), $1, 'pending_verification');`,
             [victimUserId]
           )
-        ).rejects.toThrow(/UNAUTHORIZED: Initial public deletion requests must be pending_verification/);
+        ).rejects.toThrow(
+          /UNAUTHORIZED: Initial public deletion requests must be pending_verification/
+        );
       } finally {
         runtimeClient.release();
       }

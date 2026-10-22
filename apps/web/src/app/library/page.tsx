@@ -1,6 +1,7 @@
 'use client';
 
 import { Icon } from '@daynori/ui-web';
+import { isCorePreview } from '../../config/preview';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
@@ -2311,7 +2312,7 @@ export default function LibraryPage() {
 
     if (params.get('create') === 'note') {
       handleOpenNewNote();
-    } else if (params.get('create') === 'file') {
+    } else if (params.get('create') === 'file' && !isCorePreview) {
       setFileUploadOpen(true);
     }
     if (params.get('type') === 'files') {
@@ -2783,6 +2784,7 @@ export default function LibraryPage() {
                 variant="secondary"
                 onClick={() => setFileUploadOpen(true)}
                 aria-label="Upload file to workspace folder"
+                disabled={isCorePreview}
               >
                 + Upload File
               </Button>
@@ -2791,6 +2793,7 @@ export default function LibraryPage() {
                 variant="secondary"
                 onClick={() => setAudioRecorderOpen(true)}
                 aria-label="Record deliberate audio note"
+                disabled={isCorePreview}
               >
                 <Icon name="microphone" /> Record Audio
               </Button>

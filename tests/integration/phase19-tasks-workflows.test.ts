@@ -14,6 +14,7 @@ import {
   isLeapYear,
 } from '@daynori/domain';
 import { SyncEngine, ApiClientSyncTransport } from '@daynori/sync';
+import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 import {
   IndexedDbLocalRepository,
   clearAllLocalData,
@@ -156,6 +157,13 @@ describe('Phase 19: Upcoming Task Workflows, Priority Views, and End-to-End Veri
     } finally {
       admin.release();
     }
+  });
+
+  beforeAll(async () => {
+    await adminPool.query(
+      `INSERT INTO app.ugc_terms_acceptances (user_id, policy_version) VALUES ($1, $3), ($2, $3) ON CONFLICT DO NOTHING`,
+      [userAId, userBId, CURRENT_UGC_POLICY_VERSION]
+    );
   });
 
   afterAll(async () => {
@@ -314,7 +322,16 @@ describe('Phase 19: Upcoming Task Workflows, Priority Views, and End-to-End Veri
 
     // Verify mutations cleared on successful push
     const pendingAfterSync = await localRepo.getPendingMutations(workspace1Id, userAId);
-    expect(pendingAfterSync).toHaveLength(0);
+    expect(
+      pendingAfterSync,
+      JSON.stringify(
+        pendingAfterSync.map((m) => ({
+          command: m.command,
+          status: m.status,
+          lastError: m.lastError,
+        }))
+      )
+    ).toHaveLength(0);
 
     // Verify task is now present and completed on server
     const serverTask = await clientA.getTask(workspace1Id, offlineTaskId);

@@ -7,9 +7,14 @@ import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool, PoolClient } from 'pg';
 import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
-import { createAdminPool, createRuntimePool, withTenantContext } from '../../apps/api/src/db/index.js';
+import {
+  createAdminPool,
+  createRuntimePool,
+  withTenantContext,
+} from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
+import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 
 describe('Phase 51 repair: quarantine, ownership concurrency, copy boundaries', () => {
   let adminPool: Pool;
@@ -94,6 +99,13 @@ describe('Phase 51 repair: quarantine, ownership concurrency, copy boundaries', 
     }
   }, 120_000);
 
+  beforeAll(async () => {
+    await adminPool.query(
+      `INSERT INTO app.ugc_terms_acceptances (user_id, policy_version) VALUES ($1, $3), ($2, $3) ON CONFLICT DO NOTHING`,
+      [ownerId, editorId, CURRENT_UGC_POLICY_VERSION]
+    );
+  });
+
   afterAll(async () => {
     if (server) await server.close();
     if (runtimePool) await runtimePool.end();
@@ -163,76 +175,72 @@ describe('Phase 51 repair: quarantine, ownership concurrency, copy boundaries', 
     }
   });
 
-  it(
-    'rejects concurrent last-owner demotion on independent connections with overlap',
-    async () => {
-      const room = await clientOwner.createRoom({ name: 'Concurrent Solo' });
-      const roomId = room.data.id;
+  it('rejects concurrent last-owner demotion on independent connections with overlap', async () => {
+    const room = await clientOwner.createRoom({ name: 'Concurrent Solo' });
+    const roomId = room.data.id;
 
-      const c1 = await adminPool.connect();
-      const c2 = await adminPool.connect();
+    const c1 = await adminPool.connect();
+    const c2 = await adminPool.connect();
+    try {
+      // Lock order: both take workspace FOR UPDATE first (same as the trigger),
+      // then demote — avoids membership-row vs workspace deadlock.
+      await c1.query('BEGIN');
+      await c1.query(`SELECT id FROM app.workspaces WHERE id = $1 FOR UPDATE`, [roomId]);
+
+      await c2.query('BEGIN');
+      await c2.query(`SET LOCAL lock_timeout = '1500ms'`);
+
+      const c2LockAndDemote = (async () => {
+        await c2.query(`SELECT id FROM app.workspaces WHERE id = $1 FOR UPDATE`, [roomId]);
+        await c2.query(
+          `UPDATE app.workspace_memberships SET role = 'editor'
+             WHERE workspace_id = $1 AND user_id = $2`,
+          [roomId, ownerId]
+        );
+      })();
+
+      await new Promise((r) => setTimeout(r, 80));
+
+      let c1Error: string | null = null;
       try {
-        // Lock order: both take workspace FOR UPDATE first (same as the trigger),
-        // then demote — avoids membership-row vs workspace deadlock.
-        await c1.query('BEGIN');
-        await c1.query(`SELECT id FROM app.workspaces WHERE id = $1 FOR UPDATE`, [roomId]);
-
-        await c2.query('BEGIN');
-        await c2.query(`SET LOCAL lock_timeout = '1500ms'`);
-
-        const c2LockAndDemote = (async () => {
-          await c2.query(`SELECT id FROM app.workspaces WHERE id = $1 FOR UPDATE`, [roomId]);
-          await c2.query(
-            `UPDATE app.workspace_memberships SET role = 'editor'
+        await c1.query(
+          `UPDATE app.workspace_memberships SET role = 'editor'
              WHERE workspace_id = $1 AND user_id = $2`,
-            [roomId, ownerId]
-          );
-        })();
+          [roomId, ownerId]
+        );
+      } catch (err) {
+        c1Error = err instanceof Error ? err.message : String(err);
+      }
+      await c1.query('ROLLBACK');
 
-        await new Promise((r) => setTimeout(r, 80));
+      let c2Error: string | null = null;
+      try {
+        await c2LockAndDemote;
+      } catch (err) {
+        c2Error = err instanceof Error ? err.message : String(err);
+      }
+      try {
+        await c2.query('ROLLBACK');
+      } catch {
+        /* already aborted */
+      }
 
-        let c1Error: string | null = null;
-        try {
-          await c1.query(
-            `UPDATE app.workspace_memberships SET role = 'editor'
-             WHERE workspace_id = $1 AND user_id = $2`,
-            [roomId, ownerId]
-          );
-        } catch (err) {
-          c1Error = err instanceof Error ? err.message : String(err);
-        }
-        await c1.query('ROLLBACK');
-
-        let c2Error: string | null = null;
-        try {
-          await c2LockAndDemote;
-        } catch (err) {
-          c2Error = err instanceof Error ? err.message : String(err);
-        }
-        try {
-          await c2.query('ROLLBACK');
-        } catch {
-          /* already aborted */
-        }
-
-        // Verify on c1 before release — adminPool may be saturated by the two held clients.
-        const stillOwner = await c1.query<{ role: string; owner_id: string }>(
-          `SELECT m.role, w.owner_id
+      // Verify on c1 before release — adminPool may be saturated by the two held clients.
+      const stillOwner = await c1.query<{ role: string; owner_id: string }>(
+        `SELECT m.role, w.owner_id
            FROM app.workspace_memberships m
            JOIN app.workspaces w ON w.id = m.workspace_id
            WHERE m.workspace_id = $1 AND m.user_id = $2`,
-          [roomId, ownerId]
-        );
-        expect(stillOwner.rows[0]?.role).toBe('owner');
-        expect(stillOwner.rows[0]?.owner_id).toBe(ownerId);
-        expect(`${c1Error ?? ''}\n${c2Error ?? ''}`).toMatch(/ROOM_LAST_OWNER/);
-      } finally {
-        c1.release();
-        c2.release();
-      }
-    },
-    20_000
-  );
+        [roomId, ownerId]
+      );
+      expect(stillOwner.rows[0]?.role).toBe('owner');
+      expect(stillOwner.rows[0]?.owner_id).toBe(ownerId);
+      expect(`${c1Error ?? ''}\n${c2Error ?? ''}`).toMatch(/ROOM_LAST_OWNER/);
+    } finally {
+      c1.release();
+      c2.release();
+    }
+  }, 20_000);
 
   it('rejects concurrent API leave and demote for the sole owner', async () => {
     const room = await clientOwner.createRoom({ name: 'API Concurrent Solo' });
@@ -344,12 +352,7 @@ describe('Phase 51 repair: quarantine, ownership concurrency, copy boundaries', 
         await client.query(
           `INSERT INTO app.notes (id, workspace_id, title, document, plain_text, word_count, char_count)
            VALUES ($1,$2,'Linked', $3::jsonb, $4, 1, 6)`,
-          [
-            linkedId,
-            personalOwnerId,
-            JSON.stringify({ seeAlso: otherId }),
-            `see ${otherId}`,
-          ]
+          [linkedId, personalOwnerId, JSON.stringify({ seeAlso: otherId }), `see ${otherId}`]
         );
       }
     );
@@ -367,9 +370,8 @@ describe('Phase 51 repair: quarantine, ownership concurrency, copy boundaries', 
     const prev = process.env['NODE_ENV'];
     const prevFlag = process.env['DAYNORI_ROOMS_LOCAL_ENABLED'];
     try {
-      const { assertRoomsLocallyEnabled } = await import(
-        '../../apps/api/src/modules/rooms/service.js'
-      );
+      const { assertRoomsLocallyEnabled } =
+        await import('../../apps/api/src/modules/rooms/service.js');
       const { isRoomsLocallyEnabled } = await import('@daynori/domain');
 
       process.env['NODE_ENV'] = 'production';

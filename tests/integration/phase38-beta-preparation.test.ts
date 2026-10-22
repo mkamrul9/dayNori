@@ -10,6 +10,7 @@ import { BetaAccessService } from '../../apps/api/src/modules/beta/betaAccessSer
 import { validateBetaEnvironment } from '../../infra/deployment/beta/validate-beta-env.mjs';
 
 describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () => {
+  const previousNodeEnv = process.env['NODE_ENV'];
   let adminPool: Pool;
   let runtimePool: Pool;
   let migrator: Migrator;
@@ -49,6 +50,13 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
   }
 
   beforeAll(async () => {
+    // NODE_ENV=test deliberately enables local room tests; beta release barriers
+    // must instead be exercised with production feature-gate semantics.
+    process.env['NODE_ENV'] = 'production';
+    process.env['DAYNORI_ROOMS_LOCAL_ENABLED'] = 'false';
+    process.env['DAYNORI_AI_LOCAL_ENABLED'] = 'false';
+    process.env['DAYNORI_BILLING_LOCAL_ENABLED'] = 'false';
+    process.env['ENABLE_EXPENSES'] = 'false';
     process.env['BETA_ACCESS_MODE'] = 'private_invitation_only';
     process.env['BETA_MAX_SEATS'] = '5';
 
@@ -115,6 +123,8 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
   });
 
   afterAll(async () => {
+    if (previousNodeEnv === undefined) delete process.env['NODE_ENV'];
+    else process.env['NODE_ENV'] = previousNodeEnv;
     delete process.env['BETA_ACCESS_MODE'];
     delete process.env['BETA_MAX_SEATS'];
     if (server) await server.close();
@@ -176,7 +186,7 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
             Authorization: `Bearer ${tokenEnrolled}`,
           },
         });
-        expect(res.status).toBe(403);
+        expect(res.status, endpoint).toBe(403);
       }
     });
   });
@@ -349,7 +359,9 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
       });
       expect(rejectRes.status).toBe(403);
       const rejectData = await rejectRes.json();
-      expect(rejectData.error?.message || rejectData.message).toContain('bound to a specific recipient email address');
+      expect(rejectData.error?.message || rejectData.message).toContain(
+        'bound to a specific recipient email address'
+      );
 
       // Alice claims her own invitation -> succeeds
       const acceptRes = await fetch(`${baseUrl}/v1/beta/claim-invitation`, {
@@ -463,7 +475,9 @@ describe('Phase 38: Controlled Private Beta Backend Enforcement & Scoping', () =
         REAUTH_SECRET: mockReauthSecret,
       });
       expect(res.valid).toBe(false);
-      expect(res.errors.some((e: string) => e.includes('STORAGE_QUOTA_BYTES_PER_WORKSPACE'))).toBe(true);
+      expect(res.errors.some((e: string) => e.includes('STORAGE_QUOTA_BYTES_PER_WORKSPACE'))).toBe(
+        true
+      );
     });
 
     it('rejects placeholder database credentials', () => {

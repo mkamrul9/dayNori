@@ -289,14 +289,10 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
       });
 
       // User B cannot view User A's reminder rules
-      await expect(
-        clientB.getReminderRule(personalWorkspaceAId, ruleA.data.id)
-      ).rejects.toThrow();
+      await expect(clientB.getReminderRule(personalWorkspaceAId, ruleA.data.id)).rejects.toThrow();
 
       // User B cannot list User A's reminder rules
-      await expect(
-        clientB.listReminderRules(personalWorkspaceAId)
-      ).rejects.toThrow();
+      await expect(clientB.listReminderRules(personalWorkspaceAId)).rejects.toThrow();
     });
   });
 
@@ -405,11 +401,9 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
       const instance = instances.data[0]!;
 
       // Snooze by 20 minutes
-      const snoozed = await clientA.snoozeReminderInstance(
-        personalWorkspaceAId,
-        instance.id,
-        { snoozeMinutes: 20 }
-      );
+      const snoozed = await clientA.snoozeReminderInstance(personalWorkspaceAId, instance.id, {
+        snoozeMinutes: 20,
+      });
 
       expect(snoozed.data.status).toBe('snoozed');
       expect(snoozed.data.snoozeUntil).toBeDefined();
@@ -701,7 +695,7 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
         const enqueueRes = await adminPool.query<{ id: string }>(
           `
           INSERT INTO app.background_jobs (task_type, payload, run_at, status)
-          VALUES ('reminder_delivery', $1, NOW() - INTERVAL '1 second', 'pending')
+          VALUES ('reminder_delivery', $1, TIMESTAMPTZ '2000-01-01 00:00:00+00', 'pending')
           RETURNING id;
           `,
           [
@@ -720,10 +714,13 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
         const dbJobId = enqueueRes.rows[0]!.id;
 
         // Start worker and process through polling lifecycle
-        worker.start(adminPool);
+        // Keep the automatic poller from racing the explicitly observed lease.
+        worker.start(adminPool, { pollIntervalMs: 60000 });
         let jobResult: { jobId?: string } | null = null;
         for (let attempt = 0; attempt < 10; attempt++) {
-          jobResult = await worker.pollAndProcessNextJob(adminPool);
+          jobResult = await worker.pollAndProcessNextJob(adminPool, {
+            taskTypes: ['reminder_delivery'],
+          });
           if (jobResult?.jobId === dbJobId) break;
         }
         expect(jobResult).toBeDefined();
@@ -785,9 +782,13 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
       expect(initialInstance.deliveryGeneration).toBe(1);
 
       // Snooze instance for 20 minutes
-      const snoozedRes = await clientA.snoozeReminderInstance(personalWorkspaceAId, initialInstance.id, {
-        snoozeMinutes: 20,
-      });
+      const snoozedRes = await clientA.snoozeReminderInstance(
+        personalWorkspaceAId,
+        initialInstance.id,
+        {
+          snoozeMinutes: 20,
+        }
+      );
 
       expect(snoozedRes.data.status).toBe('snoozed');
       expect(snoozedRes.data.deliveryGeneration).toBe(2);
@@ -844,7 +845,9 @@ describe('Phase 27: Reminder Scheduling and Durable Delivery Jobs Suite', () => 
 
       // Verify scheduled time matches new deadline - 30 minutes
       const expectedTime = new Date(new Date(newDeadline).getTime() - 30 * 60 * 1000);
-      expect(Math.abs(new Date(activeInst!.scheduledAt).getTime() - expectedTime.getTime())).toBeLessThan(5000);
+      expect(
+        Math.abs(new Date(activeInst!.scheduledAt).getTime() - expectedTime.getTime())
+      ).toBeLessThan(5000);
     });
 
     it('enforces optimistic concurrency with baseRevision on reminder rule updates', async () => {

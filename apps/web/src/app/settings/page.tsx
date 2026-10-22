@@ -1,6 +1,7 @@
 'use client';
 
 import { Icon } from '@daynori/ui-web';
+import { corePreviewNotice, isCorePreview } from '../../config/preview';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
@@ -747,13 +748,17 @@ export default function SettingsPage() {
         </Card>
 
         {/* 7. Browser Reminders & Web Push (Phase 29) */}
-        <ReminderAgendaView
-          workspaceId={workspaceId}
-          isAuthenticated={isAuthenticated}
-          userId={user?.id}
-          apiClient={createWebApiClient({ csrfToken })}
-          themeMode={themeMode}
-        />
+        {isCorePreview ? (
+          <Feedback severity="info" message={corePreviewNotice} themeMode={themeMode} />
+        ) : (
+          <ReminderAgendaView
+            workspaceId={workspaceId}
+            isAuthenticated={isAuthenticated}
+            userId={user?.id}
+            apiClient={createWebApiClient({ csrfToken })}
+            themeMode={themeMode}
+          />
+        )}
 
         {/* 7b. Google Drive selected-file connector (Phase 49 provisional) */}
         {isAuthenticated && workspaceId ? (

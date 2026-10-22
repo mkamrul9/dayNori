@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-21",
   "activePhase": "60",
   "nextPhase": null,
-  "schedulingDecision": "Owner resumed Phase 60 Android/web verification. Local engineering re-verified (IconText web build repair, validate:core, preflight/rehearsal); publication decision NO-GO — live Android+web unmet. Phases 61–62 remain blocked on native/TestFlight/store evidence (preserved). Vault/AI/Drive/chat/billing stay off. Stop before Phase 63.",
+  "schedulingDecision": "Owner selected $0 core preview and created the free Singapore Supabase project. GitHub CLI sign-in and repository/workflow access confirmed. A separate reviewed preview checkpoint supports hosting without claiming Phase 60 completion. Await exact approval for a one-day, project-only Supabase setup token (or private database credential), then schema application, free Render deployment, hosted smoke and standalone APK. Final app builds/lint and 33 focused tests pass; isolated keyset mean remains 80.67ms vs <80ms; two HIGH dependency advisories and hardware/public-release gates remain. No paid services or Phase 63 work.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -363,7 +363,7 @@
     {
       "id": "60",
       "status": "blocked",
-      "reason": "Verification resume 2026-10-21: unused IconText web imports repaired; icons:check, web build, validate:core, phase59/60 gates, smoke, preflight (releaseEligible=false), rehearsal PASS locally. Publication NO-GO — no physical device/beta evidence, signed AAB, public destinations, or operator OA. Incomplete until approved Android + matching web are live. Phases 61–62 iOS evidence preserved unmet.",
+      "reason": "Free core preview prepared (ADRs 0061–0063); Supabase project created and $0 budget selected. Final build/lint and 33 focused tests pass; type checks validated after test typing repair. Latest full suite 1337 passed/3 failed; mobile config fixed, isolated keyset mean still 80.67ms vs <80ms. GitHub sign-in confirmed. Project-scoped setup approved; 74 cloud receipts and restricted TLS runtime login verified (ADR 0064). Await Render deployment, hosted smoke and standalone APK. No live web URL or APK. Two HIGH dependency advisories, physical-device and public-release gates remain. releaseEligible=false; Phases 61–62 unchanged, Phase 63 not started.",
       "report": "docs/phase-reports/phase-60.md"
     },
     {

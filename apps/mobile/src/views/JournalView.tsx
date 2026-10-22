@@ -7,22 +7,16 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from 'react-native';
-import {
-  colors,
-  radii,
-  spacing,
-  touchTargets,
-  type ThemeMode
-} from '@daynori/design-tokens';
+import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   Icon,
   MobileButton,
   MobileCard,
   MobileListRow,
   MobileTextField,
-  MobileEmptyState
+  MobileEmptyState,
 } from '@daynori/ui-mobile';
 import {
   generateInitialRank,
@@ -33,7 +27,7 @@ import {
   instantiateReflectionTemplate,
   createNoteDocumentFromPlainText,
   type JournalPromptItem,
-  type NoteDocument
+  type NoteDocument,
 } from '@daynori/domain';
 import type {
   ConflictRecord,
@@ -1251,9 +1245,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
               variant="primary"
               themeMode={themeMode}
               onPress={onLoginSynthetic}
-              accessibilityLabel="Authenticate with synthetic account"
+              accessibilityLabel="Sign in to your account"
             >
-              Sign In (Synthetic Demo)
+              Sign in
             </MobileButton>
 
             <View style={{ height: spacing.sm }} />
@@ -1827,7 +1821,15 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 style={styles.snippetToggle}
               >
                 <Text style={{ fontSize: 12, color: palette.text.secondary }}>
-                  {suppressSnippets ? (<><Icon name='eye' /> {'Show Snippets'}</>) : (<><Icon name='lock' /> {'Hide Snippets'}</>)}
+                  {suppressSnippets ? (
+                    <>
+                      <Icon name="eye" /> {'Show Snippets'}
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="lock" /> {'Hide Snippets'}
+                    </>
+                  )}
                 </Text>
               </Pressable>
             </View>

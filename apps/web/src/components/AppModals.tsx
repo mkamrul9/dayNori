@@ -1,6 +1,7 @@
 'use client';
 
 import { Icon } from '@daynori/ui-web';
+import { isCorePreview } from '../config/preview';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
@@ -966,7 +967,7 @@ export const AppModals: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px` }}>
           <Feedback
             severity="info"
-            message="Phase 05 Navigation Shell — Creation preview. Persistent storage for tasks, routines, and notes will be wired in Phase 07 and subsequent feature phases."
+            message="Choose an item below to open its editor. Sign in and open your workspace to save and sync your content."
             themeMode={themeMode}
           />
 
@@ -989,12 +990,14 @@ export const AppModals: React.FC = () => {
               onClick={() => navigateTo('/library?create=note')}
               themeMode={themeMode}
             />
-            <ListRow
-              title="Upload File"
-              subtitle="Upload PDFs, images, or documents to workspace folders"
-              onClick={() => navigateTo('/library?create=file')}
-              themeMode={themeMode}
-            />
+            {!isCorePreview && (
+              <ListRow
+                title="Upload File"
+                subtitle="Upload PDFs, images, or documents to workspace folders"
+                onClick={() => navigateTo('/library?create=file')}
+                themeMode={themeMode}
+              />
+            )}
             <ListRow
               title="New Journal Entry"
               subtitle="Open a quiet writing surface for reflection"

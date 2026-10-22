@@ -16,6 +16,7 @@ export interface StorageProviderContract {
       upsert?: boolean;
       contentType?: string;
       maxByteLimit?: number;
+      actorId?: string;
     }
   ): Promise<{
     signedUrl: string;
@@ -27,7 +28,7 @@ export interface StorageProviderContract {
   createSignedDownloadUrl(
     bucket: string,
     objectPath: string,
-    options?: { expiresInSeconds?: number }
+    options?: { expiresInSeconds?: number; actorId?: string }
   ): Promise<{ signedUrl: string; expiresInSeconds: number }>;
 
   getObject(bucket: string, objectPath: string): Promise<Buffer | null>;
@@ -47,17 +48,28 @@ export interface StorageProviderContract {
 
   isConfigured(): boolean;
 
+  /** Live transports serialize the write with reservation cancellation. */
+  storeAuthorizedUpload?(
+    token: string,
+    bucket: string,
+    objectPath: string,
+    bytes: Buffer,
+    contentType: string
+  ): Promise<'stored' | 'invalid' | 'too_large'>;
+
   validateUploadToken?(
     token: string,
     bucket: string,
     objectPath: string
-  ): { isValid: boolean; reason?: string; maxByteLimit?: number; upsert?: boolean };
+  ):
+    | { isValid: boolean; reason?: string; maxByteLimit?: number; upsert?: boolean }
+    | Promise<{ isValid: boolean; reason?: string; maxByteLimit?: number; upsert?: boolean }>;
 
   validateDownloadToken?(
     token: string,
     bucket: string,
     objectPath: string
-  ): { isValid: boolean; reason?: string };
+  ): { isValid: boolean; reason?: string } | Promise<{ isValid: boolean; reason?: string }>;
 }
 
 /**

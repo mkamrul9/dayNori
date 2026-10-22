@@ -6,9 +6,13 @@ import {
   createConfiguredStorageService,
   createWorkerDatabasePool,
 } from './worker.js';
+import { createConfiguredMalwareScanner } from '@daynori/api/providers';
+import { createConfiguredPushAdapter } from './providers/push.js';
 
 const pool = createWorkerDatabasePool();
 const worker = new DaynoriWorker(pool);
+worker.setPushAdapter(createConfiguredPushAdapter());
+worker.setScannerService(createConfiguredMalwareScanner());
 
 worker.setWebPushAdapter(createConfiguredWebPushAdapter());
 

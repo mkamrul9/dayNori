@@ -7,6 +7,7 @@ import { AppHeader } from './AppHeader';
 import { AppModals } from './AppModals';
 import { AppSidebar } from './AppSidebar';
 import { useShell } from './ShellContext';
+import { corePreviewNotice, isCorePreview } from '../config/preview';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { themeMode, routeAnnouncement } = useShell();
@@ -21,6 +22,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* 3. Header Banner */}
       <AppHeader />
+      {isCorePreview && (
+        <aside
+          aria-label="Testing preview limitations"
+          style={{ padding: '12px 20px', background: '#fff1c2', color: '#332c1a', fontSize: 14 }}
+        >
+          {corePreviewNotice}
+        </aside>
+      )}
 
       {/* 4. Desktop Sidebar + Main Content Layout */}
       <div style={{ display: 'flex', flex: 1, position: 'relative' }}>

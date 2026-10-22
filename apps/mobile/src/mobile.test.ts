@@ -551,7 +551,7 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
 
       const unauthRoot = renderer!.root;
       const unlockBtn = unauthRoot.findByProps({
-        accessibilityLabel: 'Authenticate with synthetic account',
+        accessibilityLabel: 'Sign in to your account',
       });
       expect(unlockBtn).toBeDefined();
 

@@ -1,4 +1,5 @@
 import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
+import { isCorePreview } from '../config/preview';
 
 /**
  * Reads double-submit CSRF cookie value from document.cookie in browser context.
@@ -22,6 +23,6 @@ export function createWebApiClient(options?: WebApiClientOptions): DaynoriApiCli
   return createApiClient({
     baseUrl: '/api',
     csrfToken: () => options?.csrfToken ?? getWebCsrfToken(),
-    defaultTimeoutMs: options?.defaultTimeoutMs ?? 10_000,
+    defaultTimeoutMs: options?.defaultTimeoutMs ?? (isCorePreview ? 75_000 : 10_000),
   });
 }

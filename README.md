@@ -6,15 +6,21 @@ Daynori is a **provisional working name**. Brand, domain, trademark, and store c
 
 ## Current state
 
-Phase 01 established the typed monorepo toolchain, Fastify API, background worker scaffold, Next.js web application, Expo mobile shell, and shared packages. Development, test, lint, format, and build commands are fully executable. Durable worker polling, queue leases, persistence, and retries are scheduled for later database and sync phases.
+The repository contains the Next.js web app, Expo mobile app, Fastify API, durable worker, shared domain/sync packages, and substantial organizer functionality. **It is not a fully verified or deployed product.** Phase 60 Android/web verification is active; hardware, live providers, security/dependency findings, and release evidence remain open. Read the [progress register](docs/roadmap/progress.json) and [current verification report](docs/phase-reports/phase-60.md) for actual results.
 
 The initial target is a responsive web application and an Android application. iOS follows a separate feasibility and release gate. A focused personal organizer ships before the encrypted vault, Drive integration, shared rooms, and AI.
+
+The owner selected a **$0 testing preview**. Its Supabase project and 74-entry
+managed schema are verified, including the restricted TLS runtime login;
+Render deployment and a standalone Android download are still pending. The free
+profile excludes uploads/audio attachments and reminder delivery, with visible
+in-app limits. Follow the [deployment handoff](infra/deployment/README.md).
 
 ## Start here
 
 1. Read the [documentation index](docs/README.md) and [product requirements](docs/product/requirements.md).
 2. Review the [system architecture](docs/architecture/system-overview.md) and [design direction](docs/design/design-system.md).
-3. Use the [roadmap](docs/roadmap/README.md) and the individual phase instructions. The next phase is **04: Design tokens and accessible primitives**.
+3. Use the [roadmap](docs/roadmap/README.md) and the individual phase instructions. Continue the active **Phase 60** audit and [testing deployment handoff](infra/deployment/README.md); do not infer completion from implemented scaffolding or begin Phase 63.
 4. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). A handoff recipe is in [the contributor handoff](docs/engineering/handoff.md).
 
 Open [the interactive blueprint](docs/blueprint.html) in a browser to explore the architecture and phase groups. It is a self-contained planning aid, not an application prototype.

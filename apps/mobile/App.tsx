@@ -9,6 +9,7 @@ import {
   Share,
   StatusBar,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
@@ -29,12 +30,11 @@ import { parseDeepLinkUrl, type DeepLinkPayload } from '@daynori/contracts';
 import { defaultAuthAdapter } from './src/auth/authAdapter';
 import { MobileKeyManager } from './src/data/keyManager.js';
 import { SqliteLocalRepository } from './src/data/sqliteRepository.js';
-import {
-  createMobileSyncEngine,
-  getOrCreateMobileDeviceId,
-} from './src/data/syncAdapter.js';
+import { createMobileSyncEngine, getOrCreateMobileDeviceId } from './src/data/syncAdapter.js';
 import { defaultSecureStorage } from './src/auth/secureStorage.js';
-import { createApiClient, type DaynoriApiClient } from '@daynori/api-client';
+import type { DaynoriApiClient } from '@daynori/api-client';
+import { createMobileApiClient } from './src/data/mobileApiClient.js';
+import { saveQuickCapture } from './src/data/quickCapture.js';
 import type { SyncEngine, ConflictRecord, FileRecord } from '@daynori/sync';
 import {
   exportRecoveryData,
@@ -60,6 +60,7 @@ import { PlanView } from './src/views/PlanView';
 import { LibraryView } from './src/views/LibraryView';
 import { JournalView } from './src/views/JournalView';
 import { SettingsView } from './src/views/SettingsView';
+import { AccountSheet } from './src/views/AccountSheet.js';
 import { SearchSheet } from './src/views/SearchSheet';
 import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
@@ -84,6 +85,7 @@ import {
   type NotificationCapabilityState,
 } from './src/notifications/adapter.js';
 import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
+import { isCorePreview } from './src/config/runtime.js';
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
@@ -106,6 +108,7 @@ export default function App() {
   const [repository, setRepository] = useState<SqliteLocalRepository | null>(null);
   const [syncEngine, setSyncEngine] = useState<SyncEngine | null>(null);
   const [apiClient, setApiClient] = useState<DaynoriApiClient | null>(null);
+  const [storageMessage, setStorageMessage] = useState<string | null>(null);
   const [userNamespace, setUserNamespace] = useState<{
     userId: string;
     workspaceId: string;
@@ -125,6 +128,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
     defaultAuthAdapter.isAuthenticated()
   );
+  const [accountNamespaceKey, setAccountNamespaceKey] = useState('');
   const [pendingProtectedDest, setPendingProtectedDest] = useState<string | null>(null);
 
   // Link deduplication timestamp
@@ -264,6 +268,8 @@ export default function App() {
     const unsubscribe = defaultAuthAdapter.subscribe(() => {
       const auth = defaultAuthAdapter.isAuthenticated();
       setIsAuthenticated(auth);
+      const current = defaultAuthAdapter.getCurrentUser();
+      setAccountNamespaceKey(current ? `${current.id}:${current.workspaceId ?? ''}` : '');
       // If user became authenticated and there was a pending destination, resolve it
       if (auth && pendingProtectedDest) {
         if (pendingProtectedDest === 'journal') {
@@ -280,19 +286,16 @@ export default function App() {
   // Production Storage & Sync Engine Lifecycle
   useEffect(() => {
     let isCancelled = false;
+    let openedRepository: SqliteLocalRepository | null = null;
+    let openedEngine: SyncEngine | null = null;
 
     async function initMobileStorage() {
       if (!isAuthenticated) {
-        if (syncEngine) {
-          void syncEngine.stop();
-          setSyncEngine(null);
-        }
-        if (repository) {
-          void repository.close();
-          setRepository(null);
-        }
+        setSyncEngine(null);
+        setRepository(null);
         setApiClient(null);
         setUserNamespace(null);
+        setStorageMessage(null);
         return;
       }
 
@@ -303,11 +306,16 @@ export default function App() {
         return;
       }
 
+      setRepository(null);
+      setSyncEngine(null);
+      setApiClient(null);
+      setStorageMessage(null);
       setUserNamespace({ userId: currentUser.id, workspaceId: currentUser.workspaceId });
 
       try {
         const keyManager = new MobileKeyManager(defaultSecureStorage);
         const repo = new SqliteLocalRepository({ keyManager });
+        openedRepository = repo;
         await repo.initialize({
           userId: currentUser.id,
           workspaceId: currentUser.workspaceId,
@@ -320,9 +328,7 @@ export default function App() {
 
         setRepository(repo);
 
-        const client = createApiClient({
-          baseUrl: 'http://localhost:3000',
-        });
+        const client = createMobileApiClient();
         setApiClient(client);
 
         const engine = createMobileSyncEngine({
@@ -331,6 +337,7 @@ export default function App() {
           namespace: { userId: currentUser.id, workspaceId: currentUser.workspaceId },
           secureStore: defaultSecureStorage,
         });
+        openedEngine = engine;
 
         if (isCancelled) {
           await repo.close();
@@ -353,16 +360,25 @@ export default function App() {
           })
           .catch(() => {});
       } catch {
-        /* storage initialization error handled gracefully */
+        if (!isCancelled)
+          setStorageMessage(
+            'Could not open your saved data. Reopen the app to retry. Your data has not been cleared.'
+          );
       }
     }
 
-    void initMobileStorage();
+    const initialization = initMobileStorage();
 
     return () => {
       isCancelled = true;
+      void initialization
+        .then(async () => {
+          await openedEngine?.stop();
+          await openedRepository?.close();
+        })
+        .catch(() => console.warn('Could not close the prior account storage session.'));
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, accountNamespaceKey]);
 
   // 2. Android hardware back + shared dismiss stack (iOS uses sheet Close / system gestures)
   useEffect(() => {
@@ -607,7 +623,10 @@ export default function App() {
   const getHeaderInfo = () => {
     switch (currentTab) {
       case 'today':
-        return { title: 'Today', subtitle: 'Wednesday, Oct 14 • Overview' };
+        return {
+          title: 'Today',
+          subtitle: `${new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date())} • Overview`,
+        };
       case 'plan':
         return { title: 'Plan', subtitle: 'Tasks, Routines, and Calendar' };
       case 'library':
@@ -637,6 +656,20 @@ export default function App() {
       />
 
       {/* Main Content Area */}
+      {isCorePreview && (
+        <Text
+          accessibilityRole="text"
+          style={{ color: palette.text.primary, backgroundColor: palette.surface, padding: 12 }}
+        >
+          Free testing preview: uploads, audio attachments, and reminder delivery are unavailable.
+          The server may take a minute to wake up. Use sample content.
+        </Text>
+      )}
+      {storageMessage && (
+        <Text accessibilityRole="alert" style={{ color: palette.status.danger, padding: 16 }}>
+          {storageMessage}
+        </Text>
+      )}
       <View style={styles.contentArea}>
         {currentTab === 'today' && (
           <TodayView
@@ -698,7 +731,7 @@ export default function App() {
           <JournalView
             themeMode={themeMode}
             isAuthenticated={isAuthenticated}
-            onLoginSynthetic={() => defaultAuthAdapter.loginSynthetic()}
+            onLoginSynthetic={() => setActiveModal('account')}
             onNavigateToToday={() => setCurrentTab('today')}
             repository={repository ?? undefined}
             syncEngine={syncEngine ?? undefined}
@@ -760,15 +793,30 @@ export default function App() {
       {/* Create Sheet */}
       <CreateSheet
         visible={activeModal === 'create'}
-        onClose={() => setActiveModal('none')}
+        onClose={() => setActiveModal((current) => (current === 'create' ? 'none' : current))}
         themeMode={themeMode}
         initialDraft={createDraft}
         onDraftChange={setCreateDraft}
-        onCreateItem={() => {}}
-        onRecordAudio={() => setActiveModal('audio-recorder')}
+        onCreateItem={async (draft) => {
+          await saveQuickCapture(
+            syncEngine,
+            userNamespace?.workspaceId ?? null,
+            draft,
+            Intl.DateTimeFormat().resolvedOptions().timeZone
+          );
+          setCreateDraft({ type: 'task', title: '', details: '' });
+          if (draft.type === 'task' || draft.type === 'routine') {
+            setPlanSubView(draft.type === 'task' ? 'tasks' : 'routines');
+            setCurrentTab('plan');
+          } else setCurrentTab(draft.type === 'journal' ? 'journal' : 'library');
+        }}
+        onRecordAudio={isCorePreview ? undefined : () => setActiveModal('audio-recorder')}
       />
 
       {/* Settings Modal */}
+      {activeModal === 'account' && (
+        <AccountSheet themeMode={themeMode} onClose={() => setActiveModal('none')} />
+      )}
       {activeModal === 'settings' && (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 100 }]}
@@ -779,6 +827,7 @@ export default function App() {
             textScale={textScale}
             onChangeTextScale={setTextScale}
             isAuthenticated={isAuthenticated}
+            onOpenAccount={() => setActiveModal('account')}
             onToggleAuth={() => {
               if (isAuthenticated) {
                 if (apiClient) {
@@ -802,7 +851,7 @@ export default function App() {
                   setCurrentTab('today');
                 }
               } else {
-                defaultAuthAdapter.loginSynthetic();
+                setActiveModal('account');
               }
             }}
             notificationCapability={notificationCapability}
@@ -840,9 +889,7 @@ export default function App() {
                 : undefined
             }
             onOpenRooms={
-              apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('rooms')
-                : undefined
+              apiClient && userNamespace?.workspaceId ? () => setActiveModal('rooms') : undefined
             }
             onOpenAssistant={
               apiClient && userNamespace?.workspaceId
@@ -850,9 +897,7 @@ export default function App() {
                 : undefined
             }
             onOpenBilling={
-              apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('billing')
-                : undefined
+              apiClient && userNamespace?.workspaceId ? () => setActiveModal('billing') : undefined
             }
             onClose={() => setActiveModal('none')}
           />

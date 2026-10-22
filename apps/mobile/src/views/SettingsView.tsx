@@ -1,27 +1,9 @@
 import { useEffect, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
-} from 'react-native';
-import {
-  colors,
-  radii,
-  spacing,
-  touchTargets,
-  type ThemeMode
-} from '@daynori/design-tokens';
-import {
-  Icon,
-  IconText,
-  MobileButton,
-  MobileCard
-} from '@daynori/ui-mobile';
-import type { NotificationCapabilityState
-} from '../notifications/adapter.js';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import { Icon, IconText, MobileButton, MobileCard } from '@daynori/ui-mobile';
+import type { NotificationCapabilityState } from '../notifications/adapter.js';
+import { isCorePreview } from '../config/runtime.js';
 
 export interface SettingsViewProps {
   themeMode: ThemeMode;
@@ -30,6 +12,7 @@ export interface SettingsViewProps {
   onChangeTextScale: (scale: number) => void;
   isAuthenticated: boolean;
   onToggleAuth: () => void;
+  onOpenAccount?: () => void;
   onOpenGallery: () => void;
   onOpenOnboarding?: () => void;
   onClose: () => void;
@@ -69,6 +52,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onChangeTextScale,
   isAuthenticated,
   onToggleAuth,
+  onOpenAccount,
   onOpenGallery,
   onOpenOnboarding,
   onClose,
@@ -154,7 +138,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={onToggleTheme}
               accessibilityLabel={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
             >
-              {themeMode === 'light' ? (<><Icon name='moon' /> {'Dark'}</>) : (<><Icon name='sun' /> {'Light'}</>)}
+              {themeMode === 'light' ? (
+                <>
+                  <Icon name="moon" /> {'Dark'}
+                </>
+              ) : (
+                <>
+                  <Icon name="sun" /> {'Light'}
+                </>
+              )}
             </MobileButton>
           </View>
         </MobileCard>
@@ -275,6 +267,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               : 'Sign in or verify an email link to synchronize your personal items across devices.'}
           </Text>
 
+          <MobileButton
+            themeMode={themeMode}
+            onPress={isAuthenticated ? onToggleAuth : onOpenAccount}
+          >
+            {isAuthenticated ? 'Sign out' : 'Sign in or create account'}
+          </MobileButton>
           {showDevReview ? (
             <View
               style={{
@@ -492,8 +490,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
               ]}
             >
-              {notificationCapability?.details ??
-                'Local reminders schedule directly on Android. Server push serves as secondary fallback when online.'}
+              {isCorePreview
+                ? 'Reminder delivery is unavailable in this free testing preview.'
+                : (notificationCapability?.details ??
+                  'Local reminders schedule directly on Android. Server push serves as secondary fallback when online.')}
             </Text>
           </View>
 
@@ -512,19 +512,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </Text>
           </View>
 
-          {notificationCapability?.status !== 'granted' && onRequestNotificationPermission && (
-            <View style={{ marginTop: spacing.xs }}>
-              <MobileButton
-                testID="btn-request-notification-permission"
-                variant="primary"
-                themeMode={themeMode}
-                onPress={() => void onRequestNotificationPermission()}
-                accessibilityLabel="Enable notifications for reminder alerts"
-              >
-                <Icon name="bell" /> Enable Reminder Notifications
-              </MobileButton>
-            </View>
-          )}
+          {!isCorePreview &&
+            notificationCapability?.status !== 'granted' &&
+            onRequestNotificationPermission && (
+              <View style={{ marginTop: spacing.xs }}>
+                <MobileButton
+                  testID="btn-request-notification-permission"
+                  variant="primary"
+                  themeMode={themeMode}
+                  onPress={() => void onRequestNotificationPermission()}
+                  accessibilityLabel="Enable notifications for reminder alerts"
+                >
+                  <Icon name="bell" /> Enable Reminder Notifications
+                </MobileButton>
+              </View>
+            )}
         </MobileCard>
       </View>
 

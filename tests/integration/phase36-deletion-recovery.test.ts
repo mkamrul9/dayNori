@@ -617,37 +617,46 @@ describe('Phase 36: Account Deletion, Backup and Recovery Lifecycle Integration 
           [resurrectedWsId]
         );
 
-        // 2. Execute the official Runbook restoration drill sanitization query
-        await admin.query(`
-          -- Runbook Step: purge workspaces suppressed by ledger
-          DELETE FROM app.workspaces
-          WHERE id IN (
-            SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'workspace'
-          ) OR owner_id IN (
-            SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account'
-          );
-
-          -- Runbook Step: purge profiles suppressed by ledger
-          DELETE FROM app.profiles
-          WHERE id IN (
-            SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account'
-          );
-        `);
+        // This simulation restores Alice only. Do not sanitize unrelated fixture
+        // snapshots or erase their data from the shared test database.
+        await admin.query('SELECT app.reassign_shared_workspace_content($1)', [userAId]);
+        await admin.query(
+          `DELETE FROM app.workspaces WHERE (id = $1 OR owner_id = $2)
+          AND (id IN (SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'workspace' AND entity_id = $1)
+            OR owner_id IN (SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account' AND entity_id = $2))`,
+          [resurrectedWsId, userAId]
+        );
+        await admin.query(
+          `DELETE FROM app.profiles WHERE id = $1 AND id IN (
+          SELECT entity_id FROM app.deletion_suppression_ledger WHERE entity_type = 'account' AND entity_id = $1)`,
+          [userAId]
+        );
 
         // 3. Verify zero resurrected profiles or workspaces survive
-        const verifyProfiles = await admin.query<{ count: number }>(`
+        const verifyProfiles = await admin.query<{ count: number }>(
+          `
           SELECT count(*)::int as count
           FROM app.profiles p
-          JOIN app.deletion_suppression_ledger l ON l.entity_id = p.id AND l.entity_type = 'account';
-        `);
+          JOIN app.deletion_suppression_ledger l ON l.entity_id = p.id AND l.entity_type = 'account'
+          WHERE p.id = $1;
+        `,
+          [userAId]
+        );
         expect(verifyProfiles.rows[0]!.count).toBe(0);
 
-        const verifyWorkspaces = await admin.query<{ count: number }>(`
+        const verifyWorkspaces = await admin.query<{ count: number }>(
+          `
           SELECT count(*)::int as count
           FROM app.workspaces w
-          JOIN app.deletion_suppression_ledger l ON l.entity_id = w.id AND l.entity_type = 'workspace';
-        `);
+          JOIN app.deletion_suppression_ledger l ON l.entity_id = w.id AND l.entity_type = 'workspace'
+          WHERE w.id = $1;
+        `,
+          [resurrectedWsId]
+        );
         expect(verifyWorkspaces.rows[0]!.count).toBe(0);
+        expect(
+          (await admin.query('SELECT id FROM app.profiles WHERE id = $1', [userBId])).rowCount
+        ).toBe(1);
       } finally {
         admin.release();
       }
@@ -668,11 +677,10 @@ describe('Phase 36: Account Deletion, Backup and Recovery Lifecycle Integration 
       // Enqueue job into app.background_jobs
       const admin = await adminPool.connect();
       try {
-        await admin.query('DELETE FROM app.background_jobs');
         await admin.query(
           `
-          INSERT INTO app.background_jobs (task_type, payload)
-          VALUES ('blob_purge', $1);
+          INSERT INTO app.background_jobs (task_type, payload, run_at)
+          VALUES ('blob_purge', $1, TIMESTAMPTZ '2000-01-01 00:00:00+00');
         `,
           [JSON.stringify({ storagePaths: [testPath1, testPath2] })]
         );
@@ -680,7 +688,9 @@ describe('Phase 36: Account Deletion, Backup and Recovery Lifecycle Integration 
         admin.release();
       }
 
-      const jobResult = await worker.pollAndProcessNextJob();
+      const jobResult = await worker.pollAndProcessNextJob(undefined, {
+        taskTypes: ['blob_purge'],
+      });
 
       expect(jobResult).not.toBeNull();
       expect(jobResult?.status).toBe('completed');

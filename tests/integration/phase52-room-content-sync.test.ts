@@ -7,9 +7,14 @@ import { generateKeyPair, SignJWT, exportJWK, type JSONWebKeySet } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { buildServer, JwtVerifier } from '../../apps/api/src/index.js';
-import { createAdminPool, createRuntimePool, withTenantContext } from '../../apps/api/src/db/index.js';
+import {
+  createAdminPool,
+  createRuntimePool,
+  withTenantContext,
+} from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 import { createApiClient, DaynoriApiClient } from '@daynori/api-client';
+import { CURRENT_UGC_POLICY_VERSION } from '@daynori/domain';
 import {
   applyRoomRevocationPurge,
   planRoomRevocationPurge,
@@ -101,6 +106,13 @@ describe('Phase 52: room content sync and revocation', () => {
     }
   }, 120_000);
 
+  beforeAll(async () => {
+    await adminPool.query(
+      `INSERT INTO app.ugc_terms_acceptances (user_id, policy_version) VALUES ($1, $3), ($2, $3) ON CONFLICT DO NOTHING`,
+      [ownerId, editorId, CURRENT_UGC_POLICY_VERSION]
+    );
+  });
+
   afterAll(async () => {
     if (server) await server.close();
     if (runtimePool) await runtimePool.end();
@@ -108,7 +120,9 @@ describe('Phase 52: room content sync and revocation', () => {
   });
 
   async function seedRoomWithMembers() {
-    const room = await clientOwner.createRoom({ name: `Sync Room ${crypto.randomUUID().slice(0, 8)}` });
+    const room = await clientOwner.createRoom({
+      name: `Sync Room ${crypto.randomUUID().slice(0, 8)}`,
+    });
     const invE = await clientOwner.createRoomInvitation(room.data.id, { role: 'editor' });
     await clientEditor.acceptRoomInvitation({ token: invE.data.inviteToken! });
     const invV = await clientOwner.createRoomInvitation(room.data.id, { role: 'viewer' });
@@ -401,4 +415,3 @@ describe('Phase 52: room content sync and revocation', () => {
     expect(statuses.some((s) => s === 'conflict' || s === 'accepted')).toBe(true);
   });
 });
-

@@ -239,7 +239,7 @@ describe('Phase 24/25 Remaining Defects Verification & Repairs', () => {
 
   // --- Finding D: Worker Handlers, Lease Fencing & Tenant Scoping ---
   describe('Finding D: Worker Handlers, Lease Fencing & Tenant Context', () => {
-    it('executes real file_deletion handler with storage deletion and quota update', async () => {
+    it('executes file deletion without repeating quota already released by the API', async () => {
       const deletedObjects: string[] = [];
       const storageService: StorageServiceContract = {
         getObject: async () => null,
@@ -252,9 +252,6 @@ describe('Phase 24/25 Remaining Defects Verification & Repairs', () => {
       const mockClient: DatabaseClient = {
         query: async (queryText: string, values?: unknown[]) => {
           queries.push({ sql: queryText, values });
-          if (queryText.includes('UPDATE app.files')) {
-            return { rows: [{ byte_size: 4096, workspace_id: 'ws-tenant-1' }], rowCount: 1 };
-          }
           return { rows: [], rowCount: 1 };
         },
         release: () => {},
@@ -280,8 +277,7 @@ describe('Phase 24/25 Remaining Defects Verification & Repairs', () => {
       expect(queries.some((q) => q.sql.includes("set_config('app.current_workspace_id'"))).toBe(
         true
       );
-      // Verifies quota reconciliation was executed
-      expect(queries.some((q) => q.sql.includes('UPDATE app.workspace_storage_usage'))).toBe(true);
+      expect(queries.some((q) => q.sql.includes('UPDATE app.workspace_storage_usage'))).toBe(false);
     });
 
     it('executes real file_scan handler with scanner results controlling publication', async () => {

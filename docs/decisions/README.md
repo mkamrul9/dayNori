@@ -62,5 +62,9 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0058: iOS platform parity and native adapters](0058-ios-platform-parity-and-native-adapters.md)
 - [ADR-0059: Daynori vector identity and platform assets](0059-daynori-vector-identity-and-platform-assets.md)
 - [ADR-0060: iOS store release preparation without invented native evidence](0060-ios-store-release-preparation.md)
+- [ADR-0061: Executable preview runtimes and account cleanup](0061-preview-runtime-and-account-cleanup.md)
+- [ADR-0062: Durable preview provider boundaries](0062-durable-preview-provider-boundaries.md)
+- [ADR-0063: Free core testing preview](0063-free-core-testing-preview.md)
+- [ADR-0064: Managed core preview provisioning](0064-managed-core-preview-provisioning.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.
