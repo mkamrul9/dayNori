@@ -31,59 +31,63 @@ export const ONBOARDING_STEP_METADATA: Record<
   capture: {
     stepIndex: 1,
     totalSteps: 3,
-    title: 'Capture anything',
+    title: 'Your main places',
     description:
-      'Jot down thoughts, tasks, and ideas the moment they happen. Notes are flexible documents that keep your ideas safe.',
-    announcement: 'Step 1 of 3: Capture anything. Learn how to capture thoughts, tasks, and notes quickly.',
+      'Today shows what matters now. Plan holds tasks and routines. Library keeps notes and folders. Journal is for private daily writing. Tap + to write a note or add a task.',
+    announcement:
+      'Step 1 of 3: Your main places. Today, Plan, Library, and Journal. Tap plus to create a note or task.',
   },
   planning: {
     stepIndex: 2,
     totalSteps: 3,
-    title: 'Plan tasks and routines',
+    title: 'Tasks versus routines',
     description:
-      'Separate one-off tasks with deadlines from daily routines that repeat. Today shows today’s scheduled routines and urgent tasks without clutter.',
-    announcement: 'Step 2 of 3: Plan tasks and routines. Understand one-off tasks versus daily routines.',
+      'A task is one thing to finish, like “Buy milk.” A routine repeats, like “Morning stretch.” Find both in Plan; Today lists what is due now.',
+    announcement:
+      'Step 2 of 3: Tasks versus routines. One-time tasks finish once; routines repeat on a schedule.',
   },
   organize: {
     stepIndex: 3,
     totalSteps: 3,
-    title: 'Organize folders and personalize Today',
+    title: 'Saving and optional samples',
     description:
-      'Keep files, notes, and tasks neatly grouped in folders, and customize your Today dashboard with widgets and shortcuts that fit your rhythm.',
-    announcement: 'Step 3 of 3: Organize folders and personalize Today. Setup folders and customize shortcuts.',
+      'Edits save on this device first, then sync to your account when you are online. Optional sample items are labeled “(Sample)” and are created only if you choose them.',
+    announcement:
+      'Step 3 of 3: Saving and optional samples. Local save first, then account sync. Samples are opt-in only.',
   },
   completed: {
     stepIndex: 3,
     totalSteps: 3,
-    title: 'Tutorial completed',
-    description: 'You are ready to explore your personalized Daynori workspace.',
-    announcement: 'Tutorial completed. Navigating to your personalized Today home.',
+    title: 'You are ready',
+    description: 'Open Today to start. Replay this guide anytime from Help or Settings.',
+    announcement: 'Tutorial completed. Opening your Today home.',
   },
 };
 
+/** Semantic icon names for UI Icon components — never emoji chrome. */
 export const ONBOARDING_INTEREST_LABELS: Record<
   OnboardingInterest,
   { label: string; icon: string; description: string }
 > = {
   notes: {
-    label: 'Notes & Writing',
-    icon: '📝',
-    description: 'Rich notes, quick thoughts, and reference material',
+    label: 'Notes',
+    icon: 'note',
+    description: 'Ideas and writing you can reopen later',
   },
   planning: {
-    label: 'Planning & Tasks',
-    icon: '✓',
-    description: 'Deadlines, checklists, and daily repeating routines',
+    label: 'Tasks & routines',
+    icon: 'clipboard',
+    description: 'One-time to-dos and repeating habits',
   },
   journal: {
-    label: 'Reflective Journal',
-    icon: '📖',
-    description: 'Private daily reflections, gratitude, and retrospectives',
+    label: 'Journal',
+    icon: 'journal',
+    description: 'Private daily reflections',
   },
   files: {
-    label: 'Organized Files',
-    icon: '📁',
-    description: 'PDFs, documents, and attachments in authorized folders',
+    label: 'Folders',
+    icon: 'folder',
+    description: 'Group notes and items (uploads limited in preview)',
   },
 };
 
@@ -349,9 +353,17 @@ export interface SampleItemTemplate {
 }
 
 export const SAMPLE_STARTER_TEMPLATE: SampleItemTemplate = {
-  folderName: 'Personal Starter',
-  noteTitle: 'Welcome to Daynori (Sample)',
+  folderName: 'Personal Starter (Sample)',
+  noteTitle: 'Welcome note (Sample)',
   noteSnippet:
-    'Welcome to your personal workspace! This opt-in sample note demonstrates capturing ideas and notes. You can edit, move to another folder, or delete this note at any time.',
-  taskTitle: 'Explore your Daynori Today dashboard (Sample)',
+    'This opt-in sample shows how notes save. Edit it, move it, or delete it anytime. Find notes in Library.',
+  taskTitle: 'Try completing a task (Sample)',
 };
+
+/** Short install tip for PWA / Add to Home Screen (optional; not a separate onboarding system). */
+export const PWA_INSTALL_GUIDE_STEPS: readonly string[] = [
+  'Open Daynori in Chrome on your Android phone.',
+  'Tap the browser menu (three dots).',
+  'Choose “Install app” or “Add to Home screen”.',
+  'Open Daynori from your home screen like other apps.',
+];

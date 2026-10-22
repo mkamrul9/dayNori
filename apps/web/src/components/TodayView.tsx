@@ -1405,15 +1405,7 @@ export const TodayView: React.FC = () => {
   const cardPadding = homeLayout.density === 'compact' ? spacing.sm : spacing.base;
 
   return (
-    <div
-      style={{
-        maxWidth: '860px',
-        margin: '0 auto',
-        padding: `${spacing.lg}px ${spacing.base}px`,
-        width: '100%',
-        boxSizing: 'border-box',
-      }}
-    >
+    <div className="daynori-page">
       {/* Live Region for Screen Reader Announcements */}
       <div
         id={liveRegionId}
@@ -1447,15 +1439,16 @@ export const TodayView: React.FC = () => {
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: `${spacing.xs}px`,
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            gap: `${spacing.sm}px`,
+            minWidth: 0,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h1
               id="today-heading"
+              className="daynori-break"
               style={{
                 margin: 0,
                 fontSize: `${typography.webScale.welcomeTitle}px`,
@@ -1467,6 +1460,7 @@ export const TodayView: React.FC = () => {
               Today
             </h1>
             <p
+              className="daynori-break"
               style={{
                 margin: 0,
                 marginTop: '4px',
@@ -1481,6 +1475,16 @@ export const TodayView: React.FC = () => {
                 year: 'numeric',
               })}
             </p>
+            <p
+              className="daynori-break"
+              style={{
+                margin: '6px 0 0',
+                fontSize: '12px',
+                color: palette.text.muted,
+              }}
+            >
+              Timezone: {viewingTimezone}
+            </p>
           </div>
 
           <div
@@ -1489,21 +1493,9 @@ export const TodayView: React.FC = () => {
               alignItems: 'center',
               gap: `${spacing.xs}px`,
               flexWrap: 'wrap',
+              minWidth: 0,
             }}
           >
-            <div
-              style={{
-                fontSize: '12px',
-                color: palette.text.secondary,
-                padding: `${spacing.xs}px ${spacing.sm}px`,
-                borderRadius: `${radii.sm}px`,
-                backgroundColor: palette.surfaceRaised,
-                border: `1px solid ${palette.border.subtle}`,
-              }}
-            >
-              Timezone: {viewingTimezone}
-            </div>
-
             <Button
               id="customize-today-btn"
               variant="secondary"
@@ -1511,7 +1503,7 @@ export const TodayView: React.FC = () => {
               themeMode={themeMode}
               onClick={() => setIsCustomizing(true)}
             >
-              <Icon name="settings" /> Customize Today
+              <Icon name="settings" /> Customize
             </Button>
 
             <Button
@@ -1524,7 +1516,7 @@ export const TodayView: React.FC = () => {
                 setIsEditorOpen(true);
               }}
             >
-              + New Routine
+              <Icon name="plus" /> Add routine
             </Button>
           </div>
         </div>
@@ -1613,11 +1605,15 @@ export const TodayView: React.FC = () => {
           {visibleShortcuts.map((shortcut) => {
             const label = shortcut.customLabel || DEFAULT_MODULE_LABELS[shortcut.id] || shortcut.id;
             const href = MODULE_SHORTCUT_HREFS[shortcut.id] || '/';
+            const duplicatesBottomNav = ['today', 'plan', 'library', 'journal'].includes(
+              shortcut.id
+            );
             return (
               <Link
                 key={shortcut.id}
                 href={href}
                 id={`shortcut-${shortcut.id}`}
+                className={duplicatesBottomNav ? 'desktop-only' : undefined}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1630,12 +1626,14 @@ export const TodayView: React.FC = () => {
                   fontSize: '13px',
                   fontWeight: 600,
                   textDecoration: 'none',
+                  maxWidth: '100%',
+                  minWidth: 0,
                 }}
               >
                 <span>
                   <Icon name={MODULE_SHORTCUT_ICONS[shortcut.id]} />
                 </span>
-                <span>{label}</span>
+                <span className="daynori-break">{label}</span>
               </Link>
             );
           })}

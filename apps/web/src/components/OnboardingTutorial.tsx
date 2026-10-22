@@ -2,13 +2,14 @@
 
 import { Icon } from '@daynori/ui-web';
 import React, { useCallback, useEffect, useId, useState } from 'react';
-import { colors, radii, spacing, typography } from '@daynori/design-tokens';
+import { colors, radii, spacing, typography, type IconName } from '@daynori/design-tokens';
 import { Button, Dialog, Feedback } from '@daynori/ui-web';
 import {
   TUTORIAL_STEPS,
   ONBOARDING_STEP_METADATA,
   ONBOARDING_INTEREST_LABELS,
   SAMPLE_STARTER_TEMPLATE,
+  PWA_INSTALL_GUIDE_STEPS,
   getDefaultOnboardingState,
   completeOnboarding,
   skipOnboarding,
@@ -667,15 +668,15 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
           </div>
         )}
 
-        {/* STEP 1: CAPTURE ANYTHING */}
         {currentStep === 'capture' && (
           <div>
             <p
               id="onboarding-step-desc"
+              className="daynori-break"
               style={{
                 fontSize: `${typography.webScale.body}px`,
                 color: palette.text.secondary,
-                lineHeight: 1.6,
+                lineHeight: 1.5,
                 margin: `0 0 ${spacing.base}px 0`,
               }}
             >
@@ -691,17 +692,10 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                   marginBottom: `${spacing.sm}px`,
                 }}
               >
-                Select your focus areas:
+                Show shortcuts for:
               </legend>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                  gap: `${spacing.sm}px`,
-                  marginBottom: `${spacing.base}px`,
-                }}
-              >
+              <div className="daynori-responsive-grid" style={{ marginBottom: `${spacing.base}px` }}>
                 {(['notes', 'planning', 'journal', 'files'] as OnboardingInterest[]).map(
                   (interest) => {
                     const info = ONBOARDING_INTEREST_LABELS[interest];
@@ -710,18 +704,19 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                       <label
                         key={interest}
                         htmlFor={`interest-${interest}`}
+                        className="daynori-break"
                         style={{
                           display: 'flex',
                           alignItems: 'flex-start',
                           gap: `${spacing.sm}px`,
-                          padding: `${spacing.base}px`,
+                          padding: `${spacing.sm}px`,
                           borderRadius: `${radii.card}px`,
                           backgroundColor: isSelected ? palette.surfaceRaised : palette.surface,
                           border: `2px solid ${
                             isSelected ? palette.action.primary : palette.border.subtle
                           }`,
                           cursor: 'pointer',
-                          transition: 'border-color 0.2s, background-color 0.2s',
+                          minWidth: 0,
                         }}
                       >
                         <input
@@ -733,19 +728,21 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                             marginTop: '3px',
                             cursor: 'pointer',
                             accentColor: palette.action.primary,
+                            flexShrink: 0,
                           }}
                         />
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                           <div
                             style={{
                               fontSize: '14px',
                               fontWeight: 600,
                               color: palette.text.primary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
                             }}
                           >
-                            <span style={{ marginRight: '6px' }}>
-                              <Icon name={info.icon} />
-                            </span>
+                            <Icon name={info.icon as IconName} />
                             {info.label}
                           </div>
                           <div
@@ -765,52 +762,44 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
               </div>
             </fieldset>
 
-            <div
+            <p
+              className="daynori-break"
               style={{
                 fontSize: '12px',
                 color: palette.text.muted,
-                lineHeight: 1.5,
-                padding: `${spacing.xs}px ${spacing.sm}px`,
-                backgroundColor: palette.background,
-                borderRadius: `${radii.sm}px`,
+                lineHeight: 1.45,
+                margin: 0,
               }}
             >
-              ℹ️ Visibility changes presentation shortcuts only. All core features remain authorized
-              and accessible at any time.
-            </div>
+              Shortcuts only change the home screen. Every core feature stays available in the menu.
+            </p>
           </div>
         )}
 
-        {/* STEP 2: PLAN TASKS VS ROUTINES */}
         {currentStep === 'planning' && (
           <div>
             <p
               id="onboarding-step-desc"
+              className="daynori-break"
               style={{
                 fontSize: `${typography.webScale.body}px`,
                 color: palette.text.secondary,
-                lineHeight: 1.6,
+                lineHeight: 1.5,
                 margin: `0 0 ${spacing.base}px 0`,
               }}
             >
               {meta.description}
             </p>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                gap: `${spacing.base}px`,
-                marginBottom: `${spacing.base}px`,
-              }}
-            >
-              {/* Task card */}
+            <div className="daynori-responsive-grid" style={{ marginBottom: `${spacing.base}px` }}>
               <div
+                className="daynori-break"
                 style={{
-                  padding: `${spacing.base}px`,
+                  padding: `${spacing.sm}px`,
                   borderRadius: `${radii.card}px`,
                   border: `1px solid ${palette.border.subtle}`,
                   backgroundColor: palette.surfaceRaised,
+                  minWidth: 0,
                 }}
               >
                 <div
@@ -824,31 +813,28 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     marginBottom: `${spacing.xs}px`,
                   }}
                 >
-                  <span>
-                    <Icon name="check" />
-                  </span>{' '}
-                  One-off Tasks
+                  <Icon name="check" /> Task
                 </div>
                 <p
                   style={{
                     fontSize: '13px',
                     color: palette.text.secondary,
-                    lineHeight: 1.5,
+                    lineHeight: 1.45,
                     margin: 0,
                   }}
                 >
-                  Single deadlines, action items, and project checklists. Once marked complete, a
-                  task is finished and won't reappear automatically.
+                  Example: “Buy milk.” Finish it once — it does not come back by itself.
                 </p>
               </div>
 
-              {/* Routine card */}
               <div
+                className="daynori-break"
                 style={{
-                  padding: `${spacing.base}px`,
+                  padding: `${spacing.sm}px`,
                   borderRadius: `${radii.card}px`,
                   border: `1px solid ${palette.border.subtle}`,
                   backgroundColor: palette.surfaceRaised,
+                  minWidth: 0,
                 }}
               >
                 <div
@@ -862,181 +848,186 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                     marginBottom: `${spacing.xs}px`,
                   }}
                 >
-                  <span>
-                    <Icon name="repeat" />
-                  </span>{' '}
-                  Daily Routines
+                  <Icon name="repeat" /> Routine
                 </div>
                 <p
                   style={{
                     fontSize: '13px',
                     color: palette.text.secondary,
-                    lineHeight: 1.5,
+                    lineHeight: 1.45,
                     margin: 0,
                   }}
                 >
-                  Repeatable habits that generate scheduled occurrences on Today. Marking today's
-                  occurrence done leaves tomorrow's routine intact.
+                  Example: “Morning stretch.” Completing today keeps tomorrow’s occurrence.
                 </p>
               </div>
             </div>
 
-            <div
+            <p
+              className="daynori-break"
               style={{
                 fontSize: '12px',
                 color: palette.text.muted,
-                lineHeight: 1.5,
-                padding: `${spacing.xs}px ${spacing.sm}px`,
-                backgroundColor: palette.background,
-                borderRadius: `${radii.sm}px`,
+                lineHeight: 1.45,
+                margin: 0,
               }}
             >
-              <Icon name="bulb" /> Reminders are scheduled per item. Notification permissions are
-              requested only when you explicitly add a reminder.
-            </div>
+              Find saved tasks and routines in Plan. Reminder delivery is unavailable in this
+              testing preview.
+            </p>
           </div>
         )}
 
-        {/* STEP 3: ORGANIZE & PERSONALIZE */}
         {currentStep === 'organize' && (
           <div>
             <p
               id="onboarding-step-desc"
+              className="daynori-break"
               style={{
                 fontSize: `${typography.webScale.body}px`,
                 color: palette.text.secondary,
-                lineHeight: 1.6,
+                lineHeight: 1.5,
                 margin: `0 0 ${spacing.base}px 0`,
               }}
             >
               {meta.description}
             </p>
 
-            <fieldset style={{ border: 'none', padding: 0, margin: `0 0 ${spacing.base}px 0` }}>
-              <legend
+            {!isReplay && (
+              <fieldset style={{ border: 'none', padding: 0, margin: `0 0 ${spacing.base}px 0` }}>
+                <legend
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: palette.text.primary,
+                    marginBottom: `${spacing.sm}px`,
+                  }}
+                >
+                  Optional sample items
+                </legend>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
+                  {(
+                    [
+                      {
+                        id: 'create-starter-folder',
+                        checked: createStarterFolder,
+                        set: setCreateStarterFolder,
+                        label: `Folder: ${SAMPLE_STARTER_TEMPLATE.folderName}`,
+                      },
+                      {
+                        id: 'create-starter-note',
+                        checked: createStarterNote,
+                        set: setCreateStarterNote,
+                        label: `Note: ${SAMPLE_STARTER_TEMPLATE.noteTitle}`,
+                      },
+                      {
+                        id: 'create-starter-task',
+                        checked: createStarterTask,
+                        set: setCreateStarterTask,
+                        label: `Task: ${SAMPLE_STARTER_TEMPLATE.taskTitle}`,
+                      },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.id}
+                      htmlFor={opt.id}
+                      className="daynori-break"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: `${spacing.sm}px`,
+                        fontSize: '13px',
+                        color: palette.text.primary,
+                        cursor: 'pointer',
+                        minHeight: '44px',
+                        paddingTop: '8px',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        id={opt.id}
+                        checked={opt.checked}
+                        onChange={(e) => opt.set(e.target.checked)}
+                        style={{ accentColor: palette.action.primary, marginTop: '2px' }}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            <details
+              style={{
+                fontSize: '13px',
+                color: palette.text.secondary,
+                marginBottom: `${spacing.sm}px`,
+                borderRadius: `${radii.sm}px`,
+                border: `1px solid ${palette.border.subtle}`,
+                padding: `${spacing.sm}px`,
+              }}
+            >
+              <summary
                 style={{
-                  fontSize: '14px',
+                  cursor: 'pointer',
                   fontWeight: 700,
                   color: palette.text.primary,
-                  marginBottom: `${spacing.sm}px`,
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
                 }}
               >
-                Starter examples (opt-in):
-              </legend>
+                Install on your phone (optional)
+              </summary>
+              <ol
+                className="daynori-break"
+                style={{ margin: `${spacing.sm}px 0 0`, paddingLeft: '1.25rem', lineHeight: 1.45 }}
+              >
+                {PWA_INSTALL_GUIDE_STEPS.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </details>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
-                <label
-                  htmlFor="create-starter-folder"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: `${spacing.sm}px`,
-                    fontSize: '13px',
-                    color: palette.text.primary,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    id="create-starter-folder"
-                    checked={createStarterFolder}
-                    onChange={(e) => setCreateStarterFolder(e.target.checked)}
-                    style={{ accentColor: palette.action.primary }}
-                  />
-                  <span>
-                    Create initial folder: <strong>{SAMPLE_STARTER_TEMPLATE.folderName}</strong>
-                  </span>
-                </label>
-
-                <label
-                  htmlFor="create-starter-note"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: `${spacing.sm}px`,
-                    fontSize: '13px',
-                    color: palette.text.primary,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    id="create-starter-note"
-                    checked={createStarterNote}
-                    onChange={(e) => setCreateStarterNote(e.target.checked)}
-                    style={{ accentColor: palette.action.primary }}
-                  />
-                  <span>
-                    Create sample note: <em>{SAMPLE_STARTER_TEMPLATE.noteTitle}</em>
-                  </span>
-                </label>
-
-                <label
-                  htmlFor="create-starter-task"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: `${spacing.sm}px`,
-                    fontSize: '13px',
-                    color: palette.text.primary,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    id="create-starter-task"
-                    checked={createStarterTask}
-                    onChange={(e) => setCreateStarterTask(e.target.checked)}
-                    style={{ accentColor: palette.action.primary }}
-                  />
-                  <span>
-                    Create sample task: <em>{SAMPLE_STARTER_TEMPLATE.taskTitle}</em>
-                  </span>
-                </label>
-              </div>
-            </fieldset>
-
-            <div
+            <p
+              className="daynori-break"
               style={{
                 fontSize: '12px',
                 color: palette.text.muted,
-                lineHeight: 1.5,
-                padding: `${spacing.xs}px ${spacing.sm}px`,
-                backgroundColor: palette.background,
-                borderRadius: `${radii.sm}px`,
+                lineHeight: 1.45,
+                margin: 0,
               }}
             >
-              <Icon name="lock" /> Samples are clearly labeled and completely removable. We never
-              silently populate your workspace.
-            </div>
+              Replay this guide anytime from Help or Settings. Replay never duplicates samples.
+            </p>
           </div>
         )}
 
-        {/* Footer Actions */}
         <div
           style={{
             display: 'flex',
+            flexWrap: 'wrap',
             justifyContent: 'space-between',
             alignItems: 'center',
+            gap: `${spacing.sm}px`,
             marginTop: `${spacing.lg}px`,
             paddingTop: `${spacing.base}px`,
             borderTop: `1px solid ${palette.border.subtle}`,
           }}
         >
-          <div>
-            <Button
-              variant="subtle"
-              size="compact"
-              themeMode={themeMode}
-              onClick={handleSkip}
-              disabled={isSubmitting}
-              id="onboarding-skip-btn"
-            >
-              Skip Tutorial
-            </Button>
-          </div>
+          <Button
+            variant="subtle"
+            size="compact"
+            themeMode={themeMode}
+            onClick={handleSkip}
+            disabled={isSubmitting}
+            id="onboarding-skip-btn"
+          >
+            Skip
+          </Button>
 
-          <div style={{ display: 'flex', gap: `${spacing.sm}px` }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${spacing.sm}px` }}>
             {currentStepIndex > 0 && (
               <Button
                 variant="secondary"
@@ -1059,7 +1050,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 disabled={isSubmitting}
                 id="onboarding-continue-btn"
               >
-                Continue
+                Next
               </Button>
             ) : (
               <Button
@@ -1070,7 +1061,7 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 disabled={isSubmitting}
                 id="onboarding-finish-btn"
               >
-                {isSubmitting ? 'Setting Up...' : 'Finish & Enter Daynori'}
+                {isSubmitting ? 'Saving…' : 'Done'}
               </Button>
             )}
           </div>

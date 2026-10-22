@@ -1,9 +1,12 @@
 {
   "name": "Daynori",
   "short_name": "Daynori",
-  "description": "A customizable home for notes, routines, tasks, journals, and everyday life",
-  "start_url": "/",
+  "description": "Notes, tasks, routines, and journal for everyday life",
+  "id": "/",
+  "start_url": "/today",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#F7F5EF",
   "theme_color": "#146B63",
   "icons": [

@@ -35,8 +35,9 @@ export const AppHeader: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: `0 ${spacing.base}px`,
-        height: '60px',
+        gap: `${spacing.xs}px`,
+        padding: `${spacing.xs}px ${spacing.base}px`,
+        minHeight: 'var(--daynori-header-height)',
         backgroundColor: palette.surface,
         borderBottom: `1px solid ${palette.border.subtle}`,
         position: 'sticky',
@@ -44,6 +45,7 @@ export const AppHeader: React.FC = () => {
         zIndex: 100,
         boxSizing: 'border-box',
         width: '100%',
+        paddingTop: `max(${spacing.xs}px, env(safe-area-inset-top, 0px))`,
       }}
     >
       {/* Brand & Drawer Toggle */}
@@ -95,11 +97,19 @@ export const AppHeader: React.FC = () => {
         </a>
       </div>
 
-      {/* Global Shell Actions */}
       <div
         role="toolbar"
         aria-label="Quick actions"
-        style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: `${spacing.xs}px`,
+          flex: '1 1 auto',
+          minWidth: 0,
+          justifyContent: 'flex-end',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
       >
         <button
           type="button"
@@ -162,6 +172,7 @@ export const AppHeader: React.FC = () => {
         <button
           type="button"
           id="global-theme-toggle"
+          className="hide-below-380"
           aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
           onClick={toggleTheme}
           style={buttonStyle}

@@ -66,5 +66,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0062: Durable preview provider boundaries](0062-durable-preview-provider-boundaries.md)
 - [ADR-0063: Free core testing preview](0063-free-core-testing-preview.md)
 - [ADR-0064: Managed core preview provisioning](0064-managed-core-preview-provisioning.md)
+- [ADR-0065: Mobile PWA usability for free preview](0065-mobile-pwa-usability-preview.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

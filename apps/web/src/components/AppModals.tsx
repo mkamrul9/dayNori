@@ -244,57 +244,55 @@ export const AppModals: React.FC = () => {
   const searchableDestinations = [
     {
       title: 'Today',
-      subtitle: 'Immediate action, upcoming tasks and daily routines',
+      subtitle: 'What matters now',
       href: '/today',
       icon: 'sun',
     },
     {
-      title: 'Plan: Tasks & Routines',
-      subtitle: 'Organize tasks, recurring habits, and priorities',
+      title: 'Plan',
+      subtitle: 'Tasks and routines',
       href: '/plan',
       icon: 'clipboard',
     },
     {
-      title: 'Plan: Calendar',
-      subtitle: 'Agenda and calendar projection under Plan',
+      title: 'Calendar',
+      subtitle: 'Under Plan',
       href: '/plan/calendar',
       icon: 'calendar',
     },
     {
-      title: 'Library: Folders & Files',
-      subtitle: 'Workspace folder hierarchy, notes, and documents',
+      title: 'Library',
+      subtitle: 'Notes and folders',
       href: '/library',
       icon: 'library',
     },
+    ...(isCorePreview
+      ? []
+      : [
+          {
+            title: 'Files',
+            subtitle: 'Uploads and storage',
+            href: '/library?type=files',
+            icon: 'attachment',
+          },
+        ]),
     {
-      title: 'Files & Storage',
-      subtitle: 'Upload files, safe previews, and storage quota',
-      href: '/library?type=files',
-      icon: 'attachment',
-    },
-    {
-      title: 'Journal: Reflection Timeline',
-      subtitle: 'Date-grouped timeline and private writing',
+      title: 'Journal',
+      subtitle: 'Private daily writing',
       href: '/journal',
       icon: 'book',
     },
     {
       title: 'Settings',
-      subtitle: 'Theme, text size, motion, and language settings',
+      subtitle: 'Theme and preferences',
       href: '/settings',
       icon: 'settings',
     },
     {
-      title: 'Help & Shortcuts',
-      subtitle: 'Keyboard shortcuts and accessible navigation guide',
+      title: 'Help',
+      subtitle: 'How-to and shortcuts',
       href: '/help',
       icon: 'help',
-    },
-    {
-      title: 'Component Review Gallery',
-      subtitle: 'Phase 04 design token and primitive test gallery',
-      href: '/review',
-      icon: 'palette',
     },
   ];
 

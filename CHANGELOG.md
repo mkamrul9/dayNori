@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 60 — Mobile PWA usability repair (preview, blocked) — 2026-10-22
+
+- Narrow-screen layout: safe-area bottom nav, dialog viewport sheet, text wrapping, compact Today actions, hide duplicate mobile shortcuts.
+- Compact expandable preview notice; Help searchable how-tos + beginner-guide replay; simplified onboarding with PWA install tip and semantic icons.
+- Service-worker Update/Later banner; manifest `start_url` `/today`; ADR 0065. Uploads/audio/reminders stay preview-gated; Phase 60 not release-complete.
+
 ## Phase 60 — live web and Android testing downloads — 2026-10-22
 
 - Publish the verified standalone ARM64 APK and SHA-256 file in an explicitly labeled GitHub prerelease; confirm anonymous download access.

@@ -728,12 +728,14 @@ export default function SettingsPage() {
               color: palette.text.primary,
             }}
           >
-            Tutorial & Getting Started
+            Beginner guide
           </h2>
-          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
-            Review the 3-step walkthrough introducing quick capture, task planning vs daily
-            routines, and folder organization. Replaying never duplicates starter items or removes
-            existing data.
+          <p
+            className="daynori-break"
+            style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}
+          >
+            Replay the short tour of Today, Plan, Library, and Journal. Replay does not reset
+            preferences or create duplicate samples.
           </p>
 
           <Button
@@ -743,7 +745,7 @@ export default function SettingsPage() {
             onClick={() => openModal('onboarding-replay')}
             id="replay-onboarding-btn"
           >
-            <Icon name="sparkle" /> Replay Onboarding Tutorial
+            <Icon name="sparkle" /> Replay beginner guide
           </Button>
         </Card>
 

@@ -18,6 +18,11 @@ export const Card: React.FC<CardProps> = ({ themeMode = 'light', children, style
         border: `1px solid ${palette.border.subtle}`,
         padding: `${spacing.base}px`,
         boxSizing: 'border-box',
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        overflowWrap: 'anywhere',
+        wordBreak: 'break-word',
         ...style,
       }}
       {...props}

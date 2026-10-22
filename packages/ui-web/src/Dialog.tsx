@@ -123,12 +123,15 @@ export const Dialog: React.FC<DialogProps> = ({
         bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.55)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'center',
         zIndex: 1000,
         padding: `${spacing.base}px`,
+        paddingBottom: `max(${spacing.base}px, env(safe-area-inset-bottom, 0px))`,
         backdropFilter: 'blur(2px)',
+        boxSizing: 'border-box',
       }}
+      className="daynori-dialog-backdrop"
     >
       <div
         ref={dialogRef}
@@ -137,20 +140,21 @@ export const Dialog: React.FC<DialogProps> = ({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
+        className="daynori-dialog-panel"
         style={{
           backgroundColor: palette.surface,
           color: palette.text.primary,
           borderRadius: `${radii.sheet}px`,
           border: `1px solid ${palette.border.subtle}`,
-          padding: `${spacing.lg}px`,
+          padding: `${spacing.base}px`,
           maxWidth: '520px',
           width: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
+          minWidth: 0,
           boxShadow: '0 12px 36px rgba(0, 0, 0, 0.28)',
           outline: 'none',
           boxSizing: 'border-box',
           position: 'relative',
+          marginBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         <div
@@ -160,9 +164,14 @@ export const Dialog: React.FC<DialogProps> = ({
             alignItems: 'flex-start',
             gap: `${spacing.base}px`,
             marginBottom: `${spacing.sm}px`,
+            minWidth: 0,
           }}
         >
-          <h2 id={titleId} style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>
+          <h2
+            id={titleId}
+            className="daynori-break"
+            style={{ margin: 0, fontSize: '20px', fontWeight: 600, flex: '1 1 auto', minWidth: 0 }}
+          >
             {title}
           </h2>
           <button

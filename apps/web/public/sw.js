@@ -1,5 +1,5 @@
 // Daynori Service Worker (Phase 29/30/31: Web Reminders & Reviewed PWA Shell)
-const CACHE_VERSION = 'daynori-static-v3';
+const CACHE_VERSION = 'daynori-static-v4';
 
 // Strict allowlist: immutable public static assets only.
 // Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.

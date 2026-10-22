@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-22",
   "activePhase": "60",
   "nextPhase": null,
-  "schedulingDecision": "Owner authorized the $0 core testing preview and restricted app secrets on Render. Supabase has 74 verified migration receipts and a restricted TLS runtime login. Free web/API are live; standalone ARM64 APK from 840f147 is verified and published as an anonymously downloadable testing prerelease. Account password/email entry, provider-authenticated cloud saving and cross-device journeys remain pending. Physical Android, two HIGH dependency advisories, the recorded performance finding and full release gates remain open. Phase 60 incomplete; no paid services or Phase 63 work.",
+  "schedulingDecision": "Owner selected mobile-PWA usability repair within Phase 60 preview. Layout/tutorial/SW-update work delivered on codex/free-core-preview (ADR 0065). Physical Android PWA and authenticated live save journeys still pending. Free web/API remain the $0 preview; full release gates open. Phases 61–62 unchanged. No Phase 63.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -363,7 +363,7 @@
     {
       "id": "60",
       "status": "blocked",
-      "reason": "Owner-authorized free core preview live: 74 Supabase receipts and restricted TLS login verified (ADR 0064); API/web health/readiness and seven anonymous routes passed, cloud synthetic RLS probe passed with rollback. Android workflow 39734872562 passed on 840f147; embedded bundle, signature, checksum, package/SDK/ABI and anonymous prerelease download verified. Account entry/email confirmation, authenticated cloud saving, cross-device/offline and physical-phone checks remain pending. Prior suite 1337 passed/3 failed before focused fixes; isolated keyset mean remains 80.67ms vs <80ms; two HIGH dependency advisories and public/store gates remain. releaseEligible=false; phases 61–62 unchanged, Phase 63 not started.",
+      "reason": "Mobile PWA usability repair delivered on preview branch (ADR 0065): layout/safe-area, compact preview notice, beginner tutorial/Help, SW update banner. Free core preview remains live; authenticated cloud save, physical Android PWA, and public/store gates still pending. releaseEligible=false; phases 61–62 unchanged; Phase 63 not started.",
       "report": "docs/phase-reports/phase-60.md"
     },
     {

@@ -797,3 +797,49 @@ Prettier CLI. No application source changed in this metadata checkpoint; prior
 native build and focused tests remain the implementation evidence. Diff and
 staged paths are reviewed before the checkpoint commit; unrelated local edits
 are preserved.
+
+## Mobile PWA usability and functional repair (2026-10-22)
+
+Owner-selected preview work on `codex/free-core-preview`. Goal: installable Android
+Chrome PWA that beginners can operate. Phase 31 onboarding reused (not replaced).
+Phases 61–62 unchanged. Phase 60 remains **blocked** for full public/store release.
+
+### Delivered
+
+- Shared mobile layout tokens/CSS (`daynori-page`, bottom-nav safe-area padding,
+  dialog `dvh` sheet on narrow screens, text wrapping utilities).
+- Compact preview notice with accessible Details (ADR 0065).
+- Beginner tutorial copy/layout: Today/Plan/Library/Journal, task vs routine,
+  save-then-sync, opt-in samples, optional phone install tip; Skip/Back/Next;
+  semantic interest icons (no emoji chrome).
+- Help: searchable how-tos + replay entry; Settings replay label simplified.
+- Service-worker Update/Later banner (SKIP_WAITING); cache version `v4`; private
+  cache boundaries preserved. Manifest `start_url` `/today`.
+- Today header actions shortened; duplicate bottom-nav shortcuts hidden on mobile.
+
+### Commands
+
+| Command | Exit | Notes |
+|---|---|---|
+| `pnpm exec vitest run tests/unit/mobile-pwa-usability.test.ts` | 0 | 5 tests |
+| `pnpm exec vitest run tests/integration/phase31-onboarding.test.ts` | 0 | skip/resume/replay intact |
+| `pnpm --filter @daynori/domain build` + `@daynori/ui-web` + `@daynori/web build` | 0 | |
+| `pnpm icons:check` | 0 | |
+| `pnpm validate:planning` / `pnpm audit:secrets` | 0 | |
+| Headless Chrome shots 320/390 | local | `artifacts/local/pwa-usability-shots/` (emulation, not physical phone) |
+
+### Functionally verified (local / automated)
+
+- Onboarding domain invariants, preferences skip/complete/replay (phase 31 suite).
+- Web production build; public legal pages smoke.
+- Preview feature gates unchanged (uploads/audio/reminders off).
+
+### Not verified / remaining
+
+- Physical Android Chrome installed-PWA session (owner device).
+- Authenticated create→save→reopen on live preview (needs owner login/email confirm).
+- Deployed revision update on Render after push (pending this commit).
+- Full Phase 60 live release gates.
+
+Live preview (existing): https://daynori-web-preview.onrender.com — install: Chrome
+menu → Install app / Add to Home screen.
