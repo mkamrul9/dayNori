@@ -185,6 +185,7 @@ export const AppHeader: React.FC = () => {
         <button
           type="button"
           id="global-help-btn"
+          className="hide-below-380"
           aria-label="Help and keyboard shortcuts (Shortcut ?)"
           onClick={() => openModal('help')}
           style={buttonStyle}

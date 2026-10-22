@@ -7,6 +7,7 @@ import { AppHeader } from './AppHeader';
 import { AppModals } from './AppModals';
 import { AppSidebar } from './AppSidebar';
 import { PreviewNotice } from './PreviewNotice';
+import { PwaInstallBanner } from './PwaInstallBanner';
 import { useShell } from './ShellContext';
 import { isCorePreview } from '../config/preview';
 
@@ -43,6 +44,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>
 
       <AppBottomNav />
+      <PwaInstallBanner />
       <AppModals />
     </div>
   );

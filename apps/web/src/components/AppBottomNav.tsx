@@ -59,11 +59,12 @@ export const AppBottomNav: React.FC = () => {
               justifyContent: 'center',
               minHeight: `${touchTargets.webMin}px`,
               minWidth: 0,
-              padding: '6px 2px',
+              maxWidth: '100%',
+              padding: '6px 1px',
               textDecoration: 'none',
               color: isActive ? palette.action.primary : palette.text.secondary,
               fontWeight: isActive ? 700 : 500,
-              fontSize: '11px',
+              fontSize: '10px',
               lineHeight: 1.15,
               borderTop: isActive ? `3px solid ${palette.action.primary}` : '3px solid transparent',
               boxSizing: 'border-box',
@@ -73,10 +74,18 @@ export const AppBottomNav: React.FC = () => {
               overflow: 'hidden',
             }}
           >
-            <span aria-hidden="true" style={{ display: 'inline-flex', marginBottom: '2px' }}>
-              <Icon name={tab.icon} />
+            <span aria-hidden="true" style={{ display: 'inline-flex', marginBottom: '2px', flexShrink: 0 }}>
+              <Icon name={tab.icon} size={18} />
             </span>
-            <span className="daynori-break" style={{ maxWidth: '100%' }}>
+            <span
+              className="daynori-break daynori-bottom-nav-label"
+              style={{
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {tab.label}
             </span>
           </Link>

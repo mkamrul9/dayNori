@@ -812,34 +812,45 @@ Phases 61–62 unchanged. Phase 60 remains **blocked** for full public/store rel
 - Beginner tutorial copy/layout: Today/Plan/Library/Journal, task vs routine,
   save-then-sync, opt-in samples, optional phone install tip; Skip/Back/Next;
   semantic interest icons (no emoji chrome).
+- Optional practice **Write note** / **Add task** (deterministic practice ids;
+  distinct from labeled Sample starters; skipped on replay).
 - Help: searchable how-tos + replay entry; Settings replay label simplified.
-- Service-worker Update/Later banner (SKIP_WAITING); cache version `v4`; private
+- Service-worker Update/Later banner (SKIP_WAITING); cache version `v5`; private
   cache boundaries preserved. Manifest `start_url` `/today`.
+- One-shot Chrome Install / Not now banner (`beforeinstallprompt`); no repeat after
+  dismiss or standalone.
+- Narrow-safe grids: Library/Settings/Review no longer use fixed `minmax(280px)` /
+  `minWidth: 320` dialog traps; Today shortcut href `/today`.
 - Today header actions shortened; duplicate bottom-nav shortcuts hidden on mobile.
 
 ### Commands
 
 | Command | Exit | Notes |
 |---|---|---|
-| `pnpm exec vitest run tests/unit/mobile-pwa-usability.test.ts` | 0 | 5 tests |
+| `pnpm exec vitest run tests/unit/mobile-pwa-usability.test.ts` | 0 | 7 tests |
 | `pnpm exec vitest run tests/integration/phase31-onboarding.test.ts` | 0 | skip/resume/replay intact |
 | `pnpm --filter @daynori/domain build` + `@daynori/ui-web` + `@daynori/web build` | 0 | |
 | `pnpm icons:check` | 0 | |
 | `pnpm validate:planning` / `pnpm audit:secrets` | 0 | |
-| Headless Chrome shots 320/390 | local | `artifacts/local/pwa-usability-shots/` (emulation, not physical phone) |
+| `node scripts/capture-pwa-usability-shots.mjs http://127.0.0.1:3010` | 0 | 30 PNGs at 320/360/390/412/768 (emulation) |
 
 ### Functionally verified (local / automated)
 
 - Onboarding domain invariants, preferences skip/complete/replay (phase 31 suite).
 - Web production build; public legal pages smoke.
 - Preview feature gates unchanged (uploads/audio/reminders off).
+- Headless Chromium layout shots for Today/Plan/Library/Journal/Help/Settings
+  (unauthenticated shell; not physical phone).
 
 ### Not verified / remaining
 
 - Physical Android Chrome installed-PWA session (owner device).
-- Authenticated create→save→reopen on live preview (needs owner login/email confirm).
-- Deployed revision update on Render after push (pending this commit).
+- Authenticated create→save→reopen on live preview (needs owner login/email confirm
+  in a browser tab — do not send passwords in chat).
+- After push: confirm Render serves `manifest.start_url=/today` and SW `v5`.
 - Full Phase 60 live release gates.
 
-Live preview (existing): https://daynori-web-preview.onrender.com — install: Chrome
-menu → Install app / Add to Home screen.
+Live preview: https://daynori-web-preview.onrender.com
+Install: Chrome menu → **Install app** / **Add to Home screen** (or the in-app Install
+banner when Chrome offers it). API: https://daynori-api-preview.onrender.com
+Budget remains $0 Free only.

@@ -210,11 +210,13 @@ export const Dialog: React.FC<DialogProps> = ({
         {description && (
           <p
             id={descId}
+            className="daynori-break"
             style={{
               margin: `0 0 ${spacing.base}px 0`,
               fontSize: '14px',
               color: palette.text.secondary,
               lineHeight: 1.5,
+              minWidth: 0,
             }}
           >
             {description}

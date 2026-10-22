@@ -65,6 +65,10 @@ body {
   .hide-below-380 {
     display: none !important;
   }
+
+  .daynori-bottom-nav-label {
+    font-size: 9px;
+  }
 }
 
 .daynori-main-scroll {
@@ -86,7 +90,8 @@ body {
   min-width: 0;
 }
 
-.daynori-sw-update {
+.daynori-sw-update,
+.daynori-pwa-install {
   position: fixed;
   left: 12px;
   right: 12px;
@@ -100,6 +105,10 @@ body {
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   box-sizing: border-box;
+}
+
+.daynori-pwa-install {
+  z-index: 1100;
 }
 
 @media (min-width: 768px) {

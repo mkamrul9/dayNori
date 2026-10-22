@@ -243,7 +243,7 @@ export default function ComponentReviewPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 11rem), 1fr))',
                 gap: `${spacing.base}px`,
               }}
             >

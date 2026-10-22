@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ONBOARDING_INTEREST_LABELS,
   ONBOARDING_STEP_METADATA,
   PWA_INSTALL_GUIDE_STEPS,
+  PRACTICE_STARTER,
   SAMPLE_STARTER_TEMPLATE,
   TUTORIAL_STEPS,
   getDefaultOnboardingState,
+  getPracticeNoteId,
+  getPracticeTaskId,
   resetOnboardingForReplay,
   shouldShowOnboarding,
   skipOnboarding,
@@ -17,6 +23,8 @@ import {
   corePreviewNotice,
   corePreviewSummary,
 } from '../../apps/web/src/config/preview.js';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('Mobile PWA usability — onboarding and preview copy', () => {
   it('keeps three skippable tutorial steps with plain-language metadata', () => {
@@ -72,5 +80,42 @@ describe('Mobile PWA usability — onboarding and preview copy', () => {
     expect(corePreviewSummary.length).toBeLessThan(80);
     expect(corePreviewDetails.length).toBeGreaterThanOrEqual(3);
     expect(corePreviewNotice).toContain(corePreviewSummary);
+  });
+
+  it('keeps practice create ids distinct from labeled sample starters', () => {
+    const ws = '11111111-1111-5111-8111-111111111111';
+    const user = '22222222-2222-5222-8222-222222222222';
+    const practiceNote = getPracticeNoteId(ws, user);
+    const practiceTask = getPracticeTaskId(ws, user);
+    expect(practiceNote).not.toBe(SAMPLE_STARTER_TEMPLATE.noteTitle);
+    expect(practiceNote).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    );
+    expect(practiceTask).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    );
+    expect(practiceNote).not.toEqual(practiceTask);
+    expect(PRACTICE_STARTER.noteTitle.toLowerCase()).not.toContain('sample');
+    expect(PRACTICE_STARTER.taskTitle.toLowerCase()).not.toContain('sample');
+  });
+
+  it('uses viewport-safe shared layout CSS without fixed narrow minmax traps', () => {
+    const css = fs.readFileSync(path.join(repoRoot, 'apps/web/src/app/globals.css'), 'utf8');
+    expect(css).toContain('--daynori-bottom-nav-height');
+    expect(css).toContain('--daynori-main-bottom-pad');
+    expect(css).toContain('daynori-responsive-grid');
+    expect(css).toMatch(/minmax\(min\(100%,\s*11rem\)/);
+    expect(css).toContain('daynori-sw-update');
+    const library = fs.readFileSync(path.join(repoRoot, 'apps/web/src/app/library/page.tsx'), 'utf8');
+    expect(library).not.toMatch(/minmax\(280px/);
+    expect(library).not.toMatch(/minWidth:\s*320/);
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'apps/web/public/manifest.json'), 'utf8')
+    ) as { start_url: string; scope: string };
+    expect(manifest.start_url).toBe('/today');
+    expect(manifest.scope).toBe('/');
+    const sw = fs.readFileSync(path.join(repoRoot, 'apps/web/public/sw.js'), 'utf8');
+    expect(sw).toMatch(/daynori-static-v5/);
+    expect(sw).toContain("path.startsWith('/api/')");
   });
 });

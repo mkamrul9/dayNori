@@ -345,6 +345,21 @@ export function getSampleTaskId(workspaceId: string, userId: string): string {
   return createDeterministicUuid('daynori-sample-task', `${workspaceId}:${userId}`);
 }
 
+/** Practice items from the beginner guide — distinct from labeled Sample starters. */
+export function getPracticeNoteId(workspaceId: string, userId: string): string {
+  return createDeterministicUuid('daynori-practice-note', `${workspaceId}:${userId}`);
+}
+
+export function getPracticeTaskId(workspaceId: string, userId: string): string {
+  return createDeterministicUuid('daynori-practice-task', `${workspaceId}:${userId}`);
+}
+
+export const PRACTICE_STARTER = {
+  noteTitle: 'My first note',
+  noteSnippet: 'You saved this from the beginner guide. Find it again in Library.',
+  taskTitle: 'My first task',
+} as const;
+
 export interface SampleItemTemplate {
   folderName: string;
   noteTitle: string;

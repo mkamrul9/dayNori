@@ -17,6 +17,9 @@ import {
   getSampleFolderId,
   getSampleNoteId,
   getSampleTaskId,
+  getPracticeNoteId,
+  getPracticeTaskId,
+  PRACTICE_STARTER,
   validateOnboardingState,
   getInitialOnboardingStepIndex,
   mergeOnboardingState,
@@ -57,6 +60,8 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
   const [createStarterFolder, setCreateStarterFolder] = useState(false);
   const [createStarterNote, setCreateStarterNote] = useState(false);
   const [createStarterTask, setCreateStarterTask] = useState(false);
+  const [practiceStatus, setPracticeStatus] = useState<string | null>(null);
+  const [practiceBusy, setPracticeBusy] = useState(false);
 
   const [authoritativeRevision, setAuthoritativeRevision] = useState<number | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -205,6 +210,68 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
       const prevIdx = currentStepIndex - 1;
       setCurrentStepIndex(prevIdx);
       persistDraft(prevIdx, selectedInterests);
+    }
+  };
+
+  const handlePracticeCreate = async (kind: 'note' | 'task') => {
+    if (practiceBusy || isReplay || !workspaceId || !user?.id) {
+      setPracticeStatus(
+        !workspaceId || !user?.id
+          ? 'Sign in to save a practice item, or tap Next to continue.'
+          : null
+      );
+      return;
+    }
+    setPracticeBusy(true);
+    setErrorMessage(null);
+    setPracticeStatus(null);
+    const client = createWebApiClient({ csrfToken });
+    try {
+      if (kind === 'note') {
+        const id = getPracticeNoteId(workspaceId, user.id);
+        const existing = await client.getNote(workspaceId, id).catch(() => null);
+        if (!existing?.data?.id) {
+          await client.createNote(workspaceId, {
+            id,
+            title: PRACTICE_STARTER.noteTitle,
+            securityScope: 'standard',
+            document: {
+              type: 'doc',
+              version: 1,
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: PRACTICE_STARTER.noteSnippet }],
+                },
+              ],
+            },
+          });
+        }
+        setPracticeStatus('Saved. Open Library anytime to find “My first note”.');
+        setLiveAnnouncement('Practice note saved. Find it in Library.');
+      } else {
+        const id = getPracticeTaskId(workspaceId, user.id);
+        const existing = await client.getTask(workspaceId, id).catch(() => null);
+        if (!existing?.data?.id) {
+          await client.createTask(workspaceId, {
+            id,
+            title: PRACTICE_STARTER.taskTitle,
+            status: 'todo',
+            priority: 'normal',
+            isPinned: false,
+            securityScope: 'standard',
+            tags: [],
+            deadline: { type: 'none' },
+            subtaskOrder: 0,
+          });
+        }
+        setPracticeStatus('Saved. Open Plan anytime to find “My first task”.');
+        setLiveAnnouncement('Practice task saved. Find it in Plan.');
+      }
+    } catch {
+      setErrorMessage('Could not save yet. Check your connection, then try again or tap Next.');
+    } finally {
+      setPracticeBusy(false);
     }
   };
 
@@ -768,11 +835,79 @@ export const OnboardingTutorial: React.FC<OnboardingTutorialProps> = ({
                 fontSize: '12px',
                 color: palette.text.muted,
                 lineHeight: 1.45,
-                margin: 0,
+                margin: `0 0 ${spacing.base}px 0`,
               }}
             >
               Shortcuts only change the home screen. Every core feature stays available in the menu.
             </p>
+
+            {!isReplay && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: `${spacing.sm}px`,
+                  padding: `${spacing.sm}px`,
+                  borderRadius: `${radii.card}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surfaceRaised,
+                  minWidth: 0,
+                }}
+              >
+                <p
+                  className="daynori-break"
+                  style={{
+                    margin: 0,
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: palette.text.primary,
+                  }}
+                >
+                  Try it now (optional)
+                </p>
+                <p
+                  className="daynori-break"
+                  style={{
+                    margin: 0,
+                    fontSize: '13px',
+                    color: palette.text.secondary,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Save a real note or task, then reopen it later from Library or Plan.
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${spacing.sm}px` }}>
+                  <Button
+                    variant="primary"
+                    size="compact"
+                    themeMode={themeMode}
+                    disabled={practiceBusy || isSubmitting}
+                    onClick={() => void handlePracticeCreate('note')}
+                    id="onboarding-practice-note"
+                  >
+                    Write note
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    themeMode={themeMode}
+                    disabled={practiceBusy || isSubmitting}
+                    onClick={() => void handlePracticeCreate('task')}
+                    id="onboarding-practice-task"
+                  >
+                    Add task
+                  </Button>
+                </div>
+                {practiceStatus && (
+                  <Feedback
+                    severity="success"
+                    message={practiceStatus}
+                    themeMode={themeMode}
+                    onDismiss={() => setPracticeStatus(null)}
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
 

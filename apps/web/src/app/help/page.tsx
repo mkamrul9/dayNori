@@ -104,7 +104,10 @@ export default function HelpPage() {
           >
             Getting started
           </h2>
-          <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}>
+          <p
+            className="daynori-break"
+            style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}
+          >
             Replay the short beginner guide anytime. It does not reset settings or duplicate samples.
           </p>
           <Button
@@ -151,7 +154,7 @@ export default function HelpPage() {
               marginBottom: `${spacing.sm}px`,
             }}
           />
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, minWidth: 0, width: '100%' }}>
             {filtered.map((item) => (
               <li
                 key={item.title}
@@ -159,10 +162,31 @@ export default function HelpPage() {
                 style={{
                   padding: `${spacing.sm}px 0`,
                   borderBottom: `1px solid ${palette.border.subtle}`,
+                  minWidth: 0,
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
                 }}
               >
-                <strong style={{ color: palette.text.primary }}>{item.title}</strong>
-                <p style={{ margin: '4px 0 0', fontSize: '13px', color: palette.text.secondary }}>
+                <strong
+                  className="daynori-break"
+                  style={{ color: palette.text.primary, display: 'block', minWidth: 0 }}
+                >
+                  {item.title}
+                </strong>
+                <p
+                  className="daynori-break"
+                  style={{
+                    margin: '4px 0 0',
+                    fontSize: '13px',
+                    color: palette.text.secondary,
+                    lineHeight: 1.45,
+                    minWidth: 0,
+                    maxWidth: '100%',
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
                   {item.body}
                 </p>
               </li>

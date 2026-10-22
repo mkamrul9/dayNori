@@ -23,6 +23,13 @@ mobile chrome, weak beginner guidance, and uncertainty that saves persist.
 5. Service-worker update shows an explicit Update/Later banner; SKIP_WAITING still
    requires user action. Private HTML/API caching boundaries stay unchanged.
 6. Manifest `start_url` is `/today` for standalone launch.
+7. Narrow grids use `minmax(min(100%, 11rem), 1fr)` (or shared `.daynori-responsive-grid`)
+   so dialogs and Library cards do not force horizontal overflow under 320–412 CSS px.
+8. Beginner guide offers optional real “Write note” / “Add task” practice creates
+   (deterministic practice ids, distinct from labeled Sample starters). Replay does
+   not re-run practice creates.
+9. Chrome `beforeinstallprompt` surfaces a one-shot Install / Not now banner; dismiss
+   and standalone display do not repeat. Manual install steps stay in Help/tutorial.
 
 ## Consequences
 

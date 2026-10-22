@@ -2973,9 +2973,8 @@ export default function LibraryPage() {
               </h2>
 
               <div
+                className="daynori-responsive-grid"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                   gap: spacing.sm,
                 }}
               >
@@ -3636,7 +3635,8 @@ export default function LibraryPage() {
             flexDirection: 'column',
             gap: spacing.md,
             padding: spacing.sm,
-            minWidth: 320,
+            minWidth: 0,
+            width: '100%',
           }}
         >
           <TextField

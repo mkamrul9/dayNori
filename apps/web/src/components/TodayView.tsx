@@ -60,7 +60,7 @@ import {
 } from '@daynori/domain';
 
 const MODULE_SHORTCUT_HREFS: Record<ModuleShortcutId, string> = {
-  today: '/',
+  today: '/today',
   plan: '/plan',
   library: '/library',
   journal: '/journal',
@@ -1502,6 +1502,7 @@ export const TodayView: React.FC = () => {
               size="compact"
               themeMode={themeMode}
               onClick={() => setIsCustomizing(true)}
+              aria-label="Customize Today"
             >
               <Icon name="settings" /> Customize
             </Button>
@@ -1515,8 +1516,9 @@ export const TodayView: React.FC = () => {
                 setEditingRoutine(null);
                 setIsEditorOpen(true);
               }}
+              aria-label="Add routine"
             >
-              <Icon name="plus" /> Add routine
+              <Icon name="plus" /> <span className="hide-below-380">Add </span>routine
             </Button>
           </div>
         </div>
@@ -1732,7 +1734,9 @@ export const TodayView: React.FC = () => {
               animation: 'daynori-spin 0.8s linear infinite',
             }}
           />
-          <span>Refreshing Today content...</span>
+          <span className="daynori-break" style={{ textAlign: 'center', maxWidth: '100%' }}>
+            Updating Today…
+          </span>
         </div>
       ) : visibleWidgets.length === 0 ? (
         <EmptyState

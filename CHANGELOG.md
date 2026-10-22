@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 60 — Mobile PWA usability follow-up (preview, blocked) — 2026-10-22
+
+- Narrow-safe Library/Settings/Review grids; Today shortcut `/today`; shorter Today/bottom-nav chrome; Help/Today text wrapping.
+- Beginner guide optional practice Write note / Add task; one-shot Chrome Install banner; SW cache `v5`.
+- Regression tests + headless mobile screenshots script. Free preview limits unchanged; Phase 60 not release-complete.
+
 ## Phase 60 — Mobile PWA usability repair (preview, blocked) — 2026-10-22
 
 - Narrow-screen layout: safe-area bottom nav, dialog viewport sheet, text wrapping, compact Today actions, hide duplicate mobile shortcuts.

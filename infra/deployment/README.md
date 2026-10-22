@@ -2,6 +2,8 @@
 
 Selected Phase 60 testing preview. Hosted health/readiness verified 2026-10-22;
 signed-in cloud and physical-phone checks remain open. **Not release-ready.**
+Mobile PWA usability follow-up (ADR 0065) targets this branch; confirm Render has
+redeployed after each push (`manifest.start_url` `/today`, SW `daynori-static-v5`).
 
 - Web: https://daynori-web-preview.onrender.com (Render Free, Singapore).
 - API readiness: https://daynori-api-preview.onrender.com/v1/ready (Free, Singapore).
