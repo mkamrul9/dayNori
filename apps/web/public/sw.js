@@ -1,5 +1,5 @@
 // Daynori Service Worker (Phase 29/30/31: Web Reminders & Reviewed PWA Shell)
-const CACHE_VERSION = 'daynori-static-v6';
+const CACHE_VERSION = 'daynori-static-v7';
 
 // Strict allowlist: immutable public static assets only.
 // Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.
@@ -122,10 +122,44 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Upgrade message listener: safely skip waiting upon explicit message
+// Upgrade + public static bootstrap (never private HTML/API)
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  const data = event.data;
+  if (!data || typeof data !== 'object') return;
+
+  if (data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+    return;
+  }
+
+  // Warm Cache Storage with allowlisted /_next/static URLs observed while online.
+  // Does not cache authenticated documents, RSC, or APIs (ADR 0066).
+  if (data.type === 'PRECACHE_PUBLIC_STATIC' && Array.isArray(data.urls)) {
+    event.waitUntil(
+      caches.open(CACHE_VERSION).then(async (cache) => {
+        for (const raw of data.urls) {
+          if (typeof raw !== 'string') continue;
+          try {
+            const absolute = new URL(raw, self.location.origin).href;
+            if (!isAllowlistedStaticAsset(absolute)) continue;
+            if (!new URL(absolute).pathname.startsWith('/_next/static/')) continue;
+            const existing = await cache.match(absolute);
+            if (existing) continue;
+            const response = await fetch(absolute, { credentials: 'same-origin' });
+            if (
+              response &&
+              response.status === 200 &&
+              response.type === 'basic' &&
+              !response.headers.get('set-cookie')
+            ) {
+              await cache.put(absolute, response.clone());
+            }
+          } catch {
+            /* skip failed asset */
+          }
+        }
+      })
+    );
   }
 });
 

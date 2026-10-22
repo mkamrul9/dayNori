@@ -8,6 +8,7 @@ import {
   parseCookies,
 } from '../../../../auth/session.js';
 import { refreshSingleFlight } from '../../../../auth/refreshSingleFlight.js';
+import { isInvalidRefreshError } from '../../../../auth/refreshErrors.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,16 +51,29 @@ export async function POST(req: Request): Promise<NextResponse> {
     finalRes.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     return finalRes;
   } catch (err) {
-    const res = NextResponse.json(
+    if (isInvalidRefreshError(err)) {
+      const res = NextResponse.json(
+        {
+          error: {
+            code: 'REFRESH_FAILED',
+            message: err instanceof Error ? err.message : 'Token refresh failed',
+          },
+        },
+        { status: 401 }
+      );
+      clearSessionCookies(res);
+      return res;
+    }
+
+    // Temporary outage / cold start — keep cookies so the next wake can recover.
+    return NextResponse.json(
       {
         error: {
-          code: 'REFRESH_FAILED',
-          message: err instanceof Error ? err.message : 'Token refresh failed',
+          code: 'AUTH_SERVICE_UNAVAILABLE',
+          message: 'Authentication service temporarily unavailable',
         },
       },
-      { status: 401 }
+      { status: 503 }
     );
-    clearSessionCookies(res);
-    return res;
   }
 }

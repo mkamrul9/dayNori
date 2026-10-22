@@ -51,8 +51,6 @@ import {
   DEFAULT_WIDGET_LABELS,
   DEFAULT_MODULE_LABELS,
   UnsupportedLayoutVersionError,
-  shouldShowOnboarding,
-  type OnboardingState,
   type HomeLayout,
   type HomeWidgetId,
   type ModuleShortcutId,
@@ -104,7 +102,7 @@ function getRecentItemHref(item: RecentItemEntry): string {
 
 export const TodayView: React.FC = () => {
   const liveRegionId = useId();
-  const { themeMode, themePreference, setTheme, openModal, activeModal } = useShell();
+  const { themeMode, themePreference, setTheme, activeModal } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user, csrfToken, preferences: authPreferences } = useAuth();
 
@@ -289,30 +287,12 @@ export const TodayView: React.FC = () => {
             }
           }
 
-          let localDraftCompletedOrSkipped = false;
           if (typeof window !== 'undefined' && user?.id) {
-            const rawDraft = window.localStorage.getItem(`daynori:onboarding:${user.id}`);
-            if (rawDraft) {
-              try {
-                const parsed = JSON.parse(rawDraft);
-                if (parsed.step === 'completed' || parsed.skipped) {
-                  localDraftCompletedOrSkipped = true;
-                }
-              } catch {
-                /* ignore */
-              }
-            }
             const pendingKey = `daynori:preferences:pending:${user.id}`;
             const rawPending = window.localStorage.getItem(pendingKey);
             if (rawPending) {
               try {
                 const pending = JSON.parse(rawPending);
-                if (pending?.preferences?.onboarding) {
-                  const onb = pending.preferences.onboarding;
-                  if (onb.step === 'completed') {
-                    localDraftCompletedOrSkipped = true;
-                  }
-                }
                 void client
                   .updateUserPreferences({
                     preferences: pending.preferences,
@@ -331,13 +311,7 @@ export const TodayView: React.FC = () => {
             }
           }
 
-          // Trigger skippable first-use onboarding tutorial on fresh account sign-in
-          if (
-            !localDraftCompletedOrSkipped &&
-            shouldShowOnboarding(prefRes.data.preferences?.onboarding)
-          ) {
-            openModal('onboarding');
-          }
+          // First-login tour is offered by FirstLoginOnboardingGate (any route).
         } else {
           // Fall back to local repository snapshot
           const snapshot = await repo.getPreferenceSnapshot(user?.id || 'anonymous');
@@ -352,26 +326,6 @@ export const TodayView: React.FC = () => {
                   setHasUnsupportedVersion(true);
                 }
               }
-            }
-            let localDraftCompletedOrSkipped = false;
-            if (typeof window !== 'undefined' && user?.id) {
-              const rawDraft = window.localStorage.getItem(`daynori:onboarding:${user.id}`);
-              if (rawDraft) {
-                try {
-                  const parsed = JSON.parse(rawDraft);
-                  if (parsed.step === 'completed' || parsed.skipped) {
-                    localDraftCompletedOrSkipped = true;
-                  }
-                } catch {
-                  /* ignore */
-                }
-              }
-            }
-            if (
-              !localDraftCompletedOrSkipped &&
-              shouldShowOnboarding(snapshot.preferences?.onboarding as OnboardingState | undefined)
-            ) {
-              openModal('onboarding');
             }
           }
         }

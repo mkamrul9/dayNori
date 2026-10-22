@@ -392,7 +392,7 @@ export const QuickReferenceView: React.FC<QuickReferenceViewProps> = ({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 11rem), 1fr))',
               gap: 16,
             }}
           >

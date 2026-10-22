@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { generateCsrfToken, verifyCsrfToken, type SignUpResponse } from '@daynori/contracts';
+import { RefreshAuthError } from './refreshErrors.js';
 
 export const ACCESS_COOKIE_NAME = 'daynori_access_token';
 export const REFRESH_COOKIE_NAME = 'daynori_refresh_token';
@@ -391,12 +392,21 @@ export class SupabaseAuthProxy implements WebAuthClientContract {
         };
       }
 
-      throw new Error(data.msg || data.error_description || 'Invalid or expired refresh token');
-    } catch (err) {
-      if (err instanceof Error && err.message !== 'Invalid or expired refresh token') {
-        throw err;
+      const detail =
+        (typeof data.msg === 'string' && data.msg) ||
+        (typeof data.error_description === 'string' && data.error_description) ||
+        'Invalid or expired refresh token';
+
+      // Definitive IdP rejection — cookies may be cleared by callers.
+      if (res.status === 400 || res.status === 401 || res.status === 403) {
+        throw new RefreshAuthError('invalid_refresh', detail);
       }
-      throw new Error('Authentication service unavailable');
+
+      // 5xx / unexpected — keep cookies; free-server wake must not log users out.
+      throw new RefreshAuthError('unavailable', 'Authentication service unavailable');
+    } catch (err) {
+      if (err instanceof RefreshAuthError) throw err;
+      throw new RefreshAuthError('unavailable', 'Authentication service unavailable');
     }
   }
 

@@ -105,7 +105,7 @@ describe('Mobile PWA usability — onboarding and preview copy', () => {
     expect(css).toContain('--daynori-main-bottom-pad');
     expect(css).toContain('daynori-responsive-grid');
     expect(css).toMatch(/minmax\(min\(100%,\s*11rem\)/);
-    expect(css).toContain('daynori-sw-update');
+    expect(css).toContain('daynori-status-banners');
     const library = fs.readFileSync(path.join(repoRoot, 'apps/web/src/app/library/page.tsx'), 'utf8');
     expect(library).not.toMatch(/minmax\(280px/);
     expect(library).not.toMatch(/minWidth:\s*320/);
@@ -115,7 +115,7 @@ describe('Mobile PWA usability — onboarding and preview copy', () => {
     expect(manifest.start_url).toBe('/today');
     expect(manifest.scope).toBe('/');
     const sw = fs.readFileSync(path.join(repoRoot, 'apps/web/public/sw.js'), 'utf8');
-    expect(sw).toMatch(/daynori-static-v6/);
+    expect(sw).toMatch(/daynori-static-v7/);
     expect(sw).toContain("path.startsWith('/api/')");
   });
 });

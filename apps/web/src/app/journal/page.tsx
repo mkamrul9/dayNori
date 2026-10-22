@@ -466,6 +466,8 @@ export default function JournalPage() {
       tags: string[];
       folderId?: string | null;
     }) => {
+      void import('../../editing/unsavedWork.js').then((m) => m.setUnsavedWork(true));
+
       const repo = localRepoRef.current;
       const currentNamespace = activeNamespaceRef.current;
       if (!repo || !currentNamespace) return;
@@ -643,6 +645,7 @@ export default function JournalPage() {
         // Update editingEntry with the saved entry so subsequent saves are updates
         setEditingEntry(journalEntry);
         setLocalSaveStatus('Saved on this device');
+        void import('../../editing/unsavedWork.js').then((m) => m.setUnsavedWork(false));
 
         // Delete any draft tied to this editing session ONLY after replacement is durable
         await repo.deleteDraft(workspaceId, user.id, activeDraftIdRef.current);
@@ -978,6 +981,7 @@ export default function JournalPage() {
           onResolveConflict={handleResolveConflict}
           onTrash={editingEntry ? () => handleTrashEntry(editingEntry) : undefined}
           onClose={() => {
+            void import('../../editing/unsavedWork.js').then((m) => m.setUnsavedWork(false));
             setIsEditorOpen(false);
             setEditingEntry(null);
           }}

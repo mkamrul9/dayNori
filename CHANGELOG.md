@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 60 — Session cold-start, dirty editors, SW v7 (preview) — 2026-10-22
+
+- Refresh/session routes no longer clear cookies on temporary auth outages (503 keep-session); invalid refresh still clears.
+- Journal wires `data-daynori-unsaved`; first-login tour gate on any route; SW `v7` public `/_next/static` warm precache; capture script fails on CSS overflow.
+- Dead Install/SW components removed; Library/QuickReference narrow layout polish. Rooms/chat remain production-off. Phase 60 store release still incomplete.
+
 ## Phase 60 — Library simplify, session resilience, safe updates (preview) — 2026-10-22
 
 - Library default: search, Write note, New folder; filters/uploads/saved views under More tools; demo controls removed from ordinary use.

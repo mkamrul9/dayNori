@@ -73,6 +73,23 @@ export function AppStatusBanners() {
       .then((registration) => {
         trackWaiting(registration);
         void registration.update().catch(() => undefined);
+
+        // ADR 0066: warm public /_next/static assets observed this session (not private HTML).
+        const urls = performance
+          .getEntriesByType('resource')
+          .map((e) => e.name)
+          .filter((u) => {
+            try {
+              const path = new URL(u).pathname;
+              return path.startsWith('/_next/static/');
+            } catch {
+              return false;
+            }
+          })
+          .slice(0, 80);
+        if (urls.length > 0 && registration.active) {
+          registration.active.postMessage({ type: 'PRECACHE_PUBLIC_STATIC', urls });
+        }
       })
       .catch((err) => {
         console.warn('Daynori service worker registration failed:', err);

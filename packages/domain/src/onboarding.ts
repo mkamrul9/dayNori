@@ -49,11 +49,11 @@ export const ONBOARDING_STEP_METADATA: Record<
   organize: {
     stepIndex: 3,
     totalSteps: 3,
-    title: 'Saving and optional samples',
+    title: 'Saving and where to find more',
     description:
-      'Edits save on this device first, then sync to your account when you are online. Optional sample items are labeled “(Sample)” and are created only if you choose them.',
+      'Edits save on this device first, then sync when you are online. Library keeps notes; use More tools for filters. Replay anytime from Help & tutorial. Offline reopen needs a prior visit on this device. Optional samples are labeled “(Sample)” and created only if you choose them.',
     announcement:
-      'Step 3 of 3: Saving and optional samples. Local save first, then account sync. Samples are opt-in only.',
+      'Step 3 of 3: Local save first, then sync. Help replay, Library More tools, and offline limits. Samples are opt-in only.',
   },
   completed: {
     stepIndex: 3,

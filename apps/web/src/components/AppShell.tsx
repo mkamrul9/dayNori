@@ -8,6 +8,7 @@ import { AppModals } from './AppModals';
 import { AppSidebar } from './AppSidebar';
 import { PreviewNotice } from './PreviewNotice';
 import { AppStatusBanners } from './AppStatusBanners';
+import { FirstLoginOnboardingGate } from './FirstLoginOnboardingGate';
 import { useShell } from './ShellContext';
 import { isCorePreview } from '../config/preview';
 
@@ -18,6 +19,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     <div className="daynori-app-root" style={{ display: 'flex', flexDirection: 'column' }}>
       <SkipLink targetId="main-content" label="Skip to main content" themeMode={themeMode} />
       <RouteAnnouncer message={routeAnnouncement} />
+      <FirstLoginOnboardingGate />
       <AppHeader />
       {isCorePreview && <PreviewNotice themeMode={themeMode} />}
 

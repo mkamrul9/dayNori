@@ -20,8 +20,10 @@ Update banners shared the same screen corner.
    and the sync mutation queue. UI must show an honest offline/sync status.
 3. **Cold offline launch** (app closed, then opened with no network) serves the improved
    public `offline.html` shell explaining that this device needs a prior signed-in session
-   and that reconnecting restores cloud sync. A future public bootstrap that loads only
-   allowlisted `/_next/static` assets may be added without caching private pages.
+   and that reconnecting restores cloud sync. While online, the client may post observed
+   allowlisted `/_next/static` URLs to the service worker (`PRECACHE_PUBLIC_STATIC`) to warm
+   Cache Storage. Authenticated HTML, RSC, and APIs remain uncached. Cold reopen still
+   cannot reconstruct private organizer screens without a network.
 4. **Safe updates:** document-level `data-daynori-unsaved` signals dirty editors. The Update
    action refuses to activate SKIP_WAITING while unsaved; Later dismisses; no unconditional
    timed reload while dirty; drafts/IndexedDB/receipts are never cleared as an update fix.

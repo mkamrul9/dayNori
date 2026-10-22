@@ -915,6 +915,29 @@ This confirms the Free Render web service is serving the SW v6 / manifest revisi
 It does **not** certify physical Android viewport layout, authenticated cloud save,
 or cross-account isolation.
 
+## Defect repair follow-up (2026-10-22, after `dddb829`)
+
+### Delivered
+
+- Session/refresh: classify invalid refresh vs unavailable; clear cookies only on
+  definitive auth rejection; return **503** without clearing on cold-start/outage.
+- Journal editors set `data-daynori-unsaved`; Update banner covers Journal + Library notes.
+- `FirstLoginOnboardingGate` offers the tour from any route once per account session.
+- Organize-step copy: Help replay, Library More tools, offline honesty.
+- SW `daynori-static-v7` + `PRECACHE_PUBLIC_STATIC` for observed `/_next/static` only.
+- Removed unused `ServiceWorkerRegistration` / `PwaInstallBanner`; CSS uses
+  `.daynori-status-banners`.
+- QuickReference + Library subtitle narrow-layout polish.
+- Capture script: CDP overflow metrics; PNG size alone is not acceptance.
+
+### Commands
+
+| Command | Exit |
+|---|---|
+| `pnpm exec vitest run tests/unit/pwa-session-and-banners.test.ts tests/unit/mobile-pwa-usability.test.ts tests/integration/phase31-onboarding.test.ts` | 0 (25 tests) |
+| `pnpm --filter @daynori/domain build` + `@daynori/ui-web` + `@daynori/web build` | 0 |
+| `pnpm validate:planning` / `pnpm audit:secrets` | 0 |
+
 ### Remaining
 
 - Physical Android installed-PWA session (owner device; distinguish from headless emulation).
@@ -922,7 +945,8 @@ or cross-account isolation.
   `kamrul@daynori.com` and `shahrin@daynori.com` in a browser tab (dummy emails —
   not real mailboxes; password recovery by email may fail). Do not paste passwords
   into chat or Git.
-- Full offline cold-reopen organizer shell (ADR 0066 tracks the private-cache gap).
+- Authenticated HTML still not SW-cached (ADR 0066 privacy boundary); cold offline
+  reopen shows `offline.html`, not a full private organizer.
 - Rooms/chat on hosted preview (needs separate owner-reviewed capability; local flag
-  cannot unlock production).
+  cannot unlock production). Real support inbox still owner-supplied.
 - Phase 60 public/store gates; phases 61–62 unchanged; Phase 63 not started.

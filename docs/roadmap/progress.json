@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-22",
   "activePhase": "60",
   "nextPhase": null,
-  "schedulingDecision": "Phase 60 preview: Library progressive disclosure, session resilience, stacked Install/Update with dirty-editor guard, offline shell honesty (ADR 0066), SW v6. Rooms/chat remain production-off on free host. Owner must sign in as kamrul@/shahrin@ for two-account evidence. Physical Android PWA pending. Full release gates open. Phases 61–62 unchanged. No Phase 63.",
+  "schedulingDecision": "Phase 60 preview: session keep-on-cold-start, Journal unsaved guard, first-login tour any-route, SW v7 public static warm, overflow-aware shots. Rooms/chat production-off. Owner sign-in for kamrul@/shahrin@ evidence; physical Android PWA pending. Full release gates open. Phases 61–62 unchanged. No Phase 63.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -363,7 +363,7 @@
     {
       "id": "60",
       "status": "blocked",
-      "reason": "Preview PWA everyday reliability (ADR 0065/0066): Library progressive disclosure, session resilience, stacked Install/Update with dirty-editor guard, SW v6, honest offline.html and Rooms/chat off. Owner login required for two-account cloud save evidence; physical Android PWA pending. releaseEligible=false; phases 61–62 unchanged; Phase 63 not started.",
+      "reason": "Preview PWA: session keep-on-cold-start, Journal unsaved guard, first-login any-route, SW v7 public static warm, overflow-aware shots (ADR 0065/0066). Rooms/chat off. Owner login for two-account evidence; physical Android PWA pending. releaseEligible=false; phases 61–62 unchanged; Phase 63 not started.",
       "report": "docs/phase-reports/phase-60.md"
     },
     {

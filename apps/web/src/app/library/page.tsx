@@ -2323,7 +2323,7 @@ export default function LibraryPage() {
               margin: '4px 0 0 0',
             }}
           >
-            Canonical folder hierarchy with cross-module mixed items
+            Notes, folders, and saved items — search or write a note to begin
           </p>
         </div>
 

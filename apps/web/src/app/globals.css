@@ -90,25 +90,23 @@ body {
   min-width: 0;
 }
 
-.daynori-sw-update,
-.daynori-pwa-install {
+.daynori-status-banners {
   position: fixed;
   left: 12px;
   right: 12px;
   bottom: calc(var(--daynori-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
   z-index: 1200;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  padding: 12px;
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   box-sizing: border-box;
+  max-width: 100%;
+  pointer-events: none;
 }
 
-.daynori-pwa-install {
-  z-index: 1100;
+.daynori-status-banners > * {
+  pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 @media (min-width: 768px) {
@@ -120,7 +118,7 @@ body {
     align-items: center !important;
   }
 
-  .daynori-sw-update {
+  .daynori-status-banners {
     left: auto;
     right: 24px;
     bottom: 24px;
