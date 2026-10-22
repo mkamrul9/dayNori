@@ -1,0 +1,1 @@
+{"scope":"restricted cloud database transaction; not provider-authenticated browser journey","provisionedActors":2,"ownItemRead":true,"crossWorkspaceReadDenied":true,"crossWorkspaceUpdateDenied":true,"forgedWorkspaceDenied":true,"unscopedReadDenied":true,"cleanup":"entire synthetic transaction rolled back"}

@@ -2,13 +2,12 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const {
-  neutralizeStaleReleaseSigning,
-  GUARD_MARKER,
-} = require('./withReleaseSigningGuard.js') as {
-  neutralizeStaleReleaseSigning: (s: string) => string;
-  GUARD_MARKER: string;
-};
+const { neutralizeStaleReleaseSigning, GUARD_MARKER, applyReleaseSigningGuard } =
+  require('./withReleaseSigningGuard.js') as {
+    neutralizeStaleReleaseSigning: (s: string) => string;
+    GUARD_MARKER: string;
+    applyReleaseSigningGuard: (source: string) => string;
+  };
 
 const STALE_GRADLE = `
 android {
@@ -56,6 +55,24 @@ describe('withReleaseSigningGuard neutralization', () => {
 
   it('exports guard marker constant', () => {
     expect(GUARD_MARKER).toBe('daynoriReleaseSigningGuard');
+  });
+
+  it('upgrades a previous guard without duplicating it or removing later native configuration', () => {
+    const original =
+      STALE_GRADLE +
+      '\n// daynoriReleaseSigningGuard\ngradle.taskGraph.whenReady { graph -> throw new GradleException("old guard") }\n// retained native configuration\n';
+    const once = applyReleaseSigningGuard(original);
+    const twice = applyReleaseSigningGuard(once);
+    expect(twice).toBe(once);
+    expect(once).toContain('// retained native configuration');
+    expect(once).not.toContain('"old guard"');
+    expect(once.match(/gradle\.taskGraph\.whenReady/g)).toHaveLength(1);
+  });
+
+  it('refuses to overwrite a malformed existing guard', () => {
+    expect(() =>
+      applyReleaseSigningGuard(STALE_GRADLE + '\n// daynoriReleaseSigningGuard\nmalformed')
+    ).toThrow('Malformed existing');
   });
 
   it('leaves whenReady absent after neutralization so the plugin must append the guard block', () => {

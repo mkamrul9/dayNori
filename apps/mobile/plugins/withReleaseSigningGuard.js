@@ -125,7 +125,7 @@ function neutralizeStaleReleaseSigning(gradleContents) {
 
 const GUARD_BLOCK = `
 // ${GUARD_MARKER}
-// Credentials are resolved at task-graph ready time so debug/configure stay usable.
+// Configure signing before AGP finalizes variants; defer refusal to release task selection.
 ext.daynoriReleaseSigning = [
     storeFileEnv: System.getenv("DAYNORI_RELEASE_STORE_FILE") ?: System.getenv("ANDROID_KEYSTORE_PATH"),
     storePassEnv: System.getenv("DAYNORI_RELEASE_STORE_PASSWORD") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD"),
@@ -147,12 +147,7 @@ def daynoriIsDistributableReleaseTask = { task ->
     return releaseish && packaging
 }
 
-gradle.taskGraph.whenReady { graph ->
-    def releasing = graph.allTasks.any { daynoriIsDistributableReleaseTask(it) }
-    if (!releasing) {
-        return
-    }
-
+def daynoriConfigureReleaseSigning = { ->
     def storePath = ext.daynoriReleaseSigning.storeFileEnv
     def storePass = ext.daynoriReleaseSigning.storePassEnv
     def keyAlias = ext.daynoriReleaseSigning.keyAliasEnv
@@ -167,14 +162,14 @@ gradle.taskGraph.whenReady { graph ->
     if (hasComplete) {
         def kf = file(storePath)
         if (!kf.exists()) {
-            throw new GradleException("Release signing refused: keystore file does not exist (path redacted).")
+            return "Release signing refused: keystore file does not exist (path redacted)."
         }
         android.signingConfigs.release.storeFile = kf
         android.signingConfigs.release.storePassword = storePass
         android.signingConfigs.release.keyAlias = keyAlias
         android.signingConfigs.release.keyPassword = keyPass
         android.buildTypes.release.signingConfig = android.signingConfigs.release
-        return
+        return null
     }
 
     if (allowDebug) {
@@ -183,7 +178,7 @@ gradle.taskGraph.whenReady { graph ->
             debugKs = file("\${project.projectDir}/debug.keystore")
         }
         if (!debugKs.exists()) {
-            throw new GradleException("DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING set but debug.keystore is missing.")
+            return "Release signing refused: DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING set but debug.keystore is missing."
         }
         android.signingConfigs.release.storeFile = debugKs
         android.signingConfigs.release.storePassword = "android"
@@ -191,27 +186,39 @@ gradle.taskGraph.whenReady { graph ->
         android.signingConfigs.release.keyPassword = "android"
         android.buildTypes.release.signingConfig = android.signingConfigs.release
         logger.warn("DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING: producing DEBUG-SIGNED local-test artifact only — not release-eligible")
-        return
+        return null
     }
 
-    throw new GradleException("Release signing refused for distributable release task: set complete DAYNORI_RELEASE_STORE_* (or ANDROID_KEYSTORE_*) credentials, or explicitly DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING=true for local-test-only debug signing. Silent debug.keystore fallback is disabled.")
+    return "Release signing refused for distributable release task: set complete DAYNORI_RELEASE_STORE_* (or ANDROID_KEYSTORE_*) credentials, or explicitly DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING=true for local-test-only debug signing. Silent debug.keystore fallback is disabled."
+}
+
+def daynoriSigningFailure = daynoriConfigureReleaseSigning()
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { daynoriIsDistributableReleaseTask(it) } && daynoriSigningFailure != null) {
+        throw new GradleException(daynoriSigningFailure)
+    }
 }
 `;
+
+function applyReleaseSigningGuard(source) {
+  const contents = neutralizeStaleReleaseSigning(source);
+  const anchor = contents.indexOf(GUARD_BLOCK_ANCHOR);
+  if (anchor < 0) return `${contents.trimEnd()}\n\n${GUARD_BLOCK.trim()}\n`;
+  // Replace only the previous guard, retaining unrelated Gradle additions after it.
+  const graph = contents.indexOf('gradle.taskGraph.whenReady', anchor);
+  const opening = contents.indexOf('{', graph);
+  const block = graph >= anchor && opening >= graph ? balancedBlock(contents, opening) : null;
+  if (!block)
+    throw new Error('Malformed existing release signing guard; inspect native Gradle source');
+  return contents.slice(0, anchor) + GUARD_BLOCK.trim() + contents.slice(block.end + 1);
+}
 
 function withReleaseSigningGuard(config) {
   return withAppBuildGradle(config, (cfg) => {
     if (cfg.modResults.language !== 'groovy') {
       return cfg;
     }
-    let contents = neutralizeStaleReleaseSigning(cfg.modResults.contents);
-    // Neutralization may mention GUARD_MARKER in comments; require the whenReady anchor.
-    if (
-      !contents.includes(GUARD_BLOCK_ANCHOR) ||
-      !contents.includes('gradle.taskGraph.whenReady')
-    ) {
-      contents = `${contents}\n${GUARD_BLOCK}\n`;
-    }
-    cfg.modResults.contents = contents;
+    cfg.modResults.contents = applyReleaseSigningGuard(cfg.modResults.contents);
     return cfg;
   });
 }
@@ -220,3 +227,4 @@ module.exports = withReleaseSigningGuard;
 module.exports.neutralizeStaleReleaseSigning = neutralizeStaleReleaseSigning;
 module.exports.GUARD_MARKER = GUARD_MARKER;
 module.exports.GUARD_BLOCK_ANCHOR = GUARD_BLOCK_ANCHOR;
+module.exports.applyReleaseSigningGuard = applyReleaseSigningGuard;

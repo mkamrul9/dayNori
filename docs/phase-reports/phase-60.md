@@ -692,3 +692,22 @@ assembly. Existing signing/config checks pass: 5/5 tests, 2 files, 804ms; log
 `artifacts/release/android-signing-repair-tests.log`. Cloud rerun remains the
 authoritative native-build check. API/web health and exact Auth callbacks remain
 verified; physical Android and other release gates remain open.
+
+The second cloud attempt (39732787451) passed the actual unauthorized-release
+refusal check but test assembly failed because AGP finalizes signing properties
+before task-graph readiness (`It is too late to set storeFilePath`). Resolve
+signing values during project evaluation and retain only refusal at graph time;
+ADR 0056 records the lifecycle correction. Upgrade existing guard blocks in place
+without removing later native additions. Regression checks now pass 7/7 across
+two files (486ms), including idempotent upgrades and malformed-guard refusal.
+
+Independent cloud evidence while owner account verification is pending:
+`node artifacts/local/hosted-core-smoke.mjs` passed seven page routes, API readiness
+and unauthenticated preferences rejection (401). `node --import tsx
+artifacts/local/cloud-tenant-smoke.ts` passed two synthetic workspace bootstraps,
+own item-metadata read, foreign read/update denial, forged-workspace denial and
+unscoped-read denial using the restricted TLS runtime login. The entire synthetic
+transaction rolled back; no accounts or content were retained. These checks do
+not substitute for provider-authenticated browser/mobile sync evidence. Outputs:
+`artifacts/release/hosted-core-routing-smoke.json` and
+`artifacts/release/cloud-tenant-smoke.json`.

@@ -4,6 +4,7 @@
 
 - Handle fresh Expo Android templates that define only a debug signing configuration: attach an empty release configuration before variant setup while retaining the fail-closed signing guard.
 - Exercise unsigned-release refusal in the cloud workflow before explicitly authorized test signing. The first assembly attempt failed before producing an APK; a repaired build is required.
+- Resolve signing values during Gradle evaluation before Android finalizes variants, retaining task-graph refusal for unauthorized packaging and safe in-place guard upgrades.
 
 ## Phase 60 — hosted core preview — 2026-10-22
 
