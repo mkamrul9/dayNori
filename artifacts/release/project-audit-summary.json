@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-21",
+  "date": "2026-10-22",
   "phase": "60",
   "baseRevision": "531e811",
   "status": "blocked",
@@ -9,7 +9,7 @@
     "platform": "Windows",
     "node": "v24.21.0",
     "pnpm": "9.15.5",
-    "fixtures": "synthetic local database only"
+    "fixtures": "synthetic local fixtures and rolled-back cloud tenant transaction; no provider-authenticated cloud test account"
   },
   "completeSuite": {
     "command": "node --env-file=.env node_modules/vitest/vitest.mjs run",
@@ -25,18 +25,18 @@
   },
   "checks": {
     "workspaceBuild": "passed after final app changes; free-profile web production and Android Hermes export",
-    "androidJavaScriptExport": "passed; not an APK",
+    "androidJavaScriptExport": "passed; standalone native cloud APK build also passed, see publication evidence",
     "typecheck": "all other workspaces passed; final mobile check passed after correcting regression-test import/literal typing",
     "lint": "passed",
     "browser": {
       "passed": 50,
       "failed": 0,
       "kind": "headless browser with synthetic local services",
-      "note": "Prior audit evidence; no new live-cloud browser smoke in this continuation"
+      "note": "Prior 50-check synthetic local browser evidence; live hosted preview notice and themed auth dialog verified. Provider-authenticated journeys pending."
     },
     "androidDevice": {
       "exitCode": 2,
-      "status": "blocked: no connected device and no compiled APK at runner path"
+      "status": "blocked: no connected device; verified standalone ARM64 testing APK is now published"
     },
     "dependencyAudit": {
       "exitCode": 1,
@@ -50,7 +50,7 @@
     "performance": "not passing: isolated 10k keyset mean 80.67ms against <80ms; p95 <150ms and other 3 benchmarks pass; unchanged budgets",
     "productionApiPackaging": "passed; production package import checked locally",
     "nativePushConfig": "Expo public config and config-merge assertion passed; live Firebase/Expo/device unverified",
-    "androidWorkflow": "prepared; not run on GitHub and no APK produced",
+    "androidWorkflow": "passed: run 39734872562 on 840f147; explicit test signing, embedded bundle and signature checks",
     "productionWorkerPackaging": "passed; packaged worker and shared provider import checked locally"
   },
   "contextFreeQueryComparison": {
@@ -68,9 +68,9 @@
     "standalonePhoneCandidate": false
   },
   "deployment": {
-    "status": "not deployed",
-    "url": null,
-    "newApkDownloadUrl": null,
+    "status": "free core testing preview live; full release incomplete",
+    "url": "https://daynori-web-preview.onrender.com",
+    "newApkDownloadUrl": "https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/daynori-preview-arm64.apk",
     "prepared": [
       "infra/deployment/Dockerfile",
       "infra/deployment/README.md",
@@ -80,21 +80,21 @@
       ".github/workflows/android-preview.yml"
     ],
     "required": [
-      "private replacement database password to apply schema and secure runtime roles",
-      "owner GitHub CLI authorization, reviewed preview source checkpoint and push",
-      "two free Render services and Supabase auth callback configuration",
-      "hosted core smoke checks and standalone APK with verified hosted URLs",
-      "physical Android evidence and unresolved public release gates"
+      "User enters account password and confirms email directly in app/site",
+      "Provider-authenticated cloud saving, reconnect, export/deletion and cross-device smoke",
+      "Physical Android installation, cold launch, accessibility and KeyStore evidence",
+      "Existing dependency, performance, beta, operator and public/store release gates"
     ],
     "accounts": {
       "render": "browser sign-in confirmed; plugin unconnected",
       "supabase": "browser sign-in confirmed; plugin unconnected",
       "organization": "Daynori Preview (free)",
-      "databaseProject": "daynori-preview created and Healthy; Singapore Nano Free; schema not yet applied",
-      "webService": "free Singapore form prepared; not submitted",
+      "databaseProject": "daynori-preview, Singapore Nano Free; 74 receipts verified with two managed core adaptations",
+      "webService": "daynori-web-preview live on Render Free, Singapore",
       "budget": "$0 only; no card or paid services added",
       "github": "authenticated as mkamrul9 with keyring; repository/workflow scopes confirmed",
-      "databaseSetup": "24-hour token restricted to daynori-preview drafted; exact database/Auth write scope awaits owner approval after auto-review rejection"
+      "databaseSetup": "Owner-approved project-only 24-hour setup token used privately; runtime app secrets deployed under separate explicit approval",
+      "apiService": "daynori-api-preview live on Render Free, Singapore"
     }
   },
   "git": {
@@ -105,7 +105,8 @@
       "baseRevision": "531e811",
       "subject": "feat(preview): prepare free core web and Android testing",
       "phaseComplete": false,
-      "pushed": false
+      "pushed": true,
+      "revision": "cbac95a"
     }
   },
   "providerImplementation": {
@@ -135,10 +136,10 @@
     ],
     "controls": "API mutation barriers; web/mobile notice and disabled capture controls; bounded 75-second client deadlines",
     "migrationSafety": "TLS verified; pinned preview project; fixture credentials secured inside migration transactions; unused service logins disabled",
-    "databaseMigrated": false,
-    "sourcePushed": false,
-    "webDeployed": false,
-    "apkBuilt": false,
+    "databaseMigrated": true,
+    "sourcePushed": true,
+    "webDeployed": true,
+    "apkBuilt": true,
     "checks": {
       "build": {
         "exitCode": 0,
@@ -175,10 +176,13 @@
         "audioDisabled": true,
         "createMenuOmitsUpload": true,
         "screenshot": "artifacts/local/free-core-library-preview.png"
-      }
+      },
+      "hostedRouting": "passed: seven anonymous pages, API readiness and unauthenticated preferences rejection; see hosted-core-routing-smoke.json",
+      "cloudTenantIsolation": "passed with rolled-back synthetic transaction; see cloud-tenant-smoke.json",
+      "publishedAndroid": "bundle/signature/checksum/package/SDK/ABI and anonymous download passed; see android-preview-publication.json"
     },
     "deletionStatus": "Web/Android distinguish processing from complete; unsuccessful or unknown statuses do not announce erasure. Core disclosure explains pending operator cleanup.",
-    "authConfig": "Public provider origin/key and separate reauthentication secret prepared; administrator credentials stay off Render."
+    "authConfig": "Exact live web callback and daynori://auth allowlisted; email confirmation retained; restricted DB/reauthentication secrets on API host only"
   },
   "priorCompleteSuite": {
     "command": "node --env-file=.env node_modules/vitest/vitest.mjs run",
@@ -202,8 +206,8 @@
     "billingLogin": false,
     "workerLogin": false,
     "setupToken": "project-only; private local file; not sent to Render/GitHub",
-    "hostedWeb": "pending",
-    "standaloneApk": "pending"
+    "hostedWeb": "live",
+    "standaloneApk": "built, verified and published as testing prerelease"
   },
   "hostedCorePreview": {
     "date": "2026-10-22",
@@ -216,8 +220,12 @@
     "region": "Singapore",
     "plan": "Free",
     "authenticatedSmoke": "pending",
-    "androidRun": "39731382027",
-    "androidArtifact": "pending",
-    "emailConfirmationRequired": true
-  }
+    "coldStartRecheck": "45-second web/API timeout on waking; subsequent warm home/health/readiness all HTTP 200 in 128–297ms",
+    "finalHealthEvidence": "artifacts/release/hosted-preview-final-health.json",
+    "androidRun": "39734872562",
+    "androidArtifact": "verified and published",
+    "emailConfirmationRequired": true,
+    "androidPublicationEvidence": "artifacts/release/android-preview-publication.json"
+  },
+  "previewSourceRevision": "840f1477f50ecc14b1454fc24360578f2cb0878c"
 }

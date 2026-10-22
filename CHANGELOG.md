@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 60 — live web and Android testing downloads — 2026-10-22
+
+- Publish the verified standalone ARM64 APK and SHA-256 file in an explicitly labeled GitHub prerelease; confirm anonymous download access.
+- Complete the native cloud build on revision `840f147`, including unauthorized-signing refusal, embedded bundle and APK signature verification. Confirm package, SDKs, checksum and actual hosted origins locally.
+- Record deployment/install instructions and reconcile the audit register with the live free web/API, migrated database and downloadable APK.
+- Keep owner account/email entry, signed-in cross-device saving, physical Android checks, dependency/performance findings and full release gates pending. Phase 60 remains incomplete.
+
 ## Phase 60 — standalone build signing repair — 2026-10-22
 
 - Handle fresh Expo Android templates that define only a debug signing configuration: attach an empty release configuration before variant setup while retaining the fail-closed signing guard.

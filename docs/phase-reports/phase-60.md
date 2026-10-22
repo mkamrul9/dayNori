@@ -1,4 +1,10 @@
-# Phase 60: Public Android and web release (local preflight / rehearsal)
+# Phase 60: Public Android and web release audit and testing preview
+
+Current checkpoint (2026-10-22): the owner-authorized $0 web/API preview is live
+and a verified standalone Android testing APK is published. Authenticated cloud
+journeys, physical-phone verification and the full public/store release gates
+remain incomplete. The historical local-only scope below was expanded by the
+explicit free-preview authorization recorded in the later sections.
 
 ## Identity and scope
 
@@ -722,3 +728,72 @@ path against Metro's workspace root and failed; the corrected absolute applicati
 entry passed. No server credential was embedded. Log:
 `artifacts/release/android-embedded-bundle-check.log`. Native cloud assembly still
 must complete before an APK download is published.
+
+## Standalone Android download published (2026-10-22)
+
+This continues the owner's explicit $0 web/Android testing authorization. It is
+a preview checkpoint, not phase completion or Play/store publication. Built source:
+`840f1477f50ecc14b1454fc24360578f2cb0878c`; default branch remains unchanged.
+
+The fourth [native workflow run 39734872562](https://github.com/mkamrul9/dayNori/actions/runs/39734872562)
+passed. It exercised unsigned-release refusal, assembled an ARM64 APK with
+explicit test signing, checked its embedded bundle and signature, and uploaded
+the APK plus SHA256SUMS. The artifact download completed despite a stalled client
+status and a subsequent browser-download timeout; those client failures did not
+indicate an APK build failure.
+
+Published destinations:
+
+- [Web app](https://daynori-web-preview.onrender.com).
+- [Android APK](https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/daynori-preview-arm64.apk).
+- [Testing prerelease and checksum](https://github.com/mkamrul9/dayNori/releases/tag/preview-2026-10-22).
+
+Verification commands and results, Windows with portable Node 24.21.0:
+
+- `gh run download 39734872562 --repo mkamrul9/dayNori --name daynori-standalone-preview-arm64 --dir artifacts/local/android-preview-39734872562` — exit 0, APK and checksum downloaded.
+- `python artifacts/local/verify-preview-apk.py artifacts/local/android-preview-39734872562/daynori-preview-arm64.apk` — exit 0; ZIP integrity, SHA-256, embedded bundle (2,263,632 bytes), hosted API/Auth origins and known server/setup credential absence passed.
+- Android SDK 35.0.0 `apksigner.bat verify --verbose --print-certs <downloaded-apk>` — exit 0; APK v2 signature, one explicit Android Debug test signer.
+- Android SDK 35.0.0 `aapt.exe dump badging <downloaded-apk>` — exit 0; `com.daynori.app`, version 0.1.0 (1), minimum SDK 24, target SDK 36, `arm64-v8a`.
+- `gh release create preview-2026-10-22 <apk> <SHA256SUMS> --repo mkamrul9/dayNori --target 840f1477f50ecc14b1454fc24360578f2cb0878c --prerelease --title 'Daynori Android testing preview' --notes-file artifacts/local/android-preview-release-notes.md` — exit 0; existing release list was empty before creation.
+- Unauthenticated HTTPS fetch of the actual published APK URL with `Range: bytes=0-31` — HTTP 206, 32 bytes, total size 34,326,704 bytes; checksum URL HTTP 200 and matching digest. GitHub release asset digest independently matches the downloaded APK.
+- `adb devices -l` — exit 0, no connected device. Installation/launch on hardware remains unexecuted.
+
+APK SHA-256:
+`b102674448337eb2b9ccde2f4d5653b022bc837ae9edd212ade52c5a47da1441`.
+Evidence: [APK verification](../../artifacts/release/android-preview-apk-verification.json),
+[publication/metadata](../../artifacts/release/android-preview-publication.json),
+and [local embedded-config check](../../artifacts/release/android-embedded-config-check.json).
+
+Account creation remains the owner's step: enter a new password directly in the
+app/site and confirm the email. No account was created through admin bypass or
+with invented personal credentials. Therefore provider-authenticated workspace
+creation, cloud content saving, restart/reconnect and cross-device sync are
+explicitly unverified. The synthetic database tenant probe is separate evidence.
+
+Install/test steps are in the [deployment handoff](../../infra/deployment/README.md).
+Uploads, audio attachments and reminder delivery remain disabled on the $0
+profile; worker/scanner and optional modules are not activated. Free hosting can
+sleep. Use sample data; full background account erasure remains unverified.
+Two HIGH toolchain dependency advisories and the previously recorded keyset mean
+latency finding remain open. Physical accessibility/KeyStore, beta, operator,
+production signing/AAB and public/store release gates remain open.
+
+Phase 60 stays `blocked` / incomplete, `releaseEligible=false`; phases 61–62 are
+unchanged and Phase 63 is not started. Intended metadata checkpoint:
+`docs(preview): record live web and Android test downloads`.
+
+Final hosting recheck: the 45-second anonymous routing probe exited 1 because
+web `/` and API readiness timed out while the Free services woke. Six later page
+requests returned 200 and the anonymous preferences request returned 401. A
+subsequent warm check with a 75-second deadline exited 0: web home, web health,
+API health and API readiness all returned 200 in 128–297ms. This documents a
+cold-start limitation, not a latency guarantee. Evidence:
+[final health](../../artifacts/release/hosted-preview-final-health.json).
+
+Metadata validation: `node scripts/validate-planning.mjs` — exit 0 (64 phases,
+22 mapped requirements, 298 Markdown files); `node scripts/scan-secrets.mjs` —
+exit 0 (6,399 files). Changed documentation/JSON were formatted with the pinned
+Prettier CLI. No application source changed in this metadata checkpoint; prior
+native build and focused tests remain the implementation evidence. Diff and
+staged paths are reviewed before the checkpoint commit; unrelated local edits
+are preserved.

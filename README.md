@@ -6,7 +6,7 @@ Daynori is a **provisional working name**. Brand, domain, trademark, and store c
 
 ## Current state
 
-The repository contains the Next.js web app, Expo mobile app, Fastify API, durable worker, shared domain/sync packages, and substantial organizer functionality. **It is not a fully verified or deployed product.** Phase 60 Android/web verification is active; hardware, live providers, security/dependency findings, and release evidence remain open. Read the [progress register](docs/roadmap/progress.json) and [current verification report](docs/phase-reports/phase-60.md) for actual results.
+The repository contains the Next.js web app, Expo mobile app, Fastify API, durable worker, shared domain/sync packages, and substantial organizer functionality. **It is not fully verified for production.** Phase 60 Android/web verification is active; hardware, live providers, security/dependency findings, and release evidence remain open. Read the [progress register](docs/roadmap/progress.json) and [current verification report](docs/phase-reports/phase-60.md) for actual results.
 
 The initial target is a responsive web application and an Android application. iOS follows a separate feasibility and release gate. A focused personal organizer ships before the encrypted vault, Drive integration, shared rooms, and AI.
 
@@ -14,8 +14,10 @@ The owner selected a **$0 testing preview**. Its Supabase project and 74-entry
 managed schema are verified, including the restricted TLS runtime login;
 The [web preview](https://daynori-web-preview.onrender.com) and
 [API readiness endpoint](https://daynori-api-preview.onrender.com/v1/ready) are
-live on Render Free. Signed-in cloud journeys, the standalone Android download
-and physical-phone verification remain pending. The free
+live on Render Free. The [standalone Android testing APK](https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/daynori-preview-arm64.apk)
+is available without a GitHub login (ARM64, Android 7+, explicit test signing).
+Its bundle, signature and checksum are verified; signed-in cloud journeys and
+physical-phone verification remain pending. The free
 profile excludes uploads/audio attachments and reminder delivery, with visible
 in-app limits. Follow the [deployment handoff](infra/deployment/README.md).
 

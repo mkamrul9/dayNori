@@ -5,9 +5,10 @@ signed-in cloud and physical-phone checks remain open. **Not release-ready.**
 
 - Web: https://daynori-web-preview.onrender.com (Render Free, Singapore).
 - API readiness: https://daynori-api-preview.onrender.com/v1/ready (Free, Singapore).
-- Source: `codex/free-core-preview`; reviewed checkpoint `cbac95a`.
-- Android build: [39731382027](https://github.com/mkamrul9/dayNori/actions/runs/39731382027),
-  not yet a verified download at this checkpoint.
+- Source: `codex/free-core-preview`; Android source revision `840f147`.
+- Android: [download the APK](https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/daynori-preview-arm64.apk)
+  or open the [testing prerelease](https://github.com/mkamrul9/dayNori/releases/tag/preview-2026-10-22).
+- Successful Android build: [39734872562](https://github.com/mkamrul9/dayNori/actions/runs/39734872562).
 
 The closest fit for the current code is a Node/container host such as Render for
 Next.js and Fastify, with Supabase for identity and PostgreSQL. The web app has
@@ -15,8 +16,8 @@ server session cookies and API routes, so uploading its assets to a static host
 does not deploy the functioning app. Cloudflare Workers would require a separately
 verified adapter/build. Browser sign-in to Render and Supabase is confirmed.
 The free `Daynori Preview` organization and Singapore `daynori-preview` Supabase
-project are provisioned. A free Singapore Render web-service form is prepared;
-it is not a deployed service. The owner selected **$0 only**. No paid service or
+project are provisioned. Both Singapore Render services are deployed on Free.
+The owner selected **$0 only**. No paid service or
 payment method was added; the existing Render workspace has available free quota.
 
 ## Selected free core profile
@@ -144,7 +145,39 @@ Render free services can support a core preview, with sleep/cold-start limits;
 they do not provide an always-on worker or a sufficiently provisioned scanner.
 The selected budget is $0. No worker/scanner or paid service was created.
 
-## Installable Android candidate
+## Install and check the Android preview
+
+1. On an ARM64 Android phone running Android 7 or later, open the APK download
+   above in the browser. The file is 34,326,704 bytes (about 33 MiB).
+2. Open the downloaded APK. If Android requests permission for that browser to
+   install this app, allow it for this installation, then turn it off afterward.
+   Review Android's installation prompts; this is a test-signed preview.
+3. Launch Daynori. It includes its JavaScript bundle and uses the hosted API;
+   Metro and a connection to the developer's PC are not required.
+4. Create your test account and confirm its email when requested. Enter your
+   password directly in the app or website, keep it out of chat, and sign in to
+   both platforms with the same account.
+5. Use sample content to check a note/task on both platforms, app restart, an
+   offline edit followed by reconnection, and sign-out. These authenticated and
+   physical-device checks are still pending; a successful download does not
+   establish them. Free services may take time to wake up.
+
+Package `com.daynori.app`, version `0.1.0` (1), minimum SDK 24, target SDK 36,
+ABI `arm64-v8a`. APK SHA-256:
+`b102674448337eb2b9ccde2f4d5653b022bc837ae9edd212ade52c5a47da1441`.
+The attached [SHA256SUMS](https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/SHA256SUMS)
+matches both the downloaded build and GitHub's published asset digest.
+Local `apksigner verify --verbose --print-certs` passes with one explicit
+Android Debug signer and APK Signature Scheme v2. This is not a production
+signing identity, Play submission, or completed Phase 60 release.
+
+Anonymous range download returned HTTP 206 and the checksum file returned 200
+on 2026-10-22. Static checks confirm the embedded app bundle, actual hosted
+API/Auth origins and absence of the known server/setup credentials from that
+bundle. See [APK evidence](../../artifacts/release/android-preview-apk-verification.json)
+and [published download evidence](../../artifacts/release/android-preview-publication.json).
+
+## Rebuilding the installable Android candidate
 
 The existing `artifacts/release/app-debug-arm64.apk` contains the Expo development
 launcher but **no application `assets/index.android.bundle`**. It is not a
@@ -165,11 +198,11 @@ build-service access are configured, run from `apps/mobile`:
 eas build --platform android --profile preview
 ```
 
-No EAS build has been submitted and no signing identity has been created here.
+No EAS build has been submitted; the published preview uses the GitHub path below.
 Verify the resulting APK's embedded application bundle, package/architecture,
 signature and SHA-256, install on a physical phone, then verify cold launch with
-Metro stopped and exercise the real backend. Share the build's returned HTTPS
-download link only after those checks. An AAB is for store distribution and is
+Metro stopped and exercise the real backend. Label any download offered before
+physical testing as an unverified testing preview. An AAB is for store distribution and is
 not the directly installable file requested by the owner.
 
 An alternative manual [GitHub preview workflow](../../.github/workflows/android-preview.yml)
@@ -180,8 +213,9 @@ endpoints and privileged keys before building. It makes an ARM64 APK with explic
 test-only debug signing and an embedded application bundle, verifies the
 signature and uploads a seven-day artifact with SHA-256. GitHub artifact download
 requires repository access/sign-in; it is not an anonymous public download.
-This workflow has not been run remotely. It cannot submit a Play release and
-does not count as phone validation.
+The remote workflow passed on revision `840f147` and its verified APK/checksum
+were published in the testing prerelease above. It cannot submit a Play release
+and does not count as phone validation.
 
 The default branch currently predates this workflow. After hosted URLs and
 public build inputs are verified, pushing the reviewed preview revision to

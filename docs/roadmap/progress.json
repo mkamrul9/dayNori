@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-21",
+  "updatedAt": "2026-10-22",
   "activePhase": "60",
   "nextPhase": null,
-  "schedulingDecision": "Owner selected $0 core preview and created the free Singapore Supabase project. GitHub CLI sign-in and repository/workflow access confirmed. A separate reviewed preview checkpoint supports hosting without claiming Phase 60 completion. Await exact approval for a one-day, project-only Supabase setup token (or private database credential), then schema application, free Render deployment, hosted smoke and standalone APK. Final app builds/lint and 33 focused tests pass; isolated keyset mean remains 80.67ms vs <80ms; two HIGH dependency advisories and hardware/public-release gates remain. No paid services or Phase 63 work.",
+  "schedulingDecision": "Owner authorized the $0 core testing preview and restricted app secrets on Render. Supabase has 74 verified migration receipts and a restricted TLS runtime login. Free web/API are live; standalone ARM64 APK from 840f147 is verified and published as an anonymously downloadable testing prerelease. Account password/email entry, provider-authenticated cloud saving and cross-device journeys remain pending. Physical Android, two HIGH dependency advisories, the recorded performance finding and full release gates remain open. Phase 60 incomplete; no paid services or Phase 63 work.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -363,7 +363,7 @@
     {
       "id": "60",
       "status": "blocked",
-      "reason": "Free core preview prepared (ADRs 0061–0063); Supabase project created and $0 budget selected. Final build/lint and 33 focused tests pass; type checks validated after test typing repair. Latest full suite 1337 passed/3 failed; mobile config fixed, isolated keyset mean still 80.67ms vs <80ms. GitHub sign-in confirmed. Project-scoped setup approved; 74 cloud receipts and restricted TLS runtime login verified (ADR 0064). Free API/web now live with HTTP 200 health/readiness and preview notice. Authenticated journeys and Android build verification remain pending. Two HIGH dependency advisories, physical-device and public-release gates remain. releaseEligible=false; Phases 61–62 unchanged, Phase 63 not started.",
+      "reason": "Owner-authorized free core preview live: 74 Supabase receipts and restricted TLS login verified (ADR 0064); API/web health/readiness and seven anonymous routes passed, cloud synthetic RLS probe passed with rollback. Android workflow 39734872562 passed on 840f147; embedded bundle, signature, checksum, package/SDK/ABI and anonymous prerelease download verified. Account entry/email confirmation, authenticated cloud saving, cross-device/offline and physical-phone checks remain pending. Prior suite 1337 passed/3 failed before focused fixes; isolated keyset mean remains 80.67ms vs <80ms; two HIGH dependency advisories and public/store gates remain. releaseEligible=false; phases 61–62 unchanged, Phase 63 not started.",
       "report": "docs/phase-reports/phase-60.md"
     },
     {
