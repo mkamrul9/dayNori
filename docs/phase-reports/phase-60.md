@@ -711,3 +711,14 @@ transaction rolled back; no accounts or content were retained. These checks do
 not substitute for provider-authenticated browser/mobile sync evidence. Outputs:
 `artifacts/release/hosted-core-routing-smoke.json` and
 `artifacts/release/cloud-tenant-smoke.json`.
+
+Third Android attempt (39733914544) passed native signing setup but stopped at
+`:app:createBundleReleaseJsAndAssets` because `expo-asset` was not a direct mobile
+dependency. Add `expo-asset ~11.0.5`, the version specified by this installed
+Expo SDK's bundledNativeModules.json. The native embedded-bundle command then
+passed locally with the real public preview configuration: 975 modules bundled
+in 29.417s, 84 asset files copied. An initial local probe used a relative entry
+path against Metro's workspace root and failed; the corrected absolute application
+entry passed. No server credential was embedded. Log:
+`artifacts/release/android-embedded-bundle-check.log`. Native cloud assembly still
+must complete before an APK download is published.
