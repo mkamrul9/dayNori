@@ -677,3 +677,18 @@ Auth panel repair validation: `pnpm --filter @daynori/web typecheck`,
 `node node_modules/eslint/bin/eslint.js apps/web/src/components/AuthModal.tsx`,
 and `NEXT_PUBLIC_DAYNORI_CORE_PREVIEW=true pnpm --filter @daynori/web build`
 passed (exit 0). Build log: `artifacts/release/hosted-auth-dialog-build.log`.
+
+The repaired web dialog was verified on the actual HTTPS site with a centered,
+themed account form and visible preview notice. The owner was asked to create
+and verify their own test account directly; no password is requested in chat.
+
+Android workflow 39731382027 failed during Gradle configuration: the fresh Expo
+template defines no signingConfigs.release, which the task-graph guard accessed.
+No candidate APK was produced. Repair creates and attaches an empty release
+configuration before Android variant setup; task-graph authorization still
+refuses packaging without complete signing credentials or explicit test flag.
+The workflow now actually exercises refusal with the flag false before test-only
+assembly. Existing signing/config checks pass: 5/5 tests, 2 files, 804ms; log
+`artifacts/release/android-signing-repair-tests.log`. Cloud rerun remains the
+authoritative native-build check. API/web health and exact Auth callbacks remain
+verified; physical Android and other release gates remain open.

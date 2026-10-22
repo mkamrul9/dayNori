@@ -64,6 +64,20 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @daynori/mobile... --filter '!@daynori/mobile' build
       - run: pnpm --filter @daynori/mobile prebuild
+      - name: Verify release packaging refuses missing signing authorization
+        working-directory: apps/mobile/android
+        env:
+          DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
+        shell: bash
+        run: |
+          if ./gradlew :app:assembleRelease --dry-run --no-daemon --console=plain > signing-guard.log 2>&1; then
+            echo 'Unsigned release packaging was unexpectedly accepted.'
+            exit 1
+          fi
+          if ! grep -q 'Release signing refused for distributable release task' signing-guard.log; then
+            tail -n 70 signing-guard.log
+            exit 1
+          fi
       - name: Assemble APK with embedded application bundle
         working-directory: apps/mobile/android
         run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --console=plain

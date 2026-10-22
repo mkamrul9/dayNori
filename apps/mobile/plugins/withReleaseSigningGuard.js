@@ -77,7 +77,9 @@ function replaceSigningConfigsRelease(gradleContents) {
         }`;
 
   return (
-    gradleContents.slice(0, absoluteRelOpen) + replacement + gradleContents.slice(absoluteRelEnd + 1)
+    gradleContents.slice(0, absoluteRelOpen) +
+    replacement +
+    gradleContents.slice(absoluteRelEnd + 1)
   );
 }
 
@@ -108,9 +110,7 @@ function detachReleaseBuildTypeSigning(gradleContents) {
 
   const absoluteRelOpen = btOpen + 1 + relOpenInInner;
   const absoluteRelEnd = btOpen + 1 + relBlock.end;
-  return (
-    gradleContents.slice(0, absoluteRelOpen + 1) + body + gradleContents.slice(absoluteRelEnd)
-  );
+  return gradleContents.slice(0, absoluteRelOpen + 1) + body + gradleContents.slice(absoluteRelEnd);
 }
 
 function neutralizeStaleReleaseSigning(gradleContents) {
@@ -133,6 +133,12 @@ ext.daynoriReleaseSigning = [
     keyPassEnv: System.getenv("DAYNORI_RELEASE_KEY_PASSWORD") ?: System.getenv("ANDROID_KEY_PASSWORD"),
     allowDebugRelease: (System.getenv("DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING") == "true")
 ]
+
+// Fresh Expo templates define only debug signing. Attach an empty release config
+// before Android configures variants; the graph guard still refuses unsigned or
+// implicit-debug distribution before any packaging task can execute.
+android.signingConfigs.maybeCreate("release")
+android.buildTypes.release.signingConfig = android.signingConfigs.getByName("release")
 
 def daynoriIsDistributableReleaseTask = { task ->
     def n = task.name.toLowerCase()
@@ -199,7 +205,10 @@ function withReleaseSigningGuard(config) {
     }
     let contents = neutralizeStaleReleaseSigning(cfg.modResults.contents);
     // Neutralization may mention GUARD_MARKER in comments; require the whenReady anchor.
-    if (!contents.includes(GUARD_BLOCK_ANCHOR) || !contents.includes('gradle.taskGraph.whenReady')) {
+    if (
+      !contents.includes(GUARD_BLOCK_ANCHOR) ||
+      !contents.includes('gradle.taskGraph.whenReady')
+    ) {
       contents = `${contents}\n${GUARD_BLOCK}\n`;
     }
     cfg.modResults.contents = contents;

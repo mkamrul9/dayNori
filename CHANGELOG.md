@@ -1,5 +1,10 @@
 # Changelog
 
+## Phase 60 — standalone build signing repair — 2026-10-22
+
+- Handle fresh Expo Android templates that define only a debug signing configuration: attach an empty release configuration before variant setup while retaining the fail-closed signing guard.
+- Exercise unsigned-release refusal in the cloud workflow before explicitly authorized test signing. The first assembly attempt failed before producing an APK; a repaired build is required.
+
 ## Phase 60 — hosted core preview — 2026-10-22
 
 - Deploy the restricted API and existing web service on Render Free in Singapore; verify API health/readiness and website health over HTTPS.
