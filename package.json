@@ -29,13 +29,24 @@
     "validate:planning": "node scripts/validate-planning.mjs",
     "audit": "pnpm audit:secrets && pnpm audit:deps",
     "audit:deps": "node scripts/audit-dependencies.mjs",
-    "audit:secrets": "node scripts/scan-secrets.mjs"
+    "audit:secrets": "node scripts/scan-secrets.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs",
+    "release:android-path": "node scripts/mobile-android-release-path.mjs",
+    "release:web-smoke": "node scripts/phase60-web-production-smoke.mjs",
+    "release:rehearsal": "node scripts/phase60-local-rehearsal.mjs",
+    "validate:core": "node scripts/core-organizer-local-validation.mjs",
+    "build:android:debug-apk": "node scripts/build-android-debug-apk.mjs",
+    "ios:path": "node scripts/mobile-ios-path.mjs",
+    "icons:build": "node scripts/build-icon-assets.mjs",
+    "icons:check": "node scripts/check-ui-icons.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
     "@types/node": "^22.13.4",
     "@types/pg": "^8.23.1",
     "eslint": "^9.20.1",
+    "fake-indexeddb": "^6.2.5",
+    "jose": "^6.2.12",
     "pg": "^8.23.1",
     "prettier": "^3.5.1",
     "tsx": "^4.19.3",
@@ -55,6 +66,7 @@
       "postcss": "^8.5.30"
     },
     "patchedDependencies": {
+      "metro@0.81.5": "patches/metro@0.81.5.patch",
       "tar@7.5.22": "patches/tar@7.5.22.patch"
     }
   }

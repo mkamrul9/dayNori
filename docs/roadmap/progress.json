@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-14",
-  "activePhase": null,
-  "nextPhase": "08",
-  "note": "Phase 07 (PostgreSQL and tenant isolation foundation) complete and verified with real local PostgreSQL 17 integration tests. Phase 04 and Phase 06 hardware gates remain blocked pending physical Android TalkBack verification.",
+  "updatedAt": "2026-10-22",
+  "activePhase": "60",
+  "nextPhase": null,
+  "schedulingDecision": "Phase 60 preview: session keep-on-cold-start, Journal unsaved guard, first-login tour any-route, SW v7 public static warm, overflow-aware shots. Rooms/chat production-off. Owner sign-in for kamrul@/shahrin@ evidence; physical Android PWA pending. Full release gates open. Phases 61–62 unchanged. No Phase 63.",
+  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
       "id": "00",
@@ -50,223 +51,332 @@
     },
     {
       "id": "08",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-08.md"
     },
     {
       "id": "09",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional web and Android authentication implementation delivered and verified against live local Supabase Auth container daemon. Completion blocked pending prerequisite Phase 04–06 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-09.md"
     },
     {
       "id": "10",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional personal workspace and user preferences implementation delivered and verified across PostgreSQL, Fastify API, web, and mobile. Completion blocked pending prerequisite Phase 04–06 and Phase 09 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-10.md"
     },
     {
       "id": "11",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional account-scoped local data repositories delivered across Web (IndexedDB with trusted-device consent) and Android (encrypted SQLite with SQLCipher native compilation and KeyStore key wrapping). Completion blocked pending prerequisite Phase 04–06 physical Android TalkBack and hardware KeyStore release gates.",
+      "report": "docs/phase-reports/phase-11.md"
     },
     {
       "id": "12",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional server synchronization infrastructure delivered and verified against real PostgreSQL (row-lock protocol, durable idempotency, canonical payload hashing, and ordered change feed). Completion blocked pending prerequisite Phase 10 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-12.md"
     },
     {
       "id": "13",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional client synchronization engine delivered and verified across real PostgreSQL and production browser IndexedDB (offline queue draining, lost-response idempotency, tab coordination, explicit conflict recovery, snapshot reset). Completion blocked pending prerequisite Phase 11 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-13.md"
     },
     {
       "id": "14",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional collections, folders, and shared item metadata delivered and verified across real PostgreSQL, sync change feed, outbox intents, and synthetic hierarchy benchmark. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-14.md"
     },
     {
       "id": "15",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional folder browsing and organization interfaces delivered and verified across PostgreSQL, Fastify API, production browser CDP with real IndexedDB, and mobile. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-15.md"
     },
     {
       "id": "16",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional typed note domain and persistence delivered and verified across real PostgreSQL, Fastify API, SyncEngine, and local repositories (portable versioned AST, Unicode & Bangla preservation, inert rendering, revision conflicts, and RLS isolation). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware verification.",
+      "report": "docs/phase-reports/phase-16.md"
     },
     {
       "id": "17",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional focused web and mobile note editors delivered under owner authorization and verified across Vitest, React Native mobile tests, CDP browser testing, and integration test suite. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-17.md"
     },
     {
       "id": "18",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional task domain, explicit deadlines (date-only and timed with IANA timezone), subtask hierarchy, PostgreSQL persistence, sync dispatcher, and IndexedDB/SQLite adapters delivered under owner authorization and verified across Vitest and integration test suites. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-18.md"
     },
     {
       "id": "19",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional upcoming task workflows, priority views, detail editors, subtask hierarchy, and multi-platform Plan interfaces delivered under owner authorization and verified across Vitest pure domain, integration journeys, Web Next.js Plan page, and Mobile React Native PlanView. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-19.md"
     },
     {
       "id": "20",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional routine schedules, date-scoped occurrences, occurrence state machine, PostgreSQL unique constraints, change reconciliation, and IndexedDB/SQLite adapters delivered under owner authorization and verified across Vitest integration test suite (21/21 passing, 484/484 monorepo tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-20.md"
     },
     {
       "id": "21",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional daily routine checklists, gentle progress without streak shaming, reversible undo toasts, routine history viewer, and Today experience delivered under owner authorization and verified across Vitest pure domain, Web TodayView, Mobile TodayView, and integration test suites (13/13 test files and 182/182 integration tests passing, 38/38 test files and 510/510 unit tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-21.md"
     },
     {
       "id": "22",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional journal domain, dated entries, optional reflection metadata, PostgreSQL persistence with Row-Level Security, Fastify journal REST routes, SyncEngine integration, Web IndexedDB and Mobile SQLite local storage adapters, and privacy defaults delivered under owner authorization and verified across Vitest pure domain, multi-client integration journeys, SQLite storage, and PostgreSQL RLS tests (14/14 test files and 196/196 integration tests passing, 39/39 test files and 532/532 unit tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-22.md"
     },
     {
       "id": "23",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional journal writing and reflection interfaces, calm focused writing surfaces, day and month navigation, backdating badges, optional reflection prompt trays, canonical folder placement, autosave draft recovery, journal-scoped search with snippet privacy suppression, mobile AST preservation without flattening, and Trash/restore lifecycles delivered under owner authorization and verified across Vitest pure domain, Web JournalEditor, Mobile JournalView, and integration test journeys (15/15 test files and 212/212 integration tests passing, 41/41 test files and 558/558 unit/view tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-23.md"
     },
     {
       "id": "24",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional private verified uploads and storage lifecycle delivered under owner authorization and verified across Vitest pure domain, inspector, fail-closed malware scanner, quota bounding, worker lease jobs, PostgreSQL RLS, Fastify files REST routes, DaynoriApiClient, and 8 end-to-end integration journeys (43/43 test files and 582/582 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-24.md"
     },
     {
       "id": "25",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional file organization, safe document previews, storage usage visibility, offline file availability with cryptographic SHA-256 integrity eviction, and cancellation/retry handling delivered under owner authorization and verified across Vitest pure domain, Web Library/Preview components, Mobile LibraryView/Sheets, DaynoriApiClient, and 7 end-to-end integration journeys (44/44 test files and 606/606 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-25.md"
     },
     {
       "id": "26",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional calendar and deadline views, unified projection read models combining canonical tasks, routine occurrences, and personal events without duplicate task tables, personal event persistence and synchronization, interval validations, timezone/DST handling, locale week-start preferences, and accessible agenda/day/month views for web and mobile delivered under owner authorization and verified across Vitest pure domain, Web PlanCalendarPage, Mobile PlanView, IndexedDB/SQLite adapters, and 15 end-to-end integration tests. Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-26.md"
     },
     {
       "id": "27",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional reminder scheduling and durable delivery jobs delivered under owner authorization and verified across Vitest pure domain, PostgreSQL RLS, Fastify reminders REST routes, DaynoriApiClient, worker leased-delivery jobs with crash recovery, quiet hours handling, and task/event/routine lifecycle invalidations (20/20 test files and 271/271 integration tests passing, 47/47 test files and 655/655 unit tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-27.md"
     },
     {
       "id": "28",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional Android notifications and local reminders implementation delivered under owner authorization and verified across native adapter, notification channels, capability detection, device registration, local reminder scheduling with lock-screen redaction, deep linking with tap deduplication, and push fallback suppression (15/15 integration tests, 48/48 test files, 676/676 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-28.md"
     },
     {
       "id": "29",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional Web reminder delivery and PWA support implementation and post-delivery defect repairs delivered under owner authorization and verified across capability detection, VAPID key acquisition, SSRF-protected subscription lifecycle with IPv4/v6 and port validation, single-active endpoint binding with atomic rebind across accounts, durable offline deactivation queue and logout cleanup, multi-target delivery coordination, durable background retry jobs with exponential backoff and 24h TTL, strict public static asset service worker caching with query-stripping, notification click routing with validated instance/target identifiers, accessible in-app agenda fallback with account-scoped caching, and 19 integration tests passing (49/49 test files and 696/696 tests passing). Completion blocked pending external production VAPID push infrastructure and physical push gateways.",
+      "report": "docs/phase-reports/phase-29.md"
     },
     {
       "id": "30",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional Today home and personal customization implementation delivered under owner authorization and verified across pure domain invariants, approved widget and module shortcut registries, bounded label sanitization, accessible Move Up/Down reordering alternatives, Web TodayView, Mobile TodayView, versioned HomeLayout persistence in user preferences, optimistic revision concurrency with HTTP 409 conflict detection, safe migration dropping unreleased modules, privacy redaction stripping journal previews and excluding vault items, and 13 end-to-end integration tests (50/50 test files and 714/714 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-30.md"
     },
     {
       "id": "31",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional first-use tutorial and progressive discovery implementation delivered under owner authorization and verified across pure domain state machine, Web OnboardingTutorial dialog, Mobile OnboardingSheet, deterministic starter item creation, skippable onboarding, replay invariants, preferences synchronization, and 10 end-to-end integration tests (52/52 test files and 732/732 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-31.md"
     },
     {
       "id": "32",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional knowledge guides and cheatsheet organization implementation delivered under owner authorization and verified across canonical NoteDocument AST v1 presets, topic folder organization without duplicate bodies, saved views with non-destructive multi-view filtering, Web QuickReferenceView, Mobile MobileQuickReferenceView, clean plain-text clipboard boundaries, internal item link and reverse backlink resolution with honest unavailable target notices, cross-tenant isolation, and 12 end-to-end integration tests (54/54 test files and 753/753 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-32.md"
     },
     {
       "id": "33",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional global authorized search and filters implementation delivered under owner authorization and verified across PostgreSQL full-text and pg_trgm indexes, Fastify search endpoint, DaynoriApiClient, pure client-side local search with offline coverage indicators, Web search modal, Mobile SearchSheet, strict multi-tenant workspace isolation, vault exclusion, journal privacy redactions, archived/deleted handling, and 11 end-to-end integration tests (55/55 test files and 772/772 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-33.md"
     },
     {
       "id": "34",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional conflict recovery and offline hardening implementation delivered under owner authorization and verified across 90-day offline horizon checks, edit-versus-delete preservation without resurrection, deleted/missing parent folder recovery, storage quota error classification, 3-way structured field merge, circular hierarchy move validation, side-by-side conflict review on web and mobile, user-controlled local recovery export excluding credentials and vault plaintexts, redacted sync diagnostics, and 10 end-to-end integration tests (56/56 test files and 784/784 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-34.md"
     },
     {
       "id": "35",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional portable export and controlled import implementation delivered under owner authorization and verified across zero-dependency ZIP engine, path traversal defense, zip bomb prevention, cryptographic HMAC-SHA256 reauthentication, complete workspace multi-format export, explicit vault and Google Drive exclusions, ephemeral signed download links, dry-run bounded import preview, transactional import execution with total ID remapping, duplicate resolution strategies (skip, create_copy, overwrite_if_newer), quota accounting, Web WorkspacePortabilityDialog, Mobile MobileWorkspacePortabilitySheet, and 28 end-to-end integration tests (57/57 test files and 812/812 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-35.md"
     },
     {
       "id": "36",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional account deletion backup and recovery lifecycle implementation delivered under owner authorization and verified across reauthentication enforcement, session token revocation, device subscription invalidation, collaborative shared content reassignment, dual-layer storage purge, worker blob purge jobs, suppression ledger, disaster recovery restore drill, Google Play policy compliance web resource, Web AccountDeletionDialog, Mobile MobileAccountDeletionSheet, and 20 end-to-end integration tests (58/58 test files and 842/842 tests passing). Completion blocked pending prerequisite Phase 04–06 and Phase 11 physical Android TalkBack hardware and KeyStore release gates.",
+      "report": "docs/phase-reports/phase-36.md"
     },
     {
       "id": "37",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Core quality, usability, end-to-end organizer journeys, performance budgets, and security boundaries verified in automated and synthetic environments (60/60 test files and 874/874 tests passing, 50/50 browser E2E assertions passing). Release gate decision is explicitly blocked pending physical Android TalkBack hardware, native KeyStore signing, live VAPID/FCM push notification delivery, and production store credentials.",
+      "report": "docs/phase-reports/phase-37.md"
     },
     {
       "id": "38",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Local beta preparation artifacts created and validated under explicit owner authorization (beta configuration, environment validator, personal organizer feature flags, operations runbook, external keystore signing procedure, observation protocol, and smoke test runner). Live cloud deployment, build distribution, tester invitations, and store submission remain explicitly blocked pending owner-supplied target infrastructure, credentials, physical hardware, and participants.",
+      "report": "docs/phase-reports/phase-38.md"
     },
     {
       "id": "39",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional expense tracking domain delivered under owner authorization and verified across Vitest pure domain, PostgreSQL RLS, Fastify expense REST routes, DaynoriApiClient, and 20 integration tests (integer minor units, exact decimal formatting, multi-currency non-coercion, concurrency-safe cumulative refund bounds, category spending reduction, recurring entry templates, and sync change feed integration). Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, and UI exposure.",
+      "report": "docs/phase-reports/phase-39.md"
     },
     {
       "id": "40",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional expense capture reports and budgets delivered under owner authorization and verified across Web fast capture dialog, Web expense reports and budgets views, Next.js /expenses page, MobileExpenseCaptureSheet, MobileExpenseReportView, Mobile SettingsView opt-in toggle, CSV export with RFC 4180 / OWASP formula injection neutralization, multi-currency monthly reports with truthful negative spending, non-advisory budget tracking, and 23 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, physical Android test hardware, and production credentials.",
+      "report": "docs/phase-reports/phase-40.md"
     },
     {
       "id": "41",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional audio recording and attachment lifecycle delivered under owner authorization and verified across Vitest pure domain, Zod contracts, Web AudioRecorderDialog and AudioPlayerCard, MobileAudioRecorderSheet and MobileAudioPlayerCard, Web and Mobile app wiring, 10-minute / 25MB limits, interruption recovery without false saved status, quarantine magic byte inspection, and 17 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, physical Android microphone hardware verification, and production credentials.",
+      "report": "docs/phase-reports/phase-41.md"
     },
     {
       "id": "42",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional safe custom section schema and renderer contracts delivered under owner authorization and verified across pure domain schema validation, zero-data-loss evolution (archivedValues), fallback contracts for unsupported block types, Fastify REST API, DaynoriApiClient, PostgreSQL RLS tenant isolation, optimistic concurrency control (409 conflict), and 14 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, and store submission.",
+      "report": "docs/phase-reports/phase-42.md"
     },
     {
       "id": "43",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional custom section builder and personal templates delivered under owner authorization and verified across Web CustomSectionBuilderDialog, CustomSectionRenderer, SchemaMigrationPreviewModal, MobileCustomSectionBuilderSheet, MobileCustomSectionRenderer, starter/personal templates without private data leakage, schema migration preview with append-only archives preservation, canonical existing record views (tasks, notes, files in folders, routines, expenses respecting module availability) without duplicating source data, accessible non-drag reordering, read-only fallbacks for unsupported blocks, and 16 integration tests. Completion remains blocked pending prerequisite Phase 37 release gates, Phase 38 private beta deployment, and store submission.",
+      "report": "docs/phase-reports/phase-43.md"
     },
     {
       "id": "44",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Isolated vault cryptography prototype repaired: Node Vitest, Edge-headless browser, desktop JVM (argon2-jvm), and Android emulator instrumentation (bcprov Argon2id) PASS with shared-fixture expected-byte checks. Physical Android device evidence and independent qualified security review remain unmet; emulator does not clear the physical-device gate. Attachment streaming format proposed (not adopted). Phases 37–38 still blocked.",
+      "report": "docs/phase-reports/phase-44.md"
     },
     {
       "id": "45",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Preparation repaired: transfer transition enforces verification evidence, source-edit disposition, cleanup completion (not mere job scheduling), shared-reference disclosure, and idempotent bindings. Implementation blocked pending Phase 44 independent review and physical Android evidence. No production vault migrations, API routes, or unlock UI.",
+      "report": "docs/phase-reports/phase-45.md"
     },
     {
       "id": "46",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional Android unlock lifecycle + synthetic harness delivered; lifecycle admission/lock-ordering repairs verified in Vitest and Expo Android export. Production vault entry disabled. Acceptance blocked pending Phase 45 integration, Phase 44 independent review, and physical-device biometric/Keystore evidence. AI/emulator results do not satisfy those gates.",
+      "report": "docs/phase-reports/phase-46.md"
     },
     {
       "id": "47",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional web unlock lifecycle + synthetic harness delivered; local lint/CSP/Permissions-Policy/Playwright gaps repaired. Production vault entry disabled. Acceptance blocked pending Phase 45 integration, independent security review, and prerequisite Phase 44/46 physical/review gates.",
+      "report": "docs/phase-reports/phase-47.md"
     },
     {
       "id": "48",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Spike + ADR 0046 + repairs (live OAuth runner, exact scope URI validation, evidence lanes) delivered. Live Google drive.file experiments still unverified (OAuth client unset). Production Drive connection unavailable. Vault activation remains disabled.",
+      "report": "docs/phase-reports/phase-48.md"
     },
     {
       "id": "49",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Selected-file Drive connector repaired (shared worker executor, real byte ingest/upload, selection binding, session OAuth callback, fence-before-revoke, upload idempotency, fake-in-production rejection). Live Google verification, production enablement, and Phase 48 live scope proof remain unmet. Vault activation remains disabled.",
+      "report": "docs/phase-reports/phase-49.md"
     },
     {
       "id": "50",
-      "status": "planned"
+      "status": "deferred",
+      "reason": "Owner-authorized deferral. Phase 48 ADR 0046 keeps narrow drive.file selected/app-created mode; no approved broader-scope decision, live external-folder evidence, Google verification/assessment, or cost acceptance. Folder mirroring not implemented. Selected-file connector preserved. Reopen only when reopening requirements in docs/phase-reports/phase-50.md are met.",
+      "report": "docs/phase-reports/phase-50.md"
     },
     {
       "id": "51",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local shared rooms repaired (ADR 0048): shared isRoomsLocallyEnabled fails closed in production even with DAYNORI_ROOMS_LOCAL_ENABLED. Completion blocked pending Phase 38 private-beta evidence, Phase 10 hardware gates, and rooms release-gate readiness. No real-user invitations, outbound messages, or production enablement. Vault remains disabled.",
+      "report": "docs/phase-reports/phase-51.md"
     },
     {
       "id": "52",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local room content sync repaired (ADR 0049): SYNC_RESET_REQUIRED rebases without purge; ROOM_ROLE_INSUFFICIENT for role downgrade; typed clearWorkspaceData purge; production gate fail-closed. Chat is Phase 53. Completion blocked pending Phases 51/34 release evidence plus rooms gate. No real-user sharing or production enablement. Vault remains disabled.",
+      "report": "docs/phase-reports/phase-52.md"
     },
     {
       "id": "53",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local durable room chat repaired (ADR 0050 amended): lock-first idempotency with immutable original_payload_hash; event cursor ≠ message ack; read clamp; durable client drafts/pending; process-wired publication recovery; verified attachments; tighter RLS. Completion blocked pending Phase 52 release evidence and rooms/chat gates (incl. Phase 54). No real-user sharing, outbound notifications, or production enablement. Vault remains disabled.",
+      "report": "docs/phase-reports/phase-53.md"
     },
     {
       "id": "54",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local reporting/blocking/terms repaired (ADR 0051 amended): DB-enforced platform_moderators membership in SECURITY DEFINER helpers; blocker hide on history+events; terms on chat edit/copy/room sync; immutable report hash + actioned disposition. Completion blocked pending named/staffed moderation owner and rooms release evidence. No real-user sharing or production enablement. Vault remains disabled.",
+      "report": "docs/phase-reports/phase-54.md"
     },
     {
       "id": "55",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local AI repaired (ADR 0052 amended): consent/cancel fencing, durable per-request budgets outside provider I/O, bound citations, index lifecycle enqueue, store:false adapter, fake eval runner. Completion blocked pending live-provider authorization, ZDR/residency owner choices, Phase 38 release evidence, and AI release gates. No real-user AI or private-content transmission. Vault remains disabled.",
+      "report": "docs/phase-reports/phase-55.md"
     },
     {
       "id": "56",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local assistant repaired (ADR 0053 amended): operation-bound create recovery, durable terminal proposal states, vault/revision update gates, draft lifecycle, consent-gen history, ask cancel, source-access recheck, expired cleanup. Completion blocked pending AI release gates and live-provider evidence. No real-user AI. Vault/rooms remain disabled.",
+      "report": "docs/phase-reports/phase-56.md"
     },
     {
       "id": "57",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Provisional local entitlements repaired (ADR 0054 amended): daynori_billing role authority (not GUC/token self-assert), explicit Play states, durable pending events + scheduler, recompute aggregation, AI/storage ceiling binding. Completion blocked pending commercial decisions, Play/web sandbox evidence, and production activation. No real charges. Billing does not unlock vault/rooms/AI.",
+      "report": "docs/phase-reports/phase-57.md"
     },
     {
       "id": "58",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Engineering synthetic short local baseline repaired (ADR 0055 amended): valid 10k notes + depth-5 folders, scoped fault/lease-reclaim drills with sentinel, disposable DR, provisional cost model, lint green. Completion blocked pending Phase 37 hardware, real beta, cloud PITR/commercial quotes, staffed ops. Not 100-user production capacity. Optional modules remain gated.",
+      "report": "docs/phase-reports/phase-58.md"
     },
     {
       "id": "59",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Local Play/web launch preparation + signing/build-path repair (ADR 0056): taskGraph fail-closed guard, disposable prebuild/inspect, checklist demoted. Completion blocked pending Phase 38/37 evidence, owner legal/domain/support, signing credentials, built AAB/16KB evidence, account-specific testers, and operator approval. Not an authorization to submit or launch.",
+      "report": "docs/phase-reports/phase-59.md"
     },
     {
       "id": "60",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Preview PWA: session keep-on-cold-start, Journal unsaved guard, first-login any-route, SW v7 public static warm, overflow-aware shots (ADR 0065/0066). Rooms/chat off. Owner login for two-account evidence; physical Android PWA pending. releaseEligible=false; phases 61–62 unchanged; Phase 63 not started.",
+      "report": "docs/phase-reports/phase-60.md"
     },
     {
       "id": "61",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "iOS Expo configuration, platform adapters, support matrix, and Apple policy review (2026-10-21) delivered. Acceptance blocked: no Xcode/Simulator/physical VoiceOver/Keychain/push/offline evidence on Windows host. Phases 59–60 live publication still unmet. Optional modules remain gated. Not App Store submission.",
+      "report": "docs/phase-reports/phase-61.md"
     },
     {
       "id": "62",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Local iOS App Store release package prepared (docs/release/ios, ADR 0060). Acceptance blocked: Phase 61 Simulator/physical evidence absent; no TestFlight upload, App Review, screenshots from device, or live availability. StoreKit and gated modules remain off. Not authorization to submit.",
+      "report": "docs/phase-reports/phase-62.md"
     },
     {
       "id": "63",

@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-22T11:37:48.026Z",
+  "purpose": "Owner-authorized free testing preview; not a production or Play release",
+  "sourceRevision": "840f1477f50ecc14b1454fc24360578f2cb0878c",
+  "workflowRun": "https://github.com/mkamrul9/dayNori/actions/runs/39734872562",
+  "workflowConclusion": "success",
+  "releaseUrl": "https://github.com/mkamrul9/dayNori/releases/tag/preview-2026-10-22",
+  "prerelease": true,
+  "apkUrl": "https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/daynori-preview-arm64.apk",
+  "checksumUrl": "https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/SHA256SUMS",
+  "bytes": 34326704,
+  "sha256": "b102674448337eb2b9ccde2f4d5653b022bc837ae9edd212ade52c5a47da1441",
+  "githubAssetDigestMatches": true,
+  "anonymousDownload": {
+    "authenticationUsed": false,
+    "rangeStatus": 206,
+    "contentType": "application/vnd.android.package-archive",
+    "contentRange": "bytes 0-31/34326704",
+    "checksumStatus": 200,
+    "checksumMatches": true
+  },
+  "androidMetadata": {
+    "package": "com.daynori.app",
+    "versionName": "0.1.0",
+    "versionCode": 1,
+    "minSdk": 24,
+    "targetSdk": 36,
+    "nativeAbis": ["arm64-v8a"],
+    "signatureVerified": true,
+    "signatureSchemeV2": true,
+    "signer": "Android Debug (explicit testing authorization)",
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c"
+  },
+  "pending": [
+    "User-entered account credentials and email confirmation",
+    "Provider-authenticated cloud saving and cross-device/offline journeys",
+    "Physical Android installation, cold launch and accessibility verification",
+    "Existing dependency, performance and public/store release gates"
+  ],
+  "releaseEligible": false
+}

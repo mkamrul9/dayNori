@@ -5,6 +5,36 @@ import {
   validateMinorUnitAmount,
   isValidDateOnly,
   parseDateOnly,
+  type NoteTextInline,
+  validateRoutineTitle,
+  getIsoWeekday,
+  validateWeekdays,
+  isRoutineScheduledOnDate,
+  generateOccurrencesForDateRange,
+  completeOccurrence,
+  skipOccurrence,
+  reopenOccurrence,
+  reconcileOccurrencesOnScheduleChange,
+  explainWhyDueToday,
+  calculateGentleProgress,
+  explainScheduleChangeImpact,
+  type RoutineTemplateRule,
+  validateFieldValue,
+  validateRecordAgainstSchema,
+  migrateRecordValues,
+  isBlockSupported,
+  createFallbackBlockRepresentation,
+  APPROVED_SECTION_TEMPLATES,
+  isAiLocallyEnabled,
+  isBillingLocallyEnabled,
+  isBillingProductionActivationEnabled,
+  isAiLiveProviderEnabled,
+  isAiSourceKindEligible,
+  validateAiContentScope,
+  DEFAULT_AI_CONTENT_SCOPE,
+  bindAiCitations,
+  estimateAiReservationTokens,
+  parseAiSourceReferences,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -29,4 +59,2386 @@ describe('Domain Rules and Invariants', () => {
     expect(isValidDateOnly('invalid-date')).toBe(false);
     expect(parseDateOnly('2026-10-13')).toBe('2026-10-13');
   });
+
+  describe('Organization Rules & Invariants', () => {
+    it('validates folder depth bounds (1 to 5)', async () => {
+      const { validateFolderDepth } = await import('./organization.js');
+      expect(() => validateFolderDepth(1)).not.toThrow();
+      expect(() => validateFolderDepth(5)).not.toThrow();
+      expect(() => validateFolderDepth(0)).toThrow(/DEPTH_LIMIT_EXCEEDED/);
+      expect(() => validateFolderDepth(6)).toThrow(/DEPTH_LIMIT_EXCEEDED/);
+    });
+
+    it('detects cycles in folder hierarchy', async () => {
+      const { detectCycle } = await import('./organization.js');
+      const folderMap = new Map<string, { parentId: string | null }>([
+        ['folder-A', { parentId: null }],
+        ['folder-B', { parentId: 'folder-A' }],
+        ['folder-C', { parentId: 'folder-B' }],
+      ]);
+
+      // Self-parent is a cycle
+      expect(detectCycle('folder-A', 'folder-A', folderMap)).toBe(true);
+
+      // Moving A under C creates a cycle (C -> B -> A)
+      expect(detectCycle('folder-A', 'folder-C', folderMap)).toBe(true);
+
+      // Moving C to root or under A does not create a cycle
+      expect(detectCycle('folder-C', null, folderMap)).toBe(false);
+      expect(detectCycle('folder-C', 'folder-A', folderMap)).toBe(false);
+    });
+
+    it('calculates subtree depth and detects deep hierarchy violations', async () => {
+      const { calculateSubtreeDepth, calculateFolderDepth } = await import('./organization.js');
+      const folderMap = new Map<string, { parentId: string | null }>([
+        ['folder-1', { parentId: null }],
+        ['folder-2', { parentId: 'folder-1' }],
+        ['folder-3', { parentId: 'folder-2' }],
+      ]);
+      const childrenMap = new Map<string, string[]>([
+        ['folder-1', ['folder-2']],
+        ['folder-2', ['folder-3']],
+        ['folder-3', []],
+      ]);
+
+      expect(calculateFolderDepth('folder-1', folderMap)).toBe(1);
+      expect(calculateFolderDepth('folder-3', folderMap)).toBe(3);
+      expect(calculateSubtreeDepth('folder-1', childrenMap)).toBe(3);
+      expect(calculateSubtreeDepth('folder-3', childrenMap)).toBe(1);
+    });
+
+    it('sorts stably with ID tie-breakers', async () => {
+      const { compareRanks } = await import('./organization.js');
+      expect(compareRanks('100', 'uuid-a', '200', 'uuid-b')).toBeLessThan(0);
+      expect(compareRanks('200', 'uuid-a', '100', 'uuid-b')).toBeGreaterThan(0);
+      // Same rank: tie-break on id
+      expect(compareRanks('100', 'uuid-a', '100', 'uuid-b')).toBeLessThan(0);
+      expect(compareRanks('100', 'uuid-b', '100', 'uuid-a')).toBeGreaterThan(0);
+    });
+
+    it('rebalances ranks into sparse intervals', async () => {
+      const { rebalanceRanks } = await import('./organization.js');
+      const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+      const rebalanced = rebalanceRanks(items, 10000);
+      expect(rebalanced).toEqual([
+        { id: 'a', rank: '00010000' },
+        { id: 'b', rank: '00020000' },
+        { id: 'c', rank: '00030000' },
+      ]);
+    });
+  });
+
+  describe('Typed Notes Domain Rules & Invariants', () => {
+    it('resolves note titles with honest "Untitled" fallback and length limits', async () => {
+      const { resolveNoteTitle } = await import('./notes.js');
+      expect(resolveNoteTitle('')).toBe('Untitled');
+      expect(resolveNoteTitle('   ')).toBe('Untitled');
+      expect(resolveNoteTitle(null)).toBe('Untitled');
+      expect(resolveNoteTitle(undefined)).toBe('Untitled');
+      expect(resolveNoteTitle('Meeting Notes')).toBe('Meeting Notes');
+      expect(resolveNoteTitle('  বাংলা নোট  ')).toBe('বাংলা নোট');
+      // Truncates strings exceeding 255 chars
+      const longTitle = 'A'.repeat(300);
+      expect(resolveNoteTitle(longTitle).length).toBe(255);
+    });
+
+    it('creates note document AST from plain text and preserves Unicode / Bangla', async () => {
+      const {
+        createNoteDocumentFromPlainText,
+        extractPlainText,
+        calculateWordCount,
+        calculateCharCount,
+      } = await import('./notes.js');
+
+      const plain = `# বাংলা টাইপড নোট\n\nএটি একটি পরীক্ষার প্যারাগ্রাফ।\n\n- প্রথম কাজ\n- দ্বিতীয় কাজ\n\n[ ] অসম্পূর্ণ চেকলিস্ট\n[x] সম্পন্ন চেকলিস্ট`;
+      const doc = createNoteDocumentFromPlainText(plain);
+
+      expect(doc.version).toBe(1);
+      expect(doc.type).toBe('doc');
+      expect(doc.content.length).toBe(4); // heading, paragraph, bullet_list, checklist
+
+      // Verify AST extraction round-trip
+      const extracted = extractPlainText(doc);
+      expect(extracted).toContain('# বাংলা টাইপড নোট');
+      expect(extracted).toContain('এটি একটি পরীক্ষার প্যারাগ্রাফ।');
+      expect(extracted).toContain('- প্রথম কাজ');
+      expect(extracted).toContain('[x] সম্পন্ন চেকলিস্ট');
+
+      // Verify word count & character count
+      const wordCount = calculateWordCount(extracted);
+      const charCount = calculateCharCount(extracted);
+      expect(wordCount).toBeGreaterThan(10);
+      expect(charCount).toBe(Array.from(extracted).length);
+    });
+
+    it('preserves literal programming examples, comparison operators, and HTML examples while stripping null bytes', async () => {
+      const { validateNoteDocument, extractPlainText, sanitizeInertString } =
+        await import('./notes.js');
+
+      // Verify sanitizeInertString keeps angle brackets and comparison operators
+      expect(sanitizeInertString('List<T> items = new List<T>();')).toBe(
+        'List<T> items = new List<T>();'
+      );
+      expect(sanitizeInertString('if (1 < 2 && 3 > 2)')).toBe('if (1 < 2 && 3 > 2)');
+      expect(sanitizeInertString('Test\0NullByte')).toBe('TestNullByte');
+
+      const codeDoc = {
+        version: 1,
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'List<T> items = new List<T>(); function test<T>() { return "<script>alert(1)</script>\0"; }',
+              },
+            ],
+          },
+        ],
+      };
+
+      const validated = validateNoteDocument(codeDoc);
+      const plain = extractPlainText(validated);
+      // Literal angle brackets and code syntax are preserved; null byte is removed
+      expect(plain).toBe(
+        'List<T> items = new List<T>(); function test<T>() { return "<script>alert(1)</script>"; }'
+      );
+      expect(plain).not.toContain('\0');
+      expect(plain).toContain('List<T>');
+      expect(plain).toContain('<script>alert(1)</script>');
+    });
+
+    it('rejects unsupported blocks, invalid heading levels, and invalid marks explicitly', async () => {
+      const { validateNoteDocument } = await import('./notes.js');
+
+      expect(() =>
+        validateNoteDocument({
+          version: 1,
+          type: 'doc',
+          content: [{ type: 'unsupported_table', rows: [] }],
+        })
+      ).toThrow(/NOTE_BLOCK_UNSUPPORTED/);
+
+      expect(() =>
+        validateNoteDocument({
+          version: 1,
+          type: 'doc',
+          content: [{ type: 'heading', level: 5, content: [] }],
+        })
+      ).toThrow(/NOTE_HEADING_LEVEL_INVALID/);
+
+      expect(() =>
+        validateNoteDocument({
+          version: 1,
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Hello', marks: ['underline'] }],
+            },
+          ],
+        })
+      ).toThrow(/NOTE_MARK_UNSUPPORTED/);
+    });
+
+    it('preserves blank lines and honest plain text conversion without auto-mutating text', async () => {
+      const { createNoteDocumentFromPlainText, extractPlainText } = await import('./notes.js');
+
+      const multilineText = 'First Paragraph\n\nSecond Paragraph with - hyphen item\n\n';
+      const doc = createNoteDocumentFromPlainText(multilineText);
+      expect(doc.content).toHaveLength(3); // 2 content paras + 1 trailing empty para
+      expect(doc.content[1]!.type).toBe('paragraph'); // NOT converted to a bullet list!
+
+      const extracted = extractPlainText(doc);
+      expect(extracted).toContain('First Paragraph');
+      expect(extracted).toContain('Second Paragraph with - hyphen item');
+    });
+
+    it('recovers unsupported or raw documents gracefully without data loss', async () => {
+      const { createRecoverableNoteDocument } = await import('./notes.js');
+
+      const unsupportedRaw = {
+        version: 99,
+        type: 'future_note',
+        plainText: 'Preserved user notes content from future schema',
+      };
+
+      const recovery = createRecoverableNoteDocument(unsupportedRaw);
+      expect(recovery.doc.version).toBe(1);
+      expect(recovery.doc.content[0]!.type).toBe('paragraph');
+      expect(recovery.rawUnsupported).toBe(unsupportedRaw);
+    });
+
+    it('rejects oversized documents exceeding 512KB payload limit', async () => {
+      const { validateNoteDocument } = await import('./notes.js');
+
+      const hugeText = 'X'.repeat(600 * 1024);
+      const hugeDoc = {
+        version: 1,
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: hugeText }],
+          },
+        ],
+      };
+
+      expect(() => validateNoteDocument(hugeDoc)).toThrow(/NOTE_PAYLOAD_TOO_LARGE/);
+    });
+
+    it('preserves multiple inline runs, marks, and hard breaks during text editing', async () => {
+      const {
+        extractInlineText,
+        splitInlinesAtOffset,
+        applyMarkToInlines,
+        replaceTextInRangeInlines,
+        insertHardBreakInlines,
+      } = await import('./notes.js');
+
+      const inlines = [
+        { type: 'text' as const, text: 'Hello ' },
+        { type: 'text' as const, text: 'bold world', marks: ['bold' as const] },
+        { type: 'hard_break' as const },
+        { type: 'text' as const, text: 'Bangla বাংলা' },
+      ];
+
+      expect(extractInlineText(inlines)).toBe('Hello bold world\nBangla বাংলা');
+
+      // 1. Split at offset 8 (inside "bold world" -> "bo" and "ld world")
+      const [left, right] = splitInlinesAtOffset(inlines, 8);
+      expect(extractInlineText(left)).toBe('Hello bo');
+      expect(extractInlineText(right)).toBe('ld world\nBangla বাংলা');
+      expect(left[1]).toEqual({ type: 'text', text: 'bo', marks: ['bold'] });
+      expect(right[0]).toEqual({ type: 'text', text: 'ld world', marks: ['bold'] });
+
+      // 2. Type in the middle (insert "wonderful " between "bold " and "world")
+      // Plain text: "Hello bold world\nBangla বাংলা"
+      // "Hello bold " length = 11.
+      const edited = replaceTextInRangeInlines(inlines, 11, 11, 'wonderful ');
+      expect(extractInlineText(edited)).toBe('Hello bold wonderful world\nBangla বাংলা');
+      // Untouched content before and after is preserved
+      expect(edited[0]).toEqual({ type: 'text', text: 'Hello ' });
+      expect(edited[edited.length - 1]).toEqual({ type: 'text', text: 'Bangla বাংলা' });
+      expect(edited.some((n) => n.type === 'hard_break')).toBe(true);
+
+      // 3. Apply mark to selection without destroying surrounding text
+      // Select "Bangla" (offset: "Hello bold world\n" = 17 to 23)
+      const boldBangla = applyMarkToInlines(inlines, 17, 23, 'bold');
+      expect(extractInlineText(boldBangla)).toBe('Hello bold world\nBangla বাংলা');
+      const banglaNode = boldBangla.find(
+        (n): n is NoteTextInline => n.type === 'text' && n.text.includes('Bangla')
+      );
+      expect(banglaNode?.marks).toContain('bold');
+
+      // 4. Insert hard break at offset 6
+      const broken = insertHardBreakInlines(inlines, 6);
+      expect(extractInlineText(broken)).toBe('Hello \nbold world\nBangla বাংলা');
+    });
+  });
+
+  describe('Task Domain & Deadline Semantics', () => {
+    it('validates task titles enforcing non-empty and length limits with Unicode & Bangla support', async () => {
+      const { validateTaskTitle } = await import('./tasks.js');
+
+      expect(validateTaskTitle('  Learn TypeScript  ')).toBe('Learn TypeScript');
+      expect(validateTaskTitle('বাংলা কাজের শিরোনাম')).toBe('বাংলা কাজের শিরোনাম');
+      expect(validateTaskTitle('🎯 Project milestone 1')).toBe('🎯 Project milestone 1');
+
+      expect(() => validateTaskTitle('')).toThrow(/TASK_TITLE_REQUIRED/);
+      expect(() => validateTaskTitle('   ')).toThrow(/TASK_TITLE_REQUIRED/);
+
+      const tooLong = 'A'.repeat(256);
+      expect(() => validateTaskTitle(tooLong)).toThrow(/TASK_TITLE_TOO_LONG/);
+    });
+
+    it('validates calendar dates, leap days, and IANA timezones accurately', async () => {
+      const { isValidCalendarDateString, isValidIanaTimezone, isLeapYear } =
+        await import('./tasks.js');
+
+      // Leap years
+      expect(isLeapYear(2024)).toBe(true);
+      expect(isLeapYear(2000)).toBe(true);
+      expect(isLeapYear(2025)).toBe(false);
+      expect(isLeapYear(1900)).toBe(false);
+
+      // Leap day boundary
+      expect(isValidCalendarDateString('2024-02-29')).toBe(true);
+      expect(isValidCalendarDateString('2025-02-29')).toBe(false);
+      expect(isValidCalendarDateString('2026-02-30')).toBe(false);
+      expect(isValidCalendarDateString('2026-04-31')).toBe(false); // April has 30 days
+      expect(isValidCalendarDateString('2026-12-31')).toBe(true);
+      expect(isValidCalendarDateString('not-a-date')).toBe(false);
+
+      // IANA timezones
+      expect(isValidIanaTimezone('Asia/Dhaka')).toBe(true);
+      expect(isValidIanaTimezone('America/New_York')).toBe(true);
+      expect(isValidIanaTimezone('UTC')).toBe(true);
+      expect(isValidIanaTimezone('Mars/Phobos')).toBe(false);
+      expect(isValidIanaTimezone('')).toBe(false);
+    });
+
+    it('determines exact overdue boundaries for date-only and timed deadlines across timezones', async () => {
+      const { isTaskOverdue, isTaskDueToday } = await import('./tasks.js');
+
+      // Reference instant: 2026-10-16 12:00:00 UTC
+      // In Asia/Dhaka (UTC+6): 2026-10-16 18:00:00 (Today is 2026-10-16)
+      // In America/New_York (UTC-4): 2026-10-16 08:00:00 (Today is 2026-10-16)
+      // In Pacific/Auckland (UTC+13): 2026-10-17 01:00:00 (Today is 2026-10-17)
+      const now = new Date('2026-10-16T12:00:00.000Z');
+
+      const taskDateOnly = {
+        status: 'todo' as const,
+        deadline: { type: 'date' as const, date: '2026-10-16' },
+      };
+
+      // In Asia/Dhaka and America/New_York, 2026-10-16 is Today (not overdue yet!)
+      expect(isTaskOverdue(taskDateOnly, now, 'Asia/Dhaka')).toBe(false);
+      expect(isTaskDueToday(taskDateOnly, now, 'Asia/Dhaka')).toBe(true);
+      expect(isTaskOverdue(taskDateOnly, now, 'America/New_York')).toBe(false);
+
+      // In Pacific/Auckland, it is already 2026-10-17, so 2026-10-16 is Overdue!
+      expect(isTaskOverdue(taskDateOnly, now, 'Pacific/Auckland')).toBe(true);
+      expect(isTaskDueToday(taskDateOnly, now, 'Pacific/Auckland')).toBe(false);
+
+      // Timed deadline: due at 2026-10-16 11:00:00 UTC
+      const taskTimedPast = {
+        status: 'todo' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T11:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+      };
+      // At 12:00:00 UTC, timed task due at 11:00:00 UTC is overdue everywhere
+      expect(isTaskOverdue(taskTimedPast, now, 'Asia/Dhaka')).toBe(true);
+      expect(isTaskOverdue(taskTimedPast, now, 'America/New_York')).toBe(true);
+
+      // Timed deadline: due at 2026-10-16 15:00:00 UTC (future)
+      const taskTimedFuture = {
+        status: 'todo' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T15:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+      };
+      expect(isTaskOverdue(taskTimedFuture, now, 'Asia/Dhaka')).toBe(false);
+
+      // Completed or cancelled tasks are NEVER overdue
+      const completedTask = {
+        status: 'completed' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T11:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+      };
+      expect(isTaskOverdue(completedTask, now, 'Asia/Dhaka')).toBe(false);
+
+      // Clearing deadline removes task from overdue
+      const clearedDeadlineTask = {
+        status: 'todo' as const,
+        deadline: { type: 'none' as const },
+      };
+      expect(isTaskOverdue(clearedDeadlineTask, now, 'Asia/Dhaka')).toBe(false);
+    });
+
+    it('manages task completion idempotency and retains reopening history', async () => {
+      const { completeTask, reopenTask } = await import('./tasks.js');
+
+      const initialTask = {
+        id: 'task-1',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Complete Phase 18',
+        priority: 'high' as const,
+        status: 'todo' as const,
+        deadline: { type: 'none' as const },
+        completedAt: null,
+        reopenedAt: null,
+        completionHistory: [],
+        parentId: null,
+        subtaskOrder: 0,
+        tags: [],
+        rank: '00001000',
+        isArchived: false,
+        isPinned: false,
+        securityScope: 'standard' as const,
+        revision: 1,
+        createdAt: '2026-10-16T10:00:00.000Z',
+        updatedAt: '2026-10-16T10:00:00.000Z',
+        deletedAt: null,
+      };
+
+      // 1. First completion
+      const completed = completeTask(initialTask, '2026-10-16T11:00:00.000Z');
+      expect(completed.changed).toBe(true);
+      expect(completed.task.status).toBe('completed');
+      expect(completed.task.completedAt).toBe('2026-10-16T11:00:00.000Z');
+      expect(completed.task.completionHistory).toHaveLength(1);
+
+      // 2. Duplicate completion retry: must be a no-op and preserve original completedAt
+      const duplicate = completeTask(completed.task, '2026-10-16T12:00:00.000Z');
+      expect(duplicate.changed).toBe(false);
+      expect(duplicate.task.completedAt).toBe('2026-10-16T11:00:00.000Z');
+      expect(duplicate.task.completionHistory).toHaveLength(1);
+
+      // 3. Reopen task
+      const reopened = reopenTask(completed.task, '2026-10-16T13:00:00.000Z');
+      expect(reopened.changed).toBe(true);
+      expect(reopened.task.status).toBe('todo');
+      expect(reopened.task.completedAt).toBeNull();
+      expect(reopened.task.reopenedAt).toBe('2026-10-16T13:00:00.000Z');
+      expect(reopened.task.completionHistory[0]?.reopenedAt).toBe('2026-10-16T13:00:00.000Z');
+    });
+
+    it('enforces subtask hierarchy invariants, rejects self-parenting and cycles, and bounds depth', async () => {
+      const { validateSubtaskHierarchy, MAX_SUBTASK_DEPTH } = await import('./tasks.js');
+
+      expect(MAX_SUBTASK_DEPTH).toBe(3);
+
+      const taskGraph: Record<string, string | null> = {
+        'root-1': null,
+        'sub-1': 'root-1',
+        'sub-2': 'sub-1',
+        'sub-3': 'sub-2', // depth 4 (exceeds max 3)
+      };
+      const lookup = (id: string) => taskGraph[id];
+
+      // Self-parenting
+      const selfParent = validateSubtaskHierarchy('task-x', 'task-x', lookup);
+      expect(selfParent.isValid).toBe(false);
+      expect(selfParent.error).toContain('TASK_SELF_PARENTING');
+
+      // Valid depth 2 (child of root)
+      const validChild = validateSubtaskHierarchy('task-new', 'root-1', lookup);
+      expect(validChild.isValid).toBe(true);
+      expect(validChild.depth).toBe(2);
+
+      // Valid depth 3 (grandchild of root)
+      const validGrandchild = validateSubtaskHierarchy('task-new', 'sub-1', lookup);
+      expect(validGrandchild.isValid).toBe(true);
+      expect(validGrandchild.depth).toBe(3);
+
+      // Depth limit exceeded (depth 4)
+      const tooDeep = validateSubtaskHierarchy('task-new', 'sub-2', lookup);
+      expect(tooDeep.isValid).toBe(false);
+      expect(tooDeep.error).toContain('TASK_MAX_SUBTASK_DEPTH_EXCEEDED');
+
+      // Cyclic reference: root-1 -> sub-1 -> sub-2 -> root-1
+      const cyclicGraph: Record<string, string | null> = {
+        'task-a': 'task-c',
+        'task-b': 'task-a',
+        'task-c': 'task-b',
+      };
+      const cycle = validateSubtaskHierarchy('task-a', 'task-c', (id) => cyclicGraph[id]);
+      expect(cycle.isValid).toBe(false);
+      expect(cycle.error).toContain('TASK_SUBTASK_CYCLE');
+    });
+
+    it('orders upcoming tasks deterministically by due date, priority, createdAt, and ID', async () => {
+      const { compareTasksUpcoming } = await import('./tasks.js');
+
+      const tasks = [
+        {
+          id: 'task-undated',
+          priority: 'urgent' as const,
+          deadline: { type: 'none' as const },
+          createdAt: '2026-10-16T08:00:00.000Z',
+        },
+        {
+          id: 'task-due-tomorrow-high',
+          priority: 'high' as const,
+          deadline: { type: 'date' as const, date: '2026-10-17' },
+          createdAt: '2026-10-16T08:00:00.000Z',
+        },
+        {
+          id: 'task-due-today-normal',
+          priority: 'normal' as const,
+          deadline: { type: 'date' as const, date: '2026-10-16' },
+          createdAt: '2026-10-16T09:00:00.000Z',
+        },
+        {
+          id: 'task-due-today-urgent',
+          priority: 'urgent' as const,
+          deadline: { type: 'date' as const, date: '2026-10-16' },
+          createdAt: '2026-10-16T09:00:00.000Z',
+        },
+      ];
+
+      const sorted = [...tasks].sort((a, b) => compareTasksUpcoming(a, b, 'UTC'));
+
+      // Due today urgent should come first, then due today normal, then due tomorrow, then undated
+      expect(sorted[0]?.id).toBe('task-due-today-urgent');
+      expect(sorted[1]?.id).toBe('task-due-today-normal');
+      expect(sorted[2]?.id).toBe('task-due-tomorrow-high');
+      expect(sorted[3]?.id).toBe('task-undated');
+    });
+
+    it('reconciles task/todo aliases into canonical task kind', async () => {
+      const { reconcileTaskKind } = await import('./tasks.js');
+
+      expect(reconcileTaskKind('task')).toBe('task');
+      expect(reconcileTaskKind('todo')).toBe('task');
+      expect(() => reconcileTaskKind('note')).toThrow(/INVALID_ITEM_KIND/);
+    });
+
+    it('rejects invalid or malformed timezones explicitly across domain functions', async () => {
+      const { isTaskOverdue, isTaskDueToday, compareTasksUpcoming, getTaskDeadlineSortKey } =
+        await import('./tasks.js');
+
+      const task = {
+        id: 't-1',
+        priority: 'normal' as const,
+        status: 'todo' as const,
+        deadline: { type: 'date' as const, date: '2026-10-16' },
+        createdAt: '2026-10-16T08:00:00.000Z',
+      };
+
+      expect(() => isTaskOverdue(task, new Date(), 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+      expect(() => isTaskDueToday(task, new Date(), 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+      expect(() => compareTasksUpcoming(task, task, 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+      expect(() => getTaskDeadlineSortKey(task.deadline, 'Invalid/Timezone_XYZ')).toThrow(
+        /INVALID_TIMEZONE/
+      );
+    });
+
+    it('orders mixed date-only and timed deadlines accurately according to viewing timezone', async () => {
+      const { compareTasksUpcoming, getTaskDeadlineSortKey } = await import('./tasks.js');
+
+      // Date-only deadline on 2026-10-16
+      const dateOnlyTask = {
+        id: 'date-only',
+        priority: 'normal' as const,
+        deadline: { type: 'date' as const, date: '2026-10-16' },
+        createdAt: '2026-10-16T00:00:00.000Z',
+      };
+
+      // Timed task on 2026-10-16 at 20:00:00+06:00 (14:00 UTC)
+      const timedEarlierDhaka = {
+        id: 'timed-earlier',
+        priority: 'normal' as const,
+        deadline: {
+          type: 'timed' as const,
+          timestamp: '2026-10-16T14:00:00.000Z',
+          timezone: 'Asia/Dhaka',
+        },
+        createdAt: '2026-10-16T00:00:00.000Z',
+      };
+
+      // In Asia/Dhaka (+06:00), end of day 2026-10-16 is 23:59:59.999 Dhaka time = 17:59:59.999Z.
+      // Therefore, 14:00Z (8:00 PM Dhaka) is BEFORE 17:59:59.999Z (11:59 PM Dhaka).
+      const dhakaKeyDateOnly = getTaskDeadlineSortKey(dateOnlyTask.deadline, 'Asia/Dhaka');
+      expect(dhakaKeyDateOnly).toBe('2026-10-16T17:59:59.999Z');
+
+      const dhakaComp = compareTasksUpcoming(timedEarlierDhaka, dateOnlyTask, 'Asia/Dhaka');
+      expect(dhakaComp).toBeLessThan(0); // timedEarlier sorts BEFORE dateOnly
+
+      // In America/New_York (-04:00 EDT), end of day 2026-10-16 is 23:59:59.999 NY time = 2026-10-17T03:59:59.999Z.
+      const nyKeyDateOnly = getTaskDeadlineSortKey(dateOnlyTask.deadline, 'America/New_York');
+      expect(nyKeyDateOnly).toBe('2026-10-17T03:59:59.999Z');
+    });
+
+    it('formats deadline explanations with explicit text and dates, not color alone', async () => {
+      const { formatTaskDeadlineExplanation } = await import('./tasks.js');
+
+      const refDate = new Date('2026-10-16T12:00:00.000Z');
+
+      // 1. None
+      const expNone = formatTaskDeadlineExplanation({ type: 'none' }, 'UTC', refDate);
+      expect(expNone.isOverdue).toBe(false);
+      expect(expNone.label).toBe('No deadline');
+
+      // 2. Overdue by 2 days (Oct 14)
+      const expOverdue = formatTaskDeadlineExplanation(
+        { type: 'date', date: '2026-10-14' },
+        'UTC',
+        refDate
+      );
+      expect(expOverdue.isOverdue).toBe(true);
+      expect(expOverdue.overdueText).toBe('Overdue by 2 days (Due 2026-10-14)');
+
+      // 3. Due today
+      const expToday = formatTaskDeadlineExplanation(
+        { type: 'date', date: '2026-10-16' },
+        'UTC',
+        refDate
+      );
+      expect(expToday.isOverdue).toBe(false);
+      expect(expToday.label).toContain('Today');
+
+      // 4. Due tomorrow
+      const expTomorrow = formatTaskDeadlineExplanation(
+        { type: 'date', date: '2026-10-17' },
+        'UTC',
+        refDate
+      );
+      expect(expTomorrow.isOverdue).toBe(false);
+      expect(expTomorrow.label).toContain('Tomorrow');
+
+      // 5. Timed with timezone difference disclosure
+      const expTimed = formatTaskDeadlineExplanation(
+        {
+          type: 'timed',
+          timestamp: '2026-10-16T16:00:00.000Z',
+          timezone: 'America/New_York',
+        },
+        'Asia/Dhaka',
+        refDate
+      );
+      expect(expTimed.timezoneNote).toBe('Scheduled in America/New_York (viewing in Asia/Dhaka)');
+    });
+
+    it('detects nonexistent and ambiguous local times during daylight saving transitions', async () => {
+      const { checkLocalTimeDisambiguation } = await import('./tasks.js');
+
+      // In America/New_York, 2026-03-08 at 02:30 is nonexistent (spring forward 02:00 -> 03:00)
+      const springForward = checkLocalTimeDisambiguation('2026-03-08', '02:30', 'America/New_York');
+      expect(springForward.type).toBe('nonexistent');
+      if (springForward.type === 'nonexistent') {
+        expect(springForward.explanation).toContain('does not exist');
+      }
+
+      // In America/New_York, 2026-11-01 at 01:30 is ambiguous (fall back 02:00 -> 01:00)
+      const fallBack = checkLocalTimeDisambiguation('2026-11-01', '01:30', 'America/New_York');
+      expect(fallBack.type).toBe('ambiguous');
+      if (fallBack.type === 'ambiguous') {
+        expect(fallBack.explanation).toContain('occurs twice');
+      }
+
+      // Normal time (e.g. 10:00 AM on 2026-10-16 in UTC or Asia/Dhaka)
+      const normalTime = checkLocalTimeDisambiguation('2026-10-16', '10:00', 'Asia/Dhaka');
+      expect(normalTime.type).toBe('exact');
+    });
+
+    it('accurately resolves times in UTC+14, negative offsets, and half/quarter-hour zones', async () => {
+      const { checkLocalTimeDisambiguation, addCalendarDays, getCalendarDateTimeParts } =
+        await import('./tasks.js');
+
+      // 1. Gregorian calendar day arithmetic
+      expect(addCalendarDays('2026-02-28', 1)).toBe('2026-03-01'); // non-leap year
+      expect(addCalendarDays('2024-02-28', 1)).toBe('2024-02-29'); // leap year
+      expect(addCalendarDays('2024-02-29', 1)).toBe('2024-03-01');
+      expect(addCalendarDays('2026-01-01', -1)).toBe('2025-12-31');
+
+      // 2. Synchronized date and time derivation from instant
+      const testInstant = new Date('2026-10-16T18:30:00.000Z');
+      const partsTokyo = getCalendarDateTimeParts(testInstant, 'Asia/Tokyo'); // UTC+9 -> Oct 17, 03:30
+      expect(partsTokyo.date).toBe('2026-10-17');
+      expect(partsTokyo.time).toBe('03:30');
+
+      const partsNY = getCalendarDateTimeParts(testInstant, 'America/New_York'); // UTC-4 (EDT) -> Oct 16, 14:30
+      expect(partsNY.date).toBe('2026-10-16');
+      expect(partsNY.time).toBe('14:30');
+
+      // 3. UTC+14 (Pacific/Kiritimati)
+      // 08:30 in Kiritimati on 2026-10-16 corresponds to 2026-10-15 18:30:00.000Z
+      const kiritimati = checkLocalTimeDisambiguation('2026-10-16', '08:30', 'Pacific/Kiritimati');
+      expect(kiritimati.type).toBe('exact');
+      if (kiritimati.type === 'exact') {
+        expect(kiritimati.utcTimestamp).toBe('2026-10-15T18:30:00.000Z');
+      }
+
+      // Midnight in Kiritimati
+      const kiritimatiMidnight = checkLocalTimeDisambiguation(
+        '2026-10-16',
+        '00:00',
+        'Pacific/Kiritimati'
+      );
+      expect(kiritimatiMidnight.type).toBe('exact');
+      if (kiritimatiMidnight.type === 'exact') {
+        expect(kiritimatiMidnight.utcTimestamp).toBe('2026-10-15T10:00:00.000Z');
+      }
+
+      // 4. Negative offset (Pacific/Pago_Pago, UTC-11)
+      // 23:30 in Pago Pago on 2026-10-16 corresponds to 2026-10-17 10:30:00.000Z
+      const pagoPago = checkLocalTimeDisambiguation('2026-10-16', '23:30', 'Pacific/Pago_Pago');
+      expect(pagoPago.type).toBe('exact');
+      if (pagoPago.type === 'exact') {
+        expect(pagoPago.utcTimestamp).toBe('2026-10-17T10:30:00.000Z');
+      }
+
+      // 5. Half-hour and quarter-hour zones (Asia/Kathmandu UTC+5:45, Asia/Kolkata UTC+5:30)
+      const kathmandu = checkLocalTimeDisambiguation('2026-10-16', '12:00', 'Asia/Kathmandu');
+      expect(kathmandu.type).toBe('exact');
+      if (kathmandu.type === 'exact') {
+        expect(kathmandu.utcTimestamp).toBe('2026-10-16T06:15:00.000Z');
+      }
+
+      const kolkata = checkLocalTimeDisambiguation('2026-10-16', '12:00', 'Asia/Kolkata');
+      expect(kolkata.type).toBe('exact');
+      if (kolkata.type === 'exact') {
+        expect(kolkata.utcTimestamp).toBe('2026-10-16T06:30:00.000Z');
+      }
+
+      // 6. Validation of invalid clock values
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', '24:00', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', '12:60', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', '-1:30', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+      expect(() => checkLocalTimeDisambiguation('2026-10-16', 'invalid', 'UTC')).toThrow(
+        'INVALID_TIME_STRING'
+      );
+    });
+  });
+
+  describe('Phase 20: Daily Routine Schedules and Occurrences', () => {
+    it('validates routine titles with Unicode and Bangla script preservation', () => {
+      expect(validateRoutineTitle('  Morning Exercise  ')).toBe('Morning Exercise');
+      expect(validateRoutineTitle('  সকালের হাঁটা (Morning Walk) 🏃  ')).toBe(
+        'সকালের হাঁটা (Morning Walk) 🏃'
+      );
+      expect(() => validateRoutineTitle('')).toThrow(RangeError);
+      expect(() => validateRoutineTitle('   ')).toThrow(RangeError);
+      expect(() => validateRoutineTitle('a'.repeat(256))).toThrow(RangeError);
+    });
+
+    it('calculates ISO weekdays accurately across leap years and months', () => {
+      // 2024-02-29 was a Thursday (4)
+      expect(getIsoWeekday('2024-02-29')).toBe(4);
+      // 2026-10-12 was a Monday (1)
+      expect(getIsoWeekday('2026-10-12')).toBe(1);
+      // 2026-10-18 was a Sunday (7)
+      expect(getIsoWeekday('2026-10-18')).toBe(7);
+      // 2026-10-17 was a Saturday (6)
+      expect(getIsoWeekday('2026-10-17')).toBe(6);
+      // 2026-10-16 is a Friday (5)
+      expect(getIsoWeekday('2026-10-16')).toBe(5);
+    });
+
+    it('validates selected weekdays array', () => {
+      expect(validateWeekdays([5, 1, 3, 1])).toEqual([1, 3, 5]);
+      expect(() => validateWeekdays([0])).toThrow(RangeError);
+      expect(() => validateWeekdays([8])).toThrow(RangeError);
+    });
+
+    it('evaluates whether a routine is scheduled on a given calendar date', () => {
+      const dailyRoutine: RoutineTemplateRule = {
+        id: 'r-1',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Daily Meditation',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'Asia/Dhaka',
+        scheduledTime: '07:00',
+        activeFrom: '2026-10-01',
+        activeTo: '2026-10-31',
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-01',
+      };
+
+      // In window
+      expect(isRoutineScheduledOnDate(dailyRoutine, '2026-10-15')).toBe(true);
+      // Before activeFrom
+      expect(isRoutineScheduledOnDate(dailyRoutine, '2026-09-30')).toBe(false);
+      // After activeTo
+      expect(isRoutineScheduledOnDate(dailyRoutine, '2026-11-01')).toBe(false);
+
+      // Paused
+      expect(isRoutineScheduledOnDate({ ...dailyRoutine, isPaused: true }, '2026-10-15')).toBe(
+        false
+      );
+      // Archived
+      expect(isRoutineScheduledOnDate({ ...dailyRoutine, isArchived: true }, '2026-10-15')).toBe(
+        false
+      );
+
+      // Weekday routine: Monday (1), Wednesday (3), Friday (5)
+      const mwfRoutine: RoutineTemplateRule = {
+        ...dailyRoutine,
+        frequency: 'weekdays',
+        weekdays: [1, 3, 5],
+      };
+      // 2026-10-16 is Friday (5) -> true
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-16')).toBe(true);
+      // 2026-10-17 is Saturday (6) -> false
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-17')).toBe(false);
+      // 2026-10-18 is Sunday (7) -> false
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-18')).toBe(false);
+      // 2026-10-19 is Monday (1) -> true
+      expect(isRoutineScheduledOnDate(mwfRoutine, '2026-10-19')).toBe(true);
+    });
+
+    it('generates date-scoped occurrences idempotently without duplicates', () => {
+      const mwfRoutine: RoutineTemplateRule = {
+        id: 'r-mwf',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Gym Workout',
+        details: 'Strength training',
+        frequency: 'weekdays',
+        weekdays: [1, 3, 5],
+        timezone: 'Asia/Dhaka',
+        scheduledTime: '06:30',
+        activeFrom: '2026-10-12',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-12',
+      };
+
+      // Generate for one week: Mon 2026-10-12 to Sun 2026-10-18
+      const firstGen = generateOccurrencesForDateRange(mwfRoutine, '2026-10-12', '2026-10-18', []);
+      expect(firstGen).toHaveLength(3);
+      expect(firstGen.map((o) => o.scheduledDate)).toEqual([
+        '2026-10-12',
+        '2026-10-14',
+        '2026-10-16',
+      ]);
+      expect(firstGen[0]!.status).toBe('pending');
+      expect(firstGen[0]!.plannedInstant).toBe('2026-10-12T00:30:00.000Z'); // 06:30 Asia/Dhaka (UTC+6)
+
+      // Repeated generation with existing occurrences returns empty array (idempotency!)
+      const secondGen = generateOccurrencesForDateRange(
+        mwfRoutine,
+        '2026-10-12',
+        '2026-10-18',
+        firstGen
+      );
+      expect(secondGen).toHaveLength(0);
+
+      // Expanding range to next week generates only new dates
+      const expandedGen = generateOccurrencesForDateRange(
+        mwfRoutine,
+        '2026-10-12',
+        '2026-10-25',
+        firstGen
+      );
+      expect(expandedGen).toHaveLength(3);
+      expect(expandedGen.map((o) => o.scheduledDate)).toEqual([
+        '2026-10-19',
+        '2026-10-21',
+        '2026-10-23',
+      ]);
+    });
+
+    it('enforces that completing today never completes tomorrow', () => {
+      const routine: RoutineTemplateRule = {
+        id: 'r-today-tomorrow',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Drink 2L Water',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'UTC',
+        scheduledTime: null,
+        activeFrom: '2026-10-16',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-16',
+      };
+
+      const occurrences = generateOccurrencesForDateRange(routine, '2026-10-16', '2026-10-17', []);
+      expect(occurrences).toHaveLength(2);
+      const [todayOcc, tomorrowOcc] = occurrences;
+
+      // Complete today
+      const completedToday = completeOccurrence(todayOcc!, 'usr-1', '2026-10-16T12:00:00.000Z');
+      expect(completedToday.status).toBe('done');
+      expect(completedToday.completedAt).toBe('2026-10-16T12:00:00.000Z');
+      expect(completedToday.history).toHaveLength(1);
+
+      // Tomorrow remains strictly pending and untouched!
+      expect(tomorrowOcc!.status).toBe('pending');
+      expect(tomorrowOcc!.completedAt).toBeNull();
+      expect(tomorrowOcc!.history).toHaveLength(0);
+
+      // Skip tomorrow
+      const skippedTomorrow = skipOccurrence(tomorrowOcc!, 'usr-1', '2026-10-17T09:00:00.000Z');
+      expect(skippedTomorrow.status).toBe('skipped');
+      expect(skippedTomorrow.completedAt).toBeNull();
+      expect(skippedTomorrow.history).toHaveLength(1);
+
+      // Reopening today resets status to pending without touching tomorrow
+      const reopenedToday = reopenOccurrence(completedToday, 'usr-1', '2026-10-16T14:00:00.000Z');
+      expect(reopenedToday.status).toBe('pending');
+      expect(reopenedToday.completedAt).toBeNull();
+      expect(reopenedToday.history).toHaveLength(2);
+      expect(reopenedToday.history[1]!.previousStatus).toBe('done');
+    });
+
+    it('reconciles schedule edits while strictly preserving completed history', () => {
+      const routine: RoutineTemplateRule = {
+        id: 'r-edit',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Daily Reading',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'America/New_York',
+        scheduledTime: '21:00',
+        activeFrom: '2026-10-10',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-10',
+      };
+
+      const occurrences = generateOccurrencesForDateRange(routine, '2026-10-10', '2026-10-18', []);
+      // Mark Oct 10 done, Oct 11 skipped
+      occurrences[0] = completeOccurrence(occurrences[0]!, 'usr-1', '2026-10-10T22:00:00.000Z');
+      occurrences[1] = skipOccurrence(occurrences[1]!, 'usr-1', '2026-10-11T22:00:00.000Z');
+      // Oct 12..18 remain pending
+
+      // On Oct 14, user edits schedule: change from Daily to Weekdays Mon, Wed, Fri only, revision 2
+      const updatedRule: RoutineTemplateRule = {
+        ...routine,
+        frequency: 'weekdays',
+        weekdays: [1, 3, 5],
+        scheduleRevision: 2,
+        effectiveDate: '2026-10-14',
+      };
+
+      const { retained, cancelledOccurrenceIds } = reconcileOccurrencesOnScheduleChange(
+        occurrences,
+        updatedRule,
+        '2026-10-14'
+      );
+
+      // Oct 10 (done) and Oct 11 (skipped) are historical: preserved!
+      const oct10 = retained.find((o) => o.scheduledDate === '2026-10-10');
+      expect(oct10?.status).toBe('done');
+      expect(oct10?.scheduleRevision).toBe(1);
+
+      const oct11 = retained.find((o) => o.scheduledDate === '2026-10-11');
+      expect(oct11?.status).toBe('skipped');
+      expect(oct11?.scheduleRevision).toBe(1);
+
+      // Oct 12 and Oct 13 are prior to effectiveDate Oct 14: preserved with revision 1!
+      const oct12 = retained.find((o) => o.scheduledDate === '2026-10-12');
+      expect(oct12?.scheduleRevision).toBe(1);
+
+      // Oct 15 (Thursday = 4) and Oct 17 (Saturday = 6) are no longer scheduled: cancelled!
+      expect(cancelledOccurrenceIds).toContain(
+        occurrences.find((o) => o.scheduledDate === '2026-10-15')?.id
+      );
+      expect(cancelledOccurrenceIds).toContain(
+        occurrences.find((o) => o.scheduledDate === '2026-10-17')?.id
+      );
+
+      // Oct 14 (Wednesday = 3) and Oct 16 (Friday = 5) are still scheduled: updated to revision 2!
+      const oct14 = retained.find((o) => o.scheduledDate === '2026-10-14');
+      expect(oct14?.scheduleRevision).toBe(2);
+      const oct16 = retained.find((o) => o.scheduledDate === '2026-10-16');
+      expect(oct16?.scheduleRevision).toBe(2);
+    });
+
+    it('pins the scheduling timezone and is not altered by user travel', () => {
+      // User creates routine in Dhaka (UTC+6) scheduled at 08:00
+      const routine: RoutineTemplateRule = {
+        id: 'r-dhaka',
+        workspaceId: 'ws-1',
+        folderId: null,
+        title: 'Morning Standup Routine',
+        details: null,
+        frequency: 'daily',
+        weekdays: [],
+        timezone: 'Asia/Dhaka',
+        scheduledTime: '08:00',
+        activeFrom: '2026-10-16',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-16',
+      };
+
+      const occurrences = generateOccurrencesForDateRange(routine, '2026-10-16', '2026-10-16', []);
+      expect(occurrences).toHaveLength(1);
+      // 08:00 Asia/Dhaka is always 02:00:00.000Z
+      expect(occurrences[0]!.plannedInstant).toBe('2026-10-16T02:00:00.000Z');
+      expect(occurrences[0]!.timezone).toBe('Asia/Dhaka');
+    });
+
+    it('explains why a routine is or is not due on a specific calendar date', () => {
+      const dailyRoutine: RoutineTemplateRule = {
+        id: '123e4567-e89b-12d3-a456-426614174001',
+        workspaceId: '123e4567-e89b-12d3-a456-426614174000',
+        folderId: null,
+        title: 'Morning Yoga',
+        details: null,
+        frequency: 'daily',
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        timezone: 'UTC',
+        scheduledTime: '07:00',
+        activeFrom: '2026-10-01',
+        activeTo: null,
+        isPaused: false,
+        isArchived: false,
+        scheduleRevision: 1,
+        effectiveDate: '2026-10-01',
+      };
+
+      const explanation = explainWhyDueToday(dailyRoutine, '2026-10-16');
+      expect(explanation.isDue).toBe(true);
+      expect(explanation.reason).toContain('Due today');
+      expect(explanation.cadenceDescription).toBe('Repeats every day at 07:00');
+
+      const pausedExplanation = explainWhyDueToday(
+        { ...dailyRoutine, isPaused: true },
+        '2026-10-16'
+      );
+      expect(pausedExplanation.isDue).toBe(false);
+      expect(pausedExplanation.reason).toContain('Paused');
+    });
+
+    it('calculates gentle, non-punitive progress with encouraging messages and no streak pressure', () => {
+      // 0 completed, 3 total
+      const p1 = calculateGentleProgress([
+        { status: 'pending' },
+        { status: 'pending' },
+        { status: 'pending' },
+      ]);
+      expect(p1.totalScheduled).toBe(3);
+      expect(p1.completedCount).toBe(0);
+      expect(p1.completionRate).toBe(0);
+      expect(p1.message).toBe('3 routines ready for today.');
+
+      // 2 completed, 1 skipped, 3 total
+      const p2 = calculateGentleProgress([
+        { status: 'done' },
+        { status: 'done' },
+        { status: 'skipped' },
+      ]);
+      expect(p2.completedCount).toBe(2);
+      expect(p2.skippedCount).toBe(1);
+      expect(p2.message).toBe('2 completed, 1 skipped today.');
+
+      // All completed
+      const p3 = calculateGentleProgress([{ status: 'done' }, { status: 'done' }]);
+      expect(p3.isAllCompleted).toBe(true);
+      expect(p3.completionRate).toBe(100);
+      expect(p3.message).toContain('All routines completed');
+    });
+
+    it('explains schedule change impact cleanly distinguishing immediate vs future effective dates', () => {
+      const immediate = explainScheduleChangeImpact('2026-10-16', '2026-10-16');
+      expect(immediate).toContain('take effect immediately');
+      expect(immediate).toContain('Past completed and skipped records remain intact');
+
+      const future = explainScheduleChangeImpact('2026-10-20', '2026-10-16');
+      expect(future).toContain('take effect on 2026-10-20');
+      expect(future).toContain('Past completed and skipped history is preserved');
+    });
+  });
+
+  describe('Journal Domain & Reflection Defaults', () => {
+    it('validates calendar date format YYYY-MM-DD and rejects malformed strings', async () => {
+      const { validateJournalEntryDate } = await import('./journal.js');
+
+      expect(validateJournalEntryDate('2026-10-16')).toBe('2026-10-16');
+      expect(validateJournalEntryDate('2025-01-01')).toBe('2025-01-01');
+
+      expect(() => validateJournalEntryDate('16-10-2026')).toThrow(RangeError);
+      expect(() => validateJournalEntryDate('2026/10/16')).toThrow(RangeError);
+      expect(() => validateJournalEntryDate('not-a-date')).toThrow(RangeError);
+    });
+
+    it('validates IANA timezones strictly', async () => {
+      const { validateJournalTimezone } = await import('./journal.js');
+
+      expect(validateJournalTimezone('America/New_York')).toBe('America/New_York');
+      expect(validateJournalTimezone('Asia/Dhaka')).toBe('Asia/Dhaka');
+      expect(validateJournalTimezone('UTC')).toBe('UTC');
+
+      expect(() => validateJournalTimezone('Fake/Zone')).toThrow(RangeError);
+      expect(() => validateJournalTimezone('')).toThrow(RangeError);
+    });
+
+    it('preserves Unicode and non-Latin scripts (Bangla) in journal title and body', async () => {
+      const { validateJournalTitle, resolveJournalTitle } = await import('./journal.js');
+
+      const banglaTitle = 'আজকের বিশেষ অভিজ্ঞতা ও পর্যালোচনা';
+      expect(validateJournalTitle(banglaTitle)).toBe(banglaTitle);
+
+      // Title derived from first non-empty line of content
+      const derived = resolveJournalTitle(
+        null,
+        '2026-10-16',
+        '  ভোরের আলো ফুটতেই কাজ শুরু করলাম...\nপরবর্তী লাইন  '
+      );
+      expect(derived).toBe('ভোরের আলো ফুটতেই কাজ শুরু করলাম...');
+
+      // Fallback when both title and content are missing
+      const fallback = resolveJournalTitle(null, '2026-10-16', '');
+      expect(fallback).toBe('Journal entry - 2026-10-16');
+    });
+
+    it('supports optional non-clinical mood without forced scoring', async () => {
+      const { validateJournalMood } = await import('./journal.js');
+
+      expect(validateJournalMood(null)).toBeNull();
+      expect(validateJournalMood(undefined)).toBeNull();
+      expect(validateJournalMood('thoughtful & energized')).toBe('thoughtful & energized');
+      expect(validateJournalMood('calm')).toBe('calm');
+      expect(validateJournalMood('peaceful')).toBe('peaceful');
+
+      expect(() => validateJournalMood('a'.repeat(60))).toThrow(RangeError);
+    });
+
+    it('provides structured non-clinical reflection templates with dismissal and blank defaults', async () => {
+      const { getReflectionTemplates, getReflectionTemplateById, instantiateReflectionTemplate } =
+        await import('./journal.js');
+
+      const templates = getReflectionTemplates();
+      expect(templates.length).toBeGreaterThanOrEqual(4);
+
+      const blank = getReflectionTemplateById('blank');
+      expect(blank).toBeDefined();
+      expect(blank?.prompts).toEqual([]);
+
+      const daily = getReflectionTemplateById('daily_reflection');
+      expect(daily).toBeDefined();
+      expect(daily?.prompts.length).toBeGreaterThan(0);
+
+      const instantiated = instantiateReflectionTemplate('daily_reflection');
+      expect(instantiated.length).toBe(daily!.prompts.length);
+      expect(instantiated[0]!.prompt).toBe(daily!.prompts[0]);
+      expect(instantiated[0]!.response).toBe('');
+    });
+
+    it('correctly evaluates intentional backdating relative to creation instant', async () => {
+      const { isEntryBackdated } = await import('./journal.js');
+
+      // Creation instant: 2026-10-16T12:00:00Z in America/New_York (calendar date 2026-10-16)
+      const creationInstant = '2026-10-16T12:00:00.000Z';
+      const timezone = 'America/New_York';
+
+      // Past entry date: backdated
+      expect(isEntryBackdated('2026-10-10', creationInstant, timezone)).toBe(true);
+      // Same day entry date: not backdated
+      expect(isEntryBackdated('2026-10-16', creationInstant, timezone)).toBe(false);
+      // Future entry date: not backdated
+      expect(isEntryBackdated('2026-10-20', creationInstant, timezone)).toBe(false);
+    });
+
+    it('redacts sensitive preview content and body snippets by default', async () => {
+      const { redactJournalPreview } = await import('./journal.js');
+
+      const entry = {
+        id: 'j-1',
+        title: 'Deep Private Reflection',
+        plainText: 'This is my deeply confidential thought that should never leak.',
+        prompts: [{ prompt: 'What happened?', response: 'Very personal answer.' }],
+        mood: 'pensive',
+      };
+
+      // Default privacy: suppressBodySnippets is true
+      const redacted = redactJournalPreview(entry);
+      expect(redacted.plainText).toBe('[Private journal entry]');
+      expect(redacted.prompts?.[0]?.response).toBe('[Redacted response]');
+      expect(redacted.title).toBe('Deep Private Reflection');
+
+      // When suppressBodySnippets is explicitly false
+      const unredacted = redactJournalPreview(entry, { suppressBodySnippets: false });
+      expect(unredacted.plainText).toBe(
+        'This is my deeply confidential thought that should never leak.'
+      );
+      expect(unredacted.prompts?.[0]?.response).toBe('Very personal answer.');
+    });
+  });
+
+  describe('Phase 25: Files and Previews Domain Logic', () => {
+    it('determines correct preview kind for supported MIME types', async () => {
+      const { getFilePreviewKind } = await import('./files.js');
+
+      expect(getFilePreviewKind('image/jpeg')).toBe('image');
+      expect(getFilePreviewKind('image/png')).toBe('image');
+      expect(getFilePreviewKind('image/webp')).toBe('image');
+      expect(getFilePreviewKind('image/gif')).toBe('image');
+      expect(getFilePreviewKind('application/pdf')).toBe('pdf');
+      expect(
+        getFilePreviewKind(
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+      ).toBe('office');
+      expect(getFilePreviewKind('application/msword')).toBe('office');
+      expect(
+        getFilePreviewKind('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      ).toBe('office');
+      expect(getFilePreviewKind('text/plain')).toBe('text');
+      expect(getFilePreviewKind('text/markdown')).toBe('text');
+      expect(getFilePreviewKind('audio/mpeg')).toBe('audio');
+      expect(getFilePreviewKind('application/octet-stream')).toBe('unsupported');
+      expect(getFilePreviewKind('application/x-msdownload')).toBe('unsupported');
+    });
+
+    it('enforces that only verified files can be safely previewed', async () => {
+      const { isSafeToPreview } = await import('./files.js');
+
+      // Only 'verified' status allows safe preview
+      expect(isSafeToPreview('verified', 'image/png')).toBe(true);
+      expect(isSafeToPreview('verified', 'application/pdf')).toBe(true);
+      expect(isSafeToPreview('verified', 'application/msword')).toBe(true);
+
+      // Quarantined, rejected, or deleted files MUST NOT be rendered
+      expect(isSafeToPreview('quarantined', 'image/png')).toBe(false);
+      expect(isSafeToPreview('rejected', 'image/png')).toBe(false);
+      expect(isSafeToPreview('deleted', 'image/png')).toBe(false);
+
+      // Missing MIME or unsupported MIME
+      expect(isSafeToPreview('verified', undefined)).toBe(false);
+      expect(isSafeToPreview('verified', 'application/octet-stream')).toBe(false);
+    });
+
+    it('formats byte sizes cleanly', async () => {
+      const { formatByteSize } = await import('./files.js');
+
+      expect(formatByteSize(0)).toBe('0 B');
+      expect(formatByteSize(512)).toBe('512 B');
+      expect(formatByteSize(1024)).toBe('1 KB');
+      expect(formatByteSize(1536)).toBe('1.5 KB');
+      expect(formatByteSize(1024 * 1024)).toBe('1 MB');
+      expect(formatByteSize(2.5 * 1024 * 1024)).toBe('2.5 MB');
+      expect(formatByteSize(1024 * 1024 * 1024)).toBe('1 GB');
+    });
+
+    it('computes storage quota usage accurately', async () => {
+      const { computeStorageUsage } = await import('./files.js');
+
+      const usage = computeStorageUsage(20 * 1024 * 1024, 10 * 1024 * 1024, 100 * 1024 * 1024);
+      expect(usage.percentUsed).toBe(30);
+      expect(usage.isNearLimit).toBe(false);
+      expect(usage.isExceeded).toBe(false);
+      expect(usage.formattedStored).toBe('20 MB');
+      expect(usage.formattedReserved).toBe('10 MB');
+      expect(usage.formattedTotal).toBe('30 MB');
+      expect(usage.formattedMax).toBe('100 MB');
+
+      // Near limit (>= 80%)
+      const near = computeStorageUsage(75 * 1024 * 1024, 10 * 1024 * 1024, 100 * 1024 * 1024);
+      expect(near.percentUsed).toBe(85);
+      expect(near.isNearLimit).toBe(true);
+      expect(near.isExceeded).toBe(false);
+
+      // Exceeded (>= 100%)
+      const exceeded = computeStorageUsage(95 * 1024 * 1024, 10 * 1024 * 1024, 100 * 1024 * 1024);
+      expect(exceeded.percentUsed).toBe(100);
+      expect(exceeded.isNearLimit).toBe(true);
+      expect(exceeded.isExceeded).toBe(true);
+    });
+
+    it('creates and parses namespaced offline binary cache keys', async () => {
+      const { getOfflineBinaryCacheKey, parseOfflineBinaryCacheKey } = await import('./files.js');
+
+      const key = getOfflineBinaryCacheKey('acc-1', 'ws-1', 'file-42', 2);
+      expect(key).toBe('acc-1:ws-1:file-42:v2');
+
+      const parsed = parseOfflineBinaryCacheKey(key);
+      expect(parsed).toEqual({
+        accountId: 'acc-1',
+        workspaceId: 'ws-1',
+        fileId: 'file-42',
+        version: 2,
+      });
+
+      expect(parseOfflineBinaryCacheKey('invalid-key')).toBeNull();
+      expect(parseOfflineBinaryCacheKey('acc:ws:file:notnumber')).toBeNull();
+    });
+  });
+
+  describe('Calendar Domain & Deadline Projections (Phase 26)', () => {
+    it('validates calendar event title (Unicode, Bangla, whitespace rejection, length limit)', async () => {
+      const { validateCalendarEventTitle } = await import('./calendar.js');
+
+      expect(validateCalendarEventTitle('Architecture Sync')).toBe('Architecture Sync');
+      expect(validateCalendarEventTitle('  দাপ্তরিক পর্যালোচনা  ')).toBe('দাপ্তরিক পর্যালোচনা');
+      expect(() => validateCalendarEventTitle('')).toThrowError(/EVENT_TITLE_REQUIRED/);
+      expect(() => validateCalendarEventTitle('   ')).toThrowError(/EVENT_TITLE_REQUIRED/);
+      expect(() => validateCalendarEventTitle('a'.repeat(256))).toThrowError(
+        /EVENT_TITLE_TOO_LONG/
+      );
+    });
+
+    it('enforces all-day event interval invariants with exclusive endDate strictly after startDate', async () => {
+      const { validateCalendarEventInterval, getDaysCoveredByAllDayEvent } =
+        await import('./calendar.js');
+
+      // Valid 1-day all-day event: starts 2026-10-15, exclusive end 2026-10-16
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'All Day Workshop',
+          allDay: true,
+          startDate: '2026-10-15',
+          endDate: '2026-10-16',
+          timezone: 'Asia/Dhaka',
+        })
+      ).not.toThrow();
+
+      const days1 = getDaysCoveredByAllDayEvent('2026-10-15', '2026-10-16');
+      expect(days1).toEqual(['2026-10-15']);
+
+      // Valid 3-day all-day event: starts 2026-10-15, exclusive end 2026-10-18
+      const days3 = getDaysCoveredByAllDayEvent('2026-10-15', '2026-10-18');
+      expect(days3).toEqual(['2026-10-15', '2026-10-16', '2026-10-17']);
+
+      // Reject non-exclusive or backwards end date
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid Event',
+          allDay: true,
+          startDate: '2026-10-15',
+          endDate: '2026-10-15',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid Backwards',
+          allDay: true,
+          startDate: '2026-10-15',
+          endDate: '2026-10-14',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      // Reject invalid calendar date format
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid Date',
+          allDay: true,
+          startDate: '2026-02-29', // 2026 not leap
+          endDate: '2026-03-01',
+        })
+      ).toThrowError(/INVALID_START_DATE/);
+    });
+
+    it('enforces timed event interval invariants with endAt strictly after startAt', async () => {
+      const { validateCalendarEventInterval } = await import('./calendar.js');
+
+      // Valid timed event
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Sprint Planning',
+          allDay: false,
+          startAt: '2026-10-15T09:00:00Z',
+          endAt: '2026-10-15T10:00:00Z',
+          timezone: 'America/New_York',
+        })
+      ).not.toThrow();
+
+      // Reject identical or backwards times
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Zero Duration',
+          allDay: false,
+          startAt: '2026-10-15T10:00:00Z',
+          endAt: '2026-10-15T10:00:00Z',
+          timezone: 'UTC',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Backwards Time',
+          allDay: false,
+          startAt: '2026-10-15T10:00:00Z',
+          endAt: '2026-10-15T09:00:00Z',
+          timezone: 'UTC',
+        })
+      ).toThrowError(/INVALID_INTERVAL/);
+
+      // Reject invalid timezone
+      expect(() =>
+        validateCalendarEventInterval({
+          title: 'Invalid TZ',
+          allDay: false,
+          startAt: '2026-10-15T09:00:00Z',
+          endAt: '2026-10-15T10:00:00Z',
+          timezone: 'Invalid/City_Time',
+        })
+      ).toThrowError(/INVALID_TIMEZONE/);
+    });
+
+    it('builds calendar read model combining tasks, routines, and events without duplicating task tables', async () => {
+      const { buildCalendarReadModel } = await import('./calendar.js');
+
+      const readModel = buildCalendarReadModel({
+        startDate: '2026-10-14',
+        endDate: '2026-10-16',
+        timezone: 'UTC',
+        tasks: [
+          {
+            id: 'task-1',
+            workspaceId: 'ws-1',
+            folderId: null,
+            title: 'Prepare budget proposal',
+            priority: 'high',
+            status: 'todo',
+            deadline: { type: 'date', date: '2026-10-15' },
+          },
+        ],
+        routines: [{ id: 'rt-1', title: 'Morning Review', timezone: 'UTC' }],
+        routineOccurrences: [
+          {
+            id: 'occ-1',
+            routineId: 'rt-1',
+            workspaceId: 'ws-1',
+            scheduledDate: '2026-10-15',
+            plannedInstant: '2026-10-15T08:00:00Z',
+            timezone: 'UTC',
+            status: 'pending',
+          },
+        ],
+        events: [
+          {
+            id: 'evt-1',
+            workspaceId: 'ws-1',
+            folderId: null,
+            title: 'Customer Advisory Board',
+            details: 'Q4 roadmap preview',
+            allDay: true,
+            startDate: '2026-10-15',
+            endDate: '2026-10-16',
+            startAt: null,
+            endAt: null,
+            timezone: 'UTC',
+            isArchived: false,
+            securityScope: 'standard',
+            revision: 1,
+            createdAt: '2026-10-01T00:00:00Z',
+            updatedAt: '2026-10-01T00:00:00Z',
+            deletedAt: null,
+          },
+        ],
+        journalDates: [{ date: '2026-10-15', count: 2 }],
+      });
+
+      expect(readModel.items).toHaveLength(3);
+
+      const taskItem = readModel.items.find((i) => i.sourceType === 'task_deadline');
+      expect(taskItem).toBeDefined();
+      expect(taskItem?.title).toBe('Prepare budget proposal');
+      expect(taskItem?.id).toBe('task-task-1');
+
+      const routineItem = readModel.items.find((i) => i.sourceType === 'routine_occurrence');
+      expect(routineItem).toBeDefined();
+      expect(routineItem?.id).toBe('routine-occ-occ-1');
+
+      const eventItem = readModel.items.find((i) => i.sourceType === 'calendar_event');
+      expect(eventItem).toBeDefined();
+      expect(eventItem?.title).toBe('Customer Advisory Board');
+
+      // Journal indicator has count and date ONLY — no bodies or prompts
+      expect(readModel.journalIndicators['2026-10-15']).toEqual({
+        date: '2026-10-15',
+        hasEntry: true,
+        count: 2,
+      });
+      expect(
+        (readModel.journalIndicators['2026-10-15'] as unknown as Record<string, unknown>).body
+      ).toBeUndefined();
+      expect(
+        (readModel.journalIndicators['2026-10-15'] as unknown as Record<string, unknown>).prompts
+      ).toBeUndefined();
+    });
+
+    it('generates accessible month grid honoring Monday, Sunday, and Saturday week-start preferences', async () => {
+      const { buildMonthGrid } = await import('./calendar.js');
+
+      // October 2026 starts on Thursday (2026-10-01)
+      // 1. Monday week start (default ISO): Oct 1 is 4th day of the week, so 3 leading days from Sept
+      const gridMon = buildMonthGrid({
+        year: 2026,
+        month: 10,
+        weekStart: 1,
+        todayDate: '2026-10-15',
+        items: [],
+      });
+
+      expect(gridMon.length).toBeGreaterThanOrEqual(5);
+      // First cell of first week is Sept 28, 2026
+      expect(gridMon[0]?.cells[0]?.date).toBe('2026-09-28');
+      expect(gridMon[0]?.cells[0]?.isCurrentMonth).toBe(false);
+
+      // 2. Sunday week start: Oct 1 is 5th day of the week (Sun=1, Mon=2, Tue=3, Wed=4, Thu=5), so 4 leading days
+      const gridSun = buildMonthGrid({
+        year: 2026,
+        month: 10,
+        weekStart: 7,
+        todayDate: '2026-10-15',
+        items: [],
+      });
+      // First cell of first week is Sept 27, 2026 (Sunday)
+      expect(gridSun[0]?.cells[0]?.date).toBe('2026-09-27');
+      expect(gridSun[0]?.cells[0]?.isCurrentMonth).toBe(false);
+
+      // 3. Saturday week start: (Middle East regional)
+      const gridSat = buildMonthGrid({
+        year: 2026,
+        month: 10,
+        weekStart: 6,
+        todayDate: '2026-10-15',
+        items: [],
+      });
+      // First cell of first week is Sept 26, 2026 (Saturday)
+      expect(gridSat[0]?.cells[0]?.date).toBe('2026-09-26');
+    });
+  });
+
+  describe('Phase 30: Today Home and Personal Customization', () => {
+    it('returns a calm, small default HomeLayout with 5 visible primary cards and 2 optional hidden cards', async () => {
+      const { getDefaultHomeLayout, APPROVED_HOME_WIDGET_IDS } = await import('./home.js');
+      const layout = getDefaultHomeLayout();
+
+      expect(layout.version).toBe(1);
+      expect(layout.density).toBe('comfortable');
+      expect(layout.widgets.length).toBe(7);
+
+      const visibleWidgets = layout.widgets.filter((w) => w.visible);
+      expect(visibleWidgets.length).toBe(5);
+      expect(visibleWidgets.map((w) => w.id)).toEqual([
+        'tasks',
+        'routines',
+        'upcoming_summary',
+        'quick_capture',
+        'journal_prompt',
+      ]);
+
+      const hiddenWidgets = layout.widgets.filter((w) => !w.visible);
+      expect(hiddenWidgets.map((w) => w.id)).toEqual(['recent_items', 'favorite_folders']);
+
+      // All approved widgets are present
+      for (const id of APPROVED_HOME_WIDGET_IDS) {
+        expect(layout.widgets.some((w) => w.id === id)).toBe(true);
+      }
+    });
+
+    it('sanitizes and bounds custom display labels, preventing HTML and script injection', async () => {
+      const { validateCustomLabel } = await import('./home.js');
+
+      expect(validateCustomLabel('My Daily Focus')).toBe('My Daily Focus');
+      expect(validateCustomLabel('  Bangla কাজ এবং লক্ষ্য  ')).toBe('Bangla কাজ এবং লক্ষ্য');
+      expect(validateCustomLabel('<script>alert("pwn")</script>Focus')).toBe('Focus');
+      expect(validateCustomLabel('<img src="x" onerror="alert(1)">')).toBe(null);
+      expect(validateCustomLabel('')).toBe(null);
+      expect(validateCustomLabel('   ')).toBe(null);
+      expect(validateCustomLabel(null)).toBe(null);
+      expect(validateCustomLabel(123)).toBe(null);
+
+      // Bounded to 40 characters
+      const longLabel =
+        'This is a very long label that exceeds forty characters and should be truncated';
+      const validated = validateCustomLabel(longLabel);
+      expect(validated?.length).toBe(40);
+    });
+
+    it('safely migrates and sanitizes home layout, filtering out unapproved future modules and deduplicating', async () => {
+      const { sanitizeAndMigrateHomeLayout } = await import('./home.js');
+
+      // 1. Null / undefined fallback to defaults
+      expect(sanitizeAndMigrateHomeLayout(null).widgets.length).toBe(7);
+      expect(sanitizeAndMigrateHomeLayout(undefined).density).toBe('comfortable');
+
+      // 2. Unapproved / unreleased module IDs (expenses, vault, rooms, ai) are filtered out safely
+      const malformed = {
+        density: 'compact',
+        widgets: [
+          { id: 'vault_secret_card', visible: true, order: 0 },
+          { id: 'expenses_card', visible: true, order: 1 },
+          { id: 'routines', visible: true, order: 2, customLabel: '<b>Daily Habits</b>' },
+          { id: 'ai_copilot_card', visible: true, order: 3 },
+        ],
+        moduleShortcuts: [
+          { id: 'unreleased_ai', visible: true, order: 0 },
+          { id: 'notes', visible: true, order: 1 },
+          { id: 'files', visible: true, order: 2 },
+        ],
+        favoriteFolderIds: [
+          'd831dc3b-e1b6-4fd2-892f-382a3928ea4e',
+          'not-a-valid-uuid',
+          'd831dc3b-e1b6-4fd2-892f-382a3928ea4e', // duplicate
+        ],
+      };
+
+      const migrated = sanitizeAndMigrateHomeLayout(malformed);
+      expect(migrated.density).toBe('compact');
+
+      // Unapproved widget IDs filtered out, approved routines widget kept with sanitized label
+      expect(migrated.widgets.some((w) => (w.id as string) === 'vault_secret_card')).toBe(false);
+      expect(migrated.widgets.some((w) => (w.id as string) === 'expenses_card')).toBe(false);
+      expect(migrated.widgets.some((w) => (w.id as string) === 'ai_copilot_card')).toBe(false);
+      const habits = migrated.widgets.find((w) => w.id === 'routines');
+      expect(habits?.customLabel).toBe('Daily Habits');
+
+      // Missing approved widgets were automatically restored to maintain a complete layout
+      expect(migrated.widgets.length).toBe(7);
+      expect(migrated.widgets.map((w) => w.order)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+
+      // Unapproved module shortcuts filtered out
+      expect(migrated.moduleShortcuts.some((s) => (s.id as string) === 'unreleased_ai')).toBe(
+        false
+      );
+      expect(migrated.moduleShortcuts.length).toBe(10);
+      expect(migrated.moduleShortcuts.map((s) => s.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+      // Favorite folders deduplicated and invalid UUIDs stripped
+      expect(migrated.favoriteFolderIds).toEqual(['d831dc3b-e1b6-4fd2-892f-382a3928ea4e']);
+    });
+
+    it('provides accessible reordering for widgets and module shortcuts with boundary safety', async () => {
+      const { getDefaultHomeLayout, reorderWidgets, reorderModuleShortcuts } =
+        await import('./home.js');
+      const layout = getDefaultHomeLayout();
+
+      // Initial: tasks is order 0, routines is order 1
+      expect(layout.widgets[0]?.id).toBe('tasks');
+      expect(layout.widgets[1]?.id).toBe('routines');
+
+      // Move routines UP -> routines becomes 0, tasks becomes 1
+      const movedUp = reorderWidgets(layout.widgets, 'routines', 'up');
+      expect(movedUp[0]?.id).toBe('routines');
+      expect(movedUp[0]?.order).toBe(0);
+      expect(movedUp[1]?.id).toBe('tasks');
+      expect(movedUp[1]?.order).toBe(1);
+
+      // Moving top item UP does not crash or wrap
+      const boundaryUp = reorderWidgets(movedUp, 'routines', 'up');
+      expect(boundaryUp[0]?.id).toBe('routines');
+
+      // Move tasks DOWN
+      const movedDown = reorderWidgets(movedUp, 'tasks', 'down');
+      expect(movedDown[1]?.id).toBe('upcoming_summary');
+      expect(movedDown[2]?.id).toBe('tasks');
+
+      // Reorder module shortcuts: Move files above notes
+      // Initially: notes is order 4, files is order 5
+      expect(layout.moduleShortcuts[4]?.id).toBe('notes');
+      expect(layout.moduleShortcuts[5]?.id).toBe('files');
+
+      const reorderedShortcuts = reorderModuleShortcuts(layout.moduleShortcuts, 'files', 'up');
+      expect(reorderedShortcuts[4]?.id).toBe('files');
+      expect(reorderedShortcuts[5]?.id).toBe('notes');
+    });
+
+    it('enforces privacy for recent items: strips journal body previews and excludes vault content', async () => {
+      const { filterRecentItemsForPrivacy } = await import('./home.js');
+      type RecentItemEntry = Parameters<typeof filterRecentItemsForPrivacy>[0][number];
+
+      const rawItems: RecentItemEntry[] = [
+        {
+          id: 'note-1',
+          type: 'note',
+          title: 'Architecture Decision',
+          updatedAt: '2026-10-17T12:00:00Z',
+          bodyPreview: 'Public note content preview',
+        },
+        {
+          id: 'journal-1',
+          type: 'journal',
+          title: 'Secret Personal Thoughts',
+          updatedAt: '2026-10-17T13:00:00Z',
+          bodyPreview: 'Private reflection text that must never leak to Today',
+        },
+        {
+          id: 'task-1',
+          type: 'task',
+          title: 'Review pull request',
+          updatedAt: '2026-10-17T14:00:00Z',
+        },
+      ];
+
+      const safe = filterRecentItemsForPrivacy(rawItems, { hideJournalSnippets: true });
+      expect(safe.length).toBe(3);
+
+      const note = safe.find((i) => i.id === 'note-1')!;
+      expect(note.bodyPreview).toBe('Public note content preview');
+
+      const journal = safe.find((i) => i.id === 'journal-1')!;
+      expect(journal.bodyPreview).toBeNull(); // Strictly redacted!
+      expect(journal.title).toBe('Journal entry'); // Sensitive title redacted when requested!
+    });
+  });
+
+  describe('Phase 33: Search Domain Utilities', () => {
+    it('splits text into safe highlighted segments without regex injection', async () => {
+      const { highlightMatch } = await import('./search.js');
+
+      // Simple match
+      const segs = highlightMatch('Fast distributed database systems', 'database');
+      expect(segs).toEqual([
+        { text: 'Fast distributed ', match: false },
+        { text: 'database', match: true },
+        { text: ' systems', match: false },
+      ]);
+
+      // Special characters in query (must not crash regex)
+      const specialSegs = highlightMatch('Call testFunction() now', 'testFunction()');
+      expect(specialSegs.some((s) => s.match && s.text === 'testFunction()')).toBe(true);
+
+      // Bangla text highlighting
+      const banglaSegs = highlightMatch('আজকের গুরুত্বপূর্ণ কাজ', 'গুরুত্বপূর্ণ');
+      expect(banglaSegs.some((s) => s.match && s.text === 'গুরুত্বপূর্ণ')).toBe(true);
+    });
+
+    it('extracts contextual search snippet with bounded length', async () => {
+      const { extractSearchSnippet } = await import('./search.js');
+
+      const text =
+        'Antigravity is designed to assist software engineers with complex codebases. The search index provides low latency retrieval across millions of records efficiently.';
+      const snippet = extractSearchSnippet(text, 'low latency retrieval', 60);
+
+      expect(snippet).toContain('low latency retrieval');
+      expect(snippet.length).toBeLessThanOrEqual(100);
+    });
+
+    it('builds canonical folder breadcrumbs and gracefully handles root/cycles', async () => {
+      const { buildFolderPath } = await import('./search.js');
+
+      const folderMap = new Map([
+        ['f1', { id: 'f1', name: 'Work', parentId: null }],
+        ['f2', { id: 'f2', name: 'Engineering', parentId: 'f1' }],
+        ['f3', { id: 'f3', name: 'Search', parentId: 'f2' }],
+      ]);
+
+      expect(buildFolderPath(null, folderMap)).toBe('Inbox');
+      expect(buildFolderPath('f3', folderMap)).toBe('Work > Engineering > Search');
+      expect(buildFolderPath('unknown', folderMap)).toBe('Inbox');
+    });
+  });
+
+  describe('Phase 41: Audio Recording & Attachment Invariants', () => {
+    it('validates audio recording duration boundaries (1s to 600s)', async () => {
+      const { validateAudioDuration, MAX_AUDIO_RECORDING_SECONDS } = await import('./audio.js');
+
+      expect(MAX_AUDIO_RECORDING_SECONDS).toBe(600);
+      expect(validateAudioDuration(1)).toBe(true);
+      expect(validateAudioDuration(60)).toBe(true);
+      expect(validateAudioDuration(600)).toBe(true);
+
+      // Rejections
+      expect(validateAudioDuration(0)).toBe(false);
+      expect(validateAudioDuration(-1)).toBe(false);
+      expect(validateAudioDuration(601)).toBe(false);
+      expect(validateAudioDuration(Number.NaN)).toBe(false);
+      expect(validateAudioDuration(Number.POSITIVE_INFINITY)).toBe(false);
+    });
+
+    it('formats audio duration into standard MM:SS presentation', async () => {
+      const { formatAudioDuration } = await import('./audio.js');
+
+      expect(formatAudioDuration(0)).toBe('00:00');
+      expect(formatAudioDuration(5)).toBe('00:05');
+      expect(formatAudioDuration(59)).toBe('00:59');
+      expect(formatAudioDuration(60)).toBe('01:00');
+      expect(formatAudioDuration(75)).toBe('01:15');
+      expect(formatAudioDuration(600)).toBe('10:00');
+      expect(formatAudioDuration(-10)).toBe('00:00');
+      expect(formatAudioDuration(Number.NaN)).toBe('00:00');
+    });
+
+    it('validates supported audio MIME types with codec parameters', async () => {
+      const { isSupportedAudioMimeType } = await import('./audio.js');
+
+      expect(isSupportedAudioMimeType('audio/webm')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/webm;codecs=opus')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/mp4')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/ogg')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/wav')).toBe(true);
+      expect(isSupportedAudioMimeType('audio/mpeg')).toBe(true);
+
+      // Unsupported types
+      expect(isSupportedAudioMimeType('video/mp4')).toBe(false);
+      expect(isSupportedAudioMimeType('text/plain')).toBe(false);
+      expect(isSupportedAudioMimeType('application/octet-stream')).toBe(false);
+      expect(isSupportedAudioMimeType('')).toBe(false);
+    });
+
+    it('verifies permitted item types for audio attachments', async () => {
+      const { canAttachAudioToItem } = await import('./audio.js');
+
+      expect(canAttachAudioToItem('note')).toBe(true);
+      expect(canAttachAudioToItem('journal')).toBe(true);
+      expect(canAttachAudioToItem('knowledge')).toBe(true);
+      expect(canAttachAudioToItem('file')).toBe(true);
+
+      // Disallowed targets
+      expect(canAttachAudioToItem('task')).toBe(false);
+      expect(canAttachAudioToItem('routine')).toBe(false);
+      expect(canAttachAudioToItem('user')).toBe(false);
+      expect(canAttachAudioToItem('workspace')).toBe(false);
+    });
+
+    it('calculates bounded playback progress percentages', async () => {
+      const { calculateAudioProgress } = await import('./audio.js');
+
+      expect(calculateAudioProgress(0, 100)).toBe(0);
+      expect(calculateAudioProgress(50, 100)).toBe(50);
+      expect(calculateAudioProgress(100, 100)).toBe(100);
+      expect(calculateAudioProgress(150, 100)).toBe(100);
+      expect(calculateAudioProgress(-10, 100)).toBe(0);
+      expect(calculateAudioProgress(10, 0)).toBe(0);
+    });
+
+    it('creates and validates durable AudioAttachment references', async () => {
+      const { createAudioAttachment, MAX_AUDIO_RECORDING_BYTES } = await import('./audio.js');
+
+      const att = createAudioAttachment({
+        fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+        fileName: 'meeting-recording.webm',
+        durationSeconds: 125,
+        byteSize: 1024 * 1024,
+        mimeType: 'audio/webm;codecs=opus',
+      });
+
+      expect(att.fileId).toBe('9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+      expect(att.fileName).toBe('meeting-recording.webm');
+      expect(att.durationSeconds).toBe(125);
+      expect(att.mimeType).toBe('audio/webm');
+      expect(att.byteSize).toBe(1048576);
+
+      // Throws on oversized audio (>25MB)
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'oversized.webm',
+          durationSeconds: 60,
+          byteSize: MAX_AUDIO_RECORDING_BYTES + 1,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('exceeds maximum');
+
+      // Throws on invalid duration (>10min)
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'toolong.webm',
+          durationSeconds: 601,
+          byteSize: 1024,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('Invalid audio duration');
+
+      // Throws on fractional duration that rounds to zero (<0.5)
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'tiny.webm',
+          durationSeconds: 0.4,
+          byteSize: 1024,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('Invalid audio duration');
+
+      // Throws on NaN byteSize
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'nan.webm',
+          durationSeconds: 5,
+          byteSize: NaN,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('Invalid audio byte size');
+
+      // Throws on non-UUID fileId
+      expect(() =>
+        createAudioAttachment({
+          fileId: 'not-a-uuid',
+          fileName: 'valid.webm',
+          durationSeconds: 5,
+          byteSize: 1024,
+          mimeType: 'audio/webm',
+        })
+      ).toThrow('must be a valid UUID');
+
+      // Throws on unsupported MIME type
+      expect(() =>
+        createAudioAttachment({
+          fileId: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+          fileName: 'bad.flac',
+          durationSeconds: 30,
+          byteSize: 1024,
+          mimeType: 'audio/flac',
+        })
+      ).toThrow('Unsupported audio MIME type');
+    });
+  });
+
+  describe('Phase 42: Safe Custom Section Schemas & Renderer Contracts', () => {
+    it('validates text field values and strictly rejects executable script injection', () => {
+      const textField = {
+        id: 'notes',
+        label: 'Notes',
+        type: 'text' as const,
+        required: true,
+        maxLength: 100,
+      };
+
+      // Valid plain text
+      expect(validateFieldValue(textField, 'Chapter 1 notes on architecture').valid).toBe(true);
+
+      // Rejects script tags
+      const xssRes1 = validateFieldValue(textField, '<script>alert("hacked")</script>');
+      expect(xssRes1.valid).toBe(false);
+      expect(xssRes1.error).toContain('disallowed script');
+
+      // Rejects javascript: URI
+      const xssRes2 = validateFieldValue(textField, 'Click here: javascript:stealToken()');
+      expect(xssRes2.valid).toBe(false);
+
+      // Rejects onerror event handler
+      const xssRes3 = validateFieldValue(textField, '<img src=x onerror=alert(1)>');
+      expect(xssRes3.valid).toBe(false);
+
+      // Exceeds max length
+      const longRes = validateFieldValue(textField, 'a'.repeat(101));
+      expect(longRes.valid).toBe(false);
+      expect(longRes.error).toContain('exceeds maximum length');
+    });
+
+    it('validates link field values and strictly rejects dangerous protocols', () => {
+      const linkField = {
+        id: 'website',
+        label: 'Resource Link',
+        type: 'link' as const,
+        required: false,
+      };
+
+      // Valid http/https, mailto, and internal canonical item links
+      expect(validateFieldValue(linkField, 'https://daynori.example.com/docs').valid).toBe(true);
+      expect(validateFieldValue(linkField, 'http://localhost:3000/api').valid).toBe(true);
+      expect(validateFieldValue(linkField, 'mailto:alice@example.com').valid).toBe(true);
+      expect(validateFieldValue(linkField, 'item:550e8400-e29b-41d4-a716-446655440000').valid).toBe(true);
+
+      // Reject javascript:
+      const badLink1 = validateFieldValue(linkField, 'javascript:void(0)');
+      expect(badLink1.valid).toBe(false);
+
+      // Reject data:
+      const badLink2 = validateFieldValue(linkField, 'data:text/html;base64,PHNjcmlwdD4=');
+      expect(badLink2.valid).toBe(false);
+
+      // Reject relative or malformed URLs
+      const badLink3 = validateFieldValue(linkField, '/relative/path/not/allowed');
+      expect(badLink3.valid).toBe(false);
+    });
+
+    it('validates date, number, checklist, and attachment fields', () => {
+      const dateField = {
+        id: 'due',
+        label: 'Due Date',
+        type: 'date' as const,
+        minDate: '2026-01-01',
+        maxDate: '2026-12-31',
+      };
+      expect(validateFieldValue(dateField, '2026-06-15').valid).toBe(true);
+      expect(validateFieldValue(dateField, '2025-12-31').valid).toBe(false); // before min
+      expect(validateFieldValue(dateField, 'not-a-date').valid).toBe(false);
+      expect(validateFieldValue(dateField, '2026-02-31').valid).toBe(false); // not a real calendar date
+
+      const numField = {
+        id: 'score',
+        label: 'Score',
+        type: 'number' as const,
+        min: 0,
+        max: 100,
+        precision: 1,
+      };
+      const numRes = validateFieldValue(numField, 88.46);
+      expect(numRes.valid).toBe(true);
+      expect(numRes.sanitizedValue).toBe(88.5); // rounded to precision 1
+      expect(validateFieldValue(numField, '92.3').valid).toBe(true); // numeric string supported
+      expect(validateFieldValue(numField, 105).valid).toBe(false); // over max
+      expect(validateFieldValue(numField, NaN).valid).toBe(false);
+
+      const checkField = { id: 'done', label: 'Done', type: 'checklist' as const };
+      const validChecklist = [
+        { id: 'item-1', text: 'Read Introduction', completed: true },
+        { id: 'item-2', text: 'Implement sample', completed: false },
+      ];
+      expect(validateFieldValue(checkField, validChecklist).valid).toBe(true);
+      expect(validateFieldValue(checkField, true).valid).toBe(false); // must not be single boolean!
+      expect(validateFieldValue(checkField, 'yes').valid).toBe(false);
+      expect(
+        validateFieldValue(checkField, [{ id: 'item-1', text: '<script>alert(1)</script>' }]).valid
+      ).toBe(false);
+
+      const attachField = { id: 'file', label: 'File', type: 'attachment' as const };
+      expect(validateFieldValue(attachField, '123e4567-e89b-12d3-a456-426614174000').valid).toBe(true);
+      expect(validateFieldValue(attachField, 'invalid-uuid').valid).toBe(false);
+    });
+
+    it('validates records against custom section schemas with required field checks and unrecognized field detection', () => {
+      const schema = APPROVED_SECTION_TEMPLATES.READING_LIST.schema;
+
+      // Valid record
+      const validRecord = {
+        title: 'Design Patterns',
+        author: 'Gang of Four',
+        completed: [{ id: 'ch-1', text: 'Chapter 1: Strategy', completed: true }],
+        finish_date: '2026-03-15',
+        rating: 5,
+        url: 'https://example.com/books/design-patterns',
+      };
+      const validRes = validateRecordAgainstSchema(schema, validRecord);
+      expect(validRes.valid).toBe(true);
+      expect(validRes.errors).toHaveLength(0);
+
+      // Missing required field ('title')
+      const missingTitle = {
+        author: 'Unknown',
+        completed: [],
+      };
+      const missingRes = validateRecordAgainstSchema(schema, missingTitle);
+      expect(missingRes.valid).toBe(false);
+      expect(missingRes.errors[0]).toContain('Required field "Title" is missing');
+
+      // Unrecognized extra field
+      const unexpectedField = {
+        title: 'Clean Code',
+        maliciousExtraData: 'exploit',
+      };
+      const extraRes = validateRecordAgainstSchema(schema, unexpectedField);
+      expect(extraRes.valid).toBe(false);
+      expect(extraRes.errors[0]).toContain('Unrecognized field "maliciousExtraData"');
+    });
+
+    it('safely migrates records between schema versions without data loss (field removal and type change archival)', () => {
+      const v1Schema = {
+        version: 1,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'name', label: 'Name', type: 'text' as const },
+              { id: 'rating', label: 'Rating', type: 'number' as const },
+              { id: 'obsolete_notes', label: 'Old Notes', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+
+      const v2Schema = {
+        version: 2,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker V2',
+            fields: [
+              { id: 'name', label: 'Name', type: 'text' as const },
+              { id: 'rating', label: 'Rating', type: 'text' as const }, // Type changed from number to text!
+              { id: 'new_checklist', label: 'Subtasks', type: 'checklist' as const }, // Newly added!
+              // 'obsolete_notes' was removed!
+            ],
+          },
+        ],
+      };
+
+      const originalValues = {
+        name: 'Project Antigravity',
+        rating: 98,
+        obsolete_notes: 'Valuable research observations that must not be lost',
+      };
+
+      const migration = migrateRecordValues(v1Schema, v2Schema, originalValues);
+
+      // 1. Preserved active fields
+      expect(migration.fieldValues.name).toBe('Project Antigravity');
+
+      // 2. Newly added field receives default empty checklist array
+      expect(migration.fieldValues.new_checklist).toEqual([]);
+
+      // 3. Removed field is ARCHIVED into append-only array (not lost!)
+      expect(migration.archivedValues.obsolete_notes).toBeDefined();
+      expect(Array.isArray(migration.archivedValues.obsolete_notes)).toBe(true);
+      const archivedNotes = migration.archivedValues.obsolete_notes![0]!;
+      expect(archivedNotes.value).toBe(
+        'Valuable research observations that must not be lost'
+      );
+      expect(archivedNotes.reason).toBe('field_removed');
+
+      // 4. Type-changed field is ARCHIVED (preserving old numeric value)
+      expect(migration.archivedValues.rating).toBeDefined();
+      expect(Array.isArray(migration.archivedValues.rating)).toBe(true);
+      const archivedRating = migration.archivedValues.rating![0]!;
+      expect(archivedRating.value).toBe(98);
+      expect(archivedRating.reason).toBe('type_changed');
+    });
+
+    it('preserves all historical versions across repeated migrations (text -> number -> text)', () => {
+      const v1Schema = {
+        version: 1,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'score', label: 'Score', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+
+      const v2Schema = {
+        version: 2,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'score', label: 'Score', type: 'number' as const },
+            ],
+          },
+        ],
+      };
+
+      const v3Schema = {
+        version: 3,
+        blocks: [
+          {
+            id: 'items',
+            type: 'field_collection' as const,
+            title: 'Tracker',
+            fields: [
+              { id: 'score', label: 'Score', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+
+      // 1. Initial record with text score
+      const initialValues = { score: 'First Text Score' };
+
+      // 2. Migration 1: v1 -> v2 (text -> number)
+      const mig1 = migrateRecordValues(v1Schema, v2Schema, initialValues, {});
+      expect(mig1.archivedValues.score).toHaveLength(1);
+      expect(mig1.archivedValues.score![0]!.value).toBe('First Text Score');
+      expect(mig1.archivedValues.score![0]!.fromSchemaVersion).toBe(1);
+      expect(mig1.archivedValues.score![0]!.toSchemaVersion).toBe(2);
+
+      // Now user inputs a numeric score under v2
+      mig1.fieldValues.score = 42;
+
+      // 3. Migration 2: v2 -> v3 (number -> text)
+      const mig2 = migrateRecordValues(v2Schema, v3Schema, mig1.fieldValues, mig1.archivedValues);
+
+      // BOTH archived versions MUST be preserved!
+      expect(mig2.archivedValues.score).toHaveLength(2);
+      expect(mig2.archivedValues.score![0]!.value).toBe('First Text Score');
+      expect(mig2.archivedValues.score![0]!.fromSchemaVersion).toBe(1);
+      expect(mig2.archivedValues.score![1]!.value).toBe(42);
+      expect(mig2.archivedValues.score![1]!.fromSchemaVersion).toBe(2);
+      expect(mig2.archivedValues.score![1]!.toSchemaVersion).toBe(3);
+    });
+
+    it('rejects reserved prototype keys and duplicate field/block IDs', () => {
+      const badSchema = {
+        version: 1,
+        blocks: [
+          {
+            id: '__proto__',
+            type: 'field_collection' as const,
+            title: 'Bad Block',
+            fields: [
+              { id: 'title', label: 'Title', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+      expect(isBlockSupported(badSchema.blocks[0])).toBe(false);
+
+      const protoFieldCollection = {
+        id: 'coll-1',
+        type: 'field_collection' as const,
+        title: 'Collection',
+        fields: [
+          { id: '__proto__', label: 'Proto Field', type: 'text' as const },
+        ],
+      };
+      expect(isBlockSupported(protoFieldCollection)).toBe(false);
+
+      // Validation rejects reserved keys in record field values
+      const validSchema = {
+        version: 1,
+        blocks: [
+          {
+            id: 'coll-1',
+            type: 'field_collection' as const,
+            title: 'Collection',
+            fields: [
+              { id: 'name', label: 'Name', type: 'text' as const },
+            ],
+          },
+        ],
+      };
+      const badRecord = JSON.parse('{"__proto__": {"admin": true}, "name": "Alice"}');
+      const res = validateRecordAgainstSchema(validSchema, badRecord);
+      expect(res.valid).toBe(false);
+      expect(res.errors[0]).toContain('reserved system identifier');
+
+      const badRecord2 = { constructor: 'polluted', name: 'Alice' };
+      const res2 = validateRecordAgainstSchema(validSchema, badRecord2);
+      expect(res2.valid).toBe(false);
+      expect(res2.errors[0]).toContain('reserved system identifier');
+    });
+
+    it('fails validation when text field has an invalid regex pattern', () => {
+      const fieldDef = {
+        id: 'code',
+        label: 'Code',
+        type: 'text' as const,
+        pattern: '[invalid(regex',
+      };
+      const res = validateFieldValue(fieldDef, 'sample');
+      expect(res.valid).toBe(false);
+      expect(res.error).toContain('invalid validation pattern');
+    });
+
+    it('provides graceful fallback contract for unknown block types', () => {
+      expect(isBlockSupported({ type: 'existing_record_view' })).toBe(false); // missing id/title
+      expect(
+        isBlockSupported({
+          id: 'v1',
+          title: 'Notes View',
+          type: 'existing_record_view',
+          targetKind: 'note',
+        })
+      ).toBe(true);
+      expect(isBlockSupported({ type: 'future_ai_analytics_widget' })).toBe(false);
+
+      const rawUnknownBlock = {
+        id: 'block-99',
+        type: 'future_graph_visualization',
+        title: '3D Knowledge Graph',
+        graphConfig: { nodes: 150, layout: 'force-directed' },
+      };
+
+      const fallback = createFallbackBlockRepresentation(rawUnknownBlock);
+      expect(fallback.type).toBe('fallback');
+      expect(fallback.unsupportedType).toBe('future_graph_visualization');
+      expect(fallback.title).toBe('3D Knowledge Graph');
+      expect(fallback.message).toContain('not supported by your current Daynori version');
+      expect(fallback.rawData).toEqual(rawUnknownBlock);
+      expect(fallback.isReadOnly).toBe(true);
+    });
+  });
+
+  describe('Phase 57 billing gate', () => {
+    it('fails closed for billing in production even with local flag', () => {
+      expect(
+        isBillingLocallyEnabled({
+          NODE_ENV: 'production',
+          DAYNORI_BILLING_LOCAL_ENABLED: 'true',
+        })
+      ).toBe(false);
+      expect(isBillingLocallyEnabled({ NODE_ENV: 'test' })).toBe(true);
+      expect(
+        isBillingProductionActivationEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_BILLING_LOCAL_ENABLED: 'true',
+          DAYNORI_BILLING_PRODUCTION_ENABLED: 'true',
+        })
+      ).toBe(true);
+      expect(
+        isBillingProductionActivationEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_BILLING_LOCAL_ENABLED: 'true',
+        })
+      ).toBe(false);
+    });
+  });
+
+  describe('Phase 55 AI gate and consent scope', () => {
+    it('fails closed for AI in production even with local flag', () => {
+      expect(
+        isAiLocallyEnabled({ NODE_ENV: 'production', DAYNORI_AI_LOCAL_ENABLED: 'true' })
+      ).toBe(false);
+      expect(isAiLocallyEnabled({ NODE_ENV: 'test' })).toBe(true);
+      expect(
+        isAiLiveProviderEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_AI_LOCAL_ENABLED: 'true',
+          DAYNORI_AI_LIVE_ENABLED: 'true',
+        })
+      ).toBe(true);
+      expect(
+        isAiLiveProviderEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_AI_LOCAL_ENABLED: 'true',
+        })
+      ).toBe(false);
+    });
+
+    it('excludes vault and unconsented journal from eligible sources', () => {
+      const scope = validateAiContentScope({ notes: true, tasks: true });
+      expect(scope.journal).toBe(false);
+      expect(isAiSourceKindEligible('note', 'vault', scope)).toBe(false);
+      expect(isAiSourceKindEligible('journal_entry', 'standard', scope)).toBe(false);
+      expect(isAiSourceKindEligible('note', 'standard', scope)).toBe(true);
+      expect(
+        isAiSourceKindEligible('journal_entry', 'standard', {
+          ...DEFAULT_AI_CONTENT_SCOPE,
+          journal: true,
+        })
+      ).toBe(true);
+    });
+
+    it('binds citations to authorized source/revision and rejects bare UUIDs', () => {
+      const id = '123e4567-e89b-12d3-a456-426614174000';
+      const authorized = [
+        { itemId: id, revision: 2, kind: 'note', excerpt: 'hello' },
+      ];
+      expect(parseAiSourceReferences(`[source:${id}#r2]`)).toEqual([
+        { itemId: id, revision: 2 },
+      ]);
+      const ok = bindAiCitations({
+        answer: `See [source:${id}#r2]`,
+        authorized,
+      });
+      expect(ok.ok).toBe(true);
+      expect(ok.referenced).toHaveLength(1);
+
+      const wrongRev = bindAiCitations({
+        answer: `See [source:${id}#r9]`,
+        authorized,
+      });
+      expect(wrongRev.ok).toBe(false);
+
+      const bare = bindAiCitations({
+        answer: `See ${id}`,
+        authorized,
+      });
+      expect(bare.ok).toBe(false);
+      expect(bare.abstainReason).toBe('unsupported_citation_format');
+    });
+
+    it('estimates reservation from input and max output without clipping actuals', () => {
+      const n = estimateAiReservationTokens({
+        systemPrompt: 'sys',
+        userPrompt: 'user question with context',
+        maxOutputTokens: 800,
+      });
+      expect(n).toBeGreaterThan(800);
+    });
+  });
 });
+
+

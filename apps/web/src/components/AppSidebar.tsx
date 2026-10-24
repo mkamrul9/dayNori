@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -12,22 +13,23 @@ export const AppSidebar: React.FC = () => {
   const palette = colors[themeMode];
 
   const navItems = [
-    { href: '/today', label: 'Today', icon: '☀️', shortcut: 'T' },
+    { href: '/today', label: 'Today', icon: 'sun', shortcut: 'T' },
     {
       href: '/plan',
       label: 'Plan',
-      icon: '📋',
+      icon: 'clipboard',
       shortcut: 'P',
-      children: [{ href: '/plan/calendar', label: 'Calendar', icon: '📅', shortcut: 'K' }],
+      children: [{ href: '/plan/calendar', label: 'Calendar', icon: 'calendar', shortcut: 'K' }],
     },
-    { href: '/library', label: 'Library', icon: '📚', shortcut: 'L' },
-    { href: '/journal', label: 'Journal', icon: '📖', shortcut: 'J' },
+    { href: '/library', label: 'Library', icon: 'library', shortcut: 'L' },
+    { href: '/journal', label: 'Journal', icon: 'book', shortcut: 'J' },
+    { href: '/custom-sections', label: 'Custom Sections', icon: 'clipboard', shortcut: 'C' },
   ];
 
   const secondaryItems = [
-    { href: '/review', label: 'Component Gallery', icon: '🎨' },
-    { href: '/settings', label: 'Settings', icon: '⚙️', shortcut: ',' },
-    { href: '/help', label: 'Help & Shortcuts', icon: '❓', shortcut: '?' },
+    { href: '/help', label: 'Help & tutorial', icon: 'help', shortcut: '?' },
+    { href: '/support', label: 'Support', icon: 'user' },
+    { href: '/settings', label: 'Settings', icon: 'settings', shortcut: ',' },
   ];
 
   const renderNavLink = (
@@ -63,7 +65,7 @@ export const AppSidebar: React.FC = () => {
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
           <span aria-hidden="true" style={{ fontSize: isNested ? '14px' : '16px' }}>
-            {item.icon}
+            <Icon name={item.icon} />
           </span>
           <span>{item.label}</span>
         </span>

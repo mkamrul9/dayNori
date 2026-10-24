@@ -1,3 +1,4 @@
+import { Icon } from './Icon.js';
 import React, { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -74,11 +75,14 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
         />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
           style={[
             styles.sheet,
             {
               backgroundColor: palette.surface,
               borderColor: palette.border.subtle,
+              // Home-indicator clearance on iOS; Android uses nav bar insets separately.
+              paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             },
           ]}
         >
@@ -91,7 +95,9 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
               accessibilityLabel="Close sheet"
               style={styles.closeButton}
             >
-              <Text style={[styles.closeText, { color: palette.text.secondary }]}>✕</Text>
+              <Text style={[styles.closeText, { color: palette.text.secondary }]}>
+                <Icon name="x" color={palette.text.secondary} />
+              </Text>
             </Pressable>
           </View>
           <ScrollView

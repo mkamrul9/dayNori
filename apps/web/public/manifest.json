@@ -1,0 +1,32 @@
+{
+  "name": "Daynori",
+  "short_name": "Daynori",
+  "description": "Notes, tasks, routines, and journal for everyday life",
+  "id": "/",
+  "start_url": "/today",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F7F5EF",
+  "theme_color": "#146B63",
+  "icons": [
+    {
+      "src": "/brand/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "createdAt": "2026-10-21T06:08:22.291Z",
+  "disposableRoot": "C:\\Users\\Lenovo\\AppData\\Local\\Temp\\daynori-android-prebuild-t7dXiV",
+  "inspection": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "findings": {
+      "androidDir": "C:\\Users\\Lenovo\\AppData\\Local\\Temp\\daynori-android-prebuild-t7dXiV\\mobile\\android",
+      "guardPresent": true,
+      "silentDebugFallbackInReleaseSigningConfig": false,
+      "targetSdk": 36,
+      "compileSdk": 36,
+      "versionCode": 1
+    }
+  },
+  "appGradleSha256": "afdc4bfd08e7b745d9a79342472a52d477d5cc1326969dfaf4ffc57c6eec284d",
+  "gradleExercise": {
+    "tasksWithoutCredentials": "PASS",
+    "assembleReleaseWithoutCredentials": "FAIL-CLOSED PASS",
+    "note": "Distributable release packaging refused without credentials; no silent debug-signed artifact"
+  }
+}

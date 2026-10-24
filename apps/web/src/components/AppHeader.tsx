@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React from 'react';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
@@ -34,8 +35,9 @@ export const AppHeader: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: `0 ${spacing.base}px`,
-        height: '60px',
+        gap: `${spacing.xs}px`,
+        padding: `${spacing.xs}px ${spacing.base}px`,
+        minHeight: 'var(--daynori-header-height)',
         backgroundColor: palette.surface,
         borderBottom: `1px solid ${palette.border.subtle}`,
         position: 'sticky',
@@ -43,6 +45,7 @@ export const AppHeader: React.FC = () => {
         zIndex: 100,
         boxSizing: 'border-box',
         width: '100%',
+        paddingTop: `max(${spacing.xs}px, env(safe-area-inset-top, 0px))`,
       }}
     >
       {/* Brand & Drawer Toggle */}
@@ -60,7 +63,7 @@ export const AppHeader: React.FC = () => {
           className="mobile-only"
         >
           <span aria-hidden="true" style={{ fontSize: '18px' }}>
-            ☰
+            <Icon name="menu" />
           </span>
         </button>
 
@@ -70,40 +73,43 @@ export const AppHeader: React.FC = () => {
             textDecoration: 'none',
             color: palette.text.primary,
             display: 'flex',
-            alignItems: 'baseline',
-            gap: `${spacing.xs}px`,
+            alignItems: 'center',
             minHeight: `${touchTargets.webMin}px`,
             lineHeight: `${touchTargets.webMin}px`,
           }}
         >
-          <span
-            style={{
-              fontSize: '20px',
-              fontWeight: 800,
-              letterSpacing: '-0.5px',
-              color: palette.action.primary,
-            }}
-          >
-            Daynori
-          </span>
-          <span
+          <img
             className="desktop-only"
-            style={{
-              fontSize: '12px',
-              color: palette.text.secondary,
-              fontWeight: 500,
-            }}
-          >
-            gathered
-          </span>
+            src={`/brand/daynori-${themeMode === 'dark' ? 'logo-inverse' : 'logo'}.svg`}
+            alt="Daynori"
+            width={125}
+            height={36}
+            style={{ display: 'block', flexShrink: 0 }}
+          />
+          <img
+            className="mobile-only"
+            src={`/brand/daynori-symbol${themeMode === 'dark' ? '-inverse' : ''}.svg`}
+            alt="Daynori"
+            width={32}
+            height={32}
+            style={{ display: 'none', flexShrink: 0 }}
+          />
         </a>
       </div>
 
-      {/* Global Shell Actions */}
       <div
         role="toolbar"
         aria-label="Quick actions"
-        style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: `${spacing.xs}px`,
+          flex: '1 1 auto',
+          minWidth: 0,
+          justifyContent: 'flex-end',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
       >
         <button
           type="button"
@@ -113,7 +119,7 @@ export const AppHeader: React.FC = () => {
           style={buttonStyle}
         >
           <span aria-hidden="true" style={{ marginRight: '4px' }}>
-            🔍
+            <Icon name="search" />
           </span>
           <span className="desktop-only">Search</span>
           <kbd
@@ -145,9 +151,9 @@ export const AppHeader: React.FC = () => {
           }}
         >
           <span aria-hidden="true" style={{ marginRight: '4px', fontWeight: 'bold' }}>
-            ＋
+            <Icon name="plus" />
           </span>
-          <span>Create</span>
+          <span className="desktop-only">Create</span>
           <kbd
             className="desktop-only"
             style={{
@@ -166,21 +172,27 @@ export const AppHeader: React.FC = () => {
         <button
           type="button"
           id="global-theme-toggle"
+          className="hide-below-380"
           aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
           onClick={toggleTheme}
           style={buttonStyle}
         >
-          <span aria-hidden="true">{themeMode === 'light' ? '🌙' : '☀️'}</span>
+          <span aria-hidden="true">
+            <Icon name={themeMode === 'light' ? 'moon' : 'sun'} />
+          </span>
         </button>
 
         <button
           type="button"
           id="global-help-btn"
+          className="hide-below-380"
           aria-label="Help and keyboard shortcuts (Shortcut ?)"
           onClick={() => openModal('help')}
           style={buttonStyle}
         >
-          <span aria-hidden="true">❓</span>
+          <span aria-hidden="true">
+            <Icon name="help" />
+          </span>
         </button>
 
         <button
@@ -190,7 +202,9 @@ export const AppHeader: React.FC = () => {
           onClick={() => openModal('account')}
           style={buttonStyle}
         >
-          <span aria-hidden="true">👤</span>
+          <span aria-hidden="true">
+            <Icon name="user" />
+          </span>
         </button>
       </div>
     </header>

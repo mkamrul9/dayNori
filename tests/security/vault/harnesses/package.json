@@ -1,0 +1,13 @@
+{
+  "name": "daynori-vault-platform-harnesses",
+  "private": true,
+  "type": "module",
+  "description": "Isolated Phase 44 platform harness runners — not production app code",
+  "scripts": {
+    "browser": "node run-browser-harness.mjs",
+    "web-vault": "node run-web-vault-lifecycle.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.49.1"
+  }
+}

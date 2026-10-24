@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
+      '@daynori/api/providers': path.resolve(__dirname, 'apps/api/src/providers/index.ts'),
       '@daynori/design-tokens': path.resolve(__dirname, 'packages/design-tokens/src/index.ts'),
       '@daynori/domain': path.resolve(__dirname, 'packages/domain/src/index.ts'),
       '@daynori/contracts': path.resolve(__dirname, 'packages/contracts/src/index.ts'),
@@ -17,11 +18,26 @@ export default defineConfig({
       '@daynori/test-utils': path.resolve(__dirname, 'packages/test-utils/src/index.ts'),
       'react-native': path.resolve(__dirname, 'packages/test-utils/src/mock-react-native.ts'),
       'expo-status-bar': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-status-bar.ts'),
+      'expo-file-system': path.resolve(
+        __dirname,
+        'packages/test-utils/src/mock-expo-file-system.ts'
+      ),
+      'expo-document-picker': path.resolve(
+        __dirname,
+        'packages/test-utils/src/mock-expo-document-picker.ts'
+      ),
+      'expo-notifications': path.resolve(
+        __dirname,
+        'packages/test-utils/src/mock-expo-notifications.ts'
+      ),
+      'expo-clipboard': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-clipboard.ts'),
+      'expo-av': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-av.ts'),
     },
   },
   test: {
     globals: true,
     environment: 'node',
+    fileParallelism: false,
     include: [
       'packages/**/*.test.ts',
       'packages/**/*.test.tsx',

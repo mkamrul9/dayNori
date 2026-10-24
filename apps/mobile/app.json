@@ -7,11 +7,79 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
+    "icon": "./assets/brand/icon.png",
+    "splash": {
+      "image": "./assets/brand/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F5EF",
+      "dark": {
+        "image": "./assets/brand/splash-inverse.png",
+        "backgroundColor": "#0D1919"
+      }
     },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.daynori.app",
+      "buildNumber": "1",
+      "associatedDomains": ["applinks:app.daynori.com"],
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Daynori records short voice notes you choose to attach to your personal organizer items. Recording is optional and can be denied without losing other features.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true,
+          "android": {
+            "useSQLCipher": true
+          },
+          "ios": {
+            "useSQLCipher": true
+          }
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Daynori uses Face ID only when you enable biometric unlock for protected features. Biometrics do not replace vault cryptography when vault is enabled."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#146B63",
+          "icon": "./assets/brand/notification-icon.png",
+          "sounds": [],
+          "mode": "production"
+        }
+      ],
+      "./plugins/withReleaseSigningGuard.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
+    ],
     "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/adaptive-foreground.png",
+        "monochromeImage": "./assets/brand/adaptive-monochrome.png",
+        "backgroundColor": "#146B63"
+      },
       "package": "com.daynori.app",
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",

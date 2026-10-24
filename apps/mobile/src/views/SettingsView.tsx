@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
-import { MobileButton, MobileCard } from '@daynori/ui-mobile';
+import { Icon, IconText, MobileButton, MobileCard } from '@daynori/ui-mobile';
+import type { NotificationCapabilityState } from '../notifications/adapter.js';
+import { isCorePreview } from '../config/runtime.js';
 
 export interface SettingsViewProps {
   themeMode: ThemeMode;
@@ -10,10 +12,37 @@ export interface SettingsViewProps {
   onChangeTextScale: (scale: number) => void;
   isAuthenticated: boolean;
   onToggleAuth: () => void;
+  onOpenAccount?: () => void;
   onOpenGallery: () => void;
+  onOpenOnboarding?: () => void;
   onClose: () => void;
   testID?: string;
   devReviewMode?: boolean;
+  workspaceId?: string | null;
+  onProvisionWorkspace?: () => Promise<void>;
+  weekStart?: 'monday' | 'sunday' | 'saturday';
+  onChangeWeekStart?: (weekStart: 'monday' | 'sunday' | 'saturday') => void;
+  timeZone?: string;
+  notificationCapability?: NotificationCapabilityState | null;
+  onRequestNotificationPermission?: () => Promise<void>;
+  onOpenSyncDiagnostics?: () => void;
+  onOpenRecoveryExport?: () => void;
+  onOpenPortability?: () => void;
+  onOpenAccountDeletion?: () => void;
+  expensesEnabled?: boolean;
+  onToggleExpensesEnabled?: (enabled: boolean) => void;
+  onOpenExpenses?: () => void;
+  onOpenCustomSections?: () => void;
+  /** Opens isolated synthetic vault unlock harness (Phase 46). Not production vault. */
+  onOpenVaultHarness?: () => void;
+  /** Opens provisional Drive connections sheet (Phase 49). */
+  onOpenDriveConnections?: () => void;
+  /** Opens provisional shared rooms sheet (Phase 51). */
+  onOpenRooms?: () => void;
+  /** Opens provisional assistant sheet (Phase 56). */
+  onOpenAssistant?: () => void;
+  /** Opens provisional billing sheet (Phase 57). */
+  onOpenBilling?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -23,10 +52,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onChangeTextScale,
   isAuthenticated,
   onToggleAuth,
+  onOpenAccount,
   onOpenGallery,
+  onOpenOnboarding,
   onClose,
   testID = 'settings-view',
   devReviewMode = false,
+  workspaceId = null,
+  onProvisionWorkspace,
+  weekStart = 'monday',
+  onChangeWeekStart,
+  timeZone = 'UTC',
+  notificationCapability = null,
+  onRequestNotificationPermission,
+  onOpenSyncDiagnostics,
+  onOpenRecoveryExport,
+  onOpenPortability,
+  onOpenAccountDeletion,
+  expensesEnabled = false,
+  onToggleExpensesEnabled,
+  onOpenExpenses,
+  onOpenCustomSections,
+  onOpenVaultHarness,
+  onOpenDriveConnections,
+  onOpenRooms,
+  onOpenAssistant,
+  onOpenBilling,
 }) => {
   const palette = colors[themeMode];
   const [isReducedMotion, setIsReducedMotion] = useState(false);
@@ -66,7 +117,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           onPress={onClose}
           accessibilityLabel="Close settings"
         >
-          ✕ Done
+          <Icon name="x" /> Done
         </MobileButton>
       </View>
 
@@ -87,7 +138,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={onToggleTheme}
               accessibilityLabel={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
             >
-              {themeMode === 'light' ? '🌙 Dark' : '☀️ Light'}
+              {themeMode === 'light' ? (
+                <>
+                  <Icon name="moon" /> {'Dark'}
+                </>
+              ) : (
+                <>
+                  <Icon name="sun" /> {'Light'}
+                </>
+              )}
             </MobileButton>
           </View>
         </MobileCard>
@@ -157,9 +216,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 { color: isReducedMotion ? palette.status.success : palette.text.secondary },
               ]}
             >
-              {isReducedMotion
-                ? '✓ Enabled (Animations disabled)'
-                : 'Standard (Smooth slide animations)'}
+              {isReducedMotion ? (
+                <>
+                  <Icon name="check" /> Enabled (Animations disabled)
+                </>
+              ) : (
+                'Standard (Smooth slide animations)'
+              )}
             </Text>
           </View>
         </MobileCard>
@@ -189,7 +252,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <MobileCard themeMode={themeMode}>
           <Text style={[styles.settingLabel, { color: palette.text.primary, marginBottom: 4 }]}>
             Current Session:{' '}
-            {isAuthenticated ? 'Synthetic Contributor' : 'Unauthenticated (Local Evaluation)'}
+            {isAuthenticated
+              ? 'Authenticated Account (OS Secure KeyStore)'
+              : 'Unauthenticated (Local Offline)'}
           </Text>
           <Text
             style={[
@@ -197,10 +262,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               { color: palette.text.secondary, marginBottom: spacing.sm },
             ]}
           >
-            Production authentication providers (OAuth/OIDC) and secure session lifecycle are
-            scheduled for Phase 09.
+            {isAuthenticated
+              ? 'Your account session is active and stored in platform-protected secure storage. Quarantined drafts are isolated.'
+              : 'Sign in or verify an email link to synchronize your personal items across devices.'}
           </Text>
 
+          <MobileButton
+            themeMode={themeMode}
+            onPress={isAuthenticated ? onToggleAuth : onOpenAccount}
+          >
+            {isAuthenticated ? 'Sign out' : 'Sign in or create account'}
+          </MobileButton>
           {showDevReview ? (
             <View
               style={{
@@ -257,13 +329,529 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onPress={() => setShowDevReview(true)}
               accessibilityLabel="Show development review authentication tools"
             >
-              🛠️ Show Dev Review Tools
+              <Icon name="tools" /> Show Dev Review Tools
             </MobileButton>
           )}
         </MobileCard>
       </View>
 
-      {/* Section 6: Preserved Phase 04 Component Gallery Destination */}
+      {/* Section 5b: Personal Workspace & Preferences (Phase 10) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Personal Workspace & Preferences
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Personal Workspace Status:
+            </Text>
+            <Text
+              testID="mobile-workspace-id"
+              style={[
+                styles.settingDescription,
+                {
+                  color: workspaceId ? palette.status.success : palette.text.secondary,
+                  fontFamily: 'monospace',
+                  marginTop: 2,
+                },
+              ]}
+            >
+              <IconText
+                text={workspaceId ? `Active (ID:  ${workspaceId})` : 'Workspace not provisioned'}
+              />
+            </Text>
+          </View>
+
+          {isAuthenticated && !workspaceId && onProvisionWorkspace && (
+            <View style={{ marginBottom: spacing.sm }}>
+              <MobileButton
+                variant="primary"
+                themeMode={themeMode}
+                onPress={() => void onProvisionWorkspace()}
+                accessibilityLabel="Provision personal workspace"
+              >
+                Provision Personal Workspace
+              </MobileButton>
+            </View>
+          )}
+
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text
+              style={[
+                styles.settingLabel,
+                { color: palette.text.primary, fontSize: 13, marginBottom: 4 },
+              ]}
+            >
+              IANA Time Zone: {timeZone}
+            </Text>
+          </View>
+
+          <View style={{ marginBottom: spacing.xs }}>
+            <Text
+              style={[
+                styles.settingLabel,
+                { color: palette.text.primary, fontSize: 13, marginBottom: spacing.xs },
+              ]}
+            >
+              Week Starts On:
+            </Text>
+            <View style={styles.scaleButtonGroup}>
+              {(['monday', 'sunday', 'saturday'] as const).map((day) => {
+                const isSelected = weekStart === day;
+                return (
+                  <Pressable
+                    key={day}
+                    testID={`mobile-weekstart-${day}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={`Week start ${day}`}
+                    onPress={() => onChangeWeekStart?.(day)}
+                    style={[
+                      styles.scaleButton,
+                      {
+                        backgroundColor: isSelected
+                          ? palette.action.primary
+                          : palette.surfaceRaised,
+                        borderColor: palette.border.subtle,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.scaleButtonText,
+                        {
+                          color: isSelected ? palette.action.label : palette.text.primary,
+                          textTransform: 'capitalize',
+                        },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </MobileCard>
+      </View>
+
+      {/* Section 5c: Android Notifications & Local Reminders (Phase 28) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Notifications & Reminders
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Permission Status:
+            </Text>
+            <Text
+              testID="mobile-notification-permission-status"
+              style={[
+                styles.settingDescription,
+                {
+                  color:
+                    notificationCapability?.status === 'granted'
+                      ? palette.status.success
+                      : notificationCapability?.status === 'channel_disabled'
+                        ? palette.status.warning
+                        : palette.text.secondary,
+                  fontWeight: '600',
+                  marginTop: 2,
+                },
+              ]}
+            >
+              {notificationCapability?.status === 'granted' ? (
+                <>
+                  <Icon name="check" /> Enabled (Granted by OS)
+                </>
+              ) : notificationCapability?.status === 'channel_disabled' ? (
+                <>
+                  <Icon name="warning" /> Channel Disabled in Android System Settings
+                </>
+              ) : notificationCapability?.status === 'denied' ? (
+                <>
+                  <Icon name="x" /> Denied (Organizer functions remain fully usable)
+                </>
+              ) : (
+                'Undetermined (Not Yet Requested)'
+              )}
+            </Text>
+          </View>
+
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Delivery Capability:
+            </Text>
+            <Text
+              testID="mobile-notification-capability-details"
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
+              ]}
+            >
+              {isCorePreview
+                ? 'Reminder delivery is unavailable in this free testing preview.'
+                : (notificationCapability?.details ??
+                  'Local reminders schedule directly on Android. Server push serves as secondary fallback when online.')}
+            </Text>
+          </View>
+
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Timing & Reliability Policy:
+            </Text>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
+              ]}
+            >
+              Standard best-effort delivery. Daynori does not claim medical or exact-alarm
+              reliability, complying with Google Play policies for organizer applications.
+            </Text>
+          </View>
+
+          {!isCorePreview &&
+            notificationCapability?.status !== 'granted' &&
+            onRequestNotificationPermission && (
+              <View style={{ marginTop: spacing.xs }}>
+                <MobileButton
+                  testID="btn-request-notification-permission"
+                  variant="primary"
+                  themeMode={themeMode}
+                  onPress={() => void onRequestNotificationPermission()}
+                  accessibilityLabel="Enable notifications for reminder alerts"
+                >
+                  <Icon name="bell" /> Enable Reminder Notifications
+                </MobileButton>
+              </View>
+            )}
+        </MobileCard>
+      </View>
+
+      {/* Section 5b9: Billing (Phase 57 provisional) */}
+      {isAuthenticated && onOpenBilling ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Plan & billing</Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Synthetic local catalog and server entitlements. Not Play Billing proof. Production
+              charges stay disabled.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenBilling}
+                accessibilityLabel="Open plan and billing"
+              >
+                Open billing
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
+
+      {/* Section 5c0: Assistant (Phase 56 provisional) */}
+      {isAuthenticated && onOpenAssistant ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Assistant</Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Provisional local source-linked answers and reviewable task/note drafts. Fake/gated
+              provider only. Vault never accessed. Confirm is required before any write.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenAssistant}
+                accessibilityLabel="Open assistant"
+              >
+                Open assistant
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
+
+      {/* Section 5c1a: Shared rooms (Phase 51 provisional) */}
+      {isAuthenticated && onOpenRooms ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Shared rooms</Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Provisional local rooms with invite links. Joining never opens another personal
+              workspace. Public sharing stays disabled.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenRooms}
+                accessibilityLabel="Open shared rooms"
+              >
+                Manage rooms
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
+
+      {/* Section 5c1b: Drive selected-file connector (Phase 49 provisional) */}
+      {isAuthenticated && onOpenDriveConnections ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Google Drive (selected files)
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Optional narrow drive.file connector. Development fixtures are labeled. Production
+              Google OAuth stays fail-closed until configured. Vault content is excluded.
+            </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenDriveConnections}
+                accessibilityLabel="Open Google Drive connection settings"
+              >
+                Manage Drive connection
+              </MobileButton>
+            </View>
+          </MobileCard>
+        </View>
+      ) : null}
+
+      {/* Section 5c2: Vault synthetic harness (Phase 46) — production vault remains disabled */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Vault (development harness)
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1, paddingRight: spacing.sm }}>
+              <Text style={[styles.settingLabel, { color: palette.text.primary }]}>
+                Synthetic unlock lifecycle
+              </Text>
+              <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+                Local Phase 46 harness with fixture ciphertext only. Does not enable vault for real
+                users. Production vault stays disabled until Phase 44/45 gates pass.
+              </Text>
+            </View>
+          </View>
+          {onOpenVaultHarness ? (
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                testID="btn-open-vault-harness"
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenVaultHarness}
+                accessibilityLabel="Open synthetic vault unlock harness"
+              >
+                Open synthetic vault harness
+              </MobileButton>
+            </View>
+          ) : null}
+        </MobileCard>
+      </View>
+
+      {/* Section 5d: Expenses & Financial Tracking (Phase 40 Opt-in) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Expenses & Financial Tracking
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1, paddingRight: spacing.sm }}>
+              <Text style={[styles.settingLabel, { color: palette.text.primary }]}>
+                Expenses Feature
+              </Text>
+              <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+                {expensesEnabled
+                  ? 'Active. Quick capture, spending reports, and monthly budget tracking are enabled.'
+                  : 'Disabled by default. Opt in to manage expenses, incomes, and budgets.'}
+              </Text>
+            </View>
+            {onToggleExpensesEnabled && (
+              <MobileButton
+                testID="mobile-toggle-expenses"
+                variant={expensesEnabled ? 'secondary' : 'primary'}
+                themeMode={themeMode}
+                onPress={() => onToggleExpensesEnabled(!expensesEnabled)}
+                accessibilityLabel={
+                  expensesEnabled ? 'Disable expenses feature' : 'Enable expenses feature'
+                }
+              >
+                {expensesEnabled ? 'Disable' : 'Enable'}
+              </MobileButton>
+            )}
+          </View>
+          {expensesEnabled && onOpenExpenses && (
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                testID="btn-open-expenses"
+                variant="primary"
+                themeMode={themeMode}
+                onPress={onOpenExpenses}
+                accessibilityLabel="Open Expenses Tracker"
+              >
+                <Icon name="credit-card" /> Open Expense Tracker <Icon name="arrow-right" />
+              </MobileButton>
+            </View>
+          )}
+        </MobileCard>
+      </View>
+
+      {/* Section 5e: Custom Sections (Phase 43) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Custom Sections</Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Create flexible structured workspaces, reading lists, study hubs, and view blocks.
+          </Text>
+          {onOpenCustomSections && (
+            <MobileButton
+              testID="btn-open-custom-sections"
+              variant="primary"
+              themeMode={themeMode}
+              onPress={onOpenCustomSections}
+              accessibilityLabel="Open Custom Sections"
+            >
+              <Icon name="clipboard" /> Open Custom Sections <Icon name="arrow-right" />
+            </MobileButton>
+          )}
+        </MobileCard>
+      </View>
+
+      {/* Section 6: Tutorial & Getting Started */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Tutorial & Getting Started
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Review the first-use guide, customize your preferred module shortcuts, or explore
+            starter templates:
+          </Text>
+          <MobileButton
+            testID="btn-replay-tutorial"
+            variant="secondary"
+            themeMode={themeMode}
+            onPress={onOpenOnboarding}
+            accessibilityLabel="Replay Onboarding Tutorial"
+          >
+            <Icon name="book" /> Replay Onboarding Tutorial <Icon name="arrow-right" />
+          </MobileButton>
+        </MobileCard>
+      </View>
+
+      {/* Section 7: Sync & Offline Recovery (Phase 34) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Sync & Offline Recovery
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Inspect sync queue health, active conflicts, and export uncommitted drafts or offline
+            recovery data without exposing sensitive credentials or vault plaintexts.
+          </Text>
+          <View style={{ gap: spacing.xs }}>
+            <MobileButton
+              testID="btn-open-sync-diagnostics"
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenSyncDiagnostics}
+              accessibilityLabel="View Sync Diagnostics"
+            >
+              <Icon name="refresh" /> View Sync Diagnostics <Icon name="arrow-right" />
+            </MobileButton>
+            <MobileButton
+              testID="btn-open-recovery-export"
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenRecoveryExport}
+              accessibilityLabel="Export Recovery Drafts"
+            >
+              <Icon name="save" /> Export Recovery Drafts <Icon name="arrow-right" />
+            </MobileButton>
+          </View>
+        </MobileCard>
+      </View>
+
+      {/* Section 8: Workspace Portability (Export & Import) (Phase 35) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+          Workspace Portability (Export & Import)
+        </Text>
+        <MobileCard themeMode={themeMode}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: palette.text.secondary, marginBottom: spacing.sm },
+            ]}
+          >
+            Export your workspace data into open formats (JSON, Markdown, CSV, attachments), or
+            preview and import a verified archive.
+          </Text>
+          <MobileButton
+            testID="btn-open-workspace-portability"
+            variant="primary"
+            themeMode={themeMode}
+            onPress={onOpenPortability}
+            accessibilityLabel="Export or Import Workspace"
+          >
+            <Icon name="archive" /> Export / Import Workspace <Icon name="arrow-right" />
+          </MobileButton>
+        </MobileCard>
+      </View>
+
+      {/* Section 9: Account Deletion & Data Erasure (Phase 36) */}
+      {isAuthenticated && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.status.danger }]}>
+            Account Deletion & Data Erasure
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginBottom: spacing.sm },
+              ]}
+            >
+              Permanently delete your Daynori account and erase all notes, tasks, routines, journal
+              entries, and private files. Requires password verification and explicit confirmation.
+            </Text>
+            <MobileButton
+              testID="btn-open-account-deletion"
+              variant="danger"
+              themeMode={themeMode}
+              onPress={onOpenAccountDeletion}
+              accessibilityLabel="Delete Account and Data"
+            >
+              <Icon name="trash" /> Delete Account <Icon name="arrow-right" />
+            </MobileButton>
+          </MobileCard>
+        </View>
+      )}
+
+      {/* Section 10: Preserved Phase 04 Component Gallery Destination */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Review & Architecture
@@ -283,7 +871,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onPress={onOpenGallery}
             accessibilityLabel="Open Component Gallery"
           >
-            🎨 Open Component Gallery &rarr;
+            <Icon name="palette" /> Open Component Gallery <Icon name="arrow-right" />
           </MobileButton>
         </MobileCard>
       </View>

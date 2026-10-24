@@ -11,8 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@daynori/api-client": "workspace:*",
     "@daynori/contracts": "workspace:*",
     "@daynori/design-tokens": "workspace:*",
+    "@daynori/domain": "workspace:*",
+    "@daynori/sync": "workspace:*",
     "@daynori/ui-web": "workspace:*",
     "next": "^15.5.27",
     "react": "18.3.1",

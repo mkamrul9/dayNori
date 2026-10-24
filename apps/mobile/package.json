@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "main": "index.ts",
-  "description": "Expo React Native mobile application for Daynori (Android-first)",
+  "description": "Expo React Native mobile application for Daynori (Android + iOS native shells)",
   "scripts": {
     "dev": "expo start",
     "start": "expo start",
@@ -11,17 +11,32 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "prebuild": "expo prebuild --no-install -p android && node -e \"if (!require('fs').existsSync('android/build.gradle')) { console.error('Native android generation failed'); process.exit(1); }\"",
-    "build": "expo export -p android"
+    "prebuild": "expo prebuild --no-install -p android && node -e \"if (!require('fs').existsSync('android/build.gradle')) { console.error('Native android generation failed'); process.exit(1); }\" && node ../../scripts/mobile-android-release-path.mjs inspect --android-dir android",
+    "prebuild:android": "pnpm run prebuild",
+    "prebuild:ios": "node -e \"if (process.platform !== 'darwin') { console.error('iOS prebuild requires macOS + Xcode'); process.exit(1); }\" && expo prebuild --no-install -p ios && node -e \"if (!require('fs').existsSync('ios')) { console.error('Native ios generation failed'); process.exit(1); }\" && node ../../scripts/mobile-ios-path.mjs inspect",
+    "ios:path": "node ../../scripts/mobile-ios-path.mjs",
+    "build": "expo export -p android",
+    "build:ios:export": "expo export -p ios"
   },
   "dependencies": {
     "@babel/runtime": "^7.26.0",
+    "@daynori/api-client": "workspace:*",
     "@daynori/contracts": "workspace:*",
     "@daynori/design-tokens": "workspace:*",
+    "@daynori/domain": "workspace:*",
+    "@daynori/sync": "workspace:*",
     "@daynori/ui-mobile": "workspace:*",
     "@expo/metro-config": "~0.19.0",
     "expo": "~52.0.30",
+    "expo-asset": "~11.0.5",
+    "expo-av": "~15.0.2",
+    "expo-clipboard": "~7.0.1",
     "expo-dev-client": "~5.0.20",
+    "expo-document-picker": "~13.0.3",
+    "expo-file-system": "~18.0.12",
+    "expo-notifications": "~0.29.14",
+    "expo-secure-store": "~14.0.1",
+    "expo-sqlite": "~15.1.4",
     "expo-status-bar": "~2.0.1",
     "react": "18.3.1",
     "react-native": "0.76.7"
@@ -30,6 +45,7 @@
     "@daynori/config": "workspace:*",
     "@daynori/test-utils": "workspace:*",
     "@types/react": "~18.3.12",
+    "expo-build-properties": "~0.13.3",
     "expo-modules-autolinking": "~2.0.8",
     "typescript": "^5.7.3"
   }

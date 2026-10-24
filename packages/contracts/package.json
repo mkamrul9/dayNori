@@ -2,6 +2,9 @@
   "name": "@daynori/contracts",
   "version": "0.1.0",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "description": "Versioned validation schemas and API DTO contracts for Daynori",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

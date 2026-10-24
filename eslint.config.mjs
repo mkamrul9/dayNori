@@ -16,8 +16,12 @@ export default tseslint.config(
       'scripts/**',
       'tests/spikes/browser/**',
       'apps/mobile/metro.config.js',
+      'apps/web/public/**',
       '**/next-env.d.ts',
       'artifacts/**',
+      'tests/security/vault/harnesses/android-candidate/**/build/**',
+      'tests/security/vault/harnesses/android-candidate/.gradle/**',
+      'tests/security/vault/harnesses/node_modules/**',
     ],
   },
   {
@@ -27,6 +31,48 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+    },
+  },
+  // Browser-injected vault harness scripts (Node launches them inside a page context).
+  {
+    files: ['tests/security/vault/harnesses/**/*.{mjs,js}'],
+    languageOptions: {
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        BroadcastChannel: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+      },
+    },
+  },
+  // CommonJS KDF worker, Expo config plugins, Node spike runners.
+  {
+    files: [
+      'tests/security/vault/**/*.cjs',
+      'tests/spikes/drive/**/*.{mjs,js,ts}',
+      'apps/mobile/plugins/**/*.{js,cjs}',
+    ],
+    languageOptions: {
+      globals: {
+        require: 'readonly',
+        module: 'readonly',
+        exports: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
     },
   }
 );

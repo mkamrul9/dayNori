@@ -39,7 +39,12 @@ Serialize instants as RFC 3339 UTC strings, local dates as `YYYY-MM-DD`, and zon
 - Finance/custom sections: expense commands/reports and versioned custom schema/record commands.
 - Sync: bootstrap, push, pull, device checkpoint and conflict resolution.
 - Recovery/privacy: exports, account deletion requests, job status and consent/revocation.
-- Deferred: provider connections/Drive refresh, rooms/invites/messages, AI sessions/proposals and entitlements.
+- Rooms (provisional local): `/v1/rooms`, invitations, accept/preview, members, leave, transfer, explicit personal→room copy — gated by local enablement (`DAYNORI_ROOMS_LOCAL_ENABLED` / test-dev); not public release (ADR 0048).
+- Deferred: broader Drive folder mirroring and entitlements. Provider Drive selected-file connector remains separately gated.
+- Phase 53 (provisional local; ADR 0050 amended): room chat under the same rooms local gate — `POST/GET/PATCH/DELETE /v1/rooms/:roomId/messages`, read-state/mute, and `GET .../chat/events`. Send replays return 200 without republishing; read-state advances are clamped. Production remains fail-closed.
+- Phase 54 (provisional local; ADR 0051): `/v1/safety/terms`, `/v1/safety/reports`, `/v1/safety/blocks`, and allow-listed `/v1/safety/moderation/reports` under the same rooms local gate. Chat send requires current UGC terms acceptance.
+- Phase 55/56 (provisional local; ADR 0052/0053): `/v1/ai/consent`, index/retrieve/purge, `/v1/ai/assistant/*`, and `/v1/ai/proposals` under `DAYNORI_AI_LOCAL_ENABLED`. Confirmations are opaque server tokens; model text never executes writes. Live provider remains gated off.
+- Phase 57 (provisional local; ADR 0054): `/v1/billing/catalog`, `/v1/billing/entitlement`, `/v1/workspaces/:id/billing/usage`, `/v1/billing/purchases/verify|restore`, `/v1/billing/events` under `isBillingLocallyEnabled` (fail-closed in production). Synthetic catalog only; live Google Play verification requires `DAYNORI_BILLING_PRODUCTION_ENABLED` + credentials. Clients never grant entitlements.
 
 Keep endpoint naming consistent when concrete schemas are introduced. Do not publish fake handlers or production SDK methods in Phase 00.
 

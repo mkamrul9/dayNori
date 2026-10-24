@@ -5,7 +5,7 @@ Status: interaction specification for prototypes. Test with [accessibility crite
 ## First sign-up and tutorial
 
 1. Show a short promise and clear sign-in/create-account actions. Explain cloud synchronization and ordinary-workspace privacy accurately.
-2. After account creation, offer a skippable three-step tour: Capture anything; Plan tasks and routines; Organize your folders. Each step has Skip, Back and Continue.
+2. After account creation, offer a skippable three-step tour: Your main places; Tasks versus routines; Saving and optional samples (with optional phone install tip). Each step has Skip, Back and Next.
 3. Offer interests such as Notes, Planning, Journal and Files with useful defaults. This configures visible shortcuts, not security permissions or a irreversible content schema.
 4. Offer to create one real note or task. A sample is opt-in and removable. Saving the first item ends the tour; the user can replay it from Help.
 5. Ask notification permission only when the user creates a reminder. Ask file/microphone/biometric permissions at the corresponding user action in later phases.

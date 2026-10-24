@@ -1,0 +1,87 @@
+{
+  "createdAt": "2026-10-21T16:30:22.034Z",
+  "node": "v24.21.0",
+  "notLaunchAuthorization": true,
+  "results": [
+    {
+      "name": "notes-create",
+      "status": "PASS",
+      "detail": "01a82961-c5ad-4979-b242-67585cc7279e"
+    },
+    {
+      "name": "notes-update",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "tasks-create",
+      "status": "PASS",
+      "detail": "bca07685-88bb-4284-8869-94ea5660c0d8"
+    },
+    {
+      "name": "routines-create",
+      "status": "PASS",
+      "detail": "38f634e9-88ea-405c-ae72-ca15a98dbb90"
+    },
+    {
+      "name": "journal-create",
+      "status": "PASS",
+      "detail": "acb3a02c-97be-4eb2-9c67-d142bc207018"
+    },
+    {
+      "name": "files-quota",
+      "status": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "name": "sync-pull",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "sync-push-offline-standin",
+      "status": "PASS",
+      "detail": "38c7fef0-ea59-47a0-8399-31d4ec3718f7"
+    },
+    {
+      "name": "export-requires-reauth",
+      "status": "PASS",
+      "detail": "status=404"
+    },
+    {
+      "name": "optional-modules-denied",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /privacy",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /terms",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /support",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-page /account-deletion",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "web-proxy-account-deletion",
+      "status": "PASS",
+      "detail": "unknown=200 known=200"
+    },
+    {
+      "name": "web-proxy-deletion-verify-required",
+      "status": "PASS",
+      "detail": "status=404"
+    }
+  ]
+}

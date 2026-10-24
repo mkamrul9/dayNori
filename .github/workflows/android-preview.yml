@@ -1,0 +1,100 @@
+name: Android standalone preview
+
+on:
+  workflow_dispatch:
+  # The existing default branch predates this workflow. A dedicated branch push
+  # can build the reviewed preview without merging unfinished release work.
+  push:
+    branches:
+      - codex/android-preview-build
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_PUBLIC_DAYNORI_API_URL: ${{ vars.DAYNORI_PREVIEW_API_URL }}
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.DAYNORI_PREVIEW_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.DAYNORI_PREVIEW_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_DAYNORI_CORE_PREVIEW: 'true'
+      # Explicit test-only signing; this workflow cannot publish a Play release.
+      DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.5'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Check public build configuration
+        run: node scripts/check-android-preview-config.mjs
+      - name: Prepare optional Android push configuration
+        env:
+          DAYNORI_ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.DAYNORI_ANDROID_GOOGLE_SERVICES_JSON }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const raw = process.env.DAYNORI_ANDROID_GOOGLE_SERVICES_JSON;
+          if (raw) {
+            const config = JSON.parse(raw);
+            if (config.private_key || !config.project_info?.project_id || !config.client?.some(client => client.client_info?.android_client_info?.package_name === 'com.daynori.app')) {
+              throw new Error('Invalid Android Firebase client configuration');
+            }
+            const target = `${process.env.GITHUB_WORKSPACE}/apps/mobile/google-services.json`;
+            fs.writeFileSync(target, JSON.stringify(config), { mode: 0o600 });
+            fs.appendFileSync(process.env.GITHUB_ENV, `DAYNORI_GOOGLE_SERVICES_FILE=${target}\n`);
+          } else {
+            console.log('Android push is not configured; reminder delivery is disabled in this core preview.');
+          }
+          NODE
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @daynori/mobile... --filter '!@daynori/mobile' build
+      - run: pnpm --filter @daynori/mobile prebuild
+      - name: Verify release packaging refuses missing signing authorization
+        working-directory: apps/mobile/android
+        env:
+          DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
+        shell: bash
+        run: |
+          if ./gradlew :app:assembleRelease --dry-run --no-daemon --console=plain > signing-guard.log 2>&1; then
+            echo 'Unsigned release packaging was unexpectedly accepted.'
+            exit 1
+          fi
+          if ! grep -q 'Release signing refused for distributable release task' signing-guard.log; then
+            tail -n 70 signing-guard.log
+            exit 1
+          fi
+      - name: Assemble APK with embedded application bundle
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --console=plain
+      - name: Verify standalone bundle and signature
+        shell: bash
+        run: |
+          APK=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          unzip -l "$APK" | grep -q 'assets/index.android.bundle'
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          "$APKSIGNER" verify "$APK"
+          mkdir -p artifacts/android-preview
+          cp "$APK" artifacts/android-preview/daynori-preview-arm64.apk
+          cd artifacts/android-preview
+          sha256sum daynori-preview-arm64.apk > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daynori-standalone-preview-arm64
+          path: artifacts/android-preview/
+          retention-days: 7
+          if-no-files-found: error

@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
@@ -20,7 +21,7 @@ export default function NotFoundPage() {
       }}
     >
       <div style={{ fontSize: '48px', marginBottom: `${spacing.sm}px` }} aria-hidden="true">
-        🧭
+        <Icon name="compass" />
       </div>
       <h1
         style={{
@@ -62,7 +63,7 @@ export default function NotFoundPage() {
             textDecoration: 'none',
           }}
         >
-          Return to Today Overview →
+          Return to Today Overview <Icon name="arrow-right" />
         </Link>
       </div>
     </div>

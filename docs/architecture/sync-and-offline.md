@@ -41,7 +41,7 @@ All mutations of a workspace acquire its sync-state row lock at transaction star
 
 Change records include entity kind/ID/revision, command result projection or tombstone, and sequence. Local application of an entire pull page and advancement of its cursor happen in one database transaction. Applying an old/duplicate revision is a no-op. Persisted data must never lag the persisted cursor.
 
-Membership changes increment the workspace access epoch and force reauthorization of every pull. A removed member receives a revoked result and clears that workspace cache, including attachments and local reminder schedules, on next contact. Previously downloaded bytes cannot be remotely recalled; state this limit for rooms.
+Membership changes increment the workspace access epoch and force reauthorization of every pull. For shared rooms (Phase 52 / ADR 0049), removed or archived access returns `MEMBERSHIP_REVOKED` / `ROOM_ARCHIVED`; clients stop room sync, purge that workspace’s readable caches and unauthorized queued writes, and must not replay writes from a prior membership generation after rejoin. Previously downloaded bytes and already-issued short-lived signed URLs cannot be remotely recalled; state this limit for rooms. Chat remains Phase 53.
 
 ## Bootstrap and expired cursors
 

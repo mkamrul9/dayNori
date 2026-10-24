@@ -70,7 +70,8 @@ Maximum field count, record payload size and nesting are specified in contracts.
 - `upload_session`: workspace, reserved file ID/key, expected limits, expiry and finalization state.
 - `provider_connection`: consented owner, provider, approved scopes, status and encrypted server token reference. Tokens never appear in sync projections.
 - `vault_key_envelope`, `vault_record`: only encrypted payloads and the minimum routing/version metadata; see [vault design](security-and-vault.md).
-- Future `room`, `invitation`, `message`, `ai_consent`, `ai_run`, and `subscription_entitlement` are deferred contracts, not first-release tables.
+- `room_invitations`: room workspace, inviter, invite role `editor|viewer`, token hash/prefix, status, expiry, optional targeted recipient; raw tokens never persisted. Join is invitation-accept only (see ADR 0048). Legacy `kind=room` rows ending in ` (Legacy Room)` stay non-shareable until reconciliation confirms them.
+- Future `message`, `ai_consent`, `ai_run`, and `subscription_entitlement` remain deferred contracts outside Phase 51.
 
 ## Index and integrity plan
 

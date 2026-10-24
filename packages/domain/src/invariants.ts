@@ -38,3 +38,61 @@ export function parseDateOnly(dateString: string): string {
   }
   return dateString;
 }
+
+/**
+ * Validates IANA Time Zone identifiers using the standard Intl API.
+ */
+export function isValidIanaTimeZone(timeZone: string): boolean {
+  if (!timeZone || typeof timeZone !== 'string') {
+    return false;
+  }
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function validateIanaTimeZone(timeZone: string): void {
+  if (!isValidIanaTimeZone(timeZone)) {
+    throw new Error(`Invalid IANA time zone identifier: "${timeZone}"`);
+  }
+}
+
+/**
+ * Validates BCP-47 locale tags using the standard Intl API.
+ */
+export function isValidLocale(locale: string): boolean {
+  if (!locale || typeof locale !== 'string') {
+    return false;
+  }
+  try {
+    const parsed = new Intl.Locale(locale);
+    return Boolean(parsed.language);
+  } catch {
+    return false;
+  }
+}
+
+export function validateLocale(locale: string): void {
+  if (!isValidLocale(locale)) {
+    throw new Error(`Invalid locale identifier: "${locale}"`);
+  }
+}
+
+/**
+ * Supported first day of the week settings.
+ */
+export const VALID_WEEK_STARTS = ['monday', 'sunday', 'saturday'] as const;
+export type WeekStart = (typeof VALID_WEEK_STARTS)[number];
+
+export function isValidWeekStart(val: string): val is WeekStart {
+  return (VALID_WEEK_STARTS as readonly string[]).includes(val);
+}
+
+export function validateWeekStart(val: string): asserts val is WeekStart {
+  if (!isValidWeekStart(val)) {
+    throw new Error(`Invalid week start day: "${val}" (must be monday, sunday, or saturday)`);
+  }
+}

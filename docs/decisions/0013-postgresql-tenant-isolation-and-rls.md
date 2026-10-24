@@ -24,8 +24,10 @@ Daynori supports multi-tenant personal workspaces and collaborative rooms. In mu
 2. **Transaction-Local Identity Isolation**:
    - Tenant context (`app.current_user_id` and `app.current_workspace_id`) is applied exclusively inside transactions via `set_config('app.current_user_id', $1, true)` where `is_local = true`.
    - Upon `COMMIT` or `ROLLBACK`, PostgreSQL automatically clears the GUC settings, guaranteeing zero cross-request identity leakage when connections return to the application connection pool.
-3. **Forced Row Level Security**:
+3. **Forced Row Level Security & Executable Private Storage Policies**:
    - `ALTER TABLE ... FORCE ROW LEVEL SECURITY` is applied to all tenant tables (`app.profiles`, `app.workspaces`, `app.workspace_memberships`, `app.items`, `app.audit_events`, and `app.storage_objects`).
+   - Private storage policies implemented for `storage.objects` and `storage.buckets` (migration `00007_storage_policies_and_context.sql` and `infra/supabase/policies/storage.sql`). Identity context resolves `COALESCE(app.current_user_id, request.jwt.claim.sub, auth.uid())` without requiring custom transaction variables.
+   - Storage object paths enforce strict workspace isolation via `app.storage_extract_workspace_id(name)` rejecting path traversal (`..` and leading `/`).
    - Anonymous or context-free queries executed through the runtime role evaluate RLS predicates to false and return zero rows.
 4. **Non-Recursive Membership Authorization Helper**:
    - Access to workspace-scoped rows is checked through `app.user_has_workspace_role(workspace_id, required_roles)`.
@@ -39,10 +41,19 @@ Daynori supports multi-tenant personal workspaces and collaborative rooms. In mu
 ## Consequences
 
 - All runtime queries that access tenant tables must execute within a `withTenantContext` transaction block.
-- Connection pooling must never reuse un-isolated clients without transaction wrappers.
+- Connection pooling must never reuse un-isolated clients without transaction wrappers; connections with failed rollbacks or dirty state are actively destroyed/discarded.
+- Administrative tables like `app.schema_migrations` are strictly inaccessible to the runtime role.
 - Verified and enforced by automated integration test suite `tests/security/tenant-isolation.test.ts`.
 
 ## Verification and revisit
 
-- **Verification evidence**: 16 integration tests in `tests/security/tenant-isolation.test.ts` passing against local PostgreSQL 17 (`daynori_test`), validating role permissions, cross-tenant read/write rejection, composite foreign keys, anonymous denial, membership revocation, pool reuse identity clearing, audit logging, and storage isolation.
+- **Verification evidence**: 28 integration tests in `tests/security/tenant-isolation.test.ts` passing against local PostgreSQL 17 (`daynori_test`), validating:
+  - Empty dedicated database reproduction from zero with all migrations and advisory concurrency locking.
+  - Checksum rejection on tampered migration files and transaction rollback recovery on failed migrations.
+  - Non-superuser, non-bypassrls attributes and explicit table grants for `daynori_runtime` with denied administrative schema/migration mutation.
+  - Defense against membership self-enrollment escalation and strict creator-only initial bootstrap.
+  - Composite folder deletion preserving tenant key (`workspace_id`).
+  - Cross-tenant read/write/update/delete rejection and actor-field integrity.
+  - Poisoned connection discard on cleanup failure and zero identity leakage across pool reuses.
+  - Executable private storage RLS policies: bucket privacy, cross-workspace path rejection, path traversal rejection, malformed name rejection, and actor permission boundaries (local binary bucket service daemon integration recorded as an acceptance gap until Phase 10+).
 - **Revisit triggers**: Expansion to shared collaborative rooms (Phase 51) requiring granular permission inheritance, introduction of read replicas, or performance profiling under high item cardinality necessitating materialized membership paths.

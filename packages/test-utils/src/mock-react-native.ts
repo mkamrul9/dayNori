@@ -1,3 +1,27 @@
+type ExpoShim = {
+  EventEmitter: new () => {
+    addListener: () => { remove: () => void };
+    removeListener: () => void;
+    emit: () => void;
+  };
+  modules: Record<string, unknown>;
+  ExpoModulesCore: Record<string, unknown>;
+};
+const globalWithExpo = globalThis as typeof globalThis & { expo?: ExpoShim };
+if (typeof globalThis !== 'undefined' && !globalWithExpo.expo) {
+  globalWithExpo.expo = {
+    EventEmitter: class MockEventEmitter {
+      addListener() {
+        return { remove: () => {} };
+      }
+      removeListener() {}
+      emit() {}
+    },
+    modules: {},
+    ExpoModulesCore: {},
+  };
+}
+
 export const StyleSheet = {
   create: <T>(styles: T): T => styles,
   absoluteFill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
@@ -5,6 +29,7 @@ export const StyleSheet = {
 
 export const Text = 'Text';
 export const View = 'View';
+export const Image = 'Image';
 export const SafeAreaView = 'SafeAreaView';
 export const Pressable = 'Pressable';
 export const TouchableOpacity = 'Pressable';

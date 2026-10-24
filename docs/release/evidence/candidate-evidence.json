@@ -1,0 +1,29 @@
+{
+  "candidateLabel": "0.1.0-provisional-local",
+  "notReleaseEligible": true,
+  "gitRevisionAtLastEngineeringVerification": "63057ff",
+  "deviceEvidence": null,
+  "betaEvidence": null,
+  "accessibilityEvidence": null,
+  "backupRecoveryEvidence": "pending-candidate-match: docs/phase-reports/phase-58.md disposable DR (versions must match RC)",
+  "opsEvidence": null,
+  "signedArtifactEvidence": null,
+  "sixteenKbEvidence": null,
+  "ownerApproval": null,
+  "dbRolesVerified": null,
+  "debugApkEngineeringOnly": {
+    "path": "artifacts/release/app-debug-arm64.apk",
+    "sha256": "0379F71CB48C953C5020CB393BA49084507D1F37AFA06066622EB351C800A5B7",
+    "signing": "Android Debug — not release-eligible",
+    "targetSdk": 36,
+    "compileSdk": 36
+  },
+  "notes": [
+    "Vague 'prior phase reports' pointers are not substitute for candidate-scoped hashes.",
+    "Phase 58 short local baseline is not sustained 100-user capacity or cloud recovery proof.",
+    "2026-10-21 verification resume: web build repaired (unused IconText imports); validate:core PASS; release-preflight releaseEligible=false with 12 BLOCKED evidence/OA items; adb devices empty; no signed AAB; no live destinations.",
+    "Phases 61–62 iOS native/TestFlight evidence remain separate and unmet."
+  ],
+  "localConsolidationEvidence": "docs/engineering/core-consolidation-status.md",
+  "publicationDecision": "NO-GO"
+}

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
-import { MobileButton, MobileModalSheet, MobileTextField } from '@daynori/ui-mobile';
+import { Icon, MobileButton, MobileModalSheet, MobileTextField } from '@daynori/ui-mobile';
 import type { CreateDraft } from '../navigation/types';
+import { isCorePreview } from '../config/runtime.js';
 
 export interface CreateSheetProps {
   visible: boolean;
@@ -10,7 +11,8 @@ export interface CreateSheetProps {
   themeMode: ThemeMode;
   initialDraft?: CreateDraft;
   onDraftChange?: (draft: CreateDraft) => void;
-  onCreateItem: (item: CreateDraft) => void;
+  onCreateItem: (item: CreateDraft) => void | Promise<void>;
+  onRecordAudio?: () => void;
   testID?: string;
 }
 
@@ -21,6 +23,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
   initialDraft,
   onDraftChange,
   onCreateItem,
+  onRecordAudio,
   testID = 'create-sheet',
 }) => {
   const palette = colors[themeMode];
@@ -28,6 +31,8 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
   const [title, setTitle] = useState(initialDraft?.title || '');
   const [details, setDetails] = useState(initialDraft?.details || '');
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const saving = useRef(false);
 
   const updateDraft = (newType: CreateDraft['type'], newTitle: string, newDetails: string) => {
     if (onDraftChange) {
@@ -51,27 +56,37 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
     updateDraft(itemType, title, text);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (saving.current) return;
     if (!title.trim()) {
       setError('Please provide a title for the item');
       return;
     }
-    onCreateItem({
-      type: itemType,
-      title: title.trim(),
-      details: details.trim(),
-    });
-    // Clear draft after creation
-    setTitle('');
-    setDetails('');
-    setError(null);
-    onClose();
+    saving.current = true;
+    setIsSaving(true);
+    try {
+      await onCreateItem({ type: itemType, title: title.trim(), details: details.trim() });
+      setTitle('');
+      setDetails('');
+      setError(null);
+      onDraftChange?.({ type: itemType, title: '', details: '' });
+      onClose();
+    } catch {
+      setError(
+        'Could not save. Sign in and open your workspace, or use Library for files. Your draft is kept.'
+      );
+    } finally {
+      saving.current = false;
+      setIsSaving(false);
+    }
   };
 
   return (
     <MobileModalSheet
       visible={visible}
-      onClose={onClose}
+      onClose={() => {
+        if (!saving.current) onClose();
+      }}
       title="Create New Item"
       themeMode={themeMode}
       testID={testID}
@@ -85,37 +100,41 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
               { key: 'task', label: 'Task' },
               { key: 'routine', label: 'Routine' },
               { key: 'note', label: 'Note' },
+              { key: 'file', label: 'File' },
               { key: 'journal', label: 'Journal' },
             ] as const
-          ).map((t) => {
-            const isSelected = itemType === t.key;
-            return (
-              <Pressable
-                key={t.key}
-                testID={`create-type-${t.key}`}
-                accessibilityRole="button"
-                accessibilityLabel={`Create ${t.label}`}
-                accessibilityState={{ selected: isSelected }}
-                onPress={() => handleTypeSelect(t.key)}
-                style={[
-                  styles.typeButton,
-                  {
-                    backgroundColor: isSelected ? palette.action.primary : palette.surfaceRaised,
-                    borderColor: isSelected ? palette.action.primary : palette.border.subtle,
-                  },
-                ]}
-              >
-                <Text
+          )
+            .filter((t) => !isCorePreview || t.key !== 'file')
+            .map((t) => {
+              const isSelected = itemType === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  testID={`create-type-${t.key}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Create ${t.label}`}
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => handleTypeSelect(t.key)}
+                  disabled={isSaving}
                   style={[
-                    styles.typeButtonText,
-                    { color: isSelected ? palette.action.label : palette.text.primary },
+                    styles.typeButton,
+                    {
+                      backgroundColor: isSelected ? palette.action.primary : palette.surfaceRaised,
+                      borderColor: isSelected ? palette.action.primary : palette.border.subtle,
+                    },
                   ]}
                 >
-                  {t.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.typeButtonText,
+                      { color: isSelected ? palette.action.label : palette.text.primary },
+                    ]}
+                  >
+                    {t.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
         </View>
 
         {/* Inputs */}
@@ -123,6 +142,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
           label="Title"
           placeholder={`Give your ${itemType} a clear title...`}
           value={title}
+          editable={!isSaving}
           onChangeText={handleTitleChange}
           errorMessage={error || undefined}
           themeMode={themeMode}
@@ -132,17 +152,36 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
           label="Details or Notes (optional)"
           placeholder="Add tags, deadlines, or additional context..."
           value={details}
+          editable={!isSaving}
           onChangeText={handleDetailsChange}
           multiline={true}
           numberOfLines={3}
           themeMode={themeMode}
         />
 
+        {onRecordAudio && (
+          <View style={{ marginTop: spacing.sm }}>
+            <MobileButton
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={() => {
+                onClose();
+                onRecordAudio();
+              }}
+              disabled={isSaving}
+              accessibilityLabel="Record voice memo"
+            >
+              <Icon name="microphone" /> Record Voice Memo
+            </MobileButton>
+          </View>
+        )}
+
         <View style={styles.actionRow}>
           <MobileButton
             variant="primary"
             themeMode={themeMode}
-            onPress={handleSubmit}
+            onPress={() => void handleSubmit()}
+            disabled={isSaving}
             accessibilityLabel={`Create ${itemType}`}
           >
             Create {itemType.charAt(0).toUpperCase() + itemType.slice(1)}
@@ -152,6 +191,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
             variant="subtle"
             themeMode={themeMode}
             onPress={onClose}
+            disabled={isSaving}
             accessibilityLabel="Cancel item creation"
           >
             Cancel

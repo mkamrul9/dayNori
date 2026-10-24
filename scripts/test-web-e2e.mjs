@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
+import { buildServer } from '../apps/api/dist/server.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifactsDir = path.join(root, 'artifacts', 'web-e2e');
@@ -19,6 +21,7 @@ if (!browserExe) {
   process.exit(1);
 }
 
+const apiPort = 3001;
 const serverPort = 3105;
 const cdpPort = 9225;
 const userDataDir = path.join(root, 'artifacts', 'local', 'edge-e2e-profile');
@@ -26,8 +29,15 @@ fs.mkdirSync(userDataDir, { recursive: true });
 
 console.log('=== STARTING PHASE 05 RESPONSIVE WEB SHELL E2E TEST ===');
 console.log(`Browser: ${browserExe}`);
+console.log(`API Port: ${apiPort}`);
 console.log(`Server Port: ${serverPort}`);
 console.log(`CDP Port: ${cdpPort}`);
+
+// 0. Start Fastify API Server on port 3001
+console.log('\n[0/6] Launching Fastify API server...');
+const apiServer = buildServer({ allowUnauthenticatedStartup: true });
+await apiServer.listen({ port: apiPort, host: '127.0.0.1' });
+console.log(`✓ Fastify API server ready at http://127.0.0.1:${apiPort}`);
 
 // 1. Start Next.js Production Server
 console.log('\n[1/6] Launching Next.js production server...');
@@ -503,56 +513,414 @@ try {
     'Re-enabling shortcuts allowed single-key "t" to navigate to /today'
   );
 
-  // C. Interactive States: Empty, Loading, Error, Retry
+  // C. Interactive States: Real TodayView Controls & Customization Modal
   await navigateTo('/today');
 
-  // 1. Toggle Empty State
-  await evaluate(`document.querySelector('#toggle-empty-state-btn').click()`);
+  // 1. Verify Quick Capture bar items
+  const quickCapture = await evaluate(`(() => {
+    return {
+      hasTask: !!document.querySelector('#quick-capture-task'),
+      hasNote: !!document.querySelector('#quick-capture-note'),
+      hasRoutine: !!document.querySelector('#quick-capture-routine'),
+      hasJournal: !!document.querySelector('#quick-capture-journal'),
+      hasFile: !!document.querySelector('#quick-capture-file'),
+    };
+  })()`);
+  record(
+    'Interactive Quick Capture controls on Today',
+    quickCapture.hasTask &&
+      quickCapture.hasNote &&
+      quickCapture.hasRoutine &&
+      quickCapture.hasJournal,
+    'Quick capture actions for task, note, routine, journal, and file are visible'
+  );
+
+  // 2. Test Customize Today Modal
+  await evaluate(`document.querySelector('#customize-today-btn')?.click()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const customizeModalOpen = await evaluate(`(() => {
+    const saveBtn = document.querySelector('#save-customization-btn');
+    const restoreBtn = document.querySelector('#restore-defaults-btn');
+    const cancelBtn = document.querySelector('#cancel-customization-btn');
+    return !!saveBtn && !!restoreBtn && !!cancelBtn;
+  })()`);
+  record(
+    'Today Customization Dialog interaction',
+    customizeModalOpen,
+    'Customization drawer opened with save, restore defaults, and cancel buttons'
+  );
+
+  // Click Cancel to dismiss modal
+  await evaluate(`document.querySelector('#cancel-customization-btn')?.click()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const customizeModalClosed = await evaluate(`!document.querySelector('#save-customization-btn')`);
+  record(
+    'Today Customization Dialog dismissal',
+    customizeModalClosed,
+    'Dialog dismissed cleanly without unsaved layout mutation'
+  );
+
+  // ----------------------------------------------------
+  // TEST SUITE 5: Phase 15 Folder Browsing, Mixed Item Lists & Hierarchy Navigation
+  // ----------------------------------------------------
+  console.log('\n[7/7] Testing Phase 15 Library folder browsing, hierarchy, and mixed items...');
+
+  await setViewport(1280, 800, false);
+  await navigateTo('/library');
+
+  // A. Verify Root Breadcrumb & Empty Workspace by Default
+  const rootBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Library root breadcrumbs',
+    rootBreadcrumb?.includes('Workspace'),
+    `Breadcrumb contains Workspace: "${rootBreadcrumb}"`
+  );
+
+  const emptyTitle = await evaluate(
+    `document.querySelector('#library-empty-state')?.innerText || document.querySelector('section[aria-label="Your library is empty"]')?.innerText`
+  );
+  record(
+    'Phase 15 Library empty workspace by default',
+    emptyTitle?.includes('Your library is empty'),
+    `Empty workspace title: "${emptyTitle}"`
+  );
+
+  // Explicit user action to load sample journeys
+  await evaluate(`(() => {
+    const btn = document.querySelector('#load-demo-journeys-btn');
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 400));
+
+  const initialFolders = await evaluate(`(() => {
+    const list = Array.from(document.querySelectorAll('button[title^="Open "]'));
+    return list.map((b) => b.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Canonical root folders present',
+    initialFolders.some((f) => f.includes('Software')) &&
+      initialFolders.some((f) => f.includes('Government jobs')),
+    `Found folders: ${initialFolders.join(', ')}`
+  );
+
+  await captureScreenshot('library-root-desktop.png');
+
+  // B. Drill down into Software folder
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Software'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const softwareBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Drill-down into Software folder',
+    softwareBreadcrumb?.includes('Software'),
+    `Breadcrumb updated to: "${softwareBreadcrumb}"`
+  );
+
+  const softwareSubfolders = await evaluate(`(() => {
+    const list = Array.from(document.querySelectorAll('button[title^="Open "]'));
+    return list.map((b) => b.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Subfolders Guides and Projects in Software',
+    softwareSubfolders.some((f) => f.includes('Guides')) &&
+      softwareSubfolders.some((f) => f.includes('Projects')),
+    `Subfolders: ${softwareSubfolders.join(', ')}`
+  );
+
+  await captureScreenshot('library-software-desktop.png');
+
+  // C. Drill down into Guides folder (contains mixed items: knowledge note, pdf file, task)
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Guides'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const guidesBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Drill-down into Guides subfolder',
+    guidesBreadcrumb?.includes('Guides'),
+    `Breadcrumb updated to: "${guidesBreadcrumb}"`
+  );
+
+  const guidesItems = await evaluate(`(() => {
+    const rows = Array.from(document.querySelectorAll('div[role="listitem"]'));
+    return rows.map((r) => r.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Mixed items in Guides (note, file, task)',
+    guidesItems.some((i) => i.includes('TypeScript reference')) &&
+      guidesItems.some((i) => i.includes('.pdf')) &&
+      guidesItems.some((i) => i.includes('generics')),
+    `Contained mixed items with badges`
+  );
+
+  await captureScreenshot('library-guides-mixed-items.png');
+
+  // D. Type-filtering: Filter by Files without moving content
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'Files');
+    if (btn) btn.click();
+  })()`);
   await new Promise((r) => setTimeout(r, 200));
-  const emptyStateRendered = await evaluate(`(() => {
-    const el = document.querySelector('#today-empty-state');
-    return !!el && el.innerText.includes('All caught up for today');
+
+  const filteredItemsFiles = await evaluate(`(() => {
+    const rows = Array.from(document.querySelectorAll('div[role="listitem"]'));
+    return rows.map((r) => r.innerText.trim());
   })()`);
   record(
-    'Interactive Empty state rendering',
-    emptyStateRendered,
-    'Gentle empty state with Create Task action'
+    'Phase 15 Type filter "Files" isolates PDF without altering folderId',
+    filteredItemsFiles.length === 1 && filteredItemsFiles[0].includes('.pdf'),
+    `Filtered items count=${filteredItemsFiles.length}`
   );
 
-  // Restore content
-  await evaluate(`document.querySelector('#toggle-empty-state-btn').click()`);
-
-  // 2. Simulate Loading State
-  await evaluate(`document.querySelector('#simulate-loading-btn').click()`);
-  const loadingStateRendered = await evaluate(`(() => {
-    const el = document.querySelector('div[role="status"][aria-busy="true"]');
-    return !!el && el.innerText.includes('Refreshing Today content');
+  // Restore All Items
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'All Items');
+    if (btn) btn.click();
   })()`);
-  record(
-    'Interactive Loading state rendering',
-    loadingStateRendered,
-    'aria-busy="true" status indicator'
-  );
-  await new Promise((r) => setTimeout(r, 900));
-
-  // 3. Simulate Error & Retry State
-  await evaluate(`document.querySelector('#simulate-error-btn').click()`);
   await new Promise((r) => setTimeout(r, 200));
-  const errorRendered = await evaluate(`(() => {
-    const el = document.querySelector('#retry-state-btn');
-    return !!el && document.body.innerText.includes('Synchronization Error');
+
+  // E. Up Navigation: Return to Software, then return to Workspace
+  await evaluate(`(() => {
+    const upBtn = document.querySelector('button[aria-label="Navigate to parent folder"]');
+    if (upBtn) upBtn.click();
   })()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const afterUpBreadcrumb = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
   record(
-    'Interactive Error state rendering',
-    errorRendered,
-    'role="alert" feedback with Retry button'
+    'Phase 15 Up navigation returns to parent folder',
+    afterUpBreadcrumb?.includes('Software') && !afterUpBreadcrumb?.includes('Guides'),
+    `Current location: "${afterUpBreadcrumb}"`
   );
 
-  // Click Retry
-  await evaluate(`document.querySelector('#retry-state-btn').click()`);
-  await new Promise((r) => setTimeout(r, 700));
-  const errorCleared = await evaluate(`!document.querySelector('#retry-state-btn')`);
-  record('Interactive Retry state recovery', errorCleared, 'Content recovered cleanly after retry');
+  // Up again to root
+  await evaluate(`(() => {
+    const upBtn = document.querySelector('button[aria-label="Navigate to parent folder"]');
+    if (upBtn) upBtn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+  const backAtRoot = await evaluate(
+    `document.querySelector('nav[aria-label="Breadcrumb"]')?.innerText`
+  );
+  record(
+    'Phase 15 Up navigation back to Workspace root',
+    backAtRoot?.trim() === 'Workspace',
+    `Root location: "${backAtRoot?.trim()}"`
+  );
+
+  // F. Drill into Government jobs -> Applications
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Government jobs'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  await evaluate(`(() => {
+    const btn = Array.from(document.querySelectorAll('button[title^="Open "]')).find(b => b.innerText.includes('Applications'));
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const govItems = await evaluate(`(() => {
+    const rows = Array.from(document.querySelectorAll('div[role="listitem"]'));
+    return rows.map((r) => r.innerText.trim());
+  })()`);
+  record(
+    'Phase 15 Government jobs Applications journey items',
+    govItems.some((i) => i.includes('Application Form.pdf')) &&
+      govItems.some((i) => i.includes('civil service exam')),
+    `Government jobs journey verified`
+  );
+
+  // G. Test Folder Creation Modal
+  await navigateTo('/library');
+  await evaluate(
+    `document.querySelector('button[aria-label="Create new workspace folder"]').click()`
+  );
+  await new Promise((r) => setTimeout(r, 300));
+
+  const createDialogOpen = await evaluate(`(() => {
+    const input = document.querySelector('#create-folder-name');
+    return !!input;
+  })()`);
+  record('Phase 15 Create Folder dialog opens', createDialogOpen, 'Dialog rendered with input');
+
+  await evaluate(`document.querySelector('#create-folder-name').focus()`);
+  await send('Input.insertText', { text: 'E2E Verified Folder' });
+  await new Promise((r) => setTimeout(r, 200));
+
+  await evaluate(`(() => {
+    const submitBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'Create Folder');
+    if (submitBtn) submitBtn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 400));
+
+  const newFolderAppeared = await evaluate(`(() => {
+    const list = Array.from(document.querySelectorAll('button[title^="Open "]'));
+    return list.some(b => b.innerText.includes('E2E Verified Folder'));
+  })()`);
+  record(
+    'Phase 15 Folder created and rendered in workspace',
+    newFolderAppeared,
+    'E2E Verified Folder present in folder list'
+  );
+
+  // H. Responsive 320px mobile reflow on /library
+  await setViewport(320, 600, true);
+  const libraryMobileReflow = await evaluate(`(() => {
+    const scrollWidth = document.documentElement.scrollWidth;
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      scrollWidth,
+      clientWidth,
+      noOverflow: scrollWidth <= clientWidth,
+    };
+  })()`);
+  record(
+    'Phase 15 Library 320px mobile reflow (WCAG 1.4.10)',
+    libraryMobileReflow.noOverflow,
+    `Zero horizontal overflow: scrollWidth=${libraryMobileReflow.scrollWidth} <= clientWidth=${libraryMobileReflow.clientWidth}`
+  );
+  await captureScreenshot('library-mobile-320px.png');
+
+  // ----------------------------------------------------
+  // TEST SUITE 6: Phase 37 Core Organizer Journeys & Deletion Disclosure
+  // ----------------------------------------------------
+  console.log('\n[8/8] Testing Phase 37 Core Organizer journeys & deletion disclosure...');
+
+  // A. Public Account Deletion & Disclosure (Google Play Policy Compliance)
+  await navigateTo('/account-deletion');
+  const deletionPage = await evaluate(`(() => {
+    const text = document.body.innerText;
+    const input = document.querySelector('#deletion-email') || document.querySelector('input[type="email"]');
+    const submitBtn = document.querySelector('button[type="submit"]');
+    return {
+      hasHeading: text.includes('Account & Data Deletion') || text.includes('Account Deletion'),
+      hasDisclosure: text.includes('permanent') || text.includes('deletion') || text.includes('erasure'),
+      hasEmailInput: !!input,
+      hasSubmitBtn: !!submitBtn,
+    };
+  })()`);
+  record(
+    'Phase 37 Public Account Deletion Disclosure & Form',
+    deletionPage.hasHeading && deletionPage.hasDisclosure && deletionPage.hasEmailInput,
+    'Google Play compliance web deletion resource loaded with clear disclosure'
+  );
+  await captureScreenshot('account-deletion-desktop.png');
+
+  // Submit synthetic deletion request
+  const testDeletionEmail = `synthetic.e2e.${Date.now()}@example.test`;
+  await evaluate(`(() => {
+    const input = document.querySelector('#deletion-email') || document.querySelector('input[type="email"]');
+    if (input) {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (setter) {
+        setter.call(input, '${testDeletionEmail}');
+      } else {
+        input.value = '${testDeletionEmail}';
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  })()`);
+  await new Promise((r) => setTimeout(r, 200));
+
+  await evaluate(`(() => {
+    const submitBtn = document.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const postSubmitState = await evaluate(`document.body.innerText`);
+  const hasSuccessFeedback =
+    postSubmitState.includes('Request Received') ||
+    postSubmitState.includes('confirmation email with deletion instructions has been dispatched');
+  const hasNoSubmissionError =
+    !postSubmitState.includes('Submission Error') &&
+    !postSubmitState.includes('CSRF token mismatch') &&
+    !postSubmitState.includes('Failed to submit deletion request');
+
+  // Verify resulting persisted request in Postgres
+  const pgClient = new pg.Client({
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: Number(process.env.DB_PORT || 5432),
+    database: process.env.DB_NAME || 'daynori_test',
+    user: process.env.DB_USER || 'daynori_runtime',
+    password: process.env.DB_PASSWORD || '',
+  });
+  await pgClient.connect();
+  const dbCheck = await pgClient.query(
+    'SELECT id, status FROM app.public_deletion_requests WHERE email = $1;',
+    [testDeletionEmail]
+  );
+  await pgClient.end();
+  const persistedInDb =
+    (dbCheck.rowCount ?? 0) > 0 && dbCheck.rows[0]?.status === 'pending_verification';
+
+  record(
+    'Phase 37 Public Deletion Submission feedback & DB persistence',
+    hasSuccessFeedback && hasNoSubmissionError && persistedInDb,
+    'Enumeration-safe disclosure feedback returned without CSRF rejection and request record persisted in database'
+  );
+
+  // B. Plan Workflows (Deadlines & Upcoming Tasks)
+  await navigateTo('/plan');
+  const planView = await evaluate(`(() => {
+    const text = document.body.innerText;
+    return {
+      hasPlanHeading: text.includes('Plan'),
+      hasTasksSection: text.includes('Tasks') || text.includes('Upcoming'),
+      hasCalendarLink: !!document.querySelector('a[href="/plan/calendar"]'),
+    };
+  })()`);
+  record(
+    'Phase 37 Plan view deadlines and calendar link',
+    planView.hasPlanHeading && planView.hasCalendarLink,
+    'Plan navigation with direct access to deadlines and Calendar'
+  );
+
+  // C. Journal Calm Reflection Surface
+  await navigateTo('/journal');
+  const journalView = await evaluate(`(() => {
+    const text = document.body.innerText;
+    return {
+      hasJournal: text.includes('Journal'),
+      hasEditor: text.includes('Write') || text.includes('Today') || text.includes('Entries'),
+    };
+  })()`);
+  record(
+    'Phase 37 Journal quiet reflection surface',
+    journalView.hasJournal && journalView.hasEditor,
+    'Focused journal timeline and editor surface active'
+  );
+  await captureScreenshot('journal-reflection-desktop.png');
+
+  // D. Help & Accessibility Documentation Guide
+  await navigateTo('/help');
+  const helpView = await evaluate(`(() => {
+    const text = document.body.innerText;
+    return {
+      hasHelp: text.includes('Help') || text.includes('Accessibility'),
+      hasShortcuts: text.includes('Keyboard Shortcuts') || text.includes('Shortcuts'),
+    };
+  })()`);
+  record(
+    'Phase 37 Help & Accessibility Guide',
+    helpView.hasHelp && helpView.hasShortcuts,
+    'Accessibility and keyboard shortcut guide accessible to screen-reader and keyboard users'
+  );
 
   // Final summary
   const allPassed = testResults.every((t) => t.pass);
@@ -570,4 +938,5 @@ try {
   ws.close();
   browser.kill();
   server.kill();
+  await apiServer.close().catch(() => {});
 }

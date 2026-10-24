@@ -4,6 +4,8 @@ Status: proposed visual specification. These values are not shipped tokens or pr
 
 ## Visual character
 
+The local application logo and platform exports are in the [Daynori logo kit](../../assets/brand/README.md). The folded D and custom vector wordmark implement this palette; [ADR 0059](../decisions/0059-daynori-vector-identity-and-platform-assets.md) records the asset and platform ownership. Public brand clearance remains pending.
+
 The app should feel like a well-made personal notebook with the clarity of a dependable tool: warm paper, dark ink, deep teal actions and small amber emphasis. Use generous spacing, clear alignment and modest rounded corners. Keep backgrounds quiet so notes, deadlines and personal writing are prominent.
 
 Avoid large decorative gradients, glass layers behind essential text, arbitrary violet accents and a different bright color for every module. A polished product comes from hierarchy and consistent states, not from filling every surface with brand color.
@@ -90,6 +92,23 @@ Use shared tokens, schemas and content vocabulary across clients. Web and native
 ## Copy and iconography
 
 Use familiar labels: Note, Task, Routine, Journal, File, Folder, Priority, Reminder. Do not expose database terms, job queues, object-store paths or provider token failures to the user. Label the action the user needs to take and retain a support diagnostic ID only when useful.
+
+### No-emoji application chrome
+
+Application-authored interface chrome must not use emoji or improvised Unicode pictograms as icons. Use the shared semantic icon registry in `packages/design-tokens/src/icons.ts` with the web (`packages/ui-web`) and mobile (`packages/ui-mobile`) `Icon` components.
+
+Requirements:
+
+- One coherent 24-unit stroke family (about 1.75 stroke, round caps/joins); size and color come from tokens / `currentColor` / theme tint.
+- Prefer semantic names in source (`name="folder"`), not emoji string props. Legacy glyph→name mapping exists only for previously saved folder display metadata.
+- Keep recognizable text labels beside icons. Icon-only controls need accessible names, keyboard support, adequate touch targets, and tooltips where the platform affords them.
+- Decorative icons use `aria-hidden` / no accessibility label so they do not duplicate announcements.
+- Do **not** rewrite user notes, journal bodies, filenames, chat messages, imports, or exports that contain emoji.
+- Light/dark themes tint icons from semantic text/action/status colors; selected/disabled/error states follow the same token roles as neighboring controls.
+
+Artwork provenance: Daynori line icons are original project vectors generated into mobile PNGs by `scripts/build-icon-assets.mjs` (no third-party icon font). The Daynori logo/identity remains separate under `assets/brand/` (ADR 0059).
+
+Regression check: `node scripts/check-ui-icons.mjs`.
 
 Use one coherent icon family with consistent stroke/weight. Pair unfamiliar icons with text. Priority uses text and a recognizable marker; color is supplementary. Biometric, vault and encryption language must match the security implementation, not imply assurances that have not been verified.
 

@@ -4,7 +4,7 @@ import { createApiClient } from '@daynori/api-client';
 
 describe('Integration Smoke Tests', () => {
   it('ApiClient interacts successfully with the Fastify API server', async () => {
-    const server = buildServer();
+    const server = buildServer({ allowUnauthenticatedStartup: true });
 
     // Use fastify inject as a fetch adapter for the client
     const customFetch: typeof fetch = async (input, init) => {
@@ -27,8 +27,8 @@ describe('Integration Smoke Tests', () => {
     });
 
     const health = await client.getHealth();
-    expect(health.status).toBe('ok');
-    expect(health.version).toBe('0.1.0');
+    expect(health.data.status).toBe('ok');
+    expect(health.data.version).toBe('0.1.0');
 
     const smoke = await client.getSmoke();
     expect(smoke.status).toBe('ready');

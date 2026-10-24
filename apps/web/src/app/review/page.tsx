@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@daynori/ui-web';
 import React, { useState } from 'react';
 import { colors, spacing, touchTargets, typography, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -68,7 +69,7 @@ export default function ComponentReviewPage() {
               minHeight: '44px',
             }}
           >
-            ← Return to Organizer Shell
+            <Icon name="arrow-left" /> Return to Organizer Shell
           </a>
         </nav>
         {/* Header and Controls */}
@@ -126,7 +127,7 @@ export default function ComponentReviewPage() {
               onClick={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
               aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
             >
-              Theme: {themeMode === 'light' ? '☀️ Light' : '🌙 Dark'}
+              Theme: {themeMode === 'light' ? (<><Icon name='sun' /> {'Light'}</>) : (<><Icon name='moon' /> {'Dark'}</>)}
             </Button>
 
             <Button
@@ -242,7 +243,7 @@ export default function ComponentReviewPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 11rem), 1fr))',
                 gap: `${spacing.base}px`,
               }}
             >
@@ -326,7 +327,11 @@ export default function ComponentReviewPage() {
                 selected={selectedRow === 'task-1'}
                 onClick={() => setSelectedRow('task-1')}
                 themeMode={themeMode}
-                leading={<span aria-hidden="true">✓</span>}
+                leading={
+                  <span aria-hidden="true">
+                    <Icon name="check" />
+                  </span>
+                }
               />
 
               <ListRow
@@ -336,7 +341,11 @@ export default function ComponentReviewPage() {
                 selected={selectedRow === 'task-2'}
                 onClick={() => setSelectedRow('task-2')}
                 themeMode={themeMode}
-                leading={<span aria-hidden="true">📝</span>}
+                leading={
+                  <span aria-hidden="true">
+                    <Icon name="note" />
+                  </span>
+                }
               />
 
               <ListRow
@@ -345,7 +354,11 @@ export default function ComponentReviewPage() {
                 meta="Archived"
                 disabled
                 themeMode={themeMode}
-                leading={<span aria-hidden="true">📁</span>}
+                leading={
+                  <span aria-hidden="true">
+                    <Icon name="folder" />
+                  </span>
+                }
               />
             </div>
           </Card>

@@ -1,0 +1,94 @@
+'use client';
+
+import { Icon } from './Icon.js';
+import React from 'react';
+import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
+
+export interface ItemTypeBadgeProps {
+  kind: 'folder' | 'note' | 'task' | 'routine' | 'journal' | string;
+  themeMode?: ThemeMode;
+  style?: React.CSSProperties;
+}
+
+export const ItemTypeBadge: React.FC<ItemTypeBadgeProps> = ({
+  kind,
+  themeMode = 'light',
+  style,
+}) => {
+  const palette = colors[themeMode];
+
+  let bg: string = palette.surfaceRaised;
+  let text: string = palette.text.secondary;
+  let label = kind.toUpperCase();
+  let icon = 'file';
+
+  switch (kind) {
+    case 'folder':
+      bg = themeMode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff';
+      text = themeMode === 'dark' ? '#93c5fd' : '#1d4ed8';
+      label = 'Folder';
+      icon = 'folder';
+      break;
+    case 'note':
+      bg = themeMode === 'dark' ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5';
+      text = themeMode === 'dark' ? '#6ee7b7' : '#047857';
+      label = 'Note';
+      icon = 'note';
+      break;
+    case 'task':
+    case 'todo':
+      bg = themeMode === 'dark' ? 'rgba(245, 158, 11, 0.2)' : '#fffbeb';
+      text = themeMode === 'dark' ? '#fcd34d' : '#b45309';
+      label = 'Task';
+      icon = 'check-circle';
+      break;
+    case 'routine':
+      bg = themeMode === 'dark' ? 'rgba(139, 92, 246, 0.2)' : '#f5f3ff';
+      text = themeMode === 'dark' ? '#c4b5fd' : '#6d28d9';
+      label = 'Routine';
+      icon = 'refresh';
+      break;
+    case 'journal':
+      bg = themeMode === 'dark' ? 'rgba(236, 72, 153, 0.2)' : '#fdf2f8';
+      text = themeMode === 'dark' ? '#f472b6' : '#be185d';
+      label = 'Journal';
+      icon = 'book';
+      break;
+    case 'knowledge':
+      bg = themeMode === 'dark' ? 'rgba(14, 165, 233, 0.2)' : '#f0f9ff';
+      text = themeMode === 'dark' ? '#7dd3fc' : '#0369a1';
+      label = 'Knowledge';
+      icon = 'bulb';
+      break;
+    default:
+      label = kind.charAt(0).toUpperCase() + kind.slice(1);
+      break;
+  }
+
+  return (
+    <span
+      role="status"
+      aria-label={`Item type: ${label}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: `2px ${spacing.xs}px`,
+        borderRadius: radii.sm,
+        backgroundColor: bg,
+        color: text,
+        fontSize: `${typography.webScale.metadata}px`,
+        fontWeight: 600,
+        letterSpacing: '0.02em',
+        lineHeight: '16px',
+        userSelect: 'none',
+        ...style,
+      }}
+    >
+      <span aria-hidden="true" style={{ fontSize: '11px' }}>
+        <Icon name={icon} />
+      </span>
+      {label}
+    </span>
+  );
+};

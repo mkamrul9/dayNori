@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Pool } from 'pg';
+import { Pool } from 'pg';
 import {
   createAdminPool,
   createRuntimePool,
@@ -21,6 +21,8 @@ import {
   createStorageObject,
   getStorageObject,
   listStorageObjects,
+  createWorkspace,
+  getRuntimeDatabaseConfig,
 } from '../../apps/api/src/db/index.js';
 import { Migrator } from '../../infra/supabase/migrator.js';
 
@@ -89,9 +91,9 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
     await migrator.close();
     await runtimePool.end();
     await adminPool.end();
-  });
+  }, 30000);
 
-  describe('1. Role Privilege Boundaries', () => {
+  describe('1. Role Privilege Boundaries & Migration Ledger Protections', () => {
     it('verifies that the runtime role is non-superuser and cannot bypass RLS', async () => {
       const client = await runtimePool.connect();
       try {
@@ -104,14 +106,144 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       }
     });
 
+    it('denies the runtime role from reading or mutating the migration ledger', async () => {
+      // Direct SELECT on schema_migrations must fail
+      await expect(
+        withNoContext(runtimePool, async (client) => {
+          return client.query('SELECT * FROM app.schema_migrations;');
+        })
+      ).rejects.toThrow(/permission denied for table schema_migrations/i);
+
+      // Direct INSERT on schema_migrations must fail
+      await expect(
+        withNoContext(runtimePool, async (client) => {
+          return client.query(
+            "INSERT INTO app.schema_migrations (version, name, checksum) VALUES ('99999', 'fake', 'fake');"
+          );
+        })
+      ).rejects.toThrow(/permission denied for table schema_migrations/i);
+    });
+
     it('verifies that schema migrations table tracks applied migrations and is idempotent', async () => {
       const secondRun = await migrator.migrate();
       expect(secondRun.applied.length).toBe(0);
-      expect(secondRun.skipped.length).toBeGreaterThanOrEqual(2);
+      expect(secondRun.skipped.length).toBeGreaterThanOrEqual(5);
+    });
+
+    it('executes concurrent migrations safely with advisory lock serialization', async () => {
+      const migratorA = new Migrator();
+      const migratorB = new Migrator();
+      try {
+        const [resA, resB] = await Promise.all([migratorA.migrate(), migratorB.migrate()]);
+        expect(resA.applied.length).toBe(0);
+        expect(resB.applied.length).toBe(0);
+      } finally {
+        await migratorA.close();
+        await migratorB.close();
+      }
+    });
+
+    it('reproduces an empty dedicated database from zero with all migrations', async () => {
+      const scratchDb = `daynori_scratch_${Date.now()}`;
+      const adminClient = await adminPool.connect();
+      try {
+        await adminClient.query(`CREATE DATABASE ${scratchDb};`);
+
+        const scratchMigrator = new Migrator({ database: scratchDb });
+        try {
+          const result = await scratchMigrator.migrate();
+          expect(result.applied.length).toBeGreaterThanOrEqual(6);
+          expect(result.skipped.length).toBe(0);
+
+          // Verify schema_migrations table populated
+          const client = await scratchMigrator['pool'].connect();
+          try {
+            const appliedList = await scratchMigrator.getAppliedMigrations(client);
+            expect(appliedList.length).toBeGreaterThanOrEqual(6);
+          } finally {
+            client.release();
+          }
+        } finally {
+          await scratchMigrator.close();
+        }
+      } finally {
+        await adminClient.query(`DROP DATABASE IF EXISTS ${scratchDb};`);
+        adminClient.release();
+      }
+    }, 30000);
+  });
+
+  describe('2. Membership Privilege Escalation & Bootstrap Defense', () => {
+    it('REGRESSION: strictly rejects self-enrollment into another user workspace via spoofed context', async () => {
+      // User 2 connects using workspace1Id as context and attempts to insert themselves as owner/member
+      await expect(
+        withTenantContext(
+          runtimePool,
+          { userId: user2Id, workspaceId: workspace1Id },
+          async (client) => {
+            return addMembership(client, {
+              workspaceId: workspace1Id,
+              userId: user2Id,
+              role: 'owner',
+            });
+          }
+        )
+      ).rejects.toThrow(/violates row-level security policy for table "workspace_memberships"/i);
+    });
+
+    it('permits initial owner bootstrap only for legitimate creator of a brand new workspace', async () => {
+      const newWsId = crypto.randomUUID();
+
+      // User 1 creates a new personal workspace
+      await withTenantContext(
+        runtimePool,
+        { userId: user1Id, workspaceId: workspace1Id },
+        async (client) => {
+          await createWorkspace(client, {
+            id: newWsId,
+            name: 'User 1 Secondary Workspace',
+            kind: 'room',
+            ownerId: user1Id,
+          });
+
+          // In same atomic flow, User 1 inserts initial owner membership
+          const mem = await addMembership(client, {
+            workspaceId: newWsId,
+            userId: user1Id,
+            role: 'owner',
+          });
+          expect(mem.workspace_id).toBe(newWsId);
+          expect(mem.user_id).toBe(user1Id);
+          expect(mem.role).toBe('owner');
+        }
+      );
+
+      // Now User 2 tries to self-enroll as owner in User 1's new workspace -> must fail!
+      await expect(
+        withTenantContext(
+          runtimePool,
+          { userId: user2Id, workspaceId: newWsId },
+          async (client) => {
+            return addMembership(client, {
+              workspaceId: newWsId,
+              userId: user2Id,
+              role: 'owner',
+            });
+          }
+        )
+      ).rejects.toThrow(/violates row-level security policy/i);
+
+      // Clean up secondary workspace
+      const adminClient = await adminPool.connect();
+      try {
+        await adminClient.query('DELETE FROM app.workspaces WHERE id = $1;', [newWsId]);
+      } finally {
+        adminClient.release();
+      }
     });
   });
 
-  describe('2. Cross-Tenant Item Isolation', () => {
+  describe('3. Cross-Tenant Item Isolation', () => {
     let item1Id: string;
 
     it('allows User 1 to create an item in Workspace 1', async () => {
@@ -203,7 +335,7 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
           async (client) => {
             return createItem(client, {
               workspaceId: workspace1Id, // Spoofed workspace
-              kind: 'task',
+              kind: 'todo',
               createdBy: user2Id,
             });
           }
@@ -212,7 +344,7 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
     });
   });
 
-  describe('3. Relational Composite Foreign Key Integrity', () => {
+  describe('4. Relational Composite Foreign Key Integrity & Folder Deletion', () => {
     it('physically rejects cross-workspace folder hierarchies even if RLS were bypassed', async () => {
       // User 1 creates folder in WS 1
       const folder = await withTenantContext(
@@ -241,11 +373,60 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
             });
           }
         )
-      ).rejects.toThrow(/foreign key|violates foreign key constraint/i);
+      ).rejects.toThrow(/foreign key|violates foreign key constraint|INVALID_FOLDER/i);
+    });
+
+    it('sets folder_id to NULL on parent folder deletion while preserving workspace_id', async () => {
+      let folderId: string;
+      let childItemId: string;
+
+      // User 1 creates parent folder and child item
+      await withTenantContext(
+        runtimePool,
+        { userId: user1Id, workspaceId: workspace1Id },
+        async (client) => {
+          const folder = await createItem(client, {
+            workspaceId: workspace1Id,
+            kind: 'folder',
+            createdBy: user1Id,
+          });
+          folderId = folder.id;
+
+          const child = await createItem(client, {
+            workspaceId: workspace1Id,
+            folderId: folder.id,
+            kind: 'note',
+            createdBy: user1Id,
+          });
+          childItemId = child.id;
+        }
+      );
+
+      // User 1 deletes parent folder
+      await withTenantContext(
+        runtimePool,
+        { userId: user1Id, workspaceId: workspace1Id },
+        async (client) => {
+          const deleted = await deleteItem(client, workspace1Id, folderId);
+          expect(deleted).toBe(true);
+        }
+      );
+
+      // Verify child item still exists, with folder_id NULL and workspace_id unchanged
+      await withTenantContext(
+        runtimePool,
+        { userId: user1Id, workspaceId: workspace1Id },
+        async (client) => {
+          const child = await getItem(client, workspace1Id, childItemId);
+          expect(child).not.toBeNull();
+          expect(child?.folder_id).toBeNull();
+          expect(child?.workspace_id).toBe(workspace1Id);
+        }
+      );
     });
   });
 
-  describe('4. Anonymous and Context-Free Denial', () => {
+  describe('5. Anonymous and Context-Free Denial', () => {
     it('returns zero rows and denies queries executed without tenant context', async () => {
       const items = await withNoContext(runtimePool, async (client) => {
         const res = await client.query('SELECT * FROM app.items;');
@@ -267,8 +448,9 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
     });
   });
 
-  describe('5. Membership Revocation Cutoff and Role Enforcement', () => {
+  describe('6. Membership Revocation Cutoff and Role Enforcement', () => {
     const guestUserId = crypto.randomUUID();
+    const testRoomId = crypto.randomUUID();
 
     beforeAll(async () => {
       const adminClient = await adminPool.connect();
@@ -277,19 +459,27 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
           `INSERT INTO app.profiles (id, display_name) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
           [guestUserId, `Guest ${testSuffix}`]
         );
+        await adminClient.query(
+          `INSERT INTO app.workspaces (id, name, kind, owner_id) VALUES ($1, $2, 'room', $3);`,
+          [testRoomId, `Test Room ${testSuffix}`, user1Id]
+        );
+        await adminClient.query(
+          `INSERT INTO app.workspace_memberships (workspace_id, user_id, role) VALUES ($1, $2, 'owner');`,
+          [testRoomId, user1Id]
+        );
       } finally {
         adminClient.release();
       }
     });
 
     it('enforces that viewer role cannot insert or update items', async () => {
-      // Add guest as viewer in WS 1
+      // Add guest as viewer in test room
       await withTenantContext(
         runtimePool,
-        { userId: user1Id, workspaceId: workspace1Id },
+        { userId: user1Id, workspaceId: testRoomId },
         async (client) => {
           return addMembership(client, {
-            workspaceId: workspace1Id,
+            workspaceId: testRoomId,
             userId: guestUserId,
             role: 'viewer',
           });
@@ -300,10 +490,10 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       await expect(
         withTenantContext(
           runtimePool,
-          { userId: guestUserId, workspaceId: workspace1Id },
+          { userId: guestUserId, workspaceId: testRoomId },
           async (client) => {
             return createItem(client, {
-              workspaceId: workspace1Id,
+              workspaceId: testRoomId,
               kind: 'note',
               createdBy: guestUserId,
             });
@@ -314,9 +504,9 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       // Viewer attempts to update workspace name -> must fail
       const updated = await withTenantContext(
         runtimePool,
-        { userId: guestUserId, workspaceId: workspace1Id },
+        { userId: guestUserId, workspaceId: testRoomId },
         async (client) => {
-          return updateWorkspace(client, workspace1Id, { name: 'Hacked Name' });
+          return updateWorkspace(client, testRoomId, { name: 'Hacked Name' });
         }
       );
       expect(updated).toBeNull();
@@ -326,50 +516,63 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
       // Guest can read workspace list while a member
       const memberWorkspaces = await withTenantContext(
         runtimePool,
-        { userId: guestUserId, workspaceId: workspace1Id },
+        { userId: guestUserId, workspaceId: testRoomId },
         async (client) => {
           return listWorkspaces(client);
         }
       );
-      expect(memberWorkspaces.some((w) => w.id === workspace1Id)).toBe(true);
+      expect(memberWorkspaces.some((w) => w.id === testRoomId)).toBe(true);
 
       // Owner removes guest membership
       await withTenantContext(
         runtimePool,
-        { userId: user1Id, workspaceId: workspace1Id },
+        { userId: user1Id, workspaceId: testRoomId },
         async (client) => {
-          return removeMembership(client, workspace1Id, guestUserId);
+          return removeMembership(client, testRoomId, guestUserId);
         }
       );
 
-      // Now guest queries for WS 1 return nothing
+      // Now guest queries for test room return nothing
       const postRevocation = await withTenantContext(
         runtimePool,
-        { userId: guestUserId, workspaceId: workspace1Id },
+        { userId: guestUserId, workspaceId: testRoomId },
         async (client) => {
           return listWorkspaces(client);
         }
       );
-      expect(postRevocation.some((w) => w.id === workspace1Id)).toBe(false);
+      expect(postRevocation.some((w) => w.id === testRoomId)).toBe(false);
     });
   });
 
-  describe('6. Connection Pool Reuse and GUC Identity Reset', () => {
-    it('proves zero identity leakage across pooled connections after COMMIT', async () => {
+  describe('7. Connection Pool Reuse and Forced Connection Identity Reset', () => {
+    let smallPool: Pool;
+
+    beforeAll(() => {
+      // Force connection reuse by configuring a pool with max: 1 connection
+      const cfg = getRuntimeDatabaseConfig();
+      smallPool = new Pool({ ...cfg, max: 1 });
+    });
+
+    afterAll(async () => {
+      await smallPool.end();
+    });
+
+    it('proves zero identity leakage across pooled connections after COMMIT on max:1 pool', async () => {
       // Transaction 1: User 1
       await withTenantContext(
-        runtimePool,
+        smallPool,
         { userId: user1Id, workspaceId: workspace1Id },
         async (client) => {
           const res = await client.query(
-            "SELECT current_setting('app.current_user_id', true) as u;"
+            "SELECT current_setting('app.current_user_id', true) as u, current_setting('app.current_workspace_id', true) as w;"
           );
           expect(res.rows[0]?.u).toBe(user1Id);
+          expect(res.rows[0]?.w).toBe(workspace1Id);
         }
       );
 
-      // Connection is released to pool. Next transaction without context:
-      await withNoContext(runtimePool, async (client) => {
+      // Connection is released to the max:1 pool. Next query on the EXACT SAME physical connection without context:
+      await withNoContext(smallPool, async (client) => {
         const userRes = await client.query(
           "SELECT current_setting('app.current_user_id', true) as u;"
         );
@@ -379,12 +582,25 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
         expect(userRes.rows[0]?.u).toBeFalsy();
         expect(wsRes.rows[0]?.w).toBeFalsy();
       });
+
+      // Next transaction for User 2 on the same physical connection:
+      await withTenantContext(
+        smallPool,
+        { userId: user2Id, workspaceId: workspace2Id },
+        async (client) => {
+          const res = await client.query(
+            "SELECT current_setting('app.current_user_id', true) as u, current_setting('app.current_workspace_id', true) as w;"
+          );
+          expect(res.rows[0]?.u).toBe(user2Id);
+          expect(res.rows[0]?.w).toBe(workspace2Id);
+        }
+      );
     });
 
-    it('proves zero identity leakage across pooled connections after ROLLBACK / Exception', async () => {
+    it('proves zero identity leakage across pooled connections after ROLLBACK on max:1 pool', async () => {
       try {
         await withTenantContext(
-          runtimePool,
+          smallPool,
           { userId: user1Id, workspaceId: workspace1Id },
           async (client) => {
             await client.query("SELECT current_setting('app.current_user_id', true);");
@@ -395,17 +611,21 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
         expect((err as Error).message).toBe('Simulated application crash');
       }
 
-      // Check pool state immediately after rollback
-      await withNoContext(runtimePool, async (client) => {
+      // Check the exact same connection immediately after rollback
+      await withNoContext(smallPool, async (client) => {
         const userRes = await client.query(
           "SELECT current_setting('app.current_user_id', true) as u;"
         );
+        const wsRes = await client.query(
+          "SELECT current_setting('app.current_workspace_id', true) as w;"
+        );
         expect(userRes.rows[0]?.u).toBeFalsy();
+        expect(wsRes.rows[0]?.w).toBeFalsy();
       });
     });
   });
 
-  describe('7. Storage and Audit Event Isolation', () => {
+  describe('8. Storage and Audit Event Isolation', () => {
     it('isolates audit events by workspace', async () => {
       await withTenantContext(
         runtimePool,
@@ -473,6 +693,201 @@ describe('Phase 07: PostgreSQL Tenant Isolation and RLS Foundations', () => {
         }
       );
       expect(user2List).toEqual([]);
+    });
+  });
+
+  describe('9. Supabase Storage (storage.objects) Private Policies & Identity Context', () => {
+    const storageTestObject = `${workspace1Id}/documents/spec.pdf`;
+
+    it('verifies private_assets bucket privacy (public is false)', async () => {
+      const res = await runtimePool.query(
+        `SELECT id, name, public FROM storage.buckets WHERE id = 'private_assets';`
+      );
+      expect(res.rows.length).toBe(1);
+      expect(res.rows[0].public).toBe(false);
+    });
+
+    it('validates safe workspace_id extraction and rejects malformed/traversal paths', async () => {
+      // Valid path
+      const valid = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id($1) as ws_id;`,
+        [`${workspace1Id}/images/diagram.png`]
+      );
+      expect(valid.rows[0].ws_id).toBe(workspace1Id);
+
+      // Malformed: no slash
+      const noSlash = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id('malformed-file.png') as ws_id;`
+      );
+      expect(noSlash.rows[0].ws_id).toBeNull();
+
+      // Malformed: invalid UUID
+      const invalidUuid = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id('not-a-real-uuid/file.png') as ws_id;`
+      );
+      expect(invalidUuid.rows[0].ws_id).toBeNull();
+
+      // Malformed: directory traversal
+      const traversal = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id($1) as ws_id;`,
+        [`${workspace1Id}/../../etc/passwd`]
+      );
+      expect(traversal.rows[0].ws_id).toBeNull();
+
+      // Malformed: leading slash
+      const leadingSlash = await runtimePool.query(
+        `SELECT app.storage_extract_workspace_id($1) as ws_id;`,
+        [`/${workspace1Id}/file.png`]
+      );
+      expect(leadingSlash.rows[0].ws_id).toBeNull();
+    });
+
+    it('allows authorized workspace editor to insert and read storage objects using Supabase request.jwt.claim.sub context', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        // Simulate Supabase Storage daemon context setting request.jwt.claim.sub
+        await client.query("SELECT set_config('request.jwt.claim.sub', $1, true);", [user1Id]);
+
+        const insertRes = await client.query(
+          `INSERT INTO storage.objects (bucket_id, name, owner)
+           VALUES ('private_assets', $1, $2)
+           RETURNING id, name, bucket_id;`,
+          [storageTestObject, user1Id]
+        );
+        expect(insertRes.rows.length).toBe(1);
+        expect(insertRes.rows[0].name).toBe(storageTestObject);
+
+        const selectRes = await client.query(
+          `SELECT id, name FROM storage.objects WHERE bucket_id = 'private_assets' AND name = $1;`,
+          [storageTestObject]
+        );
+        expect(selectRes.rows.length).toBe(1);
+        await client.query('COMMIT;');
+      } catch (err) {
+        await client.query('ROLLBACK;');
+        throw err;
+      } finally {
+        client.release();
+      }
+    });
+
+    it('denies unauthorized user from reading, listing, updating, or deleting other workspace storage objects', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        // User 2 context in Supabase Storage
+        await client.query("SELECT set_config('request.jwt.claim.sub', $1, true);", [user2Id]);
+
+        // 1. Cannot read User 1's storage object
+        const readRes = await client.query(
+          `SELECT id, name FROM storage.objects WHERE bucket_id = 'private_assets' AND name = $1;`,
+          [storageTestObject]
+        );
+        expect(readRes.rows.length).toBe(0);
+
+        // 2. Cannot list User 1's storage objects
+        const listRes = await client.query(
+          `SELECT id, name FROM storage.objects WHERE bucket_id = 'private_assets';`
+        );
+        const user1Objects = listRes.rows.filter((r) => r.name.startsWith(workspace1Id));
+        expect(user1Objects.length).toBe(0);
+
+        // 3. Cannot update User 1's storage object
+        const updateRes = await client.query(
+          `UPDATE storage.objects SET metadata = '{"tampered": true}'::jsonb WHERE name = $1;`,
+          [storageTestObject]
+        );
+        expect(updateRes.rowCount).toBe(0);
+
+        // 4. Cannot delete User 1's storage object
+        const deleteRes = await client.query(`DELETE FROM storage.objects WHERE name = $1;`, [
+          storageTestObject,
+        ]);
+        expect(deleteRes.rowCount).toBe(0);
+
+        // 5. Cannot insert object into User 1's workspace
+        let insertFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', $1, $2);`,
+            [`${workspace1Id}/hacked.png`, user2Id]
+          );
+        } catch {
+          insertFailed = true;
+        }
+        expect(insertFailed).toBe(true);
+
+        await client.query('ROLLBACK;');
+      } finally {
+        client.release();
+      }
+    });
+
+    it('denies storage object insertion with malformed names or path traversal', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        await client.query("SELECT set_config('request.jwt.claim.sub', $1, true);", [user1Id]);
+
+        // Attempt malformed name without slash
+        let noSlashFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', 'badname.png', $1);`,
+            [user1Id]
+          );
+        } catch {
+          noSlashFailed = true;
+        }
+        expect(noSlashFailed).toBe(true);
+
+        // Attempt path traversal
+        let traversalFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', $1, $2);`,
+            [`${workspace1Id}/../../secret.png`, user1Id]
+          );
+        } catch {
+          traversalFailed = true;
+        }
+        expect(traversalFailed).toBe(true);
+
+        await client.query('ROLLBACK;');
+      } finally {
+        client.release();
+      }
+    });
+
+    it('denies unauthenticated or anonymous access to storage objects', async () => {
+      const client = await runtimePool.connect();
+      try {
+        await client.query('BEGIN;');
+        // No user context set
+
+        const res = await client.query(`SELECT * FROM storage.objects;`);
+        expect(res.rows.length).toBe(0);
+
+        let insertFailed = false;
+        try {
+          await client.query(
+            `INSERT INTO storage.objects (bucket_id, name, owner)
+             VALUES ('private_assets', $1, $2);`,
+            [storageTestObject, crypto.randomUUID()]
+          );
+        } catch {
+          insertFailed = true;
+        }
+        expect(insertFailed).toBe(true);
+
+        await client.query('ROLLBACK;');
+      } finally {
+        client.release();
+      }
     });
   });
 });

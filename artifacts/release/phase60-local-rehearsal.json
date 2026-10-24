@@ -1,0 +1,57 @@
+{
+  "createdAt": "2026-10-21T08:23:30.912Z",
+  "gitRevision": "63057ff35126d2ff9fdc9668ce20f979d0ef65c4",
+  "notHumanAuthorization": true,
+  "results": [
+    {
+      "name": "explicit-test-target",
+      "status": "PASS",
+      "detail": "disposable-local"
+    },
+    {
+      "name": "node-runtime",
+      "status": "PASS",
+      "detail": "installed v24.21.0; engines ^24.21.0"
+    },
+    {
+      "name": "release-preflight",
+      "status": "PASS",
+      "detail": "exit 0 (allow-partial-local; releaseEligible remains false)"
+    },
+    {
+      "name": "android-inspect-workspace",
+      "status": "PASS",
+      "detail": "exit 0"
+    },
+    {
+      "name": "android-prebuild-disposable",
+      "status": "PASS",
+      "detail": "reusing artifacts/release/android-prebuild-inspection.json"
+    },
+    {
+      "name": "db-isolation",
+      "status": "PASS",
+      "detail": "daynori_test"
+    },
+    {
+      "name": "integration-gates",
+      "status": "PASS",
+      "detail": "exit 0"
+    },
+    {
+      "name": "phase58-baseline-classification",
+      "status": "PASS",
+      "detail": "label=engineering-synthetic-baseline-short-local; notSustained100=true; getNote-no-id=20 (intentional negative when id absent)"
+    },
+    {
+      "name": "rollback-policy",
+      "status": "PASS",
+      "detail": "Prefer forward-fix; do not assume destructive DB rollback or Android downgrade is safe for installed clients"
+    },
+    {
+      "name": "human-authorization",
+      "status": "BLOCKED",
+      "detail": "Local rehearsal must never grant approval or initiate publication"
+    }
+  ]
+}

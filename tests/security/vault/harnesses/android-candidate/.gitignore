@@ -1,0 +1,7 @@
+.gradle/
+build/
+harness/build/
+android-app/build/
+local.properties
+*.iml
+.idea/

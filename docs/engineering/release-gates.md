@@ -35,6 +35,18 @@ Recheck the official policies in [the source register](../research/sources.md) i
 
 All policy links above were checked 2026-10-13. The evidence report must use its own current check date at release.
 
+### Phase 59 local preparation (2026-10-21)
+
+Provisional materials live under `docs/release/` and `docs/engineering/play-policy-review-2026-10-21.md`. Target API **36** is configured in mobile app config; built AAB evidence, signing credentials, public domain URLs, and operator approval remain unmet. Local preparation does **not** authorize store submission.
+
+### Phase 60 local preflight / rehearsal (2026-10-21)
+
+Executable `pnpm release:preflight` fail-closes without human OA. Android authoritative path is Expo prebuild + signing guard (stale `android/` debug fallback is rejected). Play **percentage staged rollouts are for updates only**; first publication uses testing tracks / first production release (ADR 0057, runbook `docs/engineering/runbooks/public-release-publication.md`). Phase 60 remains incomplete until approved Android + matching web are live.
+
+### Phase 60 verification resume (2026-10-21)
+
+Owner resumed Android/web closure checks. Unused `IconText` imports that broke the web production build were repaired; core validation, smoke, preflight, and rehearsal re-ran with Node `v24.21.0`. Publication decision remains **NO-GO** (`releaseEligible=false`; no physical device, beta, signed AAB, or operator OA). Phases 61–62 stay blocked on native/TestFlight/store evidence. Phase 63 not started.
+
 ## Gate D: paid product
 
 Choose free/paid feature boundaries and commercial countries before implementing purchase flows. Verify merchant eligibility for the owner's location and current Play regional programs. Paid digital features and cloud storage generally fall under the Play payments policy, with exceptions/programs that must be checked for the actual markets; do not steer Android users to web checkout by default. [Play Payments policy guidance](https://support.google.com/googleplay/android-developer/answer/10281818?hl=en) (checked 2026-10-13).
@@ -59,9 +71,9 @@ Test reboot, permission revocation, clock/time-zone changes, device idle/battery
 
 ### Rooms and chat
 
-Release invite-only sharing only after scoped memberships, invitations/expiry, authorization/realtime revocation, consent and ownership/exit semantics pass. User-generated content visible to other users creates moderation requirements even when the audience is a subset of users. Terms acceptance before contribution, objectionable-content rules, in-app report/block controls and a staffed moderation/action process are release prerequisites; a private-room label is not a policy exemption. [Play UGC policy](https://support.google.com/googleplay/android-developer/answer/9876937?hl=en) (checked 2026-10-13).
+Release invite-only sharing only after scoped memberships, invitations/expiry, authorization/realtime revocation, consent and ownership/exit semantics pass. User-generated content visible to other users creates moderation requirements even when the audience is a subset of users. Terms acceptance before contribution, objectionable-content rules, in-app report/block controls and a staffed moderation/action process are release prerequisites; a private-room label is not a policy exemption. [Play UGC policy](https://support.google.com/googleplay/android-developer/answer/9876937?hl=en) (checked 2026-10-13; Phase 54 dated review 2026-10-20 in `docs/policy/google-play-ugc-review-2026-10-20.md`).
 
-Test harassment reports, blocked interactions, attachment abuse, invitation guessing, rate limits and moderator access/audit. Decide target age/audience and evaluate applicable child-safety policy before opening any social feature. The initial product does not add public discovery or anonymous rooms.
+Phase 54 delivers provisional local report/block/terms/audit controls (ADR 0051). **Staffed moderation ownership remains unmet** and keeps rooms/chat release blocked. Test harassment reports, blocked interactions, attachment abuse, invitation guessing, rate limits and moderator access/audit. Decide target age/audience and evaluate applicable child-safety policy before opening any social feature. The initial product does not add public discovery or anonymous rooms.
 
 ### Google Drive
 
@@ -76,3 +88,7 @@ Release only after provider/retention/cost decisions, explicit opt-in, workspace
 ### iOS
 
 Treat iOS as a later platform gate: development hardware/build/signing, native adapter parity, background/notification/biometric behavior, accessibility, store policy/billing and physical-device QA must be established before advertising availability. Android tests cannot stand in for iOS evidence.
+
+Phase 61 delivers Expo iOS configuration, platform adapters, and an explicit [support matrix](ios-support-matrix.md). Acceptance still requires Mac development-build and physical-device evidence per [ios-development.md](ios-development.md).
+
+Phase 62 local package: [docs/release/ios/](../release/ios/README.md) (ADR 0060). TestFlight/store submission remain unauthorized until native evidence and owner OA exist. This section does not authorize App Store submission.

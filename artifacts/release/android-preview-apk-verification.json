@@ -1,0 +1,11 @@
+{
+  "artifact": "daynori-preview-arm64.apk",
+  "bytes": 34326704,
+  "sha256": "b102674448337eb2b9ccde2f4d5653b022bc837ae9edd212ade52c5a47da1441",
+  "embeddedBundleBytes": 2263632,
+  "hostedApiPresent": true,
+  "hostedAuthPresent": true,
+  "serverCredentialsAbsent": true,
+  "nativeAbis": ["arm64-v8a"],
+  "archiveIntegrity": "passed"
+}

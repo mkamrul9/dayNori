@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from './Icon.js';
 import React from 'react';
 import {
   colors,
@@ -17,6 +18,8 @@ export interface FeedbackProps {
   title?: string;
   message: string;
   themeMode?: ThemeMode;
+  actionLabel?: string;
+  onAction?: () => void;
   onDismiss?: () => void;
 }
 
@@ -25,6 +28,8 @@ export const Feedback: React.FC<FeedbackProps> = ({
   title,
   message,
   themeMode = 'light',
+  actionLabel,
+  onAction,
   onDismiss,
 }) => {
   const palette = colors[themeMode];
@@ -32,26 +37,26 @@ export const Feedback: React.FC<FeedbackProps> = ({
   let bg: string = palette.status.infoBg;
   let fg: string = palette.status.info;
   let border: string = palette.status.infoBorder;
-  let icon = 'ℹ️';
+  let icon = 'info';
   let statusPrefix = 'Notice:';
 
   if (severity === 'success') {
     bg = palette.status.successBg;
     fg = palette.status.success;
     border = palette.status.successBorder;
-    icon = '✓';
+    icon = 'check';
     statusPrefix = 'Success:';
   } else if (severity === 'warning') {
     bg = palette.status.warningBg;
     fg = palette.status.warning;
     border = palette.status.warningBorder;
-    icon = '⚠';
+    icon = 'warning';
     statusPrefix = 'Warning:';
   } else if (severity === 'danger') {
     bg = palette.status.dangerBg;
     fg = palette.status.danger;
     border = palette.status.dangerBorder;
-    icon = '✕';
+    icon = 'x';
     statusPrefix = 'Error:';
   }
 
@@ -77,7 +82,7 @@ export const Feedback: React.FC<FeedbackProps> = ({
     >
       <div style={{ display: 'flex', gap: `${spacing.sm}px`, alignItems: 'flex-start', flex: 1 }}>
         <span aria-hidden="true" style={{ fontWeight: 'bold', flexShrink: 0, marginTop: '2px' }}>
-          {icon}
+          <Icon name={icon} />
         </span>
         <div style={{ flex: 1 }}>
           <span
@@ -99,6 +104,31 @@ export const Feedback: React.FC<FeedbackProps> = ({
           <span>{message}</span>
         </div>
       </div>
+
+      {actionLabel && onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          style={{
+            background: palette.surface,
+            color: palette.text.primary,
+            border: `1px solid ${border}`,
+            borderRadius: `${radii.sm}px`,
+            padding: `${spacing.xs}px ${spacing.sm}px`,
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            minHeight: `${touchTargets.webMin}px`,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {actionLabel}
+        </button>
+      )}
 
       {onDismiss && (
         <button
@@ -130,7 +160,7 @@ export const Feedback: React.FC<FeedbackProps> = ({
             e.currentTarget.style.outline = 'none';
           }}
         >
-          ✕
+          <Icon name="x" />
         </button>
       )}
     </div>

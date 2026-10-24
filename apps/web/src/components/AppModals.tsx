@@ -1,67 +1,298 @@
 'use client';
 
-import React, { useState } from 'react';
+import { Icon } from '@daynori/ui-web';
+import { isCorePreview } from '../config/preview';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
-import { Button, Dialog, Feedback, ListRow, TextField } from '@daynori/ui-web';
+import {
+  Button,
+  Dialog,
+  Feedback,
+  ListRow,
+  TextField,
+  SyncDiagnosticsDialog,
+  RecoveryExportDialog,
+  ConflictReviewDialog,
+  WorkspacePortabilityDialog,
+} from '@daynori/ui-web';
+import {
+  exportRecoveryData,
+  getRedactedSyncDiagnostics,
+  type RedactedSyncDiagnostics,
+  type RecoveryExport,
+  type ConflictRecord,
+  type FileRecord,
+} from '@daynori/sync';
 import { useShell } from './ShellContext';
+import { useAuth } from './AuthContext';
+import { AuthModal } from './AuthModal';
+import { OnboardingTutorial } from './OnboardingTutorial';
+import { createWebApiClient } from '../data/webApiClient';
+import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
+import { getActiveWebSyncEngine, createWebSyncEngine } from '../data/syncAdapter';
+import { OfflineFileCache } from '../data/offlineFileCache';
+import { highlightMatch, searchDownloadedRecords } from '@daynori/domain';
+import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 
 export const AppModals: React.FC = () => {
   const router = useRouter();
-  const { themeMode, activeModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
+  const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
+  const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken } = useAuth();
 
   const palette = colors[themeMode];
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedType, setSelectedType] = useState<SearchItemType>('all');
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [coverage, setCoverage] = useState<'complete' | 'offline_limited' | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  const localRepoRef = useRef<IndexedDbLocalRepository | null>(null);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const requestGenRef = useRef(0);
+
+  // Clear search immediately on namespace change
+  useEffect(() => {
+    requestGenRef.current += 1;
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    localRepoRef.current = null;
+    setSearchQuery('');
+    setSelectedType('all');
+    setSearchResults([]);
+    setCoverage(null);
+    setIsOffline(false);
+    setIsLoading(false);
+    setError(null);
+    setOffset(0);
+    setTotalCount(0);
+    setStartDate('');
+    setEndDate('');
+    setSyncDiagnostics(null);
+    setRecoveryExport(null);
+    setActiveConflict(null);
+  }, [user?.id, workspaceId]);
+
+  const [syncDiagnostics, setSyncDiagnostics] = useState<RedactedSyncDiagnostics | null>(null);
+  const [recoveryExport, setRecoveryExport] = useState<RecoveryExport | null>(null);
+  const [activeConflict, setActiveConflict] = useState<ConflictRecord | null>(null);
+
+  const loadDiagnostics = React.useCallback(async () => {
+    if (!workspaceId || !user?.id) return;
+    try {
+      const activeEngine = getActiveWebSyncEngine();
+      if (activeEngine) {
+        const diag = await activeEngine.getDiagnostics();
+        setSyncDiagnostics(getRedactedSyncDiagnostics(diag));
+        return;
+      }
+
+      if (!localRepoRef.current) {
+        localRepoRef.current = new IndexedDbLocalRepository();
+        await localRepoRef.current.initialize({ workspaceId, userId: user.id });
+      }
+      const pending = await localRepoRef.current.getPendingMutations(workspaceId, user.id);
+      const conflicts = await localRepoRef.current.listConflicts(workspaceId);
+      const cursor = await localRepoRef.current.getCursor(workspaceId, user.id);
+      const activeConflicts = conflicts.filter((c) => !c.resolved);
+      const rawDiag = {
+        workspaceId,
+        userId: user.id,
+        deviceId: 'web-browser',
+        isLeader: false,
+        networkStatus:
+          typeof navigator !== 'undefined' && !navigator.onLine
+            ? ('offline' as const)
+            : ('online' as const),
+        cloudSyncStatus:
+          activeConflicts.length > 0
+            ? ('conflict' as const)
+            : pending.length > 0
+              ? ('saved_locally' as const)
+              : ('synced' as const),
+        queueLength: pending.length,
+        inFlightCount: 0,
+        failedCount: pending.filter((m) => m.status === 'failed').length,
+        lastSyncedAt: cursor?.lastSyncedAt || null,
+        lastSyncSequence: cursor?.lastServerRevision ?? 0,
+        accessEpoch: cursor?.epoch || null,
+        consecutiveFailures: 0,
+        activeConflictsCount: activeConflicts.length,
+      };
+      setSyncDiagnostics(getRedactedSyncDiagnostics(rawDiag));
+    } catch {
+      // fallback on error
+    }
+  }, [workspaceId, user?.id]);
+
+  const loadRecoveryExport = React.useCallback(async () => {
+    if (!workspaceId || !user?.id) return;
+    try {
+      if (!localRepoRef.current) {
+        localRepoRef.current = new IndexedDbLocalRepository();
+        await localRepoRef.current.initialize({ workspaceId, userId: user.id });
+      }
+      const exportData = await exportRecoveryData({
+        repository: localRepoRef.current,
+        workspaceId,
+        userId: user.id,
+        deviceId: 'web-browser',
+        checkAttachmentCached: (f: FileRecord) =>
+          OfflineFileCache.hasBinary(user.id, workspaceId, f.id, Number(f.version) || 1),
+      });
+      setRecoveryExport(exportData);
+    } catch {
+      // fallback on error
+    }
+  }, [workspaceId, user?.id]);
+
+  const handleSyncNow = React.useCallback(async () => {
+    const engine = getActiveWebSyncEngine();
+    if (engine) {
+      await engine.syncNow();
+      await loadDiagnostics();
+    }
+  }, [loadDiagnostics]);
+
+  useEffect(() => {
+    const engine = getActiveWebSyncEngine();
+    if (!engine) return;
+    const unsub = engine.onEvent((evt) => {
+      if (evt.type === 'conflict_detected') {
+        setActiveConflict(evt.conflict);
+      } else if (evt.type === 'conflict_resolved') {
+        setActiveConflict((prev) => (prev?.id === evt.conflictId ? null : prev));
+      }
+    });
+    return unsub;
+  }, [workspaceId, user?.id]);
+
+  const handleOpenConflictReview = React.useCallback(async () => {
+    if (!workspaceId) return;
+    const engine = getActiveWebSyncEngine();
+    if (engine) {
+      const conflicts = engine.getConflicts();
+      if (conflicts.length > 0) {
+        setActiveConflict(conflicts[0] ?? null);
+        openModal('conflict-review');
+        return;
+      }
+    }
+    if (!localRepoRef.current && user?.id) {
+      localRepoRef.current = new IndexedDbLocalRepository();
+      await localRepoRef.current.initialize({ workspaceId, userId: user.id });
+    }
+    if (localRepoRef.current) {
+      const persisted = await localRepoRef.current.listConflicts(workspaceId);
+      const unresolved = persisted.filter((c) => !c.resolved);
+      if (unresolved.length > 0) {
+        setActiveConflict(unresolved[0] ?? null);
+        openModal('conflict-review');
+      }
+    }
+  }, [workspaceId, user?.id, openModal]);
+
+  const handleResolveConflict = React.useCallback(
+    async (
+      resolution: 'keep_server' | 'keep_local' | 'save_copy' | 'merge',
+      customPayload?: Record<string, unknown>
+    ) => {
+      if (!activeConflict) return;
+      let engine = getActiveWebSyncEngine();
+      if (!engine && user?.id && workspaceId) {
+        if (!localRepoRef.current) {
+          localRepoRef.current = new IndexedDbLocalRepository();
+          await localRepoRef.current.initialize({ workspaceId, userId: user.id });
+        }
+        const client = createWebApiClient({ csrfToken });
+        engine = createWebSyncEngine({
+          repository: localRepoRef.current,
+          apiClient: client,
+          namespace: { userId: user.id, workspaceId },
+        });
+      }
+      if (engine) {
+        await engine.resolveConflict(activeConflict.id, resolution, customPayload);
+        await engine.syncNow();
+      }
+      setActiveConflict(null);
+      if (activeModal === 'conflict-review') {
+        closeModal();
+      }
+      await loadDiagnostics();
+    },
+    [activeConflict, activeModal, closeModal, loadDiagnostics, user?.id, workspaceId, csrfToken]
+  );
+
+  useEffect(() => {
+    if (activeModal === 'sync-diagnostics') {
+      void loadDiagnostics();
+    } else if (activeModal === 'recovery-export') {
+      void loadRecoveryExport();
+    }
+  }, [activeModal, loadDiagnostics, loadRecoveryExport]);
 
   const searchableDestinations = [
     {
       title: 'Today',
-      subtitle: 'Immediate action, upcoming tasks and daily routines',
+      subtitle: 'What matters now',
       href: '/today',
-      icon: '☀️',
+      icon: 'sun',
     },
     {
-      title: 'Plan: Tasks & Routines',
-      subtitle: 'Organize tasks, recurring habits, and priorities',
+      title: 'Plan',
+      subtitle: 'Tasks and routines',
       href: '/plan',
-      icon: '📋',
+      icon: 'clipboard',
     },
     {
-      title: 'Plan: Calendar',
-      subtitle: 'Agenda and calendar projection under Plan',
+      title: 'Calendar',
+      subtitle: 'Under Plan',
       href: '/plan/calendar',
-      icon: '📅',
+      icon: 'calendar',
     },
     {
-      title: 'Library: Folders & Files',
-      subtitle: 'Workspace folder hierarchy, notes, and documents',
+      title: 'Library',
+      subtitle: 'Notes and folders',
       href: '/library',
-      icon: '📚',
+      icon: 'library',
     },
+    ...(isCorePreview
+      ? []
+      : [
+          {
+            title: 'Files',
+            subtitle: 'Uploads and storage',
+            href: '/library?type=files',
+            icon: 'attachment',
+          },
+        ]),
     {
-      title: 'Journal: Reflection Timeline',
-      subtitle: 'Date-grouped timeline and private writing',
+      title: 'Journal',
+      subtitle: 'Private daily writing',
       href: '/journal',
-      icon: '📖',
+      icon: 'book',
     },
     {
       title: 'Settings',
-      subtitle: 'Theme, text size, motion, and language settings',
+      subtitle: 'Theme and preferences',
       href: '/settings',
-      icon: '⚙️',
+      icon: 'settings',
     },
     {
-      title: 'Help & Shortcuts',
-      subtitle: 'Keyboard shortcuts and accessible navigation guide',
+      title: 'Help',
+      subtitle: 'How-to and shortcuts',
       href: '/help',
-      icon: '❓',
-    },
-    {
-      title: 'Component Review Gallery',
-      subtitle: 'Phase 04 design token and primitive test gallery',
-      href: '/review',
-      icon: '🎨',
+      icon: 'help',
     },
   ];
 
@@ -79,6 +310,260 @@ export const AppModals: React.FC = () => {
     router.push(href);
   };
 
+  const navigateToSearchResult = (item: SearchResultItem) => {
+    const wsParam = workspaceId ? `workspaceId=${encodeURIComponent(workspaceId)}` : '';
+    let href = '/today';
+
+    if (item.displayType === 'note' || item.displayType === 'knowledge') {
+      href = `/library?noteId=${encodeURIComponent(item.id)}${wsParam ? `&${wsParam}` : ''}`;
+    } else if (item.displayType === 'task') {
+      href = `/plan?targetId=${encodeURIComponent(item.id)}&targetType=task${wsParam ? `&${wsParam}` : ''}`;
+    } else if (item.displayType === 'journal') {
+      const entryDate = (item.metadata?.entryDate as string) || '';
+      href = `/journal?entryId=${encodeURIComponent(item.id)}${entryDate ? `&date=${encodeURIComponent(entryDate)}` : ''}${wsParam ? `&${wsParam}` : ''}`;
+    } else if (item.displayType === 'file') {
+      href = `/library?fileId=${encodeURIComponent(item.id)}&type=files${wsParam ? `&${wsParam}` : ''}`;
+    } else if (item.displayType === 'folder') {
+      href = `/library?folderId=${encodeURIComponent(item.id)}${wsParam ? `&${wsParam}` : ''}`;
+    }
+
+    navigateTo(href);
+  };
+
+  // Debounced search query handler
+  useEffect(() => {
+    if (activeModal !== 'search') return;
+
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery && selectedType === 'all' && !startDate && !endDate) {
+      setSearchResults([]);
+      setCoverage(null);
+      setIsLoading(false);
+      setError(null);
+      setTotalCount(0);
+      return;
+    }
+
+    if (!workspaceId) return;
+
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+
+    const currentGen = ++requestGenRef.current;
+
+    const timer = setTimeout(async () => {
+      setIsLoading(true);
+      setError(null);
+
+      const types = selectedType !== 'all' ? [selectedType] : undefined;
+
+      try {
+        const client = createWebApiClient({ csrfToken });
+        const res = await client.searchWorkspace(
+          workspaceId,
+          {
+            q: trimmedQuery,
+            types,
+            startDate: startDate ? new Date(startDate).toISOString() : undefined,
+            endDate: endDate ? new Date(endDate).toISOString() : undefined,
+            limit: 20,
+            offset,
+          },
+          { signal: abortController.signal }
+        );
+
+        if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+        setSearchResults(res.data);
+        setCoverage(res.meta.coverage);
+        setTotalCount(res.meta.totalCount);
+        setIsOffline(false);
+        setIsLoading(false);
+      } catch (err: unknown) {
+        if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+        const errObj = err as { statusCode?: number; code?: string; message?: string };
+        const status = errObj.statusCode ?? 0;
+
+        // Classify errors: Auth/Forbidden vs Validation vs Server vs Network
+        if (status === 401 || status === 403) {
+          setError('Authorization failed: you do not have permission to search this workspace.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        if (status === 400) {
+          setError('Invalid search query or filter parameters.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        if (status >= 500) {
+          setError('Server error occurred during search. Please retry.');
+          setSearchResults([]);
+          setTotalCount(0);
+          setCoverage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Fallback to offline search across downloaded items only for network failure
+        try {
+          if (!localRepoRef.current) {
+            const repo = new IndexedDbLocalRepository();
+            await repo.initialize({
+              userId: user?.id || 'anonymous',
+              workspaceId,
+            });
+            localRepoRef.current = repo;
+          }
+
+          const repo = localRepoRef.current;
+          const [headers, notes, tasks, journals, files, prefSnapshot] = await Promise.all([
+            repo.listItemHeaders(workspaceId),
+            repo.listNotes(workspaceId),
+            repo.listTasks(workspaceId),
+            repo.listJournalEntries(workspaceId),
+            repo.listFiles(workspaceId),
+            repo.getPreferenceSnapshot(user?.id || 'anonymous'),
+          ]);
+
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+          const displayPrefs = (prefSnapshot?.preferences as Record<string, unknown>)
+            ?.displayPreferences as Record<string, unknown> | undefined;
+          const journalPreviewHidden =
+            displayPrefs?.journalPreviewHidden !== undefined
+              ? Boolean(displayPrefs.journalPreviewHidden)
+              : true;
+          const suppressBodySnippets =
+            displayPrefs?.suppressBodySnippets !== undefined
+              ? Boolean(displayPrefs.suppressBodySnippets)
+              : true;
+
+          const localRes = searchDownloadedRecords({
+            workspaceId,
+            query: {
+              q: trimmedQuery,
+              types,
+              startDate: startDate ? new Date(startDate).toISOString() : undefined,
+              endDate: endDate ? new Date(endDate).toISOString() : undefined,
+              limit: 20,
+              offset,
+            },
+            items: {
+              headers,
+              notes,
+              tasks,
+              journalEntries: journals,
+              files,
+            },
+            preferences: {
+              journalPreviewHidden,
+              suppressBodySnippets,
+            },
+          });
+
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+          setSearchResults(localRes.data);
+          setCoverage('offline_limited');
+          setTotalCount(localRes.totalCount);
+          setIsOffline(true);
+        } catch {
+          if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+          setError('Unable to search offline records.');
+          setSearchResults([]);
+          setCoverage('offline_limited');
+          setTotalCount(0);
+        } finally {
+          if (!abortController.signal.aborted && currentGen === requestGenRef.current) {
+            setIsLoading(false);
+          }
+        }
+      }
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
+  }, [
+    searchQuery,
+    selectedType,
+    startDate,
+    endDate,
+    offset,
+    workspaceId,
+    csrfToken,
+    activeModal,
+    user?.id,
+    retryTrigger,
+  ]);
+
+  const typeFilters: Array<{ id: SearchItemType; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'note', label: 'Notes' },
+    { id: 'task', label: 'Tasks' },
+    { id: 'journal', label: 'Journal' },
+    { id: 'file', label: 'Files' },
+    { id: 'knowledge', label: 'Knowledge' },
+  ];
+
+  const getItemIcon = (type: SearchResultItem['displayType']) => {
+    switch (type) {
+      case 'note':
+        return 'note';
+      case 'knowledge':
+        return 'book';
+      case 'task':
+        return 'clipboard';
+      case 'journal':
+        return 'edit';
+      case 'file':
+        return 'attachment';
+      case 'folder':
+        return 'folder';
+      default:
+        return 'file';
+    }
+  };
+
+  const renderHighlight = (text: string, query: string) => {
+    const segments = highlightMatch(text, query);
+    return segments.map((seg, i) =>
+      seg.match ? (
+        <mark
+          key={i}
+          style={{
+            backgroundColor: palette.action.subtle,
+            color: palette.text.primary,
+            fontWeight: '600',
+            padding: '0 2px',
+            borderRadius: '2px',
+          }}
+        >
+          {seg.text}
+        </mark>
+      ) : (
+        <span key={i}>{seg.text}</span>
+      )
+    );
+  };
+
+  const hasSearchActive = Boolean(
+    searchQuery.trim() || selectedType !== 'all' || startDate || endDate
+  );
+
   return (
     <>
       {/* 1. Global Search Dialog */}
@@ -86,47 +571,202 @@ export const AppModals: React.FC = () => {
         isOpen={activeModal === 'search'}
         onClose={closeModal}
         title="Search Organizer"
-        description="Search across navigation views, tasks, notes, and journal entries."
+        description="Search notes, tasks, files, journal reflections, and folders."
         themeMode={themeMode}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-          <Feedback
-            severity="info"
-            message="Phase 05 Navigation Shell — Search index and authorized queries will be finalized in Phase 33. Shell destinations are searchable below."
-            themeMode={themeMode}
-          />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
+          {isOffline && (
+            <Feedback
+              severity="info"
+              message="Showing downloaded offline results — server index will be queried upon reconnect."
+              themeMode={themeMode}
+            />
+          )}
+
+          {error && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: `${spacing.xs}px`,
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <Feedback severity="danger" message={error} themeMode={themeMode} />
+              </div>
+              <Button
+                variant="secondary"
+                themeMode={themeMode}
+                onClick={() => setRetryTrigger((r) => r + 1)}
+              >
+                Retry
+              </Button>
+            </div>
+          )}
 
           <TextField
             id="search-input"
             label="Search Query"
-            placeholder="Search views, tasks, folders, or notes..."
+            placeholder="Search notes, tasks, files, or journal reflections..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setOffset(0);
+            }}
             themeMode={themeMode}
             autoFocus
           />
 
+          {/* Type Filter Chips */}
+          <div
+            role="toolbar"
+            aria-label="Filter by type"
+            style={{
+              display: 'flex',
+              gap: `${spacing.xs}px`,
+              flexWrap: 'wrap',
+              marginTop: `${spacing.xs}px`,
+            }}
+          >
+            {typeFilters.map((tf) => {
+              const isSelected = selectedType === tf.id;
+              return (
+                <button
+                  key={tf.id}
+                  type="button"
+                  id={`search-filter-${tf.id}`}
+                  onClick={() => {
+                    setSelectedType(tf.id);
+                    setOffset(0);
+                  }}
+                  aria-pressed={isSelected}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: `${radii.sm}px`,
+                    fontSize: '12px',
+                    fontWeight: isSelected ? '600' : '400',
+                    border: `1px solid ${isSelected ? palette.action.primary : palette.border.subtle}`,
+                    backgroundColor: isSelected ? palette.action.subtle : 'transparent',
+                    color: isSelected ? palette.text.primary : palette.text.secondary,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {tf.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Date Boundary Filters */}
+          <div
+            style={{
+              display: 'flex',
+              gap: `${spacing.sm}px`,
+              alignItems: 'center',
+              marginTop: '4px',
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <label
+                htmlFor="search-start-date"
+                style={{
+                  fontSize: '11px',
+                  color: palette.text.muted,
+                  display: 'block',
+                  marginBottom: '2px',
+                }}
+              >
+                From Date
+              </label>
+              <input
+                id="search-start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setOffset(0);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '4px 8px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                  fontSize: '12px',
+                }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label
+                htmlFor="search-end-date"
+                style={{
+                  fontSize: '11px',
+                  color: palette.text.muted,
+                  display: 'block',
+                  marginBottom: '2px',
+                }}
+              >
+                To Date
+              </label>
+              <input
+                id="search-end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setOffset(0);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '4px 8px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                  fontSize: '12px',
+                }}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setOffset(0);
+                }}
+                style={{
+                  alignSelf: 'flex-end',
+                  marginBottom: '2px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  background: 'transparent',
+                  color: palette.text.muted,
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Dates
+              </button>
+            )}
+          </div>
+
+          {/* Results List */}
           <div
             role="list"
             aria-label="Search results"
             style={{
-              maxHeight: '260px',
+              maxHeight: '320px',
               overflowY: 'auto',
               border: `1px solid ${palette.border.subtle}`,
               borderRadius: `${radii.sm}px`,
+              marginTop: `${spacing.xs}px`,
             }}
           >
-            {filteredDestinations.length > 0 ? (
-              filteredDestinations.map((item) => (
-                <ListRow
-                  key={item.href}
-                  title={`${item.icon} ${item.title}`}
-                  subtitle={item.subtitle}
-                  onClick={() => navigateTo(item.href)}
-                  themeMode={themeMode}
-                />
-              ))
-            ) : (
+            {isLoading ? (
               <div
                 style={{
                   padding: `${spacing.lg}px`,
@@ -134,14 +774,179 @@ export const AppModals: React.FC = () => {
                   color: palette.text.secondary,
                 }}
               >
-                No matching organizer items found.
+                Searching organizer...
+              </div>
+            ) : hasSearchActive ? (
+              searchResults.length > 0 ? (
+                searchResults.map((item) => (
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigateToSearchResult(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigateToSearchResult(item);
+                      }
+                    }}
+                    style={{
+                      padding: `${spacing.sm}px ${spacing.md}px`,
+                      borderBottom: `1px solid ${palette.border.subtle}`,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      backgroundColor: palette.surface,
+                    }}
+                    aria-label={`${item.title}, ${item.displayType}, in ${item.folderPath}`}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span
+                        style={{ fontWeight: '600', color: palette.text.primary, fontSize: '14px' }}
+                      >
+                        <Icon name={getItemIcon(item.displayType)} />{' '}
+                        {renderHighlight(item.title, searchQuery)}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          textTransform: 'uppercase',
+                          fontWeight: '700',
+                          letterSpacing: '0.5px',
+                          color: palette.text.muted,
+                        }}
+                      >
+                        {item.displayType}
+                      </span>
+                    </div>
+
+                    {item.snippet && (
+                      <p
+                        style={{
+                          fontSize: '12px',
+                          color: palette.text.secondary,
+                          margin: 0,
+                          lineHeight: '1.4',
+                        }}
+                      >
+                        {renderHighlight(item.snippet, searchQuery)}
+                      </p>
+                    )}
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '8px',
+                        fontSize: '11px',
+                        color: palette.text.muted,
+                      }}
+                    >
+                      <span>
+                        <Icon name="folder" /> {item.folderPath}
+                      </span>
+                      {item.tags.length > 0 && (
+                        <span>
+                          <Icon name="tag" /> {item.tags.map((t) => `#${t}`).join(' ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div
+                  style={{
+                    padding: `${spacing.lg}px`,
+                    textAlign: 'center',
+                    color: palette.text.secondary,
+                  }}
+                >
+                  No matching organizer items found for "{searchQuery}".
+                </div>
+              )
+            ) : (
+              // When no search query is active, show Quick Navigation Destinations
+              <div>
+                <div
+                  style={{
+                    padding: `${spacing.xs}px ${spacing.md}px`,
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    color: palette.text.muted,
+                    letterSpacing: '0.5px',
+                    borderBottom: `1px solid ${palette.border.subtle}`,
+                  }}
+                >
+                  Quick Navigation
+                </div>
+                {filteredDestinations.map((item) => (
+                  <ListRow
+                    key={item.href}
+                    title={`${item.icon} ${item.title}`}
+                    subtitle={item.subtitle}
+                    onClick={() => navigateTo(item.href)}
+                    themeMode={themeMode}
+                  />
+                ))}
               </div>
             )}
           </div>
 
+          {/* Pagination Controls */}
+          {hasSearchActive && totalCount > 20 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '4px 0',
+                borderTop: `1px solid ${palette.border.subtle}`,
+              }}
+            >
+              <span style={{ fontSize: '11px', color: palette.text.secondary }}>
+                Showing {offset + 1}–{Math.min(offset + 20, totalCount)} of {totalCount}
+              </span>
+              <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                <Button
+                  variant="secondary"
+                  themeMode={themeMode}
+                  disabled={offset === 0 || isLoading}
+                  onClick={() => setOffset((prev) => Math.max(0, prev - 20))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="secondary"
+                  themeMode={themeMode}
+                  disabled={offset + 20 >= totalCount || isLoading}
+                  onClick={() => setOffset((prev) => prev + 20)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div
-            style={{ display: 'flex', justifyContent: 'flex-end', marginTop: `${spacing.sm}px` }}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: `${spacing.xs}px`,
+            }}
           >
+            <span style={{ fontSize: '12px', color: palette.text.muted }}>
+              {hasSearchActive && !isLoading
+                ? `${totalCount} item${totalCount === 1 ? '' : 's'} found (${coverage === 'offline_limited' ? 'offline limited' : 'complete'})`
+                : 'Tip: Press / anywhere to open search'}
+            </span>
             <Button variant="secondary" themeMode={themeMode} onClick={closeModal}>
               Close
             </Button>
@@ -160,37 +965,45 @@ export const AppModals: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px` }}>
           <Feedback
             severity="info"
-            message="Phase 05 Navigation Shell — Creation preview. Persistent storage for tasks, routines, and notes will be wired in Phase 07 and subsequent feature phases."
+            message="Choose an item below to open its editor. Sign in and open your workspace to save and sync your content."
             themeMode={themeMode}
           />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
             <ListRow
-              title="📝 New Task"
+              title="New Task"
               subtitle="Add a one-off task with optional deadline and priority"
               onClick={() => navigateTo('/plan')}
               themeMode={themeMode}
             />
             <ListRow
-              title="🔄 New Routine"
+              title="New Routine"
               subtitle="Add a recurring daily or weekday habit with independent completion"
               onClick={() => navigateTo('/plan')}
               themeMode={themeMode}
             />
             <ListRow
-              title="📄 New Note / File"
-              subtitle="Save reference knowledge, guides, or files to Library"
-              onClick={() => navigateTo('/library')}
+              title="New Note"
+              subtitle="Save reference knowledge, guides, or rich documents"
+              onClick={() => navigateTo('/library?create=note')}
               themeMode={themeMode}
             />
+            {!isCorePreview && (
+              <ListRow
+                title="Upload File"
+                subtitle="Upload PDFs, images, or documents to workspace folders"
+                onClick={() => navigateTo('/library?create=file')}
+                themeMode={themeMode}
+              />
+            )}
             <ListRow
-              title="📖 New Journal Entry"
+              title="New Journal Entry"
               subtitle="Open a quiet writing surface for reflection"
               onClick={() => navigateTo('/journal')}
               themeMode={themeMode}
             />
             <ListRow
-              title="📁 New Folder"
+              title="New Folder"
               subtitle="Create a workspace folder to group tasks and documents"
               onClick={() => navigateTo('/library')}
               themeMode={themeMode}
@@ -295,16 +1108,55 @@ export const AppModals: React.FC = () => {
               border: `1px solid ${palette.border.subtle}`,
             }}
           >
-            <div style={{ fontWeight: 700, fontSize: '16px' }}>Personal Workspace</div>
-            <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '4px' }}>
-              Scope ID: ws-personal-default
-            </div>
-            <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '2px' }}>
-              Role: Owner | Local offline storage
-            </div>
+            {isAuthenticated && user ? (
+              <>
+                <div style={{ fontWeight: 700, fontSize: '16px' }}>
+                  {user.displayName || user.email}
+                </div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '4px' }}>
+                  User ID: {user.id}
+                </div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '2px' }}>
+                  Email: {user.email} | Verified Session
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, fontSize: '16px' }}>Not Signed In</div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '4px' }}>
+                  Operating in local offline mode.
+                </div>
+                <div style={{ fontSize: '13px', color: palette.text.secondary, marginTop: '2px' }}>
+                  Sign in or create an account to synchronize across devices.
+                </div>
+              </>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: `${spacing.sm}px`, justifyContent: 'flex-end' }}>
+            {isAuthenticated ? (
+              <Button
+                variant="secondary"
+                themeMode={themeMode}
+                onClick={async () => {
+                  await signOut();
+                  closeModal();
+                }}
+              >
+                Sign Out
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                themeMode={themeMode}
+                onClick={() => {
+                  closeModal();
+                  openAuthModal();
+                }}
+              >
+                Sign In / Sign Up
+              </Button>
+            )}
             <Button
               variant="secondary"
               themeMode={themeMode}
@@ -323,38 +1175,44 @@ export const AppModals: React.FC = () => {
       <Dialog
         isOpen={isMobileDrawerOpen}
         onClose={() => setMobileDrawerOpen(false)}
-        title="Navigation Menu"
-        description="All organizer sections and workspace tools."
+        title="Menu"
+        description="Main places and more tools."
         themeMode={themeMode}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: palette.text.secondary,
+            }}
+          >
+            Everyday
+          </p>
           <ListRow
-            title="☀️ Today"
-            subtitle="Immediate action, due tasks and routines"
+            title="Today"
+            subtitle="What needs attention now"
             onClick={() => navigateTo('/today')}
             themeMode={themeMode}
           />
           <ListRow
-            title="📋 Plan: Tasks & Routines"
-            subtitle="Task backlog, scheduled routines, and filters"
+            title="Plan"
+            subtitle="Tasks and repeating routines"
             onClick={() => navigateTo('/plan')}
             themeMode={themeMode}
           />
           <ListRow
-            title="📅 Plan: Calendar"
-            subtitle="Agenda and month projections under Plan"
-            onClick={() => navigateTo('/plan/calendar')}
-            themeMode={themeMode}
-          />
-          <ListRow
-            title="📚 Library"
-            subtitle="Folder hierarchy, notes, and files"
+            title="Library"
+            subtitle="Notes and folders"
             onClick={() => navigateTo('/library')}
             themeMode={themeMode}
           />
           <ListRow
-            title="📖 Journal"
-            subtitle="Reflective date timeline and entry editor"
+            title="Journal"
+            subtitle="Private daily writing"
             onClick={() => navigateTo('/journal')}
             themeMode={themeMode}
           />
@@ -364,26 +1222,142 @@ export const AppModals: React.FC = () => {
               margin: `${spacing.xs}px 0`,
             }}
           />
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: palette.text.secondary,
+            }}
+          >
+            More
+          </p>
           <ListRow
-            title="🎨 Component Gallery"
-            subtitle="Phase 04 design system and primitive test gallery"
-            onClick={() => navigateTo('/review')}
+            title="Calendar"
+            subtitle="See Plan on a calendar"
+            onClick={() => navigateTo('/plan/calendar')}
             themeMode={themeMode}
           />
           <ListRow
-            title="⚙️ Settings"
-            subtitle="Theme, text scaling, language, and motion"
+            title="Help & tutorial"
+            subtitle="How-tos and replay the beginner guide"
+            onClick={() => navigateTo('/help')}
+            themeMode={themeMode}
+          />
+          <ListRow
+            title="Support"
+            subtitle="Self-serve links and contact status"
+            onClick={() => navigateTo('/support')}
+            themeMode={themeMode}
+          />
+          <ListRow
+            title="Settings"
+            subtitle="Theme, language, and account tools"
             onClick={() => navigateTo('/settings')}
             themeMode={themeMode}
           />
           <ListRow
-            title="❓ Help & Shortcuts"
-            subtitle="Keyboard guide and accessibility details"
-            onClick={() => navigateTo('/help')}
+            title="Sync status"
+            subtitle="Connection and offline queue"
+            onClick={() => {
+              closeModal();
+              openModal('sync-diagnostics');
+            }}
+            themeMode={themeMode}
+          />
+          <ListRow
+            title="Recovery export"
+            subtitle="Export local drafts if needed"
+            onClick={() => {
+              closeModal();
+              openModal('recovery-export');
+            }}
             themeMode={themeMode}
           />
         </div>
       </Dialog>
+
+      {/* 6. Accessible Auth Modal */}
+      <AuthModal />
+
+      {/* 7. Onboarding Tutorial Dialog */}
+      <OnboardingTutorial
+        isOpen={activeModal === 'onboarding' || activeModal === 'onboarding-replay'}
+        onClose={closeModal}
+        isReplay={activeModal === 'onboarding-replay'}
+      />
+
+      {/* 8. Phase 34 Sync Diagnostics Dialog */}
+      <SyncDiagnosticsDialog
+        isOpen={activeModal === 'sync-diagnostics'}
+        onClose={closeModal}
+        diagnostics={syncDiagnostics}
+        onRefresh={loadDiagnostics}
+        onSyncNow={handleSyncNow}
+        onOpenRecoveryExport={() => {
+          void loadRecoveryExport();
+          openModal('recovery-export');
+        }}
+        onReviewConflicts={handleOpenConflictReview}
+        themeMode={themeMode}
+      />
+
+      {/* 9. Phase 34 Recovery Export Dialog */}
+      <RecoveryExportDialog
+        isOpen={activeModal === 'recovery-export'}
+        onClose={closeModal}
+        exportData={recoveryExport}
+        themeMode={themeMode}
+      />
+
+      {/* 10. Phase 34 Conflict Review Dialog */}
+      <ConflictReviewDialog
+        isOpen={
+          activeModal === 'conflict-review' || (activeConflict !== null && activeModal === null)
+        }
+        onClose={() => {
+          setActiveConflict(null);
+          if (activeModal === 'conflict-review') closeModal();
+        }}
+        conflict={activeConflict}
+        onResolve={handleResolveConflict}
+        themeMode={themeMode}
+      />
+      {/* 11. Phase 35 Workspace Portability Dialog (Export & Import) */}
+      <WorkspacePortabilityDialog
+        isOpen={activeModal === 'workspace-portability'}
+        onClose={closeModal}
+        workspaceId={workspaceId || ''}
+        themeMode={themeMode}
+        onRequestExport={async (password) => {
+          if (!workspaceId) throw new Error('No active workspace selected');
+          const client = createWebApiClient({ csrfToken });
+          const reauthRes = await client.reauthenticate({
+            purpose: 'protected_export',
+            password,
+            sessionBinding: workspaceId,
+          });
+          return await client.createWorkspaceExport(workspaceId, {
+            reauthToken: reauthRes.reauthToken,
+            includeAttachments: true,
+          });
+        }}
+        onPreviewImport={async (archiveBase64) => {
+          if (!workspaceId) throw new Error('No active workspace selected');
+          const client = createWebApiClient({ csrfToken });
+          return await client.previewWorkspaceImport(workspaceId, { archiveBase64 });
+        }}
+        onExecuteImport={async (previewId, duplicateStrategy) => {
+          if (!workspaceId) throw new Error('No active workspace selected');
+          const client = createWebApiClient({ csrfToken });
+          return await client.executeWorkspaceImport(workspaceId, {
+            previewId,
+            duplicateStrategy,
+          });
+        }}
+      />
     </>
   );
 };

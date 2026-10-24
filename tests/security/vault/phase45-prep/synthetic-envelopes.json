@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "description": "Disconnected synthetic vault protocol fixtures for Phase 45 preparation. Not loaded by application runtime.",
+  "envelopeProfile": {
+    "version": 1,
+    "algorithm": "AES-256-GCM",
+    "keyLengthBytes": 32,
+    "nonceLengthBytes": 12,
+    "tagLengthBytes": 16
+  },
+  "acceptanceScenarios": [
+    {
+      "id": "ciphertext-only-receipt",
+      "assert": "Mutation receipt payloadDigest covers envelope fields only; plaintext absent"
+    },
+    {
+      "id": "cross-scope-attachment-reject",
+      "assert": "Linking ordinary file_id into vault_item attachments is rejected"
+    },
+    {
+      "id": "transfer-interrupt-before-accept",
+      "assert": "Ordinary source remains; no cleanup jobs enqueued"
+    },
+    {
+      "id": "transfer-interrupt-after-accept",
+      "assert": "Vault ciphertext retained; cleanup resumable; UI must not claim complete"
+    },
+    {
+      "id": "shared-binary-disclosure",
+      "assert": "Binary referenced by another ordinary item is preserved with explicit disclosure"
+    },
+    {
+      "id": "conflict-preserve-both",
+      "assert": "Two ciphertext revisions preserved without server plaintext merge"
+    },
+    {
+      "id": "search-exclusion",
+      "assert": "Vault title/body never indexed in ordinary FTS"
+    },
+    {
+      "id": "replay-older-revision",
+      "assert": "Client checkpoint rejects stale revision when checkpoint present"
+    }
+  ],
+  "transferStates": [
+    "proposed",
+    "encrypting",
+    "uploading",
+    "ciphertext_accepted",
+    "cleanup_ordinary",
+    "transfer_complete",
+    "encrypt_failed",
+    "upload_failed",
+    "verify_failed",
+    "cleanup_failed"
+  ],
+  "sampleContext": {
+    "workspaceId": "11111111-1111-4111-8111-111111111111",
+    "itemId": "33333333-3333-4333-8333-333333333333",
+    "itemType": "vault_note",
+    "schemaVersion": 1,
+    "keyVersion": 1
+  },
+  "sampleAadCanonical": "{\"keyVersion\":1,\"schemaVersion\":1,\"itemType\":\"vault_note\",\"itemId\":\"33333333-3333-4333-8333-333333333333\",\"workspaceId\":\"11111111-1111-4111-8111-111111111111\"}",
+  "exclusionSurfaces": [
+    "search",
+    "previews",
+    "reminders",
+    "analytics",
+    "chat",
+    "ai_retrieval",
+    "logs",
+    "telemetry"
+  ]
+}

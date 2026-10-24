@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-22T11:41:57.952Z",
+  "scope": "Anonymous health after free services woke; no authenticated journey",
+  "priorColdProbe": {
+    "timeoutMs": 45000,
+    "webHome": "timeout",
+    "apiReadiness": "timeout",
+    "subsequentWebPages": 200,
+    "subsequentUnauthenticatedPreferences": 401
+  },
+  "results": [
+    {
+      "name": "Web home",
+      "status": 200,
+      "expected": 200,
+      "elapsedMs": 297,
+      "passed": true
+    },
+    {
+      "name": "Web health",
+      "status": 200,
+      "expected": 200,
+      "elapsedMs": 144,
+      "passed": true
+    },
+    {
+      "name": "API readiness",
+      "status": 200,
+      "expected": 200,
+      "elapsedMs": 210,
+      "passed": true
+    },
+    {
+      "name": "API health",
+      "status": 200,
+      "expected": 200,
+      "elapsedMs": 128,
+      "passed": true
+    }
+  ]
+}

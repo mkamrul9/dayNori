@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#146B63" />
+    <title>Offline — Daynori</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f5ef;
+        --card: #ffffff;
+        --ink: #0d1919;
+        --muted: #4a5c5c;
+        --accent: #146b63;
+        --border: #d5ddd9;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1919;
+          --card: #152222;
+          --ink: #f7f5ef;
+          --muted: #a8b8b8;
+          --accent: #73c2b6;
+          --border: #2a3a3a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+      }
+      .card {
+        width: 100%;
+        max-width: 440px;
+        padding: 28px 24px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        text-align: left;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 8px;
+        overflow-wrap: anywhere;
+      }
+      p {
+        font-size: 0.9375rem;
+        line-height: 1.5;
+        color: var(--muted);
+        margin: 0 0 12px;
+        overflow-wrap: anywhere;
+      }
+      ul {
+        margin: 0 0 20px;
+        padding-left: 1.2rem;
+        color: var(--muted);
+        font-size: 0.875rem;
+        line-height: 1.45;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      button,
+      a.btn {
+        appearance: none;
+        border: none;
+        border-radius: 8px;
+        min-height: 44px;
+        min-width: 44px;
+        padding: 0 16px;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      button.primary,
+      a.btn.primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      button.secondary {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+      #status {
+        font-size: 0.8125rem;
+        margin-top: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" role="main">
+      <img
+        src="/brand/daynori-logo.svg"
+        alt="Daynori"
+        width="138"
+        height="40"
+        style="margin-bottom: 20px; max-width: 100%"
+      />
+      <h1>You are offline</h1>
+      <p>
+        Daynori cannot open the full organizer from a cold start without a network connection.
+        Notes and tasks you already saved on this signed-in device stay in local storage and will
+        sync when you reconnect.
+      </p>
+      <ul>
+        <li>If the app was already open, keep using it — edits queue until you are back online.</li>
+        <li>First-time use or a cleared browser needs internet to sign in.</li>
+        <li>This free preview server may take about a minute to wake after idle.</li>
+      </ul>
+      <div class="actions">
+        <button type="button" class="primary" id="retry">Try again</button>
+        <button type="button" class="secondary" id="go-today">Open Today when online</button>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script>
+      (function () {
+        var status = document.getElementById('status');
+        function update() {
+          status.textContent = navigator.onLine
+            ? 'Network detected. Tap Try again to reload.'
+            : 'Still offline.';
+        }
+        update();
+        window.addEventListener('online', update);
+        window.addEventListener('offline', update);
+        document.getElementById('retry').addEventListener('click', function () {
+          window.location.reload();
+        });
+        document.getElementById('go-today').addEventListener('click', function () {
+          window.location.href = '/today';
+        });
+      })();
+    </script>
+  </body>
+</html>

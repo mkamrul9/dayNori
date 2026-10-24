@@ -47,6 +47,11 @@ export const NotificationPayloadSchema = z.object({
   destination: ApprovedDestinationSchema,
   itemId: SafeIdentifierSchema.optional(),
   action: z.string().max(64).optional(),
+  instanceId: z.string().uuid().optional(),
+  workspaceId: z.string().uuid().optional(),
+  ruleRevision: z.number().int().positive().optional(),
+  deliveryGeneration: z.number().int().positive().optional(),
+  targetType: z.enum(['task', 'routine', 'calendar_event']).optional(),
   timestamp: z.number().int().positive().optional(),
   nonce: z.string().max(64).optional(),
 });
@@ -72,6 +77,8 @@ export const AuthPayloadSchema = z.object({
   type: z.literal('auth'),
   destination: z.literal('auth-callback'),
   token: z.string().min(1).max(512).optional(),
+  code: z.string().min(1).max(512).optional(),
+  state: z.string().min(1).max(256).optional(),
   error: z.string().max(128).optional(),
   timestamp: z.number().int().positive().optional(),
   nonce: z.string().max(64).optional(),
@@ -218,6 +225,8 @@ export function parseDeepLinkUrl(rawUrl: string): DeepLinkParseResult {
 
     if (typeParam === 'auth' || typeParam === 'auth-callback') {
       const token = searchParams.get('token') || undefined;
+      const code = searchParams.get('code') || undefined;
+      const state = searchParams.get('state') || undefined;
       const error = searchParams.get('error') || undefined;
       const nonce = searchParams.get('nonce') || undefined;
 
@@ -225,6 +234,8 @@ export function parseDeepLinkUrl(rawUrl: string): DeepLinkParseResult {
         type: 'auth',
         destination: 'auth-callback',
         token,
+        code,
+        state,
         error,
         timestamp,
         nonce,
