@@ -1,5 +1,5 @@
 {
-  "createdAt": "2026-10-21T06:11:25.232Z",
+  "createdAt": "2026-10-22T14:28:08.172Z",
   "port": 3060,
   "results": [
     {
@@ -20,7 +20,7 @@
     {
       "name": "csp /privacy",
       "status": "PASS",
-      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-MDg0NzRhNmUtODBjOC00ZmUzLWFjMzYtZmV"
+      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-ZGI3NWI0MjUtMTczZC00N2MxLWIxZmItYjg"
     },
     {
       "name": "no-session-cookie /privacy",
@@ -40,7 +40,7 @@
     {
       "name": "csp /terms",
       "status": "PASS",
-      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-NDVmOWU5ZDAtOTI0My00ODYwLWFkYTAtMGZ"
+      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-YTQzYmJjNDYtNDc4NS00YTVmLWFkMmQtYmF"
     },
     {
       "name": "no-session-cookie /terms",
@@ -60,7 +60,7 @@
     {
       "name": "csp /support",
       "status": "PASS",
-      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-YTVmNTA4NjYtOTE5MC00YjViLWExNWEtMzg"
+      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-ODFmNzQ1YzEtYTllMC00ZDQ2LThkZjQtYzU"
     },
     {
       "name": "no-session-cookie /support",
@@ -80,7 +80,7 @@
     {
       "name": "csp /account-deletion",
       "status": "PASS",
-      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-MmExZTNhMmItNzkxNC00MGRjLWFmMjctNzk"
+      "detail": "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'nonce-ZjM5MmRiMGQtYjM1NS00NWMwLTgzNWQtYTE"
     },
     {
       "name": "no-session-cookie /account-deletion",

@@ -9,17 +9,10 @@ import {
   type DevicePlatform,
   type DeviceTokenType,
 } from '@daynori/contracts';
-import {
-  describeOsVersion,
-  getNativeMobilePlatform,
-} from '../platform/nativePlatform.js';
+import { describeOsVersion, getNativeMobilePlatform } from '../platform/nativePlatform.js';
 
 export type NotificationPermissionStatus =
-  | 'granted'
-  | 'denied'
-  | 'undetermined'
-  | 'revoked'
-  | 'channel_disabled';
+  'granted' | 'denied' | 'undetermined' | 'revoked' | 'channel_disabled';
 
 export interface NotificationCapabilityState {
   status: NotificationPermissionStatus;
@@ -130,9 +123,9 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
     }
 
     const storedPushToken = await defaultSecureStorage.getItemAsync(SECURE_KEY_PUSH_TOKEN);
-    const storedTokenType = (await defaultSecureStorage.getItemAsync(SECURE_KEY_PUSH_TOKEN_TYPE)) as
-      | DeviceTokenType
-      | null;
+    const storedTokenType = (await defaultSecureStorage.getItemAsync(
+      SECURE_KEY_PUSH_TOKEN_TYPE
+    )) as DeviceTokenType | null;
     const hasPushToken = Boolean(storedPushToken && status === 'granted');
     const platform = getNativeMobilePlatform();
 
@@ -213,7 +206,8 @@ export async function getInstallationIdAsync(): Promise<string> {
   let installationId = await defaultSecureStorage.getItemAsync(SECURE_KEY_INSTALLATION_ID);
   if (!installationId) {
     // Generate fresh UUID for installation
-    installationId = 'inst_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
+    installationId =
+      'inst_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
     await defaultSecureStorage.setItemAsync(SECURE_KEY_INSTALLATION_ID, installationId);
   }
   return installationId;
@@ -300,7 +294,7 @@ export async function registerDeviceAsync(
         appVersion: options?.appVersion ?? '0.1.0',
         osVersion: options?.osVersion ?? describeOsVersion(),
         locale: options?.locale ?? 'en-US',
-        timeZone: options?.timeZone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC'),
+        timeZone: options?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
         localReminders: capability.canDeliverLocally,
         pushNotifications: capability.canDeliverPush,
         // Android exact-alarm APIs do not exist on iOS; never claim exact delivery.

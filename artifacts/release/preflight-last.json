@@ -1,6 +1,6 @@
 {
-  "createdAt": "2026-10-21T06:36:08.241Z",
-  "gitRevision": "3721fad36705099534837aac0a10cec9f38730ec",
+  "createdAt": "2026-10-21T11:04:41.563Z",
+  "gitRevision": "531e811c7bdd29bec4cfb65177d8739ad7910952",
   "manifestPath": "docs/release/manifest-0.1.0-provisional.json",
   "artifactHashes": {
     "manifestSha256": "51b8d2e702a2233be5203212f889754cdeffb08d9b8535a8304186b68570f229",
@@ -19,7 +19,7 @@
     {
       "id": "git-revision",
       "status": "PASS",
-      "detail": "HEAD 3721fad36705099534837aac0a10cec9f38730ec"
+      "detail": "HEAD 531e811c7bdd29bec4cfb65177d8739ad7910952"
     },
     {
       "id": "manifest-not-approval",

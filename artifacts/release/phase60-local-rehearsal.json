@@ -1,6 +1,6 @@
 {
-  "createdAt": "2026-10-21T06:13:55.686Z",
-  "gitRevision": "bafe6d0b28084f838eec0e09ce1ecd56968a58c7",
+  "createdAt": "2026-10-21T08:23:30.912Z",
+  "gitRevision": "63057ff35126d2ff9fdc9668ce20f979d0ef65c4",
   "notHumanAuthorization": true,
   "results": [
     {
@@ -10,8 +10,8 @@
     },
     {
       "name": "node-runtime",
-      "status": "BLOCKED",
-      "detail": "installed v24.11.1; engines ^24.21.0"
+      "status": "PASS",
+      "detail": "installed v24.21.0; engines ^24.21.0"
     },
     {
       "name": "release-preflight",
@@ -21,7 +21,7 @@
     {
       "name": "android-inspect-workspace",
       "status": "PASS",
-      "detail": "expected FAIL on stale workspace android/; disposable prebuild evidence present"
+      "detail": "exit 0"
     },
     {
       "name": "android-prebuild-disposable",
