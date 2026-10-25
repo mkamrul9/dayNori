@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-25",
-  "activePhase": "67",
-  "nextPhase": null,
-  "schedulingDecision": "Owner selected Phase 67. Interactive Warm/Crisp prototypes and review package are delivered under docs/design/v2/phase67/. Phase 67 is blocked on owner direction selection and the accessibility.md ≥5-participant prototype gate (or an explicit owner amendment). nextPhase is cleared until those gates clear; Phase 68 is not eligible for token migration against a provisional recommendation alone.",
-  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
+  "activePhase": null,
+  "nextPhase": "68",
+  "schedulingDecision": "Owner selected Warm notebook (2026-10-25) and deferred Phase 67 five-participant prototype sessions to Phase 99 before V2 release (sessions did not occur). Phase 67 complete. Owner authorized Phases 68 then 69 next. Phase 99 retains the deferred participant validation obligation.",
+  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
       "id": "00",
@@ -399,8 +399,7 @@
     },
     {
       "id": "67",
-      "status": "blocked",
-      "reason": "Prototype review package delivered; owner direction selection and ≥5-participant usability review unmet (docs/design/v2/phase67/review-package.md). Not complete.",
+      "status": "complete",
       "report": "docs/phase-reports/phase-67.md"
     },
     {
@@ -529,7 +528,8 @@
     },
     {
       "id": "99",
-      "status": "planned"
+      "status": "planned",
+      "reason": "Carries deferred Phase 67 five-participant prototype usability review (owner amendment 2026-10-25). Sessions did not occur in Phase 67; obligation remains before V2 release."
     },
     {
       "id": "100",

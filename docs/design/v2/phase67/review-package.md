@@ -9,17 +9,34 @@ Phase 67 acceptance and [docs/design/accessibility.md](../../accessibility.md) r
 
 **Agent preference is not owner approval.** Fabricating participants is forbidden.
 
-## Current status (2026-10-25)
+## Historical status (before owner decision)
+
+Through the 2026-10-25 repair pass, Phase 67 remained **blocked** on unmet owner selection and unmet ≥5-participant sessions. Dual-phase work authorization alone was **not** treated as selection or waiver.
+
+## Owner decision — 2026-10-25 (superseding)
+
+**Source:** Owner chat message dated 2026-10-25 selecting Warm notebook and amending the participant gate.
 
 | Gate | Status |
 | --- | --- |
-| Independent prototypes + docs | Ready for review |
-| Automated contrast helper + captures | Runnable |
-| Owner direction selection | **UNMET** |
-| ≥5 participant sessions | **UNMET** |
-| Phase 67 complete in progress.json | **Blocked on above** |
+| Independent prototypes + docs + repair pass | Complete |
+| Contrast helper (22 opaque pairs) | Pass (scoped calc only) |
+| CDP capture + smoke under Node v24.21.0 | Capture `pass_capture_only` + smoke 11/11 |
+| Manual visual inspection of captures | Representative Warm screens inspected |
+| Owner direction selection | **Warm notebook** — recorded 2026-10-25 |
+| ≥5 participant sessions | **Deferred to Phase 99** (explicit owner amendment). **Sessions did not occur.** Not claimed as completed testing. |
+| Phase 67 complete in progress.json | Eligible under this scoped amendment |
 
-## Uncoached tasks (for consenting participants)
+### Scoped amendment (participant gate only)
+
+The owner **explicitly deferred** the Phase 67 five-participant prototype usability sessions to **Phase 99**, before Version 2 release. This amendment:
+
+- Applies **only** to that Phase 67 participant requirement.
+- Does **not** waive other accessibility, security, recovery, or verification requirements.
+- Does **not** invent participant results.
+- Assigns the deferred validation obligation to **Phase 99** (release readiness).
+
+## Uncoached tasks (for Phase 99 sessions)
 
 Use synthetic data only. Moderator does not coach.
 
@@ -38,16 +55,18 @@ Use synthetic data only. Moderator does not coach.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | U-001 | — | — | — | — | — | — | — | — | — |
 
-Severity: blocked journey · significant friction · minor.
+Severity: blocked journey · significant friction · minor. **No rows completed for Phase 67.**
 
 ## Owner decision record
 
 | Field | Value |
 | --- | --- |
-| Date | _pending_ |
+| Date | 2026-10-25 |
 | Decision maker | Owner |
-| Selected direction | _pending — Warm notebook provisional recommendation only_ |
-| Notes | |
-| Signature / recorded by | |
+| Selected direction | **Warm notebook** |
+| Participant gate | Explicitly deferred to **Phase 99** before V2 release; sessions did not occur |
+| Source | Owner message 2026-10-25 (this chat); recorded in ADR 0069 and phase-67 report |
+| Notes | Crisp utility remains archived as a fully prototyped alternate for reference |
+| Signature / recorded by | Cursor agent from owner message |
 
-After selection: update `recommendation.md`, ADR 0069 status, `progress.json`, and phase report; then a completion commit is eligible.
+Completion commit subject: `docs(design): establish the Version 2 visual and mobile direction`.

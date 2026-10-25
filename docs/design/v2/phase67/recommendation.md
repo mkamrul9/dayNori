@@ -1,20 +1,17 @@
-# Direction recommendation (provisional)
+# Direction recommendation and selection
 
-**Selection status:** **Not owner-selected.** Agent recommendation only until recorded in [review-package.md](review-package.md).
+## Owner selection — 2026-10-25
 
-## Recommended: Warm notebook
+**Selected: Warm notebook.**
 
-Reasons:
+Source: owner message 2026-10-25. See [review-package.md](review-package.md) and ADR 0069.
 
-1. Daynori’s stated character is “personal notebook with dependable tools” ([design-system.md](../../design-system.md)); Warm matches writing-first Journal and long Bangla/English notes.
-2. Phase 66 personalization and All features already handle discoverability; Warm can stay calm without needing density to teach navigation.
-3. Existing production tokens already encode Warm paper/ink/teal; Phase 68 migration cost is lower if Warm is selected (Crisp still feasible as a density/radius variant).
-4. Comparison risk for Warm (list density) is addressable with crisp *list rows inside* Warm rather than abandoning the notebook atmosphere.
+Crisp utility remains a fully prototyped alternate for comparison archives; it is **not** the Version 2 production direction.
 
-## Alternate: Crisp utility
+## Prior provisional recommendation (historical)
 
-Bring to the same acceptance standard if the owner prefers scanning speed and structural borders for Plan/Library as the default feeling. Prototype already implements Crisp fully in the review bar.
+Before owner selection, the agent recommended Warm notebook for writing-first Journal fit, lower Phase 68 migration cost against existing paper/ink/teal tokens, and Phase 66 discoverability already covering dense navigation. That recommendation is superseded by the recorded owner choice (same direction).
 
-## Labeling
+## Participant review
 
-Until owner decision: treat Warm as **provisional recommended**, Crisp as **fully reviewable alternate**. Do not mark production redesign “selected” in progress.json.
+Five-participant prototype sessions were **explicitly deferred to Phase 99** by the owner on 2026-10-25. No participant sessions are claimed for Phase 67.

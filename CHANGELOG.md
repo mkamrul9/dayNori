@@ -1,9 +1,10 @@
 # Changelog
 
-## Phase 67 — Visual direction prototypes (blocked on owner review) — 2026-10-25
+## Phase 67 — Warm notebook visual direction — 2026-10-25
 
 - Add isolated Phase 67 review package under `docs/design/v2/phase67/` (Warm notebook vs Crisp utility interactive prototype, journeys/states, reference board, contrast helper).
-- ADR 0069 proposed; owner selection and ≥5-participant usability gate unmet — Phase 67 not complete; no production UI redesign.
+- Repair pass: CDP/iframe capture with explicit pass/fail/skipped semantics; prototype interaction and SVG icon CSS fixes; expanded opaque contrast pairs; smoke assertions.
+- Owner selects **Warm notebook** (2026-10-25). ADR 0069 accepted. Five-participant prototype sessions explicitly deferred to Phase 99 before V2 release (sessions did not occur).
 
 ## Phase 66 — Simple navigation personalization and developer boundaries — 2026-10-25
 

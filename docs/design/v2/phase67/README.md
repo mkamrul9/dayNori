@@ -1,24 +1,28 @@
 # Phase 67 — Original visual direction and responsive journey prototypes
 
-**Status:** Review package ready; **owner selection** and **≥5 participant usability review** are unmet completion gates.
+**Status:** **Complete** — owner selected **Warm notebook** (2026-10-25). Five-participant sessions deferred to Phase 99 (did not occur).
 
 ## Open instructions
 
 1. Open [`index.html`](index.html) or [`prototype.html`](prototype.html) in Chrome, Edge, or Firefox.
-2. Optional local server (avoids some `file://` iframe limits):
+2. Optional local server (avoids some `file://` iframe limits) — prefer a local static server you already trust; do not rely on unpinned downloads for evidence:
 
 ```powershell
 cd "D:\SWE\UNIQUE WORK\dailyLIfe"
-npx --yes serve docs/design/v2/phase67 -p 8767
+node -e "require('http').createServer((q,s)=>{const p=require('path');const f=require('fs');const u=q.url==='/'?'/index.html':q.url;const file=p.join('docs/design/v2/phase67',u);f.readFile(file,(e,d)=>{if(e){s.writeHead(404);s.end();return;}s.end(d);});}).listen(8767,'127.0.0.1')"
 ```
 
 Then visit `http://127.0.0.1:8767/` and `http://127.0.0.1:8767/prototype.html`.
 
-3. Capture screenshots (writes under gitignored `artifacts/local/phase67/`):
+3. Capture + smoke (writes under gitignored `artifacts/local/phase67/`; requires local Chrome/Edge):
 
 ```powershell
 node scripts/capture-phase67-prototype-shots.mjs
+node scripts/phase67-prototype-smoke.mjs
+node scripts/phase67-contrast-check.mjs
 ```
+
+Required capture mode exits **1** if the browser is missing. Optional: `--allow-skip` records `skipped` + unmet evidence (never a silent pass).
 
 ## What this is
 
@@ -42,4 +46,4 @@ Isolated HTML/CSS/JS prototypes illustrating two Daynori-original directions, fu
 
 ## Selection status
 
-**Not selected by owner.** Agent recommendation: Warm notebook (provisional). See [recommendation.md](recommendation.md) and [review-package.md](review-package.md).
+**Warm notebook** — owner-selected 2026-10-25. Participant sessions deferred to Phase 99. See [recommendation.md](recommendation.md) and [review-package.md](review-package.md).

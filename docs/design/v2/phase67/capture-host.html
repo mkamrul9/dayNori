@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Phase 67 capture host</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #111;
+      }
+      #frame {
+        display: block;
+        border: 0;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="frame" title="Prototype under test" src="prototype.html"></iframe>
+    <script>
+      window.__dn67host = {
+        setSize(w, h) {
+          const f = document.getElementById('frame');
+          f.style.width = w + 'px';
+          f.style.height = h + 'px';
+          f.setAttribute('scrolling', 'no');
+          try {
+            const doc = f.contentDocument;
+            if (doc) {
+              // Avoid vertical scrollbar stealing CSS width from media queries
+              doc.documentElement.style.overflowY = 'hidden';
+              if (doc.body) doc.body.style.overflowY = 'hidden';
+            }
+          } catch {
+            /* ignore */
+          }
+          return { w, h };
+        },
+        ready() {
+          const f = document.getElementById('frame');
+          return !!(f.contentWindow && f.contentWindow.__dn67);
+        },
+        api() {
+          return document.getElementById('frame').contentWindow.__dn67;
+        },
+        measure() {
+          const win = document.getElementById('frame').contentWindow;
+          const doc = win.document.documentElement;
+          const body = win.document.body;
+          const clientW = doc.clientWidth;
+          const scrollW = Math.max(doc.scrollWidth, body?.scrollWidth || 0);
+          const clipped = [];
+          for (const el of win.document.querySelectorAll(
+            'button, a, input, textarea, [role="button"], [role="tab"]'
+          )) {
+            if (el.classList.contains('skip-link') || el.classList.contains('sr-only')) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0) continue;
+            if (r.right < -2 || r.left > clientW + 2) continue;
+            if (r.right > clientW + 2 || r.left < -2) {
+              clipped.push({
+                tag: el.tagName,
+                name: el.getAttribute('aria-label') || (el.innerText || '').slice(0, 40),
+                right: Math.round(r.right),
+                left: Math.round(r.left),
+              });
+            }
+          }
+          return { clientW, scrollW, overflowX: scrollW - clientW, clipped: clipped.slice(0, 12) };
+        },
+      };
+    </script>
+  </body>
+</html>

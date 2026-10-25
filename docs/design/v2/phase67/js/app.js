@@ -11,8 +11,9 @@
     book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    /* Gear silhouette — not the Today sun glyph (shared semantic family with design-tokens). */
     settings:
-      '<circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+      '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     sliders: '<path d="M4 7h4m4 0h8M4 17h8m4 0h4M8 4v6m4-6v6m0 4v6m4-6v6"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
@@ -35,12 +36,16 @@
     theme: localStorage.getItem('dn67-theme') || 'light',
     route: 'welcome',
     authError: '',
-    syncStatus: 'synced', // device | waiting | synced
+    authEmail: 'demo@daynori.test',
+    syncStatus: 'synced',
     journalHidden: false,
     pinned: ['expenses'],
     hidden: [],
     draftNote: '',
+    draftNoteTitle: 'Project ideas',
     draftJournal: '',
+    draftJournalTitle: '',
+    draftTaskTitle: 'Finish reading plan',
     tourStep: 0,
     tourPaused: false,
     assistantConsent: false,
@@ -51,8 +56,11 @@
     offline: false,
     emptyAccount: false,
     keyboardSim: false,
-    focusReturn: null,
+    focusReturnSelector: null,
     featureQuery: '',
+    helpQuery: '',
+    searchQuery: '',
+    promptDismissed: false,
   };
 
   const PRIMARY = [
@@ -78,28 +86,162 @@
     { id: 'rooms', label: 'Rooms', status: 'not-released' },
   ];
 
+  const SEARCH_FIXTURES = [
+    { title: 'Finish reading plan', type: 'Task', module: 'plan' },
+    { title: 'Project ideas', type: 'Note', module: 'library' },
+    { title: 'Morning stretch', type: 'Routine', module: 'plan' },
+    { title: 'TypeScript reference', type: 'Knowledge', module: 'library' },
+  ];
+
+  const HELP_ARTICLES = [
+    {
+      id: 'find',
+      title: 'Find all features',
+      body: 'Open All features from the shell, search by name, then open a destination.',
+      keywords: 'all features search find open',
+    },
+    {
+      id: 'hide',
+      title: 'Hide or pin modules',
+      body: 'Hide removes shortcuts only. Content and reminders stay. Restore from All features.',
+      keywords: 'hide pin journal restore tabs',
+    },
+    {
+      id: 'tour',
+      title: 'Action-based learning (prototype)',
+      body: 'Tour steps pause, resume, skip, and exit without inventing delivery.',
+      keywords: 'tour learn pause resume help',
+    },
+    {
+      id: 'feedback',
+      title: 'Contact / feedback (concept)',
+      body: 'Synthetic only — no inbox is monitored from this prototype.',
+      keywords: 'feedback contact suggestion',
+    },
+  ];
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function persistDraftFields() {
+    const noteTitle = document.getElementById('note-title');
+    const noteBody = document.getElementById('note-body');
+    const jTitle = document.getElementById('j-title');
+    const jBody = document.getElementById('j-body');
+    const taskTitle = document.getElementById('task-title');
+    const email = document.getElementById('email');
+    const prop = document.getElementById('prop-title');
+    if (noteTitle) state.draftNoteTitle = noteTitle.value;
+    if (noteBody) state.draftNote = noteBody.value;
+    if (jTitle) state.draftJournalTitle = jTitle.value;
+    if (jBody) state.draftJournal = jBody.value;
+    if (taskTitle) state.draftTaskTitle = taskTitle.value;
+    if (email) state.authEmail = email.value;
+    if (prop && state.assistantProposal !== null) state.assistantProposal = prop.value;
+  }
+
   function applyChrome() {
     document.documentElement.dataset.direction = state.direction;
     document.documentElement.dataset.theme = state.theme;
     localStorage.setItem('dn67-direction', state.direction);
     localStorage.setItem('dn67-theme', state.theme);
-    document.getElementById('dir-warm').setAttribute('aria-pressed', String(state.direction === 'warm'));
-    document.getElementById('dir-crisp').setAttribute('aria-pressed', String(state.direction === 'crisp'));
-    document.getElementById('theme-light').setAttribute('aria-pressed', String(state.theme === 'light'));
-    document.getElementById('theme-dark').setAttribute('aria-pressed', String(state.theme === 'dark'));
+    const dw = document.getElementById('dir-warm');
+    const dc = document.getElementById('dir-crisp');
+    const tl = document.getElementById('theme-light');
+    const td = document.getElementById('theme-dark');
+    if (dw) dw.setAttribute('aria-pressed', String(state.direction === 'warm'));
+    if (dc) dc.setAttribute('aria-pressed', String(state.direction === 'crisp'));
+    if (tl) tl.setAttribute('aria-pressed', String(state.theme === 'light'));
+    if (td) td.setAttribute('aria-pressed', String(state.theme === 'dark'));
+  }
+
+  function setChrome(direction, theme) {
+    if (direction === 'warm' || direction === 'crisp') state.direction = direction;
+    if (theme === 'light' || theme === 'dark') state.theme = theme;
+    applyChrome();
+    render({ skipAnnounce: true });
   }
 
   function primaryTabs() {
     return PRIMARY.filter((t) => !(t.id === 'journal' && state.journalHidden));
   }
 
+  function openFeature(id) {
+    if (id === 'journal' && state.journalHidden) {
+      announce('Journal is hidden. Restore it from All features.');
+      go('features');
+      return;
+    }
+    if (['today', 'plan', 'library', 'journal', 'settings', 'help', 'search'].includes(id)) {
+      go(id);
+      return;
+    }
+    if (id === 'all-features') {
+      go('features');
+      return;
+    }
+    if (id === 'notes') {
+      go('library');
+      announce('Notes open inside Library (illustrative).');
+      return;
+    }
+    if (id === 'expenses' || id === 'custom-sections') {
+      go('today');
+      announce(id + ' destination is illustrative here — open from All features in production.');
+      return;
+    }
+    go('features');
+  }
+
+  function closeCreate() {
+    const returnSel = state.focusReturnSelector;
+    const prior = state._routeBeforeCreate || 'today';
+    state.route = prior === 'create' ? 'today' : prior;
+    state._routeBeforeCreate = null;
+    render({ skipAnnounce: true });
+    announce('Create closed');
+    if (returnSel) {
+      const el = document.querySelector(returnSel);
+      if (el && typeof el.focus === 'function') el.focus();
+    }
+    state.focusReturnSelector = null;
+  }
+
   function go(route, opts) {
+    persistDraftFields();
+    opts = opts || {};
+
+    if (
+      (route === 'journal' || route === 'journal-write') &&
+      state.journalHidden
+    ) {
+      announce('Journal is hidden. Three primary tabs remain. Restore from All features.');
+      route = 'features';
+    }
+
+    if (route === 'create') {
+      state._routeBeforeCreate = state.route === 'create' ? state._routeBeforeCreate || 'today' : state.route;
+      state.focusReturnSelector = opts.focusReturn || '[data-create-trigger]';
+    }
+
     state.route = route;
-    if (opts && opts.focusReturn) state.focusReturn = opts.focusReturn;
-    render();
-    const main = document.getElementById('main-content');
-    if (main) main.focus({ preventScroll: true });
-    announce('Navigated to ' + route);
+    if (opts.focusReturn) state.focusReturnSelector = opts.focusReturn;
+    render({ skipAnnounce: opts.skipAnnounce });
+    if (!opts.skipAnnounce) announce('Navigated to ' + route);
+
+    if (route === 'create') {
+      const sheet = document.querySelector('.sheet');
+      const first = sheet && sheet.querySelector('button, [href], input, textarea, select');
+      if (first) first.focus();
+    } else {
+      const main = document.getElementById('main-content');
+      if (main) main.focus({ preventScroll: true });
+    }
   }
 
   function announce(msg) {
@@ -124,7 +266,7 @@
     const side = tabs
       .map(
         (t) =>
-          `<button type="button" class="nav-item ${state.route === t.id ? 'active' : ''}" data-go="${t.id}" aria-current="${state.route === t.id ? 'page' : 'false'}">${icon(t.icon)} ${t.label}</button>`
+          `<button type="button" class="nav-item ${state.route === t.id || (t.id === 'journal' && state.route === 'journal-write') ? 'active' : ''}" data-go="${t.id}" aria-current="${state.route === t.id ? 'page' : 'false'}">${icon(t.icon)} ${t.label}</button>`
       )
       .join('');
 
@@ -133,7 +275,7 @@
       .map((id) => {
         const f = FEATURES.find((x) => x.id === id);
         return f
-          ? `<button type="button" class="nav-item" data-go="features">${icon('pin')} ${f.label}</button>`
+          ? `<button type="button" class="nav-item" data-open-feature="${f.id}">${icon('pin')} ${f.label}</button>`
           : '';
       })
       .join('');
@@ -168,7 +310,7 @@
           <div class="topbar">
             <h1>${title}</h1>
             <button type="button" class="icon-btn" data-go="search" aria-label="Search">${icon('search')}</button>
-            <button type="button" class="icon-btn" data-go="create" aria-label="Create">${icon('plus')}</button>
+            <button type="button" class="icon-btn" data-go="create" data-create-trigger aria-label="Create">${icon('plus')}</button>
             <button type="button" class="icon-btn mobile-only" data-go="features" aria-label="All features">${icon('sliders')}</button>
             <button type="button" class="icon-btn" data-go="settings" aria-label="Settings">${icon('settings')}</button>
           </div>
@@ -188,7 +330,7 @@
       'Welcome',
       `
       <div class="card editor-full">
-        <div class="brand" style="padding:0 0 12px"><span class="brand-mark">D</span> Daynori</div>
+        <div class="brand" style="padding:0 0 12px"><span class="brand-mark" aria-hidden="true">D</span> Daynori</div>
         <p class="muted">A personal notebook with clear organizing tools. This screen is a <strong>prototype</strong> — forms do not create real accounts.</p>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
           <button type="button" class="btn" data-go="signup">Create account</button>
@@ -208,7 +350,7 @@
         <form id="auth-form" novalidate>
           <div class="field ${state.authError ? 'invalid' : ''}">
             <label for="email">Email</label>
-            <input id="email" name="email" type="email" autocomplete="username" required value="demo@daynori.test" />
+            <input id="email" name="email" type="email" autocomplete="username" required value="${escapeHtml(state.authEmail)}" />
           </div>
           ${
             mode !== 'recovery'
@@ -243,7 +385,7 @@
         `<div class="card empty">
           <h2>Nothing planned yet</h2>
           <p>Capture a thought or add a task for today.</p>
-          <button type="button" class="btn" data-go="create">Create</button>
+          <button type="button" class="btn" data-go="create" data-create-trigger>Create</button>
         </div>`
       );
     }
@@ -253,7 +395,7 @@
       <div class="card">
         <p class="muted">Sunday, 25 Oct 2026 · Asia/Dhaka</p>
         <h2 style="margin:4px 0 12px;font-size:22px">Next: Finish reading plan</h2>
-        <button type="button" class="btn" data-go="create">${icon('plus')} Create</button>
+        <button type="button" class="btn" data-go="create" data-create-trigger>${icon('plus')} Create</button>
       </div>
       <div class="card">
         <h3 style="margin-top:0">Today’s tasks</h3>
@@ -269,7 +411,7 @@
         <p class="muted">Completed yesterday · 3 items. Overdue group collapsed by default.</p>
       </details>
       ${
-        state.journalHidden
+        state.journalHidden || state.promptDismissed
           ? ''
           : `<div class="card"><p class="muted">Optional journal prompt</p><p>What felt quiet today?</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -286,7 +428,7 @@
     const seg = ['tasks', 'routines', 'calendar']
       .map(
         (v) =>
-          `<button type="button" aria-selected="${state.planView === v}" data-plan="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`
+          `<button type="button" role="tab" aria-selected="${state.planView === v}" data-plan="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`
       )
       .join('');
     let body = '';
@@ -310,7 +452,7 @@
       'Task',
       `
       <div class="card editor-full">
-        <div class="field"><label for="task-title">Title</label><input id="task-title" value="Finish reading plan" /></div>
+        <div class="field"><label for="task-title">Title</label><input id="task-title" value="${escapeHtml(state.draftTaskTitle)}" /></div>
         <details>
           <summary>Details (progressive disclosure)</summary>
           <div class="field"><label for="task-due">Deadline</label>
@@ -325,7 +467,7 @@
           <button type="button" class="btn ghost" data-go="plan">Back</button>
         </div>
         ${state.saveFailed ? '<p class="field error" role="alert">Could not save. Your title is preserved. <button type="button" class="btn secondary" data-demo="save-task">Retry</button></p>' : ''}
-        ${state.keyboardSim ? '<div class="kbd-sim" aria-label="Simulated on-screen keyboard"><p class="muted">Keyboard-open editor (simulated reduced viewport). Focused field and Save remain visible — not physical Android keyboard evidence.</p><input aria-label="Focused field" value="Finish reading plan" /><div class="keys">Simulated keyboard area</div></div>' : '<button type="button" class="btn ghost" data-demo="keyboard">Simulate keyboard-open</button>'}
+        ${state.keyboardSim ? '<div class="kbd-sim" aria-label="Simulated on-screen keyboard"><p class="muted">Keyboard-open editor (simulated reduced viewport). Focused field and Save remain visible — not physical Android keyboard evidence.</p><input aria-label="Focused field" value="' + escapeHtml(state.draftTaskTitle) + '" /><div class="keys">Simulated keyboard area</div></div>' : '<button type="button" class="btn ghost" data-demo="keyboard">Simulate keyboard-open</button>'}
       </div>`
     );
   }
@@ -342,7 +484,7 @@
         ${['all', 'notes', 'knowledge', 'files']
           .map(
             (f) =>
-              `<button type="button" aria-selected="${state.libraryFilter === f}" data-lib="${f}">${f}</button>`
+              `<button type="button" role="tab" aria-selected="${state.libraryFilter === f}" data-lib="${f}">${f}</button>`
           )
           .join('')}
       </div>
@@ -368,19 +510,23 @@
   }
 
   function viewNoteEditor() {
+    const body =
+      state.draftNote ||
+      'Capture a thought.\n\nবাংলা নমুনা: আজকের কাজগুলো ছোট ছোট ধাপে ভাগ করি।';
     return shell(
       'Note',
       `
       <div class="card editor-full">
-        <div class="field"><label for="note-title">Title</label><input id="note-title" value="Project ideas" /></div>
+        <div class="field"><label for="note-title">Title</label><input id="note-title" value="${escapeHtml(state.draftNoteTitle)}" /></div>
         <div class="field"><label for="note-body">Body</label>
-          <textarea id="note-body" class="bn-sample">${state.draftNote || 'Capture a thought.\n\nবাংলা নমুনা: আজকের কাজগুলো ছোট ছোট ধাপে ভাগ করি।'}</textarea>
+          <textarea id="note-body" class="bn-sample">${escapeHtml(body)}</textarea>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button type="button" class="btn" data-demo="save-note">Save</button>
+          <button type="button" class="btn secondary" data-demo="save-note-fail">Simulate save failure</button>
           <button type="button" class="btn ghost" data-go="library">Back to Library</button>
         </div>
-        <p class="muted">Closing does not discard the draft. Retry never duplicates the note.</p>
+        <p class="muted">Closing does not discard the draft. Retry never duplicates the note. Reopen restores title and body from synthetic state.</p>
       </div>`
     );
   }
@@ -401,24 +547,31 @@
   }
 
   function viewJournalWrite() {
+    const body = state.draftJournal || 'The writing surface is the focus.\n\nPrompts are dismissible.';
     return shell(
       'Write',
       `
       <div class="card editor-full">
         <div class="field"><label for="j-date">Date (optional)</label><input id="j-date" type="date" value="2026-10-25" /></div>
-        <div class="field"><label for="j-title">Title (optional)</label><input id="j-title" placeholder="Untitled" /></div>
+        <div class="field"><label for="j-title">Title (optional)</label><input id="j-title" placeholder="Untitled" value="${escapeHtml(state.draftJournalTitle)}" /></div>
         <div class="field"><label for="j-body">Entry</label>
-          <textarea id="j-body">${state.draftJournal || 'The writing surface is the focus.\n\nPrompts are dismissible.'}</textarea>
+          <textarea id="j-body">${escapeHtml(body)}</textarea>
         </div>
-        <div class="card" style="background:var(--amber-subtle)">
+        ${
+          state.promptDismissed
+            ? ''
+            : `<div class="card" style="background:var(--amber-subtle)">
           <p style="margin:0 0 8px">Optional prompt: What felt quiet today?</p>
           <button type="button" class="btn secondary" data-demo="dismiss-prompt">Dismiss</button>
-        </div>
+        </div>`
+        }
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
           <button type="button" class="btn" data-demo="save-journal">Save entry</button>
+          <button type="button" class="btn secondary" data-demo="save-journal-fail">Simulate save failure</button>
           <button type="button" class="btn ghost" data-go="journal">Timeline</button>
         </div>
         <p class="muted">Recoverable draft stays if save fails. Long entries grow the textarea.</p>
+        ${state.saveFailed ? '<p class="field error" role="alert">Could not save journal entry. Draft kept. <button type="button" class="btn secondary" data-demo="save-journal">Retry</button></p>' : ''}
       </div>`
     );
   }
@@ -454,8 +607,8 @@
       'All features',
       `
       <p class="muted">Two-action reachability from shell. Developer tools are not listed for ordinary users.</p>
-      <div class="field"><label for="feat-q">Search features</label><input id="feat-q" value="${q}" placeholder="Search by name…" /></div>
-      <div class="card">${rows || '<p class="empty">No features match that search.</p>'}</div>
+      <div class="field"><label for="feat-q">Search features</label><input id="feat-q" value="${escapeHtml(q)}" placeholder="Search by name…" /></div>
+      <div class="card">${rows || '<p class="empty" role="status">No features match that search.</p>'}</div>
       <p class="muted">Hidden Journal leaves three primary tabs (Today, Plan, Library). Settings/Help/Search/All features stay reachable.</p>`
     );
   }
@@ -474,7 +627,7 @@
       </div>
       <div class="card"><h3 style="margin-top:0">Privacy and data</h3>
         <p>Recovery export and portability remain available. Journal preview hidden by default.</p>
-        <button type="button" class="btn secondary">Export recovery data (concept)</button>
+        <button type="button" class="btn secondary" data-demo="export-concept">Export recovery data (concept)</button>
       </div>
       <div class="card"><h3 style="margin-top:0">Help and feedback</h3>
         <button type="button" class="btn secondary" data-go="help">Open Help</button>
@@ -493,36 +646,51 @@
       'Enter a title',
       'Save — status explains device vs sync',
     ];
-    return shell(
-      'Help',
-      `
-      <div class="field"><label for="help-q">Search how-tos</label><input id="help-q" placeholder="e.g. hide journal" /></div>
-      <div class="card">
-        <h3 style="margin-top:0">Find all features</h3>
-        <p>Open All features from the shell, search by name, then open a destination.</p>
-      </div>
-      <div class="card">
-        <h3 style="margin-top:0">Hide or pin modules</h3>
-        <p>Hide removes shortcuts only. Content and reminders stay. Restore from All features.</p>
-      </div>
-      <div class="card">
-        <h3 style="margin-top:0">Action-based learning (prototype)</h3>
+    const q = (state.helpQuery || '').toLowerCase();
+    const articles = HELP_ARTICLES.filter(
+      (a) => !q || a.title.toLowerCase().includes(q) || a.keywords.includes(q) || a.body.toLowerCase().includes(q)
+    );
+
+    let articlesHtml = articles
+      .map((a) => {
+        if (a.id === 'tour') {
+          return `<div class="card" data-help-article="${a.id}">
+        <h3 style="margin-top:0">${a.title}</h3>
         <p>Step ${state.tourStep + 1} of ${steps.length}: <strong>${steps[state.tourStep]}</strong>${state.tourPaused ? ' (paused)' : ''}</p>
         <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <button type="button" class="btn" data-tour="next">Continue</button>
+          <button type="button" class="btn" data-tour="next"${state.tourPaused ? ' disabled' : ''}>Continue</button>
           <button type="button" class="btn secondary" data-tour="back">Back</button>
           <button type="button" class="btn ghost" data-tour="skip">Skip</button>
           <button type="button" class="btn ghost" data-tour="pause">${state.tourPaused ? 'Resume' : 'Pause'}</button>
           <button type="button" class="btn ghost" data-tour="exit">Exit</button>
         </div>
         <p class="muted">If a target control is missing, learning recovers with an explanation — no invented delivery.</p>
-      </div>
-      <div class="card">
-        <h3 style="margin-top:0">Contact / feedback (concept)</h3>
+      </div>`;
+        }
+        if (a.id === 'feedback') {
+          return `<div class="card" data-help-article="${a.id}">
+        <h3 style="margin-top:0">${a.title}</h3>
         <div class="field"><label for="fb">Suggestion</label><textarea id="fb" placeholder="Synthetic only — no inbox is monitored from this prototype"></textarea></div>
         <button type="button" class="btn secondary" data-demo="feedback">Review before send (simulated)</button>
-        <p class="muted">Does not invent a receipt or monitored inbox.</p>
-      </div>`
+        <p class="muted">${a.body}</p>
+      </div>`;
+        }
+        return `<div class="card" data-help-article="${a.id}">
+        <h3 style="margin-top:0">${a.title}</h3>
+        <p>${a.body}</p>
+      </div>`;
+      })
+      .join('');
+
+    if (!articlesHtml) {
+      articlesHtml = `<div class="card"><p class="empty" role="status">No how-tos match “${escapeHtml(state.helpQuery)}”.</p></div>`;
+    }
+
+    return shell(
+      'Help',
+      `
+      <div class="field"><label for="help-q">Search how-tos</label><input id="help-q" value="${escapeHtml(state.helpQuery)}" placeholder="e.g. hide journal" /></div>
+      ${articlesHtml}`
     );
   }
 
@@ -550,7 +718,7 @@
           state.assistantProposal
             ? `<div class="card">
             <h3 style="margin-top:0">Review proposal</h3>
-            <div class="field"><label for="prop-title">Task title</label><input id="prop-title" value="${state.assistantProposal}" /></div>
+            <div class="field"><label for="prop-title">Task title</label><input id="prop-title" value="${escapeHtml(state.assistantProposal)}" /></div>
             <p class="muted">Edit freely. Nothing is created until you confirm.</p>
             <button type="button" class="btn" data-demo="assistant-confirm">Confirm create (illustrative)</button>
             <button type="button" class="btn ghost" data-demo="assistant-cancel">Cancel</button>
@@ -567,27 +735,51 @@
   }
 
   function viewSearch() {
+    const q = (state.searchQuery || '').trim().toLowerCase();
+    const hits = !q
+      ? []
+      : SEARCH_FIXTURES.filter(
+          (f) => f.title.toLowerCase().includes(q) || f.type.toLowerCase().includes(q)
+        );
+    let results;
+    if (!q) {
+      results = '<p class="muted">Type to search authorized workspace fixtures. Hidden-module content excluded by default.</p>';
+    } else if (!hits.length) {
+      results = `<p class="empty" role="status">No results for “${escapeHtml(state.searchQuery)}”.</p>
+        <button type="button" class="btn secondary" data-demo="clear-search">Clear search</button>`;
+    } else {
+      results = hits
+        .map(
+          (h) =>
+            `<div class="list-row"><div class="body"><strong>${escapeHtml(h.title)}</strong><div class="muted">${h.type}</div></div>
+            <button type="button" class="btn secondary" data-open-feature="${h.module}">Open</button></div>`
+        )
+        .join('');
+    }
     return shell(
       'Search',
-      `<div class="field"><label for="sq">Search</label><input id="sq" placeholder="Authorized workspace content" /></div>
-      <div class="card"><p class="muted">Hidden-module content excluded by default (contract preserved). Include-hidden is a later search-phase control.</p></div>`
+      `<div class="field"><label for="sq">Search</label><input id="sq" value="${escapeHtml(state.searchQuery)}" placeholder="Authorized workspace content" /></div>
+      <div class="card">${results}</div>
+      <p class="muted">Include-hidden is a later search-phase control.</p>`
     );
   }
 
   function viewCreate() {
-    return `
-      <div class="overlay open" role="dialog" aria-modal="true" aria-labelledby="create-title">
-        <div class="sheet">
+    return (
+      `
+      <div class="overlay open" role="presentation" data-overlay-dismiss>
+        <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="create-title">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <h2 id="create-title">Create</h2>
-            <button type="button" class="icon-btn" data-go="today" aria-label="Close">${icon('x')}</button>
+            <button type="button" class="icon-btn" data-close-create aria-label="Close create">${icon('x')}</button>
           </div>
           <button type="button" class="nav-item" data-go="note-editor">${icon('note')} Note</button>
           <button type="button" class="nav-item" data-go="task-editor">${icon('clipboard')} Task</button>
           <button type="button" class="nav-item" data-go="journal-write">${icon('book')} Journal</button>
-          <p class="muted">Focus returns to Create control after close in production shells.</p>
+          <p class="muted">Press Escape or Close to dismiss. Focus returns to the Create control.</p>
         </div>
-      </div>` + shell('Today', '<p class="muted">Create sheet open</p>');
+      </div>` + shell('Today', '<p class="muted">Create sheet open — Escape dismisses.</p>')
+    );
   }
 
   function viewStates() {
@@ -600,7 +792,7 @@
           <tr><td>Empty</td><td><button type="button" class="btn secondary" data-demo="empty">Toggle empty Today</button></td></tr>
           <tr><td>Loading</td><td>Auth “Show loading”</td></tr>
           <tr><td>Invalid input</td><td>Auth validation error</td></tr>
-          <tr><td>Save failure + retry</td><td>Task editor</td></tr>
+          <tr><td>Save failure + retry</td><td>Task / note / journal editors</td></tr>
           <tr><td>Offline</td><td><button type="button" class="btn secondary" data-demo="offline">Toggle offline</button></td></tr>
           <tr><td>Personally hidden</td><td>All features → Hide Journal</td></tr>
           <tr><td>Not released</td><td>Vault / Rooms badges</td></tr>
@@ -614,7 +806,8 @@
     );
   }
 
-  function render() {
+  function render(opts) {
+    opts = opts || {};
     applyChrome();
     const root = document.getElementById('app');
     let html = '';
@@ -680,20 +873,45 @@
     bind();
   }
 
+  function restoreInputFocus(id, pos) {
+    const again = document.getElementById(id);
+    if (again) {
+      again.focus();
+      if (typeof pos === 'number' && again.setSelectionRange) {
+        again.setSelectionRange(pos, pos);
+      }
+    }
+  }
+
   function bind() {
     document.querySelectorAll('[data-go]').forEach((el) => {
-      el.addEventListener('click', () => go(el.getAttribute('data-go')));
+      el.addEventListener('click', () => {
+        const route = el.getAttribute('data-go');
+        if (route === 'create') {
+          go('create', { focusReturn: '[data-create-trigger]' });
+        } else {
+          go(route);
+        }
+      });
+    });
+    document.querySelectorAll('[data-close-create]').forEach((el) => {
+      el.addEventListener('click', () => closeCreate());
+    });
+    document.querySelectorAll('[data-overlay-dismiss]').forEach((el) => {
+      el.addEventListener('click', (ev) => {
+        if (ev.target === el) closeCreate();
+      });
     });
     document.querySelectorAll('[data-plan]').forEach((el) => {
       el.addEventListener('click', () => {
         state.planView = el.getAttribute('data-plan');
-        render();
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-lib]').forEach((el) => {
       el.addEventListener('click', () => {
         state.libraryFilter = el.getAttribute('data-lib');
-        render();
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-hide]').forEach((el) => {
@@ -701,8 +919,8 @@
         const id = el.getAttribute('data-hide');
         if (id === 'journal') state.journalHidden = true;
         if (!state.hidden.includes(id)) state.hidden.push(id);
-        announce(id + ' hidden. Content and reminders kept.');
-        render();
+        announce(id + ' hidden. Content and reminders kept. Primary tabs: ' + primaryTabs().length);
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-restore]').forEach((el) => {
@@ -711,35 +929,32 @@
         if (id === 'journal') state.journalHidden = false;
         state.hidden = state.hidden.filter((x) => x !== id);
         announce(id + ' restored');
-        render();
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-pin]').forEach((el) => {
       el.addEventListener('click', () => {
         const id = el.getAttribute('data-pin');
         if (!state.pinned.includes(id)) state.pinned.push(id);
-        render();
+        announce(id + ' pinned to sidebar');
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-unpin]').forEach((el) => {
       el.addEventListener('click', () => {
         const id = el.getAttribute('data-unpin');
         state.pinned = state.pinned.filter((x) => x !== id);
-        render();
+        announce(id + ' unpinned');
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-open-feature]').forEach((el) => {
-      el.addEventListener('click', () => {
-        const id = el.getAttribute('data-open-feature');
-        if (['today', 'plan', 'library', 'journal', 'settings', 'help', 'search'].includes(id)) go(id);
-        else if (id === 'all-features') go('features');
-        else go('today');
-      });
+      el.addEventListener('click', () => openFeature(el.getAttribute('data-open-feature')));
     });
     document.querySelectorAll('[data-sync]').forEach((el) => {
       el.addEventListener('click', () => {
         state.syncStatus = el.getAttribute('data-sync');
-        render();
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-tour]').forEach((el) => {
@@ -752,8 +967,9 @@
         if (a === 'exit') {
           state.tourStep = 0;
           state.tourPaused = false;
+          announce('Tour exited');
         }
-        render();
+        render({ skipAnnounce: true });
       });
     });
     document.querySelectorAll('[data-demo]').forEach((el) => {
@@ -761,43 +977,61 @@
         const d = el.getAttribute('data-demo');
         const status = document.getElementById('auth-status');
         if (d === 'auth-loading' && status) status.textContent = 'Signing in… (simulated)';
-        if (d === 'auth-unavailable' && status)
+        if (d === 'auth-unavailable' && status) {
+          persistDraftFields();
           status.textContent = 'Service unavailable. Retry keeps your email. (simulated)';
+        }
         if (d === 'auth-invalid') {
+          persistDraftFields();
           state.authError = 'Enter a valid email and password.';
-          render();
+          render({ skipAnnounce: true });
         }
         if (d === 'save-task') {
+          persistDraftFields();
           state.saveFailed = false;
           state.syncStatus = 'waiting';
-          announce('Saved on this device. Waiting to sync.');
-          render();
+          announce('Saved on this device. Waiting to sync. Title preserved: ' + state.draftTaskTitle);
+          render({ skipAnnounce: true });
         }
         if (d === 'save-fail') {
+          persistDraftFields();
           state.saveFailed = true;
-          render();
+          render({ skipAnnounce: true });
         }
         if (d === 'save-note') {
-          const ta = document.getElementById('note-body');
-          if (ta) state.draftNote = ta.value;
+          persistDraftFields();
+          state.saveFailed = false;
           state.syncStatus = 'device';
           announce('Note saved on this device');
-          render();
+          render({ skipAnnounce: true });
+        }
+        if (d === 'save-note-fail') {
+          persistDraftFields();
+          state.saveFailed = true;
+          announce('Note save failed (simulated). Draft kept.');
+          render({ skipAnnounce: true });
         }
         if (d === 'save-journal') {
-          const ta = document.getElementById('j-body');
-          if (ta) state.draftJournal = ta.value;
+          persistDraftFields();
+          state.saveFailed = false;
           state.syncStatus = 'synced';
           announce('Journal entry saved (illustrative)');
           go('journal');
         }
+        if (d === 'save-journal-fail') {
+          persistDraftFields();
+          state.saveFailed = true;
+          announce('Journal save failed. Draft kept.');
+          render({ skipAnnounce: true });
+        }
         if (d === 'keyboard') {
+          persistDraftFields();
           state.keyboardSim = true;
-          render();
+          render({ skipAnnounce: true });
         }
         if (d === 'offline') {
           state.offline = !state.offline;
-          render();
+          render({ skipAnnounce: true });
         }
         if (d === 'empty') {
           state.emptyAccount = !state.emptyAccount;
@@ -805,33 +1039,49 @@
         }
         if (d === 'upload-error') {
           const m = document.getElementById('upload-msg');
-          if (m) m.innerHTML = '<p class="field error" role="alert">Unsupported type. Try PDF or image. Entered filename preserved.</p>';
+          if (m)
+            m.innerHTML =
+              '<p class="field error" role="alert">Unsupported type. Try PDF or image. Entered filename preserved.</p>';
         }
         if (d === 'assistant-consent') {
           state.assistantConsent = true;
-          render();
+          render({ skipAnnounce: true });
         }
         if (d === 'assistant-propose') {
           state.assistantProposal = 'Finish reading plan';
-          render();
+          render({ skipAnnounce: true });
         }
         if (d === 'assistant-confirm') {
-          announce('Illustrative result only — no task created in the real app.');
+          persistDraftFields();
+          announce('Illustrative result only — no task created in the real app. Title was: ' + state.assistantProposal);
           state.assistantProposal = null;
-          render();
+          render({ skipAnnounce: true });
         }
         if (d === 'assistant-cancel') {
           state.assistantProposal = null;
-          render();
+          announce('Proposal cancelled. No object created.');
+          render({ skipAnnounce: true });
         }
-        if (d === 'assistant-offline') announce('Assistant unavailable offline (simulated). Typed fallback remains.');
+        if (d === 'assistant-offline')
+          announce('Assistant unavailable offline (simulated). Typed fallback remains.');
         if (d === 'feedback') announce('Review screen concept only — no message was sent.');
-        if (d === 'complete-occurrence') announce('Today’s occurrence completed. Tomorrow stays independent.');
-        if (d === 'dismiss-prompt') announce('Prompt dismissed');
-        if (d === 'month') announce('Month grid option reachable; agenda remains default on narrow layouts.');
+        if (d === 'export-concept') announce('Export concept only — no files written.');
+        if (d === 'complete-occurrence')
+          announce('Today’s occurrence completed. Tomorrow stays independent.');
+        if (d === 'dismiss-prompt') {
+          state.promptDismissed = true;
+          announce('Prompt dismissed');
+          render({ skipAnnounce: true });
+        }
+        if (d === 'month')
+          announce('Month grid option reachable; agenda remains default on narrow layouts.');
         if (d === 'clear-filter') {
           state.libraryFilter = 'all';
-          render();
+          render({ skipAnnounce: true });
+        }
+        if (d === 'clear-search') {
+          state.searchQuery = '';
+          render({ skipAnnounce: true });
         }
       });
     });
@@ -840,6 +1090,7 @@
     if (form) {
       form.addEventListener('submit', (e) => {
         e.preventDefault();
+        persistDraftFields();
         state.authError = '';
         announce('Signed in (simulated). Continuing to Today.');
         go('today');
@@ -851,35 +1102,66 @@
       featQ.addEventListener('input', () => {
         state.featureQuery = featQ.value;
         const pos = featQ.selectionStart;
-        render();
-        const again = document.getElementById('feat-q');
-        if (again) {
-          again.focus();
-          again.setSelectionRange(pos, pos);
-        }
+        render({ skipAnnounce: true });
+        restoreInputFocus('feat-q', pos);
+      });
+    }
+
+    const helpQ = document.getElementById('help-q');
+    if (helpQ) {
+      helpQ.addEventListener('input', () => {
+        state.helpQuery = helpQ.value;
+        const pos = helpQ.selectionStart;
+        render({ skipAnnounce: true });
+        restoreInputFocus('help-q', pos);
+      });
+    }
+
+    const sq = document.getElementById('sq');
+    if (sq) {
+      sq.addEventListener('input', () => {
+        state.searchQuery = sq.value;
+        const pos = sq.selectionStart;
+        render({ skipAnnounce: true });
+        restoreInputFocus('sq', pos);
       });
     }
   }
 
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && state.route === 'create') {
+      ev.preventDefault();
+      closeCreate();
+    }
+  });
+
   document.getElementById('dir-warm').addEventListener('click', () => {
     state.direction = 'warm';
-    render();
+    render({ skipAnnounce: true });
   });
   document.getElementById('dir-crisp').addEventListener('click', () => {
     state.direction = 'crisp';
-    render();
+    render({ skipAnnounce: true });
   });
   document.getElementById('theme-light').addEventListener('click', () => {
     state.theme = 'light';
-    render();
+    render({ skipAnnounce: true });
   });
   document.getElementById('theme-dark').addEventListener('click', () => {
     state.theme = 'dark';
-    render();
+    render({ skipAnnounce: true });
   });
   document.getElementById('btn-states').addEventListener('click', () => go('states'));
   document.getElementById('btn-assistant').addEventListener('click', () => go('assistant'));
 
+  window.__dn67 = {
+    go,
+    setChrome,
+    getState: () => ({ ...state }),
+    openFeature,
+    closeCreate,
+  };
+
   applyChrome();
-  render();
+  render({ skipAnnounce: true });
 })();

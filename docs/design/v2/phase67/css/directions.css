@@ -10,7 +10,8 @@
   --surface-raised: #fbf9f4;
   --ink: #172c2c;
   --ink-secondary: #526363;
-  --ink-muted: #697a7a;
+  /* Darkened from #697a7a (4.13:1) so muted text meets ≥4.5:1 on paper */
+  --ink-muted: #5a6b6b;
   --teal: #146b63;
   --teal-hover: #0e524c;
   --teal-label: #ffffff;

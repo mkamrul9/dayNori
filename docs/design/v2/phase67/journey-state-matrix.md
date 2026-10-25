@@ -26,3 +26,7 @@ Prototype: `prototype.html`. Synthetic English + Bangla fixtures. Simulated stat
 ## Offline honesty
 
 Cold offline organizer reconstruction is **not** claimed. Future recovery UI is labeled proposed → Phase 77. Sync badges only illustrate device / waiting / synchronized copy.
+
+## Verification note (2026-10-25 repair)
+
+Agent CDP smoke covers Escape/create, Journal hide→3 tabs + redirect, note draft after save-fail, search no-results, tour pause/exit, assistant cancel, and unlabeled-control scan. That is **not** a substitute for the ≥5-participant usability gate. Cells marked “Yes” for light/dark mean the prototype exposes both themes via the review bar and capture sampling; they are not a conformance claim.

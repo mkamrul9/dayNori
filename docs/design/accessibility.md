@@ -27,6 +27,8 @@ The official standard covers text contrast, keyboard access, reflow, focus, inpu
 
 **Prototype gate:** test the core journeys with at least five prospective users. Include a user who depends on enlarged text or assistive technology where possible. Record the task, observation, severity, proposed fix and retest outcome. Prioritize blocked completion over cosmetic preference.
 
+**Phase 67 scoped amendment (2026-10-25):** the owner explicitly deferred those five Phase 67 participant sessions to **Phase 99** (before Version 2 release). Sessions did not occur and must not be claimed as completed. This amendment does not remove participant testing from other gates or from Phase 99.
+
 **Component gate:** inspect every default, focus, hover, selected, invalid, disabled, loading, offline and dark-theme state. Automated contrast/DOM scans support manual checks. Record reviewed token pairs and screenshots.
 
 **Feature gate:** use keyboard-only navigation plus a web screen reader on the supported browser combination and TalkBack on the reference Android device. Verify the actual create/edit/delete/recover flows, not only a static gallery.

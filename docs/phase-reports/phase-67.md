@@ -3,60 +3,60 @@
 ## Identity and scope
 
 - Phase: [67 — Original visual direction and responsive journey prototypes](../roadmap/phases/67-original-visual-direction-and-responsive-journey-prototypes.md).
-- Status: **`blocked` / incomplete** — review package delivered; **owner selection** and **≥5 participant usability sessions** unmet (acceptance blocked).
+- Status: **complete** under owner selection + scoped participant deferral (2026-10-25).
 - Contributor/date: Cursor agent, 2026-10-25, Asia/Dhaka.
-- Base revision/branch: `0c9e7ad`, `codex/free-core-preview`.
+- Base revision/branch: `f18bcbc` (review package), `codex/free-core-preview`; completion supersedes blocked repair-pass state.
 - Prerequisites: Phase 65–66 complete; ADR 0068 preserved.
-- Included: Isolated prototypes, reference board, two directions, journey/state matrix, contrast helper, review package, ADR 0069 (proposed).
-- Excluded: Production UI redesign, Phase 68 token migration, gated enablement, fabricated participants, completion claim.
+- Included: Warm/Crisp prototypes, repair pass (capture/smoke/contrast/interactions), owner Warm selection, Phase 99 deferral of ≥5-participant sessions, ADR 0069 accepted.
+- Excluded: Production UI redesign (Phase 68+), fabricated participants, claiming sessions ran, physical Android IME/TalkBack.
 
 ## Result
 
-Concrete reviewable prototypes at [`docs/design/v2/phase67/`](../design/v2/phase67/README.md):
+- Interactive prototypes at [`docs/design/v2/phase67/`](../design/v2/phase67/README.md).
+- **Owner-selected direction: Warm notebook** (source: owner message 2026-10-25).
+- **Participant gate:** explicitly deferred to **Phase 99** before V2 release; **no sessions occurred**; not claimed as completed testing.
+- Crisp utility retained as archived comparison prototype only.
 
-- Interactive SPA (`prototype.html`) with Warm notebook vs Crisp utility, light/dark, linked journeys A–I from the phase prompt.
-- Documentation set: reference board, comparison, provisional recommendation (Warm), matrices, provenance, Phase 68 handoff.
-- ADR 0069 records that selection is pending.
-
-**No production application routes were redesigned.**
+Earlier blocked status (selection pending; capture skip-as-pass) is historical. Repair pass and this decision supersede it without rewriting `f18bcbc` history as if approval existed then.
 
 ## Acceptance evidence
 
 | Condition | Result |
 | --- | --- |
-| Coherent selected direction covers real flows and states | **UNMET** — directions are reviewable; **not owner-selected** |
-| Mobile composition and keyboard-safe editing designed | **Pass (design)** — documented + simulated keyboard; not physical IME |
-| No app-authored emoji / copied competitor assets / unlabeled controls | **Pass** for prototype chrome |
-| Owner + participant review | **UNMET** |
+| Coherent selected direction | **Pass** — Warm notebook owner-selected 2026-10-25 |
+| Mobile composition / keyboard-safe editing (design) | **Pass (design)** — documented + simulated keyboard + smoke; not physical IME |
+| No app-authored emoji / unlabeled controls | **Pass** for prototype chrome |
+| Owner review | **Pass** — selection recorded |
+| ≥5 participant sessions | **Deferred to Phase 99** by explicit owner amendment — sessions unmet, obligation preserved |
 
 ### Commands
 
-Runtime: Node `v24.11.1` (engine wants `^24.21.0`; recorded as used). cwd: repo root.
+Runtime: Node **v24.21.0** via `.tools\node-v24.21.0-win-x64\node.exe` (PATH process-local). Browser: local Chrome. cwd: repo root.
 
 | Command | Exit | Observed |
 | --- | --- | --- |
-| `node scripts/phase67-contrast-check.mjs` | 0 | 10 opaque pairs PASS (e.g. Warm ink/paper 13.44:1) |
-| `node scripts/capture-phase67-prototype-shots.mjs` | 0 | Playwright not installed — PNG capture skipped; manual open required |
-| `pnpm validate:planning` | 0 | 104 phases; blocked Phase 67 + schedulingDecision accepted |
+| `node scripts/phase67-contrast-check.mjs` | 0 | 22 opaque pairs PASS |
+| `node scripts/phase67-prototype-smoke.mjs` | 0 | 11/11 PASS |
+| `node scripts/capture-phase67-prototype-shots.mjs` | 0 | `pass_capture_only`; 96 PNGs; 0 overflow |
+| `pnpm validate:planning` | 0 | 104 phases |
 | `pnpm audit:secrets` | 0 | Clean |
 | `git diff --check` | 0 | Clean |
 
-Manual: open `prototype.html`, switch directions/themes, resize 320–412, walk Welcome→Today→All features hide Journal→Help→Assistant.
+Evidence (gitignored): `artifacts/local/phase67/`. Manual inspection: Warm desktop Today (sidebar), narrow Today, Help, Journal write, features — light/dark samples.
 
 ## Defects, limitations and recovery
 
-- Completion blocked until owner records direction choice and usability log meets accessibility.md prototype gate (or owner amends requirement in writing).
+- Phase 99 must complete (or further amend) five-participant journey review before V2 release claims that depend on that gate.
 - Physical Android keyboard/TalkBack not claimed.
-- Cold offline organizer recovery remains Phase 77 proposed territory.
+- Cold offline organizer recovery remains Phase 77 territory.
+- `pass_capture_only` ≠ full accessibility acceptance.
 
 ## Documentation and Git review
 
-- Updated: design-and-mobile, design-system pointer, ADR 0069, CHANGELOG, progress.json (in_progress), this report.
-- Intended completion subject (when gates pass): `docs(design): establish the Version 2 visual and mobile direction`.
-- Package commit (if made while incomplete) must not claim selection complete.
+- Updated: phase67 package, ADR 0069 → accepted, accessibility.md deferral note, CHANGELOG, progress.json, this report.
+- Completion subject: `docs(design): establish the Version 2 visual and mobile direction`.
+- Preserve `f18bcbc`; do not squash/amend.
 
 ## Handoff
 
-**Next action:** Owner opens `docs/design/v2/phase67/index.html`, selects Warm or Crisp, runs participant tasks in `review-package.md`, records decision. Then update ADR 0069 to accepted, mark Phase 67 complete, and identify **Phase 68**.
-
-Do **not** start Phase 68 token migration against a provisional recommendation alone.
+**Next eligible phase: 68 — Design tokens, components, icons, and motion** (Warm notebook).

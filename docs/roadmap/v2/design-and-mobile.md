@@ -1,6 +1,6 @@
 # V2 design and mobile specification
 
-Status: proposed direction for Phases 66–76; research reviewed 2026-10-25. Phase 67 interactive prototypes live at [docs/design/v2/phase67/](../../design/v2/phase67/README.md) with a **provisional** Warm notebook recommendation — **owner selection still required** (ADR 0069). This file extends the existing [design system](../../design/design-system.md) and [information architecture](../../design/information-architecture.md). It does not certify a new rendered design or a completed Phase 67.
+Status: proposed direction for Phases 66–76; research reviewed 2026-10-25. Phase 67 complete: owner selected **Warm notebook** (2026-10-25, ADR 0069 accepted). Prototypes: [docs/design/v2/phase67/](../../design/v2/phase67/README.md). Five-participant prototype sessions deferred to Phase 99 (did not occur). This file extends the existing [design system](../../design/design-system.md) and [information architecture](../../design/information-architecture.md). Phase 68 implements tokens/primitives; rendered production UI is not certified here.
 
 ## References and what to learn
 
@@ -53,4 +53,4 @@ iPhone Safari and installed-PWA flows belong to responsive-web validation, inclu
 
 ## Design sign-off evidence
 
-Phase 67 produces original screen flows and a state inventory before UI implementation. Record owner decisions and a small usability review covering find/create/reopen/hide/restore/get-help tasks. Phase 99 repeats a fresh-user review on the implemented app. Use synthetic data only. Keep before/after screenshots with viewport, theme, commit, and platform identifiers; do not label historical screenshots as current builds.
+Phase 67 produced original screen flows and a state inventory; Warm notebook is selected. The Phase 67 five-participant prototype review was owner-deferred to Phase 99 before V2 release (sessions did not occur in Phase 67). Phase 99 still runs a fresh-user review on the implemented app. Use synthetic data only. Keep before/after screenshots with viewport, theme, commit, and platform identifiers; do not label historical screenshots as current builds.

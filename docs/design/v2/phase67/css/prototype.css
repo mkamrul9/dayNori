@@ -116,7 +116,13 @@
   background: transparent;
   color: var(--ink);
 }
-.icon-btn svg {
+/* Semantic stroke icons — match packages/design-tokens icon stroke style.
+   Without explicit size/fill, SVG defaults can paint huge filled silhouettes. */
+.icon-btn svg,
+.nav-item svg,
+.tab svg,
+.btn svg,
+.brand svg {
   width: 20px;
   height: 20px;
   stroke: currentColor;
@@ -124,6 +130,8 @@
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
+  flex-shrink: 0;
+  display: block;
 }
 
 .layout {
@@ -337,6 +345,15 @@
   border: none;
   border-top: 3px solid transparent;
   padding: 6px 2px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.bottom-nav .tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .bottom-nav .tab[aria-current='page'] {
   color: var(--teal);
