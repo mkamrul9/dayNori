@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 65 — Version 2 function inventory and readiness baseline — 2026-10-25
+
+- Add machine-readable `docs/roadmap/v2/function-register.json` (109 actions, 12 defects, 22 families), schema, validator, and readiness baseline narrative.
+- Record nominated local environment, synthetic core organizer journey results, short performance soak summary, and fresh visual emulation manifest (historical `artifacts/web-e2e` labeled separately).
+- Map gaps to repair/Help/tour phases without implementing redesigns or enabling gated vault/Drive/rooms/AI/billing/notification delivery. No `release_ready` claims.
+
 ## Phase 64 — Version 2 roadmap and experience planning — 2026-10-25
 
 - Append 40 bounded phases (64–103), detailed specifications, acceptance gates and Antigravity handoff rules; retain every original phase definition and blocked/deferred status.

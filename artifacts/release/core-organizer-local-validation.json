@@ -1,12 +1,12 @@
 {
-  "createdAt": "2026-10-21T16:30:22.034Z",
+  "createdAt": "2026-10-25T05:11:35.774Z",
   "node": "v24.21.0",
   "notLaunchAuthorization": true,
   "results": [
     {
       "name": "notes-create",
       "status": "PASS",
-      "detail": "01a82961-c5ad-4979-b242-67585cc7279e"
+      "detail": "d3a9d503-a2c8-4b1e-b00c-48ead3bddd4b"
     },
     {
       "name": "notes-update",
@@ -16,17 +16,17 @@
     {
       "name": "tasks-create",
       "status": "PASS",
-      "detail": "bca07685-88bb-4284-8869-94ea5660c0d8"
+      "detail": "37f76665-b727-438e-ada5-bf5bb3906735"
     },
     {
       "name": "routines-create",
       "status": "PASS",
-      "detail": "38f634e9-88ea-405c-ae72-ca15a98dbb90"
+      "detail": "2364ac1f-3ed1-455b-bdd5-edb91b097624"
     },
     {
       "name": "journal-create",
       "status": "PASS",
-      "detail": "acb3a02c-97be-4eb2-9c67-d142bc207018"
+      "detail": "52361ca4-8896-48e3-8442-d40a6ca7f114"
     },
     {
       "name": "files-quota",
@@ -41,7 +41,7 @@
     {
       "name": "sync-push-offline-standin",
       "status": "PASS",
-      "detail": "38c7fef0-ea59-47a0-8399-31d4ec3718f7"
+      "detail": "d8ca7366-31d9-46a2-a0ac-2b67f4025c0e"
     },
     {
       "name": "export-requires-reauth",

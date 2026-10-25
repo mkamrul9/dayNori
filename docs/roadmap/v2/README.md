@@ -20,10 +20,10 @@ This baseline combines repository inspection, existing reports, owner feedback, 
 - The current tutorial uses three introductory steps and optional practice creation inside its tutorial surface. It does not provide action-verified coverage of every feature through the app's real controls. See `apps/web/src/components/OnboardingTutorial.tsx` and the [Phase 31 report](../../phase-reports/phase-31.md).
 - Help currently contains short how-tos and shortcuts. Support explicitly says a monitored inbox is not configured. V2 needs actual feedback delivery, developer access to reports, and a verified human contact route.
 - Web and native Settings contain developer-oriented surfaces such as component galleries or provisional integration controls. Their exact visibility must be inventoried, then separated from everyday preferences.
-- Existing screenshots inspected for this plan are historical evidence, including `artifacts/web-e2e/today-light-mobile-320px.png` and `settings-bangla-desktop.png`. They help identify density and hierarchy questions; they do not prove the current deployed appearance. Phase 65 captures a fresh baseline.
+- Existing screenshots under `artifacts/web-e2e/` remain **historical**. Phase 65 captured a fresh emulation baseline indexed in [`evidence/phase65-visual-manifest.json`](evidence/phase65-visual-manifest.json) (PNG files retained locally under `artifacts/local/phase65/`).
 - [AI phases 55 and 56](../../phase-reports/phase-56.md) are provisional and blocked on live-provider, privacy, and release evidence. Reuse their consent, retrieval, proposal, and mutation-receipt boundaries rather than creating an unrelated assistant backend.
 
-The app is suitable for controlled preview evaluation of its enabled scope. This evidence does **not** support “all functions are ready.” Phase 65 produces the definitive per-function verification register.
+The app is suitable for controlled preview evaluation of its enabled scope. This evidence does **not** support “all functions are ready.” The per-function verification register is [`function-register.json`](function-register.json); see [`readiness-baseline.md`](readiness-baseline.md) and [Phase 65 report](../../phase-reports/phase-65.md).
 
 ## Decisions for the V2 experience
 
@@ -106,6 +106,7 @@ Existing V1 gates remain binding. V2 planning does not depend on Phase 63's post
 
 - [Design references, visual direction, navigation, and mobile layouts](design-and-mobile.md).
 - [Readiness inventory and complete feature/tour coverage](feature-coverage.md).
+- [Function register (machine-readable)](function-register.json) and [readiness baseline](readiness-baseline.md).
 - [Action-based guided tour contract](guided-tours.md).
 - [Help, feedback, and developer contact](help-and-feedback.md).
 - [RAG, creation tools, voice, and Nori](assistant.md).

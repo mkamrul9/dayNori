@@ -27,6 +27,7 @@
     "dev:mobile": "pnpm --filter @daynori/mobile dev",
     "dev:worker": "pnpm --filter @daynori/worker dev",
     "validate:planning": "node scripts/validate-planning.mjs",
+    "validate:function-register": "node scripts/validate-function-register.mjs",
     "audit": "pnpm audit:secrets && pnpm audit:deps",
     "audit:deps": "node scripts/audit-dependencies.mjs",
     "audit:secrets": "node scripts/scan-secrets.mjs",

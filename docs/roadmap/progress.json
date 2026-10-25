@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-25",
   "activePhase": null,
-  "nextPhase": "65",
-  "schedulingDecision": "Owner selected documentation-only V2 Phase 64, complete after planning validation. Phase 65 is next eligible and unstarted; implement only when selected. V1 Phase 60 and all existing blocked/deferred states remain unchanged. Phase 63 post-launch review is not claimed complete; ADR 0067 permits independent V2 planning.",
+  "nextPhase": "66",
+  "schedulingDecision": "Owner selected Phase 65; function inventory and readiness baseline complete with register, defects, local synthetic journey/perf evidence, and fresh visual emulation captures. Phase 66 is next eligible. V1 Phase 60 and all existing blocked/deferred states remain unchanged. No release_ready claims from Phase 65 alone.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -389,7 +389,8 @@
     },
     {
       "id": "65",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-65.md"
     },
     {
       "id": "66",

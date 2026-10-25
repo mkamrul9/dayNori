@@ -27,7 +27,7 @@ A personal organizer for notes, routines, tasks, journals, files, and the things
 
 Daynori is a cross-platform personal organizer that brings together your notes, tasks, routines, journal entries, calendar events, and files into one unified workspace. Built as a monorepo with shared domain logic, it targets **Android** and **responsive web** first, with iOS gated behind a separate feasibility review.
 
-> **Status:** Active development — testing preview with open release gates. Web, mobile, API, worker, and shared-package implementations exist; their presence does not establish that every function is ready. The [Version 2 roadmap](docs/roadmap/v2/README.md) now defines the redesign, complete guided learning, support, mobile, notifications, and assistant work. Phase 64 is planning only; see the [progress register](docs/roadmap/progress.json) for actual results.
+> **Status:** Active development — testing preview with open release gates. Web, mobile, API, worker, and shared-package implementations exist; their presence does not establish that every function is ready. The [Version 2 roadmap](docs/roadmap/v2/README.md) defines redesign, learning, support, mobile, notifications, and assistant work. Phase 65 published a [function register](docs/roadmap/v2/function-register.json) and [readiness baseline](docs/roadmap/v2/readiness-baseline.md); see the [progress register](docs/roadmap/progress.json) for actual results.
 
 ## Features
 

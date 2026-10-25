@@ -1,0 +1,153 @@
+{
+  "label": "engineering-synthetic-baseline-short-local",
+  "notBetaDerived": true,
+  "notSustained100UserCapacity": true,
+  "notLongDurationMemoryStability": true,
+  "stopReason": "soak_elapsed",
+  "host": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "cpus": 12,
+    "totalMemMb": 14173,
+    "node": "v24.21.0"
+  },
+  "workload": {
+    "concurrentActors": 40,
+    "heavyItems": 10000,
+    "folderDepth": 5,
+    "warmUp": 20,
+    "maxSamples": 100000,
+    "soakMs": 90000,
+    "paceMs": 25,
+    "seed": 58,
+    "mix": "50% list, 15% getNote, 20% create, 15% search",
+    "heavyListShareOfListOps": 0.011308830866456012,
+    "searchMarker": "HeavySearchMarker"
+  },
+  "durationMs": 90146,
+  "sampleCount": 24127,
+  "errorCount": 22,
+  "timedOutCount": 0,
+  "errorRate": 0.0009118415053674307,
+  "failedOps": [
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    },
+    {
+      "op": "getNote",
+      "error": "no note id for getNote"
+    }
+  ],
+  "latencyMs": {
+    "all": {
+      "samples": 24105,
+      "min": 38.12810000000172,
+      "max": 1068.7945,
+      "mean": 122.71872818502453,
+      "p50": 104.20040000000154,
+      "p95": 236.11340000000018,
+      "p99": 413.09580000000096
+    },
+    "read": {
+      "samples": 19209,
+      "min": 38.12810000000172,
+      "max": 1068.7945,
+      "mean": 123.0165001301479,
+      "p50": 102.86349999999948,
+      "p95": 241.91090000000258,
+      "p99": 421.34350000000086
+    },
+    "write": {
+      "samples": 4896,
+      "min": 52.736400000001595,
+      "max": 729.813900000001,
+      "mean": 121.55044769199323,
+      "p50": 107.85089999999764,
+      "p95": 209.78600000000006,
+      "p99": 393.83760000000075
+    }
+  },
+  "qualityTargets": {
+    "readP95TargetMs": 300,
+    "writeP95TargetMs": 500,
+    "readP95": true,
+    "writeP95": true,
+    "note": "quality.md ~100-user targets evaluated separately; this run is a 40-actor short local baseline"
+  },
+  "heapGrowthMb": 23.552398681640625,
+  "throughputRps": 267.64360038160316,
+  "recordedAt": "2026-10-25T05:13:28.073Z"
+}

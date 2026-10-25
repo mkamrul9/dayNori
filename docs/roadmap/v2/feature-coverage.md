@@ -1,6 +1,6 @@
 # V2 function and learning coverage
 
-Status: planning coverage, not a passed feature audit. Phase 65 must create a machine-readable, versioned register of actual actions and evidence. This document supplies its minimum scope.
+Status: Phase 65 completed a machine-readable inventory at [`function-register.json`](function-register.json) with narrative baseline [`readiness-baseline.md`](readiness-baseline.md). This document remains the **minimum coverage floor** and learning/repair map; per-action readiness and evidence live in the register. No action is `release_ready` from this inventory alone.
 
 ## Readiness record
 
