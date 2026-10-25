@@ -1599,7 +1599,7 @@ describe('Domain Rules and Invariants', () => {
   });
 
   describe('Phase 30: Today Home and Personal Customization', () => {
-    it('returns a calm, small default HomeLayout with 5 visible primary cards and 2 optional hidden cards', async () => {
+    it('returns a focused default HomeLayout with ≤5 visible cards and shell-first navigation', async () => {
       const { getDefaultHomeLayout, APPROVED_HOME_WIDGET_IDS } = await import('./home.js');
       const layout = getDefaultHomeLayout();
 
@@ -1608,17 +1608,22 @@ describe('Domain Rules and Invariants', () => {
       expect(layout.widgets.length).toBe(7);
 
       const visibleWidgets = layout.widgets.filter((w) => w.visible);
-      expect(visibleWidgets.length).toBe(5);
+      expect(visibleWidgets.length).toBe(4);
       expect(visibleWidgets.map((w) => w.id)).toEqual([
         'tasks',
         'routines',
         'upcoming_summary',
-        'quick_capture',
         'journal_prompt',
       ]);
 
       const hiddenWidgets = layout.widgets.filter((w) => !w.visible);
-      expect(hiddenWidgets.map((w) => w.id)).toEqual(['recent_items', 'favorite_folders']);
+      expect(hiddenWidgets.map((w) => w.id)).toEqual([
+        'quick_capture',
+        'recent_items',
+        'favorite_folders',
+      ]);
+
+      expect(layout.moduleShortcuts.every((s) => s.visible === false)).toBe(true);
 
       // All approved widgets are present
       for (const id of APPROVED_HOME_WIDGET_IDS) {

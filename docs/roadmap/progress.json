@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-25",
   "activePhase": null,
-  "nextPhase": "69",
-  "schedulingDecision": "Phase 67 complete (Warm notebook; participant review deferred to Phase 99). Phase 68 Warm tokens/primitives complete. Phase 69 (desktop shell/Today) is next eligible. Phase 99 retains deferred participant validation.",
+  "nextPhase": "70",
+  "schedulingDecision": "Phases 67–69 complete (Warm notebook; tokens/primitives; desktop shell/Today). Phase 70 (mobile web/PWA layout) is next eligible. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -409,7 +409,8 @@
     },
     {
       "id": "69",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-69.md"
     },
     {
       "id": "70",

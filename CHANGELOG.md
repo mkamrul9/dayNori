@@ -1,5 +1,10 @@
 # Changelog
 
+## Phase 69 — Desktop shell and focused Today — 2026-10-25
+
+- Desktop sidebar Primary/Pins/Utilities hierarchy; Warm page density; registry-driven mobile drawer.
+- Focused Today defaults (≤4 visible cards; module chips and Quick Capture off by default); Create opens shell menu.
+
 ## Phase 68 — Warm notebook tokens and accessible primitives — 2026-10-25
 
 - Align design tokens to Warm notebook (muted contrast, radii 10/14/18, density, reduced-motion map).

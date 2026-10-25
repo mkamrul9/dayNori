@@ -28,6 +28,7 @@ import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
+import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { createWebApiClient } from '../data/webApiClient';
 import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
 import { getActiveWebSyncEngine, createWebSyncEngine } from '../data/syncAdapter';
@@ -40,6 +41,7 @@ export const AppModals: React.FC = () => {
   const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
   const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken } = useAuth();
+  const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
   const palette = colors[themeMode];
   const [searchQuery, setSearchQuery] = useState('');
@@ -1190,32 +1192,40 @@ export const AppModals: React.FC = () => {
               color: palette.text.secondary,
             }}
           >
-            Everyday
+            Primary
           </p>
-          <ListRow
-            title="Today"
-            subtitle="What needs attention now"
-            onClick={() => navigateTo('/today')}
-            themeMode={themeMode}
-          />
-          <ListRow
-            title="Plan"
-            subtitle="Tasks and repeating routines"
-            onClick={() => navigateTo('/plan')}
-            themeMode={themeMode}
-          />
-          <ListRow
-            title="Library"
-            subtitle="Notes and folders"
-            onClick={() => navigateTo('/library')}
-            themeMode={themeMode}
-          />
-          <ListRow
-            title="Journal"
-            subtitle="Private daily writing"
-            onClick={() => navigateTo('/journal')}
-            themeMode={themeMode}
-          />
+          {primaryTabs.map((tab) => (
+            <ListRow
+              key={tab.id}
+              title={tab.label}
+              onClick={() => navigateTo(tab.webPath)}
+              themeMode={themeMode}
+            />
+          ))}
+          {pins.length > 0 ? (
+            <>
+              <p
+                style={{
+                  margin: `${spacing.xs}px 0 0`,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: palette.text.secondary,
+                }}
+              >
+                Pins
+              </p>
+              {pins.map((pin) => (
+                <ListRow
+                  key={pin.id}
+                  title={pin.label}
+                  onClick={() => navigateTo(pin.webPath)}
+                  themeMode={themeMode}
+                />
+              ))}
+            </>
+          ) : null}
           <div
             style={{
               borderTop: `1px solid ${palette.border.subtle}`,
@@ -1232,8 +1242,14 @@ export const AppModals: React.FC = () => {
               color: palette.text.secondary,
             }}
           >
-            More
+            Utilities
           </p>
+          <ListRow
+            title="All features"
+            subtitle="Find, pin, hide, or restore modules"
+            onClick={() => navigateTo('/features')}
+            themeMode={themeMode}
+          />
           <ListRow
             title="Calendar"
             subtitle="See Plan on a calendar"
@@ -1276,6 +1292,14 @@ export const AppModals: React.FC = () => {
             }}
             themeMode={themeMode}
           />
+          {isOperator ? (
+            <ListRow
+              title="Developer"
+              subtitle="Operator tools"
+              onClick={() => navigateTo('/developer')}
+              themeMode={themeMode}
+            />
+          ) : null}
         </div>
       </Dialog>
 

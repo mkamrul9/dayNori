@@ -53,12 +53,19 @@ body {
 
 .daynori-page {
   width: 100%;
-  max-width: 860px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 16px;
+  /* Warm notebook density.padPage — keep in sync with design-tokens density.padPage */
+  padding: 28px 24px;
   box-sizing: border-box;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .daynori-page {
+    padding: 16px;
+  }
 }
 
 @media (max-width: 380px) {

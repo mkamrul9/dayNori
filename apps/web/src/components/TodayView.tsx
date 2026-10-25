@@ -12,6 +12,7 @@ import {
   RoutineRow,
   RoutineDetailEditor,
   RoutineHistoryViewer,
+  SyncStatusBadge,
 } from '@daynori/ui-web';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
@@ -102,7 +103,7 @@ function getRecentItemHref(item: RecentItemEntry): string {
 
 export const TodayView: React.FC = () => {
   const liveRegionId = useId();
-  const { themeMode, themePreference, setTheme, activeModal } = useShell();
+  const { themeMode, themePreference, setTheme, activeModal, openModal } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user, csrfToken, preferences: authPreferences } = useAuth();
 
@@ -1405,10 +1406,10 @@ export const TodayView: React.FC = () => {
               className="daynori-break"
               style={{
                 margin: 0,
-                fontSize: `${typography.webScale.welcomeTitle}px`,
-                fontWeight: 800,
+                fontSize: `${typography.webScale.pageTitle}px`,
+                fontWeight: 700,
                 color: palette.text.primary,
-                letterSpacing: '-0.5px',
+                letterSpacing: '-0.3px',
               }}
             >
               Today
@@ -1427,18 +1428,20 @@ export const TodayView: React.FC = () => {
                 month: 'long',
                 day: 'numeric',
                 year: 'numeric',
+                timeZone: viewingTimezone,
               })}
+              <span style={{ color: palette.text.muted }}> · {viewingTimezone}</span>
             </p>
-            <p
-              className="daynori-break"
-              style={{
-                margin: '6px 0 0',
-                fontSize: '12px',
-                color: palette.text.muted,
-              }}
-            >
-              Timezone: {viewingTimezone}
-            </p>
+            <div style={{ marginTop: spacing.sm }}>
+              <SyncStatusBadge
+                status={
+                  typeof navigator !== 'undefined' && navigator.onLine === false
+                    ? 'offline'
+                    : 'synced'
+                }
+                themeMode={themeMode}
+              />
+            </div>
           </div>
 
           <div
@@ -1450,6 +1453,16 @@ export const TodayView: React.FC = () => {
               minWidth: 0,
             }}
           >
+            <Button
+              id="today-create-btn"
+              variant="primary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => openModal('create')}
+              aria-label="Create"
+            >
+              <Icon name="plus" /> Create
+            </Button>
             <Button
               id="customize-today-btn"
               variant="secondary"
@@ -1463,7 +1476,7 @@ export const TodayView: React.FC = () => {
 
             <Button
               id="create-routine-btn"
-              variant="primary"
+              variant="subtle"
               size="compact"
               themeMode={themeMode}
               onClick={() => {

@@ -4,7 +4,7 @@ import { Icon } from '@daynori/ui-web';
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
+import { colors, density, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
 import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 
@@ -78,8 +78,9 @@ export const AppSidebar: React.FC = () => {
         backgroundColor: palette.surface,
         borderRight: `1px solid ${palette.border.subtle}`,
         boxSizing: 'border-box',
-        minHeight: 'calc(100vh - 60px)',
+        minHeight: `calc(100vh - ${density.headerHeight}px)`,
         flexShrink: 0,
+        gap: `${spacing.md}px`,
       }}
     >
       <div>
@@ -88,35 +89,43 @@ export const AppSidebar: React.FC = () => {
             fontSize: '11px',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
-            color: palette.text.secondary,
+            color: palette.text.muted,
             padding: `0 ${spacing.sm}px ${spacing.xs}px`,
             fontWeight: 700,
           }}
         >
-          Organizer
+          Primary
         </div>
         {primaryTabs.map((tab) =>
           renderNavLink({ href: tab.webPath, label: tab.label, icon: tab.icon })
         )}
+        <div
+          style={{
+            fontSize: '11px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            color: palette.text.muted,
+            padding: `${spacing.md}px ${spacing.sm}px ${spacing.xs}px`,
+            fontWeight: 700,
+          }}
+        >
+          Pins
+        </div>
         {pins.length > 0 ? (
-          <>
-            <div
-              style={{
-                fontSize: '11px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: palette.text.secondary,
-                padding: `${spacing.sm}px ${spacing.sm}px ${spacing.xs}px`,
-                fontWeight: 700,
-              }}
-            >
-              Pins
-            </div>
-            {pins.map((pin) =>
-              renderNavLink({ href: pin.webPath, label: pin.label, icon: pin.icon }, true)
-            )}
-          </>
-        ) : null}
+          pins.map((pin) =>
+            renderNavLink({ href: pin.webPath, label: pin.label, icon: pin.icon }, true)
+          )
+        ) : (
+          <p
+            style={{
+              margin: `0 ${spacing.sm}px`,
+              fontSize: 12,
+              color: palette.text.secondary,
+            }}
+          >
+            Pin modules from All features
+          </p>
+        )}
       </div>
 
       <div
@@ -127,12 +136,12 @@ export const AppSidebar: React.FC = () => {
             fontSize: '11px',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
-            color: palette.text.secondary,
+            color: palette.text.muted,
             padding: `0 ${spacing.sm}px ${spacing.xs}px`,
             fontWeight: 700,
           }}
         >
-          Workspace
+          Utilities
         </div>
         {utilityItems.map((item) => renderNavLink(item))}
       </div>
