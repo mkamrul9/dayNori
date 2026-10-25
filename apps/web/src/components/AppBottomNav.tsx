@@ -6,18 +6,20 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { colors, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
+import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 
 export const AppBottomNav: React.FC = () => {
   const pathname = usePathname();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
+  const { primaryTabs } = useFeatureNavigation();
 
-  const primaryTabs = [
-    { href: '/today', label: 'Today', icon: 'sun' as const },
-    { href: '/plan', label: 'Plan', icon: 'clipboard' as const },
-    { href: '/library', label: 'Library', icon: 'library' as const },
-    { href: '/journal', label: 'Journal', icon: 'book' as const },
-  ];
+  // ADR 0068: hiding Journal leaves three primary tabs — no competing fifth destination.
+  const tabs = primaryTabs.map((t) => ({
+    href: t.webPath,
+    label: t.label,
+    icon: t.icon as 'sun' | 'clipboard' | 'library' | 'book',
+  }));
 
   return (
     <nav
@@ -42,7 +44,7 @@ export const AppBottomNav: React.FC = () => {
         boxSizing: 'border-box',
       }}
     >
-      {primaryTabs.map((tab) => {
+      {tabs.map((tab) => {
         const isActive =
           tab.href === '/plan' ? pathname.startsWith('/plan') : pathname.startsWith(tab.href);
 
@@ -74,7 +76,10 @@ export const AppBottomNav: React.FC = () => {
               overflow: 'hidden',
             }}
           >
-            <span aria-hidden="true" style={{ display: 'inline-flex', marginBottom: '2px', flexShrink: 0 }}>
+            <span
+              aria-hidden="true"
+              style={{ display: 'inline-flex', marginBottom: '2px', flexShrink: 0 }}
+            >
               <Icon name={tab.icon} size={18} />
             </span>
             <span

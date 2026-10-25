@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-25",
   "activePhase": null,
-  "nextPhase": "66",
-  "schedulingDecision": "Owner selected Phase 65; function inventory and readiness baseline complete with register, defects, local synthetic journey/perf evidence, and fresh visual emulation captures. Phase 66 is next eligible. V1 Phase 60 and all existing blocked/deferred states remain unchanged. No release_ready claims from Phase 65 alone.",
+  "nextPhase": "67",
+  "schedulingDecision": "Owner selected Phase 66; feature registry, All features personalization, and deny-by-default operator boundaries complete for local web/API/domain (DEF-V2-010 partially verified — physical Android/production operator IdP unmet). Phase 67 is next eligible. V1 Phase 60 and existing blocked/deferred states unchanged. No release_ready claims from Phase 66 alone.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -394,7 +394,8 @@
     },
     {
       "id": "66",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-66.md"
     },
     {
       "id": "67",

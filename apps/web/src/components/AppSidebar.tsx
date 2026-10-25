@@ -6,41 +6,34 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
+import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 
 export const AppSidebar: React.FC = () => {
   const pathname = usePathname();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
+  const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
-  const navItems = [
-    { href: '/today', label: 'Today', icon: 'sun', shortcut: 'T' },
-    {
-      href: '/plan',
-      label: 'Plan',
-      icon: 'clipboard',
-      shortcut: 'P',
-      children: [{ href: '/plan/calendar', label: 'Calendar', icon: 'calendar', shortcut: 'K' }],
-    },
-    { href: '/library', label: 'Library', icon: 'library', shortcut: 'L' },
-    { href: '/journal', label: 'Journal', icon: 'book', shortcut: 'J' },
-    { href: '/custom-sections', label: 'Custom Sections', icon: 'clipboard', shortcut: 'C' },
-  ];
-
-  const secondaryItems = [
-    { href: '/help', label: 'Help & tutorial', icon: 'help', shortcut: '?' },
+  const utilityItems = [
+    { href: '/features', label: 'All features', icon: 'sliders' },
+    { href: '/help', label: 'Help & tutorial', icon: 'help' },
     { href: '/support', label: 'Support', icon: 'user' },
-    { href: '/settings', label: 'Settings', icon: 'settings', shortcut: ',' },
+    { href: '/settings', label: 'Settings', icon: 'settings' },
+    ...(isOperator ? [{ href: '/developer', label: 'Developer', icon: 'code' }] : []),
   ];
 
   const renderNavLink = (
-    item: { href: string; label: string; icon: string; shortcut?: string },
+    item: { href: string; label: string; icon: string },
     isNested = false
   ) => {
-    const isActive = item.href === '/plan' ? pathname === '/plan' : pathname.startsWith(item.href);
+    const isActive =
+      item.href === '/plan'
+        ? pathname === '/plan' || pathname.startsWith('/plan/')
+        : pathname === item.href || pathname.startsWith(item.href + '/');
 
     return (
       <Link
-        key={item.href}
+        key={item.href + item.label}
         href={item.href}
         aria-current={isActive ? 'page' : undefined}
         style={{
@@ -69,21 +62,6 @@ export const AppSidebar: React.FC = () => {
           </span>
           <span>{item.label}</span>
         </span>
-        {item.shortcut && (
-          <kbd
-            aria-hidden="true"
-            style={{
-              fontSize: '11px',
-              padding: '1px 4px',
-              borderRadius: '3px',
-              backgroundColor: palette.surface,
-              border: `1px solid ${palette.border.subtle}`,
-              color: palette.text.secondary,
-            }}
-          >
-            {item.shortcut}
-          </kbd>
-        )}
       </Link>
     );
   };
@@ -104,7 +82,6 @@ export const AppSidebar: React.FC = () => {
         flexShrink: 0,
       }}
     >
-      {/* Primary Organizer Destinations */}
       <div>
         <div
           style={{
@@ -118,15 +95,30 @@ export const AppSidebar: React.FC = () => {
         >
           Organizer
         </div>
-        {navItems.map((item) => (
-          <React.Fragment key={item.href}>
-            {renderNavLink(item)}
-            {item.children?.map((child) => renderNavLink(child, true))}
-          </React.Fragment>
-        ))}
+        {primaryTabs.map((tab) =>
+          renderNavLink({ href: tab.webPath, label: tab.label, icon: tab.icon })
+        )}
+        {pins.length > 0 ? (
+          <>
+            <div
+              style={{
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: palette.text.secondary,
+                padding: `${spacing.sm}px ${spacing.sm}px ${spacing.xs}px`,
+                fontWeight: 700,
+              }}
+            >
+              Pins
+            </div>
+            {pins.map((pin) =>
+              renderNavLink({ href: pin.webPath, label: pin.label, icon: pin.icon }, true)
+            )}
+          </>
+        ) : null}
       </div>
 
-      {/* Utility & Review Links */}
       <div
         style={{ borderTop: `1px solid ${palette.border.subtle}`, paddingTop: `${spacing.sm}px` }}
       >
@@ -142,7 +134,7 @@ export const AppSidebar: React.FC = () => {
         >
           Workspace
         </div>
-        {secondaryItems.map((item) => renderNavLink(item))}
+        {utilityItems.map((item) => renderNavLink(item))}
       </div>
     </nav>
   );

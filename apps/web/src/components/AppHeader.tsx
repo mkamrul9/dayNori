@@ -2,6 +2,7 @@
 
 import { Icon } from '@daynori/ui-web';
 import React from 'react';
+import Link from 'next/link';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
 
@@ -111,6 +112,18 @@ export const AppHeader: React.FC = () => {
           WebkitOverflowScrolling: 'touch',
         }}
       >
+        <Link
+          href="/features"
+          id="global-all-features-btn"
+          aria-label="All features directory"
+          style={{ ...buttonStyle, textDecoration: 'none' }}
+        >
+          <span aria-hidden="true" style={{ marginRight: '4px' }}>
+            <Icon name="sliders" />
+          </span>
+          <span className="desktop-only">All features</span>
+        </Link>
+
         <button
           type="button"
           id="global-search-btn"

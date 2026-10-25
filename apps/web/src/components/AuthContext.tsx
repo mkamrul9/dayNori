@@ -13,6 +13,12 @@ export interface AuthUser {
   workspaceId?: string | null;
 }
 
+export interface FeaturePersonalizationState {
+  version: 1;
+  hiddenFeatureIds: string[];
+  pinnedFeatureIds: string[];
+}
+
 export interface UserPreferencesState {
   timeZone: string;
   preferredLocale: string;
@@ -20,6 +26,7 @@ export interface UserPreferencesState {
   theme: 'system' | 'light' | 'dark';
   compactMode: boolean;
   expensesEnabled: boolean;
+  featurePersonalization?: FeaturePersonalizationState;
   revision: number;
 }
 
@@ -79,6 +86,37 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_CHANNEL_NAME = 'daynori_auth_channel';
 const AUTH_SYNC_STORAGE_KEY = 'daynori_auth_sync_event';
 
+function mapProfileToPreferences(prof: {
+  timeZone: string;
+  preferredLocale: string;
+  weekStart: 'monday' | 'sunday' | 'saturday';
+  revision: number;
+  preferences?: {
+    theme?: 'system' | 'light' | 'dark';
+    compactMode?: boolean;
+    expensesEnabled?: boolean;
+    featurePersonalization?: FeaturePersonalizationState;
+  };
+}): UserPreferencesState {
+  const fp = prof.preferences?.featurePersonalization;
+  return {
+    timeZone: prof.timeZone,
+    preferredLocale: prof.preferredLocale,
+    weekStart: prof.weekStart,
+    theme: prof.preferences?.theme || 'system',
+    compactMode: Boolean(prof.preferences?.compactMode),
+    expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
+    featurePersonalization: fp
+      ? {
+          version: 1,
+          hiddenFeatureIds: Array.isArray(fp.hiddenFeatureIds) ? fp.hiddenFeatureIds.map(String) : [],
+          pinnedFeatureIds: Array.isArray(fp.pinnedFeatureIds) ? fp.pinnedFeatureIds.map(String) : [],
+        }
+      : undefined,
+    revision: prof.revision,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -127,15 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (payload.data?.profile) {
           const prof = payload.data.profile;
-          setPreferences({
-            timeZone: prof.timeZone,
-            preferredLocale: prof.preferredLocale,
-            weekStart: prof.weekStart,
-            theme: prof.preferences?.theme || 'system',
-            compactMode: Boolean(prof.preferences?.compactMode),
-            expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
-            revision: prof.revision,
-          });
+          setPreferences(mapProfileToPreferences(prof));
         }
         return wsId;
       }
@@ -153,16 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (res.ok) {
         const payload = await res.json();
-        const prof = payload.data;
-        const loaded: UserPreferencesState = {
-          timeZone: prof.timeZone,
-          preferredLocale: prof.preferredLocale,
-          weekStart: prof.weekStart,
-          theme: prof.preferences?.theme || 'system',
-          compactMode: Boolean(prof.preferences?.compactMode),
-          expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
-          revision: prof.revision,
-        };
+        const loaded = mapProfileToPreferences(payload.data);
         setPreferences(loaded);
         return loaded;
       }
@@ -183,19 +204,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updated?: UserPreferencesState;
     }> => {
       try {
+        const prefsPatch: Record<string, unknown> = {};
+        if (updates.theme !== undefined) prefsPatch.theme = updates.theme;
+        if (updates.compactMode !== undefined) prefsPatch.compactMode = updates.compactMode;
+        if (updates.expensesEnabled !== undefined)
+          prefsPatch.expensesEnabled = updates.expensesEnabled;
+        if (updates.featurePersonalization !== undefined)
+          prefsPatch.featurePersonalization = updates.featurePersonalization;
+
         const payload: Record<string, unknown> = {
           ...(updates.timeZone ? { timeZone: updates.timeZone } : {}),
           ...(updates.preferredLocale ? { preferredLocale: updates.preferredLocale } : {}),
           ...(updates.weekStart ? { weekStart: updates.weekStart } : {}),
-          ...(updates.theme !== undefined ||
-          updates.compactMode !== undefined ||
-          updates.expensesEnabled !== undefined
+          ...(Object.keys(prefsPatch).length
             ? {
                 preferences: {
-                  theme: updates.theme ?? preferences?.theme ?? 'system',
-                  compactMode: updates.compactMode ?? preferences?.compactMode ?? false,
+                  theme: (prefsPatch.theme as string) ?? preferences?.theme ?? 'system',
+                  compactMode:
+                    (prefsPatch.compactMode as boolean) ?? preferences?.compactMode ?? false,
                   expensesEnabled:
-                    updates.expensesEnabled ?? preferences?.expensesEnabled ?? false,
+                    (prefsPatch.expensesEnabled as boolean) ??
+                    preferences?.expensesEnabled ??
+                    false,
+                  ...(prefsPatch.featurePersonalization !== undefined
+                    ? { featurePersonalization: prefsPatch.featurePersonalization }
+                    : preferences?.featurePersonalization
+                      ? { featurePersonalization: preferences.featurePersonalization }
+                      : {}),
                 },
               }
             : {}),
@@ -223,16 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: data.error?.message || 'Failed to save preferences' };
         }
 
-        const prof = data.data;
-        const updated: UserPreferencesState = {
-          timeZone: prof.timeZone,
-          preferredLocale: prof.preferredLocale,
-          weekStart: prof.weekStart,
-          theme: prof.preferences?.theme || 'system',
-          compactMode: Boolean(prof.preferences?.compactMode),
-          expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
-          revision: prof.revision,
-        };
+        const updated = mapProfileToPreferences(data.data);
         setPreferences(updated);
         return { success: true, updated };
       } catch (err) {

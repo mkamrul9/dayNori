@@ -10,6 +10,7 @@ export interface MobileHeaderProps {
   themeMode?: ThemeMode;
   onOpenSearch?: () => void;
   onOpenCreate?: () => void;
+  onOpenAllFeatures?: () => void;
   onOpenSettings?: () => void;
   testID?: string;
 }
@@ -20,6 +21,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   themeMode = 'light',
   onOpenSearch,
   onOpenCreate,
+  onOpenAllFeatures,
   onOpenSettings,
   testID = 'mobile-header',
 }) => {
@@ -95,6 +97,25 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           >
             <Text style={styles.actionIcon} aria-hidden={true}>
               <Icon name="plus" color={palette.text.primary} />
+            </Text>
+          </Pressable>
+        )}
+
+        {onOpenAllFeatures && (
+          <Pressable
+            testID="header-all-features-btn"
+            accessibilityRole="button"
+            accessibilityLabel="All features"
+            onPress={onOpenAllFeatures}
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: pressed ? palette.action.subtle : 'transparent',
+              },
+            ]}
+          >
+            <Text style={styles.actionIcon} aria-hidden={true}>
+              <Icon name="sliders" color={palette.text.primary} />
             </Text>
           </Pressable>
         )}

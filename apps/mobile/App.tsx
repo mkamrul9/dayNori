@@ -50,7 +50,6 @@ import {
 import { ExpoFileSystemOfflineStorageAdapter } from './src/data/expoFileSystemStorageAdapter.js';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { generateUuid } from '@daynori/domain';
 import { ExpoAudioRecorderAdapter } from './src/audio/audioAdapter.js';
 
 MobileOfflineFileCache.setAdapter(new ExpoFileSystemOfflineStorageAdapter());
@@ -64,6 +63,7 @@ import { AccountSheet } from './src/views/AccountSheet.js';
 import { SearchSheet } from './src/views/SearchSheet';
 import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
+import { AllFeaturesSheet } from './src/views/AllFeaturesSheet';
 import { OnboardingSheet } from './src/views/OnboardingSheet';
 import { ExpensesView } from './src/views/ExpensesView';
 import { CustomSectionsView } from './src/views/CustomSectionsView';
@@ -72,6 +72,16 @@ import { DriveConnectionsSheet } from './src/views/DriveConnectionsSheet';
 import { RoomsSheet } from './src/views/RoomsSheet';
 import { AssistantSheet } from './src/views/AssistantSheet';
 import { BillingSheet } from './src/views/BillingSheet';
+import {
+  generateUuid,
+  getDefaultFeaturePersonalization,
+  isPlatformOperator,
+  listPrimaryShellTabs,
+  sanitizeAndMigrateFeaturePersonalization,
+  type FeatureAuthContext,
+  type FeaturePersonalization,
+  type FeatureReleaseContext,
+} from '@daynori/domain';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -85,7 +95,7 @@ import {
   type NotificationCapabilityState,
 } from './src/notifications/adapter.js';
 import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
-import { isCorePreview } from './src/config/runtime.js';
+import { isCorePreview, mobileOperatorUserIds } from './src/config/runtime.js';
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
@@ -142,6 +152,38 @@ export default function App() {
   const [targetJournalDate, setTargetJournalDate] = useState<string | null>(null);
 
   const palette = colors[themeMode];
+  const isOperator = isPlatformOperator(
+    { userId: userNamespace?.userId },
+    { DAYNORI_OPERATOR_USER_IDS: mobileOperatorUserIds }
+  );
+  const [featurePersonalization, setFeaturePersonalization] = useState(() =>
+    getDefaultFeaturePersonalization()
+  );
+  const mobileRelease: FeatureReleaseContext = {
+    platform: 'android',
+    corePreview: isCorePreview,
+    production: typeof __DEV__ !== 'undefined' ? !__DEV__ : true,
+    moduleReleased: {
+      vault: false,
+      drive: false,
+      rooms: false,
+      billing: false,
+      assistant: false,
+    },
+    capabilityKnown: true,
+  };
+  const mobileAuth: FeatureAuthContext = {
+    authenticated: isAuthenticated,
+    hasWorkspaceMembership: Boolean(userNamespace?.workspaceId),
+    isPlatformOperator: isOperator,
+    privilegeKnown: true,
+  };
+  const primaryShellTabs = listPrimaryShellTabs(mobileRelease, mobileAuth, featurePersonalization);
+  const visiblePrimaryTabs = primaryShellTabs
+    .map((t) => t.mobileDestination)
+    .filter(
+      (d): d is MobileTab => d === 'today' || d === 'plan' || d === 'library' || d === 'journal'
+    );
 
   // Sync Diagnostics, Recovery Export, and Conflict Review state (Phase 34)
   const [syncDiagnostics, setSyncDiagnostics] = useState<RedactedSyncDiagnostics | null>(null);
@@ -151,7 +193,10 @@ export default function App() {
   const [expensesEnabled, setExpensesEnabled] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!userNamespace?.userId) return;
+    if (!userNamespace?.userId) {
+      setFeaturePersonalization(getDefaultFeaturePersonalization());
+      return;
+    }
     const key = `daynori_expenses_enabled_${userNamespace.userId}`;
     defaultSecureStorage
       .getItemAsync(key)
@@ -162,6 +207,22 @@ export default function App() {
       })
       .catch(() => {});
   }, [userNamespace?.userId]);
+
+  useEffect(() => {
+    if (currentTab === 'journal' && !visiblePrimaryTabs.includes('journal')) {
+      setCurrentTab('today');
+    }
+  }, [currentTab, visiblePrimaryTabs]);
+
+  const persistFeaturePersonalization = async (next: FeaturePersonalization) => {
+    setFeaturePersonalization(next);
+    if (!apiClient) return;
+    try {
+      await apiClient.updateUserPreferences({ preferences: { featurePersonalization: next } });
+    } catch {
+      // offline: local state retained until next successful sync
+    }
+  };
 
   const handleToggleExpensesEnabled = async (enabled: boolean) => {
     setExpensesEnabled(enabled);
@@ -178,13 +239,40 @@ export default function App() {
     }
   };
 
-  // Reset diagnostics and recovery export on session / workspace change
+  // Reset diagnostics / personalization on session / workspace change (Phase 66 isolates accounts).
   useEffect(() => {
     sessionGenRef.current += 1;
     setSyncDiagnostics(null);
     setRecoveryExport(null);
     setActiveConflict(null);
-  }, [userNamespace?.userId, userNamespace?.workspaceId]);
+
+    if (!apiClient || !userNamespace?.userId) {
+      setFeaturePersonalization(getDefaultFeaturePersonalization());
+      return;
+    }
+    const gen = sessionGenRef.current;
+    const userId = userNamespace.userId;
+    void apiClient
+      .getUserPreferences()
+      .then((profile) => {
+        if (sessionGenRef.current !== gen || userNamespace.userId !== userId) return;
+        const prefs = profile.data?.preferences as
+          | { featurePersonalization?: unknown; homeLayout?: { moduleShortcuts?: unknown } }
+          | undefined;
+        setFeaturePersonalization(
+          sanitizeAndMigrateFeaturePersonalization(
+            prefs?.featurePersonalization ?? null,
+            (prefs?.homeLayout?.moduleShortcuts as
+              Array<{ id: string; visible: boolean; order: number }> | undefined) ?? null
+          )
+        );
+      })
+      .catch(() => {
+        if (sessionGenRef.current === gen) {
+          setFeaturePersonalization(getDefaultFeaturePersonalization());
+        }
+      });
+  }, [apiClient, userNamespace?.userId, userNamespace?.workspaceId]);
 
   // Listen for conflict_detected from active sync engine
   useEffect(() => {
@@ -498,7 +586,8 @@ export default function App() {
         } else if (dest === 'settings') {
           setActiveModal('settings');
         } else if (dest === 'review') {
-          setActiveModal('gallery');
+          // Phase 66: gallery is operator-only; deny ordinary deep links.
+          setActiveModal('none');
         } else if (String(dest).includes('vault')) {
           // Production vault deep links remain closed while Phase 44/45 gates are unmet.
           // Do not open decrypted vault content from a notification/deep link.
@@ -607,7 +696,8 @@ export default function App() {
       } else if (dest === 'settings') {
         setActiveModal('settings');
       } else if (dest === 'review') {
-        setActiveModal('gallery');
+        // Phase 66: gallery is operator-only; deny ordinary notification deep links.
+        setActiveModal('none');
       }
     });
 
@@ -652,6 +742,7 @@ export default function App() {
         themeMode={themeMode}
         onOpenSearch={() => setActiveModal('search')}
         onOpenCreate={() => setActiveModal('create')}
+        onOpenAllFeatures={() => setActiveModal('all-features')}
         onOpenSettings={() => setActiveModal('settings')}
       />
 
@@ -753,6 +844,7 @@ export default function App() {
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         themeMode={themeMode}
+        visibleTabs={visiblePrimaryTabs}
       />
 
       {/* Search Sheet */}
@@ -862,7 +954,8 @@ export default function App() {
                 void registerDeviceAsync(apiClient);
               }
             }}
-            onOpenGallery={() => setActiveModal('gallery')}
+            onOpenAllFeatures={() => setActiveModal('all-features')}
+            onOpenGallery={isOperator ? () => setActiveModal('gallery') : undefined}
             onOpenOnboarding={() => setActiveModal('onboarding-replay')}
             onOpenSyncDiagnostics={() => {
               void loadDiagnostics();
@@ -879,33 +972,78 @@ export default function App() {
             onOpenExpenses={() => setActiveModal('expenses')}
             onOpenCustomSections={() => setActiveModal('custom-sections')}
             onOpenVaultHarness={
-              typeof __DEV__ !== 'undefined' && __DEV__
+              isOperator && typeof __DEV__ !== 'undefined' && __DEV__
                 ? () => setActiveModal('vault-harness')
                 : undefined
             }
             onOpenDriveConnections={
-              apiClient && userNamespace?.workspaceId
+              isOperator && apiClient && userNamespace?.workspaceId
                 ? () => setActiveModal('drive-connections')
                 : undefined
             }
             onOpenRooms={
-              apiClient && userNamespace?.workspaceId ? () => setActiveModal('rooms') : undefined
+              isOperator && apiClient && userNamespace?.workspaceId
+                ? () => setActiveModal('rooms')
+                : undefined
             }
             onOpenAssistant={
-              apiClient && userNamespace?.workspaceId
+              isOperator && apiClient && userNamespace?.workspaceId
                 ? () => setActiveModal('assistant')
                 : undefined
             }
             onOpenBilling={
-              apiClient && userNamespace?.workspaceId ? () => setActiveModal('billing') : undefined
+              isOperator && apiClient && userNamespace?.workspaceId
+                ? () => setActiveModal('billing')
+                : undefined
             }
             onClose={() => setActiveModal('none')}
           />
         </View>
       )}
 
-      {/* Phase 57 provisional billing */}
-      {activeModal === 'billing' && apiClient && userNamespace?.workspaceId ? (
+      {activeModal === 'all-features' ? (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 101 }]}
+        >
+          <AllFeaturesSheet
+            themeMode={themeMode}
+            isAuthenticated={isAuthenticated}
+            hasWorkspace={Boolean(userNamespace?.workspaceId)}
+            isOperator={isOperator}
+            personalization={featurePersonalization}
+            onChangePersonalization={(next) => {
+              void persistFeaturePersonalization(next);
+            }}
+            onClose={() => setActiveModal('none')}
+            onOpenDestination={(destination) => {
+              setActiveModal('none');
+              if (destination === 'settings') {
+                setActiveModal('settings');
+                return;
+              }
+              if (destination === 'search') {
+                setActiveModal('search');
+                return;
+              }
+              if (destination === 'create') {
+                setActiveModal('create');
+                return;
+              }
+              if (
+                destination === 'today' ||
+                destination === 'plan' ||
+                destination === 'library' ||
+                destination === 'journal'
+              ) {
+                setCurrentTab(destination);
+              }
+            }}
+          />
+        </View>
+      ) : null}
+
+      {/* Phase 57 provisional billing — operator-gated */}
+      {activeModal === 'billing' && isOperator && apiClient && userNamespace?.workspaceId ? (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
         >
@@ -918,8 +1056,8 @@ export default function App() {
         </View>
       ) : null}
 
-      {/* Phase 56 provisional assistant */}
-      {activeModal === 'assistant' && apiClient && userNamespace?.workspaceId ? (
+      {/* Phase 56 provisional assistant — operator-gated */}
+      {activeModal === 'assistant' && isOperator && apiClient && userNamespace?.workspaceId ? (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
         >
@@ -932,8 +1070,8 @@ export default function App() {
         </View>
       ) : null}
 
-      {/* Phase 51 provisional shared rooms */}
-      {activeModal === 'rooms' && apiClient && userNamespace?.workspaceId ? (
+      {/* Phase 51 provisional shared rooms — operator-gated */}
+      {activeModal === 'rooms' && isOperator && apiClient && userNamespace?.workspaceId ? (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
         >
@@ -947,8 +1085,11 @@ export default function App() {
         </View>
       ) : null}
 
-      {/* Phase 49 provisional Drive connections */}
-      {activeModal === 'drive-connections' && apiClient && userNamespace?.workspaceId ? (
+      {/* Phase 49 provisional Drive connections — operator-gated */}
+      {activeModal === 'drive-connections' &&
+      isOperator &&
+      apiClient &&
+      userNamespace?.workspaceId ? (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
         >
@@ -964,23 +1105,26 @@ export default function App() {
         </View>
       ) : null}
 
-      {/* Phase 46 synthetic vault harness — development only; unavailable in release */}
-      {typeof __DEV__ !== 'undefined' && __DEV__ && activeModal === 'vault-harness' && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
-        >
-          <VaultHarnessView
-            themeMode={themeMode}
-            accountId={userNamespace?.userId ?? 'synthetic-account'}
-            workspaceId={userNamespace?.workspaceId ?? '11111111-1111-4111-8111-111111111111'}
-            isOnline={isOnline}
-            onClose={() => setActiveModal('none')}
-          />
-        </View>
-      )}
+      {/* Phase 46 synthetic vault harness — operator + development only */}
+      {isOperator &&
+        typeof __DEV__ !== 'undefined' &&
+        __DEV__ &&
+        activeModal === 'vault-harness' && (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+          >
+            <VaultHarnessView
+              themeMode={themeMode}
+              accountId={userNamespace?.userId ?? 'synthetic-account'}
+              workspaceId={userNamespace?.workspaceId ?? '11111111-1111-4111-8111-111111111111'}
+              isOnline={isOnline}
+              onClose={() => setActiveModal('none')}
+            />
+          </View>
+        )}
 
-      {/* Component Gallery Modal (Phase 04 Review Destination) */}
-      {activeModal === 'gallery' && (
+      {/* Component Gallery Modal — operator-gated (Phase 66) */}
+      {activeModal === 'gallery' && isOperator && (
         <View
           style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 101 }]}
         >

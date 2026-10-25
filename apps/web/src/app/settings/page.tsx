@@ -15,12 +15,8 @@ import {
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
-import { DriveConnectionsPanel } from '../../components/DriveConnectionsPanel';
-import { RoomsPanel } from '../../components/RoomsPanel';
-import { AiConsentHarness } from '../../components/AiConsentHarness';
-import { AssistantPanel } from '../../components/AssistantPanel';
-import { BillingPanel } from '../../components/BillingPanel';
 import { createWebApiClient } from '../../data/webApiClient';
+import { useFeatureNavigation } from '../../navigation/useFeatureNavigation';
 
 export default function SettingsPage() {
   const {
@@ -50,6 +46,7 @@ export default function SettingsPage() {
     signOut,
   } = useAuth();
 
+  const { isOperator } = useFeatureNavigation();
   const [isDeletionDialogOpen, setIsDeletionDialogOpen] = useState<boolean>(false);
   const [formTimeZone, setFormTimeZone] = useState<string>('UTC');
   const [formLocale, setFormLocale] = useState<string>('en');
@@ -762,20 +759,30 @@ export default function SettingsPage() {
           />
         )}
 
-        {/* 7b. Google Drive selected-file connector (Phase 49 provisional) */}
-        {isAuthenticated && workspaceId ? (
-          <Card themeMode={themeMode} id="drive-connections">
-            <DriveConnectionsPanel
-              workspaceId={workspaceId}
-              csrfToken={csrfToken}
-              themeMode={themeMode}
-            />
-          </Card>
-        ) : null}
+        {/* Workspace & visible features (Phase 66) */}
+        <Card themeMode={themeMode} id="visible-features">
+          <h2
+            style={{
+              margin: '0 0 4px 0',
+              fontSize: `${typography.webScale.sectionHeading}px`,
+              color: palette.text.primary,
+            }}
+          >
+            Workspace &amp; visible features
+          </h2>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: palette.text.secondary }}>
+            Pin, hide, and restore modules from All features. Hiding never deletes content or cancels
+            reminders. Search, Help, Settings, account controls, and All features stay reachable.
+          </p>
+          <Link href="/features" style={{ textDecoration: 'none' }}>
+            <Button variant="primary" size="compact" themeMode={themeMode} id="open-all-features-btn">
+              <Icon name="sliders" /> Open All features
+            </Button>
+          </Link>
+        </Card>
 
-        {/* Shared rooms / AI / billing — honest gates on free preview */}
-        {isAuthenticated && isCorePreview ? (
-          <Card themeMode={themeMode} id="shared-rooms">
+        {isAuthenticated ? (
+          <Card themeMode={themeMode} id="optional-modules-status">
             <h2
               style={{
                 margin: `0 0 ${spacing.sm}px`,
@@ -783,67 +790,25 @@ export default function SettingsPage() {
                 color: palette.text.primary,
               }}
             >
-              Rooms &amp; chat
+              Optional modules
             </h2>
             <p className="daynori-break" style={{ margin: 0, color: palette.text.secondary, fontSize: 14 }}>
-              Private rooms and chat are built in the codebase but stay off on this free hosted
-              preview. Production never enables them via a local development flag. Turning them on
-              needs an explicit owner decision, reviewed deployment capability, and staffed
-              moderation/support — not done here.
+              Vault, Drive, rooms/chat, live AI, and billing stay behind separate release gates.
+              Provisional integration harnesses are not part of ordinary Settings
+              {isOperator ? (
+                <>
+                  {' '}
+                  — open the{' '}
+                  <Link href="/developer" style={{ color: palette.action.primary }}>
+                    Developer tools
+                  </Link>{' '}
+                  area if you are an authorized operator.
+                </>
+              ) : (
+                '.'
+              )}
             </p>
           </Card>
-        ) : null}
-        {isAuthenticated && !isCorePreview ? (
-          <Card themeMode={themeMode} id="shared-rooms">
-            <RoomsPanel
-              csrfToken={csrfToken}
-              themeMode={themeMode}
-              personalWorkspaceId={workspaceId}
-            />
-          </Card>
-        ) : null}
-
-        {isAuthenticated && isCorePreview ? (
-          <Card themeMode={themeMode} id="optional-modules">
-            <h2
-              style={{
-                margin: `0 0 ${spacing.sm}px`,
-                fontSize: typography.webScale.sectionHeading,
-                color: palette.text.primary,
-              }}
-            >
-              Other optional modules
-            </h2>
-            <p className="daynori-break" style={{ margin: 0, color: palette.text.secondary, fontSize: 14 }}>
-              Live AI assistant and production billing stay disabled in this preview. Vault and Drive
-              keep their separate release gates.
-            </p>
-          </Card>
-        ) : null}
-        {isAuthenticated && !isCorePreview ? (
-          <>
-            <Card themeMode={themeMode} id="ai-consent">
-              <AiConsentHarness
-                csrfToken={csrfToken}
-                themeMode={themeMode}
-                personalWorkspaceId={workspaceId}
-              />
-            </Card>
-            <Card themeMode={themeMode} id="ai-assistant">
-              <AssistantPanel
-                csrfToken={csrfToken}
-                themeMode={themeMode}
-                personalWorkspaceId={workspaceId}
-              />
-            </Card>
-            <Card themeMode={themeMode} id="billing-plan">
-              <BillingPanel
-                csrfToken={csrfToken}
-                themeMode={themeMode}
-                personalWorkspaceId={workspaceId}
-              />
-            </Card>
-          </>
         ) : null}
 
         {/* 8. Sync & Offline Recovery (Phase 34) */}
@@ -914,7 +879,7 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* Vault — production disabled; development harness only */}
+        {/* Vault status — harness moved to operator Developer tools */}
         <Card themeMode={themeMode}>
           <h2
             style={{
@@ -926,28 +891,14 @@ export default function SettingsPage() {
             Vault
           </h2>
           <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}>
-            Production vault unlock is disabled until Phase 44/45 gates and independent review pass.
+            Production vault unlock is disabled until independent review and release gates pass.
             Account password recovery cannot open vault ciphertext.
           </p>
-          <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap' }}>
-            <Link href="/vault" style={{ textDecoration: 'none' }}>
-              <Button variant="secondary" size="compact" themeMode={themeMode}>
-                Vault status
-              </Button>
-            </Link>
-            {process.env.NODE_ENV === 'development' ? (
-              <Link href="/dev/vault-harness" style={{ textDecoration: 'none' }}>
-                <Button
-                  variant="subtle"
-                  size="compact"
-                  themeMode={themeMode}
-                  id="open-web-vault-harness-btn"
-                >
-                  Open synthetic vault harness
-                </Button>
-              </Link>
-            ) : null}
-          </div>
+          <Link href="/vault" style={{ textDecoration: 'none' }}>
+            <Button variant="secondary" size="compact" themeMode={themeMode}>
+              Vault status
+            </Button>
+          </Link>
         </Card>
 
         {/* 10. Storage & Privacy Architecture */}

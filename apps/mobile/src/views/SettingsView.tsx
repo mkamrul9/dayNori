@@ -13,7 +13,8 @@ export interface SettingsViewProps {
   isAuthenticated: boolean;
   onToggleAuth: () => void;
   onOpenAccount?: () => void;
-  onOpenGallery: () => void;
+  onOpenGallery?: () => void;
+  onOpenAllFeatures?: () => void;
   onOpenOnboarding?: () => void;
   onClose: () => void;
   testID?: string;
@@ -54,6 +55,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onToggleAuth,
   onOpenAccount,
   onOpenGallery,
+  onOpenAllFeatures,
   onOpenOnboarding,
   onClose,
   testID = 'settings-view',
@@ -851,30 +853,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </View>
       )}
 
-      {/* Section 10: Preserved Phase 04 Component Gallery Destination */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-          Review & Architecture
-        </Text>
-        <MobileCard themeMode={themeMode}>
-          <Text
-            style={[
-              styles.settingDescription,
-              { color: palette.text.secondary, marginBottom: spacing.sm },
-            ]}
-          >
-            View and test the accessible primitives and token verification matrix from Phase 04:
+      {/* Phase 66: All features directory */}
+      {onOpenAllFeatures ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Workspace &amp; visible features
           </Text>
-          <MobileButton
-            variant="secondary"
-            themeMode={themeMode}
-            onPress={onOpenGallery}
-            accessibilityLabel="Open Component Gallery"
-          >
-            <Icon name="palette" /> Open Component Gallery <Icon name="arrow-right" />
-          </MobileButton>
-        </MobileCard>
-      </View>
+          <MobileCard themeMode={themeMode}>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginBottom: spacing.sm },
+              ]}
+            >
+              Find, pin, hide, and restore modules. Hiding keeps your content and reminders.
+            </Text>
+            <MobileButton
+              variant="primary"
+              themeMode={themeMode}
+              onPress={onOpenAllFeatures}
+              accessibilityLabel="Open All features"
+              testID="btn-open-all-features"
+            >
+              <Icon name="sliders" /> All features
+            </MobileButton>
+          </MobileCard>
+        </View>
+      ) : null}
+
+      {/* Operator-only component gallery (Phase 66) */}
+      {onOpenGallery ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Developer tools
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginBottom: spacing.sm },
+              ]}
+            >
+              Restricted operator surface for accessible primitives review.
+            </Text>
+            <MobileButton
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenGallery}
+              accessibilityLabel="Open Component Gallery"
+            >
+              <Icon name="palette" /> Open Component Gallery <Icon name="arrow-right" />
+            </MobileButton>
+          </MobileCard>
+        </View>
+      ) : null}
     </ScrollView>
   );
 };

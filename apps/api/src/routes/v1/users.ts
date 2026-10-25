@@ -4,12 +4,13 @@ import {
   UpdatePreferencesRequestSchema,
   ProfileResponseSchema,
   type ProfileResponse,
-  type QuietHoursPreference,
-  type HomeLayout,
-  type OnboardingState,
 } from '@daynori/contracts';
 import { validateIanaTimeZone, validateLocale, validateWeekStart } from '@daynori/domain';
 import { withUserContext, getProfile, updateProfilePreferences } from '../../db/index.js';
+import {
+  mapDisplayPreferences,
+  sanitizeFeaturePersonalizationPatch,
+} from '../../modules/preferences/featurePersonalization.js';
 import {
   NotFoundError,
   ValidationError,
@@ -39,16 +40,9 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
         preferredLocale: profile.preferred_locale,
         timeZone: profile.time_zone,
         weekStart: profile.week_start,
-        preferences: {
-          theme: profile.preferences?.theme || 'system',
-          compactMode: Boolean(profile.preferences?.compactMode),
-          journalPreviewHidden: profile.preferences?.journalPreviewHidden !== false,
-          suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
-          expensesEnabled: Boolean(profile.preferences?.expensesEnabled),
-          quietHours: (profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
-          homeLayout: (profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
-          onboarding: (profile.preferences?.onboarding as OnboardingState | undefined) || undefined,
-        },
+        preferences: mapDisplayPreferences(
+          profile.preferences as Record<string, unknown> | undefined
+        ),
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),
         createdAt: profile.created_at.toISOString(),
@@ -94,13 +88,18 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
     }
 
     const result = await withUserContext(runtimePool, actor.userId, async (client) => {
+      const existing = await getProfile(client, actor.userId);
+      const sanitizedPrefs = sanitizeFeaturePersonalizationPatch(
+        body.preferences as Record<string, unknown> | undefined,
+        (existing?.preferences as Record<string, unknown> | undefined) ?? undefined
+      );
       return updateProfilePreferences(client, {
         userId: actor.userId,
         displayName: body.displayName,
         preferredLocale: body.preferredLocale,
         timeZone: body.timeZone,
         weekStart: body.weekStart,
-        preferences: body.preferences,
+        preferences: sanitizedPrefs,
         expectedRevision: body.expectedRevision,
       });
     });
@@ -119,16 +118,9 @@ export function registerUserRoutes(app: FastifyInstance, runtimePool: Pool): voi
         preferredLocale: profile.preferred_locale,
         timeZone: profile.time_zone,
         weekStart: profile.week_start,
-        preferences: {
-          theme: profile.preferences?.theme || 'system',
-          compactMode: Boolean(profile.preferences?.compactMode),
-          journalPreviewHidden: profile.preferences?.journalPreviewHidden !== false,
-          suppressBodySnippets: profile.preferences?.suppressBodySnippets !== false,
-          expensesEnabled: Boolean(profile.preferences?.expensesEnabled),
-          quietHours: (profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
-          homeLayout: (profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
-          onboarding: (profile.preferences?.onboarding as OnboardingState | undefined) || undefined,
-        },
+        preferences: mapDisplayPreferences(
+          profile.preferences as Record<string, unknown> | undefined
+        ),
         preferencesSchemaVersion: profile.preferences_schema_version,
         revision: Number(profile.revision),
         createdAt: profile.created_at.toISOString(),

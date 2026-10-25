@@ -98,6 +98,19 @@ export const OnboardingStateSchema = z
   .strict();
 export type OnboardingState = z.infer<typeof OnboardingStateSchema>;
 
+/**
+ * Phase 66 — personal feature visibility and pins (user profile preference).
+ * Never encodes release capability or operator authority.
+ */
+export const FeaturePersonalizationSchema = z
+  .object({
+    version: z.literal(1).default(1),
+    hiddenFeatureIds: z.array(z.string().min(1).max(64)).max(40).default([]),
+    pinnedFeatureIds: z.array(z.string().min(1).max(64)).max(20).default([]),
+  })
+  .strict();
+export type FeaturePersonalization = z.infer<typeof FeaturePersonalizationSchema>;
+
 export const DisplayPreferencesSchema = z
   .object({
     theme: ThemePreferenceSchema.default('system'),
@@ -108,6 +121,7 @@ export const DisplayPreferencesSchema = z
     homeLayout: HomeLayoutSchema.optional(),
     onboarding: OnboardingStateSchema.optional(),
     expensesEnabled: z.boolean().default(false),
+    featurePersonalization: FeaturePersonalizationSchema.optional(),
   })
   .strict();
 export type DisplayPreferences = z.infer<typeof DisplayPreferencesSchema>;

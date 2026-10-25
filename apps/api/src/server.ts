@@ -17,6 +17,7 @@ import { registerHealthRoutes } from './routes/v1/health.js';
 import { registerOpenApiRoutes } from './routes/v1/openapi.js';
 import { registerWorkspaceRoutes } from './routes/v1/workspaces.js';
 import { registerUserRoutes } from './routes/v1/users.js';
+import { registerOperatorRoutes } from './routes/v1/operator.js';
 import { registerMemberRoutes } from './routes/v1/members.js';
 import { registerItemRoutes } from './routes/v1/items.js';
 import { registerOrganizationRoutes } from './routes/v1/organization.js';
@@ -262,6 +263,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerBetaRoutes(authScope, runtimePool);
       registerWorkspaceRoutes(authScope, runtimePool);
       registerUserRoutes(authScope, runtimePool);
+      registerOperatorRoutes(authScope);
       registerMemberRoutes(authScope, runtimePool);
       registerItemRoutes(authScope, runtimePool);
       registerOrganizationRoutes(authScope, runtimePool);

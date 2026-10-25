@@ -32,6 +32,14 @@ export default function HelpPage() {
           body: 'Open Journal to write a private daily entry. Your privacy settings stay in Settings.',
         },
         {
+          title: 'Find all features',
+          body: 'Open All features from the shell header or sidebar. Search by name, then open a destination. Path: All features → destination (two navigation actions from the shell).',
+        },
+        {
+          title: 'Hide or pin modules',
+          body: 'In All features, hide a module to remove shortcuts without deleting content or cancelling reminders. Restore it from the same directory. Pin supported modules for secondary sidebar shortcuts. Settings, Help, Search, and All features stay reachable.',
+        },
+        {
           title: 'Saving and sync',
           body: 'Changes save on this device first. When online, they sync to your account so you can reopen them later.',
         },

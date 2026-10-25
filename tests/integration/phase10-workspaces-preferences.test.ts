@@ -116,6 +116,11 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
         journalPreviewHidden: true,
         suppressBodySnippets: true,
         expensesEnabled: false,
+        featurePersonalization: {
+          version: 1,
+          hiddenFeatureIds: [],
+          pinnedFeatureIds: [],
+        },
       });
       expect(res.data.profile.revision).toBe(1);
 
@@ -251,6 +256,11 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
         journalPreviewHidden: true,
         suppressBodySnippets: true,
         expensesEnabled: false,
+        featurePersonalization: {
+          version: 1,
+          hiddenFeatureIds: [],
+          pinnedFeatureIds: [],
+        },
       });
       expect(profileRes.data.preferencesSchemaVersion).toBe(1);
       expect(profileRes.data.revision).toBe(1);
@@ -312,6 +322,11 @@ describe('Phase 10: Personal Workspace & User Preferences Integration', () => {
         journalPreviewHidden: true,
         suppressBodySnippets: true,
         expensesEnabled: false,
+        featurePersonalization: {
+          version: 1,
+          hiddenFeatureIds: [],
+          pinnedFeatureIds: [],
+        },
       });
       expect(updated.data.revision).toBe(2);
     });

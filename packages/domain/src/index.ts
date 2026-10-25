@@ -11,6 +11,8 @@ export * from './crypto.js';
 export * from './calendar.js';
 export * from './reminders.js';
 export * from './home.js';
+export * from './featureRegistry.js';
+export * from './operatorAccess.js';
 export * from './onboarding.js';
 export * from './knowledge.js';
 export * from './search.js';

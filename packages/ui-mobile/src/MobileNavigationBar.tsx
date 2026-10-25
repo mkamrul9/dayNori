@@ -9,6 +9,8 @@ export interface MobileNavigationBarProps {
   currentTab: MobileTab;
   onSelectTab: (tab: MobileTab) => void;
   themeMode?: ThemeMode;
+  /** When set, only these primary tabs render (e.g. Journal hidden → three tabs). */
+  visibleTabs?: readonly MobileTab[];
   testID?: string;
 }
 
@@ -29,9 +31,14 @@ export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
   currentTab,
   onSelectTab,
   themeMode = 'light',
+  visibleTabs,
   testID = 'mobile-nav-bar',
 }) => {
   const palette = colors[themeMode];
+  const tabs =
+    visibleTabs && visibleTabs.length > 0
+      ? TABS.filter((tab) => visibleTabs.includes(tab.key))
+      : TABS;
 
   return (
     <View
@@ -46,7 +53,7 @@ export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
         },
       ]}
     >
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const isSelected = currentTab === tab.key;
         return (
           <Pressable

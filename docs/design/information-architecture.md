@@ -1,16 +1,20 @@
 # Information architecture
 
-Status: proposed for usability validation. Refer to [requirements](../product/requirements.md) for stable behavior IDs.
+Status: accepted for Phase 66 navigation personalization; visual redesign remains later. Refer to [requirements](../product/requirements.md) and [ADR 0068](../decisions/0068-feature-registry-personalization-and-operator-boundaries.md).
 
 ## Navigation model
 
-Use three concepts consistently: **Today** for immediate action, **Plan** for tasks/routines/calendar, and **Library** for saved material. **Journal** remains directly available because reflection deserves a clear, quiet entry point.
+Use three concepts consistently: **Today** for immediate action, **Plan** for tasks/routines/calendar, and **Library** for saved material. **Journal** remains a default primary destination because reflection deserves a clear, quiet entry point.
 
-On compact mobile screens, the initial bottom navigation has four labeled destinations: Today, Plan, Library and Journal. Search and Create are consistent toolbar actions. A modules directory under Library or the account menu reveals all enabled modules and customization. Do not create ten equal-weight bottom tabs as new capabilities arrive.
+On compact mobile/PWA screens, the default bottom navigation has four labeled destinations: Today, Plan, Library and Journal. Search, Create, and **All features** are consistent shell actions. Do not create ten equal-weight bottom tabs as new capabilities arrive.
 
-On desktop web, a persistent left sidebar has Today, Plan, Library and Journal, then user-pinned module/folder shortcuts. Search and Create remain above the content. Expanded module children show Tasks, Routines, Calendar, Notes, Knowledge and Files. A narrow sidebar or drawer replaces it at smaller widths.
+On desktop web, a persistent left sidebar has Today, Plan, Library and Journal, then user-pinned module shortcuts, with All features, Settings, Help, and account controls consistently reachable. Search and Create remain above the content. Expanded module children show Tasks, Routines, Calendar, Notes, Knowledge and Files. A narrow sidebar or drawer replaces it at smaller widths.
 
-The four parent destinations are stable. Personalization can reorder, hide and pin module shortcuts within the agreed shell; moving a feature must not make it unreachable. Users who hide Journal still find it in the modules directory and authorized search. Never hide Settings, Search, Help or account controls behind layout customization.
+**All features** is the searchable directory for every authorized, released destination. Concrete two-action path: shell → All features → destination. Primary destinations and always-reachable utilities may still be one action from the shell.
+
+The four parent destinations are the default. Personalization (`featurePersonalization` on the user profile) can hide and pin supported modules without losing content or cancelling reminders. **Hiding Journal leaves three primary tabs** (Today, Plan, Library); Journal remains recoverable from All features. Never hide Settings, Search, Help, All features, or account controls. Hiding is preference only — it never grants release capability or operator authority.
+
+Developer galleries, synthetic vault harnesses, and provisional integration panels belong under restricted operator surfaces (`/developer` and allowlisted native entry points), not ordinary Settings.
 
 ## Today
 

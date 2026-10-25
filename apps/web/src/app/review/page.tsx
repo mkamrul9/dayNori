@@ -12,8 +12,9 @@ import {
   TextField,
   type FeedbackSeverity,
 } from '@daynori/ui-web';
+import { OperatorGate } from '../../components/OperatorGate';
 
-export default function ComponentReviewPage() {
+function ComponentReviewGallery() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [direction, setDirection] = useState<'ltr' | 'rtl'>('ltr');
   const [textScale, setTextScale] = useState<number>(100);
@@ -719,5 +720,13 @@ export default function ComponentReviewPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function ComponentReviewPage() {
+  return (
+    <OperatorGate title="Component review gallery">
+      <ComponentReviewGallery />
+    </OperatorGate>
   );
 }

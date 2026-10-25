@@ -10,6 +10,7 @@ export type ActiveModal =
   | 'settings'
   | 'account'
   | 'gallery'
+  | 'all-features'
   | 'onboarding'
   | 'onboarding-replay'
   | 'sync-diagnostics'

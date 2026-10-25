@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 66 — Simple navigation personalization and developer boundaries — 2026-10-25
+
+- Add shared feature registry and eligibility (release × auth × personal visibility) with user-profile `featurePersonalization` migration from legacy homeLayout shortcuts.
+- Ship searchable All features (web `/features`, mobile sheet), pin/hide/restore, and Journal-hide → three primary tabs (ADR 0068).
+- Move developer galleries/harnesses/provisional panels behind deny-by-default `DAYNORI_OPERATOR_USER_IDS` and `/v1/operator/session`; ordinary Settings keeps recovery tools only.
+- DEF-V2-010 verified locally for web/API/domain; physical Android and production operator identity remain unmet. No gated-module production enablement.
+
 ## Phase 65 — Version 2 function inventory and readiness baseline — 2026-10-25
 
 - Add machine-readable `docs/roadmap/v2/function-register.json` (109 actions, 12 defects, 22 families), schema, validator, and readiness baseline narrative.

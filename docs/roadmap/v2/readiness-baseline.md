@@ -75,7 +75,7 @@ Historical `artifacts/web-e2e/*.png` remain historical.
 3. **DEF-V2-002 (high)** — Hosted core preview disables files, audio, reminder delivery → Phases 75, 84–85.
 4. **DEF-V2-006 / 007 / 008 / 004 (high–medium)** — Rooms, billing, AI, vault production-gated → Phases 86–90+.
 5. **DEF-V2-009 (high)** — Support contact / durable feedback not configured → Phases 82–83.
-6. **DEF-V2-010 (medium)** — Developer gallery, vault harness, provisional panels reachable from ordinary Settings → **Phase 66**.
+6. **DEF-V2-010 (medium)** — Developer gallery, vault harness, provisional panels in ordinary Settings → **Phase 66** local web/API/domain boundaries verified (operator allowlist + Settings cleanup). Physical Android operator grant and production staff IdP remain unmet; not `release_ready`.
 7. **DEF-V2-012 (medium)** — Beginner tutorial is not action-verified full coverage → Phases 79–81.
 
 ## Help and learning mapping
