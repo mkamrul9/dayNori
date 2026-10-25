@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-25",
-  "activePhase": null,
-  "nextPhase": "67",
-  "schedulingDecision": "Owner selected Phase 66; feature registry, All features personalization, and deny-by-default operator boundaries complete for local web/API/domain (DEF-V2-010 partially verified — physical Android/production operator IdP unmet). Phase 67 is next eligible. V1 Phase 60 and existing blocked/deferred states unchanged. No release_ready claims from Phase 66 alone.",
+  "activePhase": "67",
+  "nextPhase": null,
+  "schedulingDecision": "Owner selected Phase 67. Interactive Warm/Crisp prototypes and review package are delivered under docs/design/v2/phase67/. Phase 67 is blocked on owner direction selection and the accessibility.md ≥5-participant prototype gate (or an explicit owner amendment). nextPhase is cleared until those gates clear; Phase 68 is not eligible for token migration against a provisional recommendation alone.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -399,7 +399,9 @@
     },
     {
       "id": "67",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Prototype review package delivered; owner direction selection and ≥5-participant usability review unmet (docs/design/v2/phase67/review-package.md). Not complete.",
+      "report": "docs/phase-reports/phase-67.md"
     },
     {
       "id": "68",

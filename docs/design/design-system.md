@@ -1,6 +1,6 @@
 # Design system direction
 
-Status: proposed visual specification. These values are not shipped tokens or proof of accessibility. Implement shared semantic tokens and validate complete components during the design-system phase.
+Status: proposed visual specification. These values are not shipped tokens or proof of accessibility. Implement shared semantic tokens and validate complete components during the design-system phase (Phase 68), after Phase 67 owner selection. Interactive comparison prototypes: [v2/phase67](v2/phase67/README.md).
 
 ## Visual character
 

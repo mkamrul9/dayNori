@@ -1,6 +1,6 @@
 # V2 design and mobile specification
 
-Status: proposed direction for Phases 66–76; research reviewed 2026-10-25. This file extends the existing [design system](../../design/design-system.md) and [information architecture](../../design/information-architecture.md). It does not certify a new rendered design.
+Status: proposed direction for Phases 66–76; research reviewed 2026-10-25. Phase 67 interactive prototypes live at [docs/design/v2/phase67/](../../design/v2/phase67/README.md) with a **provisional** Warm notebook recommendation — **owner selection still required** (ADR 0069). This file extends the existing [design system](../../design/design-system.md) and [information architecture](../../design/information-architecture.md). It does not certify a new rendered design or a completed Phase 67.
 
 ## References and what to learn
 

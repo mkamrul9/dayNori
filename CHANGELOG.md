@@ -1,5 +1,10 @@
 # Changelog
 
+## Phase 67 — Visual direction prototypes (blocked on owner review) — 2026-10-25
+
+- Add isolated Phase 67 review package under `docs/design/v2/phase67/` (Warm notebook vs Crisp utility interactive prototype, journeys/states, reference board, contrast helper).
+- ADR 0069 proposed; owner selection and ≥5-participant usability gate unmet — Phase 67 not complete; no production UI redesign.
+
 ## Phase 66 — Simple navigation personalization and developer boundaries — 2026-10-25
 
 - Add shared feature registry and eligibility (release × auth × personal visibility) with user-profile `featurePersonalization` migration from legacy homeLayout shortcuts.
