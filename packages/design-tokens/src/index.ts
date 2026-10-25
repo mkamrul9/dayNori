@@ -14,7 +14,7 @@ export const colors = {
     text: {
       primary: '#172C2C', // Dark ink
       secondary: '#526363', // Slate
-      muted: '#697A7A', // Muted slate
+      muted: '#5A6B6B', // Warm notebook muted (≥4.5:1 on paper; Phase 67/68)
       inverse: '#FFFFFF', // Pure white text for dark actions
     },
     action: {
@@ -113,11 +113,24 @@ export const spacing = {
   xxl: 48,
 } as const;
 
+/** Warm notebook radii (Phase 67 owner selection → Phase 68). */
 export const radii = {
-  sm: 8, // Controls (buttons, inputs)
-  card: 12, // Cards, list containers
-  sheet: 16, // Modal dialogs, bottom sheets
+  sm: 10, // Controls (buttons, inputs)
+  md: 14, // Alias for card density
+  card: 14, // Cards, list containers
+  lg: 18, // Large surfaces
+  sheet: 18, // Modal dialogs, bottom sheets
   pill: 9999, // Tags, badges, filters
+} as const;
+
+/** Warm notebook density — page/card padding and list row gaps. */
+export const density = {
+  padPage: 28,
+  padCard: 20,
+  rowGap: 14,
+  listRow: 14,
+  headerHeight: 56,
+  navHeight: 64,
 } as const;
 
 export const touchTargets = {
@@ -159,6 +172,15 @@ export const motion = {
     none: 0,
   },
   easing: 'cubic-bezier(0, 0, 0.2, 1)',
+  /** Prefer these when prefers-reduced-motion: reduce (or RN reduceMotion). */
+  reduced: {
+    duration: {
+      fast: 0,
+      standard: 0,
+      none: 0,
+    },
+    easing: 'linear',
+  },
 } as const;
 
 /**
@@ -204,6 +226,7 @@ export const tokens = {
   colors,
   spacing,
   radii,
+  density,
   touchTargets,
   typography,
   focusRing,
@@ -262,3 +285,4 @@ export type ThemeMode = 'light' | 'dark';
 export { iconPaths, resolveIconName, splitIconText, type IconName } from './icons.js';
 export type SpacingTokens = typeof spacing;
 export type RadiiTokens = typeof radii;
+export type DensityTokens = typeof density;

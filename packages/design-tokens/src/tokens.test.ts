@@ -27,11 +27,24 @@ describe('Design Tokens & Contrast Verification', () => {
     expect(colors.dark.accent.warm).toBe('#E6B85A');
   });
 
-  it('provides standard layout spacing, radii, and touch target scales', () => {
+  it('provides Warm notebook layout spacing, radii, and touch target scales', () => {
     expect(spacing.base).toBe(16);
-    expect(radii.card).toBe(12);
+    expect(radii.sm).toBe(10);
+    expect(radii.card).toBe(14);
+    expect(radii.sheet).toBe(18);
     expect(touchTargets.webMin).toBe(44);
     expect(touchTargets.mobileMin).toBe(48);
+  });
+
+  it('keeps muted text ≥4.5:1 on paper (Warm notebook repair)', () => {
+    expect(colors.light.text.muted).toBe('#5A6B6B');
+    expect(getContrastRatio(colors.light.text.muted, colors.light.background)).toBeGreaterThanOrEqual(
+      4.5
+    );
+  });
+
+  it('exposes reduced-motion duration equivalents', () => {
+    expect(motion.reduced.duration.standard).toBe(0);
   });
 
   it('defines typography scales and line-heights including Bangla support', () => {

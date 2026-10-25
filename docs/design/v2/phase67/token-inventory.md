@@ -1,6 +1,6 @@
 # Proposed token and component inventory (Phase 68 input)
 
-**Status:** proposed — do not migrate production tokens in Phase 67.
+**Status:** Phase 68 implemented Warm notebook tokens/primitives in `packages/design-tokens`, `ui-web`, and `ui-mobile` (2026-10-25). This file remains the inventory reference.
 
 ## Token roles
 

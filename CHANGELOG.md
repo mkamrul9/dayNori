@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 68 — Warm notebook tokens and accessible primitives — 2026-10-25
+
+- Align design tokens to Warm notebook (muted contrast, radii 10/14/18, density, reduced-motion map).
+- Add web/mobile primitives: icon button, text link, textarea, checkbox/radio/switch, segmented control, sync status, loading/error-retry, creation menu, reorder controls, coachmark, nav item.
+- Extend operator-only `/review` gallery; preserve Phase 66 operator boundaries.
+
 ## Phase 67 — Warm notebook visual direction — 2026-10-25
 
 - Add isolated Phase 67 review package under `docs/design/v2/phase67/` (Warm notebook vs Crisp utility interactive prototype, journeys/states, reference board, contrast helper).
