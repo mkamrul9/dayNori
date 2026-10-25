@@ -112,6 +112,23 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
     setValidationError(null);
   }, [initialRoutine, isOpen, todayDate, defaultTimezone]);
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const toggleWeekday = (day: Weekday) => {
@@ -174,6 +191,7 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="routine-editor-title"
+      className="daynori-mobile-editor-backdrop daynori-dialog-backdrop"
       style={{
         position: 'fixed',
         inset: 0,
@@ -190,10 +208,11 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
       }}
     >
       <div
+        className="daynori-mobile-editor-panel daynori-dialog-panel"
         style={{
           width: '100%',
           maxWidth: '560px',
-          maxHeight: '90vh',
+          maxHeight: 'min(90vh, 90dvh)',
           backgroundColor: palette.surface,
           borderRadius: `${radii.card}px`,
           border: `1px solid ${palette.border.subtle}`,
@@ -629,13 +648,15 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
             </div>
           )}
 
-          {/* Action buttons */}
+          {/* Action buttons — sticky on mobile for keyboard reachability */}
           <div
+            className="daynori-dialog-actions"
             style={{
               display: 'flex',
               justifyContent: 'flex-end',
               gap: `${spacing.sm}px`,
               marginTop: `${spacing.sm}px`,
+              backgroundColor: palette.surface,
             }}
           >
             <button

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "phase": "65",
   "generatedAt": "2026-10-25",
-  "baseRevision": "153703886ac968c5c18b4c029370a94b69189fa2",
+  "baseRevision": "de6fab279c3e7547606525cae3655b19841bb5dc",
   "nominatedEnvironment": {
     "os": "win32 10.0.26200",
     "node": "v24.21.0 (portable .tools/node-v24.21.0-win-x64)",
@@ -109,7 +109,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -171,7 +171,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "untested",
         "evidenceLayer": "provider_authenticated"
@@ -233,7 +233,7 @@
       "observedResult": "skipped",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "synthetic-jwt-only",
         "evidenceLayer": "api_integration"
@@ -285,7 +285,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "untested",
         "evidenceLayer": "provider_authenticated"
@@ -343,7 +343,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -395,7 +395,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "untested",
         "evidenceLayer": "browser_ui"
@@ -452,7 +452,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -500,18 +500,25 @@
       "implementationStatus": "existing",
       "entryPoints": [
         "/settings",
+        "/settings/account",
+        "/settings/appearance",
+        "/settings/notifications",
+        "/settings/workspace",
+        "/settings/privacy",
+        "/settings/help",
         "GET/PATCH /v1/users/me/preferences"
       ],
       "implementationPaths": [
         "apps/api/src/routes/v1/users.ts",
-        "apps/web/src/app/settings/page.tsx"
+        "apps/web/src/app/settings/page.tsx",
+        "apps/web/src/components/settings/SettingsSections.tsx"
       ],
       "readiness": "verified_local",
       "acceptanceJourney": "Patch preferences; conflict on stale revision returns 409.",
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -573,7 +580,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -632,7 +639,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -691,7 +698,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -750,7 +757,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -809,7 +816,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -868,7 +875,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -927,7 +934,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -986,7 +993,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -1045,7 +1052,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -1103,7 +1110,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1164,7 +1171,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "phase-66-local",
         "evidenceLayer": "domain_unit"
@@ -1225,7 +1232,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "phase-66-local",
         "evidenceLayer": "domain_unit"
@@ -1246,10 +1253,13 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "pnpm test:e2e:web"
+        "pnpm test:e2e:web",
+        "tests/unit/phase70-mobile-pwa-layout.test.ts"
       ],
       "evidenceRefs": [
-        "docs/roadmap/v2/evidence/phase65-visual-manifest.json"
+        "docs/roadmap/v2/evidence/phase65-visual-manifest.json",
+        "artifacts/web-e2e/settings-bangla-desktop.png",
+        "docs/phase-reports/phase-70.md"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -1270,11 +1280,12 @@
       "description": "Theme mode toggle in Settings and shell.",
       "implementationStatus": "existing",
       "entryPoints": [
-        "/settings",
+        "/settings/appearance",
         "mobile SettingsView"
       ],
       "implementationPaths": [
-        "apps/web/src/app/settings/page.tsx",
+        "apps/web/src/app/settings/appearance/page.tsx",
+        "apps/web/src/components/settings/SettingsSections.tsx",
         "apps/mobile/src/views/SettingsView.tsx"
       ],
       "readiness": "verified_local",
@@ -1282,12 +1293,12 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "web-local",
+        "platform": "phase-70-local",
         "evidenceLayer": "browser_ui"
       },
-      "repairPhase": "68",
+      "repairPhase": "70",
       "helpArticle": {
         "status": "planned",
         "ref": "help/theme"
@@ -1304,7 +1315,8 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [],
       "evidenceRefs": [
-        "artifacts/web-e2e/settings-bangla-desktop.png"
+        "artifacts/web-e2e/settings-bangla-desktop.png",
+        "docs/phase-reports/phase-70.md"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -1325,23 +1337,24 @@
       "description": "Locale/Bangla surfaces and text scale controls.",
       "implementationStatus": "existing",
       "entryPoints": [
-        "/settings"
+        "/settings/appearance"
       ],
       "implementationPaths": [
-        "apps/web/src/app/settings/page.tsx",
+        "apps/web/src/app/settings/appearance/page.tsx",
+        "apps/web/src/components/settings/SettingsSections.tsx",
         "apps/mobile/src/views/SettingsView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Set Bangla/long content; text scale increases; no clipping critical controls.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "historical-labeled",
+        "platform": "phase-70-local",
         "evidenceLayer": "browser_ui"
       },
-      "repairPhase": "66",
+      "repairPhase": "70",
       "helpArticle": {
         "status": "planned",
         "ref": "help/accessibility-prefs"
@@ -1350,7 +1363,7 @@
         "status": "planned",
         "ref": "chapter-personalization"
       },
-      "note": "Historical Bangla screenshot exists; fresh Phase 65 capture preferred."
+      "note": "Phase 70 e2e exercised Bangla/RTL/200% text on /settings/appearance."
     },
     {
       "owner": "unassigned",
@@ -1402,7 +1415,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1467,7 +1480,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1532,7 +1545,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1597,7 +1610,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1662,7 +1675,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1727,7 +1740,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1792,7 +1805,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1855,7 +1868,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1918,7 +1931,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -1981,7 +1994,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2044,7 +2057,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2107,7 +2120,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2170,7 +2183,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2233,7 +2246,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2291,7 +2304,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "historical-or-untested",
         "evidenceLayer": "browser_ui"
@@ -2349,7 +2362,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "historical-or-untested",
         "evidenceLayer": "browser_ui"
@@ -2407,7 +2420,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "historical-or-untested",
         "evidenceLayer": "browser_ui"
@@ -2465,7 +2478,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "historical-or-untested",
         "evidenceLayer": "browser_ui"
@@ -2523,7 +2536,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "historical-or-untested",
         "evidenceLayer": "browser_ui"
@@ -2588,7 +2601,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2653,7 +2666,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2718,7 +2731,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2783,7 +2796,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2848,7 +2861,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2908,7 +2921,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -2968,7 +2981,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3028,7 +3041,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3088,7 +3101,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3148,7 +3161,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3212,7 +3225,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3276,7 +3289,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3340,7 +3353,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3404,7 +3417,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3468,7 +3481,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3533,7 +3546,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3585,7 +3598,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "untested",
         "evidenceLayer": "browser_ui"
@@ -3649,7 +3662,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3713,7 +3726,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3775,7 +3788,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3837,7 +3850,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -3896,7 +3909,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "preview-gated",
         "evidenceLayer": "browser_ui"
@@ -3954,7 +3967,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4012,7 +4025,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4070,7 +4083,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4128,7 +4141,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4186,7 +4199,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4244,7 +4257,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4302,7 +4315,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4360,7 +4373,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-rerun-phase65",
         "evidenceLayer": "api_integration"
@@ -4424,7 +4437,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -4488,7 +4501,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -4552,7 +4565,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -4616,7 +4629,7 @@
       "observedResult": "fail",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -4680,7 +4693,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -4742,7 +4755,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "preview-delivery-off",
         "evidenceLayer": "provider_authenticated"
@@ -4804,7 +4817,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "preview-delivery-off",
         "evidenceLayer": "provider_authenticated"
@@ -4866,7 +4879,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "preview-delivery-off",
         "evidenceLayer": "provider_authenticated"
@@ -4928,7 +4941,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "preview-delivery-off",
         "evidenceLayer": "provider_authenticated"
@@ -4984,7 +4997,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5040,7 +5053,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5096,7 +5109,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5153,7 +5166,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5213,7 +5226,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5273,7 +5286,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5333,7 +5346,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5394,7 +5407,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5456,7 +5469,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5518,7 +5531,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5580,7 +5593,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5639,7 +5652,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5697,7 +5710,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5755,7 +5768,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5816,7 +5829,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5877,7 +5890,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5938,7 +5951,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5999,7 +6012,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -6060,7 +6073,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -6113,7 +6126,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "web-local",
         "evidenceLayer": "browser_ui"
@@ -6165,7 +6178,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "untested-fresh",
         "evidenceLayer": "browser_ui"
@@ -6217,7 +6230,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -6268,7 +6281,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -6328,7 +6341,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "phase-66-local",
         "evidenceLayer": "domain_unit"
@@ -6384,7 +6397,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "phase-66-local",
         "evidenceLayer": "api_integration"
@@ -6436,7 +6449,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "phase-66-local",
         "evidenceLayer": "browser_ui"
@@ -6485,7 +6498,7 @@
       "observedResult": "unavailable",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "not-built",
         "evidenceLayer": "api_integration"
@@ -6543,7 +6556,7 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
@@ -6596,7 +6609,7 @@
       "observedResult": "untested",
       "evidenceMeta": {
         "date": "2026-10-25",
-        "revision": "1537038",
+        "revision": "de6fab2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "untested-fresh",
         "evidenceLayer": "browser_ui"

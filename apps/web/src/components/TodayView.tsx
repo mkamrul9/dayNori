@@ -205,6 +205,14 @@ export const TodayView: React.FC = () => {
     setHasUnsupportedVersion(false);
   }, [workspaceId, user?.id]);
 
+  useEffect(() => {
+    if (!isEditorOpen) return;
+    void import('../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(true));
+    return () => {
+      void import('../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(false));
+    };
+  }, [isEditorOpen]);
+
   const announce = useCallback((msg: string) => {
     setLiveAnnouncement(msg);
   }, []);
@@ -2583,10 +2591,17 @@ export const TodayView: React.FC = () => {
         <RoutineDetailEditor
           isOpen={isEditorOpen}
           onClose={() => {
+            void import('../editing/unsavedWork').then(({ setUnsavedWork }) =>
+              setUnsavedWork(false)
+            );
             setIsEditorOpen(false);
             setEditingRoutine(null);
           }}
-          onSave={handleSaveRoutine}
+          onSave={async (data) => {
+            await handleSaveRoutine(data);
+            const { setUnsavedWork } = await import('../editing/unsavedWork');
+            setUnsavedWork(false);
+          }}
           initialRoutine={
             editingRoutine
               ? {

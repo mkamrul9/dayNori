@@ -112,6 +112,10 @@ Regression check: `node scripts/check-ui-icons.mjs`.
 
 Use one coherent icon family with consistent stroke/weight. Pair unfamiliar icons with text. Priority uses text and a recognizable marker; color is supplementary. Biometric, vault and encryption language must match the security implementation, not imply assurances that have not been verified.
 
+## Mobile web / PWA layout (Phase 70)
+
+Production shell uses `--daynori-keyboard-inset` / `--daynori-vv-height` from a feature-detected `visualViewport` adapter, safe-area insets on header/bottom nav/banners, full-screen mobile editor panels for tasks/routines, and sticky dialog actions. Keyboard simulation in capture tooling is not physical Android IME evidence. See [ADR 0070](../decisions/0070-mobile-web-pwa-layout-and-settings.md).
+
 ## Handoff deliverables
 
 The design-system phase must produce a token source, component state gallery, responsive screen prototypes, source/license notes for fonts/icons, rendered light/dark contrast evidence and recorded user findings. Show at least Today, task/routine creation, journal editor, folder/file organization and offline/error recovery before coding those screens.

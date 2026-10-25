@@ -19,6 +19,13 @@ export interface FeaturePersonalizationState {
   pinnedFeatureIds: string[];
 }
 
+export interface QuietHoursState {
+  enabled: boolean;
+  start: string;
+  end: string;
+  timezone: string;
+}
+
 export interface UserPreferencesState {
   timeZone: string;
   preferredLocale: string;
@@ -26,6 +33,9 @@ export interface UserPreferencesState {
   theme: 'system' | 'light' | 'dark';
   compactMode: boolean;
   expensesEnabled: boolean;
+  journalPreviewHidden: boolean;
+  suppressBodySnippets: boolean;
+  quietHours?: QuietHoursState;
   featurePersonalization?: FeaturePersonalizationState;
   revision: number;
 }
@@ -95,10 +105,14 @@ function mapProfileToPreferences(prof: {
     theme?: 'system' | 'light' | 'dark';
     compactMode?: boolean;
     expensesEnabled?: boolean;
+    journalPreviewHidden?: boolean;
+    suppressBodySnippets?: boolean;
+    quietHours?: QuietHoursState;
     featurePersonalization?: FeaturePersonalizationState;
   };
 }): UserPreferencesState {
   const fp = prof.preferences?.featurePersonalization;
+  const qh = prof.preferences?.quietHours;
   return {
     timeZone: prof.timeZone,
     preferredLocale: prof.preferredLocale,
@@ -106,6 +120,22 @@ function mapProfileToPreferences(prof: {
     theme: prof.preferences?.theme || 'system',
     compactMode: Boolean(prof.preferences?.compactMode),
     expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
+    journalPreviewHidden:
+      prof.preferences?.journalPreviewHidden !== undefined
+        ? Boolean(prof.preferences.journalPreviewHidden)
+        : true,
+    suppressBodySnippets:
+      prof.preferences?.suppressBodySnippets !== undefined
+        ? Boolean(prof.preferences.suppressBodySnippets)
+        : true,
+    quietHours: qh
+      ? {
+          enabled: Boolean(qh.enabled),
+          start: typeof qh.start === 'string' ? qh.start : '22:00',
+          end: typeof qh.end === 'string' ? qh.end : '08:00',
+          timezone: typeof qh.timezone === 'string' ? qh.timezone : 'UTC',
+        }
+      : undefined,
     featurePersonalization: fp
       ? {
           version: 1,
@@ -209,6 +239,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (updates.compactMode !== undefined) prefsPatch.compactMode = updates.compactMode;
         if (updates.expensesEnabled !== undefined)
           prefsPatch.expensesEnabled = updates.expensesEnabled;
+        if (updates.journalPreviewHidden !== undefined)
+          prefsPatch.journalPreviewHidden = updates.journalPreviewHidden;
+        if (updates.suppressBodySnippets !== undefined)
+          prefsPatch.suppressBodySnippets = updates.suppressBodySnippets;
+        if (updates.quietHours !== undefined) prefsPatch.quietHours = updates.quietHours;
         if (updates.featurePersonalization !== undefined)
           prefsPatch.featurePersonalization = updates.featurePersonalization;
 
@@ -226,6 +261,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     (prefsPatch.expensesEnabled as boolean) ??
                     preferences?.expensesEnabled ??
                     false,
+                  journalPreviewHidden:
+                    (prefsPatch.journalPreviewHidden as boolean | undefined) ??
+                    preferences?.journalPreviewHidden ??
+                    true,
+                  suppressBodySnippets:
+                    (prefsPatch.suppressBodySnippets as boolean | undefined) ??
+                    preferences?.suppressBodySnippets ??
+                    true,
+                  ...(prefsPatch.quietHours !== undefined
+                    ? { quietHours: prefsPatch.quietHours }
+                    : preferences?.quietHours
+                      ? { quietHours: preferences.quietHours }
+                      : {}),
                   ...(prefsPatch.featurePersonalization !== undefined
                     ? { featurePersonalization: prefsPatch.featurePersonalization }
                     : preferences?.featurePersonalization

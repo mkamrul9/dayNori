@@ -106,6 +106,7 @@ describe('Mobile PWA usability — onboarding and preview copy', () => {
     expect(css).toContain('daynori-responsive-grid');
     expect(css).toMatch(/minmax\(min\(100%,\s*11rem\)/);
     expect(css).toContain('daynori-status-banners');
+    expect(css).toContain('--daynori-keyboard-inset');
     const library = fs.readFileSync(path.join(repoRoot, 'apps/web/src/app/library/page.tsx'), 'utf8');
     expect(library).not.toMatch(/minmax\(280px/);
     expect(library).not.toMatch(/minWidth:\s*320/);

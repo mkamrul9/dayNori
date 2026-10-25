@@ -46,12 +46,23 @@ export default function PlanCalendarPage() {
   const palette = colors[themeMode];
   const { workspaceId, user } = useAuth();
 
+  // Narrow screens prefer agenda (readable); month remains reachable via the toggle.
   const [viewMode, setViewMode] = useState<CalendarViewMode>('agenda');
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDateStr, setSelectedDateStr] = useState(() => {
     const now = new Date();
     return now.toISOString().slice(0, 10);
   });
+  const [isNarrowCalendar, setIsNarrowCalendar] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setIsNarrowCalendar(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   const timezone = useMemo(() => {
     try {
@@ -671,6 +682,21 @@ export default function PlanCalendarPage() {
             <Icon name="plus" /> Add Event
           </Button>
         </div>
+        {isNarrowCalendar ? (
+          <p
+            id="calendar-narrow-hint"
+            className="daynori-break"
+            style={{
+              margin: `${spacing.xs}px 0 0`,
+              fontSize: '12px',
+              color: palette.text.secondary,
+              width: '100%',
+            }}
+          >
+            Agenda is the default on phones. Month stays available; selecting a date keeps your place
+            when you switch views. Timezone: {timezone}.
+          </p>
+        ) : null}
       </div>
 
       {/* Navigation & Controls Bar */}
@@ -981,14 +1007,29 @@ export default function PlanCalendarPage() {
       {/* 3. Month Grid View */}
       {viewMode === 'month' && (
         <Card themeMode={themeMode}>
+          {isNarrowCalendar ? (
+            <div style={{ marginBottom: `${spacing.sm}px` }}>
+              <Button
+                size="compact"
+                variant="secondary"
+                themeMode={themeMode}
+                id="calendar-month-to-agenda-btn"
+                onClick={() => setViewMode('agenda')}
+              >
+                Open agenda for {selectedDateStr}
+              </Button>
+            </div>
+          ) : null}
           <div
             role="grid"
             aria-label={`Calendar grid for ${monthNames[month - 1]} ${year}`}
+            className="daynori-calendar-month-grid"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
+              gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
               gap: '4px',
               textAlign: 'center',
+              minWidth: 0,
             }}
           >
             {/* Weekday column headers */}

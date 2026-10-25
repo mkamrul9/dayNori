@@ -223,7 +223,9 @@ export const Dialog: React.FC<DialogProps> = ({
           </p>
         )}
 
-        <div>{children}</div>
+        <div className="daynori-mobile-editor-body" style={{ minWidth: 0 }}>
+          {children}
+        </div>
       </div>
     </div>
   );

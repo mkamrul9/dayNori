@@ -29,7 +29,7 @@ export default function HelpPage() {
         },
         {
           title: 'Journal',
-          body: 'Open Journal to write a private daily entry. Your privacy settings stay in Settings.',
+          body: 'Open Journal to write a private daily entry. Preview privacy lives under Settings → Privacy and data, and on the Journal list.',
         },
         {
           title: 'Find all features',

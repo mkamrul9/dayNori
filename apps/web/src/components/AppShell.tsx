@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { RouteAnnouncer, SkipLink } from '@daynori/ui-web';
 import { AppBottomNav } from './AppBottomNav';
 import { AppHeader } from './AppHeader';
@@ -11,9 +11,12 @@ import { AppStatusBanners } from './AppStatusBanners';
 import { FirstLoginOnboardingGate } from './FirstLoginOnboardingGate';
 import { useShell } from './ShellContext';
 import { isCorePreview } from '../config/preview';
+import { subscribeVisualViewport } from '../browser/visualViewportAdapter';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { themeMode, routeAnnouncement } = useShell();
+
+  useEffect(() => subscribeVisualViewport(), []);
 
   return (
     <div className="daynori-app-root" style={{ display: 'flex', flexDirection: 'column' }}>

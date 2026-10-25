@@ -71,6 +71,22 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
 }) => {
   const palette = colors[themeMode];
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onClose) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
   const [title, setTitle] = useState(initialTitle);
   const [details, setDetails] = useState(initialDetails || '');
   const [priority, setPriority] = useState<TaskPriority>(initialPriority);
@@ -261,6 +277,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="task-editor-title"
+      className="daynori-mobile-editor-backdrop daynori-dialog-backdrop"
       style={{
         position: 'fixed',
         top: 0,
@@ -282,6 +299,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
       }}
     >
       <div
+        className="daynori-mobile-editor-panel daynori-dialog-panel"
         style={{
           backgroundColor: palette.surface,
           color: palette.text.primary,
@@ -289,7 +307,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
           padding: `${spacing.lg}px`,
           maxWidth: '640px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: 'min(90vh, 90dvh)',
           overflowY: 'auto',
           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
           boxSizing: 'border-box',
@@ -1020,8 +1038,9 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
             )}
           </div>
 
-          {/* Action Footer */}
+          {/* Action Footer — sticky on mobile so Save/Cancel stay reachable with keyboard */}
           <div
+            className="daynori-dialog-actions"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1030,6 +1049,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
               borderTop: `1px solid ${palette.border.subtle}`,
               flexWrap: 'wrap',
               gap: `${spacing.sm}px`,
+              backgroundColor: palette.surface,
             }}
           >
             <div style={{ display: 'flex', gap: `${spacing.sm}px` }}>

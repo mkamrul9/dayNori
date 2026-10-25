@@ -6,7 +6,7 @@ Status: accepted for Phase 66 navigation personalization; visual redesign remain
 
 Use three concepts consistently: **Today** for immediate action, **Plan** for tasks/routines/calendar, and **Library** for saved material. **Journal** remains a default primary destination because reflection deserves a clear, quiet entry point.
 
-On compact mobile/PWA screens, the default bottom navigation has four labeled destinations: Today, Plan, Library and Journal. Search, Create, and **All features** are consistent shell actions. Do not create ten equal-weight bottom tabs as new capabilities arrive.
+On compact mobile/PWA screens, the default bottom navigation has four labeled destinations: Today, Plan, Library and Journal. Search, Create, and **All features** are consistent shell actions. Do not create ten equal-weight bottom tabs as new capabilities arrive. Phase 70 keeps one compact header (no essential horizontal scroll), a labeled Create control, and Settings reachable from the header and drawer.
 
 On desktop web, a persistent left sidebar has Today, Plan, Library and Journal, then user-pinned module shortcuts, with All features, Settings, Help, and account controls consistently reachable. Search and Create remain above the content. Expanded module children show Tasks, Routines, Calendar, Notes, Knowledge and Files. A narrow sidebar or drawer replaces it at smaller widths.
 
@@ -87,6 +87,21 @@ The editor gives the page room: date, optional title and a wide body; prompts/fo
 - **Vault:** a clearly locked destination with explicit unlock; it is absent from ordinary capture, search and sharing targets.
 - **Rooms:** a separate shared area with room/member context visible on every screen. Shared items carry a persistent Shared badge.
 - **Assistant:** a secondary action over explicitly selected material; it never occupies the main capture path or automatically sends private content.
+
+## Settings (Phase 70)
+
+Settings opens as a grouped hub (`/settings`) with focused subpages:
+
+| Group | Route |
+| --- | --- |
+| Account | `/settings/account` |
+| Appearance and accessibility | `/settings/appearance` |
+| Notifications | `/settings/notifications` |
+| Workspace and visible features | `/settings/workspace` |
+| Privacy and data | `/settings/privacy` |
+| Help and feedback | `/settings/help` |
+
+Each subpage has a meaningful title, Back to Settings, and focus on the heading on arrival. Profile preference saves keep expected-revision conflict handling; late responses after an account switch must not apply. Developer galleries remain under `/developer`.
 
 ## Universal detail layout
 

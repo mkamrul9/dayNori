@@ -2,6 +2,7 @@
 
 import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef, useId, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, EmptyState, Feedback, TaskRow, TaskDetailEditor } from '@daynori/ui-web';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
@@ -130,6 +131,15 @@ export default function PlanPage() {
   useEffect(() => {
     setSelectedTaskIds(new Set());
   }, [activeView, selectedFolderId, priorityFilter]);
+
+  // Flag dirty work while the task editor is open (ADR 0066 / Phase 70 Update banner)
+  useEffect(() => {
+    if (!(editingTask || isCreatingNew)) return;
+    void import('../../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(true));
+    return () => {
+      void import('../../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(false));
+    };
+  }, [editingTask, isCreatingNew]);
 
   // Online / Offline tracking
   useEffect(() => {
@@ -1050,6 +1060,23 @@ export default function PlanPage() {
           >
             Upcoming task lists, priorities, and deadlines
           </p>
+          <Link
+            href="/plan/calendar"
+            id="plan-calendar-link"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 8,
+              minHeight: touchTargets.webMin,
+              color: palette.action.primary,
+              fontWeight: 600,
+              fontSize: 14,
+              textDecoration: 'none',
+            }}
+          >
+            <Icon name="calendar" size={16} /> Calendar &amp; deadlines
+          </Link>
         </div>
 
         {/* Sync & Save status indicators & timezone */}
@@ -1757,7 +1784,7 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* Task Detail Editor Modal */}
+      {/* Task Detail Editor Modal — full-screen on narrow; preserves unsaved-work for PWA Update */}
       {(editingTask || isCreatingNew) && (
         <TaskDetailEditor
           id={editingTask?.id}
@@ -1780,8 +1807,15 @@ export default function PlanPage() {
           folders={folders}
           themeMode={themeMode}
           userTimezone={viewingTimezone}
-          onSave={handleSaveDetailTask}
+          onSave={async (task) => {
+            await handleSaveDetailTask(task);
+            const { setUnsavedWork } = await import('../../editing/unsavedWork');
+            setUnsavedWork(false);
+          }}
           onClose={() => {
+            void import('../../editing/unsavedWork').then(({ setUnsavedWork }) =>
+              setUnsavedWork(false)
+            );
             setEditingTask(null);
             setIsCreatingNew(false);
           }}

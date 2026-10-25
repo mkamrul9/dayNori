@@ -8,8 +8,15 @@
   --font-bangla: 'Hind Siliguri', 'Kalpurush', system-ui, -apple-system, sans-serif;
   --daynori-header-height: 60px;
   --daynori-bottom-nav-height: 56px;
+  --daynori-keyboard-inset: 0px;
+  --daynori-vv-height: 100dvh;
   --daynori-main-bottom-pad: calc(
-    var(--daynori-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px
+    var(--daynori-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px +
+      var(--daynori-keyboard-inset)
+  );
+  --daynori-banner-bottom: calc(
+    var(--daynori-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px +
+      var(--daynori-keyboard-inset)
   );
 }
 
@@ -84,10 +91,70 @@ body {
 }
 
 .daynori-dialog-panel {
-  max-height: min(90vh, 90dvh);
+  max-height: min(90vh, 90dvh, var(--daynori-vv-height, 90dvh));
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.daynori-dialog-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 8px;
+  background: inherit;
+  z-index: 1;
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+}
+
+/* Mobile full-screen / page-like editors (tasks, routines, substantial forms) */
+.daynori-mobile-editor-backdrop {
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  padding: 0 !important;
+}
+
+.daynori-mobile-editor-panel {
+  max-width: none !important;
+  width: 100% !important;
+  height: var(--daynori-vv-height, 100dvh) !important;
+  max-height: var(--daynori-vv-height, 100dvh) !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.daynori-mobile-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: calc(16px + var(--daynori-keyboard-inset));
+}
+
+@media (min-width: 768px) {
+  .daynori-mobile-editor-backdrop {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 16px !important;
+  }
+
+  .daynori-mobile-editor-panel {
+    max-width: 640px !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: min(90vh, 90dvh) !important;
+    border-radius: var(--daynori-radius-sheet, 18px) !important;
+  }
 }
 
 .daynori-responsive-grid {
@@ -101,7 +168,7 @@ body {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(var(--daynori-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
+  bottom: var(--daynori-banner-bottom);
   z-index: 1200;
   display: flex;
   flex-direction: column;
@@ -109,6 +176,17 @@ body {
   box-sizing: border-box;
   max-width: 100%;
   pointer-events: none;
+}
+
+/* Reserve space so final list rows clear banners + bottom nav */
+@media (max-width: 767px) {
+  .daynori-main-scroll {
+    scroll-padding-bottom: calc(var(--daynori-main-bottom-pad) + 72px);
+  }
+
+  .daynori-header-toolbar {
+    overflow: visible;
+  }
 }
 
 .daynori-status-banners > * {
@@ -182,6 +260,21 @@ body {
   clip: rect(0, 0, 0, 0) !important;
   white-space: nowrap !important;
   border: 0 !important;
+}
+
+/* Compact month cells on phone — avoid cramped overflow; agenda remains preferred */
+@media (max-width: 767px) {
+  .daynori-calendar-month-grid button[role='gridcell'] {
+    min-height: 44px !important;
+    padding: 2px !important;
+  }
+}
+
+/* Display-mode standalone: slight extra top safe padding for installed PWA */
+@media (display-mode: standalone) {
+  .daynori-app-header {
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+  }
 }
 
 /* Respect Reduced Motion */

@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 70 — Mobile web and PWA layout redesign — 2026-10-26
+
+- Compact phone chrome, labeled Create, registry bottom tabs, and grouped Settings subpages (`/settings/*`).
+- Mobile full-screen task/routine editors with sticky actions and unsaved-work Update protection; agenda-first calendar; visualViewport/safe-area banner coordination (ADR 0070).
+- Responsive e2e and CDP overflow captures at 320–412/768; physical installed-PWA IME still unverified. No release_ready claim.
+
 ## Phase 69 — Desktop shell and focused Today — 2026-10-25
 
 - Desktop sidebar Primary/Pins/Utilities hierarchy; Warm page density; registry-driven mobile drawer.

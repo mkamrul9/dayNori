@@ -6,6 +6,11 @@ import Link from 'next/link';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
 
+/**
+ * Compact mobile chrome: one header row without horizontal scrolling for essentials.
+ * Create stays labeled; Search/Settings/Account use accessible names; Help/theme live
+ * in the drawer and Settings subpages on narrow widths.
+ */
 export const AppHeader: React.FC = () => {
   const { themeMode, toggleTheme, openModal, isMobileDrawerOpen, setMobileDrawerOpen } = useShell();
   const palette = colors[themeMode];
@@ -27,11 +32,13 @@ export const AppHeader: React.FC = () => {
     outline: 'none',
     boxSizing: 'border-box',
     transition: 'background-color 150ms ease, border-color 150ms ease',
+    flexShrink: 0,
   };
 
   return (
     <header
       role="banner"
+      className="daynori-app-header"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -47,10 +54,11 @@ export const AppHeader: React.FC = () => {
         boxSizing: 'border-box',
         width: '100%',
         paddingTop: `max(${spacing.xs}px, env(safe-area-inset-top, 0px))`,
+        paddingLeft: `max(${spacing.base}px, env(safe-area-inset-left, 0px))`,
+        paddingRight: `max(${spacing.base}px, env(safe-area-inset-right, 0px))`,
       }}
     >
-      {/* Brand & Drawer Toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px`, minWidth: 0 }}>
         <button
           type="button"
           aria-label="Toggle navigation drawer"
@@ -77,6 +85,7 @@ export const AppHeader: React.FC = () => {
             alignItems: 'center',
             minHeight: `${touchTargets.webMin}px`,
             lineHeight: `${touchTargets.webMin}px`,
+            flexShrink: 0,
           }}
         >
           <img
@@ -101,15 +110,15 @@ export const AppHeader: React.FC = () => {
       <div
         role="toolbar"
         aria-label="Quick actions"
+        className="daynori-header-toolbar"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: `${spacing.xs}px`,
-          flex: '1 1 auto',
+          flex: '0 1 auto',
           minWidth: 0,
           justifyContent: 'flex-end',
-          overflowX: 'auto',
-          WebkitOverflowScrolling: 'touch',
+          flexWrap: 'nowrap',
         }}
       >
         <Link
@@ -117,11 +126,14 @@ export const AppHeader: React.FC = () => {
           id="global-all-features-btn"
           aria-label="All features directory"
           style={{ ...buttonStyle, textDecoration: 'none' }}
+          className="daynori-header-all-features hide-below-380"
         >
-          <span aria-hidden="true" style={{ marginRight: '4px' }}>
+          <span aria-hidden="true">
             <Icon name="sliders" />
           </span>
-          <span className="desktop-only">All features</span>
+          <span className="desktop-only" style={{ marginLeft: '4px' }}>
+            All features
+          </span>
         </Link>
 
         <button
@@ -131,10 +143,12 @@ export const AppHeader: React.FC = () => {
           onClick={() => openModal('search')}
           style={buttonStyle}
         >
-          <span aria-hidden="true" style={{ marginRight: '4px' }}>
+          <span aria-hidden="true">
             <Icon name="search" />
           </span>
-          <span className="desktop-only">Search</span>
+          <span className="desktop-only" style={{ marginLeft: '4px' }}>
+            Search
+          </span>
           <kbd
             className="desktop-only"
             style={{
@@ -161,12 +175,13 @@ export const AppHeader: React.FC = () => {
             backgroundColor: palette.action.primary,
             color: palette.action.label,
             borderColor: palette.action.primary,
+            padding: `0 ${spacing.base}px`,
           }}
         >
-          <span aria-hidden="true" style={{ marginRight: '4px', fontWeight: 'bold' }}>
+          <span aria-hidden="true" style={{ fontWeight: 'bold' }}>
             <Icon name="plus" />
           </span>
-          <span className="desktop-only">Create</span>
+          <span style={{ marginLeft: '4px' }}>Create</span>
           <kbd
             className="desktop-only"
             style={{
@@ -182,13 +197,25 @@ export const AppHeader: React.FC = () => {
           </kbd>
         </button>
 
+        <Link
+          href="/settings"
+          id="global-settings-btn"
+          aria-label="Settings"
+          className="mobile-only daynori-header-settings hide-below-380"
+          style={{ ...buttonStyle, textDecoration: 'none', display: 'none' }}
+        >
+          <span aria-hidden="true">
+            <Icon name="settings" />
+          </span>
+        </Link>
+
         <button
           type="button"
           id="global-theme-toggle"
-          className="hide-below-380"
+          className="desktop-only"
           aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
           onClick={toggleTheme}
-          style={buttonStyle}
+          style={{ ...buttonStyle, display: 'none' }}
         >
           <span aria-hidden="true">
             <Icon name={themeMode === 'light' ? 'moon' : 'sun'} />
@@ -198,10 +225,10 @@ export const AppHeader: React.FC = () => {
         <button
           type="button"
           id="global-help-btn"
-          className="hide-below-380"
+          className="desktop-only"
           aria-label="Help and keyboard shortcuts (Shortcut ?)"
           onClick={() => openModal('help')}
-          style={buttonStyle}
+          style={{ ...buttonStyle, display: 'none' }}
         >
           <span aria-hidden="true">
             <Icon name="help" />

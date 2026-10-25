@@ -12,8 +12,8 @@ Capture helper: `node scripts/capture-phase67-prototype-shots.mjs` → `artifact
 - Labeled bottom navigation for primary tabs (3 when Journal hidden).
 - Create uses a sheet; Escape / backdrop / Close dismiss; focus returns to Create.
 - Journal/Note editors are full-width content.
-- Settings as stacked groups (subpages conceptual).
-- Calendar agenda default on narrow; month option reachable.
+- Settings as stacked groups (subpages conceptual). **Production (Phase 70):** hub `/settings` plus `/settings/{account,appearance,notifications,workspace,privacy,help}` — see ADR 0070.
+- Calendar agenda default on narrow; month option reachable. **Production:** same default; narrow hint + month→agenda affordance.
 
 ## Desktop composition (≥769px)
 
