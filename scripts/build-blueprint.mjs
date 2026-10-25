@@ -58,10 +58,10 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding-top:20px;font-si
 </head>
 <body>
 <header>
-<div class="eyebrow">Daynori · Planning baseline · 13 October 2026</div>
+<div class="eyebrow">Daynori · Original baseline 13 October 2026 · V2 plan 25 October 2026</div>
 <h1>Your day, gathered.</h1>
 <p class="intro">One customizable home for everyday work and reflection. A focused personal organizer first, with more powerful capabilities introduced through deliberate release gates.</p>
-<span class="status">Phase 00 · Planning only · 64 bounded phases</span>
+<span class="status">Specification explorer · ${plan.phases.length} bounded phases</span>
 <p class="meta">Working name. Brand clearance and production validation remain pending.</p>
 </header>
 <main>
@@ -70,7 +70,7 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding-top:20px;font-si
 <h2 id="architecture-title">One source of truth.<br>Two interfaces that fit.</h2>
 <p>Shared rules and contracts keep web and mobile consistent. Dedicated interfaces preserve native interaction quality and a comfortable desktop workspace.</p>
 <div class="callout">Unified folders can hold a PDF, a note and a task. Notes, Tasks and Journal are focused views of authorized canonical records.</div>
-<p class="meta">No runnable application has been built. This page explores the delivery plan.</p>
+<p class="meta">A testing preview exists with open release gates. V2 is planned; specifications do not establish completion. Read the progress register and phase reports for actual evidence.</p>
 </div>
 <div class="stack">
 <div class="layer"><h3>Android first</h3>Expo · React Native<small>SQLite · native reminders · accessible touch</small></div>
@@ -90,7 +90,7 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding-top:20px;font-si
 </div>
 </section>
 <nav class="reading" aria-label="Documentation">
-<a href="README.md">Documentation index</a><a href="roadmap/README.md">Full roadmap</a><a href="product/requirements.md">Product requirements</a><a href="design/design-system.md">Design direction</a><a href="architecture/system-overview.md">Architecture</a><a href="engineering/handoff.md">Contributor handoff</a>
+<a href="README.md">Documentation index</a><a href="roadmap/v2/README.md">Version 2 plan</a><a href="roadmap/README.md">Full roadmap</a><a href="roadmap/progress.json">Actual progress</a><a href="product/requirements.md">Product requirements</a><a href="design/design-system.md">Design direction</a><a href="architecture/system-overview.md">Architecture</a><a href="engineering/handoff.md">Contributor handoff</a>
 </nav>
 <footer>Specs describe planned behavior. Progress and phase reports document actual delivery. Vault encryption, Drive folder access, notification timing, store policy, billing and AI each have explicit feasibility or release gates.</footer>
 </main>
@@ -104,12 +104,12 @@ const detail=document.getElementById('phase-detail');
 const escapeText=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 const bullets=(items,ordered=false)=>'<'+(ordered?'ol':'ul')+'>'+items.map(s=>'<li>'+escapeText(s)+'</li>').join('')+'</'+(ordered?'ol':'ul')+'>';
-let selectedGroup='planning';
-let selectedPhase='00';
+let selectedGroup=plan.groups.some(g=>g.id==='v2-foundations')?'v2-foundations':'planning';
+let selectedPhase=selectedGroup==='v2-foundations'?'64':'00';
 function renderPhase(){
  const p=plan.phases.find(p=>p.id===selectedPhase);
  for(const button of list.children)button.setAttribute('aria-pressed',String(button.dataset.phase===p.id));
- detail.innerHTML='<div class="eyebrow">Phase '+p.id+' · '+escapeText(plan.groups.find(g=>g.id===p.group).title)+'</div><h2>'+escapeText(p.title)+'</h2><p class="meta">Prerequisites: '+(p.dependsOn.length?p.dependsOn.join(', '):'none')+' · '+(p.id==='00'?'Planning baseline':'Planned')+'</p><h3>Implementation</h3>'+bullets(p.steps,true)+'<h3>Acceptance</h3>'+bullets(p.acceptance)+'<h3>Verification</h3>'+bullets(p.checks)+'<h3>Commit target</h3><div class="commit">'+escapeText(p.commit)+'</div><p style="margin-top:20px"><a href="roadmap/phases/'+p.id+'-'+slug(p.title)+'.md">Open full phase specification</a></p>';
+ detail.innerHTML='<div class="eyebrow">Phase '+p.id+' · '+escapeText(plan.groups.find(g=>g.id===p.group).title)+'</div><h2>'+escapeText(p.title)+'</h2><p class="meta">Prerequisites: '+(p.dependsOn.length?p.dependsOn.join(', '):'none')+' · Specification only; see progress for delivery status</p><h3>Implementation</h3>'+bullets(p.steps,true)+'<h3>Acceptance</h3>'+bullets(p.acceptance)+'<h3>Verification</h3>'+bullets(p.checks)+'<h3>Commit target</h3><div class="commit">'+escapeText(p.commit)+'</div><p style="margin-top:20px"><a href="roadmap/phases/'+p.id+'-'+slug(p.title)+'.md">Open full phase specification</a></p>';
 }
 function renderGroup(){
  for(const button of groups.children)button.setAttribute('aria-pressed',String(button.dataset.group===selectedGroup));

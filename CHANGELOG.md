@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 64 — Version 2 roadmap and experience planning — 2026-10-25
+
+- Append 40 bounded phases (64–103), detailed specifications, acceptance gates and Antigravity handoff rules; retain every original phase definition and blocked/deferred status.
+- Plan a professional icon-based redesign with no app-authored emoji, simple personalized navigation, restricted developer tools, mobile-specific layouts, welcome/auth polish and complete action-verified tours.
+- Specify richer Help, durable bug/suggestion/contact reports, verified developer support, physical PWA/native notification evidence, and an optional grounded text/voice creation assistant with the proposed original Nori companion.
+- Include existing-function readiness, safe offline reopen, vault/Drive/rooms/billing gate closure, measured security/performance/accessibility and full-scope beta/release evidence. App behavior and deployment are unchanged; Phase 65 remains unstarted.
+
 ## Phase 60 — Session cold-start, dirty editors, SW v7 (preview) — 2026-10-22
 
 - Refresh/session routes no longer clear cookies on temporary auth outages (503 keep-session); invalid refresh still clears.

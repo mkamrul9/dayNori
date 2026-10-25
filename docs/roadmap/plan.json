@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "project": "Daynori",
   "baselineDate": "2026-10-13",
-  "status": "Planning baseline; no application implemented",
+  "status": "V1 testing preview with open release gates; V2 planning baseline 2026-10-25",
   "groups": [
     {
       "id": "planning",
@@ -53,6 +53,36 @@
       "id": "evolution",
       "title": "Post-launch review",
       "range": "63"
+    },
+    {
+      "id": "v2-foundations",
+      "title": "V2 readiness and design",
+      "range": "64–68"
+    },
+    {
+      "id": "v2-everyday",
+      "title": "V2 everyday experience",
+      "range": "69–77"
+    },
+    {
+      "id": "v2-learning",
+      "title": "V2 learning and support",
+      "range": "78–83"
+    },
+    {
+      "id": "v2-capabilities",
+      "title": "V2 advanced capability gates",
+      "range": "84–89"
+    },
+    {
+      "id": "v2-assistant",
+      "title": "V2 daily assistant",
+      "range": "90–96"
+    },
+    {
+      "id": "v2-release",
+      "title": "V2 quality and release",
+      "range": "97–103"
     }
   ],
   "phases": [
@@ -1774,6 +1804,1326 @@
       ],
       "references": ["docs/engineering/handoff.md", "docs/architecture/operations-and-scaling.md"],
       "commit": "docs(product): review launch evidence and prioritize the next phases"
+    },
+    {
+      "id": "64",
+      "group": "v2-foundations",
+      "title": "Version 2 product and delivery planning",
+      "dependsOn": [],
+      "scope": [
+        "docs/roadmap",
+        "docs/decisions",
+        "docs/phase-reports",
+        "README.md",
+        "CHANGELOG.md",
+        "docs/blueprint.html",
+        "scripts/build-blueprint.mjs"
+      ],
+      "steps": [
+        "Inspect the preview evidence, existing roadmap and relevant source surfaces; distinguish reported problems from freshly verified behavior.",
+        "Research primary design and notification references; specify the simpler visual/mobile experience, full action-based learning, support, AI/voice and original companion.",
+        "Append bounded V2 phases with coverage, dependencies, acceptance and handoff rules; preserve all V1 definitions/statuses and do not implement the app."
+      ],
+      "acceptance": [
+        "Every owner request, including professional icons and no app-authored emoji, has a specification and delivery phase.",
+        "The readiness caveat, PWA notification limits, existing gates and full-scope completion rule are explicit.",
+        "Canonical/generated plans, progress, report and changelog agree; Phase 65 is selectable but unstarted."
+      ],
+      "checks": [
+        "Run planning and generated-artifact validation, changed-file formatting, secret scanning and git diff --check.",
+        "Verify original phase definitions and status entries are unchanged; review all staged paths before one local docs commit."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0067-version-two-planning-and-release-boundaries.md",
+        "docs/roadmap/v2/antigravity-handoff.md"
+      ],
+      "commit": "docs(planning): define the Version 2 experience and delivery roadmap"
+    },
+    {
+      "id": "65",
+      "group": "v2-foundations",
+      "title": "Version 2 function inventory and readiness baseline",
+      "dependsOn": ["64"],
+      "scope": ["docs/roadmap/v2", "tests/e2e", "tests/performance", "docs/phase-reports"],
+      "steps": [
+        "Enumerate actual route, UI, contract and provider actions into a versioned feature register with platform, entry point, evidence and blocker fields.",
+        "Exercise available synthetic create/save/reopen/search/account-isolation journeys; record current visual, accessibility and performance baselines without repairing unrelated modules.",
+        "Map each action to its repair phase, Help article and tour treatment; flag prerequisites needing a bounded split before implementation."
+      ],
+      "acceptance": [
+        "All feature families and actual lower-level actions are accounted for; untested, unavailable and failed functions are distinguishable.",
+        "Fresh screenshots and timings identify revision, platform, viewport and synthetic data; historical evidence is labeled.",
+        "Known data-loss, authorization, mobile and provider gaps have reproducible next steps, with no invented authenticated/device results."
+      ],
+      "checks": [
+        "Run existing relevant core/e2e scripts against the nominated local environment and record exact outcomes.",
+        "Validate feature coverage references and manually inspect available desktop/narrow-web views; record physical-device/provider access limits."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/phase-reports/phase-60.md"
+      ],
+      "commit": "docs(readiness): inventory functions and baseline Version 2 gaps"
+    },
+    {
+      "id": "66",
+      "group": "v2-foundations",
+      "title": "Simple navigation personalization and developer boundaries",
+      "dependsOn": ["65"],
+      "scope": [
+        "packages/domain",
+        "packages/contracts",
+        "apps/api",
+        "apps/web/src/components",
+        "apps/mobile/src/navigation",
+        "docs/design"
+      ],
+      "steps": [
+        "Define and implement a validated shared feature registry separating release capability, current authorization and personal visibility.",
+        "Specify stable primary destinations, searchable All features, pins and hide/restore behavior; migrate existing preferences without losing layouts or content.",
+        "Separate ordinary preferences from restricted developer tools; server-authorize privileged routes and remove harness/gallery/seed controls from everyday navigation."
+      ],
+      "acceptance": [
+        "Users can reach every enabled feature within two navigation actions and restore hidden modules without data loss.",
+        "Settings, Help, account, Search and All features remain reachable; hiding a module cannot grant access or silently cancel reminders.",
+        "Direct URL/API attempts cannot access developer functions or enable provisional features without authority."
+      ],
+      "checks": [
+        "Test preference migration, invalid registry input, stale revisions, hidden/disabled/unauthorized combinations and account switch.",
+        "Run relevant contracts/domain/API tests and keyboard/native navigation checks using the registry."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/design/information-architecture.md"
+      ],
+      "commit": "feat(navigation): separate feature visibility and developer access"
+    },
+    {
+      "id": "67",
+      "group": "v2-foundations",
+      "title": "Original visual direction and responsive journey prototypes",
+      "dependsOn": ["65", "66"],
+      "scope": ["docs/design", "docs/roadmap/v2", "assets/brand"],
+      "steps": [
+        "Build a dated reference board from official product examples and compare two original Daynori visual directions without copying assets.",
+        "Prototype complete welcome/auth, Today, planning, Library, Journal, Settings, Help/tour and assistant flows for desktop and narrow mobile in light/dark.",
+        "Review hierarchy, placement, disclosure, professional icons, state coverage and motion with the owner and available usability participants; record the chosen direction."
+      ],
+      "acceptance": [
+        "A coherent selected direction covers real flows and empty/loading/error/offline states, not only colors or a landing screen.",
+        "Mobile composition and keyboard-safe editing are explicitly designed; advanced controls do not overwhelm first use.",
+        "No app-authored emoji, copied competitor assets or inaccessible unlabeled controls appear in the proposed interfaces."
+      ],
+      "checks": [
+        "Inspect prototypes at 320/360/390/412/768 and desktop widths in both themes.",
+        "Record original asset provenance, rendered contrast estimates, task observations, owner decisions and remaining design uncertainties."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/design/design-system.md",
+        "docs/design/accessibility.md"
+      ],
+      "commit": "docs(design): establish the Version 2 visual and mobile direction"
+    },
+    {
+      "id": "68",
+      "group": "v2-foundations",
+      "title": "Design tokens components icons and motion",
+      "dependsOn": ["67"],
+      "scope": ["packages/design-tokens", "packages/ui-web", "packages/ui-mobile", "docs/design"],
+      "steps": [
+        "Implement the chosen semantic palette, typography, spacing, focus, state and motion tokens through separate web/native primitives.",
+        "Complete professional icon mappings and component states for fields, lists, dialogs/sheets, segmented controls, feedback, navigation and coachmarks.",
+        "Keep galleries restricted; implement reduced-motion behavior, scalable text and licensed/original asset provenance."
+      ],
+      "acceptance": [
+        "Rendered light/dark controls meet the scoped contrast and focus targets and have accessible names.",
+        "No emoji or improvised pictograms in authored chrome; user content remains unchanged.",
+        "Primitives survive long English/Bangla labels, 200% text and keyboard/mobile interactions without clipped essential actions."
+      ],
+      "checks": [
+        "Run icons:check, affected package checks and contrast/accessibility checks against rendered states.",
+        "Inspect web keyboard/screen reader and available native text-scaling/reduced-motion behavior; record physical evidence limits."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/design/accessibility.md"
+      ],
+      "commit": "feat(design): implement polished accessible interface primitives"
+    },
+    {
+      "id": "69",
+      "group": "v2-everyday",
+      "title": "Desktop shell and focused Today experience",
+      "dependsOn": ["66", "68"],
+      "scope": ["apps/web/src/components", "apps/web/src/app/today", "packages/ui-web"],
+      "steps": [
+        "Rebuild desktop/sidebar/page-header composition using the approved hierarchy and registry; preserve routes/deep links and keyboard commands.",
+        "Simplify Today to a few useful task/routine groups and optional reflection; collapse history and keep one clear Create path.",
+        "Apply pin/hide/restore preferences and clear local/sync/error feedback without repeating navigation across cards/chips/tabs."
+      ],
+      "acceptance": [
+        "Primary destinations, creation, Search and Help are obvious and operable with keyboard.",
+        "Today uses real scoped records and user preferences with no unsolicited samples or developer diagnostics.",
+        "Existing create/save/reopen, sync and task/routine semantics survive the layout change."
+      ],
+      "checks": [
+        "Run affected web build/type checks and actual desktop shell/Today journeys.",
+        "Capture light/dark, empty/populated/offline/error desktop evidence and inspect focus/order."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md"
+      ],
+      "commit": "feat(web): redesign desktop navigation and Today"
+    },
+    {
+      "id": "70",
+      "group": "v2-everyday",
+      "title": "Mobile web and PWA layout redesign",
+      "dependsOn": ["68", "69"],
+      "scope": [
+        "apps/web/src/components",
+        "apps/web/src/app/globals.css",
+        "apps/web/src/app/settings",
+        "packages/ui-web"
+      ],
+      "steps": [
+        "Implement compact mobile chrome, labeled bottom destinations, reachable creation and grouped Settings subpages with device-appropriate sheets.",
+        "Adapt long forms, editors, calendar composition and menu placement using responsive adapters; respect dynamic viewport, safe area, keyboard and browser Back.",
+        "Coordinate install/update/status banners and future companion placement so no essential control or final list row is covered."
+      ],
+      "acceptance": [
+        "320–412px layouts have no unintended page overflow, duplicated navigation or hidden primary actions.",
+        "200% text, landscape, open keyboard, install mode and long labels remain usable.",
+        "Desktop keeps its approved composition and shared record behavior is unchanged."
+      ],
+      "checks": [
+        "Run responsive e2e journeys and record overflow measurements plus screenshots at the required widths.",
+        "Perform physical installed-Android-PWA keyboard/Back/safe-area review where available; do not substitute emulation for physical acceptance."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/decisions/0065-mobile-pwa-usability-preview.md"
+      ],
+      "commit": "feat(pwa): deliver phone-specific layouts and settings"
+    },
+    {
+      "id": "71",
+      "group": "v2-everyday",
+      "title": "Native Android interface and navigation parity",
+      "dependsOn": ["66", "68", "70"],
+      "scope": ["apps/mobile", "packages/ui-mobile"],
+      "steps": [
+        "Adapt the selected design to native navigation, full-screen editors, grouped Settings, sheets, hardware Back and keyboard avoidance.",
+        "Apply feature registry/personalization and remove ordinary-user harness/gallery surfaces while retaining authorized developer access.",
+        "Preserve local repositories, capture, sync and deep links; document differences from browser/PWA and separately gated native iOS."
+      ],
+      "acceptance": [
+        "Core native routes and all existing enabled feature entry points remain reachable with platform-appropriate interactions.",
+        "Large text, TalkBack, keyboard, safe areas and hardware Back do not lose drafts or cover actions.",
+        "No web wrapper or duplicated domain implementation substitutes for native adaptation."
+      ],
+      "checks": [
+        "Run affected native tests/typecheck/build and Android e2e scripts.",
+        "Record actual Android device/TalkBack runs; retain incomplete status if required hardware evidence is missing."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/engineering/ios-support-matrix.md"
+      ],
+      "commit": "feat(mobile): adapt the Version 2 experience to native Android"
+    },
+    {
+      "id": "72",
+      "group": "v2-everyday",
+      "title": "Welcome startup onboarding and authentication polish",
+      "dependsOn": ["68", "70", "71"],
+      "scope": [
+        "apps/web/src/auth",
+        "apps/web/src/components/AuthModal.tsx",
+        "apps/web/src/app",
+        "apps/mobile/src/auth",
+        "apps/mobile/src/views"
+      ],
+      "steps": [
+        "Deliver fast welcome/sign-in/sign-up/recovery experiences with clear validation, password-manager support and honest verification/session states.",
+        "Implement native startup artwork and browser-compatible PWA launch assets, with restrained skippable/reduced motion and no artificial loading delay.",
+        "Connect optional interests/visible modules and first useful action to the existing onboarding state, preserving existing-account preferences and the later tour engine migration."
+      ],
+      "acceptance": [
+        "New and returning users can authenticate/recover or receive actionable failures without leaking account details or losing drafts.",
+        "Permissions and AI consent are contextual, not required at sign-up; onboarding is skippable.",
+        "Cold server/network failures do not impersonate invalid credentials or erase a valid session."
+      ],
+      "checks": [
+        "Test valid/invalid/expired auth, verification/recovery return paths, rate limits, account switch and outage classification.",
+        "Run actual browser/password-manager/keyboard and Android startup/auth flows; measure usable startup rather than splash display."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/decisions/0015-authentication-across-web-and-android.md"
+      ],
+      "commit": "feat(onboarding): polish welcome and account journeys"
+    },
+    {
+      "id": "73",
+      "group": "v2-everyday",
+      "title": "Tasks routines and calendar workflow completion",
+      "dependsOn": ["69", "70", "71", "72"],
+      "scope": [
+        "apps/web/src/app/plan",
+        "apps/mobile/src/views/PlanView.tsx",
+        "apps/api",
+        "packages/domain",
+        "packages/contracts"
+      ],
+      "steps": [
+        "Apply simple required-fields-first editors and coherent list/agenda/month views to tasks, routines and private events.",
+        "Repair inventoried family-specific gaps in completion/undo, priorities/subtasks, recurrence history, date-only/timed semantics and timezone projections.",
+        "Keep canonical source links and mutation receipts; update feature register and contextual instructions."
+      ],
+      "acceptance": [
+        "Create/edit/reopen/complete/undo journeys pass on web/PWA and native Android for the selected family.",
+        "Task completion never creates tomorrow copies; routine occurrences remain independent and calendar edits target the same record.",
+        "Offline/retry/conflict and invalid date/schedule cases preserve content with actionable errors."
+      ],
+      "checks": [
+        "Run relevant task/routine/calendar domain, integration and UI journeys including timezone changes.",
+        "Inspect mobile pickers, long lists, empty/error states and keyboard/screen-reader controls."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/product/requirements.md"
+      ],
+      "commit": "feat(planning): complete clear task routine and calendar journeys"
+    },
+    {
+      "id": "74",
+      "group": "v2-everyday",
+      "title": "Library writing journal and search completion",
+      "dependsOn": ["69", "70", "71", "72"],
+      "scope": [
+        "apps/web/src/app/library",
+        "apps/web/src/app/journal",
+        "apps/mobile/src/views",
+        "apps/api",
+        "packages/domain"
+      ],
+      "steps": [
+        "Deliver focused note/journal editors, canonical mixed folders, knowledge views, filters and authorized search using the new visual system.",
+        "Repair inventoried formatting/autosave/reopen, folder move/depth, preview privacy and source-link behavior without replacing stable IDs.",
+        "Keep metadata secondary, support long English/Bangla content and map actual actions to Help/tour coverage."
+      ],
+      "acceptance": [
+        "Users can write/reopen, organize/find, archive/trash/restore supported content with preserved IDs and revisions.",
+        "Journal entry dates, multiple entries, private previews and opt-in prompts behave consistently across clients.",
+        "Unauthorized/vault data never enters ordinary search; filtered folders explain their scope and clear filters safely."
+      ],
+      "checks": [
+        "Run relevant note/journal/folder/search tests with two synthetic accounts and long documents.",
+        "Verify keyboard/mobile writing, interruption recovery, rich-content sanitization and canonical-link round trips."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/product/requirements.md"
+      ],
+      "commit": "feat(content): complete focused writing and library workflows"
+    },
+    {
+      "id": "75",
+      "group": "v2-everyday",
+      "title": "Files and audio attachment readiness",
+      "dependsOn": ["74"],
+      "scope": [
+        "apps/web/src/app/files",
+        "apps/mobile/src/audio",
+        "apps/api",
+        "apps/worker",
+        "packages/contracts",
+        "docs/roadmap/v2"
+      ],
+      "steps": [
+        "Complete approved private upload/audio capture and attachment journeys with bounded quotas, progress, cancellation, retry and processing states.",
+        "Verify file signatures, scanning/preview isolation, original-byte download, expired access refresh and offline cache controls through existing providers.",
+        "Prepare configuration and provider evidence for a real supported environment; retain blocked state if preview hosting/storage/audio prerequisites are unavailable."
+      ],
+      "acceptance": [
+        "Supported files and recordings can be created, attached, reopened/downloaded and deleted without duplicates or orphan quota.",
+        "Invalid type/size, denied microphone, failed scan/upload, account switch and unauthorized downloads are safely handled.",
+        "Actual provider/device evidence supports enabled claims; audio attachments remain distinct from assistant transcription."
+      ],
+      "checks": [
+        "Run upload/audio integration/security cases and compare downloaded synthetic bytes/checksums.",
+        "Test capture/playback/cancel/background and previews on nominated browsers and physical Android; document operating limits."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/architecture/security-and-vault.md",
+        "docs/roadmap/v2/quality-and-release.md"
+      ],
+      "commit": "feat(attachments): complete private file and audio workflows"
+    },
+    {
+      "id": "76",
+      "group": "v2-everyday",
+      "title": "Expenses and safe custom sections completion",
+      "dependsOn": ["73", "74", "75"],
+      "scope": [
+        "apps/web/src/app/expenses",
+        "apps/web/src/app/custom-sections",
+        "apps/mobile/src/views",
+        "apps/api",
+        "packages/domain"
+      ],
+      "steps": [
+        "Apply simple expense entry, categories/budgets/reports and approved section templates with optional advanced controls.",
+        "Verify money/currency/date rules and typed-block validation, accessible ordering, schema migration and referenced-item preservation.",
+        "Complete missing bounded family actions from the inventory and attach instructions/coverage without exposing arbitrary code or SQL."
+      ],
+      "acceptance": [
+        "Expense create/edit/report/export and section create/fill/reorder/remove/recover journeys work across promised platforms.",
+        "Section removal preserves referenced records and recoverable field values; invalid blocks and cross-scope attachments are rejected.",
+        "Modules are optional in navigation but reachable through All features when released and authorized."
+      ],
+      "checks": [
+        "Run relevant money/expenses/section integration, migration and authorization checks.",
+        "Inspect mobile forms, reports, keyboard reorder and text scaling in both themes."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/product/requirements.md",
+        "docs/roadmap/v2/design-and-mobile.md"
+      ],
+      "commit": "feat(extensions): finish expenses and approved custom sections"
+    },
+    {
+      "id": "77",
+      "group": "v2-everyday",
+      "title": "Safe offline reopen sync and upgrade recovery",
+      "dependsOn": ["72", "73", "74"],
+      "scope": [
+        "apps/web/public",
+        "apps/web/src/data",
+        "apps/mobile/src/data",
+        "packages/sync",
+        "apps/api",
+        "docs/decisions"
+      ],
+      "steps": [
+        "Record an ADR for trusted-device local boot/session boundaries and implement safe private-organizer cold offline reopen without shared private HTML/API caches.",
+        "Verify local save indicators, draft recovery, sync queues/receipts, revision conflicts and account-switch quarantine across redesigned core flows.",
+        "Exercise existing export/import/Trash/account-deletion behavior and V1 schema/preferences/service-worker upgrades; repair bounded recovery gaps and document rollback limits."
+      ],
+      "acceptance": [
+        "A previously authorized trusted device reopens the supported organizer offline; fresh/missing local prerequisites show truthful fallback.",
+        "Dirty editors, queued mutations and receipts survive restart/update; account changes never mix private data.",
+        "Conflicts retain both recoverable edits; exports/imports and deletion/restore suppression preserve their contracts."
+      ],
+      "checks": [
+        "Run offline/restart/upgrade/conflict and two-account repository/sync integration cases against V1 fixtures.",
+        "Perform cold installed-PWA and native reopen/update drills; inspect Cache Storage for forbidden private responses."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/decisions/0066-offline-shell-and-safe-pwa-updates.md",
+        "docs/architecture/sync-and-offline.md"
+      ],
+      "commit": "feat(offline): preserve organizer access and upgrade recovery"
+    },
+    {
+      "id": "78",
+      "group": "v2-learning",
+      "title": "Complete contextual Help and user instructions",
+      "dependsOn": ["73", "74", "75", "76", "77"],
+      "scope": [
+        "apps/web/src/app/help",
+        "apps/mobile/src/views",
+        "docs/roadmap/v2",
+        "packages/domain"
+      ],
+      "steps": [
+        "Create versioned task-based articles and searchable categories for every inventory family, with platform differences and expected results.",
+        "Add contextual Help to unfamiliar controls and preserve drafts when opening instructions; support offline essential recovery articles.",
+        "Add Learn the app catalog and chapter links ready for the tour engine, separating user guidance from restricted developer docs."
+      ],
+      "acceptance": [
+        "Every in-scope action has article coverage and a clear entry point; unavailable features are described honestly.",
+        "Search, troubleshooting, account/privacy/export/install instructions and human-feedback entry points are accessible without AI.",
+        "Instructions use actual labels, professional icons and concise language, with localization-ready content."
+      ],
+      "checks": [
+        "Validate article/feature/deep-link mappings and invalid/unavailable capability behavior.",
+        "Manually follow representative articles on desktop, mobile PWA and native Android without losing editor content."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/help-and-feedback.md"
+      ],
+      "commit": "feat(help): add complete contextual instructions and learning catalog"
+    },
+    {
+      "id": "79",
+      "group": "v2-learning",
+      "title": "Action-verified resumable tour engine",
+      "dependsOn": ["66", "68", "77", "78"],
+      "scope": [
+        "packages/domain",
+        "packages/contracts",
+        "apps/web/src/components",
+        "apps/mobile/src/views",
+        "apps/api"
+      ],
+      "steps": [
+        "Evolve existing onboarding into a versioned chapter/step state machine with semantic targets, event correlation and persisted completion predicates.",
+        "Implement interactive web/native coachmarks, route/target readiness, focus/keyboard adapters, pause/skip/back/resume and safe unavailable recovery.",
+        "Migrate V1 progress and practice IDs; preserve preferences and prevent duplicate or destructive replay."
+      ],
+      "acceptance": [
+        "Only the matching verified action/result completes an action step; Next/old/unrelated events cannot fake success.",
+        "Restart/account switch/offline/permission denial preserve correct progress and drafts with no cross-account leakage.",
+        "Tour controls remain accessible and the actual highlighted control/picker can be operated on each platform."
+      ],
+      "checks": [
+        "Test stale events, retries, remount, route changes, interrupted receipts, concurrent progress and V1 migration.",
+        "Run real-control web/native proof chapters plus keyboard/screen-reader and phone-keyboard overlay review."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/guided-tours.md",
+        "docs/phase-reports/phase-31.md"
+      ],
+      "commit": "feat(tours): add action-verified resumable guidance"
+    },
+    {
+      "id": "80",
+      "group": "v2-learning",
+      "title": "Everyday guided practice chapters",
+      "dependsOn": ["79", "73", "74"],
+      "scope": ["apps/web", "apps/mobile", "packages/domain", "tests/e2e", "docs/roadmap/v2"],
+      "steps": [
+        "Build a short starter sequence and chapters for navigation, personalization, tasks/routines/calendar, notes/journal, folders/search and Help.",
+        "Guide actual Create/edit/save/reopen/complete/undo actions with durable result predicates and opt-in labeled practice records.",
+        "Add cleanup review, safe replay and chapter-specific troubleshooting; update every actual core action in the coverage register."
+      ],
+      "acceptance": [
+        "Users operate real controls and see their own saved/reopened records rather than only clicking tutorial Next.",
+        "Skipping stays available; completed/skipped states differ; replay does not duplicate or delete edited content.",
+        "All core action coverage is traceable and accessible on desktop, narrow PWA and native Android."
+      ],
+      "checks": [
+        "Run UI journeys asserting actual canonical IDs/receipts and negative failed-save/unrelated-event cases.",
+        "Record keyboard/SR and physical phone chapter/resume runs with synthetic data."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/guided-tours.md"
+      ],
+      "commit": "feat(tours): teach everyday workflows through real actions"
+    },
+    {
+      "id": "81",
+      "group": "v2-learning",
+      "title": "Advanced recovery and optional-feature tour coverage",
+      "dependsOn": ["80", "75", "76", "78"],
+      "scope": ["apps/web", "apps/mobile", "packages/domain", "tests/e2e", "docs/roadmap/v2"],
+      "steps": [
+        "Add action-based file/audio/expense/section and safe offline/conflict/Trash recovery chapters with scoped synthetic practice.",
+        "Define capability-gated chapters for reminders, vault, Drive, rooms, billing and assistant that their owning phases activate and verify.",
+        "Provide safe explanatory treatments for account deletion, real purchases, sharing and recovery secrets; never require irreversible actions to finish learning."
+      ],
+      "acceptance": [
+        "Every inventory action has a real chapter/step or explicit safe explanatory treatment.",
+        "Unavailable capabilities cannot launch fake live practice; dormant definitions remain unverified until their feature phase passes.",
+        "Practice cleanup preserves actual user content and cannot charge, delete an account or send invitations automatically."
+      ],
+      "checks": [
+        "Validate complete action/article/chapter coverage and each capability/permission combination.",
+        "Exercise available advanced chapters and destructive-action safeguards; record gated chapters for later final acceptance."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/guided-tours.md"
+      ],
+      "commit": "feat(tours): cover advanced features and safe recovery practice"
+    },
+    {
+      "id": "82",
+      "group": "v2-learning",
+      "title": "Durable bug suggestion and contact submissions",
+      "dependsOn": ["66", "68", "77", "78"],
+      "scope": [
+        "packages/contracts",
+        "apps/api",
+        "apps/worker",
+        "apps/web/src/app/support",
+        "apps/mobile/src/views",
+        "infra/supabase/migrations"
+      ],
+      "steps": [
+        "Implement validated scoped report records, Bug/Suggestion/Contact forms, local drafts, idempotent submission and clear queued/submitted/failure states.",
+        "Add opt-in reviewed diagnostics and private user-selected attachments with redaction/type/size/rate limits.",
+        "Prepare durable delivery adapters and receipts for restricted triage; keep unconfigured external destinations truthful."
+      ],
+      "acceptance": [
+        "Server acknowledgment is required for Submitted; offline retry and restart cannot duplicate or cross-submit another account report.",
+        "Private bodies/tokens/prompts/audio are absent from automatic diagnostics and logs.",
+        "Unauthorized report/attachment access, invalid input and abusive submission are rejected server-side."
+      ],
+      "checks": [
+        "Test offline/duplicate/cancel/account-switch, cross-tenant IDs, attachment validation and provider-delivery failure states.",
+        "Submit synthetic reports through desktop, installed PWA and native controls and verify stored receipt identity."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/help-and-feedback.md"
+      ],
+      "commit": "feat(feedback): add durable private bug and suggestion reports"
+    },
+    {
+      "id": "83",
+      "group": "v2-learning",
+      "title": "Developer feedback triage and verified support contact",
+      "dependsOn": ["82", "66"],
+      "scope": [
+        "apps/web/src/app",
+        "apps/api",
+        "apps/worker",
+        "docs/engineering",
+        "docs/roadmap/v2"
+      ],
+      "steps": [
+        "Build server-role-restricted report triage with status, safe diagnostics, private attachments, audit trail and bounded retention.",
+        "Prepare concrete delivery configuration/test report; establish a named monitored human destination and response route with the owner.",
+        "Connect actual configured delivery and user acknowledgment/status/contact links; publish accurate response guidance and security-report handling."
+      ],
+      "acceptance": [
+        "An authorized developer can receive, review and respond to synthetic bug/suggestion/contact reports while ordinary users cannot browse others reports.",
+        "A real monitored route and support owner exist; no invented inbox or automatic public issue posting.",
+        "Provider failure remains visible/retryable and report retention/deletion/access are documented."
+      ],
+      "checks": [
+        "Run role/IDOR/audit/retention and durable delivery/retry checks.",
+        "Verify actual configured receipt in the support destination and response route; missing ownership/provider evidence blocks completion."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/help-and-feedback.md",
+        "docs/roadmap/v2/quality-and-release.md"
+      ],
+      "commit": "feat(support): provide verified developer contact and report triage"
+    },
+    {
+      "id": "84",
+      "group": "v2-capabilities",
+      "title": "Mobile PWA push and reminder delivery proof",
+      "dependsOn": ["70", "73", "77", "81"],
+      "scope": [
+        "apps/web/src/notifications",
+        "apps/web/public",
+        "apps/api",
+        "apps/worker",
+        "docs/engineering",
+        "tests/integration"
+      ],
+      "steps": [
+        "Complete authenticated Web Push subscriptions, live operating worker path, expiry/retry and source reschedule/cancel using existing reminder semantics.",
+        "Add contextual permission/install guidance, device status, privacy/quiet hours/test notification and authorized tap deep links.",
+        "Verify Android installed-PWA and supported iPhone Home Screen delivery separately; activate their real tour/help chapter only with evidence."
+      ],
+      "acceptance": [
+        "Scheduled, dispatched, provider-accepted and physically observed display are distinguished; preview no-delivery limits are not silently relabeled.",
+        "Denied/revoked permissions, account switch, stale endpoints and completed/deleted source records are safe.",
+        "Physical locked/closed-app notification evidence and approved hosting/worker behavior exist for each promised platform; no exact-alarm guarantee."
+      ],
+      "checks": [
+        "Run subscription/reminder/privacy/duplicate integration tests and inspect actual configured provider behavior.",
+        "Record timed physical Android and iPhone-PWA allow/deny/offline/revoke/deep-link scenarios; unavailable device/provider evidence remains blocked."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/notifications.md",
+        "docs/decisions/0035-web-push-and-pwa-offline-caching.md"
+      ],
+      "commit": "feat(notifications): verify mobile PWA reminder delivery"
+    },
+    {
+      "id": "85",
+      "group": "v2-capabilities",
+      "title": "Native Android reminder and notification readiness",
+      "dependsOn": ["71", "73", "81"],
+      "scope": ["apps/mobile/src/notifications", "apps/api", "apps/worker", "docs/engineering"],
+      "steps": [
+        "Verify and repair native local/server scheduling, device channels, minimal payload and deep links with current runtime permission rules.",
+        "Enforce source cancellation, occurrence deduplication, quiet hours/timezone and the declared multi-device web/native policy.",
+        "Complete physical reboot/idle/force-stop/background evidence and real reminder tour chapter; leave exact alarms behind a separate policy decision."
+      ],
+      "acceptance": [
+        "Allowed reminders show observed physical display/tap evidence without conflating provider acceptance with delivery.",
+        "Denied/revoked permission, reboot, reschedule, account deletion and duplicate retries remain safe.",
+        "No restricted alarm permission is added without a current reviewed eligibility/need decision."
+      ],
+      "checks": [
+        "Run native scheduling/integration and source-lifecycle tests.",
+        "Record physical Android permission/reboot/timezone/idle/multi-device scenarios and timing limits."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/notifications.md",
+        "docs/decisions/0034-android-notifications-and-device-schedules.md"
+      ],
+      "commit": "fix(notifications): close native Android reminder evidence"
+    },
+    {
+      "id": "86",
+      "group": "v2-capabilities",
+      "title": "Vault review recovery and release gate closure",
+      "dependsOn": ["71", "75", "77", "81"],
+      "scope": [
+        "apps/web/src/vault",
+        "apps/mobile/src/vault",
+        "apps/api",
+        "tests/security/vault",
+        "docs/architecture",
+        "docs/engineering"
+      ],
+      "steps": [
+        "Audit provisional vault behavior against the existing threat model and obtain independent qualified review before enabling any encrypted capability.",
+        "Repair bounded review findings for key lifecycle, recovery, device enrollment/revocation, ciphertext attachments/export and background locking.",
+        "Validate actual browser/native devices and activate only reviewed functionality with honest Help/tour; record unresolved legacy gates rather than rewriting them as passed."
+      ],
+      "acceptance": [
+        "Independent review and required physical crypto/recovery evidence exist with no unresolved gate-blocking findings.",
+        "Vault plaintext stays out of server storage/sync, ordinary caches/search, logs, notifications and AI; lock UI is never described as encryption.",
+        "Lost-secret/recovery/upgrade behavior is explicit and tested; missing external audit keeps the phase blocked."
+      ],
+      "checks": [
+        "Run vault security harnesses, ciphertext/metadata leakage, export/recovery and key-loss/biometric-change cases.",
+        "Record external review disposition and physical web/native lifecycle evidence; split material remediation into appended bounded phases."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/architecture/security-and-vault.md",
+        "docs/engineering/release-gates.md",
+        "docs/roadmap/v2/quality-and-release.md"
+      ],
+      "commit": "fix(vault): close independently reviewed recovery and release gates"
+    },
+    {
+      "id": "87",
+      "group": "v2-capabilities",
+      "title": "Google Drive connection and scope readiness",
+      "dependsOn": ["75", "77", "81"],
+      "scope": [
+        "apps/web/src/components/DriveConnectionsPanel.tsx",
+        "apps/mobile/src/views/DriveConnectionsSheet.tsx",
+        "apps/api",
+        "apps/worker",
+        "docs/engineering"
+      ],
+      "steps": [
+        "Recheck approved least-privilege scope and actual selected-file/folder workflow against current Google documentation and owner target.",
+        "Verify connect/select/copy-reference/upload/sync/revoke/disconnect behavior with private provider credentials and no unrelated file indexing.",
+        "Keep full folder mirroring separately deferred unless explicitly selected; activate supported live workflows and their Help/tour with exact limitations."
+      ],
+      "acceptance": [
+        "Real authorized provider evidence covers supported Drive scope, failures and safe disconnect without deleting remote originals.",
+        "No promise that drive.file automatically exposes arbitrary pre-existing folders; tokens and signed URLs stay private.",
+        "Phase 50 deferred history remains intact; missing OAuth/verification prerequisites block unsupported claims."
+      ],
+      "checks": [
+        "Run Drive integration/security/retry/membership checks plus actual selected-scope provider scenarios.",
+        "Record current scope/verification decision, consent/revocation and web/native connection journeys."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0046-drive-scope-and-folder-access.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "fix(drive): verify supported live connection and revocation"
+    },
+    {
+      "id": "88",
+      "group": "v2-capabilities",
+      "title": "Rooms chat and staffed moderation readiness",
+      "dependsOn": ["71", "75", "77", "81", "83"],
+      "scope": [
+        "apps/web/src/components/RoomsPanel.tsx",
+        "apps/mobile/src/views/RoomsSheet.tsx",
+        "apps/api",
+        "apps/worker",
+        "docs/policy",
+        "docs/engineering"
+      ],
+      "steps": [
+        "Verify existing room/member/role/invite/content/chat behavior and current terms/report/block requirements using synthetic participants.",
+        "Repair bounded revocation, realtime, attachment, retry, mute and report handling gaps; establish actual moderation owner and incident procedure.",
+        "Enable only authorized reviewed environments after real infrastructure/moderation evidence; teach sharing and exit semantics through safe chapters."
+      ],
+      "acceptance": [
+        "Removed members lose newly authorized access, roles cannot be escalated, and private/vault content is not silently shared.",
+        "Reporting/blocking/terms and staffed action process work with private audit evidence.",
+        "Free sleeping-host realtime limits and existing production-off controls are resolved explicitly, not bypassed with a local flag."
+      ],
+      "checks": [
+        "Run room/chat/membership-revocation/IDOR/retry/report integration and security tests.",
+        "Record two-participant physical/web/native scenarios, moderation disposition and current policy review; absent staff/infrastructure blocks release."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/engineering/release-gates.md",
+        "docs/roadmap/v2/help-and-feedback.md"
+      ],
+      "commit": "fix(rooms): close sharing chat and moderation release gates"
+    },
+    {
+      "id": "89",
+      "group": "v2-capabilities",
+      "title": "Billing entitlements and sustainable plan readiness",
+      "dependsOn": ["71", "75", "81", "83"],
+      "scope": [
+        "apps/api",
+        "apps/worker",
+        "apps/web/src/components/BillingPanel.tsx",
+        "apps/mobile/src/views/BillingSheet.tsx",
+        "docs/engineering"
+      ],
+      "steps": [
+        "Prepare concrete feature/usage/cost boundaries and owner commercial decisions before choosing a real purchase configuration.",
+        "Verify approved web/Play purchase, restore, renewal/refund/expiry/grace and durable provider events under current market/account policy.",
+        "Keep existing data readable/exportable after downgrade, bind server quotas and provide accurate non-charging tutorial guidance."
+      ],
+      "acceptance": [
+        "Server-verified entitlements survive duplicate/out-of-order events and cannot be granted by client settings.",
+        "Sandbox evidence and owner-approved pricing/merchant/policy configuration exist; no real charges are implicit in this phase.",
+        "Billing never unlocks independently gated vault/AI/rooms and downgrade preserves read/export/delete."
+      ],
+      "checks": [
+        "Run entitlement/provider-event/quota/repair tests and real approved sandbox scenarios.",
+        "Record current official policy check, cost model and cross-client restore/downgrade evidence."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0054-billing-entitlements-and-purchase-lifecycle.md",
+        "docs/roadmap/v2/quality-and-release.md"
+      ],
+      "commit": "fix(billing): verify purchase lifecycle and sustainable quotas"
+    },
+    {
+      "id": "90",
+      "group": "v2-assistant",
+      "title": "AI provider consent privacy and operating decisions",
+      "dependsOn": ["65", "68", "77", "78", "81"],
+      "scope": [
+        "apps/api",
+        "packages/contracts",
+        "docs/decisions",
+        "docs/engineering",
+        "tests/integration"
+      ],
+      "steps": [
+        "Compare current providers using official capability/privacy/cost documentation; prepare concrete retention/region/training and budget choices for owner review.",
+        "Reuse consent generations, cancellation fencing and durable request budgets; verify provider adapter schema, secrets, timeouts and kill switch.",
+        "Obtain explicit authorization before a live provider test with synthetic material; keep real-user transmission off until the dedicated gate passes."
+      ],
+      "acceptance": [
+        "Provider/retention/residency/cost decisions and explicit consent text are recorded; fake tests are labeled.",
+        "Journal opt-in is separate, vault excluded, and disable/cancel fences in-flight results and indexed artifacts.",
+        "No public API secret, unlimited-spend assumption or implied zero retention; missing owner/provider evidence remains blocked."
+      ],
+      "checks": [
+        "Run existing AI privacy/budget/cancel/adapter tests plus malformed/provider-outage cases.",
+        "Record dated primary sources, authorized live synthetic transport evidence and measured per-request cost."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/assistant.md",
+        "docs/decisions/0052-ai-provider-privacy-and-retrieval.md"
+      ],
+      "commit": "feat(ai): verify provider privacy consent and budgets"
+    },
+    {
+      "id": "91",
+      "group": "v2-assistant",
+      "title": "Scoped retrieval indexing and grounding quality",
+      "dependsOn": ["90", "74", "78"],
+      "scope": [
+        "apps/api",
+        "apps/worker",
+        "packages/domain",
+        "tests/fixtures",
+        "tests/integration"
+      ],
+      "steps": [
+        "Build on current FTS retrieval for versioned Help plus opted-in personal data; evaluate hybrid/embedding changes only against measured benefit.",
+        "Implement revision-aware lifecycle handling for edits/deletion/import/consent/revocation and bounded approved attachment extraction.",
+        "Bind citations to authorized sources and evaluate English/Bangla relevance, abstention, freshness and injected-document boundaries."
+      ],
+      "acceptance": [
+        "Workspace/membership/privacy filters precede retrieval and source access is rechecked before results.",
+        "Stale/deleted/disallowed content is excluded or clearly stale; vault and unconsented journal never enter context.",
+        "Known-answer/citation/unknown-answer evaluations have measured results and real-provider limits, not only fake fixtures."
+      ],
+      "checks": [
+        "Run lifecycle/cross-tenant/revocation/injection/citation-binding tests with a synthetic versioned evaluation set.",
+        "Measure retrieval quality, latency and reindex/deletion completion; record why any vector/hybrid complexity is justified."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/assistant.md",
+        "docs/roadmap/v2/quality-and-release.md"
+      ],
+      "commit": "feat(rag): add evaluated scoped retrieval and source lifecycle"
+    },
+    {
+      "id": "92",
+      "group": "v2-assistant",
+      "title": "Text assistant chat and contextual guidance",
+      "dependsOn": ["91", "70", "71", "78"],
+      "scope": [
+        "apps/web/src/components/AssistantPanel.tsx",
+        "apps/mobile/src/views/AssistantSheet.tsx",
+        "apps/api",
+        "packages/contracts"
+      ],
+      "steps": [
+        "Deliver a desktop side panel/mobile screen with streamed text, selected sources, relevant starter suggestions, citations and Help/tour deep links.",
+        "Add cancel/retry/history/delete, consent/usage/unavailable states and preserved drafts without blocking manual work.",
+        "Validate response rendering, bounded conversation context, privacy and source-access rechecks; activate the read-only assistant tour."
+      ],
+      "acceptance": [
+        "Users get grounded responses or honest abstention and can open cited canonical items.",
+        "Provider errors/cancel/offline/out-of-budget states preserve drafts; manual creation remains accessible.",
+        "No chat text or retrieved content can authorize a tool, reveal secrets or bypass source restrictions."
+      ],
+      "checks": [
+        "Run stream/cancel/history/deletion/consent/access and unsafe-output rendering tests.",
+        "Exercise actual authorized live synthetic ask/citation/Help flows on desktop, PWA and native Android."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/assistant.md",
+        "docs/roadmap/v2/guided-tours.md"
+      ],
+      "commit": "feat(assistant): deliver grounded text chat and contextual help"
+    },
+    {
+      "id": "93",
+      "group": "v2-assistant",
+      "title": "Reviewed note task and journal creation",
+      "dependsOn": ["92", "73", "74", "77"],
+      "scope": [
+        "apps/api",
+        "packages/contracts",
+        "packages/domain",
+        "apps/web/src/components/AssistantPanel.tsx",
+        "apps/mobile/src/views/AssistantSheet.tsx"
+      ],
+      "steps": [
+        "Reuse existing proposal/confirm services to generate typed note/task/journal previews with destination/date/timezone/source fields.",
+        "Allow edit/cancel/confirm and execute through canonical domain services, stable operation IDs, expected revisions and durable receipts.",
+        "Teach the write/review/save/open-created-item flow; preserve facts and ask about ambiguous dates rather than inventing journal events."
+      ],
+      "acceptance": [
+        "No model-generated change executes before explicit user confirmation; one clear confirmation can cover a reviewed batch.",
+        "Timeout/crash/retry cannot duplicate records or overwrite concurrent manual edits.",
+        "Saved receipt/deep link opens the actual note/task/journal and clearly distinguishes local/cloud state."
+      ],
+      "checks": [
+        "Run proposal schema/consent/expiry/revision/IDOR/concurrent-confirm/crash-retry tests.",
+        "Verify live synthetic note/task/journal requests through real controls and their action-based tour."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/assistant.md",
+        "docs/decisions/0053-ai-assistant-confirmed-actions.md"
+      ],
+      "commit": "feat(assistant): create notes tasks and journals through reviewed actions"
+    },
+    {
+      "id": "94",
+      "group": "v2-assistant",
+      "title": "Structured organizer tools and multi-action creation",
+      "dependsOn": ["93", "76"],
+      "scope": [
+        "apps/api",
+        "packages/contracts",
+        "packages/domain",
+        "apps/web",
+        "apps/mobile",
+        "tests/integration"
+      ],
+      "steps": [
+        "Extend the approved tool catalog to routines/events/folders/knowledge notes/custom-section blocks and validated expense drafts where supported.",
+        "Add missing bounded public contracts/domain-service interfaces before exposing tools; validate all cross-record references and dates/money.",
+        "Implement ordered review, per-action selection, declared transaction boundaries, durable partial-failure recovery and safe retry."
+      ],
+      "acceptance": [
+        "A user can request supported organizer creation in plain text without manually assembling every form, then review/save the result.",
+        "Generated sections use approved blocks only; no arbitrary scripts, SQL, sharing, purchases, account deletion or vault tools.",
+        "Partial success is reported accurately; receipt-bound retries do not repeat already completed actions."
+      ],
+      "checks": [
+        "Run per-tool schema/authorization/domain-invariant and multi-step interruption/partial-failure tests.",
+        "Exercise routine/timezone, event/all-day, section/reference and expense/currency previews in live synthetic chat/tours."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/assistant.md",
+        "docs/product/requirements.md"
+      ],
+      "commit": "feat(assistant): add safe structured and multi-action organizer tools"
+    },
+    {
+      "id": "95",
+      "group": "v2-assistant",
+      "title": "Voice capture transcription and reviewed creation",
+      "dependsOn": ["90", "93", "75"],
+      "scope": [
+        "apps/web",
+        "apps/mobile/src/audio",
+        "apps/api",
+        "apps/worker",
+        "packages/contracts",
+        "docs/decisions"
+      ],
+      "steps": [
+        "Choose and document a transcription adapter with language, retention, consent, duration/size/cost and background-interruption constraints.",
+        "Implement explicit record/stop/cancel, upload/transcribe, editable transcript and permission/text fallback; no always-listening behavior.",
+        "Route corrected text through the same reviewed proposals and delete transient audio under the documented policy unless separately saved as an attachment."
+      ],
+      "acceptance": [
+        "English/Bangla and code-switched recordings produce reviewable text; uncertain recognition cannot silently save or execute.",
+        "Denied microphone, silence, interruption, timeout and offline/retry retain safe user control without leaking recording bytes.",
+        "Actual authorized transcription/provider and physical device evidence exists with bounded retention/cost."
+      ],
+      "checks": [
+        "Run audio validation/cancel/retry/account-switch/retention and proposal-confirm boundary cases.",
+        "Record live synthetic transcription quality, correction and save journeys on supported browsers and Android."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/assistant.md",
+        "docs/roadmap/v2/quality-and-release.md"
+      ],
+      "commit": "feat(voice): turn reviewed transcripts into organizer drafts"
+    },
+    {
+      "id": "96",
+      "group": "v2-assistant",
+      "title": "Nori original companion and assistant launcher",
+      "dependsOn": ["68", "70", "71", "92", "93"],
+      "scope": ["assets/brand", "apps/web", "apps/mobile", "packages/design-tokens", "docs/design"],
+      "steps": [
+        "Validate the proposed Nori name and folded-paper design; create original professional artwork with provenance and small-size light/dark variants.",
+        "Implement optional launcher states for greeting/listening/thinking/success/error/offline/sleeping, sharing the existing assistant state and consent.",
+        "Add hide/show, safe corner placement, reduced-motion/static and ordinary labeled-button alternatives; stop hidden animation."
+      ],
+      "acceptance": [
+        "The companion is distinct original Daynori artwork, with no emoji substitute or copied Codex character.",
+        "It never covers navigation, editors, Save, banners or phone keyboard and never implies unsolicited monitoring.",
+        "Assistant accessibility and functionality remain complete with the companion disabled or motion reduced."
+      ],
+      "checks": [
+        "Inspect assets/state transitions at actual display sizes and both themes; verify provenance.",
+        "Test placement/keyboard/screen reader/reduced-motion/background CPU and assistant open/close continuity."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/assistant.md",
+        "docs/roadmap/v2/design-and-mobile.md"
+      ],
+      "commit": "feat(companion): add the optional original Nori assistant launcher"
+    },
+    {
+      "id": "97",
+      "group": "v2-release",
+      "title": "Version 2 security privacy and recovery audit",
+      "dependsOn": ["75", "76", "77", "83", "84", "85", "86", "87", "88", "89", "94", "95", "96"],
+      "scope": ["apps", "packages", "tests/security", "docs/architecture", "docs/engineering"],
+      "steps": [
+        "Audit the completed V2 attack surface including developer/support roles, feedback attachments, AI/voice, search, local boot and notifications.",
+        "Repair bounded high-severity findings and re-run cross-workspace/membership/consent/revision/redaction abuse cases; split large remediation explicitly.",
+        "Rehearse account erasure, metadata/object backup restore, deletion suppression and secret/provider rotation with synthetic environments."
+      ],
+      "acceptance": [
+        "No unresolved critical/high or data-loss/isolation release blockers remain; independent vault disposition is present.",
+        "External input, rich content, file/URL boundaries, cookies/CSRF/CSP, quotas and sensitive logs satisfy documented threat controls.",
+        "Actual restore recovers metadata and bytes while honoring deletion; no audit claims total security."
+      ],
+      "checks": [
+        "Run relevant security/integration/secret/dependency checks and documented abuse/restore drills.",
+        "Record findings, fixes, residual risks, reviewer evidence and migration/recovery limitations."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/architecture/security-and-vault.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "fix(security): close Version 2 privacy and recovery findings"
+    },
+    {
+      "id": "98",
+      "group": "v2-release",
+      "title": "Measured performance and resource optimization",
+      "dependsOn": ["97"],
+      "scope": ["apps", "packages", "tests/performance", "docs/engineering"],
+      "steps": [
+        "Repeat Phase 65 workload baselines on final V2 desktop/PWA/native/provider paths and separate warm/cold/cache/network profiles.",
+        "Optimize measured bottlenecks through bounded queries/pagination/virtualization, incremental sync, lazy assets and stopped hidden motion.",
+        "Measure API, edit acknowledgment, usable startup, Web Vitals, memory, assistant/voice latency and cost under stated profiles."
+      ],
+      "acceptance": [
+        "Documented performance targets pass with sample counts/p50/p95 and timeout/completion rates; regressions have resolved causes.",
+        "No eager all-file/index/developer-tour download, unbounded query, privacy-breaking cache or skipped authorization creates artificial speed.",
+        "Lab/synthetic results and real-user field percentiles/capacity claims remain distinct."
+      ],
+      "checks": [
+        "Run the existing performance profile plus targeted measured benchmarks using the 10k-item and deep-folder fixtures.",
+        "Record physical Android/PWA usable-start and long-session traces and authorized live provider timings/cost."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/architecture/operations-and-scaling.md"
+      ],
+      "commit": "perf(app): meet measured Version 2 responsiveness budgets"
+    },
+    {
+      "id": "99",
+      "group": "v2-release",
+      "title": "Accessibility responsive and fresh-user acceptance",
+      "dependsOn": ["98", "80", "81", "95", "96"],
+      "scope": [
+        "apps/web",
+        "apps/mobile",
+        "packages/ui-web",
+        "packages/ui-mobile",
+        "tests/e2e",
+        "docs/design"
+      ],
+      "steps": [
+        "Audit every released screen/chapter at required widths/themes/text scaling with keyboard, screen reader, reduced motion and non-drag controls.",
+        "Run fresh-user sessions on capture/reopen, discovery/hide/restore, guided actions, denied permissions, feedback and reviewed AI creation.",
+        "Repair bounded accessibility/mobile/usability defects and verify all gated tour chapters against now-enabled real features."
+      ],
+      "acceptance": [
+        "Applicable WCAG/native targets and no essential control clipping/occlusion pass with actual manual evidence.",
+        "At least five representative consenting participants are recorded, with at least four completing capture/reopen and finding Help without intervention.",
+        "No unresolved blocking usability, data-loss or account-isolation defects; skipped/unavailable tour steps are not counted as completed."
+      ],
+      "checks": [
+        "Run final responsive/e2e/accessibility checks and physical PWA/native TalkBack/keyboard/large-text journeys.",
+        "Record participant methodology, observed tasks, failures, fixes and limitations without private user fixtures."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/roadmap/v2/guided-tours.md"
+      ],
+      "commit": "fix(usability): close accessibility mobile and guided-learning gaps"
+    },
+    {
+      "id": "100",
+      "group": "v2-release",
+      "title": "Full Version 2 beta and readiness reconciliation",
+      "dependsOn": ["99", "83", "84", "85", "86", "87", "88", "89", "94", "95", "96"],
+      "scope": ["docs/roadmap/v2", "docs/release", "docs/engineering", "tests/e2e"],
+      "steps": [
+        "Run a bounded owner-agreed beta of the full requested scope and reconcile every feature/action/platform/Help/tour evidence row.",
+        "Rehearse V1 account upgrades, durable saves, offline/reconnect, provider failure, two-account isolation and support triage on the candidate environment.",
+        "Produce the complete enabled-feature manifest, known defects, operating/retention/support ownership and legacy-gate reconciliation."
+      ],
+      "acceptance": [
+        "Every full-target function has passing applicable real-device/provider evidence and learning coverage; missing optional gates still block full V2.",
+        "Any smaller preview or changed scope is an explicit owner decision with accurate claims, never a hidden completion shortcut.",
+        "No fabricated beta participation, moderation/support staffing or legacy release supersession appears in reports."
+      ],
+      "checks": [
+        "Run integrated core/advanced/assistant/feedback/tour journeys against candidate builds and record exact failures/results.",
+        "Review coverage/defect/legacy-gate reconciliation and actual beta observations before readiness sign-off."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "docs(beta): reconcile complete Version 2 readiness evidence"
+    },
+    {
+      "id": "101",
+      "group": "v2-release",
+      "title": "Version 2 release candidate and operational preparation",
+      "dependsOn": ["100"],
+      "scope": ["docs/release", "infra/deployment", "scripts", "apps/mobile", "docs/engineering"],
+      "steps": [
+        "Prepare reproducible web/PWA and signed Android candidates with inspected identity/build assets, version scheme and migration/rollback procedures.",
+        "Recheck current official store/browser/provider policies, privacy/consent/retention disclosures, support/contact and approved hosting/worker operating cost.",
+        "Complete concrete release checklist, metadata/object restore evidence, kill switches, synthetic reviewer access and deployment package for owner review."
+      ],
+      "acceptance": [
+        "Candidate artifacts and claims match the full scoped feature manifest; required signatures/device/provider/legacy gates have current evidence.",
+        "Current policies are checked for the actual account/market and source dates are recorded.",
+        "No publication, real charges, store upload or paid provisioning occurs merely from release preparation."
+      ],
+      "checks": [
+        "Run current release preflight/Android artifact inspection, affected builds and candidate smoke/rehearsal checks.",
+        "Review version compatibility, backup restore, support ownership, operating budget and exact proposed rollout/rollback destinations."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/engineering/release-gates.md",
+        "docs/decisions/0057-public-release-preflight-and-first-publication.md"
+      ],
+      "commit": "chore(release): prepare the verified Version 2 candidate"
+    },
+    {
+      "id": "102",
+      "group": "v2-release",
+      "title": "Authorized Version 2 publication and live verification",
+      "dependsOn": ["101"],
+      "scope": ["docs/release", "infra/deployment", "docs/phase-reports", "support operations"],
+      "steps": [
+        "Obtain explicit owner authorization for the prepared candidate and actual targets; perform only that approved publication/rollout.",
+        "Verify production-safe synthetic account/content/sync/upload/push/AI/support paths and monitor initial error/rollback signals.",
+        "Record web availability, actual Android track/review/approval states, artifact identifiers and operator decisions separately."
+      ],
+      "acceptance": [
+        "Authorized intended destinations serve the verified build and scoped smoke checks pass with working rollback/support paths.",
+        "Store submission is not reported as approval; publication cannot waive feature or native iOS gates.",
+        "If authorization/approval/provider/device prerequisites are missing, the phase remains blocked with a concrete next step."
+      ],
+      "checks": [
+        "Run approved live synthetic smoke checks and record destination/build/provider/physical notification results.",
+        "Verify rollout/rollback, consent/feature switches and staffed incident/contact procedures."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "chore(launch): record the authorized Version 2 release"
+    },
+    {
+      "id": "103",
+      "group": "v2-release",
+      "title": "First Version 2 review and bounded follow-up plan",
+      "dependsOn": ["102"],
+      "scope": ["docs/roadmap", "docs/engineering", "docs/product"],
+      "steps": [
+        "Review the finite operating period agreed at release using consented content-free usage, support, crashes, latency, tour friction and measured cost.",
+        "Prioritize actual defects and unmet needs, compare results with the V2 acceptance targets and assign accountable owners.",
+        "Append any next phases without renumbering or retroactively changing evidence; finish the review rather than creating an endless agent task."
+      ],
+      "acceptance": [
+        "A dated review uses actual release observations and distinguishes conclusions from small-sample inference.",
+        "Next actions are bounded, evidence-linked and preserve privacy/release controls.",
+        "No autonomous recurring monitor or additional implementation starts without owner selection."
+      ],
+      "checks": [
+        "Reconcile support/incident/cost evidence and coverage findings with privacy policy.",
+        "Regenerate changed roadmap artifacts and run planning validation/diff review."
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/roadmap/v2/quality-and-release.md",
+        "docs/roadmap/v2/antigravity-handoff.md"
+      ],
+      "commit": "docs(product): review Version 2 outcomes and prioritize follow-up"
     }
   ],
   "featureCoverage": [
@@ -1896,6 +3246,63 @@
       "feature": "Global authorized search and offline coverage",
       "phases": ["33", "34"],
       "requirements": ["R-SEARCH"]
+    },
+    {
+      "feature": "V2 polished professional icons and desktop mobile design",
+      "phases": ["64", "67", "68", "69", "70", "71", "99"],
+      "requirements": ["R-QUALITY", "R-PERSONALIZE"]
+    },
+    {
+      "feature": "V2 simple personalized navigation and restricted developer settings",
+      "phases": ["65", "66", "69", "70", "71"],
+      "requirements": ["R-PERSONALIZE", "R-QUALITY"]
+    },
+    {
+      "feature": "V2 welcome authentication and full action-based tutorials",
+      "phases": ["72", "78", "79", "80", "81", "99"],
+      "requirements": ["R-ACCOUNT", "R-CAPTURE", "R-QUALITY"]
+    },
+    {
+      "feature": "V2 core and optional organizer function readiness",
+      "phases": ["65", "73", "74", "75", "76", "86", "87", "88", "89", "100"],
+      "requirements": [
+        "R-NOTE",
+        "R-TASK",
+        "R-ROUTINE",
+        "R-JOURNAL",
+        "R-ORG",
+        "R-KNOWLEDGE",
+        "R-SEARCH",
+        "R-FILE",
+        "R-AUDIO",
+        "R-CALENDAR",
+        "R-EXPENSE",
+        "R-SECTION",
+        "R-VAULT",
+        "R-DRIVE",
+        "R-ROOM",
+        "R-COMMERCIAL"
+      ]
+    },
+    {
+      "feature": "V2 Help feedback suggestions and verified developer contact",
+      "phases": ["78", "82", "83"],
+      "requirements": ["R-QUALITY"]
+    },
+    {
+      "feature": "V2 safe offline reopen upgrades and phone notification delivery",
+      "phases": ["77", "84", "85"],
+      "requirements": ["R-QUALITY", "R-REMINDER"]
+    },
+    {
+      "feature": "V2 grounded text voice creation and original Nori companion",
+      "phases": ["90", "91", "92", "93", "94", "95", "96"],
+      "requirements": ["R-AI", "R-AUDIO", "R-CAPTURE"]
+    },
+    {
+      "feature": "V2 measured security performance beta and authorized release",
+      "phases": ["97", "98", "99", "100", "101", "102", "103"],
+      "requirements": ["R-QUALITY", "R-ACCOUNT", "R-COMMERCIAL"]
     }
   ]
 }

@@ -69,4 +69,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0065: Mobile PWA usability for free preview](0065-mobile-pwa-usability-preview.md)
 - [ADR-0066: Offline shell and safe PWA updates](0066-offline-shell-and-safe-pwa-updates.md)
 
+- [ADR-0067: Version 2 planning before public launch closure](0067-version-two-planning-and-release-boundaries.md)
+
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

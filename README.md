@@ -27,24 +27,24 @@ A personal organizer for notes, routines, tasks, journals, files, and the things
 
 Daynori is a cross-platform personal organizer that brings together your notes, tasks, routines, journal entries, calendar events, and files into one unified workspace. Built as a monorepo with shared domain logic, it targets **Android** and **responsive web** first, with iOS gated behind a separate feasibility review.
 
-> **Status:** Active development — testing preview. The repository contains the complete web app, mobile app, API server, background worker, and shared packages. Phase 60 Android/web verification is in progress. See the [progress register](docs/roadmap/progress.json) for actual results.
+> **Status:** Active development — testing preview with open release gates. Web, mobile, API, worker, and shared-package implementations exist; their presence does not establish that every function is ready. The [Version 2 roadmap](docs/roadmap/v2/README.md) now defines the redesign, complete guided learning, support, mobile, notifications, and assistant work. Phase 64 is planning only; see the [progress register](docs/roadmap/progress.json) for actual results.
 
 ## Features
 
-| Module | Description |
-|--------|-------------|
-| 📝 **Notes** | Rich typed notes with formatting, autosave, offline drafts, and conflict resolution |
-| ✅ **Tasks** | Prioritized tasks with deadlines, subtasks, timezone-aware due dates, and smart views |
-| 🔄 **Routines** | Daily/weekly recurring checklists with per-occurrence tracking and completion history |
-| 📓 **Journal** | Personal journal entries with mood tracking, templates, and private reflection |
-| 📁 **Files** | File uploads organized within the workspace folder hierarchy |
-| 📅 **Calendar** | Events with timezone-aware scheduling integrated across modules |
-| 💰 **Expenses** | Expense tracking and categorization |
-| 🔐 **Vault** | Encrypted storage for sensitive content *(planned)* |
-| 🔍 **Search** | Cross-module full-text search with filters |
-| 🏠 **Sections** | User-composed dashboard views with customizable block layouts |
-| 🎙️ **Audio** | Voice capture and audio attachments |
-| 🔔 **Reminders** | Scheduled notifications across all item types |
+| Module           | Description                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| 📝 **Notes**     | Rich typed notes with formatting, autosave, offline drafts, and conflict resolution   |
+| ✅ **Tasks**     | Prioritized tasks with deadlines, subtasks, timezone-aware due dates, and smart views |
+| 🔄 **Routines**  | Daily/weekly recurring checklists with per-occurrence tracking and completion history |
+| 📓 **Journal**   | Personal journal entries with mood tracking, templates, and private reflection        |
+| 📁 **Files**     | File uploads organized within the workspace folder hierarchy                          |
+| 📅 **Calendar**  | Events with timezone-aware scheduling integrated across modules                       |
+| 💰 **Expenses**  | Expense tracking and categorization                                                   |
+| 🔐 **Vault**     | Encrypted storage for sensitive content _(planned)_                                   |
+| 🔍 **Search**    | Cross-module full-text search with filters                                            |
+| 🏠 **Sections**  | User-composed dashboard views with customizable block layouts                         |
+| 🎙️ **Audio**     | Voice capture and audio attachments                                                   |
+| 🔔 **Reminders** | Scheduled notifications across all item types                                         |
 
 ## Architecture
 
@@ -81,20 +81,20 @@ daynori-monorepo/
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Web** | Next.js 15, React 18, responsive PWA with service worker |
-| **Mobile** | Expo SDK 52, React Native 0.76, Android first |
-| **API** | Fastify modular monolith with route-level authorization |
-| **Database** | Supabase PostgreSQL with 74-entry managed schema |
-| **Auth** | Supabase Auth with restricted TLS runtime login |
-| **Storage** | Supabase private object storage |
-| **Offline** | SQLite (mobile), IndexedDB (web), custom sync protocol |
-| **Worker** | Durable background job processor |
-| **Language** | Strict TypeScript throughout |
-| **Monorepo** | pnpm workspaces |
-| **Testing** | Vitest — unit, contract, integration, security, performance |
-| **CI/CD** | GitHub Actions (CI + security workflows) |
+| Layer        | Technology                                                  |
+| ------------ | ----------------------------------------------------------- |
+| **Web**      | Next.js 15, React 18, responsive PWA with service worker    |
+| **Mobile**   | Expo SDK 52, React Native 0.76, Android first               |
+| **API**      | Fastify modular monolith with route-level authorization     |
+| **Database** | Supabase PostgreSQL with 74-entry managed schema            |
+| **Auth**     | Supabase Auth with restricted TLS runtime login             |
+| **Storage**  | Supabase private object storage                             |
+| **Offline**  | SQLite (mobile), IndexedDB (web), custom sync protocol      |
+| **Worker**   | Durable background job processor                            |
+| **Language** | Strict TypeScript throughout                                |
+| **Monorepo** | pnpm workspaces                                             |
+| **Testing**  | Vitest — unit, contract, integration, security, performance |
+| **CI/CD**    | GitHub Actions (CI + security workflows)                    |
 
 ## Getting Started
 
@@ -102,7 +102,7 @@ daynori-monorepo/
 
 - **Node.js** ≥ 24.21.0
 - **pnpm** ≥ 9.0.0
-- **Android Studio** *(for mobile development)*
+- **Android Studio** _(for mobile development)_
 
 ### Installation
 
@@ -151,30 +151,30 @@ node scripts/validate-planning.mjs   # Validate planning and documentation
 
 A **$0 testing preview** is available:
 
-| Platform | Link |
-|----------|------|
-| 🌐 Web | [daynori-web-preview.onrender.com](https://daynori-web-preview.onrender.com) |
-| 📡 API | [daynori-api-preview.onrender.com/v1/ready](https://daynori-api-preview.onrender.com/v1/ready) |
-| 📱 Android | [Download APK](https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/daynori-preview-arm64.apk) *(ARM64, Android 7+)* |
+| Platform   | Link                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 🌐 Web     | [daynori-web-preview.onrender.com](https://daynori-web-preview.onrender.com)                                                             |
+| 📡 API     | [daynori-api-preview.onrender.com/v1/ready](https://daynori-api-preview.onrender.com/v1/ready)                                           |
+| 📱 Android | [Download APK](https://github.com/mkamrul9/dayNori/releases/download/preview-2026-10-22/daynori-preview-arm64.apk) _(ARM64, Android 7+)_ |
 
 > The free-tier preview excludes uploads/audio attachments and reminder delivery, with visible in-app limits.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Documentation Index](docs/README.md) | Start here |
-| [Product Requirements](docs/product/requirements.md) | Acceptance criteria for every module |
-| [System Architecture](docs/architecture/system-overview.md) | System design and component boundaries |
-| [Design System](docs/design/design-system.md) | Visual direction, palette, and typography |
-| [Roadmap](docs/roadmap/README.md) | Phased delivery plan |
-| [Decision Records](docs/decisions/README.md) | Architectural tradeoffs and rationale |
-| [Contributing](CONTRIBUTING.md) | Work cycle and commit format |
-| [Interactive Blueprint](docs/blueprint.html) | Explorable architecture diagram *(open in browser)* |
+| Document                                                    | Description                                         |
+| ----------------------------------------------------------- | --------------------------------------------------- |
+| [Documentation Index](docs/README.md)                       | Start here                                          |
+| [Product Requirements](docs/product/requirements.md)        | Acceptance criteria for every module                |
+| [System Architecture](docs/architecture/system-overview.md) | System design and component boundaries              |
+| [Design System](docs/design/design-system.md)               | Visual direction, palette, and typography           |
+| [Roadmap](docs/roadmap/README.md)                           | Phased delivery plan                                |
+| [Decision Records](docs/decisions/README.md)                | Architectural tradeoffs and rationale               |
+| [Contributing](CONTRIBUTING.md)                             | Work cycle and commit format                        |
+| [Interactive Blueprint](docs/blueprint.html)                | Explorable architecture diagram _(open in browser)_ |
 
 ## Roadmap
 
-Daynori follows a phased delivery model. Each phase has bounded scope, dependencies, acceptance checks, and produces one documented commit after validation. The project is currently at **Phase 60** with 149 commits across 60+ completed phases.
+Daynori follows a phased delivery model. Each phase has bounded scope, dependencies, acceptance checks, and produces one documented commit after validation. The original **00–63** plan is preserved, including blocked release gates. The [detailed Version 2 roadmap](docs/roadmap/v2/README.md) appends **64–103**; Phase 64 is planning and Phase 65 is the next implementation phase when selected by the owner.
 
 Key phase groups:
 
@@ -183,7 +183,7 @@ Key phase groups:
 - **Phases 16–26** — Core modules (notes, tasks, routines, journal, files, calendar)
 - **Phases 27–33** — Reminders, personalization, search, knowledge base
 - **Phases 34–43** — Quality, accounts, expenses, audio, sections
-- **Phases 44–56** — Vault, Drive integration, shared rooms, AI *(planned)*
+- **Phases 44–56** — Vault, Drive integration, shared rooms, AI _(planned)_
 - **Phases 57–60** — Commercial readiness, release verification
 
 See the full [roadmap](docs/roadmap/README.md) and [progress register](docs/roadmap/progress.json).

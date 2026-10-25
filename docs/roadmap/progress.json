@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-22",
-  "activePhase": "60",
-  "nextPhase": null,
-  "schedulingDecision": "Phase 60 preview: session keep-on-cold-start, Journal unsaved guard, first-login tour any-route, SW v7 public static warm, overflow-aware shots. Rooms/chat production-off. Owner sign-in for kamrul@/shahrin@ evidence; physical Android PWA pending. Full release gates open. Phases 61–62 unchanged. No Phase 63.",
+  "updatedAt": "2026-10-25",
+  "activePhase": null,
+  "nextPhase": "65",
+  "schedulingDecision": "Owner selected documentation-only V2 Phase 64, complete after planning validation. Phase 65 is next eligible and unstarted; implement only when selected. V1 Phase 60 and all existing blocked/deferred states remain unchanged. Phase 63 post-launch review is not claimed complete; ADR 0067 permits independent V2 planning.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
   "phases": [
     {
@@ -380,6 +380,167 @@
     },
     {
       "id": "63",
+      "status": "planned"
+    },
+    {
+      "id": "64",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-64.md"
+    },
+    {
+      "id": "65",
+      "status": "planned"
+    },
+    {
+      "id": "66",
+      "status": "planned"
+    },
+    {
+      "id": "67",
+      "status": "planned"
+    },
+    {
+      "id": "68",
+      "status": "planned"
+    },
+    {
+      "id": "69",
+      "status": "planned"
+    },
+    {
+      "id": "70",
+      "status": "planned"
+    },
+    {
+      "id": "71",
+      "status": "planned"
+    },
+    {
+      "id": "72",
+      "status": "planned"
+    },
+    {
+      "id": "73",
+      "status": "planned"
+    },
+    {
+      "id": "74",
+      "status": "planned"
+    },
+    {
+      "id": "75",
+      "status": "planned"
+    },
+    {
+      "id": "76",
+      "status": "planned"
+    },
+    {
+      "id": "77",
+      "status": "planned"
+    },
+    {
+      "id": "78",
+      "status": "planned"
+    },
+    {
+      "id": "79",
+      "status": "planned"
+    },
+    {
+      "id": "80",
+      "status": "planned"
+    },
+    {
+      "id": "81",
+      "status": "planned"
+    },
+    {
+      "id": "82",
+      "status": "planned"
+    },
+    {
+      "id": "83",
+      "status": "planned"
+    },
+    {
+      "id": "84",
+      "status": "planned"
+    },
+    {
+      "id": "85",
+      "status": "planned"
+    },
+    {
+      "id": "86",
+      "status": "planned"
+    },
+    {
+      "id": "87",
+      "status": "planned"
+    },
+    {
+      "id": "88",
+      "status": "planned"
+    },
+    {
+      "id": "89",
+      "status": "planned"
+    },
+    {
+      "id": "90",
+      "status": "planned"
+    },
+    {
+      "id": "91",
+      "status": "planned"
+    },
+    {
+      "id": "92",
+      "status": "planned"
+    },
+    {
+      "id": "93",
+      "status": "planned"
+    },
+    {
+      "id": "94",
+      "status": "planned"
+    },
+    {
+      "id": "95",
+      "status": "planned"
+    },
+    {
+      "id": "96",
+      "status": "planned"
+    },
+    {
+      "id": "97",
+      "status": "planned"
+    },
+    {
+      "id": "98",
+      "status": "planned"
+    },
+    {
+      "id": "99",
+      "status": "planned"
+    },
+    {
+      "id": "100",
+      "status": "planned"
+    },
+    {
+      "id": "101",
+      "status": "planned"
+    },
+    {
+      "id": "102",
+      "status": "planned"
+    },
+    {
+      "id": "103",
       "status": "planned"
     }
   ]

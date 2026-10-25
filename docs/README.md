@@ -21,6 +21,7 @@ Read [the product brief](product/product-brief.md), [requirements](product/requi
 
 ## Delivery and verification
 
+- [Version 2 roadmap](roadmap/v2/README.md): complete redesign, mobile layouts, action-based tours, feedback/support, notifications, and grounded text/voice assistant; planning first, then individually selected phases 65–103.
 - [Roadmap and feature traceability](roadmap/README.md), [canonical machine-readable plan](roadmap/plan.json), and [progress](roadmap/progress.json).
 - [Repository ownership](engineering/repository-layout.md), [contributor handoff](engineering/handoff.md), and [quality strategy](engineering/quality.md).
 - [Release gates](engineering/release-gates.md), [risks and open decisions](engineering/risks-and-decisions.md), and [official source register](research/sources.md).
