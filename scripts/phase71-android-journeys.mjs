@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
- * Phase 71 native core journeys on an explicit serial.
- * Uses synthetic titles; records precise auth/workspace blockers without fabricating passes.
+ * Phase 71 native journeys — stable testIDs, node-scoped XML parsing, settings restore.
  *
- * Env: DAYNORI_ANDROID_SERIAL (required), ANDROID_HOME / ANDROID_SDK_ROOT
+ * Input method: adb `input text` (ASCII letters/digits/space/._- only). Non-ASCII
+ * (e.g. Bangla) is marked untested — characters are not silently stripped to claim coverage.
+ *
+ * Env:
+ *   DAYNORI_ANDROID_SERIAL (required)
+ *   ANDROID_HOME / ANDROID_SDK_ROOT
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -26,11 +30,10 @@ if (!serial) {
 }
 
 const stamp = Date.now().toString(36);
-const NOTE_TITLE = `P71 Note ${stamp}`;
-const TASK_TITLE = `P71 Task ${stamp}`;
-const ROUTINE_TITLE = `P71 Routine ${stamp}`;
-const JOURNAL_TITLE = `P71 Journal ${stamp}`;
-const DRAFT_TITLE = `P71 Draft ${stamp}`;
+const NOTE_TITLE = `P71Note${stamp}`;
+const TASK_TITLE = `P71Task${stamp}`;
+const ROUTINE_TITLE = `P71Routine${stamp}`;
+const JOURNAL_TITLE = `P71Journal${stamp}`;
 
 function adbArgs(args) {
   return ['-s', serial, ...args];
@@ -53,55 +56,43 @@ function dumpUi(name) {
   fs.writeFileSync(path.join(outDir, name), xml);
   return xml;
 }
-function boundsForResource(xml, resourceId) {
-  const re = new RegExp(
-    `resource-id="${resourceId}"[\\s\\S]{0,400}?bounds="\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]"`
-  );
+
+/** Parse one uiautomator node by resource-id (attributes scoped to that node only). */
+function nodeByResourceId(xml, resourceId) {
+  const re = new RegExp(`<node\\b(?=[^>]*\\bresource-id="${resourceId}")[^>]*>`, 'i');
   const m = xml.match(re);
   if (!m) return null;
+  const tag = m[0];
+  const attr = (name) => {
+    const am = tag.match(new RegExp(`\\b${name}="([^"]*)"`));
+    return am ? am[1] : '';
+  };
+  const bounds = attr('bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
+  if (!bounds) return null;
+  const x1 = Number(bounds[1]);
+  const y1 = Number(bounds[2]);
+  const x2 = Number(bounds[3]);
+  const y2 = Number(bounds[4]);
   return {
-    midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
-    midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+    resourceId,
+    text: attr('text'),
+    contentDesc: attr('content-desc'),
+    selected: attr('selected') === 'true',
+    clickable: attr('clickable') === 'true',
+    className: attr('class'),
+    midX: Math.floor((x1 + x2) / 2),
+    midY: Math.floor((y1 + y2) / 2),
+    bounds: { x1, y1, x2, y2 },
   };
 }
-function tapResource(xml, resourceId) {
-  const b = boundsForResource(xml, resourceId);
-  if (!b) return false;
-  runAdb(['shell', 'input', 'tap', String(b.midX), String(b.midY)]);
+
+function tapNode(node) {
+  if (!node) return false;
+  runAdb(['shell', 'input', 'tap', String(node.midX), String(node.midY)]);
   return true;
 }
-function tapDesc(xml, descFragment) {
-  const re = new RegExp(
-    `content-desc="([^"]*${descFragment}[^"]*)"[\\s\\S]{0,200}?bounds="\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]"`,
-    'i'
-  );
-  const m = xml.match(re);
-  if (!m) return false;
-  runAdb([
-    'shell',
-    'input',
-    'tap',
-    String(Math.floor((Number(m[2]) + Number(m[4])) / 2)),
-    String(Math.floor((Number(m[3]) + Number(m[5])) / 2)),
-  ]);
-  return true;
-}
-function tapText(xml, text) {
-  const re = new RegExp(
-    `text="${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[\\s\\S]{0,200}?bounds="\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]"`
-  );
-  const m = xml.match(re);
-  if (!m) return false;
-  runAdb([
-    'shell',
-    'input',
-    'tap',
-    String(Math.floor((Number(m[1]) + Number(m[3])) / 2)),
-    String(Math.floor((Number(m[2]) + Number(m[4])) / 2)),
-  ]);
-  return true;
-}
-function waitFor(predicate, { dumps = [], timeoutMs = 10000, intervalMs = 500 } = {}) {
+
+function waitFor(predicate, { dumps = [], timeoutMs = 12000, intervalMs = 500 } = {}) {
   const started = Date.now();
   let lastXml = '';
   let i = 0;
@@ -113,9 +104,48 @@ function waitFor(predicate, { dumps = [], timeoutMs = 10000, intervalMs = 500 } 
   }
   return { ok: false, xml: lastXml };
 }
-function typeText(text) {
-  // adb input text: spaces as %s; limited charset
-  const encoded = text.replace(/ /g, '%s').replace(/[^a-zA-Z0-9%s._-]/g, '');
+
+function readSecure(key) {
+  try {
+    return runAdb(['shell', 'settings', 'get', 'secure', key]).trim();
+  } catch {
+    return '';
+  }
+}
+function readSystem(key) {
+  try {
+    return runAdb(['shell', 'settings', 'get', 'system', key]).trim();
+  } catch {
+    return '';
+  }
+}
+function writeSecure(key, value) {
+  if (value === '' || value === 'null' || value == null) {
+    try {
+      runAdb(['shell', 'cmd', 'settings', 'delete', 'secure', key]);
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  runAdb(['shell', 'settings', 'put', 'secure', key, value]);
+}
+function writeSystem(key, value) {
+  if (value === '' || value === 'null' || value == null) return;
+  runAdb(['shell', 'settings', 'put', 'system', key, value]);
+}
+
+/** adb input text: only ASCII safe for this automation path. */
+function assertAsciiInput(text) {
+  if (!/^[A-Za-z0-9 ._-]+$/.test(text)) {
+    throw new Error(
+      `Unsupported input for adb text path (ASCII only): reject non-ASCII rather than strip. Got: ${text}`
+    );
+  }
+}
+function typeAscii(text) {
+  assertAsciiInput(text);
+  const encoded = text.replace(/ /g, '%s');
   runAdb(['shell', 'input', 'text', encoded]);
 }
 
@@ -131,7 +161,7 @@ function isDaynori(xml) {
 
 function ensureApp() {
   let xml = dumpUi('ensure-check.xml');
-  if (isDaynori(xml) && /header-settings-btn|Today tab/i.test(xml)) return xml;
+  if (isDaynori(xml) && nodeByResourceId(xml, 'header-settings-btn')) return xml;
   runAdb([
     'shell',
     'am',
@@ -143,131 +173,225 @@ function ensureApp() {
     'com.daynori.app',
   ]);
   sleep(8000);
-  return waitFor((x) => isDaynori(x) && /header-settings-btn/i.test(x), {
+  const ready = waitFor((x) => isDaynori(x) && Boolean(nodeByResourceId(x, 'header-settings-btn')), {
     dumps: ['ensure-ready.xml'],
     timeoutMs: 25000,
-  }).xml;
+  });
+  return ready.xml;
 }
 
-function openCreate(typeKey) {
+/**
+ * Create flow with distinct testIDs:
+ * create-type-{kind}, create-title-input, create-submit-btn
+ */
+function createItem(kind, title) {
   let xml = ensureApp();
-  if (!tapResource(xml, 'header-create-btn')) throw new Error('create header missing');
-  const opened = waitFor((x) => /create-sheet|Create New Item|content-desc="Dismiss sheet"/i.test(x), {
-    dumps: ['create-open.xml'],
-    timeoutMs: 8000,
+  const createBtn = nodeByResourceId(xml, 'header-create-btn');
+  if (!tapNode(createBtn)) throw new Error('header-create-btn missing');
+  const opened = waitFor((x) => Boolean(nodeByResourceId(x, 'create-sheet') || nodeByResourceId(x, `create-type-${kind}`)), {
+    dumps: [`create-open-${kind}.xml`],
+    timeoutMs: 10000,
   });
   if (!opened.ok) throw new Error('create sheet did not open');
   xml = opened.xml;
-  if (typeKey && !tapResource(xml, `create-type-${typeKey}`)) {
-    tapText(xml, typeKey.charAt(0).toUpperCase() + typeKey.slice(1));
+
+  const typeNode = nodeByResourceId(xml, `create-type-${kind}`);
+  if (!typeNode) throw new Error(`create-type-${kind} missing`);
+  if (!typeNode.selected) {
+    if (!tapNode(typeNode)) throw new Error(`could not tap create-type-${kind}`);
+    sleep(500);
+    xml = dumpUi(`create-typed-${kind}.xml`);
   }
+  const typeAfter = nodeByResourceId(xml, `create-type-${kind}`);
+  if (!typeAfter?.selected) {
+    // Some dumps place selected on the Pressable; require resource presence at minimum
+    record(`create-${kind}-type-selected`, false, `type chip not selected after tap`, {
+      contentDesc: typeAfter?.contentDesc,
+    });
+  } else {
+    record(`create-${kind}-type-selected`, true, `create-type-${kind} selected=true`);
+  }
+
+  const titleField = nodeByResourceId(xml, 'create-title-input');
+  if (!titleField) throw new Error('create-title-input missing');
+  if (!tapNode(titleField)) throw new Error('title field not tappable');
   sleep(400);
-  return dumpUi('create-typed.xml');
+  // Clear then type
+  runAdb(['shell', 'input', 'keyevent', '123']);
+  for (let i = 0; i < 40; i += 1) runAdb(['shell', 'input', 'keyevent', '67']);
+  typeAscii(title);
+  sleep(500);
+  xml = dumpUi(`create-title-${kind}.xml`);
+  const titleAfter = nodeByResourceId(xml, 'create-title-input');
+  const titleOk = titleAfter && titleAfter.text.includes(title);
+  record(`create-${kind}-title-value`, Boolean(titleOk), titleOk ? `title field contains ${title}` : `title mismatch text="${titleAfter?.text ?? ''}"`, {
+    expected: title,
+    observed: titleAfter?.text ?? null,
+  });
+
+  const submit = nodeByResourceId(xml, 'create-submit-btn');
+  if (!submit) throw new Error('create-submit-btn missing');
+  // Guard: must not be a type chip
+  if (submit.resourceId.startsWith('create-type-')) throw new Error('submit resolved to type chip');
+  if (!tapNode(submit)) throw new Error('submit not delivered');
+  record(`create-${kind}-submit-delivered`, true, 'tapped create-submit-btn', {
+    contentDesc: submit.contentDesc,
+  });
+
+  sleep(1500);
+  xml = dumpUi(`create-after-submit-${kind}.xml`);
+  screencap(`create-after-submit-${kind}.png`);
+
+  const saveError = /Could not save|Sign in and open your workspace|Please provide a title/i.test(xml);
+  const sheetStillOpen = Boolean(nodeByResourceId(xml, 'create-sheet') || nodeByResourceId(xml, 'create-submit-btn'));
+  if (saveError) {
+    record(`create-${kind}-save`, false, 'Save blocked (auth/workspace or validation); draft may be kept', {
+      layer: 'local-persistence',
+      blocked: true,
+    });
+    // Dismiss sheet
+    const cancel = nodeByResourceId(xml, 'create-cancel-btn');
+    if (cancel) tapNode(cancel);
+    else runAdb(['shell', 'input', 'keyevent', '4']);
+    sleep(600);
+    return { saved: false, xml, title };
+  }
+
+  if (sheetStillOpen) {
+    record(`create-${kind}-save`, false, 'Create sheet still open after submit — save not confirmed', {
+      blocked: false,
+    });
+    return { saved: false, xml, title };
+  }
+
+  // Destination by kind (stronger than "Plan exists somewhere")
+  let destOk = false;
+  if (kind === 'task' || kind === 'routine') {
+    const plan = nodeByResourceId(xml, 'nav-tab-plan');
+    destOk = Boolean(plan?.selected) && xml.includes(title);
+  } else if (kind === 'journal') {
+    const journal = nodeByResourceId(xml, 'nav-tab-journal');
+    destOk = (Boolean(journal?.selected) || /text="Journal"/i.test(xml)) && xml.includes(title);
+  } else if (kind === 'note') {
+    destOk = xml.includes(title);
+  }
+  record(
+    `create-${kind}-save`,
+    destOk,
+    destOk
+      ? `Save closed sheet; title visible in destination UI (local UI identity; not yet reopen proof)`
+      : `Post-save destination/title not confirmed for ${kind}`,
+    { title, layer: 'local-ui-after-save' }
+  );
+  return { saved: destOk, xml, title };
 }
 
-function fillTitleAndSubmit(title) {
-  let xml = dumpUi('before-title.xml');
-  // Focus first EditText
-  const edit = xml.match(
-    /class="android.widget.EditText"[\s\S]{0,500}?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/
-  );
-  if (!edit) throw new Error('title field missing');
-  runAdb([
-    'shell',
-    'input',
-    'tap',
-    String(Math.floor((Number(edit[1]) + Number(edit[3])) / 2)),
-    String(Math.floor((Number(edit[2]) + Number(edit[4])) / 2)),
-  ]);
-  sleep(400);
-  runAdb(['shell', 'input', 'keyevent', '123']); // move end
-  typeText(title);
-  sleep(400);
-  xml = dumpUi('after-title.xml');
-  const created =
-    tapDesc(xml, 'Create Note') ||
-    tapDesc(xml, 'Create Task') ||
-    tapDesc(xml, 'Create Routine') ||
-    tapDesc(xml, 'Create Journal') ||
-    tapText(xml, 'Create Note') ||
-    tapText(xml, 'Create Task') ||
-    tapText(xml, 'Create Routine') ||
-    tapText(xml, 'Create Journal');
-  if (!created) {
-    // Primary button near bottom of sheet
-    const btn = xml.match(
-      /content-desc="Create [^"]+"[\s\S]{0,120}?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
-    );
-    if (btn) {
-      runAdb([
-        'shell',
-        'input',
-        'tap',
-        String(Math.floor((Number(btn[1]) + Number(btn[3])) / 2)),
-        String(Math.floor((Number(btn[2]) + Number(btn[4])) / 2)),
-      ]);
-    } else {
-      throw new Error('Create submit control missing');
+function reopenByTitle(title, { tabResourceId, dumpsPrefix }) {
+  let xml = ensureApp();
+  if (tabResourceId) {
+    const tab = nodeByResourceId(xml, tabResourceId);
+    if (tab) {
+      tapNode(tab);
+      sleep(1000);
+      xml = dumpUi(`${dumpsPrefix}-tab.xml`);
     }
   }
+  // Prefer content-desc/text exact title node — crude but identity-bearing for list rows
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(
+    `<node\\b(?=[^>]*\\b(?:text|content-desc)="${escaped}")[^>]*bounds="\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]"`,
+    'i'
+  );
+  const m = xml.match(re);
+  if (!m) {
+    record(`${dumpsPrefix}-reopen`, false, `No list node with exact title ${title}`);
+    return { ok: false, xml };
+  }
+  const midX = Math.floor((Number(m[1]) + Number(m[3])) / 2);
+  const midY = Math.floor((Number(m[2]) + Number(m[4])) / 2);
+  runAdb(['shell', 'input', 'tap', String(midX), String(midY)]);
   sleep(1200);
-  return dumpUi('after-submit.xml');
+  xml = dumpUi(`${dumpsPrefix}-opened.xml`);
+  screencap(`${dumpsPrefix}-opened.png`);
+  const ok = xml.includes(title);
+  record(`${dumpsPrefix}-reopen`, ok, ok ? `Reopened surface showing ${title}` : `Title missing after tap`);
+  return { ok, xml };
+}
+
+const snapshot = {
+  accessibility_enabled: readSecure('accessibility_enabled'),
+  enabled_accessibility_services: readSecure('enabled_accessibility_services'),
+  touch_exploration_enabled: readSecure('touch_exploration_enabled'),
+  font_scale: readSystem('font_scale'),
+  user_rotation: readSystem('user_rotation'),
+  accelerometer_rotation: readSystem('accelerometer_rotation'),
+};
+
+function restoreDeviceSettings() {
+  writeSecure('accessibility_enabled', snapshot.accessibility_enabled);
+  writeSecure('enabled_accessibility_services', snapshot.enabled_accessibility_services);
+  writeSecure('touch_exploration_enabled', snapshot.touch_exploration_enabled);
+  writeSystem('font_scale', snapshot.font_scale || '1.0');
+  writeSystem('user_rotation', snapshot.user_rotation || '0');
+  writeSystem('accelerometer_rotation', snapshot.accelerometer_rotation || '1');
 }
 
 try {
-  runAdb(['shell', 'settings', 'put', 'secure', 'accessibility_enabled', '0']);
-  runAdb(['shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', '']);
-  runAdb(['shell', 'settings', 'put', 'secure', 'touch_exploration_enabled', '0']);
-} catch {
-  /* best-effort */
-}
+  writeSecure('accessibility_enabled', '0');
+  writeSecure('enabled_accessibility_services', '');
+  writeSecure('touch_exploration_enabled', '0');
 
-try {
   let xml = ensureApp();
   screencap('00-start.png');
 
-  // --- Auth / workspace prerequisite probe ---
-  if (!tapResource(xml, 'header-settings-btn')) {
+  // --- Auth / workspace prerequisite (ordinary Account group; no operator synthetic login) ---
+  if (!tapNode(nodeByResourceId(xml, 'header-settings-btn'))) {
     record('auth-probe', false, 'settings header missing');
   } else {
     const hub = waitFor((x) => /settings-hub|Choose a group/i.test(x), {
       dumps: ['auth-hub.xml'],
       timeoutMs: 8000,
     });
-    record('settings-hub-open', hub.ok, hub.ok ? 'hub open for auth probe' : 'hub missing');
-    if (hub.ok && (tapResource(hub.xml, 'settings-group-account') || tapDesc(hub.xml, 'Account'))) {
-      const acct = waitFor(
-        (x) => /Sign in|Sign out|synthetic|workspace|Account/i.test(x),
-        { dumps: ['auth-account.xml'], timeoutMs: 8000 }
-      );
-      const hasWorkspace = /workspace|Workspace ID|Personal workspace/i.test(acct.xml);
-      const signedIn = /Sign out|Sign Out|Log out/i.test(acct.xml);
-      const ordinaryDenial = /Developer review tools stay on restricted|ordinary|restricted operator/i.test(
+    record('settings-hub-open', hub.ok, hub.ok ? 'hub open' : 'hub missing');
+    if (hub.ok && tapNode(nodeByResourceId(hub.xml, 'settings-group-account'))) {
+      const acct = waitFor((x) => /Sign in|Sign out|Account|workspace/i.test(x), {
+        dumps: ['auth-account.xml'],
+        timeoutMs: 8000,
+      });
+      const signedIn = /Sign out|Sign Out/i.test(acct.xml);
+      const workspaceHint = /Workspace|workspace/i.test(acct.xml);
+      const ordinaryDenial = /Developer review tools stay on restricted|restricted operator/i.test(
         acct.xml
       );
       record(
         'auth-state',
         true,
-        `signedIn=${signedIn}; workspaceHints=${hasWorkspace}; ordinaryDevDenialCopy=${ordinaryDenial}`,
-        { signedIn, hasWorkspace, ordinaryDenial }
+        `signedIn=${signedIn}; workspaceHints=${workspaceHint}; ordinaryDevDenialCopy=${ordinaryDenial}`,
+        {
+          signedIn,
+          workspaceHint,
+          ordinaryDenial,
+          evidenceLayer: {
+            localSyntheticAuth: false,
+            realProviderAuth: signedIn ? 'unknown-provider-session' : 'none',
+            localPersistence: 'requires-workspace',
+            serverSync: 'not-probed',
+          },
+        }
       );
-      // Ordinary-user developer denial: gallery/harness labels absent for non-operator
-      const hasGallery = /Open Component Gallery|synthetic vault harness/i.test(acct.xml);
-      record(
-        'ordinary-developer-denial-settings',
-        !hasGallery || ordinaryDenial,
-        hasGallery
-          ? 'Developer gallery/harness visible (operator or leak)'
-          : 'No gallery/harness on Account group for current user'
-      );
-      if (tapDesc(acct.xml, 'Log in synthetic') || tapDesc(acct.xml, 'Sign In Synthetic')) {
-        sleep(1500);
-        record('synthetic-login-tap', true, 'tapped Sign In Synthetic (may open Account sheet)');
+      if (!signedIn) {
+        record(
+          'auth-workspace-prerequisite',
+          false,
+          'Not authenticated in Account settings. Ordinary-user save journeys blocked until Account sign-in + workspace membership against reachable API/Auth (127.0.0.1 must be adb reverse / 10.0.2.2). Operator synthetic-login is not used for ordinary acceptance.'
+        );
       } else {
         record(
-          'synthetic-login-tap',
-          false,
-          'Sign In Synthetic not available (operator-gated or already signed in) — not a production bypass'
+          'auth-workspace-prerequisite',
+          workspaceHint,
+          workspaceHint
+            ? 'Signed in with workspace hints present (confirm userId/workspaceId via app Account UI)'
+            : 'Signed in but workspace membership not evident in Account UI'
         );
       }
       runAdb(['shell', 'input', 'keyevent', '4']);
@@ -277,113 +401,35 @@ try {
     sleep(600);
   }
 
-  xml = ensureApp();
+  // Create matrix — results provisional without reopen identity when auth blocked
+  const note = createItem('note', NOTE_TITLE);
+  if (note.saved) reopenByTitle(NOTE_TITLE, { tabResourceId: 'nav-tab-library', dumpsPrefix: 'note' });
 
-  // --- Create note ---
-  try {
-    openCreate('note');
-    const after = fillTitleAndSubmit(NOTE_TITLE);
-    const saved =
-      !/Could not save|Sign in and open your workspace|Please provide a title/i.test(after) &&
-      (/Library|text="Library"|Workspace/i.test(after) || !/create-sheet|Create New Item/i.test(after));
-    const blocked = /Could not save|Sign in and open your workspace/i.test(after);
-    screencap('01-note-submit.png');
-    record(
-      'create-note',
-      saved && !blocked,
-      blocked
-        ? 'Blocked: workspace/auth required; draft kept (expected without membership)'
-        : saved
-          ? `Note submit left create sheet; title=${NOTE_TITLE}`
-          : 'Note create postcondition unclear',
-      { title: NOTE_TITLE, blocked }
-    );
-    if (blocked) runAdb(['shell', 'input', 'keyevent', '4']);
-  } catch (e) {
-    record('create-note', false, String(e.message || e));
+  const task = createItem('task', TASK_TITLE);
+  if (task.saved) reopenByTitle(TASK_TITLE, { tabResourceId: 'nav-tab-plan', dumpsPrefix: 'task' });
+
+  const routine = createItem('routine', ROUTINE_TITLE);
+  if (routine.saved) {
+    reopenByTitle(ROUTINE_TITLE, { tabResourceId: 'nav-tab-plan', dumpsPrefix: 'routine' });
   }
 
-  xml = ensureApp();
-
-  // --- Create task ---
-  try {
-    openCreate('task');
-    const after = fillTitleAndSubmit(TASK_TITLE);
-    const blocked = /Could not save|Sign in and open your workspace/i.test(after);
-    const onPlan =
-      /resource-id="nav-tab-plan"[^>]*selected="true"|content-desc="Plan tab"[^>]*selected="true"/i.test(
-        after
-      ) || /text="Plan"/i.test(after);
-    screencap('02-task-submit.png');
-    record(
-      'create-task',
-      !blocked && (onPlan || new RegExp(TASK_TITLE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(after)),
-      blocked
-        ? 'Blocked: workspace/auth required for task save'
-        : `Task flow title=${TASK_TITLE}; onPlan=${onPlan}`,
-      { title: TASK_TITLE, blocked }
-    );
-    if (blocked) runAdb(['shell', 'input', 'keyevent', '4']);
-  } catch (e) {
-    record('create-task', false, String(e.message || e));
+  const journal = createItem('journal', JOURNAL_TITLE);
+  if (journal.saved) {
+    reopenByTitle(JOURNAL_TITLE, { tabResourceId: 'nav-tab-journal', dumpsPrefix: 'journal' });
   }
 
+  // Search — only meaningful if a title was saved
   xml = ensureApp();
-
-  // --- Create routine ---
-  try {
-    openCreate('routine');
-    const after = fillTitleAndSubmit(ROUTINE_TITLE);
-    const blocked = /Could not save|Sign in and open your workspace/i.test(after);
-    screencap('03-routine-submit.png');
-    record(
-      'create-routine',
-      !blocked,
-      blocked
-        ? 'Blocked: workspace/auth required for routine save'
-        : `Routine submit title=${ROUTINE_TITLE}`,
-      { title: ROUTINE_TITLE, blocked }
-    );
-    if (blocked) runAdb(['shell', 'input', 'keyevent', '4']);
-  } catch (e) {
-    record('create-routine', false, String(e.message || e));
-  }
-
-  xml = ensureApp();
-
-  // --- Journal create ---
-  try {
-    openCreate('journal');
-    const after = fillTitleAndSubmit(JOURNAL_TITLE);
-    const blocked = /Could not save|Sign in and open your workspace/i.test(after);
-    screencap('04-journal-submit.png');
-    record(
-      'create-journal',
-      !blocked,
-      blocked
-        ? 'Blocked: workspace/auth required for journal save'
-        : `Journal submit title=${JOURNAL_TITLE}`,
-      { title: JOURNAL_TITLE, blocked }
-    );
-    if (blocked) runAdb(['shell', 'input', 'keyevent', '4']);
-  } catch (e) {
-    record('create-journal', false, String(e.message || e));
-  }
-
-  xml = ensureApp();
-
-  // --- Search surface ---
-  try {
-    if (!tapResource(xml, 'header-search-btn')) throw new Error('search header missing');
-    const search = waitFor(
-      (x) => /content-desc="Dismiss sheet"|class="android.widget.EditText"/i.test(x),
-      { dumps: ['search-open.xml'], timeoutMs: 8000 }
-    );
-    screencap('05-search.png');
-    record('search-open', search.ok, search.ok ? 'Search sheet opened via header' : 'Search failed');
-    if (search.ok) {
+  if (tapNode(nodeByResourceId(xml, 'header-search-btn'))) {
+    const search = waitFor((x) => Boolean(nodeByResourceId(x, 'search-sheet')) || /Dismiss sheet/i.test(x), {
+      dumps: ['search-open.xml'],
+      timeoutMs: 8000,
+    });
+    record('search-open', search.ok, search.ok ? 'search sheet via header' : 'search failed');
+    if (search.ok && note.saved) {
+      // Focus first EditText in search sheet via class (search may lack testID)
       const edit = search.xml.match(
-        /class="android.widget.EditText"[\s\S]{0,500}?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/
+        /<node\b(?=[^>]*class="android.widget.EditText")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/
       );
       if (edit) {
         runAdb([
@@ -393,159 +439,26 @@ try {
           String(Math.floor((Number(edit[1]) + Number(edit[3])) / 2)),
           String(Math.floor((Number(edit[2]) + Number(edit[4])) / 2)),
         ]);
-        typeText(NOTE_TITLE.split(' ')[0] || 'P71');
-        sleep(1000);
+        typeAscii(NOTE_TITLE);
+        sleep(1200);
         const results = dumpUi('search-results.xml');
+        const hit = results.includes(NOTE_TITLE);
         record(
-          'search-query',
-          true,
-          /P71|No results|result|note|task/i.test(results)
-            ? 'Search accepted query (result identity depends on prior saves)'
-            : 'Search UI after query captured'
+          'search-canonical',
+          hit,
+          hit ? `Search results include exact title ${NOTE_TITLE}` : 'Exact title not in search results'
         );
       }
-    }
-    runAdb(['shell', 'input', 'keyevent', '4']);
-    sleep(500);
-  } catch (e) {
-    record('search-open', false, String(e.message || e));
-  }
-
-  xml = ensureApp();
-
-  // --- All features discovery ---
-  try {
-    if (!tapResource(xml, 'header-all-features-btn')) throw new Error('all-features missing');
-    const af = waitFor(
-      (x) => /All features/i.test(x) && (/Pin|Hide|Restore|Unavailable|Directory/i.test(x) || /all-features/i.test(x)),
-      { dumps: ['all-features.xml'], timeoutMs: 8000 }
-    );
-    screencap('06-all-features.png');
-    const pin = /Pin|Unpin/i.test(af.xml);
-    const hideJournal = /Hide.*Journal|Restore.*Journal|Journal/i.test(af.xml);
-    record(
-      'all-features-discovery',
-      af.ok,
-      af.ok ? `directory visible; pinControls=${pin}; journalControls=${hideJournal}` : 'All features missing'
-    );
-    // Prefer not mutating pin/hide permanently without restore — attempt pin then unpin if present
-    if (af.ok && tapDesc(af.xml, 'Pin')) {
-      sleep(800);
-      const afterPin = dumpUi('after-pin.xml');
-      record('pin-toggle', /Unpin|Pinned/i.test(afterPin), 'Pin action observed');
-      if (tapDesc(afterPin, 'Unpin') || tapText(afterPin, 'Unpin')) {
-        sleep(600);
-        record('unpin-toggle', true, 'Unpin action delivered');
-      }
-    } else {
-      record('pin-toggle', false, 'Pin control not found or not exercised', { skipped: true });
-    }
-    runAdb(['shell', 'input', 'keyevent', '4']);
-    sleep(500);
-  } catch (e) {
-    record('all-features-discovery', false, String(e.message || e));
-  }
-
-  xml = ensureApp();
-
-  // --- Draft + Back + IME probe (emulator IME) ---
-  try {
-    openCreate('note');
-    let draftXml = dumpUi('draft-before.xml');
-    const edit = draftXml.match(
-      /class="android.widget.EditText"[\s\S]{0,500}?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/
-    );
-    if (edit) {
-      runAdb([
-        'shell',
-        'input',
-        'tap',
-        String(Math.floor((Number(edit[1]) + Number(edit[3])) / 2)),
-        String(Math.floor((Number(edit[2]) + Number(edit[4])) / 2)),
-      ]);
-      sleep(600);
-      typeText(DRAFT_TITLE);
-      sleep(500);
-      // Show IME explicitly
-      runAdb(['shell', 'ime', 'list', '-s']);
-      sleep(400);
-      draftXml = dumpUi('draft-with-ime.xml');
-      screencap('07-draft-ime.png');
-      const createReachable =
-        /content-desc="Create Note"|text="Create Note"/i.test(draftXml) ||
-        /Create Note/i.test(draftXml);
-      record(
-        'ime-draft-reachability',
-        createReachable,
-        createReachable
-          ? 'Create Note still present while editing (emulator IME; not physical device IME)'
-          : 'Create Note not visible with keyboard — need scroll/avoidance proof',
-        { classification: 'emulator-ime' }
-      );
-      // Back dismisses IME or sheet once
-      runAdb(['shell', 'input', 'keyevent', '4']);
-      sleep(700);
-      const afterBack = dumpUi('draft-after-back.xml');
-      const stillInApp = isDaynori(afterBack);
-      const sheetClosed = !/Create New Item/i.test(afterBack) || /Create New Item/i.test(afterBack);
-      record(
-        'back-with-editor',
-        stillInApp,
-        stillInApp
-          ? `Back kept app foreground; createSheetOpen=${/Create New Item/i.test(afterBack)}`
-          : 'Back exited to launcher (multi-layer risk)',
-        { sheetOpen: /Create New Item/i.test(afterBack) }
-      );
-      // If sheet still open, cancel without save
-      if (/Create New Item/i.test(afterBack)) {
-        if (tapDesc(afterBack, 'Cancel') || tapText(afterBack, 'Cancel')) sleep(500);
-        else runAdb(['shell', 'input', 'keyevent', '4']);
-      }
-    } else {
-      record('ime-draft-reachability', false, 'No EditText for draft');
-    }
-  } catch (e) {
-    record('ime-draft-reachability', false, String(e.message || e));
-  }
-
-  xml = ensureApp();
-
-  // --- Settings preference change (Appearance theme) ---
-  try {
-    if (!tapResource(xml, 'header-settings-btn')) throw new Error('settings missing');
-    const hub = waitFor((x) => /settings-hub/i.test(x), { dumps: ['pref-hub.xml'], timeoutMs: 8000 });
-    if (hub.ok && (tapResource(hub.xml, 'settings-group-appearance') || tapDesc(hub.xml, 'Appearance'))) {
-      const appearance = waitFor(
-        (x) => /Theme|Typography|settings-back-to-hub/i.test(x),
-        { dumps: ['pref-appearance.xml'], timeoutMs: 8000 }
-      );
-      screencap('08-appearance.png');
-      const toggled =
-        tapDesc(appearance.xml, 'Dark') ||
-        tapDesc(appearance.xml, 'Light') ||
-        tapText(appearance.xml, 'Dark') ||
-        tapText(appearance.xml, 'Light') ||
-        tapDesc(appearance.xml, 'Theme');
-      sleep(800);
-      runAdb(['shell', 'input', 'keyevent', '4']);
-      const backHub = waitFor((x) => /settings-hub|Choose a group/i.test(x), {
-        dumps: ['pref-back-hub.xml'],
-        timeoutMs: 8000,
+    } else if (search.ok) {
+      record('search-canonical', false, 'Skipped: no saved note fixture for canonical search', {
+        skipped: true,
       });
-      record(
-        'settings-preference',
-        appearance.ok && backHub.ok,
-        `appearanceOpen=${appearance.ok}; themeTap=${Boolean(toggled)}; backToHub=${backHub.ok}`
-      );
-      runAdb(['shell', 'input', 'keyevent', '4']);
-    } else {
-      record('settings-preference', false, 'Appearance group missing');
     }
-  } catch (e) {
-    record('settings-preference', false, String(e.message || e));
+    runAdb(['shell', 'input', 'keyevent', '4']);
+    sleep(500);
   }
 
-  // Deep-link ordinary denial for developer surfaces
+  // Ordinary developer denial via deep link
   try {
     runAdb(['shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'daynori://gallery']);
     sleep(2000);
@@ -554,17 +467,30 @@ try {
     const openedGallery = /Component Gallery|gallery-view/i.test(g);
     record(
       'deeplink-gallery-denial',
-      !openedGallery || /restricted|operator|Sign in/i.test(g),
+      !openedGallery,
       openedGallery
-        ? 'Gallery opened via deep link (operator session or gap)'
-        : 'Gallery deep link did not expose gallery to current user'
+        ? 'Gallery opened via deep link (privileged leak or operator session)'
+        : 'Gallery deep link did not expose gallery'
     );
     ensureApp();
   } catch (e) {
     record('deeplink-gallery-denial', false, String(e.message || e));
   }
+
+  record(
+    'input-method-note',
+    true,
+    'adb input text ASCII-only; Bangla/non-ASCII marked untested (not stripped to claim coverage)'
+  );
 } catch (err) {
   record('runner-error', false, String(err && err.message ? err.message : err));
+} finally {
+  restoreDeviceSettings();
+  record(
+    'device-settings-restored',
+    true,
+    `a11y=${readSecure('accessibility_enabled')} font=${readSystem('font_scale')} rot=${readSystem('user_rotation')}`
+  );
 }
 
 const summary = {
@@ -572,14 +498,16 @@ const summary = {
   kind: 'journeys',
   createdAt: new Date().toISOString(),
   serial,
-  titles: { NOTE_TITLE, TASK_TITLE, ROUTINE_TITLE, JOURNAL_TITLE, DRAFT_TITLE },
+  titles: { NOTE_TITLE, TASK_TITLE, ROUTINE_TITLE, JOURNAL_TITLE },
+  settingsSnapshot: snapshot,
   steps,
   passCount: steps.filter((s) => s.ok).length,
   failCount: steps.filter((s) => !s.ok).length,
   limitations: [
-    'Persistence reopen/complete/undo require an authorized workspace; auth blockers are recorded explicitly.',
-    'IME evidence is emulator soft-keyboard only.',
-    'TalkBack spoken review is a separate procedure.',
+    'Prior create-task/routine/journal passes before stable testIDs are provisional and superseded by this runner.',
+    'Canonical reopen identity requires authenticated workspace; auth/API prerequisites recorded explicitly when missing.',
+    'IME Save reachability, pin/hide Journal, account isolation, and spoken TalkBack are separate procedures.',
+    'adb input text is ASCII-only; non-ASCII coverage is untested.',
   ],
 };
 fs.writeFileSync(path.join(outDir, 'phase71-journeys.json'), JSON.stringify(summary, null, 2) + '\n');

@@ -16,12 +16,12 @@ it('retains entered content and stays open when the save fails', async () => {
     })
   );
   act(() => {
-    renderer.root.findByProps({ accessibilityLabel: 'Create task' }).props.onPress();
+    renderer.root.findByProps({ testID: 'create-submit-btn' }).props.onPress();
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(close).not.toHaveBeenCalled();
   expect(
-    renderer.root.findByProps({ placeholder: 'Give your task a clear title...' }).props.value
+    renderer.root.findByProps({ testID: 'create-title-input' }).props.value
   ).toBe('Synthetic draft');
   renderer.unmount();
 });
@@ -47,8 +47,8 @@ it('waits for a successful durable save before clearing the draft and closing', 
     })
   );
   act(() => {
-    renderer.root.findByProps({ accessibilityLabel: 'Create task' }).props.onPress();
-    renderer.root.findByProps({ accessibilityLabel: 'Create task' }).props.onPress();
+    renderer.root.findByProps({ testID: 'create-submit-btn' }).props.onPress();
+    renderer.root.findByProps({ testID: 'create-submit-btn' }).props.onPress();
   });
   expect(save).toHaveBeenCalledTimes(1);
   expect(close).not.toHaveBeenCalled();

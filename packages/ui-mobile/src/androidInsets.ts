@@ -1,11 +1,11 @@
 /**
- * Lightweight Android inset / keyboard adapter (no extra native module).
- * Feature-detects Keyboard + StatusBar; cleans up listeners.
- * Does not establish physical gesture-nav or TalkBack acceptance by itself.
+ * Lightweight Android inset / keyboard adapter.
+ * Prefer measured safe-area insets from react-native-safe-area-context when available.
+ * StatusBar.currentHeight is a fallback for unit tests / providers not mounted —
+ * it can under-report on edge-to-edge Android 15+ (targetSdk ≥ 35).
  */
 import {
   Keyboard,
-  PixelRatio,
   Platform,
   StatusBar,
   type EmitterSubscription,
@@ -28,17 +28,19 @@ export function readAndroidInsets(keyboardHeight = 0): AndroidInsetsSnapshot {
 
 /**
  * Top padding so header chrome sits below the system status bar on Android edge-to-edge.
- * Without this, accessibility bounds can report header buttons while the StatusBar window
- * intercepts taps in the statusBars inset (measured ~128px on API 35 AVDs).
+ *
+ * @param measuredTopInset — layout pixels from `useSafeAreaInsets().top` (preferred).
+ *   Do not pass physical-screen / adb tap coordinates here; RN layout and input coords
+ *   share the same density-scaled space for View padding, but adb `input tap` uses
+ *   display pixels which already match RN bounds dumps on standard AVDs.
  */
-export function androidStatusBarTopPad(): number {
+export function androidStatusBarTopPad(measuredTopInset?: number): number {
   if (Platform.OS !== 'android') return 0;
-  const reported = StatusBar.currentHeight ?? 0;
-  const density = typeof PixelRatio?.get === 'function' ? PixelRatio.get() : 1;
-  // 48dp scaled + floor 128px: StatusBar.currentHeight often under-reports vs statusBars
-  // inset on edge-to-edge API 35 AVDs. Cap avoids pushing chrome off-screen.
-  const scaled = Math.ceil(48 * Math.min(3.5, Math.max(1, density)));
-  return Math.min(160, Math.max(reported, scaled, 128));
+  if (typeof measuredTopInset === 'number' && Number.isFinite(measuredTopInset) && measuredTopInset >= 0) {
+    return Math.ceil(measuredTopInset);
+  }
+  // Fallback only: no AVD-specific floor. Prefer mounting SafeAreaProvider in App.
+  return Math.max(0, Math.ceil(StatusBar.currentHeight ?? 0));
 }
 
 /**

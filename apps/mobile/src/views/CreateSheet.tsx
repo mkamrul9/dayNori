@@ -112,7 +112,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
                   key={t.key}
                   testID={`create-type-${t.key}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`Create ${t.label}`}
+                  accessibilityLabel={`Item type ${t.label}`}
                   accessibilityState={{ selected: isSelected }}
                   onPress={() => handleTypeSelect(t.key)}
                   disabled={isSaving}
@@ -137,8 +137,9 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
             })}
         </View>
 
-        {/* Inputs */}
+        {/* Inputs — stable testIDs distinct from type chips and submit */}
         <MobileTextField
+          testID="create-title-input"
           label="Title"
           placeholder={`Give your ${itemType} a clear title...`}
           value={title}
@@ -149,6 +150,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
         />
 
         <MobileTextField
+          testID="create-details-input"
           label="Details or Notes (optional)"
           placeholder="Add tags, deadlines, or additional context..."
           value={details}
@@ -178,16 +180,18 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
 
         <View style={styles.actionRow}>
           <MobileButton
+            testID="create-submit-btn"
             variant="primary"
             themeMode={themeMode}
             onPress={() => void handleSubmit()}
             disabled={isSaving}
-            accessibilityLabel={`Create ${itemType}`}
+            accessibilityLabel={`Submit create ${itemType}`}
           >
             Create {itemType.charAt(0).toUpperCase() + itemType.slice(1)}
           </MobileButton>
           <View style={{ height: spacing.xs }} />
           <MobileButton
+            testID="create-cancel-btn"
             variant="subtle"
             themeMode={themeMode}
             onPress={onClose}

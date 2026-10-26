@@ -32,6 +32,10 @@ export default defineConfig({
       ),
       'expo-clipboard': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-clipboard.ts'),
       'expo-av': path.resolve(__dirname, 'packages/test-utils/src/mock-expo-av.ts'),
+      'react-native-safe-area-context': path.resolve(
+        __dirname,
+        'packages/test-utils/src/mock-react-native-safe-area-context.ts'
+      ),
     },
   },
   test: {

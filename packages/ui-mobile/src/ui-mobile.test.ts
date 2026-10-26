@@ -310,5 +310,8 @@ describe('Phase 71 Android inset / keyboard helpers', () => {
     const { androidStatusBarTopPad } = await import('./androidInsets.js');
     expect(typeof androidStatusBarTopPad()).toBe('number');
     expect(androidStatusBarTopPad()).toBeGreaterThanOrEqual(0);
+    // Measured inset path is preferred over StatusBar fallback.
+    expect(androidStatusBarTopPad(48)).toBe(48);
+    expect(androidStatusBarTopPad(0)).toBe(0);
   });
 });

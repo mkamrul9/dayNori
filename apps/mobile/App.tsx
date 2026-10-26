@@ -5,15 +5,16 @@ import {
   Linking,
   PixelRatio,
   Platform,
-  SafeAreaView,
   Share,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
 import {
+  androidStatusBarTopPad,
   MobileHeader,
   MobileNavigationBar,
   MobileSyncDiagnosticsSheet,
@@ -103,6 +104,15 @@ import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
 import { isCorePreview, mobileOperatorUserIds } from './src/config/runtime.js';
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppShell />
+    </SafeAreaProvider>
+  );
+}
+
+function AppShell() {
+  const safeInsets = useSafeAreaInsets();
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [textScale, setTextScale] = useState<number>(() => {
     try {
@@ -754,21 +764,15 @@ export default function App() {
 
   const headerInfo = getHeaderInfo();
 
-  // Edge-to-edge: under-reported StatusBar.currentHeight must not leave header chrome
-  // clickable in a11y dumps while taps still hit the system StatusBar (~128px API 35).
-  // Cap avoids pathological PixelRatio values pushing chrome off-screen.
-  const androidTopPad = (() => {
-    if (Platform.OS !== 'android') return 0;
-    const reported = StatusBar.currentHeight ?? 0;
-    const density = typeof PixelRatio?.get === 'function' ? PixelRatio.get() : 1;
-    const scaled = Math.ceil(48 * Math.min(3.5, Math.max(1, density)));
-    return Math.min(160, Math.max(reported, scaled, 128));
-  })();
-  // SafeAreaView historically ignores Android top insets; use View + pad on Android.
-  const Root = Platform.OS === 'android' ? View : SafeAreaView;
+  // Measured insets from SafeAreaProvider (portable). androidStatusBarTopPad prefers
+  // measuredTopInset; StatusBar.currentHeight is only a unit-test fallback.
+  const topPad =
+    Platform.OS === 'android'
+      ? androidStatusBarTopPad(safeInsets.top)
+      : Math.max(0, Math.ceil(safeInsets.top));
 
   return (
-    <Root style={[styles.container, { backgroundColor: palette.background }]}>
+    <View style={[styles.container, { backgroundColor: palette.background }]}>
       <StatusBar
         barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'}
         backgroundColor={Platform.OS === 'android' ? palette.surface : undefined}
@@ -776,7 +780,8 @@ export default function App() {
       <View
         style={{
           flex: 1,
-          paddingTop: androidTopPad,
+          paddingTop: topPad,
+          paddingBottom: Math.max(0, Math.ceil(safeInsets.bottom)),
           backgroundColor: palette.background,
         }}
       >
@@ -1504,7 +1509,7 @@ export default function App() {
         }}
       />
       </View>
-    </Root>
+    </View>
   );
 }
 
