@@ -1,7 +1,17 @@
 import { Icon } from './Icon.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
+import { keyboardAvoidingBehavior } from './androidInsets.js';
 import {
   type NoteDocument,
   type NoteBlockNode,
@@ -615,7 +625,11 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
   }, [folderId, folders]);
 
   return (
-    <View testID={testID} style={[styles.container, { backgroundColor: palette.surface }]}>
+    <KeyboardAvoidingView
+      testID={testID}
+      behavior={keyboardAvoidingBehavior()}
+      style={[styles.container, { backgroundColor: palette.surface }]}
+    >
       {/* Header and status indicators */}
       <View style={[styles.header, { borderBottomColor: palette.border.subtle }]}>
         <View style={styles.headerLeft}>
@@ -1119,7 +1133,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
           })}
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

@@ -59,6 +59,11 @@ import { PlanView } from './src/views/PlanView';
 import { LibraryView } from './src/views/LibraryView';
 import { JournalView } from './src/views/JournalView';
 import { SettingsView } from './src/views/SettingsView';
+import { SettingsHubView } from './src/views/SettingsHubView';
+import {
+  SETTINGS_NESTED_MODALS,
+  type MobileSettingsGroupId,
+} from './src/settings/settingsGroups.js';
 import { AccountSheet } from './src/views/AccountSheet.js';
 import { SearchSheet } from './src/views/SearchSheet';
 import { CreateSheet } from './src/views/CreateSheet';
@@ -110,6 +115,8 @@ export default function App() {
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+  /** null = Settings hub; set when a focused group screen is open (Phase 71). */
+  const [settingsGroup, setSettingsGroup] = useState<MobileSettingsGroupId | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [notificationCapability, setNotificationCapability] =
     useState<NotificationCapabilityState | null>(null);
@@ -468,36 +475,55 @@ export default function App() {
     };
   }, [isAuthenticated, accountNamespaceKey]);
 
+  const openSettingsHub = () => {
+    setSettingsGroup(null);
+    setActiveModal('settings');
+  };
+
+  const returnToSettingsFromNested = () => {
+    setActiveModal('settings');
+  };
+
   // 2. Android hardware back + shared dismiss stack (iOS uses sheet Close / system gestures)
+  // Priority: topmost overlay → Settings group → Settings hub → Plan/Library detail → Today → exit
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
     const onHardwareBack = (): boolean => {
-      // 1. If any modal sheet is open, dismiss it
-      if (activeModal !== 'none') {
+      if (activeModal !== 'none' && activeModal !== 'settings') {
+        if (SETTINGS_NESTED_MODALS.has(activeModal)) {
+          setActiveModal('settings');
+          return true;
+        }
         setActiveModal('none');
-        return true; // handled
+        return true;
       }
 
-      // 2. If in Plan sub-view other than default 'tasks', return to 'tasks'
+      if (activeModal === 'settings') {
+        if (settingsGroup !== null) {
+          setSettingsGroup(null);
+          return true;
+        }
+        setActiveModal('none');
+        setSettingsGroup(null);
+        return true;
+      }
+
       if (currentTab === 'plan' && planSubView !== 'tasks') {
         setPlanSubView('tasks');
         return true;
       }
 
-      // 3. If in Library with a specific filter active, reset filter to 'all'
       if (currentTab === 'library' && libraryFilter !== 'all') {
         setLibraryFilter('all');
         return true;
       }
 
-      // 4. If on any tab other than Today, navigate back to Today tab
       if (currentTab !== 'today') {
         setCurrentTab('today');
         return true;
       }
 
-      // 5. On Today dashboard with no modals, allow default system exit
       return false;
     };
 
@@ -509,7 +535,7 @@ export default function App() {
         BackHandler.removeEventListener('hardwareBackPress', onHardwareBack);
       }
     };
-  }, [activeModal, currentTab, planSubView, libraryFilter]);
+  }, [activeModal, settingsGroup, currentTab, planSubView, libraryFilter]);
 
   // 3. App Resume / Background Lifecycle Handling
   useEffect(() => {
@@ -584,7 +610,7 @@ export default function App() {
           setCurrentTab('journal');
           setActiveModal('none');
         } else if (dest === 'settings') {
-          setActiveModal('settings');
+          openSettingsHub();
         } else if (dest === 'review') {
           // Phase 66: gallery is operator-only; deny ordinary deep links.
           setActiveModal('none');
@@ -694,7 +720,7 @@ export default function App() {
         setCurrentTab('journal');
         setActiveModal('none');
       } else if (dest === 'settings') {
-        setActiveModal('settings');
+        openSettingsHub();
       } else if (dest === 'review') {
         // Phase 66: gallery is operator-only; deny ordinary notification deep links.
         setActiveModal('none');
@@ -728,13 +754,32 @@ export default function App() {
 
   const headerInfo = getHeaderInfo();
 
+  // Edge-to-edge: under-reported StatusBar.currentHeight must not leave header chrome
+  // clickable in a11y dumps while taps still hit the system StatusBar (~128px API 35).
+  // Cap avoids pathological PixelRatio values pushing chrome off-screen.
+  const androidTopPad = (() => {
+    if (Platform.OS !== 'android') return 0;
+    const reported = StatusBar.currentHeight ?? 0;
+    const density = typeof PixelRatio?.get === 'function' ? PixelRatio.get() : 1;
+    const scaled = Math.ceil(48 * Math.min(3.5, Math.max(1, density)));
+    return Math.min(160, Math.max(reported, scaled, 128));
+  })();
+  // SafeAreaView historically ignores Android top insets; use View + pad on Android.
+  const Root = Platform.OS === 'android' ? View : SafeAreaView;
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+    <Root style={[styles.container, { backgroundColor: palette.background }]}>
       <StatusBar
         barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'}
         backgroundColor={Platform.OS === 'android' ? palette.surface : undefined}
       />
-
+      <View
+        style={{
+          flex: 1,
+          paddingTop: androidTopPad,
+          backgroundColor: palette.background,
+        }}
+      >
       {/* Main Top Header */}
       <MobileHeader
         title={headerInfo.title}
@@ -743,7 +788,7 @@ export default function App() {
         onOpenSearch={() => setActiveModal('search')}
         onOpenCreate={() => setActiveModal('create')}
         onOpenAllFeatures={() => setActiveModal('all-features')}
-        onOpenSettings={() => setActiveModal('settings')}
+        onOpenSettings={openSettingsHub}
       />
 
       {/* Main Content Area */}
@@ -911,93 +956,116 @@ export default function App() {
       )}
       {activeModal === 'settings' && (
         <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 100 }]}
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: palette.background,
+              zIndex: 100,
+            },
+          ]}
         >
-          <SettingsView
-            themeMode={themeMode}
-            onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
-            textScale={textScale}
-            onChangeTextScale={setTextScale}
-            isAuthenticated={isAuthenticated}
-            onOpenAccount={() => setActiveModal('account')}
-            onToggleAuth={() => {
-              if (isAuthenticated) {
-                if (apiClient) {
-                  void defaultScheduleCoordinator.cancelAll(apiClient);
-                  void deactivateDeviceAsync(apiClient);
+          {settingsGroup === null ? (
+            <SettingsHubView
+              themeMode={themeMode}
+              onOpenGroup={setSettingsGroup}
+              onClose={() => {
+                setActiveModal('none');
+                setSettingsGroup(null);
+              }}
+            />
+          ) : (
+            <SettingsView
+              themeMode={themeMode}
+              group={settingsGroup}
+              onBackToHub={() => setSettingsGroup(null)}
+              onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
+              textScale={textScale}
+              onChangeTextScale={setTextScale}
+              isAuthenticated={isAuthenticated}
+              isOperator={isOperator}
+              onOpenAccount={() => setActiveModal('account')}
+              onToggleAuth={() => {
+                if (isAuthenticated) {
+                  if (apiClient) {
+                    void defaultScheduleCoordinator.cancelAll(apiClient);
+                    void deactivateDeviceAsync(apiClient);
+                  }
+                  resetNotificationResponseState();
+                  setPendingProtectedDest(null);
+                  if (userNamespace?.userId) {
+                    void MobileOfflineFileCache.clearAccount(userNamespace.userId).catch(() => {});
+                  }
+                  if (userNamespace?.workspaceId) {
+                    void MobileOfflineFileCache.clearWorkspace(userNamespace.workspaceId).catch(
+                      () => {}
+                    );
+                  }
+                  void defaultAuthAdapter.signOut({ createDraft, searchQuery });
+                  setCreateDraft({ type: 'task', title: '', details: '' });
+                  setSearchQuery('');
+                  if (currentTab === 'journal') {
+                    setCurrentTab('today');
+                  }
+                } else {
+                  setActiveModal('account');
                 }
-                resetNotificationResponseState();
-                setPendingProtectedDest(null);
-                if (userNamespace?.userId) {
-                  void MobileOfflineFileCache.clearAccount(userNamespace.userId).catch(() => {});
+              }}
+              notificationCapability={notificationCapability}
+              onRequestNotificationPermission={async () => {
+                const cap = await requestNotificationPermissionAsync();
+                setNotificationCapability(cap);
+                if (apiClient && cap.status === 'granted') {
+                  void registerDeviceAsync(apiClient);
                 }
-                if (userNamespace?.workspaceId) {
-                  void MobileOfflineFileCache.clearWorkspace(userNamespace.workspaceId).catch(
-                    () => {}
-                  );
-                }
-                void defaultAuthAdapter.signOut({ createDraft, searchQuery });
-                setCreateDraft({ type: 'task', title: '', details: '' });
-                setSearchQuery('');
-                if (currentTab === 'journal') {
-                  setCurrentTab('today');
-                }
-              } else {
-                setActiveModal('account');
+              }}
+              onOpenAllFeatures={() => setActiveModal('all-features')}
+              onOpenGallery={isOperator ? () => setActiveModal('gallery') : undefined}
+              onOpenOnboarding={() => setActiveModal('onboarding-replay')}
+              onOpenSyncDiagnostics={() => {
+                void loadDiagnostics();
+                setActiveModal('sync-diagnostics');
+              }}
+              onOpenRecoveryExport={() => {
+                void loadRecoveryExport();
+                setActiveModal('recovery-export');
+              }}
+              onOpenPortability={() => setActiveModal('workspace-portability')}
+              onOpenAccountDeletion={() => setActiveModal('account-deletion')}
+              expensesEnabled={expensesEnabled}
+              onToggleExpensesEnabled={handleToggleExpensesEnabled}
+              onOpenExpenses={() => setActiveModal('expenses')}
+              onOpenCustomSections={() => setActiveModal('custom-sections')}
+              onOpenVaultHarness={
+                isOperator && typeof __DEV__ !== 'undefined' && __DEV__
+                  ? () => setActiveModal('vault-harness')
+                  : undefined
               }
-            }}
-            notificationCapability={notificationCapability}
-            onRequestNotificationPermission={async () => {
-              const cap = await requestNotificationPermissionAsync();
-              setNotificationCapability(cap);
-              if (apiClient && cap.status === 'granted') {
-                void registerDeviceAsync(apiClient);
+              onOpenDriveConnections={
+                isOperator && apiClient && userNamespace?.workspaceId
+                  ? () => setActiveModal('drive-connections')
+                  : undefined
               }
-            }}
-            onOpenAllFeatures={() => setActiveModal('all-features')}
-            onOpenGallery={isOperator ? () => setActiveModal('gallery') : undefined}
-            onOpenOnboarding={() => setActiveModal('onboarding-replay')}
-            onOpenSyncDiagnostics={() => {
-              void loadDiagnostics();
-              setActiveModal('sync-diagnostics');
-            }}
-            onOpenRecoveryExport={() => {
-              void loadRecoveryExport();
-              setActiveModal('recovery-export');
-            }}
-            onOpenPortability={() => setActiveModal('workspace-portability')}
-            onOpenAccountDeletion={() => setActiveModal('account-deletion')}
-            expensesEnabled={expensesEnabled}
-            onToggleExpensesEnabled={handleToggleExpensesEnabled}
-            onOpenExpenses={() => setActiveModal('expenses')}
-            onOpenCustomSections={() => setActiveModal('custom-sections')}
-            onOpenVaultHarness={
-              isOperator && typeof __DEV__ !== 'undefined' && __DEV__
-                ? () => setActiveModal('vault-harness')
-                : undefined
-            }
-            onOpenDriveConnections={
-              isOperator && apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('drive-connections')
-                : undefined
-            }
-            onOpenRooms={
-              isOperator && apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('rooms')
-                : undefined
-            }
-            onOpenAssistant={
-              isOperator && apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('assistant')
-                : undefined
-            }
-            onOpenBilling={
-              isOperator && apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('billing')
-                : undefined
-            }
-            onClose={() => setActiveModal('none')}
-          />
+              onOpenRooms={
+                isOperator && apiClient && userNamespace?.workspaceId
+                  ? () => setActiveModal('rooms')
+                  : undefined
+              }
+              onOpenAssistant={
+                isOperator && apiClient && userNamespace?.workspaceId
+                  ? () => setActiveModal('assistant')
+                  : undefined
+              }
+              onOpenBilling={
+                isOperator && apiClient && userNamespace?.workspaceId
+                  ? () => setActiveModal('billing')
+                  : undefined
+              }
+              onClose={() => {
+                setActiveModal('none');
+                setSettingsGroup(null);
+              }}
+            />
+          )}
         </View>
       )}
 
@@ -1014,11 +1082,18 @@ export default function App() {
             onChangePersonalization={(next) => {
               void persistFeaturePersonalization(next);
             }}
-            onClose={() => setActiveModal('none')}
+            onClose={() => {
+              // Header opens All features over shell; Settings workspace returns to hub.
+              if (settingsGroup !== null) {
+                returnToSettingsFromNested();
+              } else {
+                setActiveModal('none');
+              }
+            }}
             onOpenDestination={(destination) => {
               setActiveModal('none');
               if (destination === 'settings') {
-                setActiveModal('settings');
+                openSettingsHub();
                 return;
               }
               if (destination === 'search') {
@@ -1051,7 +1126,7 @@ export default function App() {
             themeMode={themeMode}
             workspaceId={userNamespace.workspaceId}
             apiClient={apiClient}
-            onClose={() => setActiveModal('settings')}
+            onClose={returnToSettingsFromNested}
           />
         </View>
       ) : null}
@@ -1065,7 +1140,7 @@ export default function App() {
             themeMode={themeMode}
             workspaceId={userNamespace.workspaceId}
             apiClient={apiClient}
-            onClose={() => setActiveModal('settings')}
+            onClose={returnToSettingsFromNested}
           />
         </View>
       ) : null}
@@ -1080,7 +1155,7 @@ export default function App() {
             personalWorkspaceId={userNamespace.workspaceId}
             userId={userNamespace.userId}
             apiClient={apiClient}
-            onClose={() => setActiveModal('settings')}
+            onClose={returnToSettingsFromNested}
           />
         </View>
       ) : null}
@@ -1100,7 +1175,7 @@ export default function App() {
             openSystemBrowser={(url) => {
               void Linking.openURL(url);
             }}
-            onClose={() => setActiveModal('settings')}
+            onClose={returnToSettingsFromNested}
           />
         </View>
       ) : null}
@@ -1118,7 +1193,7 @@ export default function App() {
               accountId={userNamespace?.userId ?? 'synthetic-account'}
               workspaceId={userNamespace?.workspaceId ?? '11111111-1111-4111-8111-111111111111'}
               isOnline={isOnline}
-              onClose={() => setActiveModal('none')}
+              onClose={returnToSettingsFromNested}
             />
           </View>
         )}
@@ -1131,7 +1206,7 @@ export default function App() {
           <ComponentGalleryView
             themeMode={themeMode}
             onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
-            onClose={() => setActiveModal('settings')}
+            onClose={returnToSettingsFromNested}
           />
         </View>
       )}
@@ -1146,7 +1221,7 @@ export default function App() {
             workspaceId={userNamespace?.workspaceId ?? null}
             apiClient={apiClient ?? undefined}
             isOnline={isOnline}
-            onClose={() => setActiveModal('none')}
+            onClose={returnToSettingsFromNested}
           />
         </View>
       )}
@@ -1160,7 +1235,7 @@ export default function App() {
             themeMode={themeMode}
             workspaceId={userNamespace?.workspaceId ?? ''}
             apiClient={apiClient}
-            onClose={() => setActiveModal('none')}
+            onClose={returnToSettingsFromNested}
           />
         </View>
       )}
@@ -1168,7 +1243,13 @@ export default function App() {
       {/* Onboarding Tutorial Sheet (Phase 31 First-Use Discovery) */}
       <OnboardingSheet
         visible={activeModal === 'onboarding' || activeModal === 'onboarding-replay'}
-        onClose={() => setActiveModal('none')}
+        onClose={() => {
+          if (activeModal === 'onboarding-replay') {
+            returnToSettingsFromNested();
+          } else {
+            setActiveModal('none');
+          }
+        }}
         themeMode={themeMode}
         apiClient={apiClient ?? undefined}
         repository={repository ?? undefined}
@@ -1176,7 +1257,11 @@ export default function App() {
         userId={userNamespace?.userId ?? null}
         isReplay={activeModal === 'onboarding-replay'}
         onComplete={() => {
-          setActiveModal('none');
+          if (activeModal === 'onboarding-replay') {
+            returnToSettingsFromNested();
+          } else {
+            setActiveModal('none');
+          }
           setRefreshTrigger((prev) => prev + 1);
         }}
       />
@@ -1184,7 +1269,7 @@ export default function App() {
       {/* Phase 34 Sync Diagnostics Sheet */}
       <MobileSyncDiagnosticsSheet
         visible={activeModal === 'sync-diagnostics'}
-        onClose={() => setActiveModal('none')}
+        onClose={returnToSettingsFromNested}
         diagnostics={syncDiagnostics}
         onRefresh={loadDiagnostics}
         onSyncNow={async () => {
@@ -1203,7 +1288,7 @@ export default function App() {
       {/* Phase 34 Recovery Export Sheet */}
       <MobileRecoveryExportSheet
         visible={activeModal === 'recovery-export'}
-        onClose={() => setActiveModal('none')}
+        onClose={returnToSettingsFromNested}
         exportData={recoveryExport}
         onShareOrCopy={handleShareOrCopyRecovery}
         themeMode={themeMode}
@@ -1228,7 +1313,7 @@ export default function App() {
       {/* Phase 35 Workspace Portability Sheet */}
       <MobileWorkspacePortabilitySheet
         visible={activeModal === 'workspace-portability'}
-        onClose={() => setActiveModal('none')}
+        onClose={returnToSettingsFromNested}
         workspaceId={userNamespace?.workspaceId ?? ''}
         themeMode={themeMode}
         onExportWorkspace={async (password) => {
@@ -1302,7 +1387,7 @@ export default function App() {
       {/* Phase 36 Account Deletion Sheet */}
       <MobileAccountDeletionSheet
         visible={activeModal === 'account-deletion'}
-        onClose={() => setActiveModal('none')}
+        onClose={returnToSettingsFromNested}
         themeMode={themeMode}
         userEmail={defaultAuthAdapter.getCurrentUser()?.email ?? undefined}
         onRequestDeletion={async (password) => {
@@ -1418,7 +1503,8 @@ export default function App() {
           };
         }}
       />
-    </SafeAreaView>
+      </View>
+    </Root>
   );
 }
 

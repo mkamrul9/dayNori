@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 71 — Native Android interface (in progress) — 2026-10-26
+
+- Settings hub/groups, BackHandler priority, androidInsets keyboard helper, and StatusBar top pad so header Search/Create/Settings taps clear the edge-to-edge StatusBar intercept (ADR 0071).
+- Device evidence runner: distinct postconditions, a11y/font/rotation snapshot restore; landscape via unlocked orientation + `adb emu rotate`.
+- x86_64 Dev Client APK rebuild with working-tree sync fingerprints. Spoken TalkBack and create/save/reopen persistence matrix still open — no completion commit.
+
 ## Phase 70 — Mobile web and PWA layout redesign — 2026-10-26
 
 - Compact phone chrome, labeled Create, registry bottom tabs, and grouped Settings subpages (`/settings/*`).

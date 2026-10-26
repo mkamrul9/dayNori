@@ -1,0 +1,124 @@
+{
+  "phase": 71,
+  "kind": "journeys",
+  "createdAt": "2026-10-25T22:48:30.631Z",
+  "serial": "emulator-5554",
+  "titles": {
+    "NOTE_TITLE": "P71 Note mvof1g2g",
+    "TASK_TITLE": "P71 Task mvof1g2g",
+    "ROUTINE_TITLE": "P71 Routine mvof1g2g",
+    "JOURNAL_TITLE": "P71 Journal mvof1g2g",
+    "DRAFT_TITLE": "P71 Draft mvof1g2g"
+  },
+  "steps": [
+    {
+      "step": "settings-hub-open",
+      "ok": true,
+      "detail": "hub open for auth probe",
+      "at": "2026-10-25T22:45:19.149Z"
+    },
+    {
+      "step": "auth-state",
+      "ok": true,
+      "detail": "signedIn=false; workspaceHints=true; ordinaryDevDenialCopy=true",
+      "signedIn": false,
+      "hasWorkspace": true,
+      "ordinaryDenial": true,
+      "at": "2026-10-25T22:45:22.533Z"
+    },
+    {
+      "step": "ordinary-developer-denial-settings",
+      "ok": true,
+      "detail": "No gallery/harness on Account group for current user",
+      "at": "2026-10-25T22:45:22.533Z"
+    },
+    {
+      "step": "synthetic-login-tap",
+      "ok": false,
+      "detail": "Sign In Synthetic not available (operator-gated or already signed in) — not a production bypass",
+      "at": "2026-10-25T22:45:22.534Z"
+    },
+    {
+      "step": "create-note",
+      "ok": false,
+      "detail": "Note create postcondition unclear",
+      "title": "P71 Note mvof1g2g",
+      "blocked": false,
+      "at": "2026-10-25T22:45:46.976Z"
+    },
+    {
+      "step": "create-task",
+      "ok": true,
+      "detail": "Task flow title=P71 Task mvof1g2g; onPlan=false",
+      "title": "P71 Task mvof1g2g",
+      "blocked": false,
+      "at": "2026-10-25T22:46:20.323Z"
+    },
+    {
+      "step": "create-routine",
+      "ok": true,
+      "detail": "Routine submit title=P71 Routine mvof1g2g",
+      "title": "P71 Routine mvof1g2g",
+      "blocked": false,
+      "at": "2026-10-25T22:46:53.096Z"
+    },
+    {
+      "step": "create-journal",
+      "ok": true,
+      "detail": "Journal submit title=P71 Journal mvof1g2g",
+      "title": "P71 Journal mvof1g2g",
+      "blocked": false,
+      "at": "2026-10-25T22:47:26.348Z"
+    },
+    {
+      "step": "search-open",
+      "ok": true,
+      "detail": "Search sheet opened via header",
+      "at": "2026-10-25T22:47:43.302Z"
+    },
+    {
+      "step": "search-query",
+      "ok": true,
+      "detail": "Search accepted query (result identity depends on prior saves)",
+      "at": "2026-10-25T22:47:47.567Z"
+    },
+    {
+      "step": "all-features-discovery",
+      "ok": true,
+      "detail": "directory visible; pinControls=false; journalControls=true",
+      "at": "2026-10-25T22:47:54.247Z"
+    },
+    {
+      "step": "pin-toggle",
+      "ok": false,
+      "detail": "Pin control not found or not exercised",
+      "skipped": true,
+      "at": "2026-10-25T22:47:54.247Z"
+    },
+    {
+      "step": "ime-draft-reachability",
+      "ok": false,
+      "detail": "create sheet did not open",
+      "at": "2026-10-25T22:48:10.416Z"
+    },
+    {
+      "step": "settings-preference",
+      "ok": false,
+      "detail": "Appearance group missing",
+      "at": "2026-10-25T22:48:22.542Z"
+    },
+    {
+      "step": "deeplink-gallery-denial",
+      "ok": true,
+      "detail": "Gallery deep link did not expose gallery to current user",
+      "at": "2026-10-25T22:48:27.998Z"
+    }
+  ],
+  "passCount": 10,
+  "failCount": 5,
+  "limitations": [
+    "Persistence reopen/complete/undo require an authorized workspace; auth blockers are recorded explicitly.",
+    "IME evidence is emulator soft-keyboard only.",
+    "TalkBack spoken review is a separate procedure."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "createdAt": "2026-10-25T22:42:19.090Z",
+  "gitRevision": "1ff0d82dffae5b2eda7e31c4d84bf3645f2171b0",
+  "workingTreeDirty": true,
+  "workingTreeFingerprint": "11d340d26923dd2fb9bb0201d9fb1b3581b4d81a1863f64a4d3217434225f6a7",
+  "fingerprintFileCount": 101,
+  "syncedPaths": [
+    "apps/mobile",
+    "packages/ui-mobile",
+    "packages/design-tokens",
+    "packages/domain",
+    "packages/contracts",
+    "scripts/build-android-debug-apk.mjs",
+    "scripts/sync-short-build-working-tree.mjs",
+    "scripts/test-android-e2e.mjs"
+  ],
+  "shortRoot": "D:\\d\\daynori"
+}

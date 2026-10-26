@@ -4,7 +4,7 @@
     "slug": "daynori",
     "version": "0.1.0",
     "scheme": "daynori",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "icon": "./assets/brand/icon.png",

@@ -1,0 +1,129 @@
+{
+  "phase": 71,
+  "createdAt": "2026-10-25T22:45:12.349Z",
+  "device": {
+    "serial": "emulator-5554",
+    "androidRelease": "15",
+    "model": "sdk_gphone64_x86_64",
+    "abi": "x86_64",
+    "density": "Physical density: 420",
+    "size": "Physical size: 1080x2400",
+    "classification": "emulator"
+  },
+  "talkbackVersion": "versionName=15.0.0.639625893",
+  "settingsSnapshot": {
+    "accessibility_enabled": "0",
+    "enabled_accessibility_services": "null",
+    "touch_exploration_enabled": "0",
+    "font_scale": "1.0",
+    "user_rotation": "0",
+    "accelerometer_rotation": "0"
+  },
+  "apkEvidence": {
+    "createdAt": "2026-10-25T22:04:48.658Z",
+    "gitRevision": "1ff0d82dffae5b2eda7e31c4d84bf3645f2171b0",
+    "workingTreeFingerprint": "5300d1aff43296ce181e880af92c81b9fb0a0df71f0cdc15f999ef290fa2cadd",
+    "workingTreeDirty": true,
+    "buildRoot": "D:\\d\\daynori",
+    "apkPath": "artifacts/release/app-debug-x86_64.apk",
+    "sha256": "fd874316ef2df58bb3ecd7a2c91ab4765027b2730f6580879debf2915f05532e",
+    "architecture": "x86_64",
+    "packageId": "com.daynori.app",
+    "signing": "debug (local-test only — not release-eligible)",
+    "targetSdk": 36,
+    "note": "Installable debug APK includes synced working-tree mobile sources when dirty; not release-eligible"
+  },
+  "steps": [
+    {
+      "step": "today-shell",
+      "ok": true,
+      "detail": "Today shell; settings btn y1=357 (must clear ~128px statusBars)",
+      "at": "2026-10-25T22:42:49.021Z"
+    },
+    {
+      "step": "header-search",
+      "ok": true,
+      "detail": "Search sheet distinct controls",
+      "actionDelivered": true,
+      "at": "2026-10-25T22:42:58.281Z"
+    },
+    {
+      "step": "header-create",
+      "ok": true,
+      "detail": "Create sheet opened",
+      "actionDelivered": true,
+      "at": "2026-10-25T22:43:10.082Z"
+    },
+    {
+      "step": "header-all-features",
+      "ok": true,
+      "detail": "All features directory visible",
+      "actionDelivered": true,
+      "at": "2026-10-25T22:43:22.231Z"
+    },
+    {
+      "step": "header-settings",
+      "ok": true,
+      "detail": "Settings hub via header",
+      "actionDelivered": true,
+      "at": "2026-10-25T22:43:46.641Z"
+    },
+    {
+      "step": "settings-appearance",
+      "ok": true,
+      "detail": "Appearance group opened",
+      "at": "2026-10-25T22:43:49.999Z"
+    },
+    {
+      "step": "back-to-hub",
+      "ok": true,
+      "detail": "Back returned to Settings hub",
+      "at": "2026-10-25T22:43:53.193Z"
+    },
+    {
+      "step": "open-plan",
+      "ok": true,
+      "detail": "Plan selected + destination content",
+      "actionDelivered": true,
+      "at": "2026-10-25T22:44:21.911Z"
+    },
+    {
+      "step": "open-library",
+      "ok": true,
+      "detail": "Library selected + destination content",
+      "actionDelivered": true,
+      "at": "2026-10-25T22:44:30.279Z"
+    },
+    {
+      "step": "landscape",
+      "ok": true,
+      "detail": "rotation before=0 after=1 hierarchyRot=1 chrome=true",
+      "at": "2026-10-25T22:44:45.377Z"
+    },
+    {
+      "step": "large-text",
+      "ok": true,
+      "detail": "font_scale=1.3; chromeUsable=true",
+      "at": "2026-10-25T22:44:57.884Z"
+    },
+    {
+      "step": "talkback-enabled-dump",
+      "ok": true,
+      "detail": "versionName=15.0.0.639625893",
+      "at": "2026-10-25T22:45:10.925Z"
+    },
+    {
+      "step": "device-settings-restored",
+      "ok": true,
+      "detail": "a11y=0 font=1.0 rot=0 a11yServices=null",
+      "at": "2026-10-25T22:45:12.348Z"
+    }
+  ],
+  "passCount": 13,
+  "failCount": 0,
+  "limitations": [
+    "TalkBack step enables the service and captures labeled hierarchy; spoken output quality is recorded in the phase report method section.",
+    "Create/save/reopen and IME journeys may be covered by companion procedures in the phase report.",
+    "Dev Client may require Metro; APK hash ≠ JS bundle fingerprint."
+  ]
+}

@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import { keyboardAvoidingBehavior } from './androidInsets.js';
 
 export interface MobileModalSheetProps {
   visible: boolean;
@@ -74,14 +75,14 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
           accessibilityLabel="Dismiss sheet"
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={keyboardAvoidingBehavior()}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
           style={[
             styles.sheet,
             {
               backgroundColor: palette.surface,
               borderColor: palette.border.subtle,
-              // Home-indicator clearance on iOS; Android uses nav bar insets separately.
+              // iOS home indicator; Android relies on KeyboardAvoidingView + sheet padding.
               paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
             },
           ]}

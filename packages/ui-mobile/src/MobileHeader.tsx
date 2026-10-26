@@ -76,9 +76,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               },
             ]}
           >
-            <Text style={styles.actionIcon} aria-hidden={true}>
-              <Icon name="search" color={palette.text.primary} />
-            </Text>
+            <Icon name="search" color={palette.text.primary} />
           </Pressable>
         )}
 
@@ -95,9 +93,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               },
             ]}
           >
-            <Text style={styles.actionIcon} aria-hidden={true}>
-              <Icon name="plus" color={palette.text.primary} />
-            </Text>
+            <Icon name="plus" color={palette.text.primary} />
           </Pressable>
         )}
 
@@ -114,9 +110,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               },
             ]}
           >
-            <Text style={styles.actionIcon} aria-hidden={true}>
-              <Icon name="sliders" color={palette.text.primary} />
-            </Text>
+            <Icon name="sliders" color={palette.text.primary} />
           </Pressable>
         )}
 
@@ -133,9 +127,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               },
             ]}
           >
-            <Text style={styles.actionIcon} aria-hidden={true}>
-              <Icon name="settings" color={palette.text.primary} />
-            </Text>
+            <Icon name="settings" color={palette.text.primary} />
           </Pressable>
         )}
       </View>

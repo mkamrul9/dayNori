@@ -4,9 +4,16 @@ import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/d
 import { Icon, IconText, MobileButton, MobileCard } from '@daynori/ui-mobile';
 import type { NotificationCapabilityState } from '../notifications/adapter.js';
 import { isCorePreview } from '../config/runtime.js';
+import {
+  getMobileSettingsGroup,
+  type MobileSettingsGroupId,
+} from '../settings/settingsGroups.js';
 
 export interface SettingsViewProps {
   themeMode: ThemeMode;
+  /** Focused Settings group (Phase 71 hub → subpage). */
+  group: MobileSettingsGroupId;
+  onBackToHub: () => void;
   onToggleTheme: () => void;
   textScale: number;
   onChangeTextScale: (scale: number) => void;
@@ -17,6 +24,8 @@ export interface SettingsViewProps {
   onOpenAllFeatures?: () => void;
   onOpenOnboarding?: () => void;
   onClose: () => void;
+  /** Operator-only: synthetic auth / gallery / harness entry. */
+  isOperator?: boolean;
   testID?: string;
   devReviewMode?: boolean;
   workspaceId?: string | null;
@@ -48,6 +57,8 @@ export interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   themeMode,
+  group,
+  onBackToHub,
   onToggleTheme,
   textScale,
   onChangeTextScale,
@@ -58,6 +69,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenAllFeatures,
   onOpenOnboarding,
   onClose,
+  isOperator = false,
   testID = 'settings-view',
   devReviewMode = false,
   workspaceId = null,
@@ -82,8 +94,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenBilling,
 }) => {
   const palette = colors[themeMode];
+  const groupMeta = getMobileSettingsGroup(group);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
-  const [showDevReview, setShowDevReview] = useState(devReviewMode);
+  const [showDevReview, setShowDevReview] = useState(devReviewMode && isOperator);
 
   useEffect(() => {
     let isMounted = true;
@@ -103,6 +116,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     };
   }, []);
 
+  const show = (g: MobileSettingsGroupId) => group === g;
+
   return (
     <ScrollView
       testID={testID}
@@ -110,9 +125,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.headerRow}>
-        <Text accessibilityRole="header" style={[styles.title, { color: palette.text.primary }]}>
-          Settings & Help
-        </Text>
+        <MobileButton
+          variant="subtle"
+          themeMode={themeMode}
+          onPress={onBackToHub}
+          accessibilityLabel="Back to Settings"
+          testID="settings-back-to-hub"
+        >
+          <Icon name="chevron-left" /> Back
+        </MobileButton>
         <MobileButton
           variant="subtle"
           themeMode={themeMode}
@@ -122,8 +143,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <Icon name="x" /> Done
         </MobileButton>
       </View>
+      <Text
+        accessibilityRole="header"
+        style={[styles.title, { color: palette.text.primary, marginBottom: spacing.sm }]}
+      >
+        {groupMeta?.title ?? 'Settings'}
+      </Text>
+      {groupMeta?.description ? (
+        <Text style={[styles.settingDescription, { color: palette.text.secondary, marginBottom: spacing.base }]}>
+          {groupMeta.description}
+        </Text>
+      ) : null}
 
       {/* Section 1: Appearance & Theme */}
+      {show('appearance') ? (
+      <>
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>Appearance</Text>
         <MobileCard themeMode={themeMode}>
@@ -245,8 +279,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </Text>
         </MobileCard>
       </View>
+      </>
+      ) : null}
 
       {/* Section 5: Security & Authentication Lifecycle */}
+      {show('account') ? (
+      <>
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Authentication & Access
@@ -324,7 +362,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </MobileButton>
               </View>
             </View>
-          ) : (
+          ) : isOperator ? (
             <MobileButton
               variant="subtle"
               themeMode={themeMode}
@@ -333,11 +371,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             >
               <Icon name="tools" /> Show Dev Review Tools
             </MobileButton>
+          ) : (
+            <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+              Use Sign In for your account. Developer review tools stay on restricted operator
+              surfaces.
+            </Text>
           )}
         </MobileCard>
       </View>
+      </>
+      ) : null}
 
       {/* Section 5b: Personal Workspace & Preferences (Phase 10) */}
+      {show('workspace') ? (
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Personal Workspace & Preferences
@@ -436,8 +482,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </View>
         </MobileCard>
       </View>
+      ) : null}
 
       {/* Section 5c: Android Notifications & Local Reminders (Phase 28) */}
+      {show('notifications') ? (
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Notifications & Reminders
@@ -531,7 +579,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
         </MobileCard>
       </View>
+      ) : null}
 
+      {/* Operator provisional modules — only when callbacks are provided (App gates isOperator) */}
+      {show('workspace') ? (
+      <>
       {/* Section 5b9: Billing (Phase 57 provisional) */}
       {isAuthenticated && onOpenBilling ? (
         <View style={styles.section}>
@@ -626,39 +678,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </View>
       ) : null}
 
-      {/* Section 5c2: Vault synthetic harness (Phase 46) — production vault remains disabled */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-          Vault (development harness)
-        </Text>
-        <MobileCard themeMode={themeMode}>
-          <View style={styles.settingRow}>
-            <View style={{ flex: 1, paddingRight: spacing.sm }}>
-              <Text style={[styles.settingLabel, { color: palette.text.primary }]}>
-                Synthetic unlock lifecycle
-              </Text>
-              <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
-                Local Phase 46 harness with fixture ciphertext only. Does not enable vault for real
-                users. Production vault stays disabled until Phase 44/45 gates pass.
-              </Text>
-            </View>
-          </View>
-          {onOpenVaultHarness ? (
-            <View style={{ marginTop: spacing.sm }}>
-              <MobileButton
-                testID="btn-open-vault-harness"
-                variant="secondary"
-                themeMode={themeMode}
-                onPress={onOpenVaultHarness}
-                accessibilityLabel="Open synthetic vault unlock harness"
-              >
-                Open synthetic vault harness
-              </MobileButton>
-            </View>
-          ) : null}
-        </MobileCard>
-      </View>
-
       {/* Section 5d: Expenses & Financial Tracking (Phase 40 Opt-in) */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
@@ -732,7 +751,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </MobileCard>
       </View>
 
+      {/* Phase 66: All features directory */}
+      {onOpenAllFeatures ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Workspace &amp; visible features
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginBottom: spacing.sm },
+              ]}
+            >
+              Find, pin, hide, and restore modules. Hiding keeps your content and reminders.
+            </Text>
+            <MobileButton
+              variant="primary"
+              themeMode={themeMode}
+              onPress={onOpenAllFeatures}
+              accessibilityLabel="Open All features"
+              testID="btn-open-all-features"
+            >
+              <Icon name="sliders" /> All features
+            </MobileButton>
+          </MobileCard>
+        </View>
+      ) : null}
+
+      {/* Operator-only component gallery (Phase 66) */}
+      {onOpenGallery ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
+            Developer tools
+          </Text>
+          <MobileCard themeMode={themeMode}>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginBottom: spacing.sm },
+              ]}
+            >
+              Restricted operator surface for accessible primitives review.
+            </Text>
+            <MobileButton
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenGallery}
+              accessibilityLabel="Open Component Gallery"
+            >
+              <Icon name="palette" /> Open Component Gallery <Icon name="arrow-right" />
+            </MobileButton>
+          </MobileCard>
+        </View>
+      ) : null}
+      </>
+      ) : null}
+
       {/* Section 6: Tutorial & Getting Started */}
+      {show('help') ? (
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Tutorial & Getting Started
@@ -758,8 +835,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </MobileButton>
         </MobileCard>
       </View>
+      ) : null}
 
       {/* Section 7: Sync & Offline Recovery (Phase 34) */}
+      {show('privacy') ? (
+      <>
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
           Sync & Offline Recovery
@@ -853,59 +933,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </View>
       )}
 
-      {/* Phase 66: All features directory */}
-      {onOpenAllFeatures ? (
+      {/* Section 5c2: Vault synthetic harness — operator callback only; production vault stays disabled */}
+      {onOpenVaultHarness ? (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            Workspace &amp; visible features
+            Vault (development harness)
           </Text>
           <MobileCard themeMode={themeMode}>
-            <Text
-              style={[
-                styles.settingDescription,
-                { color: palette.text.secondary, marginBottom: spacing.sm },
-              ]}
-            >
-              Find, pin, hide, and restore modules. Hiding keeps your content and reminders.
-            </Text>
-            <MobileButton
-              variant="primary"
-              themeMode={themeMode}
-              onPress={onOpenAllFeatures}
-              accessibilityLabel="Open All features"
-              testID="btn-open-all-features"
-            >
-              <Icon name="sliders" /> All features
-            </MobileButton>
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                <Text style={[styles.settingLabel, { color: palette.text.primary }]}>
+                  Synthetic unlock lifecycle
+                </Text>
+                <Text style={[styles.settingDescription, { color: palette.text.secondary }]}>
+                  Local Phase 46 harness with fixture ciphertext only. Does not enable vault for
+                  real users. Production vault stays disabled until Phase 44/45 gates pass.
+                </Text>
+              </View>
+            </View>
+            <View style={{ marginTop: spacing.sm }}>
+              <MobileButton
+                testID="btn-open-vault-harness"
+                variant="secondary"
+                themeMode={themeMode}
+                onPress={onOpenVaultHarness}
+                accessibilityLabel="Open synthetic vault unlock harness"
+              >
+                Open synthetic vault harness
+              </MobileButton>
+            </View>
           </MobileCard>
         </View>
       ) : null}
-
-      {/* Operator-only component gallery (Phase 66) */}
-      {onOpenGallery ? (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-            Developer tools
-          </Text>
-          <MobileCard themeMode={themeMode}>
-            <Text
-              style={[
-                styles.settingDescription,
-                { color: palette.text.secondary, marginBottom: spacing.sm },
-              ]}
-            >
-              Restricted operator surface for accessible primitives review.
-            </Text>
-            <MobileButton
-              variant="secondary"
-              themeMode={themeMode}
-              onPress={onOpenGallery}
-              accessibilityLabel="Open Component Gallery"
-            >
-              <Icon name="palette" /> Open Component Gallery <Icon name="arrow-right" />
-            </MobileButton>
-          </MobileCard>
-        </View>
+      </>
       ) : null}
     </ScrollView>
   );

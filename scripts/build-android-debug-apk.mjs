@@ -67,13 +67,20 @@ function main() {
   const pluginDst = path.join(SHORT_ROOT, 'apps/mobile/plugins/withReleaseSigningGuard.js');
   fs.copyFileSync(pluginSrc, pluginDst);
 
+  // Sync uncommitted mobile/ui-mobile (and related) sources so Phase APKs are not HEAD-only.
+  run(process.execPath, [path.join(SOURCE_ROOT, 'scripts/sync-short-build-working-tree.mjs')], {
+    env: { ...process.env, DAYNORI_SHORT_BUILD_ROOT: SHORT_ROOT },
+  });
+
   const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
   run(pnpm, ['install'], { cwd: SHORT_ROOT });
   run(pnpm, ['prebuild'], { cwd: path.join(SHORT_ROOT, 'apps', 'mobile') });
 
+  // Match selected device/emulator ABI (default arm64-v8a; x86_64 AVD uses DAYNORI_ANDROID_ABI=x86_64).
+  const abi = process.env.DAYNORI_ANDROID_ABI || 'arm64-v8a';
   const gp = path.join(SHORT_ROOT, 'apps/mobile/android/gradle.properties');
   let gpText = fs.readFileSync(gp, 'utf8');
-  gpText = gpText.replace(/reactNativeArchitectures=.*/g, 'reactNativeArchitectures=arm64-v8a');
+  gpText = gpText.replace(/reactNativeArchitectures=.*/g, `reactNativeArchitectures=${abi}`);
   fs.writeFileSync(gp, gpText);
 
   const androidDir = path.join(SHORT_ROOT, 'apps/mobile/android');
@@ -96,20 +103,30 @@ function main() {
 
   const destDir = path.join(SOURCE_ROOT, 'artifacts', 'release');
   fs.mkdirSync(destDir, { recursive: true });
-  const destApk = path.join(destDir, 'app-debug-arm64.apk');
+  const apkName = abi === 'arm64-v8a' ? 'app-debug-arm64.apk' : `app-debug-${abi}.apk`;
+  const destApk = path.join(destDir, apkName);
   fs.copyFileSync(apk, destApk);
   const sha256 = crypto.createHash('sha256').update(fs.readFileSync(destApk)).digest('hex');
+
+  let workingTreeSync = null;
+  const syncPath = path.join(destDir, 'android-working-tree-sync.json');
+  if (fs.existsSync(syncPath)) {
+    workingTreeSync = JSON.parse(fs.readFileSync(syncPath, 'utf8'));
+  }
 
   const evidence = {
     createdAt: new Date().toISOString(),
     gitRevision: rev,
+    workingTreeFingerprint: workingTreeSync?.workingTreeFingerprint ?? null,
+    workingTreeDirty: workingTreeSync?.workingTreeDirty ?? null,
     buildRoot: SHORT_ROOT,
-    apkPath: 'artifacts/release/app-debug-arm64.apk',
+    apkPath: `artifacts/release/${apkName}`,
     sha256,
-    architecture: 'arm64-v8a',
+    architecture: abi,
+    packageId: 'com.daynori.app',
     signing: 'debug (local-test only — not release-eligible)',
     targetSdk: 36,
-    note: 'Installable debug APK; DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING / release keystore still required for RC',
+    note: 'Installable debug APK includes synced working-tree mobile sources when dirty; not release-eligible',
   };
   fs.writeFileSync(
     path.join(destDir, 'android-debug-apk-evidence.json'),

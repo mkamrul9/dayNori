@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-26",
-  "activePhase": null,
+  "activePhase": "71",
   "nextPhase": "71",
-  "schedulingDecision": "Phases 67–70 complete (Warm notebook; tokens/primitives; desktop shell/Today; mobile web/PWA layout). Phase 71 (native Android interface parity) is next eligible. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
+  "schedulingDecision": "Phase 71 native Android interface parity is in progress / incomplete: header StatusBar-pad fix and repaired device-evidence runner (13/13) landed; create/save/reopen persistence matrix and spoken TalkBack listen-through remain open. Phase 72 must not start until 71 acceptance passes. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -419,7 +419,9 @@
     },
     {
       "id": "71",
-      "status": "planned"
+      "status": "in_progress",
+      "reason": "Header StatusBar intercept fixed; device-evidence 13/13 on emulator-5554; landscape APK unlocked. Still missing create/save/reopen identity proofs, IME Save reachability, pin/hide Journal tabs, account isolation, and spoken TalkBack listen-through. See docs/phase-reports/phase-71.md.",
+      "report": "docs/phase-reports/phase-71.md"
     },
     {
       "id": "72",

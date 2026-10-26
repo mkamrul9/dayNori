@@ -1,7 +1,8 @@
 import { Icon } from './Icon.js';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import { subscribeAndroidKeyboardInsets } from './androidInsets.js';
 
 export type MobileTab = 'today' | 'plan' | 'library' | 'journal';
 
@@ -11,6 +12,8 @@ export interface MobileNavigationBarProps {
   themeMode?: ThemeMode;
   /** When set, only these primary tabs render (e.g. Journal hidden → three tabs). */
   visibleTabs?: readonly MobileTab[];
+  /** Extra bottom inset (gesture/nav bar). Keyboard height is tracked separately. */
+  bottomInset?: number;
   testID?: string;
 }
 
@@ -32,13 +35,22 @@ export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
   onSelectTab,
   themeMode = 'light',
   visibleTabs,
+  bottomInset = 0,
   testID = 'mobile-nav-bar',
 }) => {
   const palette = colors[themeMode];
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const tabs =
     visibleTabs && visibleTabs.length > 0
       ? TABS.filter((tab) => visibleTabs.includes(tab.key))
       : TABS;
+
+  useEffect(() => subscribeAndroidKeyboardInsets((s) => setKeyboardHeight(s.keyboardHeight)), []);
+
+  // Hide bottom nav while the IME is open so Save/fields stay reachable.
+  if (keyboardHeight > 0) {
+    return null;
+  }
 
   return (
     <View
@@ -50,6 +62,7 @@ export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
         {
           backgroundColor: palette.surface,
           borderTopColor: palette.border.subtle,
+          paddingBottom: Math.max(spacing.xs, bottomInset),
         },
       ]}
     >
@@ -74,9 +87,7 @@ export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
               },
             ]}
           >
-            <Text style={styles.tabIcon} aria-hidden={true}>
-              <Icon name={tab.icon} color={palette.text.primary} />
-            </Text>
+            <Icon name={tab.icon} color={palette.text.primary} />
             <Text
               numberOfLines={1}
               style={[
