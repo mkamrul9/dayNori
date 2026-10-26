@@ -1,6 +1,6 @@
 # ADR-0071: Native Android Settings hub, Back stack, and inset adapter
 
-- Status: accepted (implementation advanced; device acceptance incomplete — spoken TalkBack and persistence journeys open)
+- Status: accepted (implementation advanced; device acceptance incomplete — local SQLite init / CSPRNG native link, persistence matrix, and spoken TalkBack remain open)
 - Date: 2026-10-26
 - Related: [ADR 0068](0068-feature-registry-personalization-and-operator-boundaries.md), [ADR 0070](0070-mobile-web-pwa-layout-and-settings.md), Phase 71
 
@@ -8,11 +8,14 @@
 
 Phase 70 grouped web Settings into hub + focused routes. Native Android needed the same
 information architecture without wrapping the web app, while honoring hardware Back,
-keyboard avoidance, and TalkBack. `react-native-safe-area-context` is not installed on the
-Expo 52 / RN 0.76 mobile app; an additional dependency must stay compatible if introduced.
+keyboard avoidance, and TalkBack. A hard dependency on `react-native-safe-area-context`
+was tried and rolled back for this Dev Client: Metro could resolve the JS package after
+short-root copy, but the installed APK PackageList did not include the native module, and
+edge-to-edge tap clearance is solved with a density-portable pad instead.
 
 On API 35 edge-to-edge AVDs, accessibility can report header controls as clickable while the
-system StatusBar window still intercepts taps in the statusBars inset (~128px).
+system StatusBar window still intercepts taps in the statusBars inset (~48dp × density,
+historically ~128px on the nominated 420dpi AVD).
 
 ## Options
 
@@ -28,12 +31,13 @@ system StatusBar window still intercepts taps in the statusBars inset (~128px).
 2. **Back priority (Android):** topmost non-settings modal → Settings nested overlay returns
    to Settings → Settings group → Settings hub → Plan/Library detail → Today → system exit.
    Nested Settings-originated overlays are listed in `SETTINGS_NESTED_MODALS`.
-3. **Insets / keyboard:** `packages/ui-mobile` `androidInsets` subscribes to
-   `Keyboard` show/hide, hides the bottom nav while the IME is open, and uses
-   `KeyboardAvoidingView` with `padding` on Android for sheets and note editors. Top chrome
-   clearance uses `androidStatusBarTopPad()` / App inline pad:
-   `min(160, max(StatusBar.currentHeight, scaled 48dp, 128))` so under-reported heights cannot
-   leave header taps trapped under the StatusBar window.
+3. **Insets / keyboard:** Single policy in `androidStatusBarTopPad(measured?)`: prefer an
+   explicit measured top inset when a linked provider supplies one; otherwise
+   `max(StatusBar.currentHeight, ceil(48dp × PixelRatio))` (Material status-bar touch
+   target, density-portable — no hard-coded 128/160px AVD floors). `androidInsets`
+   subscribes to Keyboard show/hide; `MobileModalSheet` adds measured IME height to
+   bottom padding so Create/Settings actions stay reachable; note editors keep
+   `KeyboardAvoidingView` `padding`.
 4. **Orientation:** `app.json` `orientation: default` and MainActivity `unspecified` so
    landscape evidence is possible on the nominated AVD (portrait lock blocked rotation).
 5. **Operator boundaries:** gallery, vault harness, provisional Drive/rooms/assistant/billing

@@ -87,9 +87,9 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
       (async (dbName: string) => {
         let expoFsError: unknown = null;
         try {
-          const expoFsMod = 'expo-file-system';
+          // Static specifier required — Metro cannot resolve `import(variable)`.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const FileSystem: any = await import(expoFsMod);
+          const FileSystem: any = await import('expo-file-system');
           if (FileSystem?.documentDirectory) {
             const dbPath = `${FileSystem.documentDirectory}SQLite/${dbName}`;
             const info = await FileSystem.getInfoAsync(dbPath);
@@ -98,15 +98,10 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
         } catch (err) {
           expoFsError = err;
         }
-        try {
-          const fs = await import('node:fs');
-          const path = await import('node:path');
-          return fs.existsSync(dbName) || fs.existsSync(path.join(process.cwd(), dbName));
-        } catch (nodeFsError) {
-          throw new StorageUnavailableError(
-            `Unable to determine database file existence for "${dbName}": native filesystem check failed: ${expoFsError instanceof Error ? expoFsError.message : String(expoFsError)}; node fallback failed: ${nodeFsError instanceof Error ? nodeFsError.message : String(nodeFsError)}`
-          );
-        }
+        // Do not import node:fs here — Metro resolves dynamic node builtins to undefined on device.
+        throw new StorageUnavailableError(
+          `Unable to determine database file existence for "${dbName}": native filesystem check failed: ${expoFsError instanceof Error ? expoFsError.message : String(expoFsError)}`
+        );
       });
     this.dbDeleteFn =
       options.deleteDatabaseAsync ||
@@ -121,26 +116,16 @@ export class SqliteLocalRepository implements LocalRepositoryPort {
           // Fall through
         }
         try {
-          const expoFsMod = 'expo-file-system';
+          // Static specifier required — Metro cannot resolve `import(variable)`.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const FileSystem: any = await import(expoFsMod);
+          const FileSystem: any = await import('expo-file-system');
           if (FileSystem?.documentDirectory) {
             const dbPath = `${FileSystem.documentDirectory}SQLite/${dbName}`;
             await FileSystem.deleteAsync(dbPath, { idempotent: true });
             return;
           }
         } catch {
-          // Fallback to node:fs
-        }
-        try {
-          const fs = await import('node:fs');
-          const path = await import('node:path');
-          const target = fs.existsSync(dbName) ? dbName : path.join(process.cwd(), dbName);
-          if (fs.existsSync(target)) {
-            fs.unlinkSync(target);
-          }
-        } catch {
-          /* ignore */
+          // No node:fs fallback — Metro cannot bundle node builtins for the device.
         }
       });
     // Production storage enforces SQLCipher capability by default

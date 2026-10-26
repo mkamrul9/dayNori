@@ -1,124 +1,195 @@
 {
   "phase": 71,
   "kind": "journeys",
-  "createdAt": "2026-10-25T22:48:30.631Z",
+  "createdAt": "2026-10-26T12:40:35.792Z",
   "serial": "emulator-5554",
   "titles": {
-    "NOTE_TITLE": "P71 Note mvof1g2g",
-    "TASK_TITLE": "P71 Task mvof1g2g",
-    "ROUTINE_TITLE": "P71 Routine mvof1g2g",
-    "JOURNAL_TITLE": "P71 Journal mvof1g2g",
-    "DRAFT_TITLE": "P71 Draft mvof1g2g"
+    "NOTE_TITLE": "P71Notemvp8t8ka",
+    "TASK_TITLE": "P71Taskmvp8t8ka",
+    "ROUTINE_TITLE": "P71Routinemvp8t8ka",
+    "JOURNAL_TITLE": "P71Journalmvp8t8ka"
+  },
+  "settingsSnapshot": {
+    "accessibility_enabled": "0",
+    "enabled_accessibility_services": "null",
+    "touch_exploration_enabled": "0",
+    "font_scale": "1.0",
+    "user_rotation": "0",
+    "accelerometer_rotation": "1"
   },
   "steps": [
     {
-      "step": "settings-hub-open",
-      "ok": true,
-      "detail": "hub open for auth probe",
-      "at": "2026-10-25T22:45:19.149Z"
-    },
-    {
       "step": "auth-state",
       "ok": true,
-      "detail": "signedIn=false; workspaceHints=true; ordinaryDevDenialCopy=true",
-      "signedIn": false,
-      "hasWorkspace": true,
-      "ordinaryDenial": true,
-      "at": "2026-10-25T22:45:22.533Z"
+      "detail": "label=A; signedIn=true; workspaceHint=true; err=none; userIdPresent=true",
+      "evidenceLayer": {
+        "localSyntheticAuth": false,
+        "realProviderAuth": "local-supabase-gotrue-password",
+        "localPersistence": "workspace-ready",
+        "serverSync": "api-reachable-separately"
+      },
+      "at": "2026-10-26T12:39:03.005Z"
     },
     {
-      "step": "ordinary-developer-denial-settings",
+      "step": "auth-workspace-prerequisite",
       "ok": true,
-      "detail": "No gallery/harness on Account group for current user",
-      "at": "2026-10-25T22:45:22.533Z"
+      "detail": "Ordinary Account password sign-in + workspace hints present (provider=local GoTrue; API via adb reverse)",
+      "at": "2026-10-26T12:39:03.006Z"
     },
     {
-      "step": "synthetic-login-tap",
+      "step": "create-note-type-selected",
+      "ok": true,
+      "detail": "create-type-note selected=true",
+      "at": "2026-10-26T12:39:10.768Z"
+    },
+    {
+      "step": "create-note-title-value",
+      "ok": true,
+      "detail": "title field contains P71Notemvp8t8ka",
+      "expected": "P71Notemvp8t8ka",
+      "observed": "P71Notemvp8t8ka",
+      "at": "2026-10-26T12:39:17.803Z"
+    },
+    {
+      "step": "create-note-submit-delivered",
+      "ok": true,
+      "detail": "tapped create-submit-btn",
+      "contentDesc": "Submit create note",
+      "at": "2026-10-26T12:39:17.871Z"
+    },
+    {
+      "step": "create-note-save",
       "ok": false,
-      "detail": "Sign In Synthetic not available (operator-gated or already signed in) — not a production bypass",
-      "at": "2026-10-25T22:45:22.534Z"
+      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
+      "layer": "local-persistence",
+      "blocked": true,
+      "at": "2026-10-26T12:39:21.905Z"
     },
     {
-      "step": "create-note",
+      "step": "create-task-type-selected",
+      "ok": true,
+      "detail": "create-type-task selected=true",
+      "at": "2026-10-26T12:39:30.478Z"
+    },
+    {
+      "step": "create-task-title-value",
+      "ok": true,
+      "detail": "title field contains P71Taskmvp8t8ka",
+      "expected": "P71Taskmvp8t8ka",
+      "observed": "P71Taskmvp8t8ka",
+      "at": "2026-10-26T12:39:37.989Z"
+    },
+    {
+      "step": "create-task-submit-delivered",
+      "ok": true,
+      "detail": "tapped create-submit-btn",
+      "contentDesc": "Submit create task",
+      "at": "2026-10-26T12:39:38.047Z"
+    },
+    {
+      "step": "create-task-save",
       "ok": false,
-      "detail": "Note create postcondition unclear",
-      "title": "P71 Note mvof1g2g",
-      "blocked": false,
-      "at": "2026-10-25T22:45:46.976Z"
+      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
+      "layer": "local-persistence",
+      "blocked": true,
+      "at": "2026-10-26T12:39:42.080Z"
     },
     {
-      "step": "create-task",
+      "step": "create-routine-type-selected",
       "ok": true,
-      "detail": "Task flow title=P71 Task mvof1g2g; onPlan=false",
-      "title": "P71 Task mvof1g2g",
-      "blocked": false,
-      "at": "2026-10-25T22:46:20.323Z"
+      "detail": "create-type-routine selected=true",
+      "at": "2026-10-26T12:39:50.478Z"
     },
     {
-      "step": "create-routine",
+      "step": "create-routine-title-value",
       "ok": true,
-      "detail": "Routine submit title=P71 Routine mvof1g2g",
-      "title": "P71 Routine mvof1g2g",
-      "blocked": false,
-      "at": "2026-10-25T22:46:53.096Z"
+      "detail": "title field contains P71Routinemvp8t8ka",
+      "expected": "P71Routinemvp8t8ka",
+      "observed": "P71Routinemvp8t8ka",
+      "at": "2026-10-26T12:39:57.835Z"
     },
     {
-      "step": "create-journal",
+      "step": "create-routine-submit-delivered",
       "ok": true,
-      "detail": "Journal submit title=P71 Journal mvof1g2g",
-      "title": "P71 Journal mvof1g2g",
-      "blocked": false,
-      "at": "2026-10-25T22:47:26.348Z"
+      "detail": "tapped create-submit-btn",
+      "contentDesc": "Submit create routine",
+      "at": "2026-10-26T12:39:57.903Z"
+    },
+    {
+      "step": "create-routine-save",
+      "ok": false,
+      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
+      "layer": "local-persistence",
+      "blocked": true,
+      "at": "2026-10-26T12:40:01.886Z"
+    },
+    {
+      "step": "create-journal-type-selected",
+      "ok": true,
+      "detail": "create-type-journal selected=true",
+      "at": "2026-10-26T12:40:10.424Z"
+    },
+    {
+      "step": "create-journal-title-value",
+      "ok": true,
+      "detail": "title field contains P71Journalmvp8t8ka",
+      "expected": "P71Journalmvp8t8ka",
+      "observed": "P71Journalmvp8t8ka",
+      "at": "2026-10-26T12:40:18.074Z"
+    },
+    {
+      "step": "create-journal-submit-delivered",
+      "ok": true,
+      "detail": "tapped create-submit-btn",
+      "contentDesc": "Submit create journal",
+      "at": "2026-10-26T12:40:18.130Z"
+    },
+    {
+      "step": "create-journal-save",
+      "ok": false,
+      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
+      "layer": "local-persistence",
+      "blocked": true,
+      "at": "2026-10-26T12:40:22.197Z"
     },
     {
       "step": "search-open",
       "ok": true,
-      "detail": "Search sheet opened via header",
-      "at": "2026-10-25T22:47:43.302Z"
+      "detail": "search sheet via header",
+      "at": "2026-10-26T12:40:27.766Z"
     },
     {
-      "step": "search-query",
-      "ok": true,
-      "detail": "Search accepted query (result identity depends on prior saves)",
-      "at": "2026-10-25T22:47:47.567Z"
-    },
-    {
-      "step": "all-features-discovery",
-      "ok": true,
-      "detail": "directory visible; pinControls=false; journalControls=true",
-      "at": "2026-10-25T22:47:54.247Z"
-    },
-    {
-      "step": "pin-toggle",
+      "step": "search-canonical",
       "ok": false,
-      "detail": "Pin control not found or not exercised",
+      "detail": "Skipped: no saved note fixture for canonical search",
       "skipped": true,
-      "at": "2026-10-25T22:47:54.247Z"
-    },
-    {
-      "step": "ime-draft-reachability",
-      "ok": false,
-      "detail": "create sheet did not open",
-      "at": "2026-10-25T22:48:10.416Z"
-    },
-    {
-      "step": "settings-preference",
-      "ok": false,
-      "detail": "Appearance group missing",
-      "at": "2026-10-25T22:48:22.542Z"
+      "at": "2026-10-26T12:40:27.766Z"
     },
     {
       "step": "deeplink-gallery-denial",
       "ok": true,
-      "detail": "Gallery deep link did not expose gallery to current user",
-      "at": "2026-10-25T22:48:27.998Z"
+      "detail": "Gallery deep link did not expose gallery",
+      "at": "2026-10-26T12:40:32.999Z"
+    },
+    {
+      "step": "input-method-note",
+      "ok": true,
+      "detail": "adb input text ASCII-only; Bangla/non-ASCII marked untested (not stripped to claim coverage)",
+      "at": "2026-10-26T12:40:35.261Z"
+    },
+    {
+      "step": "device-settings-restored",
+      "ok": true,
+      "detail": "a11y=0 font=1.0 rot=0",
+      "at": "2026-10-26T12:40:35.792Z"
     }
   ],
-  "passCount": 10,
+  "passCount": 18,
   "failCount": 5,
   "limitations": [
-    "Persistence reopen/complete/undo require an authorized workspace; auth blockers are recorded explicitly.",
-    "IME evidence is emulator soft-keyboard only.",
-    "TalkBack spoken review is a separate procedure."
+    "Prior create-task/routine/journal passes before stable testIDs are provisional and superseded by this runner.",
+    "Canonical reopen identity requires authenticated workspace; auth/API prerequisites recorded explicitly when missing.",
+    "IME Save reachability, pin/hide Journal, account isolation, and spoken TalkBack are separate procedures.",
+    "adb input text is ASCII-only; non-ASCII coverage is untested."
   ]
 }

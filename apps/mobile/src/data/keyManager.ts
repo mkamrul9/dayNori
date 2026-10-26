@@ -1,5 +1,6 @@
 import type { SecureStoreContract } from '../auth/secureStorage.js';
 import { StorageKeyError } from '@daynori/sync';
+import { fillSecureRandomBytes } from './secureRandom.js';
 
 export interface MobileKeyManagerOptions {
   secureStore: SecureStoreContract;
@@ -86,32 +87,23 @@ export class MobileKeyManager {
       try {
         const existing = await this.secureStore.getItemAsync(alias);
         if (existing) {
-          this.validateKeyFormat(existing);
-          await this.recordWorkspaceForUser(userId, workspaceId);
-          return existing;
-        }
-
-        // Generate fresh 256-bit (32 bytes) cryptographically secure key
-        const rawBytes = new Uint8Array(32);
-        if (typeof globalThis.crypto?.getRandomValues === 'function') {
-          globalThis.crypto.getRandomValues(rawBytes);
-        } else {
-          // Dynamic import for Node.js test environments; avoid breaking mobile bundler
-          const cryptoModule = await (async () => {
-            try {
-              return await import('node:crypto');
-            } catch {
-              return null;
+          try {
+            this.validateKeyFormat(existing);
+            await this.recordWorkspaceForUser(userId, workspaceId);
+            return existing;
+          } catch {
+            // Corrupt/partial prior write (e.g. interrupted init) — discard and regenerate.
+            if (typeof this.secureStore.deleteItemAsync === 'function') {
+              await this.secureStore.deleteItemAsync(alias);
+            } else {
+              await this.secureStore.setItemAsync(alias, '');
             }
-          })();
-          if (cryptoModule?.randomFillSync) {
-            cryptoModule.randomFillSync(rawBytes);
-          } else {
-            throw new StorageKeyError(
-              'NO_SECURE_RANDOM: Cryptographically secure random generator is unavailable.'
-            );
           }
         }
+
+        // Generate fresh 256-bit key via device CSPRNG helper (no node:crypto).
+        const rawBytes = new Uint8Array(32);
+        await fillSecureRandomBytes(rawBytes);
 
         const hexKey = Array.from(rawBytes)
           .map((b) => b.toString(16).padStart(2, '0'))

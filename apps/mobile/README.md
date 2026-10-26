@@ -14,7 +14,7 @@ Provides:
 - Grouped native Settings (hub → Account / Appearance / Notifications / Workspace / Privacy / Help)
 - Feature-registry primary tabs (Journal hide → three destinations)
 
-Native Android differs from browser/PWA (Phase 70): hardware Back, `androidInsets` keyboard helper (no `react-native-safe-area-context` yet), StatusBar top pad for edge-to-edge header hit-testing, Expo Dev Client for debug APKs (`orientation: default` for landscape evidence). Native iOS remains separately gated.
+Native Android differs from browser/PWA (Phase 70): hardware Back, `androidInsets` keyboard + density-portable StatusBar top pad (48dp×PixelRatio; optional measured inset), Expo Dev Client for debug APKs (`orientation: default` for landscape evidence). `react-native-safe-area-context` is not required for the current pad policy. Local encrypted SQLite needs a linked CSPRNG (`expo-crypto` in the native binary). Native iOS remains separately gated.
 
 Device evidence (explicit serial): `DAYNORI_ANDROID_SERIAL=emulator-5554 node scripts/phase71-android-device-evidence.mjs` (and optional `phase71-android-journeys.mjs`). Metro for Dev Client often runs from the short sync root `D:\d\daynori`.
 

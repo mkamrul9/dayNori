@@ -11,7 +11,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
 import {
   androidStatusBarTopPad,
@@ -104,15 +103,6 @@ import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
 import { isCorePreview, mobileOperatorUserIds } from './src/config/runtime.js';
 
 export default function App() {
-  return (
-    <SafeAreaProvider>
-      <AppShell />
-    </SafeAreaProvider>
-  );
-}
-
-function AppShell() {
-  const safeInsets = useSafeAreaInsets();
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [textScale, setTextScale] = useState<number>(() => {
     try {
@@ -464,11 +454,16 @@ function AppShell() {
             }
           })
           .catch(() => {});
-      } catch {
-        if (!isCancelled)
+      } catch (err) {
+        if (!isCancelled) {
+          const detail =
+            err instanceof Error
+              ? (err.message.match(/^[A-Z][A-Z0-9_]{2,}/)?.[0] ?? err.name)
+              : 'unknown';
           setStorageMessage(
-            'Could not open your saved data. Reopen the app to retry. Your data has not been cleared.'
+            `Could not open your saved data (${detail}). Reopen the app to retry. Your data has not been cleared.`
           );
+        }
       }
     }
 
@@ -764,12 +759,10 @@ function AppShell() {
 
   const headerInfo = getHeaderInfo();
 
-  // Measured insets from SafeAreaProvider (portable). androidStatusBarTopPad prefers
-  // measuredTopInset; StatusBar.currentHeight is only a unit-test fallback.
-  const topPad =
-    Platform.OS === 'android'
-      ? androidStatusBarTopPad(safeInsets.top)
-      : Math.max(0, Math.ceil(safeInsets.top));
+  // Single inset policy: androidStatusBarTopPad (density-portable 48dp floor when
+  // StatusBar under-reports on edge-to-edge). Optional measuredTopInset reserved for
+  // a future linked safe-area provider — current Dev Client APK does not ship it.
+  const topPad = Platform.OS === 'android' ? androidStatusBarTopPad() : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: palette.background }]}>
@@ -781,7 +774,6 @@ function AppShell() {
         style={{
           flex: 1,
           paddingTop: topPad,
-          paddingBottom: Math.max(0, Math.ceil(safeInsets.bottom)),
           backgroundColor: palette.background,
         }}
       >

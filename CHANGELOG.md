@@ -2,9 +2,10 @@
 
 ## Phase 71 — Native Android interface (in progress) — 2026-10-26
 
-- Settings hub/groups, BackHandler priority, androidInsets keyboard helper, and StatusBar top pad so header Search/Create/Settings taps clear the edge-to-edge StatusBar intercept (ADR 0071).
-- Device evidence runner: distinct postconditions, a11y/font/rotation snapshot restore; landscape via unlocked orientation + `adb emu rotate`.
-- x86_64 Dev Client APK rebuild with working-tree sync fingerprints. Spoken TalkBack and create/save/reopen persistence matrix still open — no completion commit.
+- Settings hub/groups, BackHandler priority, androidInsets keyboard helper, and density-portable StatusBar top pad (`max(reported, 48dp×density)`) so header taps clear edge-to-edge StatusBar intercept (ADR 0071).
+- CreateSheet stable testIDs (`create-type-*`, `create-title-input`, `create-submit-btn`); journeys use node-scoped resource-id parsing and strong save/reopen assertions; prior create-* passes without those IDs remain provisional.
+- MobileModalSheet pads by measured Android IME height; journeys restore a11y/font/rotation; ordinary Account sign-in path uses local GoTrue + JWKS API (no operator synthetic-login).
+- Device blocker: SQLCipher key generation needs a linked CSPRNG (`expo-crypto` / native RNG) in the Dev Client — observed `NO_SECURE_RANDOM` on the current APK. Spoken TalkBack listen-through and persistence matrix still open — no completion commit.
 
 ## Phase 70 — Mobile web and PWA layout redesign — 2026-10-26
 

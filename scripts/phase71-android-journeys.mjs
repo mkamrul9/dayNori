@@ -8,6 +8,10 @@
  * Env:
  *   DAYNORI_ANDROID_SERIAL (required)
  *   ANDROID_HOME / ANDROID_SDK_ROOT
+ *   DAYNORI_PHASE71_SYNTH_ACCOUNTS — optional path to JSON
+ *     [{ "label":"A","email":"...","password":"...","userId":"..." }, ...]
+ *     Default: artifacts/local/phase71-synth-accounts.json (gitignored).
+ *     Credentials are never written into journey evidence JSON.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -51,10 +55,19 @@ function screencap(name) {
   return dest;
 }
 function dumpUi(name) {
-  runAdb(['shell', 'uiautomator', 'dump', '/sdcard/ui.xml']);
-  const xml = runAdb(['shell', 'cat', '/sdcard/ui.xml']);
-  fs.writeFileSync(path.join(outDir, name), xml);
-  return xml;
+  let lastErr = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      runAdb(['shell', 'uiautomator', 'dump', '/sdcard/ui.xml']);
+      const xml = runAdb(['shell', 'cat', '/sdcard/ui.xml']);
+      fs.writeFileSync(path.join(outDir, name), xml);
+      return xml;
+    } catch (err) {
+      lastErr = err;
+      sleep(700);
+    }
+  }
+  throw lastErr || new Error(`uiautomator dump failed for ${name}`);
 }
 
 /** Parse one uiautomator node by resource-id (attributes scoped to that node only). */
@@ -135,7 +148,7 @@ function writeSystem(key, value) {
   runAdb(['shell', 'settings', 'put', 'system', key, value]);
 }
 
-/** adb input text: only ASCII safe for this automation path. */
+/** adb input text: ASCII titles (letters/digits/space/._-). */
 function assertAsciiInput(text) {
   if (!/^[A-Za-z0-9 ._-]+$/.test(text)) {
     throw new Error(
@@ -147,6 +160,177 @@ function typeAscii(text) {
   assertAsciiInput(text);
   const encoded = text.replace(/ /g, '%s');
   runAdb(['shell', 'input', 'text', encoded]);
+}
+
+/**
+ * Credential typing: ASCII email/password with @ allowed.
+ * Encodes space→%s and @→\\@ for `adb shell input text` (no silent stripping).
+ */
+function typeCredentialAscii(text) {
+  if (!/^[A-Za-z0-9 ._\-@]+$/.test(text)) {
+    throw new Error(
+      'Unsupported credential characters for adb text path (ASCII email/password only).'
+    );
+  }
+  const encoded = text.replace(/ /g, '%s').replace(/@/g, '\\@');
+  runAdb(['shell', 'input', 'text', encoded]);
+}
+
+function loadSynthAccounts() {
+  const p =
+    process.env.DAYNORI_PHASE71_SYNTH_ACCOUNTS ||
+    path.join(root, 'artifacts', 'local', 'phase71-synth-accounts.json');
+  if (!fs.existsSync(p)) return [];
+  try {
+    // Strip UTF-8 BOM that PowerShell Set-Content -Encoding utf8 may prepend.
+    const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '');
+    const raw = JSON.parse(text);
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function clearFocusedField() {
+  runAdb(['shell', 'input', 'keyevent', '123']); // move end
+  for (let i = 0; i < 64; i += 1) runAdb(['shell', 'input', 'keyevent', '67']); // DEL
+}
+
+/**
+ * Ordinary-user Account sheet sign-in (not operator synthetic-login).
+ * Returns { signedIn, workspaceHint, userLabel } without logging secrets.
+ */
+function signInOrdinaryAccount(account) {
+  if (!account?.email || !account?.password) {
+    return { signedIn: false, workspaceHint: false, userLabel: null, error: 'missing-account' };
+  }
+  let xml = ensureApp();
+  if (!tapNode(nodeByResourceId(xml, 'header-settings-btn'))) {
+    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'settings-missing' };
+  }
+  const hub = waitFor((x) => Boolean(nodeByResourceId(x, 'settings-hub') || /Choose a group/i.test(x)), {
+    dumps: ['signin-hub.xml'],
+    timeoutMs: 8000,
+  });
+  if (!hub.ok || !tapNode(nodeByResourceId(hub.xml, 'settings-group-account'))) {
+    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-group' };
+  }
+  sleep(600);
+  xml = dumpUi('signin-account-group.xml');
+  // Already authenticated in Account group — do not open the sign-in sheet.
+  if (/content-desc="Sign out"|text="Sign out"/i.test(xml)) {
+    const workspaceHint = /Workspace|workspace|Authenticated/i.test(xml);
+    for (let i = 0; i < 3; i += 1) {
+      runAdb(['shell', 'input', 'keyevent', '4']);
+      sleep(400);
+    }
+    ensureApp();
+    return {
+      signedIn: true,
+      workspaceHint,
+      userLabel: account.label,
+      userIdPresent: Boolean(account.userId),
+      error: null,
+    };
+  }
+  // Open Account sheet via Sign in control (label may be content-desc or text).
+  const signInCtl =
+    nodeByResourceId(xml, 'settings-account-signin') ||
+    (() => {
+      const m = xml.match(
+        /<node\b(?=[^>]*(?:content-desc|text)="Sign in or create account")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*clickable="true"/i
+      ) ||
+        xml.match(
+          /<node\b(?=[^>]*clickable="true")[^>]*(?:content-desc|text)="Sign in or create account"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+        );
+      if (!m) return null;
+      return {
+        midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
+        midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+      };
+    })();
+  if (!signInCtl) {
+    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'signin-control' };
+  }
+  tapNode(signInCtl);
+  const sheet = waitFor((x) => Boolean(nodeByResourceId(x, 'account-sheet') || nodeByResourceId(x, 'account-email')), {
+    dumps: ['signin-account-sheet.xml'],
+    timeoutMs: 10000,
+  });
+  if (!sheet.ok) {
+    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-sheet' };
+  }
+  xml = sheet.xml;
+  const emailField = nodeByResourceId(xml, 'account-email');
+  const passField = nodeByResourceId(xml, 'account-password');
+  const submit = nodeByResourceId(xml, 'account-submit');
+  if (!emailField || !passField || !submit) {
+    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-fields' };
+  }
+  tapNode(emailField);
+  sleep(500);
+  clearFocusedField();
+  typeCredentialAscii(account.email);
+  sleep(600);
+  xml = dumpUi('signin-email-typed.xml');
+  const emailTyped = nodeByResourceId(xml, 'account-email');
+  if (!emailTyped?.text?.includes(account.email.split('@')[0])) {
+    return {
+      signedIn: false,
+      workspaceHint: false,
+      userLabel: account.label,
+      error: 'email-not-typed',
+    };
+  }
+  tapNode(nodeByResourceId(xml, 'account-password') || passField);
+  sleep(500);
+  clearFocusedField();
+  typeCredentialAscii(account.password);
+  sleep(600);
+  xml = dumpUi('signin-password-typed.xml');
+  // Dismiss IME so submit stays reachable, then submit (IME-open Save is a separate case).
+  runAdb(['shell', 'input', 'keyevent', '4']);
+  sleep(400);
+  const submit2 = nodeByResourceId(dumpUi('signin-before-submit.xml'), 'account-submit') || submit;
+  tapNode(submit2);
+  // Wait for sheet close or workspace / sign-out / error copy
+  const after = waitFor(
+    (x) => {
+      const submitNode = nodeByResourceId(x, 'account-submit');
+      const busy = /Please wait/i.test(submitNode?.contentDesc || '') || /Please wait/i.test(x);
+      if (busy) return false;
+      return (
+        (!nodeByResourceId(x, 'account-sheet') &&
+          /Sign out|Current Session|workspace|Workspace/i.test(x)) ||
+        /Signed in|workspace setup is unavailable|Authentication failed|Authentication is unavailable|Invalid email or password/i.test(
+          x
+        )
+      );
+    },
+    { dumps: ['signin-after-submit.xml'], timeoutMs: 60000 }
+  );
+  const signedIn =
+    /Sign out/i.test(after.xml) ||
+    /Current Session:\s*Authenticated/i.test(after.xml) ||
+    (!nodeByResourceId(after.xml, 'account-sheet') &&
+      /Workspace|workspace|Authenticated/i.test(after.xml));
+  const workspaceHint = /Workspace|workspace|Authenticated/i.test(after.xml);
+  const authFailed = /Authentication failed|Authentication is unavailable|Enter your email/i.test(
+    after.xml
+  );
+  // Back to Today
+  for (let i = 0; i < 4; i += 1) {
+    runAdb(['shell', 'input', 'keyevent', '4']);
+    sleep(400);
+  }
+  ensureApp();
+  return {
+    signedIn: signedIn && !authFailed,
+    workspaceHint,
+    userLabel: account.label,
+    userIdPresent: Boolean(account.userId),
+    error: authFailed ? 'auth-failed' : signedIn ? null : 'not-signed-in',
+  };
 }
 
 const steps = [];
@@ -344,61 +528,39 @@ try {
   let xml = ensureApp();
   screencap('00-start.png');
 
-  // --- Auth / workspace prerequisite (ordinary Account group; no operator synthetic login) ---
-  if (!tapNode(nodeByResourceId(xml, 'header-settings-btn'))) {
-    record('auth-probe', false, 'settings header missing');
+  // --- Auth / workspace prerequisite (ordinary Account sheet; no operator synthetic login) ---
+  const synthAccounts = loadSynthAccounts();
+  const accountA = synthAccounts.find((a) => a.label === 'A') || synthAccounts[0];
+  let authOk = false;
+  if (!accountA) {
+    record(
+      'auth-workspace-prerequisite',
+      false,
+      'No local synthetic accounts file. Create via GoTrue signup into artifacts/local/phase71-synth-accounts.json (gitignored).'
+    );
   } else {
-    const hub = waitFor((x) => /settings-hub|Choose a group/i.test(x), {
-      dumps: ['auth-hub.xml'],
-      timeoutMs: 8000,
-    });
-    record('settings-hub-open', hub.ok, hub.ok ? 'hub open' : 'hub missing');
-    if (hub.ok && tapNode(nodeByResourceId(hub.xml, 'settings-group-account'))) {
-      const acct = waitFor((x) => /Sign in|Sign out|Account|workspace/i.test(x), {
-        dumps: ['auth-account.xml'],
-        timeoutMs: 8000,
-      });
-      const signedIn = /Sign out|Sign Out/i.test(acct.xml);
-      const workspaceHint = /Workspace|workspace/i.test(acct.xml);
-      const ordinaryDenial = /Developer review tools stay on restricted|restricted operator/i.test(
-        acct.xml
-      );
-      record(
-        'auth-state',
-        true,
-        `signedIn=${signedIn}; workspaceHints=${workspaceHint}; ordinaryDevDenialCopy=${ordinaryDenial}`,
-        {
-          signedIn,
-          workspaceHint,
-          ordinaryDenial,
-          evidenceLayer: {
-            localSyntheticAuth: false,
-            realProviderAuth: signedIn ? 'unknown-provider-session' : 'none',
-            localPersistence: 'requires-workspace',
-            serverSync: 'not-probed',
-          },
-        }
-      );
-      if (!signedIn) {
-        record(
-          'auth-workspace-prerequisite',
-          false,
-          'Not authenticated in Account settings. Ordinary-user save journeys blocked until Account sign-in + workspace membership against reachable API/Auth (127.0.0.1 must be adb reverse / 10.0.2.2). Operator synthetic-login is not used for ordinary acceptance.'
-        );
-      } else {
-        record(
-          'auth-workspace-prerequisite',
-          workspaceHint,
-          workspaceHint
-            ? 'Signed in with workspace hints present (confirm userId/workspaceId via app Account UI)'
-            : 'Signed in but workspace membership not evident in Account UI'
-        );
+    const sign = signInOrdinaryAccount(accountA);
+    authOk = Boolean(sign.signedIn && sign.workspaceHint);
+    record(
+      'auth-state',
+      Boolean(sign.signedIn),
+      `label=${sign.userLabel}; signedIn=${sign.signedIn}; workspaceHint=${sign.workspaceHint}; err=${sign.error || 'none'}; userIdPresent=${sign.userIdPresent}`,
+      {
+        evidenceLayer: {
+          localSyntheticAuth: false,
+          realProviderAuth: sign.signedIn ? 'local-supabase-gotrue-password' : 'none',
+          localPersistence: sign.workspaceHint ? 'workspace-ready' : 'requires-workspace',
+          serverSync: 'api-reachable-separately',
+        },
       }
-      runAdb(['shell', 'input', 'keyevent', '4']);
-      sleep(500);
-    }
-    runAdb(['shell', 'input', 'keyevent', '4']);
-    sleep(600);
+    );
+    record(
+      'auth-workspace-prerequisite',
+      authOk,
+      authOk
+        ? 'Ordinary Account password sign-in + workspace hints present (provider=local GoTrue; API via adb reverse)'
+        : `Ordinary sign-in/workspace incomplete (${sign.error || 'unknown'}). Save journeys remain blocked.`
+    );
   }
 
   // Create matrix — results provisional without reopen identity when auth blocked
