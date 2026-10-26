@@ -21,6 +21,7 @@ const SYNC_GLOBS = [
   'packages/design-tokens',
   'packages/domain',
   'packages/contracts',
+  'packages/sync',
   'package.json',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',

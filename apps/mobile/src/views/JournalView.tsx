@@ -460,20 +460,28 @@ export const JournalView: React.FC<JournalViewProps> = ({
     }
   }, [isAuthenticated, repository, workspaceId, userId, reloadFromRepository, apiClient, isOnline]);
 
-  // Subscribe to syncEngine events
+  // Subscribe to syncEngine events (including immediate local-save refresh)
   useEffect(() => {
     if (!syncEngine) return;
     const unsubscribe = syncEngine.onEvent((evt) => {
       if (
         evt.type === 'sync_completed' ||
         evt.type === 'conflict_detected' ||
-        evt.type === 'conflict_resolved'
+        evt.type === 'conflict_resolved' ||
+        evt.type === 'local_mutation_committed'
       ) {
+        if (
+          evt.type === 'local_mutation_committed' &&
+          workspaceId &&
+          evt.workspaceId !== workspaceId
+        ) {
+          return;
+        }
         void reloadFromRepository();
       }
     });
     return unsubscribe;
-  }, [syncEngine, reloadFromRepository]);
+  }, [syncEngine, reloadFromRepository, workspaceId]);
 
   // Durable draft persistence helper
   const persistDraftNow = useCallback(async () => {

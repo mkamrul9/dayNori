@@ -354,7 +354,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     return unsub;
   }, [syncEngine]);
 
-  // 2. Load persisted items from repository if provided
+  // 2. Load persisted items from repository; refresh on local save and cloud sync
   useEffect(() => {
     if (!workspaceId) return;
     const repo =
@@ -362,53 +362,88 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (!repo) return;
 
     let mounted = true;
-    void (async () => {
+    let loadGeneration = 0;
+
+    const mapHeaders = (
+      itemRecords: Awaited<ReturnType<LocalRepositoryPort['listItemHeaders']>>
+    ) => {
+      const loadedFolders: MobileFolderItem[] = [];
+      const loadedItems: MobileLibraryRecord[] = [];
+      for (const item of itemRecords) {
+        if (item.kind === 'folder') {
+          loadedFolders.push({
+            id: item.id,
+            name: item.name || 'Folder',
+            parentId: item.folderId,
+            rank: item.rank,
+            revision: item.serverRevision,
+            archivedAt: item.isArchived ? new Date().toISOString() : null,
+            trashedAt: item.deletedAt,
+          });
+        } else {
+          loadedItems.push({
+            id: item.id,
+            title: item.name || item.title || 'Item',
+            kind: item.kind as MobileLibraryRecord['kind'],
+            purpose: item.purpose ?? undefined,
+            folderId: item.folderId,
+            rank: item.rank,
+            revision: item.serverRevision,
+            isPinned: item.isPinned,
+            isArchived: item.isArchived,
+            tags: item.tags,
+            metadata: `${item.kind.toUpperCase()} • rev ${item.serverRevision}`,
+            archivedAt: item.isArchived ? new Date().toISOString() : null,
+            trashedAt: item.deletedAt,
+          });
+        }
+      }
+      return { loadedFolders, loadedItems };
+    };
+
+    const reloadLibrary = async () => {
+      const generation = ++loadGeneration;
       try {
         const itemRecords = await repo.listItemHeaders(workspaceId);
-        if (!mounted || itemRecords.length === 0) return;
-
-        const loadedFolders: MobileFolderItem[] = [];
-        const loadedItems: MobileLibraryRecord[] = [];
-
-        for (const item of itemRecords) {
-          if (item.kind === 'folder') {
-            loadedFolders.push({
-              id: item.id,
-              name: item.name || 'Folder',
-              parentId: item.folderId,
-              rank: item.rank,
-              revision: item.serverRevision,
-              archivedAt: item.isArchived ? new Date().toISOString() : null,
-              trashedAt: item.deletedAt,
-            });
-          } else {
-            loadedItems.push({
-              id: item.id,
-              title: item.name || item.title || 'Item',
-              kind: item.kind as MobileLibraryRecord['kind'],
-              purpose: item.purpose ?? undefined,
-              folderId: item.folderId,
-              rank: item.rank,
-              revision: item.serverRevision,
-              isPinned: item.isPinned,
-              isArchived: item.isArchived,
-              tags: item.tags,
-              metadata: `${item.kind.toUpperCase()} • rev ${item.serverRevision}`,
-              archivedAt: item.isArchived ? new Date().toISOString() : null,
-              trashedAt: item.deletedAt,
-            });
-          }
-        }
-
+        if (!mounted || generation !== loadGeneration) return;
+        const { loadedFolders, loadedItems } = mapHeaders(itemRecords);
+        // Empty authorized workspace must clear prior display state (no sample invent).
         setFolders(loadedFolders);
         setItems(loadedItems);
       } catch {
-        /* fallback to initial state */
+        if (!mounted || generation !== loadGeneration) return;
+        /* Keep last good display; surface via localStatus when available */
+        setLocalStatus('Load failed');
       }
-    })();
+    };
+
+    // Clear obsolete display at workspace boundary before reload (preserve draft/record store)
+    setFolders([]);
+    setItems([]);
+    void reloadLibrary();
+
+    const unsub = syncEngine
+      ? syncEngine.onEvent((evt) => {
+          if (!mounted) return;
+          if (
+            evt.type === 'sync_completed' ||
+            evt.type === 'conflict_resolved' ||
+            evt.type === 'local_mutation_committed'
+          ) {
+            if (
+              evt.type === 'local_mutation_committed' &&
+              evt.workspaceId !== workspaceId
+            ) {
+              return;
+            }
+            void reloadLibrary();
+          }
+        })
+      : undefined;
 
     return () => {
       mounted = false;
+      unsub?.();
     };
   }, [workspaceId, repository, syncEngine]);
 

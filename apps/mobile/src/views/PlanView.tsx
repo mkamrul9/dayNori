@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
@@ -9,6 +9,8 @@ import {
   MobileModalSheet,
   MobileButton,
   MobileTextField,
+  MobileEmptyState,
+  MobileFeedback,
 } from '@daynori/ui-mobile';
 import type { PlanSubView } from '../navigation/types';
 import type {
@@ -38,11 +40,36 @@ import {
   validateCalendarEventTitle,
   validateCalendarEventInterval,
   generateUuid,
+  explainWhyDueToday,
+  isRoutineScheduledOnDate,
+  computeDeterministicOccurrenceId,
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
   type CalendarItem,
+  type RoutineOccurrenceStatus,
+  type RoutineOccurrenceTransition,
+  type Weekday,
 } from '@daynori/domain';
+
+function formatRoutineSchedule(
+  routine: Pick<RoutineRecord, 'frequency' | 'weekdays' | 'scheduledTime'>
+): string {
+  const timeSuffix = routine.scheduledTime ? ` at ${routine.scheduledTime}` : '';
+  if (routine.frequency === 'daily') {
+    return `Repeats every day${timeSuffix}`;
+  }
+  if (
+    routine.weekdays.length === 5 &&
+    [1, 2, 3, 4, 5].every((d) => routine.weekdays.includes(d as Weekday))
+  ) {
+    return `Repeats weekdays (Mon–Fri)${timeSuffix}`;
+  }
+  const dayNames = routine.weekdays
+    .map((d) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d - 1])
+    .join(', ');
+  return `Repeats on ${dayNames}${timeSuffix}`;
+}
 
 function resolveLocalTimeToUtc(dateStr: string, timeStr: string, timezone: string): string {
   const result = checkLocalTimeDisambiguation(dateStr, timeStr, timezone);
@@ -62,6 +89,8 @@ export interface PlanViewProps {
   testID?: string;
   initialTasks?: TaskRecord[];
   initialEvents?: CalendarEventRecord[];
+  /** Explicit demo/test fixture only — never used as a production empty-state fallback. */
+  initialRoutines?: RoutineRecord[];
   workspaceId?: string | null;
   userId?: string | null;
   repository?: LocalRepositoryPort;
@@ -192,6 +221,76 @@ export const SAMPLE_MOBILE_EVENTS: CalendarEventRecord[] = [
   },
 ];
 
+/** Demo/test fixtures only — never injected into an empty production repository. */
+export const SAMPLE_MOBILE_ROUTINES: RoutineRecord[] = [
+  {
+    id: 'r1',
+    workspaceId: 'ws-sample',
+    folderId: null,
+    title: 'Morning deep work session',
+    details: null,
+    frequency: 'weekdays',
+    weekdays: [1, 2, 3, 4, 5],
+    timezone: 'UTC',
+    scheduledTime: '09:00',
+    activeFrom: '2020-01-01',
+    activeTo: null,
+    isPaused: false,
+    isArchived: false,
+    isPinned: false,
+    scheduleRevision: 1,
+    effectiveDate: '2020-01-01',
+    serverRevision: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    deletedAt: null,
+  },
+  {
+    id: 'r2',
+    workspaceId: 'ws-sample',
+    folderId: null,
+    title: 'Standup and priority check',
+    details: null,
+    frequency: 'daily',
+    weekdays: [],
+    timezone: 'UTC',
+    scheduledTime: '10:00',
+    activeFrom: '2020-01-01',
+    activeTo: null,
+    isPaused: false,
+    isArchived: false,
+    isPinned: false,
+    scheduleRevision: 1,
+    effectiveDate: '2020-01-01',
+    serverRevision: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    deletedAt: null,
+  },
+  {
+    id: 'r3',
+    workspaceId: 'ws-sample',
+    folderId: null,
+    title: 'Evening reflection & summary',
+    details: null,
+    frequency: 'daily',
+    weekdays: [],
+    timezone: 'UTC',
+    scheduledTime: '17:30',
+    activeFrom: '2020-01-01',
+    activeTo: null,
+    isPaused: false,
+    isArchived: false,
+    isPinned: false,
+    scheduleRevision: 1,
+    effectiveDate: '2020-01-01',
+    serverRevision: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    deletedAt: null,
+  },
+];
+
 export const PlanView: React.FC<PlanViewProps> = ({
   themeMode,
   initialSubView = 'tasks',
@@ -199,6 +298,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   testID = 'plan-view',
   initialTasks,
   initialEvents,
+  initialRoutines,
   workspaceId,
   userId,
   repository,
@@ -222,11 +322,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
     }
   }, [targetTaskId, onClearTarget]);
 
-  // Confine synthetic sample tasks to explicit demo/test environments
+  // Confine synthetic sample fixtures to explicit demo/test environments
   const isDemoOrTest =
     isDemo ||
     Boolean(initialTasks) ||
     Boolean(initialEvents) ||
+    Boolean(initialRoutines) ||
     (typeof process !== 'undefined' && process.env.NODE_ENV === 'test' && !repository);
 
   // Tasks state
@@ -242,9 +343,19 @@ export const PlanView: React.FC<PlanViewProps> = ({
     if (isDemoOrTest) return SAMPLE_MOBILE_EVENTS;
     return [];
   });
-  const [routineRecords, setRoutineRecords] = useState<RoutineRecord[]>([]);
+  const [routineRecords, setRoutineRecords] = useState<RoutineRecord[]>(() => {
+    if (initialRoutines) return initialRoutines;
+    if (isDemoOrTest) return SAMPLE_MOBILE_ROUTINES;
+    return [];
+  });
   const [routineOccurrences, setRoutineOccurrences] = useState<RoutineOccurrenceRecord[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntryRecord[]>([]);
+  const [routinesLoading, setRoutinesLoading] = useState(Boolean(repository && workspaceId));
+  const [routinesLoadError, setRoutinesLoadError] = useState<string | null>(null);
+  const [editingRoutine, setEditingRoutine] = useState<RoutineRecord | null>(null);
+  const [routineActionError, setRoutineActionError] = useState<string | null>(null);
+  const loadGenerationRef = useRef(0);
+  const activeNamespaceRef = useRef(`${workspaceId ?? ''}:${userId ?? ''}`);
 
   const [calendarViewMode, setCalendarViewMode] = useState<'agenda' | 'day' | 'month'>('agenda');
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() =>
@@ -306,12 +417,55 @@ export const PlanView: React.FC<PlanViewProps> = ({
     if (onSubViewChange) onSubViewChange(subView);
   };
 
-  // Subscribe to production repository and sync engine
+  // Account/workspace boundary: clear obsolete display state without wiping drafts/records
   useEffect(() => {
-    if (!repository || !workspaceId) return;
+    const key = `${workspaceId ?? ''}:${userId ?? ''}`;
+    if (activeNamespaceRef.current === key) return;
+    activeNamespaceRef.current = key;
+    loadGenerationRef.current += 1;
+    setEditingRoutine(null);
+    setRoutineActionError(null);
+    setRoutinesLoadError(null);
+    setUndoToast(null);
+    if (!repository || !workspaceId) {
+      setRoutinesLoading(false);
+      if (!isDemoOrTest) {
+        setTasks(initialTasks ?? []);
+        setPersonalEvents(initialEvents ?? []);
+        setRoutineRecords(initialRoutines ?? []);
+        setRoutineOccurrences([]);
+        setJournalEntries([]);
+      }
+      return;
+    }
+    setRoutinesLoading(true);
+    setTasks([]);
+    setPersonalEvents([]);
+    setRoutineRecords([]);
+    setRoutineOccurrences([]);
+    setJournalEntries([]);
+  }, [
+    workspaceId,
+    userId,
+    repository,
+    isDemoOrTest,
+    initialTasks,
+    initialEvents,
+    initialRoutines,
+  ]);
+
+  // Subscribe to production repository and sync engine (including local saves)
+  useEffect(() => {
+    if (!repository || !workspaceId) {
+      setRoutinesLoading(false);
+      return;
+    }
     let isCancelled = false;
+    const generation = ++loadGenerationRef.current;
 
     const reloadData = async () => {
+      setRoutinesLoading(true);
+      setRoutinesLoadError(null);
       try {
         const [loadedTasks, loadedEvents, loadedRoutines, loadedOccurrences, loadedJournals] =
           await Promise.all([
@@ -321,25 +475,41 @@ export const PlanView: React.FC<PlanViewProps> = ({
             repository.listRoutineOccurrences(workspaceId),
             repository.listJournalEntries(workspaceId),
           ]);
-        if (!isCancelled) {
-          if (loadedTasks) setTasks(loadedTasks.filter((t) => t.deletedAt === null));
-          if (loadedEvents) setPersonalEvents(loadedEvents.filter((e) => e.deletedAt === null));
-          if (loadedRoutines) setRoutineRecords(loadedRoutines.filter((r) => r.deletedAt === null));
-          if (loadedOccurrences) setRoutineOccurrences(loadedOccurrences);
-          if (loadedJournals) setJournalEntries(loadedJournals.filter((j) => j.deletedAt === null));
+        if (isCancelled || loadGenerationRef.current !== generation) return;
+        setTasks(loadedTasks.filter((t) => t.deletedAt === null));
+        setPersonalEvents(loadedEvents.filter((e) => e.deletedAt === null));
+        setRoutineRecords(loadedRoutines.filter((r) => r.deletedAt === null));
+        setRoutineOccurrences(loadedOccurrences);
+        setJournalEntries(loadedJournals.filter((j) => j.deletedAt === null));
+        setRoutinesLoadError(null);
+      } catch (err) {
+        if (isCancelled || loadGenerationRef.current !== generation) return;
+        setRoutinesLoadError(
+          err instanceof Error ? err.message : 'Failed to load Plan records.'
+        );
+      } finally {
+        if (!isCancelled && loadGenerationRef.current === generation) {
+          setRoutinesLoading(false);
         }
-      } catch {
-        // Safe degrade on uninitialized or transient store state
       }
     };
 
     void reloadData();
 
-    // Subscribe to durable sync events
     if (syncEngine) {
       const unsub = syncEngine.onEvent((evt) => {
         if (isCancelled) return;
-        if (evt.type === 'sync_completed' || evt.type === 'conflict_resolved') {
+        if (
+          evt.type === 'sync_completed' ||
+          evt.type === 'conflict_resolved' ||
+          evt.type === 'local_mutation_committed'
+        ) {
+          if (
+            evt.type === 'local_mutation_committed' &&
+            evt.workspaceId !== workspaceId
+          ) {
+            return;
+          }
           void reloadData();
         }
       });
@@ -365,21 +535,10 @@ export const PlanView: React.FC<PlanViewProps> = ({
     return () => clearInterval(interval);
   }, [undoToast]);
 
-  const routines = [
-    {
-      id: 'r1',
-      title: 'Morning deep work session',
-      frequency: 'Repeats weekdays (Mon–Fri)',
-      time: '9:00 AM',
-    },
-    { id: 'r2', title: 'Standup and priority check', frequency: 'Repeats daily', time: '10:00 AM' },
-    {
-      id: 'r3',
-      title: 'Evening reflection & summary',
-      frequency: 'Repeats daily',
-      time: '5:30 PM',
-    },
-  ];
+  const visibleRoutines = useMemo(
+    () => routineRecords.filter((r) => !r.isArchived && r.deletedAt === null),
+    [routineRecords]
+  );
 
   // Transactional persistence helper for personal calendar events
   const persistEventChange = async (
@@ -545,10 +704,13 @@ export const PlanView: React.FC<PlanViewProps> = ({
       endDate: endRange,
       timezone: userTimezone,
       tasks: filterIncludeTasks ? tasks : [],
+      // Never invent sample routines for an empty authorized workspace.
       routines: filterIncludeRoutines
-        ? routineRecords.length > 0
-          ? routineRecords
-          : routines.map((r) => ({ id: r.id, title: r.title, timezone: userTimezone }))
+        ? visibleRoutines.map((r) => ({
+            id: r.id,
+            title: r.title,
+            timezone: r.timezone || userTimezone,
+          }))
         : [],
       routineOccurrences: filterIncludeRoutines ? routineOccurrences : [],
       events: filterIncludeEvents
@@ -580,13 +742,158 @@ export const PlanView: React.FC<PlanViewProps> = ({
     filterIncludeTasks,
     tasks,
     filterIncludeRoutines,
-    routineRecords,
-    routines,
+    visibleRoutines,
     routineOccurrences,
     filterIncludeEvents,
     personalEvents,
     journalEntries,
   ]);
+
+  const getTodayOccurrenceForRoutine = useCallback(
+    (routine: RoutineRecord): RoutineOccurrenceRecord | null => {
+      const today = getCalendarDateInTimezone(new Date(), routine.timezone || userTimezone);
+      return (
+        routineOccurrences.find(
+          (o) =>
+            o.routineId === routine.id &&
+            o.scheduledDate === today &&
+            o.status !== 'cancelled'
+        ) || null
+      );
+    },
+    [routineOccurrences, userTimezone]
+  );
+
+  const handleOpenRoutineDetail = (routine: RoutineRecord) => {
+    setEditingRoutine(routine);
+    setRoutineActionError(null);
+  };
+
+  const persistOccurrenceChange = async (
+    occ: RoutineOccurrenceRecord,
+    command: 'completeOccurrence' | 'reopenOccurrence'
+  ): Promise<boolean> => {
+    try {
+      if (syncEngine) {
+        await syncEngine.saveRoutineOccurrence(occ, command);
+        return true;
+      }
+      if (repository) {
+        await repository.upsertRoutineOccurrence(occ);
+        return true;
+      }
+      // Demo/test path: update local state only
+      setRoutineOccurrences((prev) => {
+        const idx = prev.findIndex((o) => o.id === occ.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = occ;
+          return next;
+        }
+        return [...prev, occ];
+      });
+      return true;
+    } catch (err) {
+      setRoutineActionError(
+        err instanceof Error ? err.message : 'Failed to update routine occurrence.'
+      );
+      return false;
+    }
+  };
+
+  const handleCompleteRoutineOccurrence = async (routine: RoutineRecord) => {
+    const activeWorkspace = workspaceId || (isDemoOrTest ? 'ws-sample' : null);
+    if (!activeWorkspace) {
+      setRoutineActionError('Workspace is required to complete a routine.');
+      return;
+    }
+    const today = getCalendarDateInTimezone(new Date(), routine.timezone || userTimezone);
+    if (!isRoutineScheduledOnDate(routine, today)) {
+      setRoutineActionError('This routine is not scheduled for today.');
+      return;
+    }
+    const existing = getTodayOccurrenceForRoutine(routine);
+    const nowIso = new Date().toISOString();
+    const prevStatus: RoutineOccurrenceStatus = existing?.status || 'pending';
+    const prevHistory = existing?.history || [];
+    const occId =
+      existing?.id ||
+      computeDeterministicOccurrenceId(activeWorkspace, routine.id, today);
+    const updatedHistory: RoutineOccurrenceTransition[] = [
+      ...prevHistory,
+      {
+        fromStatus: prevStatus,
+        toStatus: 'done',
+        status: 'done',
+        changedAt: nowIso,
+        transitionedAt: nowIso,
+        actorId: userId || null,
+        reason: null,
+      },
+    ];
+    const occ: RoutineOccurrenceRecord = {
+      id: occId,
+      workspaceId: activeWorkspace,
+      routineId: routine.id,
+      scheduledDate: today,
+      scheduleRevision: routine.scheduleRevision,
+      plannedInstant: existing?.plannedInstant ?? null,
+      timezone: routine.timezone || userTimezone,
+      status: 'done',
+      completedAt: nowIso,
+      completedBy: userId || null,
+      history: updatedHistory,
+      serverRevision: (existing?.serverRevision || 0) + 1,
+      createdAt: existing?.createdAt || nowIso,
+      updatedAt: nowIso,
+    };
+    const ok = await persistOccurrenceChange(occ, 'completeOccurrence');
+    if (ok) {
+      setRoutineOccurrences((prev) => {
+        const idx = prev.findIndex((o) => o.id === occ.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = occ;
+          return next;
+        }
+        return [...prev, occ];
+      });
+    }
+  };
+
+  const handleUndoRoutineOccurrence = async (routine: RoutineRecord) => {
+    const existing = getTodayOccurrenceForRoutine(routine);
+    if (!existing || existing.status !== 'done') return;
+    const activeWorkspace = workspaceId || existing.workspaceId;
+    const nowIso = new Date().toISOString();
+    const updatedHistory: RoutineOccurrenceTransition[] = [
+      ...existing.history,
+      {
+        fromStatus: existing.status,
+        toStatus: 'pending',
+        status: 'pending',
+        previousStatus: existing.status,
+        changedAt: nowIso,
+        transitionedAt: nowIso,
+        actorId: userId || null,
+        reason: 'Mobile user undid occurrence completion',
+      },
+    ];
+    const occ: RoutineOccurrenceRecord = {
+      ...existing,
+      workspaceId: activeWorkspace,
+      status: 'pending',
+      completedAt: null,
+      completedBy: null,
+      history: updatedHistory,
+      serverRevision: existing.serverRevision + 1,
+      updatedAt: nowIso,
+    };
+    const ok = await persistOccurrenceChange(occ, 'reopenOccurrence');
+    if (ok) {
+      setRoutineOccurrences((prev) => prev.map((o) => (o.id === occ.id ? occ : o)));
+    }
+  };
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
@@ -1409,24 +1716,102 @@ export const PlanView: React.FC<PlanViewProps> = ({
         </View>
       )}
 
-      {/* Sub-view 2: Routines */}
+      {/* Sub-view 2: Routines — authorized workspace records only */}
       {activeSubView === 'routines' && (
         <View testID="plan-routines-subview" style={styles.section}>
           <Text style={[styles.sectionCaption, { color: palette.text.secondary }]}>
             Each scheduled day maintains independent completion records.
           </Text>
-          <MobileCard themeMode={themeMode}>
-            {routines.map((routine) => (
-              <MobileListRow
-                key={routine.id}
-                title={routine.title}
-                metadata={`${routine.frequency} • ${routine.time}`}
+          {routinesLoadError ? (
+            <View testID="plan-routines-load-error" style={{ gap: spacing.sm }}>
+              <MobileFeedback
+                severity="danger"
                 themeMode={themeMode}
-                onPress={() => {}}
-                accessibilityLabel={`${routine.title}, ${routine.frequency}, at ${routine.time}`}
+                title="Could not load routines"
+                message={routinesLoadError}
               />
-            ))}
-          </MobileCard>
+              <MobileButton
+                themeMode={themeMode}
+                variant="secondary"
+                accessibilityLabel="Retry loading routines"
+                onPress={() => {
+                  loadGenerationRef.current += 1;
+                  setRoutinesLoadError(null);
+                  setRoutinesLoading(true);
+                  if (repository && workspaceId) {
+                    void (async () => {
+                      const generation = loadGenerationRef.current;
+                      try {
+                        const loaded = await repository.listRoutines(workspaceId);
+                        if (loadGenerationRef.current !== generation) return;
+                        setRoutineRecords(loaded.filter((r) => r.deletedAt === null));
+                        setRoutinesLoadError(null);
+                      } catch (err) {
+                        if (loadGenerationRef.current !== generation) return;
+                        setRoutinesLoadError(
+                          err instanceof Error ? err.message : 'Failed to load Plan records.'
+                        );
+                      } finally {
+                        if (loadGenerationRef.current === generation) {
+                          setRoutinesLoading(false);
+                        }
+                      }
+                    })();
+                  } else {
+                    setRoutinesLoading(false);
+                  }
+                }}
+              >
+                Retry
+              </MobileButton>
+            </View>
+          ) : null}
+          {routinesLoading && visibleRoutines.length === 0 ? (
+            <Text
+              testID="plan-routines-loading"
+              style={[styles.sectionCaption, { color: palette.text.muted }]}
+            >
+              Loading routines…
+            </Text>
+          ) : null}
+          {!routinesLoading && !routinesLoadError && visibleRoutines.length === 0 ? (
+            <MobileEmptyState
+              testID="plan-routines-empty"
+              themeMode={themeMode}
+              title="No routines yet"
+              description="Create a routine from Create. An empty workspace stays empty until you save one."
+            />
+          ) : null}
+          {visibleRoutines.length > 0 ? (
+            <MobileCard themeMode={themeMode}>
+              {visibleRoutines.map((routine) => {
+                const schedule = formatRoutineSchedule(routine);
+                const today = getCalendarDateInTimezone(
+                  new Date(),
+                  routine.timezone || userTimezone
+                );
+                const due = explainWhyDueToday(routine, today);
+                const occ = getTodayOccurrenceForRoutine(routine);
+                const statusHint =
+                  occ?.status === 'done'
+                    ? 'Completed today'
+                    : due.isDue
+                      ? 'Due today'
+                      : 'Not due today';
+                return (
+                  <View key={routine.id} testID={`plan-routine-row-${routine.id}`}>
+                    <MobileListRow
+                      title={routine.title}
+                      metadata={`${schedule} • ${statusHint}`}
+                      themeMode={themeMode}
+                      onPress={() => handleOpenRoutineDetail(routine)}
+                      accessibilityLabel={`${routine.title}, ${schedule}, ${statusHint}`}
+                    />
+                  </View>
+                );
+              })}
+            </MobileCard>
+          ) : null}
         </View>
       )}
 
@@ -2005,6 +2390,103 @@ export const PlanView: React.FC<PlanViewProps> = ({
             <Text style={[styles.undoBtnText, { color: palette.action.label }]}>Undo</Text>
           </Pressable>
         </View>
+      )}
+
+      {/* Routine Detail Modal Sheet — canonical record reopen + today occurrence actions */}
+      {editingRoutine && (
+        <MobileModalSheet
+          visible={Boolean(editingRoutine)}
+          title="Routine"
+          themeMode={themeMode}
+          onClose={() => {
+            setEditingRoutine(null);
+            setRoutineActionError(null);
+          }}
+          testID="plan-routine-detail-sheet"
+        >
+          <View style={styles.sheetContent} testID={`plan-routine-detail-${editingRoutine.id}`}>
+            {routineActionError ? (
+              <MobileFeedback
+                severity="danger"
+                themeMode={themeMode}
+                title="Action failed"
+                message={routineActionError}
+              />
+            ) : null}
+            <Text
+              accessibilityRole="header"
+              style={{ color: palette.text.primary, fontSize: 18, fontWeight: '700' }}
+            >
+              {editingRoutine.title}
+            </Text>
+            <Text style={{ color: palette.text.secondary, fontSize: 14 }}>
+              {formatRoutineSchedule(editingRoutine)}
+            </Text>
+            <Text style={{ color: palette.text.muted, fontSize: 13 }}>
+              {
+                explainWhyDueToday(
+                  editingRoutine,
+                  getCalendarDateInTimezone(
+                    new Date(),
+                    editingRoutine.timezone || userTimezone
+                  )
+                ).reason
+              }
+            </Text>
+            {editingRoutine.isPaused ? (
+              <MobileFeedback
+                severity="warning"
+                themeMode={themeMode}
+                message="This routine is paused and will not generate new due days."
+              />
+            ) : null}
+            {(() => {
+              const today = getCalendarDateInTimezone(
+                new Date(),
+                editingRoutine.timezone || userTimezone
+              );
+              const dueToday = isRoutineScheduledOnDate(editingRoutine, today);
+              const occ = getTodayOccurrenceForRoutine(editingRoutine);
+              if (!dueToday) {
+                return (
+                  <Text style={{ color: palette.text.secondary, fontSize: 13 }}>
+                    No occurrence action available for today.
+                  </Text>
+                );
+              }
+              if (occ?.status === 'done') {
+                return (
+                  <View testID="plan-routine-undo-occurrence">
+                    <MobileButton
+                      themeMode={themeMode}
+                      variant="secondary"
+                      accessibilityLabel={`Undo completion for ${editingRoutine.title}`}
+                      onPress={() => {
+                        void handleUndoRoutineOccurrence(editingRoutine);
+                      }}
+                    >
+                      Undo today
+                    </MobileButton>
+                  </View>
+                );
+              }
+              return (
+                <View testID="plan-routine-complete-occurrence">
+                  <MobileButton
+                    themeMode={themeMode}
+                    variant="primary"
+                    accessibilityLabel={`Mark ${editingRoutine.title} complete for today`}
+                    onPress={() => {
+                      void handleCompleteRoutineOccurrence(editingRoutine);
+                    }}
+                  >
+                    Complete today
+                  </MobileButton>
+                </View>
+              );
+            })()}
+          </View>
+        </MobileModalSheet>
       )}
 
       {/* Task Detail Modal Sheet */}

@@ -95,7 +95,9 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
           accessibilityLabel="Dismiss sheet"
         />
         <KeyboardAvoidingView
-          behavior={keyboardAvoidingBehavior()}
+          // Android: measured IME height via paddingBottom only — combining
+          // KeyboardAvoidingView behavior=padding with the same height double-shifts.
+          behavior={Platform.OS === 'ios' ? keyboardAvoidingBehavior() : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
           style={[
             styles.sheet,

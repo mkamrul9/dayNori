@@ -188,8 +188,42 @@ function ensureTalkbackOffForAutomation() {
   writeSecure('touch_exploration_enabled', '0');
 }
 
+function isOnboardingCovering(xml) {
+  return /Your main places|Step \d+ of \d+|onboarding-sheet|btn-onboarding-skip/i.test(xml);
+}
+
+function isShellChrome(xml) {
+  return (
+    Boolean(boundsForResource(xml, 'header-settings-btn')) &&
+    (Boolean(boundsForResource(xml, 'nav-tab-today')) || /content-desc="Today tab"/i.test(xml))
+  );
+}
+
 function isDaynoriUi(xml) {
-  return /package="com\.daynori\.app"/.test(xml) && /header-settings-btn|Today tab|Main organizer navigation/i.test(xml);
+  return (
+    /package="com\.daynori\.app"/.test(xml) &&
+    isShellChrome(xml) &&
+    !isOnboardingCovering(xml)
+  );
+}
+
+function dismissOnboarding(xml) {
+  if (!isOnboardingCovering(xml)) return xml;
+  // Prefer the sheet close control; Skip Tutorial also clears the cover.
+  if (
+    tapDesc(xml, 'Close sheet') ||
+    tapDesc(xml, 'Skip onboarding tutorial') ||
+    tapResource(xml, 'btn-onboarding-skip') ||
+    tapResource(xml, 'btn-onboarding-skip-footer') ||
+    tapDesc(xml, 'Dismiss sheet')
+  ) {
+    sleep(900);
+    return dumpUi('onboarding-dismissed.xml');
+  }
+  // Last resort for known onboarding cover only — one Back to the sheet layer.
+  runAdb(['shell', 'input', 'keyevent', '4']);
+  sleep(700);
+  return dumpUi('onboarding-dismissed-back.xml');
 }
 
 function dismissPermissionDialogs(xml) {
@@ -213,10 +247,12 @@ function ensureDaynoriForeground(label = 'relaunch') {
   let xml = dumpUi(`${label}-check.xml`);
   xml = dismissPermissionDialogs(xml);
   xml = dismissLogBox(xml);
+  xml = dismissOnboarding(xml);
+  xml = dismissOverlays(xml);
   if (isDaynoriUi(xml) && !/Text strings must be rendered/i.test(xml)) return xml;
   if (isDaynoriUi(xml)) {
     xml = dismissLogBox(xml);
-    if (!/Text strings must be rendered/i.test(xml)) return xml;
+    if (!/Text strings must be rendered/i.test(xml) && isDaynoriUi(xml)) return xml;
   }
   // Do not send Back from launcher — relaunch explicitly.
   try {
@@ -236,12 +272,32 @@ function ensureDaynoriForeground(label = 'relaunch') {
   sleep(5000);
   xml = dumpUi(`${label}-after-start.xml`);
   xml = dismissPermissionDialogs(xml);
-  const ready = waitFor((x) => isDaynoriUi(dismissPermissionDialogs(x)), {
-    dumps: [`${label}-ready.xml`],
-    timeoutMs: 20000,
-    intervalMs: 800,
-  });
-  return ready.xml;
+  xml = dismissOnboarding(xml);
+  const ready = waitFor(
+    (x) => {
+      let cur = dismissPermissionDialogs(x);
+      if (isOnboardingCovering(cur)) {
+        cur = dismissOnboarding(cur);
+      }
+      cur = dismissLogBox(cur);
+      return isDaynoriUi(cur);
+    },
+    {
+      dumps: [`${label}-ready.xml`],
+      timeoutMs: 25000,
+      intervalMs: 800,
+    }
+  );
+  xml = ready.xml;
+  if (isOnboardingCovering(xml)) xml = dismissOnboarding(xml);
+  if (!ready.ok || !isDaynoriUi(xml)) {
+    const unexpected = path.join(outDir, `${label}-unexpected-screen.xml`);
+    fs.writeFileSync(unexpected, xml);
+    console.error(
+      `ensureDaynoriForeground(${label}): shell chrome not ready; wrote ${path.basename(unexpected)}`
+    );
+  }
+  return xml;
 }
 
 function dismissLogBox(xml) {
@@ -272,21 +328,30 @@ function dismissLogBox(xml) {
 }
 
 function dismissOverlays(xml) {
+  xml = dismissOnboarding(xml);
   // Only when a sheet/settings overlay is actually open — never match header "Search organizer".
   const overlayOpen =
     /settings-hub|settings-back-to-hub|settings-group-/i.test(xml) ||
     /accessibilityLabel="Dismiss sheet"|content-desc="Dismiss sheet"/i.test(xml) ||
     /resource-id="[^"]*create-sheet|resource-id="[^"]*search-sheet|all-features-sheet/i.test(xml) ||
-    (/Dismiss sheet/i.test(xml) && /package="com\.daynori\.app"/i.test(xml));
+    (/Dismiss sheet/i.test(xml) && /package="com\.daynori\.app"/i.test(xml) && !isShellChrome(xml));
   if (!overlayOpen) return xml;
-  if (tapResource(xml, 'settings-back-to-hub') || tapDesc(xml, 'Close settings') || tapDesc(xml, 'Dismiss sheet')) {
+  if (
+    tapResource(xml, 'settings-back-to-hub') ||
+    tapDesc(xml, 'Close settings') ||
+    tapDesc(xml, 'Close sheet') ||
+    tapDesc(xml, 'Dismiss sheet')
+  ) {
     sleep(600);
     return dumpUi('dismissed.xml');
   }
   runAdb(['shell', 'input', 'keyevent', '4']);
   sleep(600);
   const after = dumpUi('dismissed-back.xml');
-  if (!isDaynoriUi(after)) return ensureDaynoriForeground('after-dismiss');
+  if (!isDaynoriUi(after) && !isOnboardingCovering(after)) {
+    // Avoid recursive relaunch storms; caller will ensureDaynoriForeground.
+    return after;
+  }
   return after;
 }
 
@@ -491,8 +556,15 @@ try {
 
   // Plan / Library with selected state + destination heading
   xml = ensureDaynoriForeground('before-plan');
-  xml = dismissLogBox(dumpUi('11-before-plan.xml'));
-  if (tapResource(xml, 'nav-tab-plan') || tapDesc(xml, 'Plan tab')) {
+  xml = dismissOnboarding(dismissLogBox(dumpUi('11-before-plan.xml')));
+  if (!isShellChrome(xml)) {
+    fs.writeFileSync(path.join(outDir, '11-before-plan-unexpected.xml'), xml);
+    record(
+      'open-plan',
+      false,
+      `Shell chrome missing before Plan (onboarding=${isOnboardingCovering(xml)}); see 11-before-plan-unexpected.xml`
+    );
+  } else if (tapResource(xml, 'nav-tab-plan') || tapDesc(xml, 'Plan tab')) {
     const plan = waitFor(
       (x) => {
         const selected =
@@ -511,13 +583,20 @@ try {
     record('open-plan', plan.ok, plan.ok ? 'Plan selected + destination content' : 'Plan postcondition failed', {
       actionDelivered: true,
     });
-  } else {
-    record('open-plan', false, 'Plan tab missing');
+  } else if (isShellChrome(xml)) {
+    record('open-plan', false, 'Plan tab missing despite shell chrome');
   }
 
   xml = ensureDaynoriForeground('before-library');
-  xml = dismissLogBox(dumpUi('13-before-library.xml'));
-  if (tapResource(xml, 'nav-tab-library') || tapDesc(xml, 'Library tab')) {
+  xml = dismissOnboarding(dismissLogBox(dumpUi('13-before-library.xml')));
+  if (!isShellChrome(xml)) {
+    fs.writeFileSync(path.join(outDir, '13-before-library-unexpected.xml'), xml);
+    record(
+      'open-library',
+      false,
+      `Shell chrome missing before Library (onboarding=${isOnboardingCovering(xml)}); see 13-before-library-unexpected.xml`
+    );
+  } else if (tapResource(xml, 'nav-tab-library') || tapDesc(xml, 'Library tab')) {
     const lib = waitFor(
       (x) => {
         const selected =
@@ -537,8 +616,8 @@ try {
       lib.ok ? 'Library selected + destination content' : 'Library postcondition failed',
       { actionDelivered: true }
     );
-  } else {
-    record('open-library', false, 'Library tab missing');
+  } else if (isShellChrome(xml)) {
+    record('open-library', false, 'Library tab missing despite shell chrome');
   }
 
   xml = ensureDaynoriForeground('back-today');

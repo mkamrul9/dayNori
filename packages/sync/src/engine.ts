@@ -79,6 +79,14 @@ export interface SyncEngineOptions {
 export type SyncEngineEvent =
   | { type: 'state_changed'; status: CloudSyncStatus }
   | { type: 'sync_completed'; changesCount: number; pushedCount: number }
+  | {
+      type: 'local_mutation_committed';
+      workspaceId: string;
+      entityType: string;
+      entityId: string;
+      command: SyncCommandType;
+      operationId: string;
+    }
   | { type: 'conflict_detected'; conflict: ConflictRecord }
   | { type: 'conflict_resolved'; conflictId: string }
   | {
@@ -865,6 +873,14 @@ export class SyncEngine {
       lastSyncedRevision: item.serverRevision,
     });
     this.setOverallStatus('saved_locally');
+    this.emit({
+      type: 'local_mutation_committed',
+      workspaceId: item.workspaceId,
+      entityType: mutationRecord.entityType,
+      entityId: item.id,
+      command: determinedCommand,
+      operationId,
+    });
 
     // 4. Request sync if online and autoSync is not false
     if (options?.autoSync !== false && this.networkStatus === 'online') {
@@ -1121,6 +1137,14 @@ export class SyncEngine {
       lastSyncedRevision: occurrence.serverRevision,
     });
     this.setOverallStatus('saved_locally');
+    this.emit({
+      type: 'local_mutation_committed',
+      workspaceId: occurrence.workspaceId,
+      entityType: 'routine_occurrence',
+      entityId: occurrence.id,
+      command: determinedCommand,
+      operationId,
+    });
 
     if (options?.autoSync !== false && this.networkStatus === 'online') {
       if (this.coordination.isLeader) {

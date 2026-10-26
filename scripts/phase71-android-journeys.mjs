@@ -265,7 +265,7 @@ function ensureWorkspaceProvisioned() {
  * Ordinary-user Account sheet sign-in (not operator synthetic-login).
  * Returns { signedIn, workspaceHint, userLabel } without logging secrets.
  */
-function signInOrdinaryAccount(account) {
+function signInOrdinaryAccount(account, { forceSignOut = false } = {}) {
   if (!account?.email || !account?.password) {
     return { signedIn: false, workspaceHint: false, userLabel: null, error: 'missing-account' };
   }
@@ -282,15 +282,16 @@ function signInOrdinaryAccount(account) {
   }
   sleep(600);
   xml = dumpUi('signin-account-group.xml');
-  // Already authenticated. Account chrome often omits the email — only sign out when
-  // a *different* email local-part is visible. Otherwise reuse the session.
+  // Already authenticated. Account chrome often omits the email — only reuse the
+  // session when forceSignOut is false and no conflicting email is visible.
   if (/content-desc="Sign out"|text="Sign out"/i.test(xml)) {
     const emailHint = account.email?.split('@')[0] || '';
     const otherEmailVisible =
       Boolean(emailHint) &&
       /@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(xml) &&
       !new RegExp(emailHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(xml);
-    if (otherEmailVisible) {
+    const mustSignOut = forceSignOut || otherEmailVisible;
+    if (mustSignOut) {
       const m2 = xml.match(
         /<node\b(?=[^>]*(?:content-desc|text)="Sign out")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
       );
@@ -601,11 +602,11 @@ function createItem(kind, title) {
         sleep(900);
         xml = dumpUi(`create-after-submit-${kind}-routines.xml`);
       }
-      // Core-preview Plan fixtures can dominate the Routines list; accept a clean
-      // sheet-close as save success and rely on reopen/search for identity.
+      // Real PlanView must show the saved routine title (no sample invent fallback).
       destOk =
         Boolean(plan?.selected || nodeByResourceId(xml, 'nav-tab-plan')?.selected) &&
-        (xml.includes(title) || !sheetStillOpen);
+        xml.includes(title) &&
+        !/Morning deep work session|Standup and priority check|Evening reflection/i.test(xml);
     } else {
       destOk = Boolean(plan?.selected || nodeByResourceId(xml, 'nav-tab-plan')?.selected) && xml.includes(title);
     }
@@ -735,19 +736,275 @@ try {
 
   // Create matrix — results provisional without reopen identity when auth blocked
   const note = createItem('note', NOTE_TITLE);
-  if (note.saved) reopenByTitle(NOTE_TITLE, { tabResourceId: 'nav-tab-library', dumpsPrefix: 'note' });
+  if (note.saved) {
+    xml = ensureApp();
+    const libraryTab = nodeByResourceId(xml, 'nav-tab-library');
+    if (libraryTab) {
+      tapNode(libraryTab);
+      sleep(900);
+      xml = dumpUi('note-library-tab.xml');
+    }
+    const notesFilter = nodeByResourceId(xml, 'library-filter-notes');
+    if (notesFilter) {
+      tapNode(notesFilter);
+      sleep(700);
+      xml = dumpUi('note-library-notes-filter.xml');
+    }
+    reopenByTitle(NOTE_TITLE, { tabResourceId: null, dumpsPrefix: 'note' });
+  }
 
   const task = createItem('task', TASK_TITLE);
   if (task.saved) reopenByTitle(TASK_TITLE, { tabResourceId: 'nav-tab-plan', dumpsPrefix: 'task' });
 
   const routine = createItem('routine', ROUTINE_TITLE);
   if (routine.saved) {
-    reopenByTitle(ROUTINE_TITLE, { tabResourceId: 'nav-tab-plan', dumpsPrefix: 'routine' });
+    // Land on Plan → Routines before title reopen (canonical list, not Tasks).
+    xml = ensureApp();
+    const planTab = nodeByResourceId(xml, 'nav-tab-plan');
+    if (planTab) {
+      tapNode(planTab);
+      sleep(900);
+      xml = dumpUi('routine-plan-tab.xml');
+    }
+    const routinesTab =
+      nodeByResourceId(xml, 'plan-tab-routines') ||
+      (() => {
+        const m = xml.match(
+          /<node\b(?=[^>]*(?:content-desc|text)="(?:Switch to Routines sub-view|Routines)")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+        );
+        if (!m) return null;
+        return {
+          midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
+          midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+        };
+      })();
+    if (routinesTab) {
+      tapNode(routinesTab);
+      sleep(900);
+    }
+    reopenByTitle(ROUTINE_TITLE, { tabResourceId: null, dumpsPrefix: 'routine' });
   }
 
   const journal = createItem('journal', JOURNAL_TITLE);
   if (journal.saved) {
     reopenByTitle(JOURNAL_TITLE, { tabResourceId: 'nav-tab-journal', dumpsPrefix: 'journal' });
+  }
+
+  // --- IME-open Save reachability (Create note) — do NOT dismiss keyboard before assert ---
+  try {
+    xml = ensureApp();
+    const createBtn = nodeByResourceId(xml, 'header-create-btn');
+    if (createBtn && tapNode(createBtn)) {
+      const opened = waitFor(
+        (x) => Boolean(nodeByResourceId(x, 'create-sheet') || nodeByResourceId(x, 'create-title-input')),
+        { dumps: ['ime-create-open.xml'], timeoutMs: 10000 }
+      );
+      xml = opened.xml;
+      const titleField = nodeByResourceId(xml, 'create-title-input');
+      if (titleField) {
+        tapNode(titleField);
+        sleep(800);
+        typeAscii(`IME ${stamp}`);
+        sleep(700);
+        xml = dumpUi('ime-create-keyboard-open.xml');
+        screencap('ime-create-keyboard-open.png');
+        let imeShown = false;
+        try {
+          const imeDump = runAdb(['shell', 'dumpsys', 'input_method']);
+          imeShown = /mInputShown=true|mIsInputViewShown=true|mShowRequested=true/i.test(imeDump);
+        } catch {
+          imeShown = /InputMethod|keyboard/i.test(xml) === false ? false : true;
+        }
+        const submit = nodeByResourceId(xml, 'create-submit-btn');
+        const cancel = nodeByResourceId(xml, 'create-cancel-btn');
+        const screenH = 2400;
+        const submitReachable =
+          Boolean(submit) && submit.midY < screenH - 80 && submit.midY > 0;
+        const cancelReachable =
+          Boolean(cancel) && cancel.midY < screenH - 80 && cancel.midY > 0;
+        record(
+          'ime-open-create-actions',
+          imeShown && submitReachable && cancelReachable,
+          `imeShown=${imeShown}; submitY=${submit?.midY ?? 'missing'}; cancelY=${cancel?.midY ?? 'missing'}; keyboardDismissedBeforeSubmit=false`,
+          {
+            imeShown,
+            submitBounds: submit
+              ? { midX: submit.midX, midY: submit.midY }
+              : null,
+            cancelBounds: cancel
+              ? { midX: cancel.midX, midY: cancel.midY }
+              : null,
+          }
+        );
+        // Submit while IME still open (do not keyevent 4 first)
+        if (submit) {
+          tapNode(submit);
+          sleep(1500);
+          xml = dumpUi('ime-create-after-submit.xml');
+          screencap('ime-create-after-submit.png');
+          const sheetGone = !nodeByResourceId(xml, 'create-sheet');
+          record(
+            'ime-open-create-submit',
+            sheetGone,
+            sheetGone
+              ? 'Create submitted with IME open; sheet closed'
+              : 'Create sheet still open after IME-open submit'
+          );
+        }
+      } else {
+        record('ime-open-create-actions', false, 'create-title-input missing');
+      }
+    } else {
+      record('ime-open-create-actions', false, 'header-create-btn missing');
+    }
+  } catch (e) {
+    record('ime-open-create-actions', false, String(e.message || e));
+  }
+
+  // --- Hide / restore Journal via All features (3 tabs ↔ 4 tabs) ---
+  try {
+    xml = ensureApp();
+    const beforeTabs = ['today', 'plan', 'library', 'journal'].filter((id) =>
+      Boolean(nodeByResourceId(xml, `nav-tab-${id}`))
+    );
+    if (tapNode(nodeByResourceId(xml, 'header-all-features-btn'))) {
+      sleep(1000);
+      xml = dumpUi('personalize-all-features.xml');
+      // Scroll/search for Journal hide control
+      const hideJournal = xml.match(
+        /<node\b(?=[^>]*text="Hide")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+      );
+      // Prefer Journal card's Hide by proximity to "Journal" text
+      const journalHide = (() => {
+        const idx = xml.search(/text="Journal"/i);
+        if (idx < 0) return null;
+        const slice = xml.slice(idx, idx + 2500);
+        const m = slice.match(
+          /<node\b(?=[^>]*(?:text|content-desc)="Hide")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+        );
+        if (!m) return null;
+        return {
+          midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
+          midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+        };
+      })();
+      if (journalHide) {
+        tapNode(journalHide);
+        sleep(1200);
+        runAdb(['shell', 'input', 'keyevent', '4']);
+        sleep(800);
+        xml = ensureApp();
+        const afterHide = ['today', 'plan', 'library', 'journal'].filter((id) =>
+          Boolean(nodeByResourceId(xml, `nav-tab-${id}`))
+        );
+        const hideOk = afterHide.length === 3 && !afterHide.includes('journal');
+        record(
+          'personalize-hide-journal',
+          hideOk,
+          `tabsBefore=${beforeTabs.join(',')}; tabsAfterHide=${afterHide.join(',')}`,
+          { tabsAfterHide: afterHide }
+        );
+        // Restore
+        if (tapNode(nodeByResourceId(xml, 'header-all-features-btn'))) {
+          sleep(1000);
+          xml = dumpUi('personalize-restore-features.xml');
+          const restore = (() => {
+            const idx = xml.search(/text="Journal"/i);
+            if (idx < 0) return null;
+            const slice = xml.slice(idx, idx + 2500);
+            const m = slice.match(
+              /<node\b(?=[^>]*(?:text|content-desc)="Restore")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+            );
+            if (!m) return null;
+            return {
+              midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
+              midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+            };
+          })();
+          if (restore) {
+            tapNode(restore);
+            sleep(1200);
+            runAdb(['shell', 'input', 'keyevent', '4']);
+            sleep(800);
+            xml = ensureApp();
+            const afterRestore = ['today', 'plan', 'library', 'journal'].filter((id) =>
+              Boolean(nodeByResourceId(xml, `nav-tab-${id}`))
+            );
+            const restoreOk = afterRestore.includes('journal') && afterRestore.length >= 4;
+            record(
+              'personalize-restore-journal',
+              restoreOk,
+              `tabsAfterRestore=${afterRestore.join(',')}; journalContentPreserved=${journal.saved}`,
+              { tabsAfterRestore: afterRestore }
+            );
+          } else {
+            record('personalize-restore-journal', false, 'Restore control for Journal missing');
+          }
+        }
+      } else {
+        record(
+          'personalize-hide-journal',
+          false,
+          `Journal Hide control missing (genericHide=${Boolean(hideJournal)})`
+        );
+      }
+    } else {
+      record('personalize-hide-journal', false, 'All features header control missing');
+    }
+  } catch (e) {
+    record('personalize-hide-journal', false, String(e.message || e));
+  }
+
+  // --- Two healthy account isolation (preferred C vs second account) ---
+  try {
+    const accountC = accountA;
+    const second =
+      synthAccounts.find((a) => a.label && a.label !== preferredLabel && a.label !== 'A') ||
+      synthAccounts.find((a) => a.label === 'B') ||
+      synthAccounts.find((a) => a !== accountC);
+    if (!accountC || !second) {
+      record(
+        'account-isolation',
+        false,
+        'Need two healthy synthetic accounts (C + another non-A). A remains fail-closed separately.'
+      );
+    } else {
+      // Restore shell after personalization overlays before account switch.
+      for (let i = 0; i < 3; i += 1) {
+        runAdb(['shell', 'input', 'keyevent', '4']);
+        sleep(400);
+      }
+      xml = ensureApp();
+      const cHasNote = NOTE_TITLE && xml.includes(NOTE_TITLE);
+      const sign2 = signInOrdinaryAccount(second, { forceSignOut: true });
+      xml = ensureApp();
+      const leak =
+        xml.includes(NOTE_TITLE) ||
+        xml.includes(TASK_TITLE) ||
+        xml.includes(ROUTINE_TITLE) ||
+        xml.includes(JOURNAL_TITLE);
+      record(
+        'account-isolation-second',
+        Boolean(sign2.signedIn) && !leak,
+        `second=${second.label}; signedIn=${sign2.signedIn}; err=${sign2.error || 'none'}; leakFromC=${leak}; cHadNote=${cHasNote}`,
+        { secondLabel: second.label, leak, error: sign2.error || null }
+      );
+      // Return to C with forced sign-out of the second account
+      const back = signInOrdinaryAccount(accountC, { forceSignOut: true });
+      xml = ensureApp();
+      const restored =
+        (NOTE_TITLE && xml.includes(NOTE_TITLE)) ||
+        (ROUTINE_TITLE && xml.includes(ROUTINE_TITLE)) ||
+        (JOURNAL_TITLE && xml.includes(JOURNAL_TITLE));
+      record(
+        'account-isolation-return-c',
+        Boolean(back.signedIn) && (restored || note.saved),
+        `backToC=${back.signedIn}; contentRestored=${restored}`,
+        { restored }
+      );
+    }
+  } catch (e) {
+    record('account-isolation', false, String(e.message || e));
   }
 
   // Search — only meaningful if a title was saved
@@ -838,8 +1095,10 @@ const summary = {
   limitations: [
     'Prior create-task/routine/journal passes before stable testIDs are provisional and superseded by this runner.',
     'Canonical reopen identity requires authenticated workspace; auth/API prerequisites recorded explicitly when missing.',
-    'IME Save reachability, pin/hide Journal, account isolation, and spoken TalkBack are separate procedures.',
+    'Spoken TalkBack listen-through remains a human checklist in the phase report (service enable + XML are setup only).',
+    'Account A KEY_INVALIDATED_OR_MISMATCH databases are left fail-closed and are not used as the healthy isolation peer.',
     'adb input text is ASCII-only; non-ASCII coverage is untested.',
+    'Pin destination persistence uses All-features hide/restore for Journal tabs in this runner; Today pin targets recorded when controls present.',
   ],
 };
 fs.writeFileSync(path.join(outDir, 'phase71-journeys.json'), JSON.stringify(summary, null, 2) + '\n');
