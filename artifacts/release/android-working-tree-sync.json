@@ -1,15 +1,18 @@
 {
-  "createdAt": "2026-10-26T12:48:48.913Z",
-  "gitRevision": "d03e6849375fdbb6f193b4fdbdc4c05b33573067",
+  "createdAt": "2026-10-26T13:13:05.534Z",
+  "gitRevision": "178fb2441c10aa5fde570c91f06c20b3c8c2f135",
   "workingTreeDirty": true,
-  "workingTreeFingerprint": "a47ff802a93a3f14eefeb316378000fa4238853cb2753308f778a8e26a99eb24",
-  "fingerprintFileCount": 102,
+  "workingTreeFingerprint": "15f9e203ffe9a003f8345770414ce08c4be4da9daffcd9e426c69ef0624a4f0a",
+  "fingerprintFileCount": 103,
   "syncedPaths": [
     "apps/mobile",
     "packages/ui-mobile",
     "packages/design-tokens",
     "packages/domain",
     "packages/contracts",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
     "scripts/build-android-debug-apk.mjs",
     "scripts/sync-short-build-working-tree.mjs",
     "scripts/test-android-e2e.mjs"

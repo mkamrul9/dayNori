@@ -420,7 +420,7 @@
     {
       "id": "71",
       "status": "in_progress",
-      "reason": "Header StatusBar intercept fixed; device-evidence 13/13 on emulator-5554; landscape APK unlocked. Still missing create/save/reopen identity proofs, IME Save reachability, pin/hide Journal tabs, account isolation, and spoken TalkBack listen-through. See docs/phase-reports/phase-71.md.",
+      "reason": "CSPRNG APK + storage init races repaired; persistence proven on synthetic account C. Still missing spoken TalkBack listen-through, stable routine/note fixture-free reopen, IME-open Save, pin/hide Journal, two-account isolation, and clean device-evidence 13/13. Phase 72 blocked. See docs/phase-reports/phase-71.md.",
       "report": "docs/phase-reports/phase-71.md"
     },
     {

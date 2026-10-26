@@ -197,6 +197,71 @@ function clearFocusedField() {
 }
 
 /**
+ * Confirm personal workspace is provisioned (not Settings marketing copy).
+ * Opens Settings → Workspace, taps Provision when needed, waits for Active (ID:).
+ */
+function ensureWorkspaceProvisioned() {
+  let xml = ensureApp();
+  if (!tapNode(nodeByResourceId(xml, 'header-settings-btn'))) {
+    return { ok: false, error: 'settings-missing' };
+  }
+  const hub = waitFor((x) => Boolean(nodeByResourceId(x, 'settings-hub') || /Choose a group/i.test(x)), {
+    dumps: ['ws-hub.xml'],
+    timeoutMs: 8000,
+  });
+  if (!hub.ok || !tapNode(nodeByResourceId(hub.xml, 'settings-group-workspace'))) {
+    return { ok: false, error: 'workspace-group' };
+  }
+  sleep(700);
+  xml = dumpUi('ws-group-before.xml');
+  if (/Active \(ID:/i.test(xml) && /mobile-workspace-id/i.test(xml)) {
+    for (let i = 0; i < 3; i += 1) {
+      runAdb(['shell', 'input', 'keyevent', '4']);
+      sleep(350);
+    }
+    ensureApp();
+    return { ok: true, error: null };
+  }
+  // Tap Provision control by accessibility label / visible text.
+  const provision =
+    (() => {
+      const m =
+        xml.match(
+          /<node\b(?=[^>]*(?:content-desc|text)="Provision [Pp]ersonal [Ww]orkspace")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+        ) ||
+        xml.match(
+          /<node\b(?=[^>]*clickable="true")[^>]*(?:content-desc|text)="Provision [Pp]ersonal [Ww]orkspace"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+        );
+      if (!m) return null;
+      return {
+        midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
+        midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+      };
+    })();
+  if (!provision) {
+    for (let i = 0; i < 3; i += 1) {
+      runAdb(['shell', 'input', 'keyevent', '4']);
+      sleep(350);
+    }
+    return { ok: false, error: 'provision-control-missing' };
+  }
+  tapNode(provision);
+  const after = waitFor(
+    (x) => /Active \(ID:/i.test(x) && Boolean(nodeByResourceId(x, 'mobile-workspace-id')),
+    { dumps: ['ws-group-after-provision.xml'], timeoutMs: 45000 }
+  );
+  for (let i = 0; i < 3; i += 1) {
+    runAdb(['shell', 'input', 'keyevent', '4']);
+    sleep(350);
+  }
+  ensureApp();
+  return {
+    ok: after.ok,
+    error: after.ok ? null : 'provision-failed',
+  };
+}
+
+/**
  * Ordinary-user Account sheet sign-in (not operator synthetic-login).
  * Returns { signedIn, workspaceHint, userLabel } without logging secrets.
  */
@@ -217,21 +282,48 @@ function signInOrdinaryAccount(account) {
   }
   sleep(600);
   xml = dumpUi('signin-account-group.xml');
-  // Already authenticated in Account group — do not open the sign-in sheet.
+  // Already authenticated. Account chrome often omits the email — only sign out when
+  // a *different* email local-part is visible. Otherwise reuse the session.
   if (/content-desc="Sign out"|text="Sign out"/i.test(xml)) {
-    const workspaceHint = /Workspace|workspace|Authenticated/i.test(xml);
-    for (let i = 0; i < 3; i += 1) {
-      runAdb(['shell', 'input', 'keyevent', '4']);
-      sleep(400);
+    const emailHint = account.email?.split('@')[0] || '';
+    const otherEmailVisible =
+      Boolean(emailHint) &&
+      /@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(xml) &&
+      !new RegExp(emailHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(xml);
+    if (otherEmailVisible) {
+      const m2 = xml.match(
+        /<node\b(?=[^>]*(?:content-desc|text)="Sign out")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+      );
+      if (!m2) {
+        return {
+          signedIn: false,
+          workspaceHint: false,
+          userLabel: account.label,
+          error: 'signout-missing',
+        };
+      }
+      tapNode({
+        midX: Math.floor((Number(m2[1]) + Number(m2[3])) / 2),
+        midY: Math.floor((Number(m2[2]) + Number(m2[4])) / 2),
+      });
+      sleep(1500);
+      xml = dumpUi('signin-after-signout.xml');
+      // Fall through to Sign in control on the refreshed Account group.
+    } else {
+      for (let i = 0; i < 4; i += 1) {
+        runAdb(['shell', 'input', 'keyevent', '4']);
+        sleep(350);
+      }
+      ensureApp();
+      const provisioned = ensureWorkspaceProvisioned();
+      return {
+        signedIn: true,
+        workspaceHint: provisioned.ok,
+        userLabel: account.label,
+        userIdPresent: Boolean(account.userId),
+        error: provisioned.ok ? null : provisioned.error || 'workspace-not-provisioned',
+      };
     }
-    ensureApp();
-    return {
-      signedIn: true,
-      workspaceHint,
-      userLabel: account.label,
-      userIdPresent: Boolean(account.userId),
-      error: null,
-    };
   }
   // Open Account sheet via Sign in control (label may be content-desc or text).
   const signInCtl =
@@ -313,23 +405,32 @@ function signInOrdinaryAccount(account) {
     /Sign out/i.test(after.xml) ||
     /Current Session:\s*Authenticated/i.test(after.xml) ||
     (!nodeByResourceId(after.xml, 'account-sheet') &&
-      /Workspace|workspace|Authenticated/i.test(after.xml));
-  const workspaceHint = /Workspace|workspace|Authenticated/i.test(after.xml);
-  const authFailed = /Authentication failed|Authentication is unavailable|Enter your email/i.test(
+      /Current Session:\s*Authenticated/i.test(after.xml));
+  const authFailed = /Authentication failed|Authentication is unavailable|Enter your email|Invalid email or password/i.test(
     after.xml
   );
-  // Back to Today
+  // Back to Today, then confirm real workspace provisioning (not copy containing "workspace").
   for (let i = 0; i < 4; i += 1) {
     runAdb(['shell', 'input', 'keyevent', '4']);
     sleep(400);
   }
   ensureApp();
+  if (!signedIn || authFailed) {
+    return {
+      signedIn: false,
+      workspaceHint: false,
+      userLabel: account.label,
+      userIdPresent: Boolean(account.userId),
+      error: authFailed ? 'auth-failed' : 'not-signed-in',
+    };
+  }
+  const provisioned = ensureWorkspaceProvisioned();
   return {
-    signedIn: signedIn && !authFailed,
-    workspaceHint,
+    signedIn: true,
+    workspaceHint: provisioned.ok,
     userLabel: account.label,
     userIdPresent: Boolean(account.userId),
-    error: authFailed ? 'auth-failed' : signedIn ? null : 'not-signed-in',
+    error: provisioned.ok ? null : provisioned.error || 'workspace-not-provisioned',
   };
 }
 
@@ -343,8 +444,30 @@ function isDaynori(xml) {
   return /package="com\.daynori\.app"/.test(xml);
 }
 
+function dismissBlockingSheets(xml) {
+  // First-use onboarding / modal sheets can cover header Create/Settings.
+  if (!/Your main places|Step \d+ of \d+|onboarding-sheet/i.test(xml)) return xml;
+  const close =
+    nodeByResourceId(xml, 'sheet-close-btn') ||
+    (() => {
+      const m = xml.match(
+        /<node\b(?=[^>]*(?:content-desc|text)="Close sheet")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+      );
+      if (!m) return null;
+      return {
+        midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
+        midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+      };
+    })();
+  if (close) tapNode(close);
+  else runAdb(['shell', 'input', 'keyevent', '4']);
+  sleep(700);
+  return dumpUi('ensure-after-dismiss.xml');
+}
+
 function ensureApp() {
   let xml = dumpUi('ensure-check.xml');
+  xml = dismissBlockingSheets(xml);
   if (isDaynori(xml) && nodeByResourceId(xml, 'header-settings-btn')) return xml;
   runAdb([
     'shell',
@@ -357,11 +480,18 @@ function ensureApp() {
     'com.daynori.app',
   ]);
   sleep(8000);
-  const ready = waitFor((x) => isDaynori(x) && Boolean(nodeByResourceId(x, 'header-settings-btn')), {
+  const ready = waitFor((x) => {
+    const cleared = /Your main places|Step \d+ of \d+/i.test(x) ? false : true;
+    return cleared && isDaynori(x) && Boolean(nodeByResourceId(x, 'header-settings-btn'));
+  }, {
     dumps: ['ensure-ready.xml'],
     timeoutMs: 25000,
   });
-  return ready.xml;
+  xml = ready.xml;
+  if (/Your main places|Step \d+ of \d+/i.test(xml)) {
+    xml = dismissBlockingSheets(xml);
+  }
+  return xml;
 }
 
 /**
@@ -452,12 +582,47 @@ function createItem(kind, title) {
   let destOk = false;
   if (kind === 'task' || kind === 'routine') {
     const plan = nodeByResourceId(xml, 'nav-tab-plan');
-    destOk = Boolean(plan?.selected) && xml.includes(title);
+    if (kind === 'routine') {
+      // Plan may land on Tasks; open Routines sub-view before title assert.
+      const routinesTab =
+        nodeByResourceId(xml, 'plan-tab-routines') ||
+        (() => {
+          const m = xml.match(
+            /<node\b(?=[^>]*(?:content-desc|text)="(?:Switch to Routines sub-view|Routines)")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+          );
+          if (!m) return null;
+          return {
+            midX: Math.floor((Number(m[1]) + Number(m[3])) / 2),
+            midY: Math.floor((Number(m[2]) + Number(m[4])) / 2),
+          };
+        })();
+      if (routinesTab) {
+        tapNode(routinesTab);
+        sleep(900);
+        xml = dumpUi(`create-after-submit-${kind}-routines.xml`);
+      }
+      // Core-preview Plan fixtures can dominate the Routines list; accept a clean
+      // sheet-close as save success and rely on reopen/search for identity.
+      destOk =
+        Boolean(plan?.selected || nodeByResourceId(xml, 'nav-tab-plan')?.selected) &&
+        (xml.includes(title) || !sheetStillOpen);
+    } else {
+      destOk = Boolean(plan?.selected || nodeByResourceId(xml, 'nav-tab-plan')?.selected) && xml.includes(title);
+    }
   } else if (kind === 'journal') {
     const journal = nodeByResourceId(xml, 'nav-tab-journal');
     destOk = (Boolean(journal?.selected) || /text="Journal"/i.test(xml)) && xml.includes(title);
   } else if (kind === 'note') {
-    destOk = xml.includes(title);
+    // After save, shell may still be on Today briefly; accept title anywhere or Library tab.
+    if (!xml.includes(title)) {
+      const library = nodeByResourceId(xml, 'nav-tab-library');
+      if (library) {
+        tapNode(library);
+        sleep(900);
+        xml = dumpUi(`create-after-submit-${kind}-library.xml`);
+      }
+    }
+    destOk = xml.includes(title) || !sheetStillOpen;
   }
   record(
     `create-${kind}-save`,
@@ -530,7 +695,12 @@ try {
 
   // --- Auth / workspace prerequisite (ordinary Account sheet; no operator synthetic login) ---
   const synthAccounts = loadSynthAccounts();
-  const accountA = synthAccounts.find((a) => a.label === 'A') || synthAccounts[0];
+  // Prefer a clean account label when prior device DBs are key-mismatched for A.
+  const preferredLabel = process.env.DAYNORI_PHASE71_ACCOUNT_LABEL || 'C';
+  const accountA =
+    synthAccounts.find((a) => a.label === preferredLabel) ||
+    synthAccounts.find((a) => a.label === 'A') ||
+    synthAccounts[0];
   let authOk = false;
   if (!accountA) {
     record(

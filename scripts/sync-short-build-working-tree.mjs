@@ -21,6 +21,11 @@ const SYNC_GLOBS = [
   'packages/design-tokens',
   'packages/domain',
   'packages/contracts',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  // .npmrc intentionally omitted: short-root build forces node-linker=hoisted
+  // after sync to keep Windows NDK/CMake paths under CMAKE_OBJECT_PATH_MAX.
   'scripts/build-android-debug-apk.mjs',
   'scripts/sync-short-build-working-tree.mjs',
   'scripts/test-android-e2e.mjs',

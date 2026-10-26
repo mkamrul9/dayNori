@@ -378,14 +378,29 @@ export default function App() {
     return unsubscribe;
   }, [pendingProtectedDest]);
 
-  // Production Storage & Sync Engine Lifecycle
+  // Production Storage & Sync Engine Lifecycle.
+  // Serialize open/close: React Strict Mode remounts this effect and Expo SQLite shares
+  // one native handle per DB name — overlapping close+initialize causes flaky failures.
+  const storageGenerationRef = useRef(0);
+  const storageQueueRef = useRef<Promise<void>>(Promise.resolve());
+
   useEffect(() => {
-    let isCancelled = false;
+    const generation = ++storageGenerationRef.current;
     let openedRepository: SqliteLocalRepository | null = null;
     let openedEngine: SyncEngine | null = null;
 
-    async function initMobileStorage() {
+    const runExclusive = (fn: () => Promise<void>) => {
+      const next = storageQueueRef.current.then(fn, fn);
+      storageQueueRef.current = next.then(
+        () => undefined,
+        () => undefined
+      );
+      return next;
+    };
+
+    void runExclusive(async () => {
       if (!isAuthenticated) {
+        if (generation !== storageGenerationRef.current) return;
         setSyncEngine(null);
         setRepository(null);
         setApiClient(null);
@@ -396,11 +411,13 @@ export default function App() {
 
       const currentUser = defaultAuthAdapter.getCurrentUser();
       if (!currentUser?.id || !currentUser?.workspaceId) {
+        if (generation !== storageGenerationRef.current) return;
         setApiClient(null);
         setUserNamespace(null);
         return;
       }
 
+      if (generation !== storageGenerationRef.current) return;
       setRepository(null);
       setSyncEngine(null);
       setApiClient(null);
@@ -416,8 +433,9 @@ export default function App() {
           workspaceId: currentUser.workspaceId,
         });
 
-        if (isCancelled) {
+        if (generation !== storageGenerationRef.current) {
           await repo.close();
+          openedRepository = null;
           return;
         }
 
@@ -434,8 +452,11 @@ export default function App() {
         });
         openedEngine = engine;
 
-        if (isCancelled) {
+        if (generation !== storageGenerationRef.current) {
+          await engine.stop();
           await repo.close();
+          openedEngine = null;
+          openedRepository = null;
           return;
         }
 
@@ -445,7 +466,6 @@ export default function App() {
         void registerDeviceAsync(client);
         setupPushTokenRotationListener(client);
 
-        // Initial reconciliation of upcoming reminders
         void client
           .listReminderInstances(currentUser.workspaceId)
           .then((res) => {
@@ -455,28 +475,40 @@ export default function App() {
           })
           .catch(() => {});
       } catch (err) {
-        if (!isCancelled) {
-          const detail =
-            err instanceof Error
-              ? (err.message.match(/^[A-Z][A-Z0-9_]{2,}/)?.[0] ?? err.name)
-              : 'unknown';
+        if (generation === storageGenerationRef.current) {
+          const raw = err instanceof Error ? err.message : String(err);
+          const code =
+            raw.match(
+              /\b(NO_SECURE_RANDOM|KEY_NOT_FOUND|KEY_INVALIDATED_OR_MISMATCH|INVALID_KEY_FORMAT|SQLCIPHER_UNAVAILABLE|SECURE_STORE_[A-Z_]+|WORKSPACE_INDEX_FAILED|StorageUnavailableError|StorageKeyError)\b/
+            )?.[1] ??
+            (err instanceof Error ? err.name : 'unknown');
+          const hint =
+            /Failed to open encrypted database/i.test(raw) && !/KEY_|NO_SECURE|SQLCIPHER/i.test(code)
+              ? raw.replace(/Failed to open encrypted database "[^"]+":\s*/i, '').slice(0, 120)
+              : code;
           setStorageMessage(
-            `Could not open your saved data (${detail}). Reopen the app to retry. Your data has not been cleared.`
+            `Could not open your saved data (${hint}). Reopen the app to retry. Your data has not been cleared.`
           );
         }
       }
-    }
-
-    const initialization = initMobileStorage();
+    });
 
     return () => {
-      isCancelled = true;
-      void initialization
-        .then(async () => {
+      void runExclusive(async () => {
+        if (generation !== storageGenerationRef.current) {
+          // Successor effect owns the namespace; only close handles this generation opened.
+        }
+        try {
           await openedEngine?.stop();
+        } catch {
+          /* ignore */
+        }
+        try {
           await openedRepository?.close();
-        })
-        .catch(() => console.warn('Could not close the prior account storage session.'));
+        } catch {
+          console.warn('Could not close the prior account storage session.');
+        }
+      });
     };
   }, [isAuthenticated, accountNamespaceKey]);
 
@@ -980,6 +1012,15 @@ export default function App() {
               onChangeTextScale={setTextScale}
               isAuthenticated={isAuthenticated}
               isOperator={isOperator}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              onProvisionWorkspace={async () => {
+                const wsId = await defaultAuthAdapter.provisionPersonalWorkspace();
+                if (!wsId) {
+                  setStorageMessage(
+                    'Could not provision your personal workspace. Check the network and retry. Your session was kept.'
+                  );
+                }
+              }}
               onOpenAccount={() => setActiveModal('account')}
               onToggleAuth={() => {
                 if (isAuthenticated) {

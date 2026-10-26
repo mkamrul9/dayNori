@@ -5,7 +5,8 @@
 - Settings hub/groups, BackHandler priority, androidInsets keyboard helper, and density-portable StatusBar top pad (`max(reported, 48dp×density)`) so header taps clear edge-to-edge StatusBar intercept (ADR 0071).
 - CreateSheet stable testIDs (`create-type-*`, `create-title-input`, `create-submit-btn`); journeys use node-scoped resource-id parsing and strong save/reopen assertions; prior create-* passes without those IDs remain provisional.
 - MobileModalSheet pads by measured Android IME height; journeys restore a11y/font/rotation; ordinary Account sign-in path uses local GoTrue + JWKS API (no operator synthetic-login).
-- Device blocker: SQLCipher key generation needs a linked CSPRNG (`expo-crypto` / native RNG) in the Dev Client — observed `NO_SECURE_RANDOM` on the current APK. Spoken TalkBack listen-through and persistence matrix still open — no completion commit.
+- Short-root APK rebuild: disable Gradle VFS watch (NativeException bad allocation); force hoisted `node-linker` after sync; x86_64 Dev Client with linked `expo-crypto` (`getRandomBytesAsync`).
+- Key manager fail-closed error classes; Settings wires `workspaceId` / Provision; storage open/close serialized against Strict Mode SQLite races. Persistence proven on clean synthetic account C; spoken TalkBack / IME-open Save / pin-hide / isolation still open — no completion commit.
 
 ## Phase 70 — Mobile web and PWA layout redesign — 2026-10-26
 

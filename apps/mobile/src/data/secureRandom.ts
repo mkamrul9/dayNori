@@ -1,13 +1,23 @@
 /**
  * Device-safe CSPRNG for SQLCipher key material.
- * Avoid react-native-get-random-values when ExpoCrypto is stubbed but unlinked
- * (it throws "Cannot find native module 'ExpoCrypto'" before other fallbacks).
+ * Prefer linked expo-crypto `getRandomBytesAsync` (not the sync getRandomBytes
+ * development fallback). Avoid react-native-get-random-values when ExpoCrypto is
+ * stubbed but unlinked (it throws before other fallbacks).
  */
 import { NativeModules } from 'react-native';
 import { StorageKeyError } from '@daynori/sync';
 
+/** Injectable CSPRNG for unit tests only. Production paths leave this unset. */
+export type SecureRandomProvider = (byteLength: number) => Promise<Uint8Array>;
+
+let injectedProvider: SecureRandomProvider | null = null;
+
+/** Test-only: install a deterministic or failing RNG. Pass null to clear. */
+export function setSecureRandomProviderForTests(provider: SecureRandomProvider | null): void {
+  injectedProvider = provider;
+}
+
 function decodeBase64ToBytes(b64: string, target: Uint8Array): void {
-  // Prefer global atob when present (Hermes/RN).
   const atobFn = (globalThis as { atob?: (data: string) => string }).atob;
   if (typeof atobFn !== 'function') {
     throw new StorageKeyError('NO_SECURE_RANDOM: base64 decoder unavailable.');
@@ -43,18 +53,38 @@ function randomBase64FromNative(byteLength: number): string | null {
   return null;
 }
 
-/** Fill `target` with cryptographically secure random bytes. */
+function acceptProviderBytes(bytes: Uint8Array, target: Uint8Array): void {
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength < target.length) {
+    throw new StorageKeyError(
+      `NO_SECURE_RANDOM: provider returned ${bytes?.byteLength ?? 0} bytes; expected ${target.length}.`
+    );
+  }
+  target.set(bytes.subarray(0, target.length));
+}
+
+/** Fill `target` with cryptographically secure random bytes. Fail closed. */
 export async function fillSecureRandomBytes(target: Uint8Array): Promise<void> {
-  // Prefer linked expo-crypto when present in the Dev Client / release binary.
+  if (injectedProvider) {
+    const bytes = await injectedProvider(target.length);
+    acceptProviderBytes(bytes, target);
+    return;
+  }
+
+  // Prefer linked expo-crypto async API when present in the Dev Client / release binary.
+  // Unlinked stubs, missing __DEV__, and host Vitest imports must fall through — not
+  // fail closed — so WebCrypto / native modules can still succeed.
   try {
     const ExpoCrypto = await import('expo-crypto');
     if (typeof ExpoCrypto.getRandomBytesAsync === 'function') {
       const bytes = await ExpoCrypto.getRandomBytesAsync(target.length);
-      target.set(bytes);
+      acceptProviderBytes(bytes, target);
       return;
     }
-  } catch {
-    // Unlinked or unavailable — try other device RNGs.
+  } catch (err) {
+    if (err instanceof StorageKeyError) {
+      throw err;
+    }
+    // Fall through to other device RNGs / final fail-closed.
   }
 
   if (typeof globalThis.crypto?.getRandomValues === 'function') {
@@ -62,7 +92,7 @@ export async function fillSecureRandomBytes(target: Uint8Array): Promise<void> {
       globalThis.crypto.getRandomValues(target);
       return;
     } catch {
-      // Broken stub (e.g. ExpoCrypto registered but not linked).
+      // Broken stub (e.g. ExpoCrypto registered but not linked) — try natives next.
     }
   }
 

@@ -71,9 +71,17 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
       setError(null);
       onDraftChange?.({ type: itemType, title: '', details: '' });
       onClose();
-    } catch {
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      // Keep drafts; surface a safe actionable reason (never key material).
+      const safe =
+        raw.match(
+          /\b(Sign in and open your workspace|Choose a file in Library|Please provide a title|NO_SECURE_RANDOM|KEY_NOT_FOUND|KEY_INVALIDATED_OR_MISMATCH|SQLCIPHER_UNAVAILABLE|StorageUnavailableError)\b/
+        )?.[1] ?? null;
       setError(
-        'Could not save. Sign in and open your workspace, or use Library for files. Your draft is kept.'
+        safe
+          ? `Could not save (${safe}). Your draft is kept.`
+          : 'Could not save. Sign in and open your workspace, or use Library for files. Your draft is kept.'
       );
     } finally {
       saving.current = false;

@@ -1,6 +1,6 @@
 # ADR-0071: Native Android Settings hub, Back stack, and inset adapter
 
-- Status: accepted (implementation advanced; device acceptance incomplete — local SQLite init / CSPRNG native link, persistence matrix, and spoken TalkBack remain open)
+- Status: accepted (implementation advanced; CSPRNG Dev Client + storage-init serialization landed; device acceptance incomplete — spoken TalkBack, IME-open Save, pin/hide, isolation, and fixture-free routine reopen remain open)
 - Date: 2026-10-26
 - Related: [ADR 0068](0068-feature-registry-personalization-and-operator-boundaries.md), [ADR 0070](0070-mobile-web-pwa-layout-and-settings.md), Phase 71
 
@@ -46,6 +46,12 @@ historically ~128px on the nominated 420dpi AVD).
    sources via `scripts/sync-short-build-working-tree.mjs` and record working-tree fingerprints
    so HEAD-only checkouts cannot silently omit Phase 71 edits. ABI is selectable via
    `DAYNORI_ANDROID_ABI` (x86_64 for the nominated AVD). Dev Client APK hash ≠ Metro JS fingerprint.
+7. **Short-root native link:** after working-tree sync, force `node-linker=hoisted` (do not let
+   primary-repo `isolated` overwrite), disable Gradle VFS watch on Windows, and rebuild when
+   native modules such as `expo-crypto` change. SQLCipher stays enabled via `expo.sqlite.useSQLCipher`.
+8. **Settings workspace provisioning:** `SettingsView` must receive `workspaceId` and
+   `onProvisionWorkspace` from `App.tsx`; Account-group copy containing the word “workspace” is
+   not proof of provisioning.
 
 ## Consequences
 
