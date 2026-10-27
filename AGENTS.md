@@ -18,6 +18,6 @@ These instructions apply throughout this repository to every contributor and cod
 - Implement accessible controls and keyboard/screen-reader alternatives to dragging.
 - Run the active phase's relevant tests. Record exact commands, results, limits, and manual evidence.
 - Update the phase report, CHANGELOG.md, and docs/roadmap/progress.json in the same phase commit.
-- One completed phase produces one local commit using the documented conventional message.
-- Review the diff and staged paths before committing. Never discard edits or rewrite history without authorization.
+- One completed phase produces one local commit using the documented conventional message, then push to the configured origin branch without force ([ADR 0074](docs/decisions/0074-standing-phase71-scheduling-and-push.md)). Do not stop solely because Phase 71 remains blocked when the selected phase’s own dependencies are complete.
+- Review the diff and staged paths before committing. Never discard edits or rewrite history without authorization. Never force-push as automatic recovery.
 - No credentials, paid infrastructure, store submission, or production deployment is implied by scaffolding work.

@@ -8,7 +8,6 @@ Group: V2 everyday experience. Status is tracked in [progress](../progress.json)
 
 - [69 — Desktop shell and focused Today experience](69-desktop-shell-and-focused-today-experience.md)
 - [70 — Mobile web and PWA layout redesign](70-mobile-web-and-pwa-layout-redesign.md)
-- [71 — Native Android interface and navigation parity](71-native-android-interface-and-navigation-parity.md)
 - [72 — Welcome startup onboarding and authentication polish](72-welcome-startup-onboarding-and-authentication-polish.md)
 
 Read prerequisite reports and linked specifications before editing. A planned dependency is not satisfied by its folder or documentation alone.
@@ -56,6 +55,8 @@ Choose real commands from the current workspace, not guessed script names. Recor
 - [docs/engineering/handoff.md](../../engineering/handoff.md)
 - [docs/roadmap/v2/design-and-mobile.md](../v2/design-and-mobile.md)
 - [docs/product/requirements.md](../../product/requirements.md)
+- [docs/decisions/0074-standing-phase71-scheduling-and-push.md](../../decisions/0074-standing-phase71-scheduling-and-push.md)
+- [docs/phase-reports/phase-71.md](../../phase-reports/phase-71.md)
 
 ## Commit target
 

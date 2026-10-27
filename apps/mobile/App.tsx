@@ -166,6 +166,7 @@ export default function App() {
   const [featurePersonalization, setFeaturePersonalization] = useState(() =>
     getDefaultFeaturePersonalization()
   );
+  const [journalPreviewHidden, setJournalPreviewHidden] = useState(true);
   const mobileRelease: FeatureReleaseContext = {
     platform: 'android',
     corePreview: isCorePreview,
@@ -255,6 +256,7 @@ export default function App() {
 
     if (!apiClient || !userNamespace?.userId) {
       setFeaturePersonalization(getDefaultFeaturePersonalization());
+      setJournalPreviewHidden(true);
       return;
     }
     const gen = sessionGenRef.current;
@@ -264,8 +266,15 @@ export default function App() {
       .then((profile) => {
         if (sessionGenRef.current !== gen || userNamespace.userId !== userId) return;
         const prefs = profile.data?.preferences as
-          | { featurePersonalization?: unknown; homeLayout?: { moduleShortcuts?: unknown } }
+          | {
+              featurePersonalization?: unknown;
+              homeLayout?: { moduleShortcuts?: unknown };
+              journalPreviewHidden?: boolean;
+            }
           | undefined;
+        setJournalPreviewHidden(
+          prefs?.journalPreviewHidden !== undefined ? Boolean(prefs.journalPreviewHidden) : true
+        );
         setFeaturePersonalization(
           sanitizeAndMigrateFeaturePersonalization(
             prefs?.featurePersonalization ?? null,
@@ -932,6 +941,7 @@ export default function App() {
         userId={userNamespace?.userId}
         apiClient={apiClient ?? undefined}
         localRepository={repository ?? undefined}
+        journalPreviewHidden={journalPreviewHidden}
         onSelectItem={(item) => {
           setActiveModal('none');
           if (item.displayType === 'note' || item.displayType === 'knowledge') {

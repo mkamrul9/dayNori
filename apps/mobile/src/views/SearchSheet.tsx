@@ -31,6 +31,9 @@ export interface SearchSheetProps {
   apiClient?: DaynoriApiClient;
   localRepository?: LocalRepositoryPort;
   onSelectItem?: (item: SearchResultItem) => void;
+  /** Prefer account preference; default true keeps journal bodies private. */
+  journalPreviewHidden?: boolean;
+  suppressBodySnippets?: boolean;
 }
 
 export const SearchSheet: React.FC<SearchSheetProps> = ({
@@ -45,6 +48,8 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
   apiClient,
   localRepository,
   onSelectItem,
+  journalPreviewHidden = true,
+  suppressBodySnippets = true,
 }) => {
   const palette = colors[themeMode];
   const [query, setQuery] = useState(initialQuery);
@@ -168,7 +173,7 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
               journalEntries: journals,
               files,
             },
-            preferences: { journalPreviewHidden: true, suppressBodySnippets: true },
+            preferences: { journalPreviewHidden, suppressBodySnippets },
           });
 
           setSearchResults(localRes.data);
@@ -234,7 +239,7 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
                 journalEntries: journals,
                 files,
               },
-              preferences: { journalPreviewHidden: true, suppressBodySnippets: true },
+              preferences: { journalPreviewHidden, suppressBodySnippets },
             });
 
             setSearchResults(localRes.data);
@@ -261,7 +266,17 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [query, selectedType, offset, workspaceId, apiClient, localRepository, visible]);
+  }, [
+    query,
+    selectedType,
+    offset,
+    workspaceId,
+    apiClient,
+    localRepository,
+    visible,
+    journalPreviewHidden,
+    suppressBodySnippets,
+  ]);
 
   const activeResults = searchResults;
 

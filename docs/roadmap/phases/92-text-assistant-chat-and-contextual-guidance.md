@@ -8,7 +8,6 @@ Group: V2 daily assistant. Status is tracked in [progress](../progress.json), no
 
 - [91 — Scoped retrieval indexing and grounding quality](91-scoped-retrieval-indexing-and-grounding-quality.md)
 - [70 — Mobile web and PWA layout redesign](70-mobile-web-and-pwa-layout-redesign.md)
-- [71 — Native Android interface and navigation parity](71-native-android-interface-and-navigation-parity.md)
 - [78 — Complete contextual Help and user instructions](78-complete-contextual-help-and-user-instructions.md)
 
 Read prerequisite reports and linked specifications before editing. A planned dependency is not satisfied by its folder or documentation alone.
@@ -55,6 +54,8 @@ Choose real commands from the current workspace, not guessed script names. Recor
 - [docs/engineering/handoff.md](../../engineering/handoff.md)
 - [docs/roadmap/v2/assistant.md](../v2/assistant.md)
 - [docs/roadmap/v2/guided-tours.md](../v2/guided-tours.md)
+- [docs/decisions/0074-standing-phase71-scheduling-and-push.md](../../decisions/0074-standing-phase71-scheduling-and-push.md)
+- [docs/phase-reports/phase-71.md](../../phase-reports/phase-71.md)
 
 ## Commit target
 

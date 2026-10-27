@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-27",
   "activePhase": null,
-  "nextPhase": null,
-  "schedulingDecision": "Phase 73 complete (2026-10-27) under ADR 0073. Phase 74 remains unready: dependsOn includes incomplete Phase 71. Phase 71 stays blocked (spoken TalkBack listen-through; remaining verification gaps) and must not be marked complete or waived. No other planned phase has all dependencies complete. Release gates and security requirements unchanged. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
+  "nextPhase": "75",
+  "schedulingDecision": "Phase 74 complete (2026-10-27) under ADR 0074. Next ready phase is 75 (dependsOn 74). Phase 71 stays blocked (spoken TalkBack; remaining verification) and must not be marked complete or waived. Standing rule: completed phases push to origin/codex/free-core-preview without force. Release gates unchanged. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -420,7 +420,7 @@
     {
       "id": "71",
       "status": "blocked",
-      "reason": "Phase 73 completed under ADR 0073 without waiving Phase 71. Remaining Phase 71 acceptance: spoken TalkBack listen-through; remaining verification gaps. Do not mark complete or waive. See docs/phase-reports/phase-71.md and ADR 0073.",
+      "reason": "Standing ADR 0074: later phases may proceed without Phase 71 completion. Remaining Phase 71 acceptance: spoken TalkBack listen-through; remaining verification gaps. Do not mark complete or waive. See docs/phase-reports/phase-71.md.",
       "report": "docs/phase-reports/phase-71.md"
     },
     {
@@ -435,7 +435,8 @@
     },
     {
       "id": "74",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-74.md"
     },
     {
       "id": "75",

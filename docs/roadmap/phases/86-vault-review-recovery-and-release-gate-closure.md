@@ -6,7 +6,6 @@ Group: V2 advanced capability gates. Status is tracked in [progress](../progress
 
 ## Prerequisites
 
-- [71 — Native Android interface and navigation parity](71-native-android-interface-and-navigation-parity.md)
 - [75 — Files and audio attachment readiness](75-files-and-audio-attachment-readiness.md)
 - [77 — Safe offline reopen sync and upgrade recovery](77-safe-offline-reopen-sync-and-upgrade-recovery.md)
 - [81 — Advanced recovery and optional-feature tour coverage](81-advanced-recovery-and-optional-feature-tour-coverage.md)
@@ -58,6 +57,8 @@ Choose real commands from the current workspace, not guessed script names. Recor
 - [docs/architecture/security-and-vault.md](../../architecture/security-and-vault.md)
 - [docs/engineering/release-gates.md](../../engineering/release-gates.md)
 - [docs/roadmap/v2/quality-and-release.md](../v2/quality-and-release.md)
+- [docs/decisions/0074-standing-phase71-scheduling-and-push.md](../../decisions/0074-standing-phase71-scheduling-and-push.md)
+- [docs/phase-reports/phase-71.md](../../phase-reports/phase-71.md)
 
 ## Commit target
 

@@ -17,6 +17,8 @@ import {
   createRecoverableNoteDocument,
   applyMarkToInlines,
   normalizeInlines,
+  resolveLocalPersistenceLabel,
+  resolveCloudPersistenceLabel,
 } from '@daynori/domain';
 import { Button } from './Button.js';
 
@@ -114,8 +116,8 @@ export function NoteEditor({
   folders = [],
   themeMode = 'light',
   readOnly = false,
-  localSaveStatus = 'Saved locally',
-  cloudSyncStatus = 'Synced',
+  localSaveStatus = 'Saved on this device',
+  cloudSyncStatus = 'Synchronized',
   conflict = null,
   onChange,
   onSave,
@@ -179,9 +181,30 @@ export function NoteEditor({
   const isSavingRef = useRef(false);
   const hasPendingSaveRef = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dirtyEpoch, setDirtyEpoch] = useState(0);
 
   const latestSnapshotRef = useRef({ title, doc, folderId, plainText });
   latestSnapshotRef.current = { title, doc, folderId, plainText };
+
+  const markDirty = useCallback(() => {
+    editGenerationRef.current += 1;
+    setDirtyEpoch((n) => n + 1);
+    setSaveError(null);
+  }, []);
+
+  const displayLocalSaveStatus = useMemo(
+    () =>
+      resolveLocalPersistenceLabel({
+        dirty: editGenerationRef.current > lastSavedGenerationRef.current,
+        failed: Boolean(saveError),
+        raw: localSaveStatus,
+      }),
+    [dirtyEpoch, saveError, localSaveStatus]
+  );
+  const displayCloudSyncStatus = useMemo(
+    () => resolveCloudPersistenceLabel(cloudSyncStatus),
+    [cloudSyncStatus]
+  );
 
   const latestOnSaveRef = useRef(onSave);
   latestOnSaveRef.current = onSave;
@@ -194,16 +217,18 @@ export function NoteEditor({
   }, [title, doc, folderId, plainText]);
 
   // Push to undo stack before mutating
-  const mutateDoc = useCallback((updater: (prev: NoteDocument) => NoteDocument) => {
-    setDoc((prev: NoteDocument) => {
-      const next = updater(prev);
-      setUndoStack((u) => [...u.slice(-49), prev]);
-      setRedoStack([]);
-      return next;
-    });
-    editGenerationRef.current += 1;
-    setSaveError(null);
-  }, []);
+  const mutateDoc = useCallback(
+    (updater: (prev: NoteDocument) => NoteDocument) => {
+      setDoc((prev: NoteDocument) => {
+        const next = updater(prev);
+        setUndoStack((u) => [...u.slice(-49), prev]);
+        setRedoStack([]);
+        return next;
+      });
+      markDirty();
+    },
+    [markDirty]
+  );
 
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
@@ -262,6 +287,7 @@ export function NoteEditor({
       // Advance durable generation only upon successful resolution
       lastSavedGenerationRef.current = currentGen;
       setSaveError(null);
+      setDirtyEpoch((n) => n + 1);
     } catch {
       // Retain dirty content on failure and surface recovery
       setSaveError('Persistence failed. Your latest edits remain in memory.');
@@ -733,7 +759,7 @@ export function NoteEditor({
           border: 0,
         }}
       >
-        {`Title: ${displayTitle}. Local: ${localSaveStatus}. Cloud: ${cloudSyncStatus}. Word count: ${wordCount}.`}
+        {`Title: ${displayTitle}. Local: ${displayLocalSaveStatus}. Cloud: ${displayCloudSyncStatus}. Word count: ${wordCount}.`}
       </div>
 
       {/* Conflict Recovery Banner */}
@@ -1090,7 +1116,7 @@ export function NoteEditor({
           {/* Distinct Persistence and Sync Indicators */}
           <div
             role="status"
-            aria-label={`Status: ${localSaveStatus}, ${cloudSyncStatus}`}
+            aria-label={`Status: ${displayLocalSaveStatus}, ${displayCloudSyncStatus}`}
             data-testid="editor-status-indicators"
             style={{
               display: 'flex',
@@ -1101,11 +1127,11 @@ export function NoteEditor({
             }}
           >
             <span data-testid="local-save-status">
-              <Icon name="save" /> {localSaveStatus}
+              <Icon name="save" /> {displayLocalSaveStatus}
             </span>
             <span>•</span>
             <span data-testid="cloud-sync-status">
-              <Icon name="cloud" /> {cloudSyncStatus}
+              <Icon name="cloud" /> {displayCloudSyncStatus}
             </span>
           </div>
 
@@ -1154,15 +1180,14 @@ export function NoteEditor({
           autoFocus={autoFocus}
           onChange={(e) => {
             setTitle(e.target.value);
-            editGenerationRef.current += 1;
-            setSaveError(null);
+            markDirty();
           }}
           onCompositionStart={() => {
             isComposingRef.current = true;
           }}
           onCompositionEnd={() => {
             isComposingRef.current = false;
-            editGenerationRef.current += 1;
+            markDirty();
           }}
           data-testid="note-title-input"
           aria-label="Note title"

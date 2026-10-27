@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 74 — Library writing journal and search completion — 2026-10-27
+
+- Standing ADR 0074: Phase 71 unfinished verification no longer blocks later phases; completed phases commit and push to `origin/codex/free-core-preview` without force. Plan edges for 74/85/86/88/89/92/96 updated accordingly.
+- Canonical note save/sync vocabulary (Unsaved / Saved on this device / Waiting to sync / Synchronized / Failed — retry); library filter scope copy; mobile search honors journal preview privacy preference; Help updated.
+- Commit: `feat(content): complete focused writing and library workflows`.
+
 ## Phase 73 — Tasks routines and calendar workflow completion — 2026-10-27
 
 - Required-fields-first task/routine editors (web + native Plan): title/deadline or schedule first; optional notes/priority/folder/tags/subtasks under Details.

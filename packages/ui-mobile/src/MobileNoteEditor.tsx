@@ -27,6 +27,8 @@ import {
   createRecoverableNoteDocument,
   replaceTextInRangeInlines,
   applyMarkToInlines,
+  resolveLocalPersistenceLabel,
+  resolveCloudPersistenceLabel,
 } from '@daynori/domain';
 
 export interface MobileNoteEditorProps {
@@ -110,8 +112,8 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
   folders = [],
   themeMode = 'light',
   readOnly = false,
-  localSaveStatus = 'Saved locally',
-  cloudSyncStatus = 'Synced',
+  localSaveStatus = 'Saved on this device',
+  cloudSyncStatus = 'Synchronized',
   conflict = null,
   onSave,
   onResolveConflict,
@@ -169,6 +171,26 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
   const isSavingRef = useRef(false);
   const hasPendingSaveRef = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dirtyEpoch, setDirtyEpoch] = useState(0);
+  const markDirty = useCallback(() => {
+    editGenerationRef.current += 1;
+    setDirtyEpoch((n) => n + 1);
+    setSaveError(null);
+  }, []);
+
+  const displayLocalSaveStatus = useMemo(
+    () =>
+      resolveLocalPersistenceLabel({
+        dirty: editGenerationRef.current > lastSavedGenerationRef.current,
+        failed: Boolean(saveError),
+        raw: localSaveStatus,
+      }),
+    [dirtyEpoch, saveError, localSaveStatus]
+  );
+  const displayCloudSyncStatus = useMemo(
+    () => resolveCloudPersistenceLabel(cloudSyncStatus),
+    [cloudSyncStatus]
+  );
 
   const latestSnapshotRef = useRef({ title, doc, folderId, plainText });
   latestSnapshotRef.current = { title, doc, folderId, plainText };
@@ -176,16 +198,18 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
   const latestOnSaveRef = useRef(onSave);
   latestOnSaveRef.current = onSave;
 
-  const mutateDoc = useCallback((updater: (prev: NoteDocument) => NoteDocument) => {
-    setDoc((prev: NoteDocument) => {
-      const next = updater(prev);
-      setUndoStack((u) => [...u.slice(-30), prev]);
-      setRedoStack([]);
-      return next;
-    });
-    editGenerationRef.current += 1;
-    setSaveError(null);
-  }, []);
+  const mutateDoc = useCallback(
+    (updater: (prev: NoteDocument) => NoteDocument) => {
+      setDoc((prev: NoteDocument) => {
+        const next = updater(prev);
+        setUndoStack((u) => [...u.slice(-30), prev]);
+        setRedoStack([]);
+        return next;
+      });
+      markDirty();
+    },
+    [markDirty]
+  );
 
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
@@ -194,8 +218,8 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
     setUndoStack((u) => u.slice(0, -1));
     setRedoStack((r) => [...r, doc]);
     setDoc(prev);
-    editGenerationRef.current += 1;
-  }, [undoStack, doc]);
+    markDirty();
+  }, [undoStack, doc, markDirty]);
 
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
@@ -204,8 +228,8 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
     setRedoStack((r) => r.slice(0, -1));
     setUndoStack((u) => [...u, doc]);
     setDoc(next);
-    editGenerationRef.current += 1;
-  }, [redoStack, doc]);
+    markDirty();
+  }, [redoStack, doc, markDirty]);
 
   // Serialized durable save executor
   const performSave = useCallback(async () => {
@@ -237,6 +261,7 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
 
       lastSavedGenerationRef.current = currentGen;
       setSaveError(null);
+      setDirtyEpoch((n) => n + 1);
     } catch {
       setSaveError('Save failed. Your edits remain stored in local memory.');
     } finally {
@@ -633,9 +658,12 @@ export const MobileNoteEditor: React.FC<MobileNoteEditorProps> = ({
       {/* Header and status indicators */}
       <View style={[styles.header, { borderBottomColor: palette.border.subtle }]}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.headerStatusText, { color: palette.text.secondary }]}>
-            <Icon name="save" color={palette.text.secondary} /> {localSaveStatus} •{' '}
-            <Icon name="cloud" color={palette.text.secondary} /> {cloudSyncStatus}
+          <Text
+            accessibilityLabel={`Status: ${displayLocalSaveStatus}, ${displayCloudSyncStatus}`}
+            style={[styles.headerStatusText, { color: palette.text.secondary }]}
+          >
+            <Icon name="save" color={palette.text.secondary} /> {displayLocalSaveStatus} •{' '}
+            <Icon name="cloud" color={palette.text.secondary} /> {displayCloudSyncStatus}
           </Text>
           <Text style={[styles.headerMetricsText, { color: palette.text.muted }]}>
             {wordCount} words • {charCount} chars

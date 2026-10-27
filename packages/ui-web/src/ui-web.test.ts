@@ -381,8 +381,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       const html = renderToString(
         React.createElement(NoteEditor, {
           initialTitle: 'Test Note',
-          localSaveStatus: 'Saved locally',
-          cloudSyncStatus: 'Synced',
+          localSaveStatus: 'Saved on this device',
+          cloudSyncStatus: 'Synchronized',
         })
       );
       expect(html).toContain('data-testid="note-editor"');
@@ -395,8 +395,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('data-testid="format-bold"');
       expect(html).toContain('data-testid="editor-undo"');
       expect(html).toContain('data-testid="editor-redo"');
-      expect(html).toContain('Saved locally');
-      expect(html).toContain('Synced');
+      expect(html).toContain('Saved on this device');
+      expect(html).toContain('Synchronized');
     });
 
     it('renders conflict banner when conflict is present', () => {
@@ -597,8 +597,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
           initialEntryDate: '2026-10-16',
           initialMood: 'reflective',
           initialTags: ['evening', 'focus'],
-          localSaveStatus: 'Saved locally',
-          cloudSyncStatus: 'Synced with cloud',
+          localSaveStatus: 'Saved on this device',
+          cloudSyncStatus: 'Synchronized',
         })
       );
 
@@ -610,8 +610,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('data-testid="journal-tag-evening"');
       expect(html).toContain('data-testid="journal-tag-focus"');
       expect(html).toContain('data-testid="journal-toggle-prompts-btn"');
-      expect(html).toContain('Saved locally');
-      expect(html).toContain('Synced with cloud');
+      expect(html).toContain('Saved on this device');
+      expect(html).toContain('Synchronized');
     });
 
     it('displays backdated indicator badge when entry date is in the past', () => {

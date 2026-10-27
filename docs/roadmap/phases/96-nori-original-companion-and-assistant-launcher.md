@@ -8,7 +8,6 @@ Group: V2 daily assistant. Status is tracked in [progress](../progress.json), no
 
 - [68 — Design tokens components icons and motion](68-design-tokens-components-icons-and-motion.md)
 - [70 — Mobile web and PWA layout redesign](70-mobile-web-and-pwa-layout-redesign.md)
-- [71 — Native Android interface and navigation parity](71-native-android-interface-and-navigation-parity.md)
 - [92 — Text assistant chat and contextual guidance](92-text-assistant-chat-and-contextual-guidance.md)
 - [93 — Reviewed note task and journal creation](93-reviewed-note-task-and-journal-creation.md)
 
@@ -57,6 +56,8 @@ Choose real commands from the current workspace, not guessed script names. Recor
 - [docs/engineering/handoff.md](../../engineering/handoff.md)
 - [docs/roadmap/v2/assistant.md](../v2/assistant.md)
 - [docs/roadmap/v2/design-and-mobile.md](../v2/design-and-mobile.md)
+- [docs/decisions/0074-standing-phase71-scheduling-and-push.md](../../decisions/0074-standing-phase71-scheduling-and-push.md)
+- [docs/phase-reports/phase-71.md](../../phase-reports/phase-71.md)
 
 ## Commit target
 

@@ -17,7 +17,15 @@ export default function HelpPage() {
       [
         {
           title: 'Write a note',
-          body: 'Tap Create, choose Note, then Save. Find it again in Library.',
+          body: 'Tap Create, choose Note, then write. Status shows Unsaved, Saved on this device, Waiting to sync, Synchronized, or Failed — retry. Empty titles become Untitled after save. Find the same note again in Library or Search.',
+        },
+        {
+          title: 'Library folders',
+          body: 'Library uses one workspace folder tree. Filters change the view only — Clear filters never moves items. Folder moves keep the same ID, dates, and links; depth stops at five levels.',
+        },
+        {
+          title: 'Search privacy',
+          body: 'Search stays inside your workspace. Vault items stay out of ordinary search. Journal snippets follow Privacy settings (hidden by default).',
         },
         {
           title: 'Add a task',

@@ -16,6 +16,7 @@ export * from './operatorAccess.js';
 export * from './onboarding.js';
 export * from './knowledge.js';
 export * from './search.js';
+export * from './persistenceStatus.js';
 export * from './expenses.js';
 export * from './audio.js';
 export * from './customSections.js';

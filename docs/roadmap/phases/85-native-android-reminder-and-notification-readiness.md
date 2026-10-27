@@ -6,7 +6,6 @@ Group: V2 advanced capability gates. Status is tracked in [progress](../progress
 
 ## Prerequisites
 
-- [71 — Native Android interface and navigation parity](71-native-android-interface-and-navigation-parity.md)
 - [73 — Tasks routines and calendar workflow completion](73-tasks-routines-and-calendar-workflow-completion.md)
 - [81 — Advanced recovery and optional-feature tour coverage](81-advanced-recovery-and-optional-feature-tour-coverage.md)
 
@@ -54,6 +53,8 @@ Choose real commands from the current workspace, not guessed script names. Recor
 - [docs/engineering/handoff.md](../../engineering/handoff.md)
 - [docs/roadmap/v2/notifications.md](../v2/notifications.md)
 - [docs/decisions/0034-android-notifications-and-device-schedules.md](../../decisions/0034-android-notifications-and-device-schedules.md)
+- [docs/decisions/0074-standing-phase71-scheduling-and-push.md](../../decisions/0074-standing-phase71-scheduling-and-push.md)
+- [docs/phase-reports/phase-71.md](../../phase-reports/phase-71.md)
 
 ## Commit target
 

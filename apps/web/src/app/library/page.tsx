@@ -222,7 +222,7 @@ export default function LibraryPage() {
       if (syncEngineRef.current) {
         syncEngineRef.current.setNetworkStatus('online');
       } else {
-        setCloudSyncStatus('Synced');
+        setCloudSyncStatus('Synchronized');
       }
       announce('Network connected. Changes syncing.');
     };
@@ -299,7 +299,7 @@ export default function LibraryPage() {
             return;
           }
           localRepoRef.current = repo;
-          setLocalSaveStatus('Saved on device');
+          setLocalSaveStatus('Saved on this device');
 
           // Initialize sync engine
           const engine = createWebSyncEngine({
@@ -315,10 +315,10 @@ export default function LibraryPage() {
             if (evt.type === 'state_changed') {
               switch (evt.status) {
                 case 'synced':
-                  setCloudSyncStatus('Synced');
+                  setCloudSyncStatus('Synchronized');
                   break;
                 case 'syncing':
-                  setCloudSyncStatus('Syncing changes...');
+                  setCloudSyncStatus('Waiting to sync');
                   break;
                 case 'saved_locally':
                   setCloudSyncStatus('Offline â€” saved locally');
@@ -327,10 +327,10 @@ export default function LibraryPage() {
                   setCloudSyncStatus('Conflict detected');
                   break;
                 case 'error':
-                  setCloudSyncStatus('Sync error');
+                  setCloudSyncStatus('Failed — retry');
                   break;
                 default:
-                  setCloudSyncStatus('Synced');
+                  setCloudSyncStatus('Synchronized');
               }
             } else if (evt.type === 'conflict_detected') {
               setConflictMessage(evt.conflict.conflictReason);
@@ -436,7 +436,7 @@ export default function LibraryPage() {
 
             setFolders(loadedFolders);
             setItems(loadedItems);
-            setCloudSyncStatus('Synced');
+            setCloudSyncStatus('Synchronized');
           }
         } catch {
           if (!isCancelled) {
@@ -466,7 +466,7 @@ export default function LibraryPage() {
               trashedAt: f.deletedAt ?? null,
             }));
             setFolders(loaded);
-            setCloudSyncStatus('Synced');
+            setCloudSyncStatus('Synchronized');
           }
 
           const usageRes = await client.getWorkspaceStorageQuota(workspaceId!);
@@ -767,14 +767,14 @@ export default function LibraryPage() {
     try {
       if (syncEngineRef.current) {
         await syncEngineRef.current.saveItem(header, undefined, 'createFolder');
-        setLocalSaveStatus('Saved on device');
+        setLocalSaveStatus('Saved on this device');
         if (isOnline) {
-          setCloudSyncStatus('Syncing...');
+          setCloudSyncStatus('Waiting to sync');
           await syncEngineRef.current.syncNow();
-          setCloudSyncStatus('Synced');
+          setCloudSyncStatus('Synchronized');
         }
       } else if (apiClientRef.current && workspaceId) {
-        setCloudSyncStatus('Syncing...');
+        setCloudSyncStatus('Waiting to sync');
         await apiClientRef.current.createFolder(
           workspaceId,
           {
@@ -788,10 +788,10 @@ export default function LibraryPage() {
           },
           { headers: { 'x-operation-id': generateUuid() } }
         );
-        setCloudSyncStatus('Synced');
+        setCloudSyncStatus('Synchronized');
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed — retry');
     }
   };
 
@@ -860,7 +860,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed — retry');
     }
 
     // Reversible Undo Toast
@@ -990,7 +990,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed — retry');
     }
 
     // Reversible Undo Toast
@@ -1100,7 +1100,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed — retry');
     }
   };
 
@@ -1157,7 +1157,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed — retry');
     }
   };
 
@@ -1257,7 +1257,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed — retry');
     }
 
     // Reversible Undo Toast
@@ -1933,7 +1933,7 @@ export default function LibraryPage() {
               },
             }
           );
-          setLocalSaveStatus('Saved on device');
+          setLocalSaveStatus('Saved on this device');
           setEditingNote((prev) =>
             prev
               ? {
@@ -1966,7 +1966,7 @@ export default function LibraryPage() {
             updatedAt: now,
             deletedAt: null,
           });
-          setLocalSaveStatus('Saved on device');
+          setLocalSaveStatus('Saved on this device');
           setEditingNote((prev) =>
             prev
               ? {
@@ -2578,7 +2578,7 @@ export default function LibraryPage() {
                 className="daynori-break"
                 style={{ fontSize: 12, color: palette.text.secondary, fontWeight: 600 }}
               >
-                Active filters
+                Active filters (view only â€” does not move items)
                 {typeFilter !== 'all' ? ` Â· ${typeFilter}` : ''}
                 {searchQuery.trim() ? ' Â· search' : ''}
                 {activeSavedViewId ? ' Â· saved view' : ''}
@@ -2593,7 +2593,7 @@ export default function LibraryPage() {
                   setActiveSavedViewId(null);
                   setShowArchived(false);
                   setPage(1);
-                  announce('Filters cleared');
+                  announce('Filters cleared. Folder ownership unchanged.');
                 }}
               >
                 Clear filters

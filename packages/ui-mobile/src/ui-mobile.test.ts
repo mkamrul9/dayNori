@@ -99,7 +99,7 @@ describe('UI Mobile Primitives', () => {
     const editor = React.createElement(MobileNoteEditor, {
       initialTitle: 'Mobile Meeting Notes',
       initialFolderId: 'folder-123',
-      localSaveStatus: 'Saved locally',
+      localSaveStatus: 'Saved on this device',
       cloudSyncStatus: 'Syncing...',
       conflict: {
         serverRevision: 4,
