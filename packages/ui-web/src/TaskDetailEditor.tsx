@@ -1099,7 +1099,12 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
                 Cancel
               </Button>
               {!readOnly && (
-                <Button type="submit" variant="primary" size="compact">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="compact"
+                  data-tour-target="create.task.save"
+                >
                   Save Task
                 </Button>
               )}

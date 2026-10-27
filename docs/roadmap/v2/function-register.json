@@ -1426,8 +1426,8 @@
         "ref": "help.tasks-vs-routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-tasks"
+        "status": "existing",
+        "ref": "tour.task-create-save / chapter.task-create-save (Phase 79 proof; not full tasks coverage)"
       }
     },
     {
@@ -1556,8 +1556,8 @@
         "ref": "/help Add a task"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-tasks"
+        "status": "existing",
+        "ref": "tour.task-create-save complete-task step (Phase 79 proof)"
       }
     },
     {
@@ -1621,8 +1621,8 @@
         "ref": "/help Add a task"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-tasks"
+        "status": "existing",
+        "ref": "tour.task-create-save undo-complete step (Phase 79 proof)"
       }
     },
     {

@@ -83,6 +83,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         {onOpenCreate && (
           <Pressable
             testID="header-create-btn"
+            accessibilityLabel="Create item"
             accessibilityRole="button"
             accessibilityLabel="Create item"
             onPress={onOpenCreate}

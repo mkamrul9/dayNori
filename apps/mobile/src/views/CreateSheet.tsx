@@ -13,6 +13,8 @@ export interface CreateSheetProps {
   onDraftChange?: (draft: CreateDraft) => void;
   onCreateItem: (item: CreateDraft) => void | Promise<void>;
   onRecordAudio?: () => void;
+  /** Phase 79: notify tour engine of real create-sheet actions. */
+  onTourEvidence?: (kind: 'select_task_type' | 'save_practice_task', meta?: { title?: string }) => void;
   testID?: string;
 }
 
@@ -24,6 +26,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
   onDraftChange,
   onCreateItem,
   onRecordAudio,
+  onTourEvidence,
   testID = 'create-sheet',
 }) => {
   const palette = colors[themeMode];
@@ -43,6 +46,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
   const handleTypeSelect = (type: CreateDraft['type']) => {
     setItemType(type);
     updateDraft(type, title, details);
+    if (type === 'task') onTourEvidence?.('select_task_type');
   };
 
   const handleTitleChange = (text: string) => {
@@ -66,6 +70,9 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
     setIsSaving(true);
     try {
       await onCreateItem({ type: itemType, title: title.trim(), details: details.trim() });
+      if (itemType === 'task') {
+        onTourEvidence?.('save_practice_task', { title: title.trim() });
+      }
       setTitle('');
       setDetails('');
       setError(null);

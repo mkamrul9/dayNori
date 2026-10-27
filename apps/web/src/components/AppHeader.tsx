@@ -5,6 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
+import { TourTarget } from '../tours/TourTarget';
 
 /**
  * Compact mobile chrome: one header row without horizontal scrolling for essentials.
@@ -165,6 +166,7 @@ export const AppHeader: React.FC = () => {
           </kbd>
         </button>
 
+        <TourTarget id="shell.create">
         <button
           type="button"
           id="global-create-btn"
@@ -196,6 +198,7 @@ export const AppHeader: React.FC = () => {
             C
           </kbd>
         </button>
+        </TourTarget>
 
         <Link
           href="/settings"

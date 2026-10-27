@@ -27,6 +27,7 @@ import {
   readHelpReturnContext,
   saveContinueLearning,
 } from '../../help/helpReturnContext';
+import { useTourOptional, PROOF_LEARNING_CHAPTER_ID, PROOF_TOUR_CHAPTER_ID } from '../../tours/TourContext';
 
 type HelpView = 'home' | 'article' | 'learn' | 'category';
 
@@ -108,6 +109,7 @@ function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 
 
 function HelpPageInner() {
   const { themeMode, openModal } = useShell();
+  const tour = useTourOptional();
   const { user, workspaceId } = useAuth();
   const palette = colors[themeMode];
   const router = useRouter();
@@ -243,7 +245,8 @@ function HelpPageInner() {
           </h2>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
             Chapters prepare for guided practice. Opening an article does not mark practice complete.
-            A resumable action-verified tour engine is not available yet.
+            Only chapters marked runnable use the action-verified tour engine; others stay coming later
+            or gated.
           </p>
           {continueChapterId ? (
             <p style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
@@ -269,7 +272,29 @@ function HelpPageInner() {
                   Status: {chapter.state.replace(/_/g, ' ')}. {resolveHelpText(chapter.stateExplanation)}
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {chapter.state === 'available_replay' ? (
+                  {chapter.state === 'runnable' ? (
+                    <Button
+                      variant="primary"
+                      size="compact"
+                      themeMode={themeMode}
+                      id={
+                        chapter.id === PROOF_LEARNING_CHAPTER_ID
+                          ? 'help-start-tour-task-create-save'
+                          : undefined
+                      }
+                      onClick={() => {
+                        if (user?.id) saveContinueLearning(user.id, chapter.id);
+                        void tour?.startChapter(
+                          chapter.id === PROOF_LEARNING_CHAPTER_ID
+                            ? PROOF_TOUR_CHAPTER_ID
+                            : PROOF_TOUR_CHAPTER_ID
+                        );
+                        router.push('/');
+                      }}
+                    >
+                      Start guided chapter
+                    </Button>
+                  ) : chapter.state === 'available_replay' ? (
                     <Button
                       variant="secondary"
                       size="compact"

@@ -14,6 +14,7 @@ export * from './home.js';
 export * from './featureRegistry.js';
 export * from './operatorAccess.js';
 export * from './onboarding.js';
+export * from './tours/index.js';
 export * from './knowledge.js';
 export * from './search.js';
 export * from './persistenceStatus.js';

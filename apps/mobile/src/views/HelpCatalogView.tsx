@@ -31,9 +31,10 @@ export function HelpCatalogView(props: {
   userId?: string | null;
   onClose: () => void;
   onReplayOnboarding?: () => void;
+  onStartGuidedTour?: () => void;
   onOpenSupport?: () => void;
 }) {
-  const { themeMode, onClose, onReplayOnboarding, onOpenSupport } = props;
+  const { themeMode, onClose, onReplayOnboarding, onStartGuidedTour, onOpenSupport } = props;
   const palette = colors[themeMode];
   const [query, setQuery] = useState('');
   const [articleId, setArticleId] = useState<string | null>(null);
@@ -110,8 +111,8 @@ export function HelpCatalogView(props: {
           Learn the app
         </Text>
         <Text style={[styles.body, { color: palette.text.secondary }]}>
-          Chapters prepare for guided practice. Reading an article does not complete practice. The
-          tour engine is not available yet.
+          Chapters prepare for guided practice. Reading an article does not complete practice. Only
+          runnable chapters start the action-verified tour.
         </Text>
         {chapters.map((ch) => (
           <MobileCard key={ch.id} themeMode={themeMode} style={{ marginTop: spacing.sm }}>
@@ -121,7 +122,17 @@ export function HelpCatalogView(props: {
             <Text style={[styles.body, { color: palette.text.secondary }]}>
               {resolveHelpText(ch.stateExplanation)}
             </Text>
-            {ch.state === 'available_replay' && onReplayOnboarding ? (
+            {ch.state === 'runnable' && onStartGuidedTour ? (
+              <MobileButton
+                themeMode={themeMode}
+                variant="primary"
+                onPress={onStartGuidedTour}
+                style={{ marginTop: spacing.sm }}
+                testID="help-start-tour-task-create-save"
+              >
+                Start guided chapter
+              </MobileButton>
+            ) : ch.state === 'available_replay' && onReplayOnboarding ? (
               <MobileButton
                 themeMode={themeMode}
                 variant="secondary"

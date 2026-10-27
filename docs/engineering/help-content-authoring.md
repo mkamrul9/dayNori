@@ -10,7 +10,7 @@ Ordinary user Help lives in `packages/domain/src/help/`. Restricted operator/run
 4. Map every register action to at least one article. Multiple actions may share one substantive article.
 5. Mark `essentialOffline: true` only for public recovery guidance safe for Cache Storage.
 6. Set `gatedFeature: true` when the article describes capability-gated behavior.
-7. Learn chapters (`chapters.ts`) must stay honest: do not mark article reading as completed guided practice; Phase 79 owns the tour engine.
+7. Learn chapters (`chapters.ts`) must stay honest: do not mark article reading as completed guided practice. Only mark `runnable` when a verified Phase 79+ tour definition exists (see `docs/engineering/tour-authoring.md`).
 
 ## Validation
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 79 — Action-verified resumable tour engine — 2026-10-27
+
+- ADR 0079: shared versioned tour definitions/state machine, durable scoped `preferences.tourProgress`, action/result correlation, web + native adapters, safe V1 migration, one proof chapter (`tour.task-create-save`).
+- Help Learn the app marks only the verified proof chapter `runnable`; Next cannot fake action steps; practice IDs deterministic and non-duplicating on replay.
+- Evidence: `tests/unit/phase79-tour-engine.test.ts`, Phase 78 Help regressions, `scripts/phase79-tour-evidence.mjs --required`. Progress scheduling text reconciled with completed Phase 77.
+- Commit: `feat(tours): add action-verified resumable guidance`.
+
 ## Phase 77 acceptance — Installed PWA and native cold recovery — 2026-10-27
 
 - Prove installed production-PWA cold offline reopen (isolated Edge profile, process kill, connectivity disabled before reopen) and Metro-free native emulator cold launch with embedded x86_64 APK.

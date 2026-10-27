@@ -8,6 +8,7 @@ import type {
   QuietHoursPreference,
   OnboardingState,
   ThemePreference,
+  TourProgressState,
 } from '@daynori/contracts';
 
 /**
@@ -40,6 +41,7 @@ export function mapDisplayPreferences(
     quietHours: (prefs?.['quietHours'] as QuietHoursPreference | undefined) || undefined,
     homeLayout: (prefs?.['homeLayout'] as HomeLayout | undefined) || undefined,
     onboarding: (prefs?.['onboarding'] as OnboardingState | undefined) || undefined,
+    tourProgress: (prefs?.['tourProgress'] as TourProgressState | undefined) || undefined,
     featurePersonalization: resolveFeaturePersonalization(prefs ?? undefined),
   };
 }

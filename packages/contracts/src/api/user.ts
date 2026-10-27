@@ -111,6 +111,54 @@ export const FeaturePersonalizationSchema = z
   .strict();
 export type FeaturePersonalization = z.infer<typeof FeaturePersonalizationSchema>;
 
+/** Phase 79 — bounded tour progress (IDs/refs only; no private bodies). */
+export const TourStepOutcomeSchema = z.enum(['completed', 'skipped', 'blocked', 'unfinished']);
+export const TourChapterLifecycleSchema = z.enum([
+  'not_started',
+  'active',
+  'paused',
+  'completed',
+  'skipped',
+  'blocked',
+]);
+
+export const TourStepRecordSchema = z
+  .object({
+    stepId: z.string().min(1).max(128),
+    outcome: TourStepOutcomeSchema,
+    completedAt: z.string().datetime().nullable().optional(),
+    skippedAt: z.string().datetime().nullable().optional(),
+    operationId: z.string().min(1).max(128).nullable().optional(),
+    entityId: z.string().min(1).max(128).nullable().optional(),
+    attemptId: z.string().min(1).max(128).nullable().optional(),
+  })
+  .strict();
+
+export const TourChapterProgressSchema = z
+  .object({
+    chapterId: z.string().min(1).max(128),
+    definitionVersion: z.number().int().positive(),
+    contentVersion: z.number().int().positive(),
+    lifecycle: TourChapterLifecycleSchema,
+    currentStepId: z.string().min(1).max(128).nullable(),
+    runId: z.string().min(1).max(128).nullable(),
+    steps: z.array(TourStepRecordSchema).max(40),
+    practiceEntityIds: z.array(z.string().min(1).max(128)).max(20),
+    updatedAt: z.string().datetime(),
+    blockedReason: z.string().max(512).nullable().optional(),
+  })
+  .strict();
+
+export const TourProgressStateSchema = z
+  .object({
+    version: z.literal(1).default(1),
+    chapters: z.array(TourChapterProgressSchema).max(40).default([]),
+    migratedFromOnboardingV1: z.boolean().default(false),
+    migratedAt: z.string().datetime().nullable().optional(),
+  })
+  .strict();
+export type TourProgressState = z.infer<typeof TourProgressStateSchema>;
+
 export const DisplayPreferencesSchema = z
   .object({
     theme: ThemePreferenceSchema.default('system'),
@@ -120,6 +168,7 @@ export const DisplayPreferencesSchema = z
     quietHours: QuietHoursPreferenceSchema.optional(),
     homeLayout: HomeLayoutSchema.optional(),
     onboarding: OnboardingStateSchema.optional(),
+    tourProgress: TourProgressStateSchema.optional(),
     expensesEnabled: z.boolean().default(false),
     featurePersonalization: FeaturePersonalizationSchema.optional(),
   })

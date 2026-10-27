@@ -12,6 +12,7 @@ import { FirstLoginOnboardingGate } from './FirstLoginOnboardingGate';
 import { useShell } from './ShellContext';
 import { isCorePreview } from '../config/preview';
 import { subscribeVisualViewport } from '../browser/visualViewportAdapter';
+import { TourCoachmark } from '../tours/TourCoachmark';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { themeMode, routeAnnouncement } = useShell();
@@ -51,6 +52,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       <AppBottomNav />
       <AppStatusBanners />
       <AppModals />
+      <TourCoachmark />
     </div>
   );
 };

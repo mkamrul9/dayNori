@@ -71,6 +71,12 @@ import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
 import { AllFeaturesSheet } from './src/views/AllFeaturesSheet';
 import { OnboardingSheet } from './src/views/OnboardingSheet';
+import { TourCoachmarkSheet } from './src/views/TourCoachmarkSheet';
+import {
+  getTourPracticeTaskId,
+  TOUR_CHAPTER_TASK_CREATE_SAVE,
+  TOUR_PRACTICE_TASK_TITLE,
+} from '@daynori/domain';
 import { ExpensesView } from './src/views/ExpensesView';
 import { CustomSectionsView } from './src/views/CustomSectionsView';
 import { VaultHarnessView } from './src/vault/VaultHarnessView';
@@ -116,6 +122,32 @@ export default function App() {
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+  /** Phase 79: tour presentation is independent of create/search modals. */
+  const [guidedTourVisible, setGuidedTourVisible] = useState(false);
+  /** Phase 79 proof-tour evidence bridge from Create/Plan real controls. */
+  const [tourPendingEvidence, setTourPendingEvidence] = useState<{
+    type:
+      | 'target_activated'
+      | 'create_type_selected'
+      | 'local_mutation_committed'
+      | 'entity_visible'
+      | 'entity_completed'
+      | 'entity_completion_undone';
+    targetId?: string;
+    createType?: string;
+    entityId?: string;
+    entityType?: string;
+    operationId?: string;
+    persistence?: 'local' | 'cloud';
+    expectedAction?:
+      | 'open_create'
+      | 'select_task_type'
+      | 'save_practice_task'
+      | 'reopen_practice_task'
+      | 'complete_practice_task'
+      | 'undo_practice_task_completion';
+    command?: string;
+  } | null>(null);
   /** null = Settings hub; set when a focused group screen is open (Phase 71). */
   const [settingsGroup, setSettingsGroup] = useState<MobileSettingsGroupId | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
@@ -825,7 +857,16 @@ export default function App() {
         subtitle={headerInfo.subtitle}
         themeMode={themeMode}
         onOpenSearch={() => setActiveModal('search')}
-        onOpenCreate={() => setActiveModal('create')}
+        onOpenCreate={() => {
+          setActiveModal('create');
+          if (guidedTourVisible) {
+            setTourPendingEvidence({
+              type: 'target_activated',
+              targetId: 'shell.create',
+              expectedAction: 'open_create',
+            });
+          }
+        }}
         onOpenAllFeatures={() => setActiveModal('all-features')}
         onOpenSettings={openSettingsHub}
       />
@@ -974,12 +1015,55 @@ export default function App() {
         themeMode={themeMode}
         initialDraft={createDraft}
         onDraftChange={setCreateDraft}
+        onTourEvidence={(kind, meta) => {
+          if (!guidedTourVisible) return;
+          if (kind === 'select_task_type') {
+            setTourPendingEvidence({
+              type: 'create_type_selected',
+              createType: 'task',
+              targetId: 'create.type.task',
+              expectedAction: 'select_task_type',
+            });
+          } else if (kind === 'save_practice_task' && userNamespace) {
+            const entityId = getTourPracticeTaskId(
+              userNamespace.workspaceId,
+              userNamespace.userId,
+              TOUR_CHAPTER_TASK_CREATE_SAVE.id
+            );
+            setTourPendingEvidence({
+              type: 'local_mutation_committed',
+              entityId,
+              entityType: 'task',
+              operationId: generateUuid(),
+              persistence: 'local',
+              expectedAction: 'save_practice_task',
+              command: 'createTask',
+              targetId: 'create.task.save',
+            });
+            void meta;
+          }
+        }}
         onCreateItem={async (draft) => {
+          const usePractice =
+            guidedTourVisible &&
+            Boolean(userNamespace) &&
+            draft.type === 'task' &&
+            (draft.title === TOUR_PRACTICE_TASK_TITLE ||
+              draft.title.startsWith('Tour practice task'));
+          const practiceId =
+            usePractice && userNamespace
+              ? getTourPracticeTaskId(
+                  userNamespace.workspaceId,
+                  userNamespace.userId,
+                  TOUR_CHAPTER_TASK_CREATE_SAVE.id
+                )
+              : undefined;
           await saveQuickCapture(
             syncEngine,
             userNamespace?.workspaceId ?? null,
             draft,
-            Intl.DateTimeFormat().resolvedOptions().timeZone
+            Intl.DateTimeFormat().resolvedOptions().timeZone,
+            practiceId ? { id: practiceId } : undefined
           );
           setCreateDraft({ type: 'task', title: '', details: '' });
           if (draft.type === 'task' || draft.type === 'routine') {
@@ -1308,6 +1392,15 @@ export default function App() {
             userId={userNamespace?.userId ?? null}
             onClose={returnToSettingsFromNested}
             onReplayOnboarding={() => setActiveModal('onboarding-replay')}
+            onStartGuidedTour={() => {
+              setCreateDraft({
+                type: 'task',
+                title: TOUR_PRACTICE_TASK_TITLE,
+                details: '',
+              });
+              setGuidedTourVisible(true);
+              setActiveModal('none');
+            }}
             onOpenSupport={() => {
               // Support lives under Settings; return then open Account/Help group honesty via Support article.
               returnToSettingsFromNested();
@@ -1315,6 +1408,25 @@ export default function App() {
           />
         </View>
       ) : null}
+
+      <TourCoachmarkSheet
+        visible={guidedTourVisible}
+        themeMode={themeMode}
+        apiClient={apiClient ?? undefined}
+        workspaceId={userNamespace?.workspaceId ?? null}
+        userId={userNamespace?.userId ?? null}
+        pendingEvidence={tourPendingEvidence}
+        onPendingEvidenceConsumed={() => setTourPendingEvidence(null)}
+        onRequestRoute={(route) => {
+          if (route.includes('plan')) {
+            setCurrentTab('plan');
+            setPlanSubView('tasks');
+          } else if (route === '/' || route.includes('today')) {
+            setCurrentTab('today');
+          }
+        }}
+        onClose={() => setGuidedTourVisible(false)}
+      />
 
       {/* Onboarding Tutorial Sheet (Phase 31 First-Use Discovery) */}
       <OnboardingSheet

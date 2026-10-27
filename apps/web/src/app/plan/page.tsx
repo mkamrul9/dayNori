@@ -27,10 +27,13 @@ import {
   compareTasksUpcoming,
   getCalendarDateInTimezone,
   addCalendarDays,
+  TOUR_PRACTICE_TASK_TITLE,
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
 } from '@daynori/domain';
+import { useTourOptional } from '../../tours/TourContext';
+import { TourTarget } from '../../tours/TourTarget';
 
 export type PlanViewFilter =
   'today' | 'upcoming' | 'overdue' | 'completed' | 'undated' | 'reminders' | 'all';
@@ -48,6 +51,7 @@ export default function PlanPage() {
   const { themeMode } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user } = useAuth();
+  const tour = useTourOptional();
 
   // Active view filters
   const [activeView, setActiveView] = useState<PlanViewFilter>('today');
@@ -360,12 +364,49 @@ export default function PlanPage() {
       deletedAt: task.deletedAt,
     };
 
+    const emitTourLocalCommit = (operationId: string) => {
+      if (!tour?.isPresenting || !tour.activeChapter) return;
+      const stepId = tour.activeChapter.currentStepId;
+      if (command === 'createTask' && stepId === 'save-task') {
+        void tour.reportEvidence({
+          type: 'local_mutation_committed',
+          entityId: task.id,
+          entityType: 'task',
+          command,
+          operationId,
+          persistence: 'local',
+          expectedAction: 'save_practice_task',
+        });
+      } else if (command === 'completeTask' && stepId === 'complete-task') {
+        void tour.reportEvidence({
+          type: 'entity_completed',
+          entityId: task.id,
+          entityType: 'task',
+          command,
+          operationId,
+          persistence: 'local',
+          expectedAction: 'complete_practice_task',
+        });
+      } else if (command === 'reopenTask' && stepId === 'undo-complete') {
+        void tour.reportEvidence({
+          type: 'entity_completion_undone',
+          entityId: task.id,
+          entityType: 'task',
+          command,
+          operationId,
+          persistence: 'local',
+          expectedAction: 'undo_practice_task_completion',
+        });
+      }
+    };
+
     if (syncEngineRef.current) {
       try {
-        await syncEngineRef.current.saveItem(itemHeader, undefined, command, {
+        const mutation = await syncEngineRef.current.saveItem(itemHeader, undefined, command, {
           payload: mutationPayload,
         });
         setLocalSaveStatus('Saved locally');
+        emitTourLocalCommit(mutation.operationId);
         return true;
       } catch (err) {
         setErrorMessage(
@@ -401,6 +442,7 @@ export default function PlanPage() {
           task
         );
         setLocalSaveStatus('Saved locally');
+        emitTourLocalCommit(mutation.operationId);
         return true;
       } catch (err) {
         setErrorMessage(
@@ -444,6 +486,8 @@ export default function PlanPage() {
           });
         }
         setLocalSaveStatus('Online only (no device storage)');
+        // Online-only consent path: durable server ack stands in for local commit evidence.
+        emitTourLocalCommit(crypto.randomUUID());
         return true;
       } catch (err) {
         setErrorMessage(
@@ -526,6 +570,31 @@ export default function PlanPage() {
     [tasks]
   );
 
+  // Open create editor when Create → Task (tour or normal) lands on Plan.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tourCreate') !== 'task') return;
+    setIsCreatingNew(true);
+    setActiveView('all');
+    if (tour?.practiceTaskId) {
+      // Prefill handled via TaskDetailEditor initial props below.
+    }
+    params.delete('tourCreate');
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
+    window.history.replaceState({}, '', next);
+  }, [tour?.practiceTaskId]);
+
+  // Register Save control as semantic tour target while the editor is open for create.
+  useEffect(() => {
+    if (!tour || !isCreatingNew) return;
+    const el = document.querySelector(
+      '[data-tour-target="create.task.save"]'
+    ) as HTMLElement | null;
+    tour.registerTarget('create.task.save', el);
+    return () => tour.registerTarget('create.task.save', null);
+  }, [tour, isCreatingNew, editingTask]);
+
   // Quick Task Creation (timezone-aware calendar dates)
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -541,7 +610,11 @@ export default function PlanPage() {
       deadline = { type: 'date', date: tomorrowDateStr };
     }
 
-    const taskId = crypto.randomUUID();
+    const usePracticeId =
+      tour?.isPresenting &&
+      tour.activeChapter?.currentStepId === 'save-task' &&
+      tour.practiceTaskId;
+    const taskId = usePracticeId || crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
     const newTask: TaskRecord = {
@@ -817,8 +890,12 @@ export default function PlanPage() {
         announce(`Updated task "${data.title}"`);
       }
     } else {
-      // Create fresh task from editor
-      const newId = crypto.randomUUID();
+      // Create fresh task from editor (deterministic practice ID during tour save step)
+      const usePracticeId =
+        tour?.isPresenting &&
+        tour.activeChapter?.currentStepId === 'save-task' &&
+        tour.practiceTaskId;
+      const newId = usePracticeId || crypto.randomUUID();
       const freshTask: TaskRecord = {
         id: newId,
         workspaceId,
@@ -1625,8 +1702,9 @@ export default function PlanPage() {
                     ? { completed: completedCount, total: childSubtasks.length }
                     : undefined;
 
-                return (
-                  <React.Fragment key={task.id}>
+                const isPractice =
+                  Boolean(tour?.practiceTaskId) && task.id === tour?.practiceTaskId;
+                const row = (
                     <TaskRow
                       id={task.id}
                       title={task.title}
@@ -1643,8 +1721,35 @@ export default function PlanPage() {
                       userTimezone={viewingTimezone}
                       onToggleComplete={handleToggleComplete}
                       onSelect={handleSelectTask}
-                      onClick={() => setEditingTask(task)}
+                      onClick={() => {
+                        setEditingTask(task);
+                        if (
+                          isPractice &&
+                          tour?.isPresenting &&
+                          tour.activeChapter?.currentStepId === 'reopen-task'
+                        ) {
+                          void tour.reportEvidence({
+                            type: 'entity_visible',
+                            entityId: task.id,
+                            entityType: 'task',
+                            targetId: 'plan.task.practice',
+                            expectedAction: 'reopen_practice_task',
+                          });
+                        }
+                      }}
                     />
+                );
+                return (
+                  <React.Fragment key={task.id}>
+                    {isPractice ? (
+                      <TourTarget id="plan.task.practice" reportActivate={false}>
+                        <TourTarget id="task.complete" reportActivate={false}>
+                          {row}
+                        </TourTarget>
+                      </TourTarget>
+                    ) : (
+                      row
+                    )}
 
                     {/* Indented Subtask Rows */}
                     {childSubtasks.map((subtask) => (
@@ -1695,9 +1800,11 @@ export default function PlanPage() {
           }}
         >
           <span>Completed "{undoToast.taskTitle}".</span>
-          <Button size="compact" variant="secondary" onClick={handleUndo}>
-            Undo
-          </Button>
+          <TourTarget id="task.undo-complete">
+            <Button size="compact" variant="secondary" onClick={handleUndo}>
+              Undo
+            </Button>
+          </TourTarget>
         </div>
       )}
 
@@ -1791,7 +1898,12 @@ export default function PlanPage() {
       {(editingTask || isCreatingNew) && (
         <TaskDetailEditor
           id={editingTask?.id}
-          initialTitle={editingTask?.title || ''}
+          initialTitle={
+            editingTask?.title ||
+            (isCreatingNew && tour?.isPresenting && tour.activeChapter?.currentStepId === 'save-task'
+              ? TOUR_PRACTICE_TASK_TITLE
+              : '')
+          }
           initialDetails={editingTask?.details || ''}
           initialPriority={editingTask?.priority || 'normal'}
           initialStatus={editingTask?.status || 'todo'}

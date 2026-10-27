@@ -35,6 +35,20 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     ),
   },
   {
+    id: 'chapter.task-create-save',
+    title: L('help.chapter.task-create-save.title', 'Your first task (guided)'),
+    summary: L(
+      'help.chapter.task-create-save.summary',
+      'Action-verified practice: create, save, reopen, complete, and undo one task.'
+    ),
+    relatedArticleIds: ['help.tasks-vs-routines'],
+    state: 'runnable',
+    stateExplanation: L(
+      'help.chapter.task-create-save.state',
+      'Start the short guided chapter. It uses real Create/Plan controls and advances only after verified saves.'
+    ),
+  },
+  {
     id: 'chapter.tasks-routines',
     title: L('help.chapter.tasks-routines.title', 'Tasks and routines'),
     summary: L(
@@ -45,7 +59,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'coming_later',
     stateExplanation: L(
       'help.chapter.tasks-routines.state',
-      'Guided practice is not runnable yet. Use the Help article to learn the distinction.'
+      'Broader tasks/routines coverage is coming later. Try the short “Your first task” guided chapter now.'
     ),
   },
   {
@@ -134,7 +148,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'coming_later',
     stateExplanation: L(
       'help.chapter.offline-sync.state',
-      'Essential recovery articles are available offline. Full installed-PWA/native cold-launch verification may still be outstanding.'
+      'Essential recovery articles are available offline. Guided offline practice chapters are coming later.'
     ),
   },
   {

@@ -64,14 +64,21 @@ export interface HelpCategory {
   sortOrder: number;
 }
 
-export type LearningChapterState = 'available_replay' | 'coming_later' | 'gated_unavailable';
+export type LearningChapterState =
+  | 'available_replay'
+  | 'runnable'
+  | 'coming_later'
+  | 'gated_unavailable';
 
 export interface LearningChapter {
   id: string;
   title: LocalizedText;
   summary: LocalizedText;
   relatedArticleIds: readonly string[];
-  /** Phase 79 tour engine target — not runnable in Phase 78. */
+  /**
+   * `runnable` only when an action-verified tour definition ships and is verified (Phase 79+).
+   * Reading Help articles alone never upgrades a chapter to runnable/completed practice.
+   */
   state: LearningChapterState;
   stateExplanation: LocalizedText;
 }

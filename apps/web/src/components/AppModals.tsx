@@ -29,6 +29,7 @@ import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
 import { ContextualHelpLink } from './ContextualHelpLink';
+import { TourTarget } from '../tours/TourTarget';
 import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { createWebApiClient } from '../data/webApiClient';
 import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
@@ -976,12 +977,14 @@ export const AppModals: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
-            <ListRow
-              title="New Task"
-              subtitle="Add a one-off task with optional deadline and priority"
-              onClick={() => navigateTo('/plan')}
-              themeMode={themeMode}
-            />
+            <TourTarget id="create.type.task">
+              <ListRow
+                title="New Task"
+                subtitle="Add a one-off task with optional deadline and priority"
+                onClick={() => navigateTo('/plan?tourCreate=task')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
             <ListRow
               title="New Routine"
               subtitle="Add a recurring daily or weekday habit with independent completion"

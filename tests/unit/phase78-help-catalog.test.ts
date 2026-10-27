@@ -58,11 +58,17 @@ describe('Help catalog (Phase 78)', () => {
     const chapters = getLearningChapters();
     expect(chapters.some((c) => c.state === 'coming_later')).toBe(true);
     expect(chapters.some((c) => c.state === 'available_replay')).toBe(true);
+    expect(chapters.some((c) => c.id === 'chapter.task-create-save' && c.state === 'runnable')).toBe(
+      true
+    );
     for (const chapter of chapters) {
       expect(chapter.stateExplanation.defaultText.length).toBeGreaterThan(10);
       expect(chapter.stateExplanation.defaultText.toLowerCase()).not.toMatch(
         /you completed practice|practice is complete/
       );
+      if (chapter.state === 'runnable') {
+        expect(chapter.id).toBe('chapter.task-create-save');
+      }
     }
   });
 
