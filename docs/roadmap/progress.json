@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-26",
-  "activePhase": "71",
-  "nextPhase": "71",
-  "schedulingDecision": "Phase 71 native Android interface parity is in progress / incomplete: CreateSheet testIDs + journey assertions repaired; density-portable insets + modal IME pad landed; ordinary GoTrue auth/workspace probe works; local SQLite init blocked on device CSPRNG (NO_SECURE_RANDOM until Dev Client links expo-crypto); persistence/IME-open Save proof, prefs/isolation, and spoken TalkBack remain open. Phase 72 must not start until 71 acceptance passes. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
+  "updatedAt": "2026-10-27",
+  "activePhase": null,
+  "nextPhase": null,
+  "schedulingDecision": "Phase 72 complete (2026-10-27). Phase 73 remains unready: dependsOn includes incomplete Phase 71. Phase 71 stays blocked (spoken TalkBack listen-through; remaining Phase 71–owned isolation/search attribution). No other planned phase has all dependencies complete. Do not auto-start Phase 73. Release gates unchanged. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -419,13 +419,14 @@
     },
     {
       "id": "71",
-      "status": "in_progress",
-      "reason": "CSPRNG APK + storage init races repaired; persistence proven on synthetic account C. Still missing spoken TalkBack listen-through, stable routine/note fixture-free reopen, IME-open Save, pin/hide Journal, two-account isolation, and clean device-evidence 13/13. Phase 72 blocked. See docs/phase-reports/phase-71.md.",
+      "status": "blocked",
+      "reason": "Phase 72 completed auth/provision/switch repairs under ADR 0072. Phase 71 source/device progress retained (CSPRNG; device chrome 13/13; routine/local-save refresh; IME Create; Journal hide/restore). Remaining Phase 71 acceptance: spoken TalkBack listen-through; re-attribute isolation/search evidence to this phase if still required for its commit. See docs/phase-reports/phase-71.md.",
       "report": "docs/phase-reports/phase-71.md"
     },
     {
       "id": "72",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-72.md"
     },
     {
       "id": "73",

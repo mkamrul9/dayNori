@@ -621,4 +621,143 @@ describe('Android Mobile Authentication & Session Lifecycle (Phase 09 Hardened)'
       expect(storedWs).toBeNull();
     });
   });
+
+  describe('Phase 72 — provision races, outages, and account transitions', () => {
+    it('classifies provider outages separately from invalid credentials', async () => {
+      mockProvider.forceFailure = true;
+      const result = await authAdapter.signInWithPassword({
+        email: 'anyone@daynori.local',
+        password: 'whatever',
+      });
+      expect(result.success).toBe(false);
+      expect(result.failureCode).toBe('unavailable');
+      expect(result.error).not.toMatch(/invalid email or password/i);
+      mockProvider.forceFailure = false;
+    });
+
+    it('ignores late workspace provision after sign-out (session generation)', async () => {
+      let releaseProvision!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        releaseProvision = resolve;
+      });
+      const base = mockProvider;
+      const slowProvider: ProviderClientContract = {
+        signUp: (p) => base.signUp(p),
+        signInWithPassword: (p) => base.signInWithPassword(p),
+        verifyToken: (t) => base.verifyToken(t),
+        refreshToken: (t) => base.refreshToken(t),
+        recoverPassword: (e) => base.recoverPassword(e),
+        logout: (t) => base.logout(t),
+        exchangeCode: (c, v) => base.exchangeCode(c, v),
+        getPreferences: (t) => base.getPreferences(t),
+        updatePreferences: (t, p) => base.updatePreferences(t, p),
+        async provisionWorkspace(_token: string) {
+          await gate;
+          return { workspaceId: 'ws_stale_should_not_apply' };
+        },
+      };
+      const adapter = new MobileProviderAuthAdapter({
+        secureStore,
+        quarantineManager: quarantine,
+        providerClient: slowProvider,
+      });
+      await adapter.signUp({
+        email: 'race@daynori.local',
+        password: 'passwordRace',
+        displayName: 'Race',
+      });
+      await adapter.signInWithPassword({
+        email: 'race@daynori.local',
+        password: 'passwordRace',
+      });
+      const genAfterSignIn = adapter.getSessionGeneration();
+      const provisionPromise = adapter.provisionPersonalWorkspaceDetailed();
+      await adapter.signOut();
+      expect(adapter.getSessionGeneration()).toBeGreaterThan(genAfterSignIn);
+      releaseProvision();
+      const result = await provisionPromise;
+      expect(result.status).toBe('unavailable');
+      expect(result.workspaceId).toBeNull();
+      expect(adapter.getCurrentUser()).toBeNull();
+      expect(await secureStore.getItemAsync(SEC_KEY_WORKSPACE_ID)).toBeNull();
+    });
+
+    it('single-flights concurrent provision calls and remains idempotent', async () => {
+      let calls = 0;
+      const base = mockProvider;
+      const countingProvider: ProviderClientContract = {
+        signUp: (p) => base.signUp(p),
+        signInWithPassword: (p) => base.signInWithPassword(p),
+        verifyToken: (t) => base.verifyToken(t),
+        refreshToken: (t) => base.refreshToken(t),
+        recoverPassword: (e) => base.recoverPassword(e),
+        logout: (t) => base.logout(t),
+        exchangeCode: (c, v) => base.exchangeCode(c, v),
+        getPreferences: (t) => base.getPreferences(t),
+        updatePreferences: (t, p) => base.updatePreferences(t, p),
+        async provisionWorkspace(token: string) {
+          calls += 1;
+          await new Promise((r) => setTimeout(r, 20));
+          const id = token.replace('valid_mobile_at_', '');
+          return { workspaceId: `ws_personal_${id}` };
+        },
+      };
+      const adapter = new MobileProviderAuthAdapter({
+        secureStore,
+        quarantineManager: quarantine,
+        providerClient: countingProvider,
+      });
+      await adapter.signUp({
+        email: 'flight@daynori.local',
+        password: 'passwordFlight',
+      });
+      await adapter.signInWithPassword({
+        email: 'flight@daynori.local',
+        password: 'passwordFlight',
+      });
+      const [a, b, c] = await Promise.all([
+        adapter.provisionPersonalWorkspaceDetailed(),
+        adapter.provisionPersonalWorkspaceDetailed(),
+        adapter.provisionPersonalWorkspaceDetailed(),
+      ]);
+      expect(calls).toBe(1);
+      expect(a.status).toBe('ready');
+      expect(b.workspaceId).toBe(a.workspaceId);
+      expect(c.workspaceId).toBe(a.workspaceId);
+      const again = await adapter.provisionPersonalWorkspaceDetailed();
+      expect(calls).toBe(1);
+      expect(again.workspaceId).toBe(a.workspaceId);
+    });
+
+    it('does not bind a previous account workspace after switching users', async () => {
+      await authAdapter.signUp({
+        email: 'acct-c@daynori.local',
+        password: 'passwordC',
+        displayName: 'Account C',
+      });
+      await authAdapter.signInWithPassword({
+        email: 'acct-c@daynori.local',
+        password: 'passwordC',
+      });
+      const wsC = await authAdapter.provisionPersonalWorkspace();
+      expect(wsC).toBeTruthy();
+      await authAdapter.signOut();
+
+      await authAdapter.signUp({
+        email: 'acct-b@daynori.local',
+        password: 'passwordB',
+        displayName: 'Account B',
+      });
+      await authAdapter.signInWithPassword({
+        email: 'acct-b@daynori.local',
+        password: 'passwordB',
+      });
+      expect(authAdapter.getCurrentUser()?.workspaceId).toBeNull();
+      const wsB = await authAdapter.provisionPersonalWorkspace();
+      expect(wsB).toBeTruthy();
+      expect(wsB).not.toBe(wsC);
+      expect(authAdapter.getCurrentUser()?.email).toBe('acct-b@daynori.local');
+      expect(authAdapter.getCurrentUser()?.workspaceId).toBe(wsB);
+    });
+  });
 });

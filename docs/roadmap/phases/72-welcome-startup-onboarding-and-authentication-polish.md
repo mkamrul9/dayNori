@@ -8,7 +8,6 @@ Group: V2 everyday experience. Status is tracked in [progress](../progress.json)
 
 - [68 — Design tokens components icons and motion](68-design-tokens-components-icons-and-motion.md)
 - [70 — Mobile web and PWA layout redesign](70-mobile-web-and-pwa-layout-redesign.md)
-- [71 — Native Android interface and navigation parity](71-native-android-interface-and-navigation-parity.md)
 
 Read prerequisite reports and linked specifications before editing. A planned dependency is not satisfied by its folder or documentation alone.
 
@@ -55,6 +54,8 @@ Choose real commands from the current workspace, not guessed script names. Recor
 - [docs/engineering/handoff.md](../../engineering/handoff.md)
 - [docs/roadmap/v2/design-and-mobile.md](../v2/design-and-mobile.md)
 - [docs/decisions/0015-authentication-across-web-and-android.md](../../decisions/0015-authentication-across-web-and-android.md)
+- [docs/decisions/0072-phase-72-before-phase-71-acceptance.md](../../decisions/0072-phase-72-before-phase-71-acceptance.md)
+- [docs/phase-reports/phase-71.md](../../phase-reports/phase-71.md)
 
 ## Commit target
 

@@ -172,8 +172,19 @@ function typeCredentialAscii(text) {
       'Unsupported credential characters for adb text path (ASCII email/password only).'
     );
   }
-  const encoded = text.replace(/ /g, '%s').replace(/@/g, '\\@');
-  runAdb(['shell', 'input', 'text', encoded]);
+  // Do not URL-encode @: this emulator inserts a literal "%40". Split and use KEYCODE_AT.
+  const chunks = text.split('@');
+  for (let i = 0; i < chunks.length; i += 1) {
+    if (i > 0) {
+      runAdb(['shell', 'input', 'keyevent', '77']); // KEYCODE_AT
+      sleep(80);
+    }
+    const chunk = chunks[i].replace(/ /g, '%s');
+    if (chunk.length > 0) {
+      runAdb(['shell', 'input', 'text', chunk]);
+      sleep(80);
+    }
+  }
 }
 
 function loadSynthAccounts() {
@@ -192,8 +203,9 @@ function loadSynthAccounts() {
 }
 
 function clearFocusedField() {
-  runAdb(['shell', 'input', 'keyevent', '123']); // move end
-  for (let i = 0; i < 64; i += 1) runAdb(['shell', 'input', 'keyevent', '67']); // DEL
+  // Numeric keycodes only (string KEYCODE_* names are flaky on some platform-tools).
+  runAdb(['shell', 'input', 'keyevent', '123']); // MOVE_END
+  for (let i = 0; i < 40; i += 1) runAdb(['shell', 'input', 'keyevent', '67']); // DEL
 }
 
 /**
@@ -202,6 +214,7 @@ function clearFocusedField() {
  */
 function ensureWorkspaceProvisioned() {
   let xml = ensureApp();
+  xml = dismissBlockingSheets(xml);
   if (!tapNode(nodeByResourceId(xml, 'header-settings-btn'))) {
     return { ok: false, error: 'settings-missing' };
   }
@@ -214,6 +227,7 @@ function ensureWorkspaceProvisioned() {
   }
   sleep(700);
   xml = dumpUi('ws-group-before.xml');
+  xml = dismissBlockingSheets(xml);
   if (/Active \(ID:/i.test(xml) && /mobile-workspace-id/i.test(xml)) {
     for (let i = 0; i < 3; i += 1) {
       runAdb(['shell', 'input', 'keyevent', '4']);
@@ -246,18 +260,63 @@ function ensureWorkspaceProvisioned() {
     return { ok: false, error: 'provision-control-missing' };
   }
   tapNode(provision);
-  const after = waitFor(
-    (x) => /Active \(ID:/i.test(x) && Boolean(nodeByResourceId(x, 'mobile-workspace-id')),
-    { dumps: ['ws-group-after-provision.xml'], timeoutMs: 45000 }
-  );
+  // Provision can open onboarding; dismiss returns to Today — re-open Workspace to verify.
+  const deadline = Date.now() + 45000;
+  let verified = false;
+  let lastXml = dumpUi('ws-group-after-provision.xml');
+  while (Date.now() < deadline) {
+    lastXml = dismissBlockingSheets(lastXml);
+    if (/Active \(ID:/i.test(lastXml) && nodeByResourceId(lastXml, 'mobile-workspace-id')) {
+      verified = true;
+      break;
+    }
+    // Re-enter Settings → Workspace (dismiss may have left Today).
+    lastXml = ensureApp();
+    if (!tapNode(nodeByResourceId(lastXml, 'header-settings-btn'))) {
+      sleep(800);
+      lastXml = dumpUi('ws-reopen-settings-miss.xml');
+      continue;
+    }
+    const hub2 = waitFor(
+      (x) => Boolean(nodeByResourceId(x, 'settings-hub') || /Choose a group/i.test(x)),
+      { dumps: ['ws-reopen-hub.xml'], timeoutMs: 6000 }
+    );
+    if (!hub2.ok || !tapNode(nodeByResourceId(hub2.xml, 'settings-group-workspace'))) {
+      sleep(800);
+      lastXml = dumpUi('ws-reopen-group-miss.xml');
+      continue;
+    }
+    sleep(700);
+    lastXml = dumpUi('ws-group-recheck.xml');
+    lastXml = dismissBlockingSheets(lastXml);
+    if (/Active \(ID:/i.test(lastXml) && nodeByResourceId(lastXml, 'mobile-workspace-id')) {
+      verified = true;
+      break;
+    }
+    // Still showing Provision — tap again (idempotent).
+    if (/Provision [Pp]ersonal [Ww]orkspace/i.test(lastXml)) {
+      const again = lastXml.match(
+        /<node\b(?=[^>]*(?:content-desc|text)="Provision [Pp]ersonal [Ww]orkspace")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+      );
+      if (again) {
+        tapNode({
+          midX: Math.floor((Number(again[1]) + Number(again[3])) / 2),
+          midY: Math.floor((Number(again[2]) + Number(again[4])) / 2),
+        });
+        sleep(1500);
+        lastXml = dumpUi('ws-group-after-reprovision.xml');
+      }
+    }
+    sleep(1000);
+  }
   for (let i = 0; i < 3; i += 1) {
     runAdb(['shell', 'input', 'keyevent', '4']);
     sleep(350);
   }
   ensureApp();
   return {
-    ok: after.ok,
-    error: after.ok ? null : 'provision-failed',
+    ok: verified,
+    error: verified ? null : 'provision-failed',
   };
 }
 
@@ -266,22 +325,44 @@ function ensureWorkspaceProvisioned() {
  * Returns { signedIn, workspaceHint, userLabel } without logging secrets.
  */
 function signInOrdinaryAccount(account, { forceSignOut = false } = {}) {
+  const tag = account?.label || 'x';
+  const dumpSign = (name) => dumpUi(`signin-${tag}-${name}`);
+  const finish = (result) => {
+    try {
+      fs.writeFileSync(
+        path.join(outDir, `signin-result-${tag}.json`),
+        JSON.stringify(
+          {
+            at: new Date().toISOString(),
+            label: account?.label ?? null,
+            forceSignOut,
+            ...result,
+          },
+          null,
+          2
+        )
+      );
+    } catch {
+      /* ignore evidence write failures */
+    }
+    return result;
+  };
   if (!account?.email || !account?.password) {
-    return { signedIn: false, workspaceHint: false, userLabel: null, error: 'missing-account' };
+    return finish({ signedIn: false, workspaceHint: false, userLabel: null, error: 'missing-account' });
   }
   let xml = ensureApp();
   if (!tapNode(nodeByResourceId(xml, 'header-settings-btn'))) {
     return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'settings-missing' };
   }
   const hub = waitFor((x) => Boolean(nodeByResourceId(x, 'settings-hub') || /Choose a group/i.test(x)), {
-    dumps: ['signin-hub.xml'],
+    dumps: [`signin-${tag}-hub.xml`],
     timeoutMs: 8000,
   });
   if (!hub.ok || !tapNode(nodeByResourceId(hub.xml, 'settings-group-account'))) {
-    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-group' };
+    return finish({ signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-group' });
   }
   sleep(600);
-  xml = dumpUi('signin-account-group.xml');
+  xml = dumpSign('account-group.xml');
   // Already authenticated. Account chrome often omits the email — only reuse the
   // session when forceSignOut is false and no conflicting email is visible.
   if (/content-desc="Sign out"|text="Sign out"/i.test(xml)) {
@@ -308,7 +389,7 @@ function signInOrdinaryAccount(account, { forceSignOut = false } = {}) {
         midY: Math.floor((Number(m2[2]) + Number(m2[4])) / 2),
       });
       sleep(1500);
-      xml = dumpUi('signin-after-signout.xml');
+      xml = dumpSign('after-signout.xml');
       // Fall through to Sign in control on the refreshed Account group.
     } else {
       for (let i = 0; i < 4; i += 1) {
@@ -317,13 +398,13 @@ function signInOrdinaryAccount(account, { forceSignOut = false } = {}) {
       }
       ensureApp();
       const provisioned = ensureWorkspaceProvisioned();
-      return {
+      return finish({
         signedIn: true,
         workspaceHint: provisioned.ok,
         userLabel: account.label,
         userIdPresent: Boolean(account.userId),
         error: provisioned.ok ? null : provisioned.error || 'workspace-not-provisioned',
-      };
+      });
     }
   }
   // Open Account sheet via Sign in control (label may be content-desc or text).
@@ -343,66 +424,169 @@ function signInOrdinaryAccount(account, { forceSignOut = false } = {}) {
       };
     })();
   if (!signInCtl) {
-    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'signin-control' };
+    return finish({ signedIn: false, workspaceHint: false, userLabel: account.label, error: 'signin-control' });
   }
   tapNode(signInCtl);
   const sheet = waitFor((x) => Boolean(nodeByResourceId(x, 'account-sheet') || nodeByResourceId(x, 'account-email')), {
-    dumps: ['signin-account-sheet.xml'],
+    dumps: [`signin-${tag}-account-sheet.xml`],
     timeoutMs: 10000,
   });
   if (!sheet.ok) {
-    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-sheet' };
+    return finish({ signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-sheet' });
   }
   xml = sheet.xml;
   const emailField = nodeByResourceId(xml, 'account-email');
   const passField = nodeByResourceId(xml, 'account-password');
   const submit = nodeByResourceId(xml, 'account-submit');
   if (!emailField || !passField || !submit) {
-    return { signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-fields' };
+    return finish({ signedIn: false, workspaceHint: false, userLabel: account.label, error: 'account-fields' });
   }
-  tapNode(emailField);
-  sleep(500);
-  clearFocusedField();
-  typeCredentialAscii(account.email);
-  sleep(600);
-  xml = dumpUi('signin-email-typed.xml');
-  const emailTyped = nodeByResourceId(xml, 'account-email');
-  if (!emailTyped?.text?.includes(account.email.split('@')[0])) {
-    return {
+  const localPart = account.email.split('@')[0] || '';
+  let emailOk = false;
+  for (let attempt = 0; attempt < 3 && !emailOk; attempt += 1) {
+    tapNode(nodeByResourceId(dumpSign(`email-focus-${attempt}.xml`), 'account-email') || emailField);
+    sleep(800); // allow Autofill to settle, then replace with the intended account
+    clearFocusedField();
+    sleep(200);
+    typeCredentialAscii(account.email);
+    sleep(800);
+    xml = dumpSign(attempt === 0 ? 'email-typed.xml' : `email-typed-${attempt}.xml`);
+    const emailTyped = nodeByResourceId(xml, 'account-email');
+    const typed = emailTyped?.text || '';
+    emailOk = typed === account.email || typed === localPart || typed.startsWith(`${localPart}@`);
+    if (typed.includes('@') && !typed.startsWith(`${localPart}@`) && typed !== account.email) {
+      emailOk = false;
+    }
+    fs.writeFileSync(
+      path.join(outDir, `signin-email-attempt-${tag}.json`),
+      JSON.stringify(
+        {
+          at: new Date().toISOString(),
+          label: account.label,
+          localPart,
+          typed,
+          emailOk,
+          attempt,
+        },
+        null,
+        2
+      )
+    );
+  }
+  if (!emailOk) {
+    return finish({
       signedIn: false,
       workspaceHint: false,
       userLabel: account.label,
       error: 'email-not-typed',
-    };
+    });
   }
   tapNode(nodeByResourceId(xml, 'account-password') || passField);
   sleep(500);
   clearFocusedField();
+  sleep(200);
   typeCredentialAscii(account.password);
   sleep(600);
-  xml = dumpUi('signin-password-typed.xml');
-  // Dismiss IME so submit stays reachable, then submit (IME-open Save is a separate case).
-  runAdb(['shell', 'input', 'keyevent', '4']);
+  xml = dumpSign('password-typed.xml');
+  // Autofill may restore the previous account email when the password field focuses.
+  const emailAfterPassword = nodeByResourceId(xml, 'account-email')?.text || '';
+  if (
+    !emailAfterPassword.startsWith(`${localPart}@`) &&
+    emailAfterPassword !== account.email
+  ) {
+    tapNode(nodeByResourceId(xml, 'account-email'));
+    sleep(400);
+    clearFocusedField();
+    typeCredentialAscii(account.email);
+    sleep(500);
+    tapNode(nodeByResourceId(dumpSign('email-retyped.xml'), 'account-password') || passField);
+    sleep(400);
+    clearFocusedField();
+    typeCredentialAscii(account.password);
+    sleep(500);
+    xml = dumpSign('password-retyped.xml');
+  }
+  // Prefer tapping the sheet title to blur IME — BACK can dismiss the Account sheet.
+  const titleTap = xml.match(
+    /<node\b(?=[^>]*text="Your account")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/i
+  );
+  if (titleTap) {
+    tapNode({
+      midX: Math.floor((Number(titleTap[1]) + Number(titleTap[3])) / 2),
+      midY: Math.floor((Number(titleTap[2]) + Number(titleTap[4])) / 2),
+    });
+  } else {
+    runAdb(['shell', 'input', 'keyevent', '111']); // ESCAPE
+  }
   sleep(400);
-  const submit2 = nodeByResourceId(dumpUi('signin-before-submit.xml'), 'account-submit') || submit;
+  // Final email assert + rewrite: Autofill often restores the previous account after password focus.
+  xml = dumpSign('before-submit.xml');
+  let emailPreSubmit = nodeByResourceId(xml, 'account-email')?.text || '';
+  if (
+    !emailPreSubmit.startsWith(`${localPart}@`) &&
+    emailPreSubmit !== account.email
+  ) {
+    tapNode(nodeByResourceId(xml, 'account-email'));
+    sleep(300);
+    clearFocusedField();
+    typeCredentialAscii(account.email);
+    sleep(500);
+    tapNode(nodeByResourceId(dumpSign('email-final.xml'), 'account-password') || passField);
+    sleep(300);
+    clearFocusedField();
+    typeCredentialAscii(account.password);
+    sleep(400);
+    xml = dumpSign('before-submit.xml');
+    emailPreSubmit = nodeByResourceId(xml, 'account-email')?.text || '';
+  }
+  if (
+    !emailPreSubmit.startsWith(`${localPart}@`) &&
+    emailPreSubmit !== account.email
+  ) {
+    return finish({
+      signedIn: false,
+      workspaceHint: false,
+      userLabel: account.label,
+      error: 'email-clobbered-before-submit',
+    });
+  }
+  let submit2 = nodeByResourceId(xml, 'account-submit') || submit;
   tapNode(submit2);
-  // Wait for sheet close or workspace / sign-out / error copy
+  sleep(1500);
+  // Retry submit once if still idle on the sheet (missed tap / IME overlap).
+  xml = dumpSign('after-first-submit.xml');
+  if (
+    nodeByResourceId(xml, 'account-sheet') &&
+    !/Please wait|Retry workspace|Invalid email|unavailable/i.test(xml)
+  ) {
+    submit2 = nodeByResourceId(xml, 'account-submit') || submit2;
+    tapNode(submit2);
+  }
+  // Wait for sheet close or workspace / sign-out / onboarding / error copy.
+  // Fresh accounts open onboarding immediately — that is sign-in success, not failure.
   const after = waitFor(
     (x) => {
       const submitNode = nodeByResourceId(x, 'account-submit');
       const busy = /Please wait/i.test(submitNode?.contentDesc || '') || /Please wait/i.test(x);
       if (busy) return false;
       return (
+        /Your main places|onboarding-sheet|Step \d+ of \d+/i.test(x) ||
         (!nodeByResourceId(x, 'account-sheet') &&
           /Sign out|Current Session|workspace|Workspace/i.test(x)) ||
-        /Signed in|workspace setup is unavailable|Authentication failed|Authentication is unavailable|Invalid email or password/i.test(
+        /Retry workspace setup|workspace setup is unavailable|Signed in\.|Authentication failed|Authentication is unavailable|Invalid email or password/i.test(
           x
         )
       );
     },
-    { dumps: ['signin-after-submit.xml'], timeoutMs: 60000 }
+    { dumps: [`signin-${tag}-after-submit.xml`], timeoutMs: 60000 }
   );
-  const signedIn =
+  const openedOnboarding = /Your main places|onboarding-sheet|Step \d+ of \d+/i.test(after.xml);
+  const awaitingWorkspace =
+    /Retry workspace setup|workspace setup is unavailable|Signed in\./i.test(after.xml) &&
+    Boolean(nodeByResourceId(after.xml, 'account-sheet'));
+  let signedIn =
+    openedOnboarding ||
+    awaitingWorkspace ||
     /Sign out/i.test(after.xml) ||
     /Current Session:\s*Authenticated/i.test(after.xml) ||
     (!nodeByResourceId(after.xml, 'account-sheet') &&
@@ -410,29 +594,35 @@ function signInOrdinaryAccount(account, { forceSignOut = false } = {}) {
   const authFailed = /Authentication failed|Authentication is unavailable|Enter your email|Invalid email or password/i.test(
     after.xml
   );
-  // Back to Today, then confirm real workspace provisioning (not copy containing "workspace").
+  // Dismiss onboarding / account sheet, then confirm workspace provisioning.
   for (let i = 0; i < 4; i += 1) {
     runAdb(['shell', 'input', 'keyevent', '4']);
     sleep(400);
   }
-  ensureApp();
+  let readyXml = ensureApp();
+  readyXml = dismissBlockingSheets(readyXml);
+  if (/Sign out|Current Session:\s*Authenticated/i.test(readyXml)) {
+    signedIn = true;
+  }
   if (!signedIn || authFailed) {
-    return {
+    return finish({
       signedIn: false,
       workspaceHint: false,
       userLabel: account.label,
       userIdPresent: Boolean(account.userId),
       error: authFailed ? 'auth-failed' : 'not-signed-in',
-    };
+      openedOnboarding,
+    });
   }
   const provisioned = ensureWorkspaceProvisioned();
-  return {
+  return finish({
     signedIn: true,
     workspaceHint: provisioned.ok,
     userLabel: account.label,
     userIdPresent: Boolean(account.userId),
     error: provisioned.ok ? null : provisioned.error || 'workspace-not-provisioned',
-  };
+    openedOnboarding,
+  });
 }
 
 const steps = [];

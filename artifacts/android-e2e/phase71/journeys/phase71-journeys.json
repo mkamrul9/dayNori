@@ -1,13 +1,13 @@
 {
   "phase": 71,
   "kind": "journeys",
-  "createdAt": "2026-10-26T12:40:35.792Z",
+  "createdAt": "2026-10-27T05:25:06.810Z",
   "serial": "emulator-5554",
   "titles": {
-    "NOTE_TITLE": "P71Notemvp8t8ka",
-    "TASK_TITLE": "P71Taskmvp8t8ka",
-    "ROUTINE_TITLE": "P71Routinemvp8t8ka",
-    "JOURNAL_TITLE": "P71Journalmvp8t8ka"
+    "NOTE_TITLE": "P71Notemvq8fcsg",
+    "TASK_TITLE": "P71Taskmvq8fcsg",
+    "ROUTINE_TITLE": "P71Routinemvq8fcsg",
+    "JOURNAL_TITLE": "P71Journalmvq8fcsg"
   },
   "settingsSnapshot": {
     "accessibility_enabled": "0",
@@ -21,175 +21,248 @@
     {
       "step": "auth-state",
       "ok": true,
-      "detail": "label=A; signedIn=true; workspaceHint=true; err=none; userIdPresent=true",
+      "detail": "label=C; signedIn=true; workspaceHint=true; err=none; userIdPresent=true",
       "evidenceLayer": {
         "localSyntheticAuth": false,
         "realProviderAuth": "local-supabase-gotrue-password",
         "localPersistence": "workspace-ready",
         "serverSync": "api-reachable-separately"
       },
-      "at": "2026-10-26T12:39:03.005Z"
+      "at": "2026-10-27T05:17:24.369Z"
     },
     {
       "step": "auth-workspace-prerequisite",
       "ok": true,
       "detail": "Ordinary Account password sign-in + workspace hints present (provider=local GoTrue; API via adb reverse)",
-      "at": "2026-10-26T12:39:03.006Z"
+      "at": "2026-10-27T05:17:24.370Z"
     },
     {
       "step": "create-note-type-selected",
       "ok": true,
       "detail": "create-type-note selected=true",
-      "at": "2026-10-26T12:39:10.768Z"
+      "at": "2026-10-27T05:17:32.172Z"
     },
     {
       "step": "create-note-title-value",
       "ok": true,
-      "detail": "title field contains P71Notemvp8t8ka",
-      "expected": "P71Notemvp8t8ka",
-      "observed": "P71Notemvp8t8ka",
-      "at": "2026-10-26T12:39:17.803Z"
+      "detail": "title field contains P71Notemvq8fcsg",
+      "expected": "P71Notemvq8fcsg",
+      "observed": "P71Notemvq8fcsg",
+      "at": "2026-10-27T05:17:38.306Z"
     },
     {
       "step": "create-note-submit-delivered",
       "ok": true,
       "detail": "tapped create-submit-btn",
       "contentDesc": "Submit create note",
-      "at": "2026-10-26T12:39:17.871Z"
+      "at": "2026-10-27T05:17:38.363Z"
     },
     {
       "step": "create-note-save",
+      "ok": true,
+      "detail": "Save closed sheet; title visible in destination UI (local UI identity; not yet reopen proof)",
+      "title": "P71Notemvq8fcsg",
+      "layer": "local-ui-after-save",
+      "at": "2026-10-27T05:17:45.690Z"
+    },
+    {
+      "step": "note-reopen",
       "ok": false,
-      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
-      "layer": "local-persistence",
-      "blocked": true,
-      "at": "2026-10-26T12:39:21.905Z"
+      "detail": "No list node with exact title P71Notemvq8fcsg",
+      "at": "2026-10-27T05:17:56.182Z"
     },
     {
       "step": "create-task-type-selected",
       "ok": true,
       "detail": "create-type-task selected=true",
-      "at": "2026-10-26T12:39:30.478Z"
+      "at": "2026-10-27T05:18:03.469Z"
     },
     {
       "step": "create-task-title-value",
       "ok": true,
-      "detail": "title field contains P71Taskmvp8t8ka",
-      "expected": "P71Taskmvp8t8ka",
-      "observed": "P71Taskmvp8t8ka",
-      "at": "2026-10-26T12:39:37.989Z"
+      "detail": "title field contains P71Taskmvq8fcsg",
+      "expected": "P71Taskmvq8fcsg",
+      "observed": "P71Taskmvq8fcsg",
+      "at": "2026-10-27T05:18:09.540Z"
     },
     {
       "step": "create-task-submit-delivered",
       "ok": true,
       "detail": "tapped create-submit-btn",
       "contentDesc": "Submit create task",
-      "at": "2026-10-26T12:39:38.047Z"
+      "at": "2026-10-27T05:18:09.594Z"
     },
     {
       "step": "create-task-save",
       "ok": false,
-      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
-      "layer": "local-persistence",
-      "blocked": true,
-      "at": "2026-10-26T12:39:42.080Z"
+      "detail": "Post-save destination/title not confirmed for task",
+      "title": "P71Taskmvq8fcsg",
+      "layer": "local-ui-after-save",
+      "at": "2026-10-27T05:18:13.662Z"
     },
     {
       "step": "create-routine-type-selected",
       "ok": true,
       "detail": "create-type-routine selected=true",
-      "at": "2026-10-26T12:39:50.478Z"
+      "at": "2026-10-27T05:18:20.988Z"
     },
     {
       "step": "create-routine-title-value",
       "ok": true,
-      "detail": "title field contains P71Routinemvp8t8ka",
-      "expected": "P71Routinemvp8t8ka",
-      "observed": "P71Routinemvp8t8ka",
-      "at": "2026-10-26T12:39:57.835Z"
+      "detail": "title field contains P71Routinemvq8fcsg",
+      "expected": "P71Routinemvq8fcsg",
+      "observed": "P71Routinemvq8fcsg",
+      "at": "2026-10-27T05:18:27.027Z"
     },
     {
       "step": "create-routine-submit-delivered",
       "ok": true,
       "detail": "tapped create-submit-btn",
       "contentDesc": "Submit create routine",
-      "at": "2026-10-26T12:39:57.903Z"
+      "at": "2026-10-27T05:18:27.079Z"
     },
     {
       "step": "create-routine-save",
       "ok": false,
-      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
-      "layer": "local-persistence",
-      "blocked": true,
-      "at": "2026-10-26T12:40:01.886Z"
+      "detail": "Post-save destination/title not confirmed for routine",
+      "title": "P71Routinemvq8fcsg",
+      "layer": "local-ui-after-save",
+      "at": "2026-10-27T05:18:34.312Z"
     },
     {
       "step": "create-journal-type-selected",
       "ok": true,
       "detail": "create-type-journal selected=true",
-      "at": "2026-10-26T12:40:10.424Z"
+      "at": "2026-10-27T05:18:41.885Z"
     },
     {
       "step": "create-journal-title-value",
       "ok": true,
-      "detail": "title field contains P71Journalmvp8t8ka",
-      "expected": "P71Journalmvp8t8ka",
-      "observed": "P71Journalmvp8t8ka",
-      "at": "2026-10-26T12:40:18.074Z"
+      "detail": "title field contains P71Journalmvq8fcsg",
+      "expected": "P71Journalmvq8fcsg",
+      "observed": "P71Journalmvq8fcsg",
+      "at": "2026-10-27T05:18:48.600Z"
     },
     {
       "step": "create-journal-submit-delivered",
       "ok": true,
       "detail": "tapped create-submit-btn",
       "contentDesc": "Submit create journal",
-      "at": "2026-10-26T12:40:18.130Z"
+      "at": "2026-10-27T05:18:48.657Z"
     },
     {
       "step": "create-journal-save",
-      "ok": false,
-      "detail": "Save blocked (auth/workspace or validation); draft may be kept",
-      "layer": "local-persistence",
-      "blocked": true,
-      "at": "2026-10-26T12:40:22.197Z"
+      "ok": true,
+      "detail": "Save closed sheet; title visible in destination UI (local UI identity; not yet reopen proof)",
+      "title": "P71Journalmvq8fcsg",
+      "layer": "local-ui-after-save",
+      "at": "2026-10-27T05:18:52.648Z"
+    },
+    {
+      "step": "journal-reopen",
+      "ok": true,
+      "detail": "Reopened surface showing P71Journalmvq8fcsg",
+      "at": "2026-10-27T05:19:01.929Z"
+    },
+    {
+      "step": "ime-open-create-actions",
+      "ok": true,
+      "detail": "imeShown=true; submitY=1314; cancelY=1451; keyboardDismissedBeforeSubmit=false",
+      "imeShown": true,
+      "submitBounds": {
+        "midX": 540,
+        "midY": 1314
+      },
+      "cancelBounds": {
+        "midX": 540,
+        "midY": 1451
+      },
+      "at": "2026-10-27T05:19:11.222Z"
+    },
+    {
+      "step": "ime-open-create-submit",
+      "ok": true,
+      "detail": "Create submitted with IME open; sheet closed",
+      "at": "2026-10-27T05:19:15.265Z"
+    },
+    {
+      "step": "personalize-hide-journal",
+      "ok": true,
+      "detail": "tabsBefore=today,plan,library,journal; tabsAfterHide=today,plan,library",
+      "tabsAfterHide": [
+        "today",
+        "plan",
+        "library"
+      ],
+      "at": "2026-10-27T05:19:26.311Z"
+    },
+    {
+      "step": "personalize-restore-journal",
+      "ok": true,
+      "detail": "tabsAfterRestore=today,plan,library,journal; journalContentPreserved=true",
+      "tabsAfterRestore": [
+        "today",
+        "plan",
+        "library",
+        "journal"
+      ],
+      "at": "2026-10-27T05:19:34.711Z"
+    },
+    {
+      "step": "account-isolation-second",
+      "ok": true,
+      "detail": "second=B; signedIn=true; err=none; leakFromC=false; cHadNote=false",
+      "secondLabel": "B",
+      "leak": false,
+      "error": null,
+      "at": "2026-10-27T05:22:31.247Z"
+    },
+    {
+      "step": "account-isolation-return-c",
+      "ok": true,
+      "detail": "backToC=true; contentRestored=false",
+      "restored": false,
+      "at": "2026-10-27T05:24:46.178Z"
     },
     {
       "step": "search-open",
       "ok": true,
       "detail": "search sheet via header",
-      "at": "2026-10-26T12:40:27.766Z"
+      "at": "2026-10-27T05:24:51.145Z"
     },
     {
       "step": "search-canonical",
-      "ok": false,
-      "detail": "Skipped: no saved note fixture for canonical search",
-      "skipped": true,
-      "at": "2026-10-26T12:40:27.766Z"
+      "ok": true,
+      "detail": "Search results include exact title P71Notemvq8fcsg",
+      "at": "2026-10-27T05:24:55.375Z"
     },
     {
       "step": "deeplink-gallery-denial",
       "ok": true,
       "detail": "Gallery deep link did not expose gallery",
-      "at": "2026-10-26T12:40:32.999Z"
+      "at": "2026-10-27T05:25:00.840Z"
     },
     {
       "step": "input-method-note",
       "ok": true,
       "detail": "adb input text ASCII-only; Bangla/non-ASCII marked untested (not stripped to claim coverage)",
-      "at": "2026-10-26T12:40:35.261Z"
+      "at": "2026-10-27T05:25:06.364Z"
     },
     {
       "step": "device-settings-restored",
       "ok": true,
       "detail": "a11y=0 font=1.0 rot=0",
-      "at": "2026-10-26T12:40:35.792Z"
+      "at": "2026-10-27T05:25:06.810Z"
     }
   ],
-  "passCount": 18,
-  "failCount": 5,
+  "passCount": 28,
+  "failCount": 3,
   "limitations": [
     "Prior create-task/routine/journal passes before stable testIDs are provisional and superseded by this runner.",
     "Canonical reopen identity requires authenticated workspace; auth/API prerequisites recorded explicitly when missing.",
-    "IME Save reachability, pin/hide Journal, account isolation, and spoken TalkBack are separate procedures.",
-    "adb input text is ASCII-only; non-ASCII coverage is untested."
+    "Spoken TalkBack listen-through remains a human checklist in the phase report (service enable + XML are setup only).",
+    "Account A KEY_INVALIDATED_OR_MISMATCH databases are left fail-closed and are not used as the healthy isolation peer.",
+    "adb input text is ASCII-only; non-ASCII coverage is untested.",
+    "Pin destination persistence uses All-features hide/restore for Journal tabs in this runner; Today pin targets recorded when controls present."
   ]
 }

@@ -73,5 +73,7 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0068: Feature registry, personalization, and operator boundaries](0068-feature-registry-personalization-and-operator-boundaries.md)
 - [ADR-0069: Version 2 visual direction prototypes (pending owner selection)](0069-version-two-visual-direction-prototypes.md)
 - [ADR-0070: Mobile web/PWA layout and grouped Settings](0070-mobile-web-pwa-layout-and-settings.md)
+- [ADR-0071: Native Android Settings hub and insets](0071-native-android-settings-hub-and-insets.md)
+- [ADR-0072: Owner scheduling — Phase 72 before Phase 71 acceptance](0072-phase-72-before-phase-71-acceptance.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

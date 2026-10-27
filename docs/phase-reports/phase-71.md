@@ -86,14 +86,12 @@ Prepared checklist (app shell already green on device-evidence):
 | `node scripts/phase71-android-device-evidence.mjs` | 0 | 13/13 |
 | `DAYNORI_PHASE71_ACCOUNT_LABEL=C node scripts/phase71-android-journeys.mjs` | 1 | Best 27/5; later runs flaky on auth/create after isolation |
 
-## Missing cases (block completion + block Phase 72)
+## Missing cases (block completion)
 
-1. **Stable ordinary Account sign-in + workspace provision** for healthy account C (and peer).
-2. **Two healthy-account isolation** (C ↔ B or equivalent non-A): no C records/drafts/pins/hidden state on peer; return restores C; no SQLite/secure wipe.
-3. **Spoken TalkBack listen-through** (human) with recorded utterances.
-4. Search after isolation must be re-proven on a clean shell.
-5. Completion commit subject only when the above pass: `feat(mobile): adapt the Version 2 experience to native Android`
+1. **Spoken TalkBack listen-through** (human) with recorded utterances.
+2. **Phase 71–owned isolation/search attribution** if still required for this phase’s acceptance after Phase 72’s auth repairs ([phase-72 report](phase-72.md) run18 already proved C→B no-leak + return-to-C + search on the shared journey runner).
+3. Completion commit subject only when remaining checks pass: `feat(mobile): adapt the Version 2 experience to native Android`
 
 ## Handoff
 
-Phase 71 remains **incomplete**. Do **not** start Phase 72. Preserve APK evidence, journey JSON under `artifacts/android-e2e/phase71/`, and gitignored synth accounts. Next: stabilize Account sheet sign-in/sign-out switching for B, re-run isolation + search, complete spoken TalkBack checklist, then one local completion commit.
+Phase 71 remains **incomplete**. [ADR 0072](../decisions/0072-phase-72-before-phase-71-acceptance.md) authorized Phase 72 ahead of this phase; Phase 72 is now **complete**. Preserve APK evidence, journey JSON under `artifacts/android-e2e/phase71/`, account A’s KEY_INVALIDATED database, and gitignored synth accounts. Remaining Phase 71 work: spoken TalkBack listen-through; optional re-attribution of isolation/search evidence to this phase’s commit; then one local completion commit only when remaining checks pass. Do **not** start Phase 73 until Phase 71 is complete (plan `dependsOn`).

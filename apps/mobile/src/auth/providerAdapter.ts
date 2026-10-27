@@ -13,7 +13,12 @@
  */
 
 import { parseDeepLinkUrl, type Profile, type UpdatePreferencesRequest } from '@daynori/contracts';
-import { createApiClient } from '@daynori/api-client';
+import {
+  ApiAuthError,
+  ApiClientError,
+  ApiRateLimitError,
+  createApiClient,
+} from '@daynori/api-client';
 import { getMobileRuntimeConfig, mobileApiTimeoutMs } from '../config/runtime.js';
 import {
   defaultSecureStorage,
@@ -33,11 +38,34 @@ export interface MobileUser {
   workspaceId: string | null;
 }
 
+export type AuthFailureCode =
+  | 'invalid_credentials'
+  | 'verification_required'
+  | 'rate_limited'
+  | 'unavailable'
+  | 'invalid_input'
+  | 'unknown';
+
 export interface AuthResult {
   success: boolean;
   requiresVerification?: boolean;
   message?: string;
   error?: string;
+  /** Typed failure class for UI — never use to claim invalid credentials on outages. */
+  failureCode?: AuthFailureCode;
+}
+
+export type WorkspaceProvisionStatus =
+  | 'ready'
+  | 'unavailable'
+  | 'unauthenticated'
+  | 'rate_limited'
+  | 'conflict';
+
+export interface WorkspaceProvisionResult {
+  status: WorkspaceProvisionStatus;
+  workspaceId: string | null;
+  message?: string;
 }
 
 export interface InitiatedAuthFlow {
@@ -111,6 +139,12 @@ export class MobileProviderAuthAdapter {
   // Cache of processed nonces / tokens to prevent replay attacks (10 minute window)
   private processedNonces = new Map<string, number>();
 
+  /** Single-flight guard for personal workspace provision (idempotent). */
+  private provisionInFlight: Promise<WorkspaceProvisionResult> | null = null;
+
+  /** Monotonic generation so late responses after sign-out/switch are ignored. */
+  private sessionGeneration = 0;
+
   constructor(
     options?:
       | {
@@ -132,8 +166,10 @@ export class MobileProviderAuthAdapter {
     this.supabaseUrl = opts?.supabaseUrl ?? runtime.supabaseUrl;
     this.supabaseAnonKey = opts?.supabaseAnonKey ?? runtime.supabaseAnonKey;
     this.apiBaseUrl = opts?.apiBaseUrl ?? runtime.apiBaseUrl;
+    // Align GoTrue fetches with API timeout — a 5s default caused false "not signed in"
+    // on cold local providers while the session was still establishing.
     this.requestTimeoutMs =
-      opts?.requestTimeoutMs ?? (process.env['NODE_ENV'] === 'test' ? 1000 : 5000);
+      opts?.requestTimeoutMs ?? (process.env['NODE_ENV'] === 'test' ? 1000 : mobileApiTimeoutMs);
     this.customProvider = opts?.providerClient ?? null;
 
     if (opts?.initialAuthenticated) {
@@ -171,24 +207,70 @@ export class MobileProviderAuthAdapter {
     }
   }
 
+  public getSessionGeneration(): number {
+    return this.sessionGeneration;
+  }
+
   /**
    * Idempotently provision or resolve the personal workspace for the authenticated mobile user.
+   * Sign-in success remains distinct from workspace readiness.
    */
   public async provisionPersonalWorkspace(): Promise<string | null> {
-    if (!this.currentUser) return null;
+    const result = await this.provisionPersonalWorkspaceDetailed();
+    return result.workspaceId;
+  }
+
+  public async provisionPersonalWorkspaceDetailed(): Promise<WorkspaceProvisionResult> {
+    if (this.provisionInFlight) {
+      return this.provisionInFlight;
+    }
+
+    this.provisionInFlight = this.runProvisionPersonalWorkspace().finally(() => {
+      this.provisionInFlight = null;
+    });
+    return this.provisionInFlight;
+  }
+
+  private async runProvisionPersonalWorkspace(): Promise<WorkspaceProvisionResult> {
+    const generation = this.sessionGeneration;
+    if (!this.currentUser) {
+      return { status: 'unauthenticated', workspaceId: null, message: 'Sign in required.' };
+    }
+
+    // Already resolved for this session — do not create a duplicate workspace.
+    if (this.currentUser.workspaceId) {
+      return { status: 'ready', workspaceId: this.currentUser.workspaceId };
+    }
 
     const token = await this.getAccessToken();
-    if (!token) return null;
+    if (!token) {
+      return {
+        status: 'unauthenticated',
+        workspaceId: null,
+        message: 'Session token missing. Sign in again.',
+      };
+    }
 
     if (this.customProvider?.provisionWorkspace) {
       try {
         const res = await this.customProvider.provisionWorkspace(token);
+        if (generation !== this.sessionGeneration) {
+          return {
+            status: 'unavailable',
+            workspaceId: null,
+            message: 'Account changed during workspace setup.',
+          };
+        }
         this.currentUser.workspaceId = res.workspaceId;
         await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, res.workspaceId);
         this.notify();
-        return res.workspaceId;
+        return { status: 'ready', workspaceId: res.workspaceId };
       } catch {
-        return null;
+        return {
+          status: 'unavailable',
+          workspaceId: null,
+          message: 'Workspace setup is temporarily unavailable. Retry without signing in again.',
+        };
       }
     }
 
@@ -198,16 +280,88 @@ export class MobileProviderAuthAdapter {
         token,
         defaultTimeoutMs: mobileApiTimeoutMs,
       });
+
+      // Resolve existing personal workspace first (idempotent; avoids duplicate provision).
+      try {
+        const existing = await apiClient.getPersonalWorkspace();
+        const existingId = existing.data?.id;
+        if (existingId && generation === this.sessionGeneration) {
+          this.currentUser.workspaceId = existingId;
+          await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, existingId);
+          this.notify();
+          return { status: 'ready', workspaceId: existingId };
+        }
+      } catch (err) {
+        if (err instanceof ApiAuthError) {
+          return {
+            status: 'unauthenticated',
+            workspaceId: null,
+            message: 'Session expired. Sign in again.',
+          };
+        }
+        // 404 / not found → continue to provision
+      }
+
       const res = await apiClient.provisionPersonalWorkspace({
         displayName: this.currentUser.name,
       });
       const wsId = res.data.workspace.id;
+      if (generation !== this.sessionGeneration) {
+        return {
+          status: 'unavailable',
+          workspaceId: null,
+          message: 'Account changed during workspace setup.',
+        };
+      }
       this.currentUser.workspaceId = wsId;
       await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, wsId);
       this.notify();
-      return wsId;
-    } catch {
-      return null;
+      return { status: 'ready', workspaceId: wsId };
+    } catch (err) {
+      if (err instanceof ApiRateLimitError) {
+        return {
+          status: 'rate_limited',
+          workspaceId: null,
+          message: 'Too many workspace setup attempts. Wait and retry.',
+        };
+      }
+      if (err instanceof ApiAuthError) {
+        return {
+          status: 'unauthenticated',
+          workspaceId: null,
+          message: 'Session expired. Sign in again.',
+        };
+      }
+      if (err instanceof ApiClientError && err.statusCode === 409) {
+        // Concurrent provision — resolve personal workspace once more.
+        try {
+          const apiClient = createApiClient({
+            baseUrl: this.apiBaseUrl,
+            token,
+            defaultTimeoutMs: mobileApiTimeoutMs,
+          });
+          const existing = await apiClient.getPersonalWorkspace();
+          const existingId = existing.data?.id;
+          if (existingId && generation === this.sessionGeneration) {
+            this.currentUser.workspaceId = existingId;
+            await this.secureStore.setItemAsync(SEC_KEY_WORKSPACE_ID, existingId);
+            this.notify();
+            return { status: 'ready', workspaceId: existingId };
+          }
+        } catch {
+          /* fall through */
+        }
+        return {
+          status: 'conflict',
+          workspaceId: null,
+          message: 'Workspace setup conflict. Retry.',
+        };
+      }
+      return {
+        status: 'unavailable',
+        workspaceId: null,
+        message: 'Workspace setup is temporarily unavailable. Your sign-in was kept.',
+      };
     }
   }
 
@@ -396,20 +550,36 @@ export class MobileProviderAuthAdapter {
     email: string;
     password: string;
   }): Promise<AuthResult> {
+    const email = params.email?.trim() ?? '';
+    if (!email || !params.password) {
+      return {
+        success: false,
+        error: 'Enter your email and password.',
+        failureCode: 'invalid_input',
+      };
+    }
+
     if (this.customProvider) {
       try {
-        const result = await this.customProvider.signInWithPassword(params);
+        const result = await this.customProvider.signInWithPassword({
+          email,
+          password: params.password,
+        });
+        this.sessionGeneration += 1;
         await this.persistSession(result.user, result.accessToken, result.refreshToken);
         return { success: true };
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Invalid email or password';
+        const unavailable = /unavailable|network|timeout|fetch/i.test(msg);
         return {
           success: false,
-          error: err instanceof Error ? err.message : 'Invalid email or password',
+          error: unavailable ? 'Authentication service unavailable' : msg,
+          failureCode: unavailable ? 'unavailable' : 'invalid_credentials',
         };
       }
     }
 
-    const normalizedEmail = params.email.toLowerCase().trim();
+    const normalizedEmail = email.toLowerCase();
 
     try {
       const res = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=password`, {
@@ -431,21 +601,47 @@ export class MobileProviderAuthAdapter {
           id: data.user.id,
           email: data.user.email,
           name: data.user.user_metadata?.display_name || data.user.email.split('@')[0],
-          workspaceId: null, // explicit "workspace not provisioned" until Phase 10
+          workspaceId: null, // explicit until provision succeeds
         };
 
+        this.sessionGeneration += 1;
         await this.persistSession(user, data.access_token, data.refresh_token);
         return { success: true };
       }
 
+      if (res.status === 429) {
+        return {
+          success: false,
+          error: 'Too many sign-in attempts. Wait and retry.',
+          failureCode: 'rate_limited',
+        };
+      }
+      if (res.status >= 500) {
+        return {
+          success: false,
+          error: 'Authentication service unavailable',
+          failureCode: 'unavailable',
+        };
+      }
+      const msg = String(data.msg || data.error_description || data.error || '');
+      if (/confirm|verif/i.test(msg)) {
+        return {
+          success: false,
+          error: 'Email verification required before signing in.',
+          failureCode: 'verification_required',
+          requiresVerification: true,
+        };
+      }
       return {
         success: false,
-        error: data.msg || data.error_description || 'Invalid email or password',
+        error: 'Invalid email or password',
+        failureCode: 'invalid_credentials',
       };
     } catch {
       return {
         success: false,
         error: 'Authentication service unavailable',
+        failureCode: 'unavailable',
       };
     }
   }
@@ -663,6 +859,10 @@ export class MobileProviderAuthAdapter {
         uncommittedDraft
       );
     }
+
+    // Bump generation first so in-flight provision/sign-in cannot apply to the next account.
+    this.sessionGeneration += 1;
+    this.provisionInFlight = null;
 
     // Immediately revoke authenticated state in memory and notify listeners
     this.authenticated = false;

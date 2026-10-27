@@ -1012,12 +1012,17 @@ export default function App() {
               onChangeTextScale={setTextScale}
               isAuthenticated={isAuthenticated}
               isOperator={isOperator}
-              workspaceId={userNamespace?.workspaceId ?? null}
+              workspaceId={
+                defaultAuthAdapter.getCurrentUser()?.workspaceId ??
+                userNamespace?.workspaceId ??
+                null
+              }
               onProvisionWorkspace={async () => {
-                const wsId = await defaultAuthAdapter.provisionPersonalWorkspace();
-                if (!wsId) {
+                const result = await defaultAuthAdapter.provisionPersonalWorkspaceDetailed();
+                if (result.status !== 'ready' || !result.workspaceId) {
                   setStorageMessage(
-                    'Could not provision your personal workspace. Check the network and retry. Your session was kept.'
+                    result.message ??
+                      'Could not provision your personal workspace. Check the network and retry. Your session was kept.'
                   );
                 }
               }}

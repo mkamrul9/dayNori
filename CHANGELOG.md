@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 72 — Welcome startup onboarding and authentication polish — 2026-10-27
+
+- Polish web/native auth copy and failure classification so outages/rate limits do not impersonate invalid credentials; keep sign-in distinct from workspace readiness with retry that preserves the session.
+- Fix AccountSheet provision abort after password sign-in (`sessionGeneration` race), Autofill cross-account clobber on Android fields, and FirstLoginOnboardingGate false-open when preference fetch fails.
+- Prove ordinary Account C→B isolation and return-to-C on AVD with local GoTrue/API (journey run18); Phase 71 remains blocked on TalkBack. Commit: `feat(onboarding): polish welcome and account journeys`.
+
 ## Phase 71 — Native Android interface (in progress) — 2026-10-26
 
 - Settings hub/groups, BackHandler priority, androidInsets keyboard helper, and density-portable StatusBar top pad (`max(reported, 48dp×density)`) so header taps clear edge-to-edge StatusBar intercept (ADR 0071).
