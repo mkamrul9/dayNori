@@ -59,6 +59,7 @@ import { PlanView } from './src/views/PlanView';
 import { LibraryView } from './src/views/LibraryView';
 import { JournalView } from './src/views/JournalView';
 import { SettingsView } from './src/views/SettingsView';
+import { HelpCatalogView } from './src/views/HelpCatalogView';
 import { SettingsHubView } from './src/views/SettingsHubView';
 import {
   SETTINGS_NESTED_MODALS,
@@ -1074,6 +1075,7 @@ export default function App() {
               onOpenAllFeatures={() => setActiveModal('all-features')}
               onOpenGallery={isOperator ? () => setActiveModal('gallery') : undefined}
               onOpenOnboarding={() => setActiveModal('onboarding-replay')}
+              onOpenHelpCatalog={() => setActiveModal('help-catalog')}
               onOpenSyncDiagnostics={() => {
                 void loadDiagnostics();
                 setActiveModal('sync-diagnostics');
@@ -1292,6 +1294,27 @@ export default function App() {
           />
         </View>
       )}
+
+      {activeModal === 'help-catalog' ? (
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: palette.background, zIndex: 120 },
+          ]}
+          testID="help-catalog-sheet"
+        >
+          <HelpCatalogView
+            themeMode={themeMode}
+            userId={userNamespace?.userId ?? null}
+            onClose={returnToSettingsFromNested}
+            onReplayOnboarding={() => setActiveModal('onboarding-replay')}
+            onOpenSupport={() => {
+              // Support lives under Settings; return then open Account/Help group honesty via Support article.
+              returnToSettingsFromNested();
+            }}
+          />
+        </View>
+      ) : null}
 
       {/* Onboarding Tutorial Sheet (Phase 31 First-Use Discovery) */}
       <OnboardingSheet

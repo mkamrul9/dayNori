@@ -1,107 +1,164 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, Feedback } from '@daynori/ui-web';
-import { PWA_INSTALL_GUIDE_STEPS } from '@daynori/domain';
+import {
+  HELP_ARTICLES,
+  HELP_CATEGORIES,
+  HELP_COMMON_TASK_ARTICLE_IDS,
+  HELP_TROUBLESHOOT_ARTICLE_IDS,
+  articleSummary,
+  articleTitle,
+  findHelpArticle,
+  getLearningChapters,
+  resolveHelpText,
+  searchCatalogHelp,
+  type HelpArticle,
+  type LearningChapter,
+} from '@daynori/domain';
 import { useShell } from '../../components/ShellContext';
+import { useAuth } from '../../components/AuthContext';
 import { isCorePreview } from '../../config/preview';
+import {
+  clearHelpReturnContext,
+  readContinueLearning,
+  readHelpReturnContext,
+  saveContinueLearning,
+} from '../../help/helpReturnContext';
 
-export default function HelpPage() {
-  const { themeMode, openModal } = useShell();
+type HelpView = 'home' | 'article' | 'learn' | 'category';
+
+function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 'light' | 'dark' }) {
   const palette = colors[themeMode];
-  const [query, setQuery] = useState('');
-
-  const howTo = useMemo(
-    () =>
-      [
-        {
-          title: 'Write a note',
-          body: 'Tap Create, choose Note, then write. Status shows Unsaved, Saved on this device, Waiting to sync, Synchronized, or Failed — retry. Empty titles become Untitled after save. Find the same note again in Library or Search.',
-        },
-        {
-          title: 'Library folders',
-          body: 'Library uses one workspace folder tree. Filters change the view only — Clear filters never moves items. Folder moves keep the same ID, dates, and links; depth stops at five levels.',
-        },
-        {
-          title: 'Search privacy',
-          body: 'Search stays inside your workspace. Vault items stay out of ordinary search. Journal snippets follow Privacy settings (hidden by default).',
-        },
-        {
-          title: 'Add a task',
-          body: 'Tap Create, choose Task, enter a title (and deadline if needed), then Save. Open Details for notes, priority, folder, tags, or subtasks. See it on Today or in Plan.',
-        },
-        {
-          title: 'Tasks vs routines',
-          body: 'A task finishes once — completing it never copies it to tomorrow. A routine repeats on a schedule; each day stays independent. Both live under Plan.',
-        },
-        {
-          title: 'Calendar sources',
-          body: 'Plan → Calendar shows agenda by default on phones, with month available. Tap a task or routine projection to open that same record — personal events edit the same calendar event.',
-        },
-        {
-          title: 'Journal',
-          body: 'Open Journal to write a private daily entry. Preview privacy lives under Settings → Privacy and data, and on the Journal list.',
-        },
-        {
-          title: 'Upload a file',
-          body: 'From Library, choose Upload, pick a supported type, and wait for processing before preview or download. Cancel releases the reservation; delete removes your reference and schedules private-byte cleanup. Storage quota includes reserved and stored bytes. Uploads stay off in the free hosted preview.',
-        },
-        {
-          title: 'Record audio',
-          body: 'Recording needs an explicit Start after microphone permission. Limits are 10 minutes and 25 MB for the recorder (file-upload audio ceiling can be higher). Pause, stop, review, then save to attach — never ambient or onboarding recording. Drafts stay account-scoped; Log out stops playback of the prior account. Separate from assistant transcription.',
-        },
-        {
-          title: 'Track an expense',
-          body: 'Open Expenses from All features (or enable it under Settings). Enter amount, currency, and date first; optional category, note, payment, and receipt live under Details. Refunds must name the original expense and stay within its amount. Reports and budgets never mix currencies. Export keeps exact amounts and dates.',
-        },
-        {
-          title: 'Custom sections',
-          body: 'Create a section from an approved template or empty builder. Add typed fields or a view of existing notes/tasks — references stay the original records. Reorder with Move up/Move down (no dragging required). Removing a section or field does not delete referenced items; migration preview explains recoverable values before you confirm.',
-        },
-        {
-          title: 'Find all features',
-          body: 'Open All features from the shell header or sidebar. Search by name, then open a destination. Path: All features → destination (two navigation actions from the shell).',
-        },
-        {
-          title: 'Hide or pin modules',
-          body: 'In All features, hide a module to remove shortcuts without deleting content or cancelling reminders. Restore it from the same directory. Pin supported modules for secondary sidebar shortcuts. Settings, Help, Search, and All features stay reachable.',
-        },
-        {
-          title: 'Saving and sync',
-          body: 'Changes save on this device first. When online, they sync to your account so you can reopen them later.',
-        },
-        {
-          title: 'Install on your phone',
-          body: PWA_INSTALL_GUIDE_STEPS.join(' '),
-        },
-        {
-          title: 'Stay signed in',
-          body: 'Daynori keeps you signed in across refresh and reopen until you choose Log out. A sleeping free server may need one retry.',
-        },
-        {
-          title: 'Offline and updates',
-          body: 'Edits on this device queue while offline. When an update is ready, save your work then tap Update — Later waits. On a trusted device with local data already saved, cold offline reopen loads a public organizer shell from IndexedDB — not cached private pages. Missing consent or storage shows an honest offline help page instead.',
-        },
-        ...(isCorePreview
-          ? [
-              {
-                title: 'Preview limits',
-                body: 'File uploads, audio, reminder delivery, rooms/chat, live AI, and billing are off in this free testing preview.',
-              },
-            ]
-          : []),
-      ] as const,
-    []
+  return (
+    <div className="daynori-break">
+      <h2
+        style={{
+          margin: '0 0 8px',
+          fontSize: `${typography.webScale.sectionHeading}px`,
+          color: palette.text.primary,
+        }}
+      >
+        {articleTitle(article)}
+      </h2>
+      <p style={{ margin: '0 0 12px', fontSize: 14, color: palette.text.secondary, lineHeight: 1.45 }}>
+        {articleSummary(article)}
+      </p>
+      {article.gatedFeature ? (
+        <div style={{ marginBottom: 12 }}>
+          <Feedback
+            severity="info"
+            message="This feature may be unavailable or limited in your current build. Steps describe intended behavior when the capability is on."
+            themeMode={themeMode}
+          />
+        </div>
+      ) : null}
+      {article.prerequisites.length > 0 ? (
+        <>
+          <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>Prerequisites</h3>
+          <ul style={{ margin: 0, paddingLeft: 18, color: palette.text.secondary, fontSize: 13 }}>
+            {article.prerequisites.map((p) => (
+              <li key={p.key}>{resolveHelpText(p)}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>Steps</h3>
+      <ol style={{ margin: 0, paddingLeft: 18, color: palette.text.primary, fontSize: 14, lineHeight: 1.5 }}>
+        {article.steps.map((s) => (
+          <li key={s.instruction.key} style={{ marginBottom: 6 }}>
+            {resolveHelpText(s.instruction)}
+          </li>
+        ))}
+      </ol>
+      <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>Expected result</h3>
+      <p style={{ margin: 0, fontSize: 14, color: palette.text.secondary, lineHeight: 1.45 }}>
+        {resolveHelpText(article.expectedResult)}
+      </p>
+      {article.failures.length > 0 ? (
+        <>
+          <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>
+            If something goes wrong
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: palette.text.secondary }}>
+            {article.failures.map((f) => (
+              <li key={f.symptom.key} style={{ marginBottom: 8 }}>
+                <strong style={{ color: palette.text.primary }}>{resolveHelpText(f.symptom)}:</strong>{' '}
+                {resolveHelpText(f.recovery)}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {article.platformDifferences ? (
+        <>
+          <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>
+            Platform differences
+          </h3>
+          <p style={{ margin: 0, fontSize: 13, color: palette.text.secondary }}>
+            {resolveHelpText(article.platformDifferences)}
+          </p>
+        </>
+      ) : null}
+    </div>
   );
+}
 
-  const filtered = query.trim()
-    ? howTo.filter(
-        (item) =>
-          item.title.toLowerCase().includes(query.toLowerCase()) ||
-          item.body.toLowerCase().includes(query.toLowerCase())
-      )
-    : howTo;
+function HelpPageInner() {
+  const { themeMode, openModal } = useShell();
+  const { user, workspaceId } = useAuth();
+  const palette = colors[themeMode];
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const articleParam = searchParams.get('article');
+  const categoryParam = searchParams.get('category');
+  const viewParam = searchParams.get('view');
+
+  const [query, setQuery] = useState('');
+  const [view, setView] = useState<HelpView>('home');
+  const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+
+  const chapters = useMemo(() => getLearningChapters(), []);
+  const continueChapterId = readContinueLearning(user?.id);
+
+  useEffect(() => {
+    if (articleParam) {
+      setActiveArticleId(articleParam);
+      setView('article');
+      return;
+    }
+    if (viewParam === 'learn') {
+      setView('learn');
+      return;
+    }
+    if (categoryParam) {
+      setActiveCategoryId(categoryParam);
+      setView('category');
+      return;
+    }
+    setView('home');
+    setActiveArticleId(null);
+  }, [articleParam, categoryParam, viewParam]);
+
+  const searchHits = useMemo(() => searchCatalogHelp(query), [query]);
+  const activeArticle = findHelpArticle(activeArticleId);
+
+  const openArticle = (id: string) => {
+    router.push(`/help?article=${encodeURIComponent(id)}`);
+  };
+
+  const returnFromArticle = () => {
+    const ctx = readHelpReturnContext(user?.id);
+    clearHelpReturnContext();
+    if (ctx && ctx.userId === user?.id && ctx.returnPath && ctx.returnPath !== '/help') {
+      router.push(ctx.returnPath);
+      return;
+    }
+    router.push('/help');
+  };
 
   const shortcuts = [
     { key: '?', action: 'Open shortcuts' },
@@ -133,197 +190,445 @@ export default function HelpPage() {
           className="daynori-break"
           style={{ margin: '4px 0 0 0', color: palette.text.secondary, fontSize: '14px' }}
         >
-          Short how-tos for everyday use.
+          Task-based instructions for Daynori. Search never looks inside your notes or journal.
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
-        <Card themeMode={themeMode} className="daynori-break">
-          <h2
-            style={{
-              margin: '0 0 8px 0',
-              fontSize: `${typography.webScale.sectionHeading}px`,
-              color: palette.text.primary,
-            }}
-          >
-            Getting started
-          </h2>
-          <p
-            className="daynori-break"
-            style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}
-          >
-            Replay the short beginner guide anytime. It does not reset settings or duplicate samples.
-          </p>
-          <Button
-            variant="secondary"
-            size="compact"
-            themeMode={themeMode}
-            onClick={() => openModal('onboarding-replay')}
-            id="help-replay-onboarding-btn"
-          >
-            Replay beginner guide
-          </Button>
-        </Card>
+      {view === 'article' && activeArticle ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
+          <Card themeMode={themeMode}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              <Button variant="secondary" size="compact" themeMode={themeMode} onClick={returnFromArticle}>
+                Back
+              </Button>
+            </div>
+            <ArticleBody article={activeArticle} themeMode={themeMode} />
+            {activeArticle.relatedArticleIds.length > 0 ? (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ margin: '0 0 8px', fontSize: 14, color: palette.text.primary }}>
+                  Related articles
+                </h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {activeArticle.relatedArticleIds.map((id) => {
+                    const related = findHelpArticle(id);
+                    if (!related) return null;
+                    return (
+                      <Button
+                        key={id}
+                        variant="secondary"
+                        size="compact"
+                        themeMode={themeMode}
+                        onClick={() => openArticle(id)}
+                      >
+                        {articleTitle(related)}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </Card>
+        </div>
+      ) : null}
 
+      {view === 'learn' ? (
         <Card themeMode={themeMode}>
-          <label
-            htmlFor="help-howto-search"
-            style={{
-              display: 'block',
-              fontWeight: 700,
-              fontSize: '14px',
-              color: palette.text.primary,
-              marginBottom: '8px',
-            }}
-          >
-            Search how-to
-          </label>
-          <input
-            id="help-howto-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. note, sync, install"
-            className="daynori-break"
-            style={{
-              width: '100%',
-              minHeight: `${touchTargets.webMin}px`,
-              boxSizing: 'border-box',
-              padding: `0 ${spacing.sm}px`,
-              borderRadius: `${radii.sm}px`,
-              border: `1px solid ${palette.border.subtle}`,
-              background: palette.surface,
-              color: palette.text.primary,
-              fontSize: '14px',
-              marginBottom: `${spacing.sm}px`,
-            }}
-          />
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, minWidth: 0, width: '100%' }}>
-            {filtered.map((item) => (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <Button variant="secondary" size="compact" themeMode={themeMode} onClick={() => router.push('/help')}>
+              Back to Help
+            </Button>
+          </div>
+          <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
+            Learn the app
+          </h2>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
+            Chapters prepare for guided practice. Opening an article does not mark practice complete.
+            A resumable action-verified tour engine is not available yet.
+          </p>
+          {continueChapterId ? (
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
+              Continue learning: <strong>{continueChapterId}</strong>
+            </p>
+          ) : null}
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {chapters.map((chapter: LearningChapter) => (
               <li
-                key={item.title}
-                className="daynori-break"
+                key={chapter.id}
                 style={{
                   padding: `${spacing.sm}px 0`,
                   borderBottom: `1px solid ${palette.border.subtle}`,
-                  minWidth: 0,
-                  width: '100%',
-                  maxWidth: '100%',
-                  boxSizing: 'border-box',
                 }}
               >
-                <strong
-                  className="daynori-break"
-                  style={{ color: palette.text.primary, display: 'block', minWidth: 0 }}
-                >
-                  {item.title}
+                <strong style={{ color: palette.text.primary, display: 'block' }}>
+                  {resolveHelpText(chapter.title)}
                 </strong>
-                <p
-                  className="daynori-break"
+                <p style={{ margin: '4px 0', fontSize: 13, color: palette.text.secondary }}>
+                  {resolveHelpText(chapter.summary)}
+                </p>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: palette.text.secondary }}>
+                  Status: {chapter.state.replace(/_/g, ' ')}. {resolveHelpText(chapter.stateExplanation)}
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {chapter.state === 'available_replay' ? (
+                    <Button
+                      variant="secondary"
+                      size="compact"
+                      themeMode={themeMode}
+                      onClick={() => {
+                        if (user?.id) saveContinueLearning(user.id, chapter.id);
+                        openModal('onboarding-replay');
+                      }}
+                    >
+                      Replay beginner guide
+                    </Button>
+                  ) : (
+                    <span style={{ fontSize: 12, color: palette.text.secondary }}>
+                      Guided practice unavailable
+                    </span>
+                  )}
+                  {chapter.relatedArticleIds.map((aid) => {
+                    const a = findHelpArticle(aid);
+                    if (!a) return null;
+                    return (
+                      <Button
+                        key={aid}
+                        variant="secondary"
+                        size="compact"
+                        themeMode={themeMode}
+                        onClick={() => {
+                          if (user?.id) saveContinueLearning(user.id, chapter.id);
+                          openArticle(aid);
+                        }}
+                      >
+                        {articleTitle(a)}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {view === 'category' && activeCategoryId ? (
+        <Card themeMode={themeMode}>
+          <Button variant="secondary" size="compact" themeMode={themeMode} onClick={() => router.push('/help')}>
+            Back to Help
+          </Button>
+          <h2 style={{ margin: '12px 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
+            {HELP_CATEGORIES.find((c) => c.id === activeCategoryId)?.title.defaultText || 'Category'}
+          </h2>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {HELP_ARTICLES.filter((a) => a.categoryId === activeCategoryId).map((a) => (
+              <li key={a.id} style={{ padding: '8px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>
+                <button
+                  type="button"
+                  onClick={() => openArticle(a.id)}
                   style={{
-                    margin: '4px 0 0',
-                    fontSize: '13px',
-                    color: palette.text.secondary,
-                    lineHeight: 1.45,
-                    minWidth: 0,
-                    maxWidth: '100%',
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'break-word',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    color: palette.brand.primary,
+                    fontWeight: 700,
+                    fontSize: 14,
                   }}
                 >
-                  {item.body}
+                  {articleTitle(a)}
+                </button>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: palette.text.secondary }}>
+                  {articleSummary(a)}
                 </p>
               </li>
             ))}
-            {filtered.length === 0 && (
-              <li style={{ fontSize: '13px', color: palette.text.secondary }}>No matching tips.</li>
-            )}
           </ul>
         </Card>
+      ) : null}
 
-        <Card themeMode={themeMode}>
-          <h2
-            style={{
-              margin: '0 0 8px 0',
-              fontSize: `${typography.webScale.sectionHeading}px`,
-              color: palette.text.primary,
-            }}
-          >
-            Keyboard shortcuts
-          </h2>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: '14px',
-              textAlign: 'left',
-            }}
-          >
-            <thead>
-              <tr style={{ borderBottom: `2px solid ${palette.border.strong}` }}>
-                <th style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>Key</th>
-                <th style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shortcuts.map((row) => (
-                <tr key={row.key} style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                  <td style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>
-                    <kbd
+      {view === 'home' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
+          <Card themeMode={themeMode} className="daynori-break">
+            <h2
+              style={{
+                margin: '0 0 8px 0',
+                fontSize: `${typography.webScale.sectionHeading}px`,
+                color: palette.text.primary,
+              }}
+            >
+              Getting started
+            </h2>
+            <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}>
+              Replay the short beginner guide anytime. It does not reset settings or duplicate samples.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => openModal('onboarding-replay')}
+                id="help-replay-onboarding-btn"
+              >
+                Replay beginner guide
+              </Button>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => router.push('/help?view=learn')}
+              >
+                Learn the app
+              </Button>
+            </div>
+          </Card>
+
+          <Card themeMode={themeMode}>
+            <label
+              htmlFor="help-howto-search"
+              style={{
+                display: 'block',
+                fontWeight: 700,
+                fontSize: '14px',
+                color: palette.text.primary,
+                marginBottom: '8px',
+              }}
+            >
+              Search how-to
+            </label>
+            <input
+              id="help-howto-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g. routine, sync, offline, expense"
+              className="daynori-break"
+              style={{
+                width: '100%',
+                minHeight: `${touchTargets.webMin}px`,
+                boxSizing: 'border-box',
+                padding: `0 ${spacing.sm}px`,
+                borderRadius: `${radii.sm}px`,
+                border: `1px solid ${palette.border.subtle}`,
+                background: palette.surface,
+                color: palette.text.primary,
+                fontSize: '14px',
+                marginBottom: `${spacing.sm}px`,
+              }}
+            />
+            {query.trim() ? (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {searchHits.map((hit) => (
+                  <li
+                    key={hit.articleId}
+                    style={{
+                      padding: `${spacing.sm}px 0`,
+                      borderBottom: `1px solid ${palette.border.subtle}`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openArticle(hit.articleId)}
                       style={{
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: palette.surfaceRaised,
-                        border: `1px solid ${palette.border.strong}`,
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        color: palette.brand.primary,
                         fontWeight: 700,
+                        fontSize: 14,
                       }}
                     >
-                      {row.key}
-                    </kbd>
-                  </td>
-                  <td className="daynori-break" style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>
-                    {row.action}
-                  </td>
+                      {hit.title}
+                    </button>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: palette.text.secondary }}>
+                      {hit.summary}
+                    </p>
+                  </li>
+                ))}
+                {searchHits.length === 0 ? (
+                  <li style={{ fontSize: 13, color: palette.text.secondary }}>
+                    No matching Help articles. Try another word, or browse categories below.
+                  </li>
+                ) : null}
+              </ul>
+            ) : (
+              <>
+                <h3 style={{ margin: '8px 0', fontSize: 14, color: palette.text.primary }}>Common tasks</h3>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {HELP_COMMON_TASK_ARTICLE_IDS.map((id) => {
+                    const a = findHelpArticle(id);
+                    if (!a) return null;
+                    return (
+                      <li key={id} style={{ padding: '8px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>
+                        <button
+                          type="button"
+                          onClick={() => openArticle(id)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            color: palette.brand.primary,
+                            fontWeight: 700,
+                            fontSize: 14,
+                          }}
+                        >
+                          {articleTitle(a)}
+                        </button>
+                        <p style={{ margin: '4px 0 0', fontSize: 13, color: palette.text.secondary }}>
+                          {articleSummary(a)}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </Card>
+
+          <Card themeMode={themeMode}>
+            <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
+              Categories
+            </h2>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {[...HELP_CATEGORIES]
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((cat) => (
+                  <Button
+                    key={cat.id}
+                    variant="secondary"
+                    size="compact"
+                    themeMode={themeMode}
+                    onClick={() => router.push(`/help?category=${encodeURIComponent(cat.id)}`)}
+                  >
+                    {resolveHelpText(cat.title)}
+                  </Button>
+                ))}
+            </div>
+          </Card>
+
+          <Card themeMode={themeMode}>
+            <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
+              Troubleshoot
+            </h2>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              {HELP_TROUBLESHOOT_ARTICLE_IDS.map((id) => {
+                const a = findHelpArticle(id);
+                if (!a) return null;
+                return (
+                  <li key={id} style={{ padding: '6px 0' }}>
+                    <button
+                      type="button"
+                      onClick={() => openArticle(id)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        color: palette.brand.primary,
+                        fontWeight: 600,
+                        fontSize: 14,
+                      }}
+                    >
+                      {articleTitle(a)}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+
+          <Card themeMode={themeMode}>
+            <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
+              Keyboard shortcuts
+            </h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${palette.border.strong}` }}>
+                  <th style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>Key</th>
+                  <th style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop: `${spacing.sm}px` }}>
-            <Feedback
-              severity="info"
-              message="Shortcuts pause while you type in a field or note."
+              </thead>
+              <tbody>
+                {shortcuts.map((row) => (
+                  <tr key={row.key} style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
+                    <td style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>
+                      <kbd
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: palette.surfaceRaised,
+                          border: `1px solid ${palette.border.strong}`,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {row.key}
+                      </kbd>
+                    </td>
+                    <td className="daynori-break" style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>
+                      {row.action}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: `${spacing.sm}px` }}>
+              <Feedback
+                severity="info"
+                message="Shortcuts pause while you type in a field or note."
+                themeMode={themeMode}
+              />
+            </div>
+          </Card>
+
+          <Card themeMode={themeMode}>
+            <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
+              Need more help?
+            </h2>
+            <p className="daynori-break" style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
+              See Support for troubleshooting and current contact status. No monitored inbox is invented here.
+              {workspaceId ? null : null}
+              {isCorePreview
+                ? ' This free testing preview keeps uploads, live AI, rooms, and billing off.'
+                : null}
+            </p>
+            <Button
+              variant="secondary"
+              size="compact"
               themeMode={themeMode}
-            />
+              onClick={() => {
+                window.location.href = '/support';
+              }}
+            >
+              Open Support
+            </Button>
+          </Card>
+        </div>
+      ) : null}
+
+      {view === 'article' && !activeArticle ? (
+        <Card themeMode={themeMode}>
+          <Feedback
+            severity="warning"
+            message="That Help article was not found or the link is outdated."
+            themeMode={themeMode}
+          />
+          <div style={{ marginTop: 12 }}>
+            <Button variant="secondary" size="compact" themeMode={themeMode} onClick={() => router.push('/help')}>
+              Back to Help
+            </Button>
           </div>
         </Card>
-
-        <Card themeMode={themeMode}>
-          <h2
-            style={{
-              margin: '0 0 8px 0',
-              fontSize: `${typography.webScale.sectionHeading}px`,
-              color: palette.text.primary,
-            }}
-          >
-            Need more help?
-          </h2>
-          <p className="daynori-break" style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
-            See Support for troubleshooting and contact status. Screenshots of this interface live in
-            the repository under artifacts for contributors; this preview does not embed private
-            user data.
-          </p>
-          <Button
-            variant="secondary"
-            size="compact"
-            themeMode={themeMode}
-            onClick={() => {
-              window.location.href = '/support';
-            }}
-          >
-            Open Support
-          </Button>
-        </Card>
-      </div>
+      ) : null}
     </div>
+  );
+}
+
+export default function HelpPage() {
+  return (
+    <Suspense fallback={<div className="daynori-page">Loading Help…</div>}>
+      <HelpPageInner />
+    </Suspense>
   );
 }

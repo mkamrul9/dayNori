@@ -8,9 +8,7 @@ Group: V2 learning and support. Status is tracked in [progress](../progress.json
 
 - [73 — Tasks routines and calendar workflow completion](73-tasks-routines-and-calendar-workflow-completion.md)
 - [74 — Library writing journal and search completion](74-library-writing-journal-and-search-completion.md)
-- [75 — Files and audio attachment readiness](75-files-and-audio-attachment-readiness.md)
 - [76 — Expenses and safe custom sections completion](76-expenses-and-safe-custom-sections-completion.md)
-- [77 — Safe offline reopen sync and upgrade recovery](77-safe-offline-reopen-sync-and-upgrade-recovery.md)
 
 Read prerequisite reports and linked specifications before editing. A planned dependency is not satisfied by its folder or documentation alone.
 

@@ -28,6 +28,7 @@ import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
+import { ContextualHelpLink } from './ContextualHelpLink';
 import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { createWebApiClient } from '../data/webApiClient';
 import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
@@ -970,6 +971,9 @@ export const AppModals: React.FC = () => {
             message="Choose an item below to open its editor. Sign in and open your workspace to save and sync your content."
             themeMode={themeMode}
           />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <ContextualHelpLink articleId="help.tasks-vs-routines" label="Tasks vs routines Help" />
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
             <ListRow

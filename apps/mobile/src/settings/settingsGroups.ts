@@ -62,5 +62,6 @@ export const SETTINGS_NESTED_MODALS = new Set([
   'account-deletion',
   'all-features',
   'onboarding-replay',
+  'help-catalog',
   'account',
 ]);

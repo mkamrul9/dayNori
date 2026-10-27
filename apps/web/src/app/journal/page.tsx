@@ -32,6 +32,7 @@ import type {
 } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
+import { ContextualHelpLink } from '../../components/ContextualHelpLink';
 import { IndexedDbLocalRepository } from '../../data/indexedDbRepository';
 import { createWebSyncEngine } from '../../data/syncAdapter';
 
@@ -1273,7 +1274,7 @@ export default function JournalPage() {
         </div>
 
         {/* Privacy snippet toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <Button
             size="compact"
             variant="subtle"
@@ -1288,6 +1289,7 @@ export default function JournalPage() {
           >
             {suppressSnippets ? (<><Icon name='eye' /> {'Show Snippets'}</>) : (<><Icon name='lock' /> {'Hide Snippets'}</>)}
           </Button>
+          <ContextualHelpLink articleId="help.journal-privacy" label="Journal privacy Help" />
         </div>
       </div>
 

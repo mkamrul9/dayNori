@@ -46,6 +46,7 @@ import {
 import type { DaynoriApiClient } from '@daynori/api-client';
 import type { ItemHeaderRecord, SyncEngine, FileRecord, ConflictRecord } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
+import { ContextualHelpLink } from '../../components/ContextualHelpLink';
 import { useAuth } from '../../components/AuthContext';
 import { createWebApiClient } from '../../data/webApiClient';
 import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../../data/indexedDbRepository';
@@ -321,13 +322,13 @@ export default function LibraryPage() {
                   setCloudSyncStatus('Waiting to sync');
                   break;
                 case 'saved_locally':
-                  setCloudSyncStatus('Offline â€” saved locally');
+                  setCloudSyncStatus('Offline ? saved locally');
                   break;
                 case 'conflict':
                   setCloudSyncStatus('Conflict detected');
                   break;
                 case 'error':
-                  setCloudSyncStatus('Failed — retry');
+                  setCloudSyncStatus('Failed ? retry');
                   break;
                 default:
                   setCloudSyncStatus('Synchronized');
@@ -401,7 +402,7 @@ export default function LibraryPage() {
                     rank: '00001000',
                     scope: 'workspace',
                     revision: Number(f.version) || 1,
-                    metadata: `${formatByteSize(f.byteSize)} â€¢ ${f.quarantineStatus}`,
+                    metadata: `${formatByteSize(f.byteSize)} ? ${f.quarantineStatus}`,
                   });
                 }
               }
@@ -791,7 +792,7 @@ export default function LibraryPage() {
         setCloudSyncStatus('Synchronized');
       }
     } catch {
-      setCloudSyncStatus('Failed — retry');
+      setCloudSyncStatus('Failed ? retry');
     }
   };
 
@@ -860,7 +861,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed — retry');
+      setCloudSyncStatus('Failed ? retry');
     }
 
     // Reversible Undo Toast
@@ -990,7 +991,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed — retry');
+      setCloudSyncStatus('Failed ? retry');
     }
 
     // Reversible Undo Toast
@@ -1100,7 +1101,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed — retry');
+      setCloudSyncStatus('Failed ? retry');
     }
   };
 
@@ -1157,7 +1158,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed — retry');
+      setCloudSyncStatus('Failed ? retry');
     }
   };
 
@@ -1257,7 +1258,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed — retry');
+      setCloudSyncStatus('Failed ? retry');
     }
 
     // Reversible Undo Toast
@@ -1743,7 +1744,7 @@ export default function LibraryPage() {
           rank: generateInitialRank(items.length),
           scope: 'workspace',
           revision: 1,
-          metadata: `${formatByteSize(rec.byteSize)} â€¢ ${status}`,
+          metadata: `${formatByteSize(rec.byteSize)} ? ${status}`,
         };
         setItems((prev) => [newItem, ...prev.filter((i) => i.id !== rec.fileId)]);
         void refreshFilesAndUsage();
@@ -1991,7 +1992,7 @@ export default function LibraryPage() {
               rank: header.rank,
               scope: 'workspace',
               revision: prevRev || 1,
-              metadata: itemKind === 'knowledge' ? 'Knowledge â€¢ Just now' : 'Note â€¢ Just now',
+              metadata: itemKind === 'knowledge' ? 'Knowledge ? Just now' : 'Note ? Just now',
             },
             ...prev,
           ]);
@@ -2323,7 +2324,7 @@ export default function LibraryPage() {
               margin: '4px 0 0 0',
             }}
           >
-            Notes, folders, and saved items â€” search or write a note to begin
+            Notes, folders, and saved items ? search or write a note to begin
           </p>
         </div>
 
@@ -2522,7 +2523,7 @@ export default function LibraryPage() {
           >
             <input
               type="search"
-              placeholder="Search notes and foldersâ€¦"
+              placeholder="Search notes and folders?"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -2578,11 +2579,11 @@ export default function LibraryPage() {
                 className="daynori-break"
                 style={{ fontSize: 12, color: palette.text.secondary, fontWeight: 600 }}
               >
-                Active filters (view only â€” does not move items)
-                {typeFilter !== 'all' ? ` Â· ${typeFilter}` : ''}
-                {searchQuery.trim() ? ' Â· search' : ''}
-                {activeSavedViewId ? ' Â· saved view' : ''}
-                {showArchived ? ' Â· archived' : ''}
+                Active filters (view only ? does not move items)
+                {typeFilter !== 'all' ? ` · ${typeFilter}` : ''}
+                {searchQuery.trim() ? ' · search' : ''}
+                {activeSavedViewId ? ' · saved view' : ''}
+                {showArchived ? ' · archived' : ''}
               </span>
               <Button
                 variant="subtle"
@@ -2598,6 +2599,7 @@ export default function LibraryPage() {
               >
                 Clear filters
               </Button>
+              <ContextualHelpLink articleId="help.notes-and-library" label="Folders & filters Help" />
             </div>
           )}
 
@@ -2898,7 +2900,7 @@ export default function LibraryPage() {
                             }}
                           >
                             {count} {count === 1 ? 'item' : 'items'}
-                            {f.archivedAt && ' â€¢ Archived'}
+                            {f.archivedAt && ' ? Archived'}
                           </div>
                         </div>
                       </button>

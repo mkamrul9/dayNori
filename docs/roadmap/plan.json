@@ -2792,9 +2792,7 @@
       "dependsOn": [
         "73",
         "74",
-        "75",
-        "76",
-        "77"
+        "76"
       ],
       "scope": [
         "apps/web/src/app/help",

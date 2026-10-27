@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 78 — Complete contextual Help and user instructions — 2026-10-27
+
+- ADR 0078: Phase 78 hard dependsOn 73+74+76; Phases 75 and 77 referenced only (not waived). Phase 77 progress reconciled to blocked (installed-PWA/native cold launch unmet; `a4fb4cc` retained).
+- Shared versioned Help catalog in `@daynori/domain` with full function-register action coverage, instructional search, Learn-the-app chapter states, and public essential offline JSON (`help-essential.json` / SW v9).
+- Web Help rebuilt (search, categories, articles, deep links, contextual links without losing drafts); native Help catalog from Settings with Back handling.
+- Commit: `feat(help): add complete contextual instructions and learning catalog`.
+
 ## Phase 77 — Safe offline reopen, sync, and upgrade recovery — 2026-10-27
 
 - ADR 0077: trusted-device offline boot/session boundaries; public executable shell; local unlock ≠ API auth; supersedes ADR 0066 cold-organizer claim while retaining private-cache and safe-update rules.

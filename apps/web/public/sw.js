@@ -1,5 +1,5 @@
 // Daynori Service Worker (Phase 29/30/31 + Phase 77 trusted-device offline shell)
-const CACHE_VERSION = 'daynori-static-v8';
+const CACHE_VERSION = 'daynori-static-v9';
 
 // Strict allowlist: immutable public static assets only.
 // Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.
@@ -8,6 +8,7 @@ const ALLOWLISTED_STATIC_ASSETS = [
   '/offline.html',
   '/offline-shell.html',
   '/offline-shell.js',
+  '/help-essential.json',
   '/favicon.ico',
   '/icon.svg',
   '/apple-touch-icon.png',
@@ -20,7 +21,12 @@ const ALLOWLISTED_STATIC_ASSETS = [
   '/brand/icon-maskable-512.png',
 ];
 
-const REQUIRED_SHELL_ASSETS = ['/offline-shell.html', '/offline-shell.js', '/offline.html'];
+const REQUIRED_SHELL_ASSETS = [
+  '/offline-shell.html',
+  '/offline-shell.js',
+  '/offline.html',
+  '/help-essential.json',
+];
 
 /**
  * Checks if a request URL matches the strict public static asset allowlist.

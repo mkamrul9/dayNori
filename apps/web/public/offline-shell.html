@@ -204,8 +204,13 @@
         <button type="button" role="tab" data-tab="queue" aria-selected="false">Pending</button>
       </nav>
       <div class="panel" id="list" role="tabpanel" aria-live="polite"></div>
+      <div class="banner" id="essential-help" style="display: none; margin-top: 12px">
+        <strong>Essential recovery</strong>
+        <div id="essential-help-body" style="margin-top: 8px"></div>
+      </div>
       <div class="actions">
         <button type="button" class="primary" id="reload-online">Reconnect when online</button>
+        <a href="/help-essential.json">Essential Help (JSON)</a>
       </div>
     </div>
     <script src="/offline-shell.js" defer></script>

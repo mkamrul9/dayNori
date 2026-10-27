@@ -80,5 +80,6 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0075: Attachment readiness environment matrix](0075-attachment-readiness-environment-matrix.md)
 - [ADR-0076: Owner scheduling — Phase 76 before Phase 75 acceptance](0076-phase-76-before-phase-75-acceptance.md)
 - [ADR-0077: Trusted-device offline boot and session boundaries](0077-trusted-device-offline-boot-and-session.md)
+- [ADR-0078: Owner scheduling — Phase 78 before Phase 75 and Phase 77 acceptance](0078-phase-78-before-phase-75-and-77-acceptance.md)
 
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

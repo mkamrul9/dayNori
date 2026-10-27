@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-27",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 77 complete (2026-10-27). No nextPhase pointer: Phase 78 depends on blocked Phase 75 (do not waive). Phase 71 stays blocked (TalkBack). Standing push rule (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Phase 78 complete (2026-10-27) under ADR 0078. No nextPhase pointer: Phase 79 dependsOn still includes blocked Phase 77 (do not waive or auto-amend). Phase 75 stays blocked. Phase 71 stays blocked (TalkBack). Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -451,17 +451,19 @@
     },
     {
       "id": "77",
-      "status": "complete",
+      "status": "blocked",
+      "reason": "Implementation shipped (a4fb4cc / ADR 0077): public offline shell, durable quarantine, sync suites, Edge CDP static-fixture cold drill. Required acceptance still unmet: full installed production PWA cold reopen and self-contained native installed-build cold launch (no device attestation). Do not waive. See docs/phase-reports/phase-77.md.",
       "report": "docs/phase-reports/phase-77.md"
     },
     {
       "id": "78",
-      "status": "planned",
-      "reason": "Depends on completed 72–74 and blocked Phase 75. Do not start until Phase 75 acceptance is met or the owner amends scheduling."
+      "status": "complete",
+      "report": "docs/phase-reports/phase-78.md"
     },
     {
       "id": "79",
-      "status": "planned"
+      "status": "planned",
+      "reason": "Depends on 66, 68, 77, 78. Phase 77 remains blocked on installed-PWA/native cold-launch evidence — do not start Phase 79 until dependencies complete or the owner amends scheduling."
     },
     {
       "id": "80",

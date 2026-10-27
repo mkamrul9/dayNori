@@ -347,5 +347,40 @@
   window.addEventListener('online', updateConnStatus);
   window.addEventListener('offline', updateConnStatus);
 
-  boot();
+  function loadEssentialHelp() {
+    var panel = document.getElementById('essential-help');
+    var body = document.getElementById('essential-help-body');
+    if (!panel || !body) return;
+    fetch('/help-essential.json')
+      .then(function (res) {
+        if (!res.ok) throw new Error('essential help missing');
+        return res.json();
+      })
+      .then(function (data) {
+        var articles = (data && data.articles) || [];
+        if (!articles.length) return;
+        body.innerHTML = articles
+          .slice(0, 6)
+          .map(function (a) {
+            return (
+              '<div class="row" style="border:none;padding:8px 0"><div class="title">' +
+              escapeHtml(a.title || a.id) +
+              '</div><div class="meta">' +
+              escapeHtml(a.summary || '') +
+              '</div></div>'
+            );
+          })
+          .join('');
+        panel.style.display = 'block';
+      })
+      .catch(function () {
+        /* essential subset optional when cache incomplete */
+      });
+  }
+
+  boot().then(function () {
+    /* boot is async void in practice */
+  });
+  // Always attempt public essential Help (cached allowlisted JSON).
+  setTimeout(loadEssentialHelp, 0);
 })();

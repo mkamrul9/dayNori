@@ -99,10 +99,11 @@ describe('PWA unsaved-work guard and banner stacking', () => {
     expect(shellJs).toContain('offline_boot');
     expect(shellJs).not.toContain('/api/');
     const sw = fs.readFileSync(path.join(repoRoot, 'apps/web/public/sw.js'), 'utf8');
-    expect(sw).toMatch(/daynori-static-v8/);
+    expect(sw).toMatch(/daynori-static-v9/);
     expect(sw).toContain("path.startsWith('/api/')");
     expect(sw).toContain('/offline.html');
     expect(sw).toContain('/offline-shell.html');
+    expect(sw).toContain('/help-essential.json');
     expect(sw).toContain('navigationOfflineFallback');
     expect(sw).toContain('PRECACHE_PUBLIC_STATIC');
     expect(sw).toContain('REQUIRED_SHELL_ASSETS');

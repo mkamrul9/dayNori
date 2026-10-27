@@ -3,12 +3,12 @@
 ## Identity and scope
 
 - Phase ID/specification: [77](../roadmap/phases/77-safe-offline-reopen-sync-and-upgrade-recovery.md)
-- Status: complete
+- Status: **blocked** (implementation shipped in `a4fb4cc`; required installed-PWA and native cold-launch acceptance remain unmet — reconciled 2026-10-27 under [ADR 0078](../decisions/0078-phase-78-before-phase-75-and-77-acceptance.md))
 - Contributor and report date: Cursor agent; 2026-10-27
-- Base Git revision and branch: `b36f97c` on `codex/free-core-preview`
+- Base Git revision and branch: `b36f97c` on `codex/free-core-preview`; completion attempt commit retained: `a4fb4cc`
 - Prerequisites: Phases [72](phase-72.md), [73](phase-73.md), [74](phase-74.md) complete. Phase 71 remains blocked (TalkBack). Phase 75 remains blocked (attachment evidence). Phase 76 complete (ADR 0076).
-- Included scope: trusted-device offline boot ADR; public executable offline shell + SW v8; durable web/native draft quarantine; offline boot context in IndexedDB; sync/conflict/portability reconfirmation; cold PWA evidence drill.
-- Excluded/deferred: enabling Phase 75 uploads/audio; Phase 71 TalkBack; `release_ready` claims; self-contained native installed-build cold launch without device attestation.
+- Included scope: trusted-device offline boot ADR; public executable offline shell + SW v8; durable web/native draft quarantine; offline boot context in IndexedDB; sync/conflict/portability reconfirmation; cold browser-shell evidence drill.
+- Excluded/deferred / remaining acceptance: full installed production PWA cold reopen (static fixture ≠ installed PWA); self-contained native installed-build cold launch; enabling Phase 75 uploads/audio; Phase 71 TalkBack; `release_ready` claims.
 
 ## Result
 
@@ -58,4 +58,4 @@ Browser/device: Microsoft Edge headless CDP (Edg/156) on Windows; no physical An
 
 ## Handoff
 
-Phase 77 complete. Next numbered phase is **78**, but its dependencies still include **blocked Phase 75** — do not waive Phase 75 or alter its prerequisites. Phase 71 remains blocked on TalkBack. Stop after Phase 77.
+Phase 77 remains **blocked** on installed-PWA and native cold-launch acceptance. Retain commit `a4fb4cc` and implemented shell/quarantine work; do not rewrite history or manufacture attestation. Owner scheduling [ADR 0078](../decisions/0078-phase-78-before-phase-75-and-77-acceptance.md) allows Phase 78 Help to proceed with 75/77 as referenced evidence inputs. Phase 71 remains blocked on TalkBack.

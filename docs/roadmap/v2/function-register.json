@@ -942,7 +942,7 @@
       "repairPhase": "78",
       "helpArticle": {
         "status": "existing",
-        "ref": "help/help"
+        "ref": "help.using-help"
       },
       "tourTreatment": {
         "status": "planned",
@@ -1423,7 +1423,7 @@
       "repairPhase": "73",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help Add a task"
+        "ref": "help.tasks-vs-routines"
       },
       "tourTreatment": {
         "status": "planned",
@@ -1876,7 +1876,7 @@
       "repairPhase": "73",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help Tasks vs routines"
+        "ref": "help.tasks-vs-routines"
       },
       "tourTreatment": {
         "status": "planned",
@@ -2609,7 +2609,7 @@
       "repairPhase": "74",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help Write a note"
+        "ref": "help.notes-and-library"
       },
       "tourTreatment": {
         "status": "planned",
@@ -3109,7 +3109,7 @@
       "repairPhase": "74",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help Journal"
+        "ref": "help.journal-privacy"
       },
       "tourTreatment": {
         "status": "planned",
@@ -3670,8 +3670,8 @@
       },
       "repairPhase": "75",
       "helpArticle": {
-        "status": "planned",
-        "ref": "help/files"
+        "status": "existing",
+        "ref": "help.files-upload"
       },
       "tourTreatment": {
         "status": "planned",
@@ -4018,8 +4018,8 @@
       },
       "repairPhase": "76",
       "helpArticle": {
-        "status": "planned",
-        "ref": "help/expenses"
+        "status": "existing",
+        "ref": "help.expenses"
       },
       "tourTreatment": {
         "status": "planned",
@@ -4576,7 +4576,7 @@
       "repairPhase": "77",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help Offline and updates"
+        "ref": "help.save-and-sync"
       },
       "tourTreatment": {
         "status": "planned",
@@ -4730,17 +4730,17 @@
         "docs/phase-reports/phase-77.md",
         "artifacts/phase77/cold-offline-pwa.json"
       ],
-      "blockerOrDefect": null,
+      "blockerOrDefect": "DEF-V2-003",
       "authorization": "Trusted-device consent + durable offline boot context; live API auth revalidated before sync.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
       "platforms": {
-        "web": "supported",
-        "installedPwa": "supported",
-        "android": "supported",
+        "web": "partial",
+        "installedPwa": "partial",
+        "android": "partial",
         "iosNative": "gated"
       },
       "releaseCapability": {
-        "local": "available",
+        "local": "partial",
         "hostedPreview": "partial"
       },
       "id": "offline.cold-reopen",
@@ -4761,20 +4761,20 @@
         "apps/web/src/data/indexedDbRepository.ts",
         "docs/decisions/0077-trusted-device-offline-boot-and-session.md"
       ],
-      "readiness": "verified_local",
-      "acceptanceJourney": "Trusted device seeds local records online, process closes, reopen offline via public shell, Cache Storage has no private responses.",
-      "observedResult": "pass",
+      "readiness": "blocked",
+      "acceptanceJourney": "Trusted device seeds local records online, process closes, reopen offline via installed PWA or self-contained native build; Cache Storage has no private responses.",
+      "observedResult": "fail",
       "evidenceMeta": {
         "date": "2026-10-27",
-        "revision": "pending-phase77-commit",
+        "revision": "a4fb4cc",
         "environment": "local-windows-edge-cdp-static-fixture",
-        "platform": "installedPwa-fixture",
+        "platform": "browser-static-fixture",
         "evidenceLayer": "browser_ui"
       },
       "repairPhase": "77",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help Offline and updates"
+        "ref": "help.offline-reopen"
       },
       "tourTreatment": {
         "status": "planned",
@@ -6271,7 +6271,7 @@
       "repairPhase": "78",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help"
+        "ref": "help.using-help"
       },
       "tourTreatment": {
         "status": "existing",
@@ -6323,7 +6323,7 @@
       "repairPhase": "79",
       "helpArticle": {
         "status": "existing",
-        "ref": "/help Getting started"
+        "ref": "help.using-help"
       },
       "tourTreatment": {
         "status": "existing",
@@ -6374,8 +6374,8 @@
       },
       "repairPhase": "82",
       "helpArticle": {
-        "status": "planned",
-        "ref": "help/contact"
+        "status": "existing",
+        "ref": "help.support-and-feedback"
       },
       "tourTreatment": {
         "status": "planned",
@@ -6425,8 +6425,8 @@
       },
       "repairPhase": "82",
       "helpArticle": {
-        "status": "planned",
-        "ref": "help/feedback"
+        "status": "existing",
+        "ref": "help.support-and-feedback"
       },
       "tourTreatment": {
         "status": "planned",
@@ -6836,25 +6836,25 @@
         "web"
       ],
       "severity": "critical",
-      "status": "resolved_local",
-      "userImpact": "Previously authorized trusted device cannot reopen local organizer when fully offline.",
-      "expected": "Safe public shell can unlock account-scoped local data without caching private HTML/API in shared Cache Storage.",
-      "observed": "Phase 77: offline-shell.html restores IndexedDB notes/tasks/queue offline; Cache Storage daynori-static-v8 has zero forbidden private entries (Edge CDP fixture).",
+      "userImpact": "Previously authorized trusted device cannot reopen local organizer when fully offline on an installed PWA or self-contained native build.",
+      "expected": "Safe public shell unlocks account-scoped local data without caching private HTML/API; proven on installed production PWA and installed native build.",
+      "observed": "Phase 77 shipped shell/quarantine (a4fb4cc). Edge CDP static-fixture drill passed; full installed production PWA cold reopen and native installed-build cold launch remain unmet. Phase 77 status blocked.",
       "reproduction": [
-        "Install/register SW with public shell assets",
-        "Seed trusted consent + offline_boot + local records",
-        "Go fully offline and cold reopen",
-        "Observe organizer shell (not explanatory offline.html alone)"
+        "Install production PWA (not static fixture alone)",
+        "Seed trusted consent + offline_boot + local records online",
+        "Terminate process, go fully offline, cold reopen",
+        "Repeat on self-contained native installed build"
       ],
-      "environment": "local-windows-edge-cdp-static-fixture",
+      "environment": "local-windows-edge-cdp-static-fixture; adb devices empty at native drill",
       "evidenceRefs": [
         "docs/decisions/0077-trusted-device-offline-boot-and-session.md",
         "docs/phase-reports/phase-77.md",
-        "artifacts/phase77/cold-offline-pwa.json"
+        "artifacts/phase77/cold-offline-pwa.json",
+        "artifacts/phase77/cold-offline-native.json"
       ],
-      "workaround": "n/a — local cold reopen verified; reconnect still required for sync.",
-      "dependency": "Native self-contained installed-build cold launch remains unmet without device attestation.",
-      "nextAction": "Optional: attest installed Android offline reopen with DAYNORI_NATIVE_OFFLINE_OK=1.",
+      "workaround": "Use already-open warm session offline, or reconnect. Static-fixture shell is engineering evidence only.",
+      "dependency": "Installed-PWA cold reopen + DAYNORI_NATIVE_OFFLINE_OK attestation on installed build.",
+      "nextAction": "Complete installed-PWA and native cold-launch drills before marking Phase 77 complete.",
       "owningPhase": "77"
     },
     {

@@ -13,6 +13,7 @@ export type ActiveModal =
   | 'all-features'
   | 'onboarding'
   | 'onboarding-replay'
+  | 'help-catalog'
   | 'sync-diagnostics'
   | 'recovery-export'
   | 'conflict-review'

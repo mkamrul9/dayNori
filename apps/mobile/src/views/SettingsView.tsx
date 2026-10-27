@@ -23,6 +23,7 @@ export interface SettingsViewProps {
   onOpenGallery?: () => void;
   onOpenAllFeatures?: () => void;
   onOpenOnboarding?: () => void;
+  onOpenHelpCatalog?: () => void;
   onClose: () => void;
   /** Operator-only: synthetic auth / gallery / harness entry. */
   isOperator?: boolean;
@@ -68,6 +69,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenGallery,
   onOpenAllFeatures,
   onOpenOnboarding,
+  onOpenHelpCatalog,
   onClose,
   isOperator = false,
   testID = 'settings-view',
@@ -812,7 +814,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {show('help') ? (
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
-          Tutorial & Getting Started
+          Help & Getting Started
         </Text>
         <MobileCard themeMode={themeMode}>
           <Text
@@ -821,18 +823,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               { color: palette.text.secondary, marginBottom: spacing.sm },
             ]}
           >
-            Review the first-use guide, customize your preferred module shortcuts, or explore
-            starter templates:
+            Search task-based Help, Learn the app chapters, or replay the beginner guide without
+            resetting settings:
           </Text>
-          <MobileButton
-            testID="btn-replay-tutorial"
-            variant="secondary"
-            themeMode={themeMode}
-            onPress={onOpenOnboarding}
-            accessibilityLabel="Replay Onboarding Tutorial"
-          >
-            <Icon name="book" /> Replay Onboarding Tutorial <Icon name="arrow-right" />
-          </MobileButton>
+          <View style={{ gap: spacing.xs }}>
+            <MobileButton
+              testID="btn-open-help-catalog"
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenHelpCatalog}
+              accessibilityLabel="Open Help catalog"
+            >
+              <Icon name="help" /> Open Help <Icon name="arrow-right" />
+            </MobileButton>
+            <MobileButton
+              testID="btn-replay-tutorial"
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenOnboarding}
+              accessibilityLabel="Replay Onboarding Tutorial"
+            >
+              <Icon name="book" /> Replay Onboarding Tutorial <Icon name="arrow-right" />
+            </MobileButton>
+          </View>
         </MobileCard>
       </View>
       ) : null}

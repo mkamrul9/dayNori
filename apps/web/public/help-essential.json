@@ -1,0 +1,91 @@
+{
+  "contentVersion": 1,
+  "generatedAt": "2026-10-27T10:59:30.357Z",
+  "note": "Public instructional subset only. No private HTML/API/user data.",
+  "articles": [
+    {
+      "id": "help.notes-and-library",
+      "title": "Notes, folders, and Library filters",
+      "summary": "Write notes, organize folders, and filter without moving items unintentionally.",
+      "steps": [
+        "Tap Create → Note. Status shows Unsaved, Saved on this device, Waiting to sync, Synchronized, or Failed — retry.",
+        "Empty titles become Untitled after save. Reopen the same note from Library or Search.",
+        "Library uses one workspace folder tree (depth up to five). Filters change the view only — Clear filters never moves items.",
+        "Folder moves keep the same ID, dates, and links. Trash/restore keeps recovery rules."
+      ],
+      "expectedResult": "Notes reopen with the same identity; filters do not rearrange storage.",
+      "failures": []
+    },
+    {
+      "id": "help.search",
+      "title": "Search coverage and limits",
+      "summary": "Search stays inside your workspace; offline search only covers locally stored records.",
+      "steps": [
+        "Open Search from the shell.",
+        "Results stay inside your authorized workspace. Vault items stay out of ordinary search.",
+        "Offline, search only covers records already on this device — coverage is not claimed as complete."
+      ],
+      "expectedResult": "You see honest results or an empty state; Help search never queries private notes for instructional lookup.",
+      "failures": []
+    },
+    {
+      "id": "help.save-and-sync",
+      "title": "Local save, sync, and conflicts",
+      "summary": "Saved on this device is not the same as server acknowledgment. Resolve conflicts explicitly.",
+      "steps": [
+        "Edit as usual. Watch status: Unsaved → Saved on this device → Waiting to sync → Synchronized (or Failed — retry).",
+        "Pending mutations stay queued offline and retry with the same operation ID when online.",
+        "If Conflict appears, open conflict review. Keep both versions recoverable — never rely on client clock as winner."
+      ],
+      "expectedResult": "You can explain each status; long text is never silently replaced.",
+      "failures": []
+    },
+    {
+      "id": "help.offline-reopen",
+      "title": "Trusted-device offline and updates",
+      "summary": "Distinguish warm offline use, local browser shell evidence, and installed-PWA/native verification still outstanding.",
+      "steps": [
+        "While already open, edits queue offline and show honest unavailable states for remote-only features.",
+        "Trusted-device consent is required for durable browser storage. Missing consent or storage shows a truthful offline help page.",
+        "When an app update is ready: save work, then Update — or choose Later. Update will not activate while unsaved work remains.",
+        "Cold reopen: a public offline shell can restore local IndexedDB records on a trusted device. Installed production PWA and native installed-build cold launch verification may still be outstanding — do not treat engineering fixtures as a platform guarantee."
+      ],
+      "expectedResult": "You understand local vs cloud and Update/Later without losing drafts.",
+      "failures": [
+        {
+          "symptom": "Offline shell unavailable",
+          "recovery": "Grant trusted-device consent online once, ensure local data exists, then retry. Or reconnect."
+        },
+        {
+          "symptom": "Keys or storage missing",
+          "recovery": "Follow recovery limits; never expect plaintext fallbacks for native encryption failures."
+        }
+      ]
+    },
+    {
+      "id": "help.export-import",
+      "title": "Export, import, and Trash",
+      "summary": "Move data with validation; Trash restore and deletion limits stay explicit.",
+      "steps": [
+        "Open Settings / recovery or portability surfaces for Export.",
+        "Import only trusted files; invalid imports are rejected with validation errors.",
+        "Trash restore brings back eligible items; offline edits against deleted records stay recoverable drafts, not silent resurrection."
+      ],
+      "expectedResult": "Exports are workspace-scoped; Help never runs a destructive export/delete by being opened.",
+      "failures": []
+    },
+    {
+      "id": "help.using-help",
+      "title": "Search Help and Learn the app",
+      "summary": "Find articles, open Learn the app chapters, and replay the beginner guide without losing drafts.",
+      "steps": [
+        "Open Help. Use Search how-to for instructional content only.",
+        "Browse categories or Common tasks. Open an article for steps and recovery.",
+        "Use Learn the app for chapter links. Replay beginner guide from Help when offered — it does not reset settings.",
+        "Contextual Help from editors opens the article without discarding unsaved text."
+      ],
+      "expectedResult": "You can find guidance offline for essential recovery articles without live AI.",
+      "failures": []
+    }
+  ]
+}

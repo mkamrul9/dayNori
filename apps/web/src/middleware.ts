@@ -100,7 +100,7 @@ export const config = {
   matcher: [
     {
       source:
-        '/((?!api|_next/static|_next/image|favicon.ico|sw.js|offline.html|offline-shell.html|offline-shell.js|manifest.json).*)',
+        '/((?!api|_next/static|_next/image|favicon.ico|sw.js|offline.html|offline-shell.html|offline-shell.js|help-essential.json|manifest.json).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' },
