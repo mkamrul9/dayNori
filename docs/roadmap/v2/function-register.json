@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": "65",
-  "generatedAt": "2026-10-25",
+  "generatedAt": "2026-10-27T05:39:03.618Z",
   "baseRevision": "de6fab279c3e7547606525cae3655b19841bb5dc",
   "nominatedEnvironment": {
     "os": "win32 10.0.26200",
@@ -2299,15 +2299,15 @@
         "apps/api/src/routes/v1/calendar.ts",
         "apps/web/src/app/plan/calendar/page.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Open calendar; create event; open linked task.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "historical-or-untested",
-        "evidenceLayer": "browser_ui"
+        "date": "2026-10-27",
+        "revision": "phase73-wip",
+        "environment": "local-windows-daynori_test-phase26",
+        "platform": "api-local",
+        "evidenceLayer": "api_integration"
       },
       "repairPhase": "73",
       "helpArticle": {
@@ -2357,15 +2357,15 @@
         "apps/api/src/routes/v1/calendar.ts",
         "apps/web/src/app/plan/calendar/page.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Open calendar; create event; open linked task.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "historical-or-untested",
-        "evidenceLayer": "browser_ui"
+        "date": "2026-10-27",
+        "revision": "phase73-wip",
+        "environment": "local-windows-daynori_test-phase26",
+        "platform": "api-local",
+        "evidenceLayer": "api_integration"
       },
       "repairPhase": "73",
       "helpArticle": {
@@ -2415,15 +2415,15 @@
         "apps/api/src/routes/v1/calendar.ts",
         "apps/web/src/app/plan/calendar/page.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Open calendar; create event; open linked task.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "historical-or-untested",
-        "evidenceLayer": "browser_ui"
+        "date": "2026-10-27",
+        "revision": "phase73-wip",
+        "environment": "local-windows-daynori_test-phase26",
+        "platform": "api-local",
+        "evidenceLayer": "api_integration"
       },
       "repairPhase": "73",
       "helpArticle": {
@@ -2473,15 +2473,15 @@
         "apps/api/src/routes/v1/calendar.ts",
         "apps/web/src/app/plan/calendar/page.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Open calendar; create event; open linked task.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "historical-or-untested",
-        "evidenceLayer": "browser_ui"
+        "date": "2026-10-27",
+        "revision": "phase73-wip",
+        "environment": "local-windows-daynori_test-phase26",
+        "platform": "api-local",
+        "evidenceLayer": "api_integration"
       },
       "repairPhase": "73",
       "helpArticle": {
@@ -2531,15 +2531,15 @@
         "apps/api/src/routes/v1/calendar.ts",
         "apps/web/src/app/plan/calendar/page.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Open calendar; create event; open linked task.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "historical-or-untested",
-        "evidenceLayer": "browser_ui"
+        "date": "2026-10-27",
+        "revision": "phase73-wip",
+        "environment": "local-windows-phase73-unit-source",
+        "platform": "web-and-android-source",
+        "evidenceLayer": "domain_unit"
       },
       "repairPhase": "73",
       "helpArticle": {

@@ -86,4 +86,4 @@ Limits: create note/task/routine reopen UI flakiness (3 fails) unrelated to auth
 
 ## Handoff
 
-Phase 72 **complete**. Do **not** auto-start Phase 73: it still lists Phase **71** as a hard dependency. Next eligible work: finish remaining Phase 71 acceptance (TalkBack + isolation attribution) or other phases whose dependencies are already complete. Release gates unchanged.
+Phase 72 **complete**. [ADR 0073](../decisions/0073-phase-73-before-phase-71-acceptance.md) later authorized Phase 73 before Phase 71 acceptance; Phase 71 remains blocked. Release gates unchanged.

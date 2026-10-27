@@ -133,6 +133,16 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
   );
   const [disambiguationNotice, setDisambiguationNotice] = useState<string | null>(null);
 
+  // Required-fields-first: optional folder/priority/notes/tags/subtasks live under Details.
+  const hasOptionalSeed =
+    Boolean((initialDetails || '').trim()) ||
+    initialPriority !== 'normal' ||
+    initialStatus !== 'todo' ||
+    Boolean(initialFolderId) ||
+    initialTags.length > 0 ||
+    initialSubtasks.length > 0;
+  const [detailsExpanded, setDetailsExpanded] = useState(hasOptionalSeed);
+
   // Check local time disambiguation when timed deadline fields change
   useEffect(() => {
     if (
@@ -411,125 +421,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
             />
           </div>
 
-          {/* Details / Description */}
-          <div style={{ marginBottom: `${spacing.base}px` }}>
-            <label
-              htmlFor="task-details-input"
-              style={{
-                display: 'block',
-                fontSize: `${typography.webScale.supporting}px`,
-                fontFamily: typography.fontFamily.sans,
-                color: palette.text.secondary,
-                marginBottom: '4px',
-              }}
-            >
-              Details / Notes
-            </label>
-            <textarea
-              id="task-details-input"
-              rows={3}
-              disabled={readOnly}
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              placeholder="Add description or context..."
-              style={{
-                width: '100%',
-                padding: `${spacing.sm}px ${spacing.base}px`,
-                borderRadius: radii.card,
-                border: `1px solid ${palette.border.subtle}`,
-                backgroundColor: palette.background,
-                color: palette.text.primary,
-                fontSize: '14px',
-                resize: 'vertical',
-                boxSizing: 'border-box',
-                fontFamily: 'inherit',
-              }}
-            />
-          </div>
-
-          {/* Priority & Status Controls */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: `${spacing.base}px`,
-              marginBottom: `${spacing.base}px`,
-            }}
-          >
-            {/* Priority */}
-            <div>
-              <label
-                htmlFor="task-priority-select"
-                style={{
-                  display: 'block',
-                  fontSize: `${typography.webScale.supporting}px`,
-                  fontFamily: typography.fontFamily.sans,
-                  color: palette.text.secondary,
-                  marginBottom: '4px',
-                }}
-              >
-                Priority
-              </label>
-              <select
-                id="task-priority-select"
-                disabled={readOnly}
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                style={{
-                  width: '100%',
-                  padding: `${spacing.sm}px`,
-                  borderRadius: radii.card,
-                  border: `1px solid ${palette.border.subtle}`,
-                  backgroundColor: palette.background,
-                  color: palette.text.primary,
-                  fontSize: '14px',
-                }}
-              >
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-
-            {/* Status */}
-            <div>
-              <label
-                htmlFor="task-status-select"
-                style={{
-                  display: 'block',
-                  fontSize: `${typography.webScale.supporting}px`,
-                  fontFamily: typography.fontFamily.sans,
-                  color: palette.text.secondary,
-                  marginBottom: '4px',
-                }}
-              >
-                Status
-              </label>
-              <select
-                id="task-status-select"
-                disabled={readOnly}
-                value={status}
-                onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                style={{
-                  width: '100%',
-                  padding: `${spacing.sm}px`,
-                  borderRadius: radii.card,
-                  border: `1px solid ${palette.border.subtle}`,
-                  backgroundColor: palette.background,
-                  color: palette.text.primary,
-                  fontSize: '14px',
-                }}
-              >
-                <option value="todo">To Do</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Deadline Section */}
+          {/* Deadline Section (primary planning field — stays above optional Details) */}
           <div
             style={{
               marginBottom: `${spacing.base}px`,
@@ -795,6 +687,142 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
             )}
           </div>
 
+          {/* Optional fields — folder, priority, notes, tags, subtasks */}
+          <details
+            id="task-editor-details"
+            open={detailsExpanded}
+            onToggle={(e) => setDetailsExpanded((e.target as HTMLDetailsElement).open)}
+            style={{ marginBottom: `${spacing.lg}px` }}
+          >
+            <summary
+              style={{
+                cursor: 'pointer',
+                fontSize: `${typography.webScale.supporting}px`,
+                fontFamily: typography.fontFamily.sans,
+                fontWeight: 600,
+                color: palette.text.primary,
+                marginBottom: `${spacing.sm}px`,
+                listStyle: 'revert',
+              }}
+            >
+              Details (optional)
+            </summary>
+
+          {/* Details / Description */}
+          <div style={{ marginBottom: `${spacing.base}px` }}>
+            <label
+              htmlFor="task-details-input"
+              style={{
+                display: 'block',
+                fontSize: `${typography.webScale.supporting}px`,
+                fontFamily: typography.fontFamily.sans,
+                color: palette.text.secondary,
+                marginBottom: '4px',
+              }}
+            >
+              Notes
+            </label>
+            <textarea
+              id="task-details-input"
+              rows={3}
+              disabled={readOnly}
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Add description or context..."
+              style={{
+                width: '100%',
+                padding: `${spacing.sm}px ${spacing.base}px`,
+                borderRadius: radii.card,
+                border: `1px solid ${palette.border.subtle}`,
+                backgroundColor: palette.background,
+                color: palette.text.primary,
+                fontSize: '14px',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+                fontFamily: 'inherit',
+              }}
+            />
+          </div>
+
+          {/* Priority & Status Controls */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: `${spacing.base}px`,
+              marginBottom: `${spacing.base}px`,
+            }}
+          >
+            <div>
+              <label
+                htmlFor="task-priority-select"
+                style={{
+                  display: 'block',
+                  fontSize: `${typography.webScale.supporting}px`,
+                  fontFamily: typography.fontFamily.sans,
+                  color: palette.text.secondary,
+                  marginBottom: '4px',
+                }}
+              >
+                Priority
+              </label>
+              <select
+                id="task-priority-select"
+                disabled={readOnly}
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                style={{
+                  width: '100%',
+                  padding: `${spacing.sm}px`,
+                  borderRadius: radii.card,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.background,
+                  color: palette.text.primary,
+                  fontSize: '14px',
+                }}
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="task-status-select"
+                style={{
+                  display: 'block',
+                  fontSize: `${typography.webScale.supporting}px`,
+                  fontFamily: typography.fontFamily.sans,
+                  color: palette.text.secondary,
+                  marginBottom: '4px',
+                }}
+              >
+                Status
+              </label>
+              <select
+                id="task-status-select"
+                disabled={readOnly}
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                style={{
+                  width: '100%',
+                  padding: `${spacing.sm}px`,
+                  borderRadius: radii.card,
+                  border: `1px solid ${palette.border.subtle}`,
+                  backgroundColor: palette.background,
+                  color: palette.text.primary,
+                  fontSize: '14px',
+                }}
+              >
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+
           {/* Folder & Tags */}
           <div
             style={{
@@ -931,7 +959,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
           </div>
 
           {/* Subtasks Section */}
-          <div style={{ marginBottom: `${spacing.lg}px` }}>
+          <div style={{ marginBottom: `${spacing.base}px` }}>
             <span
               style={{
                 display: 'block',
@@ -1037,6 +1065,7 @@ export const TaskDetailEditor: React.FC<TaskDetailEditorProps> = ({
               </div>
             )}
           </div>
+          </details>
 
           {/* Action Footer — sticky on mobile so Save/Cancel stay reachable with keyboard */}
           <div

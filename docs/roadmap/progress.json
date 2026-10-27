@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-27",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 72 complete (2026-10-27). Phase 73 remains unready: dependsOn includes incomplete Phase 71. Phase 71 stays blocked (spoken TalkBack listen-through; remaining Phase 71–owned isolation/search attribution). No other planned phase has all dependencies complete. Do not auto-start Phase 73. Release gates unchanged. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
+  "schedulingDecision": "Phase 73 complete (2026-10-27) under ADR 0073. Phase 74 remains unready: dependsOn includes incomplete Phase 71. Phase 71 stays blocked (spoken TalkBack listen-through; remaining verification gaps) and must not be marked complete or waived. No other planned phase has all dependencies complete. Release gates and security requirements unchanged. Phase 99 retains deferred Phase 67 five-participant prototype review before V2 release.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -420,7 +420,7 @@
     {
       "id": "71",
       "status": "blocked",
-      "reason": "Phase 72 completed auth/provision/switch repairs under ADR 0072. Phase 71 source/device progress retained (CSPRNG; device chrome 13/13; routine/local-save refresh; IME Create; Journal hide/restore). Remaining Phase 71 acceptance: spoken TalkBack listen-through; re-attribute isolation/search evidence to this phase if still required for its commit. See docs/phase-reports/phase-71.md.",
+      "reason": "Phase 73 completed under ADR 0073 without waiving Phase 71. Remaining Phase 71 acceptance: spoken TalkBack listen-through; remaining verification gaps. Do not mark complete or waive. See docs/phase-reports/phase-71.md and ADR 0073.",
       "report": "docs/phase-reports/phase-71.md"
     },
     {
@@ -430,7 +430,8 @@
     },
     {
       "id": "73",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-73.md"
     },
     {
       "id": "74",

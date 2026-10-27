@@ -399,6 +399,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const [editDeadlineTime, setEditDeadlineTime] = useState('12:00');
   const [editError, setEditError] = useState<string | null>(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [taskDetailsExpanded, setTaskDetailsExpanded] = useState(false);
 
   // Undo Toast state
   const [undoToast, setUndoToast] = useState<{
@@ -1191,7 +1192,32 @@ export const PlanView: React.FC<PlanViewProps> = ({
       setEditDeadlineDate(getCalendarDateInTimezone(new Date(), userTimezone));
       setEditDeadlineTime('12:00');
     }
+    const subtaskCount = tasks.filter((t) => t.parentId === task.id).length;
+    setTaskDetailsExpanded(
+      Boolean((task.details || '').trim()) ||
+        task.priority !== 'normal' ||
+        task.status !== 'todo' ||
+        subtaskCount > 0
+    );
     setEditError(null);
+  };
+
+  const handleOpenCalendarItem = (item: CalendarItem) => {
+    if (item.sourceType === 'task_deadline') {
+      const task = tasks.find((t) => t.id === item.taskId && t.deletedAt === null);
+      if (task) handleOpenDetail(task);
+      return;
+    }
+    if (item.sourceType === 'routine_occurrence') {
+      const routine = routineRecords.find((r) => r.id === item.routineId && r.deletedAt === null);
+      if (routine) setEditingRoutine(routine);
+      return;
+    }
+    if (item.sourceType === 'calendar_event') {
+      // Personal events stay on the calendar surface; edits target the same event id.
+      setActiveSubView('calendar');
+      setCalendarViewMode('agenda');
+    }
   };
 
   // Save Detail Sheet with verified timezone rules and no fixed 18:00 UTC substitution
@@ -1992,7 +2018,14 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   }
 
                   return (
-                    <View key={item.id} style={styles.calendarItemRow}>
+                    <Pressable
+                      key={item.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${badgeLabel}: ${getItemTitle(item)}`}
+                      testID={`plan-calendar-item-${item.id}`}
+                      onPress={() => handleOpenCalendarItem(item)}
+                      style={styles.calendarItemRow}
+                    >
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.taskTitle, { color: palette.text.primary }]}>
                           {getItemTitle(item)}
@@ -2006,7 +2039,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                           {badgeLabel}
                         </Text>
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })
               )}
@@ -2097,7 +2130,14 @@ export const PlanView: React.FC<PlanViewProps> = ({
                         </View>
                       ) : (
                         dayItems.map((item) => (
-                          <View key={item.id} style={styles.calendarItemRow}>
+                          <Pressable
+                            key={item.id}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Open calendar item: ${getItemTitle(item)}`}
+                            testID={`plan-calendar-day-item-${item.id}`}
+                            onPress={() => handleOpenCalendarItem(item)}
+                            style={styles.calendarItemRow}
+                          >
                             <View style={{ flex: 1 }}>
                               <Text style={[styles.taskTitle, { color: palette.text.primary }]}>
                                 {getItemTitle(item)}
@@ -2146,7 +2186,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                                 )}
                               </Text>
                             </View>
-                          </View>
+                          </Pressable>
                         ))
                       )}
                     </View>
@@ -2522,47 +2562,10 @@ export const PlanView: React.FC<PlanViewProps> = ({
               onChangeText={setEditTitle}
               placeholder="Task title"
               themeMode={themeMode}
+              testID="plan-task-title-input"
             />
 
-            <MobileTextField
-              label="Details / Notes"
-              value={editDetails}
-              onChangeText={setEditDetails}
-              placeholder="Add description or notes..."
-              themeMode={themeMode}
-            />
-
-            {/* Priority Selector */}
-            <View style={styles.sheetFieldGroup}>
-              <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Priority</Text>
-              <View style={styles.sheetPillRow}>
-                {(['low', 'normal', 'high', 'urgent'] as const).map((p) => (
-                  <Pressable
-                    key={p}
-                    onPress={() => setEditPriority(p)}
-                    style={[
-                      styles.sheetPill,
-                      {
-                        backgroundColor:
-                          editPriority === p ? palette.action.primary : palette.surface,
-                        borderColor: palette.border.subtle,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.sheetPillText,
-                        { color: editPriority === p ? palette.action.label : palette.text.primary },
-                      ]}
-                    >
-                      {p.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* Deadline Selector */}
+            {/* Deadline Selector (primary) */}
             <View style={styles.sheetFieldGroup}>
               <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Deadline</Text>
               <View style={styles.sheetPillRow}>
@@ -2618,6 +2621,67 @@ export const PlanView: React.FC<PlanViewProps> = ({
               )}
             </View>
 
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: taskDetailsExpanded }}
+              accessibilityLabel="Details optional"
+              testID="plan-task-details-toggle"
+              onPress={() => setTaskDetailsExpanded((open) => !open)}
+              style={[
+                styles.sheetFieldGroup,
+                {
+                  borderWidth: 1,
+                  borderColor: palette.border.subtle,
+                  borderRadius: radii.sm,
+                  padding: spacing.sm,
+                },
+              ]}
+            >
+              <Text style={[styles.sheetLabel, { color: palette.text.primary, marginBottom: 0 }]}>
+                {taskDetailsExpanded ? 'Hide details' : 'Details (optional)'}
+              </Text>
+            </Pressable>
+
+            {taskDetailsExpanded && (
+              <>
+            <MobileTextField
+              label="Notes"
+              value={editDetails}
+              onChangeText={setEditDetails}
+              placeholder="Add description or notes..."
+              themeMode={themeMode}
+            />
+
+            {/* Priority Selector */}
+            <View style={styles.sheetFieldGroup}>
+              <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Priority</Text>
+              <View style={styles.sheetPillRow}>
+                {(['low', 'normal', 'high', 'urgent'] as const).map((p) => (
+                  <Pressable
+                    key={p}
+                    onPress={() => setEditPriority(p)}
+                    style={[
+                      styles.sheetPill,
+                      {
+                        backgroundColor:
+                          editPriority === p ? palette.action.primary : palette.surface,
+                        borderColor: palette.border.subtle,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetPillText,
+                        { color: editPriority === p ? palette.action.label : palette.text.primary },
+                      ]}
+                    >
+                      {p.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
             {/* Subtasks Section */}
             <View style={styles.sheetFieldGroup}>
               <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Subtasks</Text>
@@ -2635,6 +2699,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
                 <MobileButton title="+ Add" onPress={handleAddSubtask} themeMode={themeMode} />
               </View>
             </View>
+              </>
+            )}
 
             <View style={styles.sheetActionsRow}>
               <MobileButton

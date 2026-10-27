@@ -596,13 +596,16 @@ export default function PlanPage() {
     [tasks]
   );
 
-  // Resolve and reauthorize notification arrival query parameters (?targetId=...&targetType=...&workspaceId=...)
+  // Resolve canonical / notification deep links (?taskId= / ?task= / ?targetId=&targetType=…)
   useEffect(() => {
     if (typeof window === 'undefined' || !workspaceId || tasks.length === 0) return;
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const paramWsId = searchParams.get('workspaceId');
-      const targetId = searchParams.get('targetId');
+      const targetId =
+        searchParams.get('targetId') ||
+        searchParams.get('taskId') ||
+        searchParams.get('task');
       const targetType = searchParams.get('targetType') || 'task';
       const reminderInstanceId = searchParams.get('reminderInstanceId');
 

@@ -21,11 +21,15 @@ export default function HelpPage() {
         },
         {
           title: 'Add a task',
-          body: 'Tap Create, choose Task, then Save. See it on Today or in Plan.',
+          body: 'Tap Create, choose Task, enter a title (and deadline if needed), then Save. Open Details for notes, priority, folder, tags, or subtasks. See it on Today or in Plan.',
         },
         {
           title: 'Tasks vs routines',
-          body: 'A task finishes once. A routine repeats on a schedule. Both live under Plan.',
+          body: 'A task finishes once — completing it never copies it to tomorrow. A routine repeats on a schedule; each day stays independent. Both live under Plan.',
+        },
+        {
+          title: 'Calendar sources',
+          body: 'Plan → Calendar shows agenda by default on phones, with month available. Tap a task or routine projection to open that same record — personal events edit the same calendar event.',
         },
         {
           title: 'Journal',

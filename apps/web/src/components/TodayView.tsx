@@ -205,6 +205,24 @@ export const TodayView: React.FC = () => {
     setHasUnsupportedVersion(false);
   }, [workspaceId, user?.id]);
 
+  // Open canonical routine from calendar / deep links (?routineId=)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !workspaceId || routines.length === 0) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const routineId = params.get('routineId') || params.get('routine');
+      if (!routineId) return;
+      const found = routines.find((r) => r.id === routineId && !r.deletedAt);
+      if (found) {
+        setEditingRoutine(found);
+        setIsEditorOpen(true);
+        setLiveAnnouncement(`Opened routine: ${found.title}`);
+      }
+    } catch {
+      // Ignore malformed query strings
+    }
+  }, [workspaceId, routines]);
+
   useEffect(() => {
     if (!isEditorOpen) return;
     void import('../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(true));

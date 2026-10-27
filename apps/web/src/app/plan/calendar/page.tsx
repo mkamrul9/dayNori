@@ -1462,7 +1462,7 @@ function CalendarItemRow({ item, themeMode, onEditEvent, onDeleteEvent }: Calend
           </span>
           {isTask && (
             <Link
-              href={`/plan?task=${(item as { taskId: string }).taskId}`}
+              href={`/plan?taskId=${(item as { taskId: string }).taskId}`}
               style={{
                 fontSize: '11px',
                 color: palette.action.primary,
@@ -1471,6 +1471,19 @@ function CalendarItemRow({ item, themeMode, onEditEvent, onDeleteEvent }: Calend
               }}
             >
               View Task <Icon name="arrow-up-right" />
+            </Link>
+          )}
+          {isRoutine && (
+            <Link
+              href={`/?routineId=${(item as { routineId: string }).routineId}`}
+              style={{
+                fontSize: '11px',
+                color: palette.action.primary,
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              View Routine <Icon name="arrow-up-right" />
             </Link>
           )}
         </div>

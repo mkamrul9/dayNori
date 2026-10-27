@@ -84,6 +84,13 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasOptionalSeed = Boolean(
+    (initialRoutine?.details || '').trim() ||
+      initialRoutine?.scheduledTime ||
+      initialRoutine?.activeTo ||
+      initialRoutine?.isPaused
+  );
+  const [detailsExpanded, setDetailsExpanded] = useState(hasOptionalSeed || Boolean(initialRoutine?.id));
 
   useEffect(() => {
     if (initialRoutine) {
@@ -158,6 +165,16 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
 
       if (weekdays.length === 0) {
         setValidationError('Please select at least one weekday.');
+        return;
+      }
+      if (!activeFrom.trim()) {
+        setValidationError('Active from date is required.');
+        setDetailsExpanded(true);
+        return;
+      }
+      if (isEditing && !effectiveDate.trim()) {
+        setValidationError('Effective date is required when editing a routine schedule.');
+        setDetailsExpanded(true);
         return;
       }
 
@@ -323,42 +340,6 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
             />
           </div>
 
-          {/* Details / Description */}
-          <div>
-            <label
-              htmlFor="routine-details-input"
-              style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: palette.text.primary,
-                marginBottom: '4px',
-              }}
-            >
-              Description / Notes (optional)
-            </label>
-            <textarea
-              id="routine-details-input"
-              rows={2}
-              maxLength={1000}
-              placeholder="e.g., Focus on non-fiction or career books"
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: `${radii.sm}px`,
-                border: `1px solid ${palette.border.strong}`,
-                backgroundColor: palette.surfaceRaised,
-                color: palette.text.primary,
-                fontSize: `${typography.webScale.body}px`,
-                boxSizing: 'border-box',
-                outline: 'none',
-                resize: 'vertical',
-              }}
-            />
-          </div>
-
           {/* Frequency Selector */}
           <div>
             <label
@@ -461,6 +442,60 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
             </div>
           )}
 
+          <details
+            id="routine-editor-details"
+            open={detailsExpanded}
+            onToggle={(e) => setDetailsExpanded((e.target as HTMLDetailsElement).open)}
+          >
+            <summary
+              style={{
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: palette.text.primary,
+                marginBottom: `${spacing.sm}px`,
+                listStyle: 'revert',
+              }}
+            >
+              Details (optional)
+            </summary>
+
+          {/* Details / Description */}
+          <div>
+            <label
+              htmlFor="routine-details-input"
+              style={{
+                display: 'block',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: palette.text.primary,
+                marginBottom: '4px',
+              }}
+            >
+              Description / Notes
+            </label>
+            <textarea
+              id="routine-details-input"
+              rows={2}
+              maxLength={1000}
+              placeholder="e.g., Focus on non-fiction or career books"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: `${radii.sm}px`,
+                border: `1px solid ${palette.border.strong}`,
+                backgroundColor: palette.surfaceRaised,
+                color: palette.text.primary,
+                fontSize: `${typography.webScale.body}px`,
+                boxSizing: 'border-box',
+                outline: 'none',
+                resize: 'vertical',
+              }}
+            />
+          </div>
+
           {/* Scheduled Time & Timezone */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.sm}px` }}>
             <div>
@@ -544,7 +579,6 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
               <input
                 id="routine-active-from"
                 type="date"
-                required
                 value={activeFrom}
                 onChange={(e) => setActiveFrom(e.target.value)}
                 style={{
@@ -577,7 +611,6 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
                 <input
                   id="routine-effective-date"
                   type="date"
-                  required
                   value={effectiveDate}
                   onChange={(e) => setEffectiveDate(e.target.value)}
                   style={{
@@ -647,6 +680,7 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
               />
             </div>
           )}
+          </details>
 
           {/* Action buttons — sticky on mobile for keyboard reachability */}
           <div

@@ -2098,7 +2098,7 @@
       "id": "73",
       "group": "v2-everyday",
       "title": "Tasks routines and calendar workflow completion",
-      "dependsOn": ["69", "70", "71", "72"],
+      "dependsOn": ["69", "70", "72"],
       "scope": [
         "apps/web/src/app/plan",
         "apps/mobile/src/views/PlanView.tsx",
@@ -2125,7 +2125,9 @@
         "docs/roadmap/v2/feature-coverage.md",
         "docs/engineering/handoff.md",
         "docs/roadmap/v2/design-and-mobile.md",
-        "docs/product/requirements.md"
+        "docs/product/requirements.md",
+        "docs/decisions/0073-phase-73-before-phase-71-acceptance.md",
+        "docs/phase-reports/phase-71.md"
       ],
       "commit": "feat(planning): complete clear task routine and calendar journeys"
     },

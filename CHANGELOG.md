@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 73 — Tasks routines and calendar workflow completion — 2026-10-27
+
+- Required-fields-first task/routine editors (web + native Plan): title/deadline or schedule first; optional notes/priority/folder/tags/subtasks under Details.
+- Fix canonical calendar deep links (`taskId` / `routineId`) so projections open the same task or routine; Help and function-register calendar family updated.
+- Reconfirm no tomorrow copies on task completion and independent routine occurrences (domain + API journeys). Phase 71 TalkBack remains blocked. Commit: `feat(planning): complete clear task routine and calendar journeys`.
+
 ## Phase 72 — Welcome startup onboarding and authentication polish — 2026-10-27
 
 - Polish web/native auth copy and failure classification so outages/rate limits do not impersonate invalid credentials; keep sign-in distinct from workspace readiness with retry that preserves the session.
