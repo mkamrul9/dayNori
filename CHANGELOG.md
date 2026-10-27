@@ -1,5 +1,11 @@
 # Changelog
 
+## Phase 75 — Files and audio attachment readiness (blocked) — 2026-10-27
+
+- Harden private file/audio readiness: account-scoped web audio drafts + logout clear; Expo/mobile unsaved-recording preservation (`peekLastRecording`); non-production local memory storage and policy-scanner opt-ins (ADR 0075); Help upload/audio how-tos; `.env.example` storage/scanner placeholders.
+- Reconfirm cancel/retry/quota/delete and audio attachment local suites; function-register local readiness updated. Hosted preview uploads/audio stay off (DEF-V2-002).
+- Phase 75 remains **blocked** pending physical Android and nominated-browser capture evidence; completion commit deferred. Phase 71 TalkBack still blocked.
+
 ## Phase 74 — Library writing journal and search completion — 2026-10-27
 
 - Standing ADR 0074: Phase 71 unfinished verification no longer blocks later phases; completed phases commit and push to `origin/codex/free-core-preview` without force. Plan edges for 74/85/86/88/89/92/96 updated accordingly.

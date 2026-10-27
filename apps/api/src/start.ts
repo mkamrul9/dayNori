@@ -1,7 +1,10 @@
 import { buildServer } from './server.js';
 import { createRuntimePool } from './db/index.js';
 import { createConfiguredStorageProvider } from './modules/files/supabaseProvider.js';
-import { setDefaultStorageProvider } from './modules/files/storageAdapter.js';
+import {
+  MemoryStorageProvider,
+  setDefaultStorageProvider,
+} from './modules/files/storageAdapter.js';
 import { setDefaultMalwareScanner } from './modules/files/scanner.js';
 import { createConfiguredMalwareScanner } from './providers/index.js';
 
@@ -11,8 +14,18 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 }
 
 const pool = createRuntimePool();
-const storage =
-  process.env['DAYNORI_CORE_PREVIEW'] === 'true' ? null : createConfiguredStorageProvider(pool);
+const corePreview = process.env['DAYNORI_CORE_PREVIEW'] === 'true';
+const configuredStorage = corePreview ? null : createConfiguredStorageProvider(pool);
+const localMemoryStorage =
+  !corePreview &&
+  !configuredStorage &&
+  process.env['DAYNORI_LOCAL_MEMORY_STORAGE'] === 'true' &&
+  process.env['NODE_ENV'] !== 'production'
+    ? new MemoryStorageProvider(
+        process.env['DAYNORI_API_ORIGIN'] ?? `http://127.0.0.1:${port}`
+      )
+    : null;
+const storage = configuredStorage ?? localMemoryStorage;
 if (storage) setDefaultStorageProvider(storage);
 setDefaultMalwareScanner(createConfiguredMalwareScanner());
 const app = buildServer({ runtimePool: pool });

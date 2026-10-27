@@ -3626,7 +3626,8 @@
         "tests/integration/phase25-files-previews.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-75.md"
       ],
       "blockerOrDefect": "DEF-V2-002",
       "authorization": "Workspace member; private storage.",
@@ -3690,7 +3691,8 @@
         "tests/integration/phase25-files-previews.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-75.md"
       ],
       "blockerOrDefect": "DEF-V2-002",
       "authorization": "Workspace member; private storage.",
@@ -3746,14 +3748,24 @@
       "dependencies": [
         "hosted preview disables uploads (isCorePreview)"
       ],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "quota exhaustion",
+        "cancel before/during transfer",
+        "unauthorized delete",
+        "duplicate finalize"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase24-binary-upload.test.ts",
         "tests/integration/phase25-files-previews.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase24-binary-upload.test.ts",
+        "tests/integration/phase25-files-previews.test.ts",
+        "tests/unit/phase75-attachments-readiness.test.ts",
+        "docs/phase-reports/phase-75.md"
+      ],
       "blockerOrDefect": "DEF-V2-002",
       "authorization": "Workspace member; private storage.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -3783,13 +3795,13 @@
         "apps/web/src/app/files/page.tsx",
         "apps/worker/src/worker.ts"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Upload synthetic blob; scan; download bytes match.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
+        "date": "2026-10-27",
+        "revision": "b5cc40b",
+        "environment": "local-windows-daynori_test-memory-storage-policy-scanner",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
       },
@@ -3808,14 +3820,24 @@
       "dependencies": [
         "hosted preview disables uploads (isCorePreview)"
       ],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "quota exhaustion",
+        "cancel before/during transfer",
+        "unauthorized delete",
+        "duplicate finalize"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase24-binary-upload.test.ts",
         "tests/integration/phase25-files-previews.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase24-binary-upload.test.ts",
+        "tests/integration/phase25-files-previews.test.ts",
+        "tests/unit/phase75-attachments-readiness.test.ts",
+        "docs/phase-reports/phase-75.md"
+      ],
       "blockerOrDefect": "DEF-V2-002",
       "authorization": "Workspace member; private storage.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -3845,13 +3867,13 @@
         "apps/web/src/app/files/page.tsx",
         "apps/worker/src/worker.ts"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Upload synthetic blob; scan; download bytes match.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
+        "date": "2026-10-27",
+        "revision": "b5cc40b",
+        "environment": "local-windows-daynori_test-memory-storage-policy-scanner",
         "platform": "api-local",
         "evidenceLayer": "api_integration"
       },
@@ -3871,23 +3893,32 @@
         "mic permission",
         "not core preview"
       ],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "permission denied",
+        "oversize duration/bytes",
+        "account draft isolation",
+        "unsupported mime"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase41-audio-recording-attachment.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase41-audio-recording-attachment.test.ts",
+        "tests/unit/phase75-attachments-readiness.test.ts",
+        "docs/phase-reports/phase-75.md"
+      ],
       "blockerOrDefect": "DEF-V2-002",
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
       "platforms": {
-        "web": "partial",
+        "web": "supported",
         "installedPwa": "partial",
         "android": "partial",
         "iosNative": "gated"
       },
       "releaseCapability": {
-        "local": "partial",
+        "local": "available",
         "hostedPreview": "unavailable"
       },
       "id": "audio.record-attach",
@@ -3904,15 +3935,15 @@
         "apps/web/src/app/library/page.tsx",
         "packages/contracts/src/api/audio.ts"
       ],
-      "readiness": "blocked",
+      "readiness": "verified_local",
       "acceptanceJourney": "Grant mic; record; attach; playback; delete bytes.",
-      "observedResult": "unavailable",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "preview-gated",
-        "evidenceLayer": "browser_ui"
+        "date": "2026-10-27",
+        "revision": "b5cc40b",
+        "environment": "local-windows-synthetic-audio-memory-storage; physical Android mic pending",
+        "platform": "api-local+web-components",
+        "evidenceLayer": "api_integration"
       },
       "repairPhase": "75",
       "helpArticle": {
@@ -6673,19 +6704,19 @@
       "severity": "high",
       "userImpact": "Users on free hosted preview cannot upload files, attach audio, or receive reminders.",
       "expected": "Documented preview limits; full capability on non-preview environments after gates.",
-      "observed": "isCorePreview disables upload/audio UI; Help lists reminder delivery off.",
+      "observed": "Hosted/core preview still disables upload/audio UI (isCorePreview). Local non-preview API journeys pass with MemoryStorageProvider + PolicyMalwareScanner (explicit non-prod opt-in). live-storage-capabilities.test.ts remains mocked fetch transport — not live Supabase. Physical Android capture/playback evidence still required for Phase 75 completion.",
       "reproduction": [
         "Set NEXT_PUBLIC_DAYNORI_CORE_PREVIEW=true.",
         "Open Library — upload/audio controls disabled."
       ],
       "environment": "hosted-preview-config",
       "evidenceRefs": [
-        "apps/web/src/config/preview.ts",
-        "apps/web/src/app/help/page.tsx"
+        "docs/phase-reports/phase-75.md",
+        "apps/web/src/config/preview.ts"
       ],
       "workaround": "Use local non-preview builds for file/audio engineering tests.",
       "dependency": "Preview scope honesty; Phases 75/84 for readiness.",
-      "nextAction": "Keep preview claims accurate; repair/verify in Phases 75 and 84–85.",
+      "nextAction": "Keep preview claims accurate. Unblock Phase 75 with physical Android mic/browser capture evidence and/or authorized live storage+scanner environment; do not enable hosted preview uploads solely to pass tests.",
       "owningPhase": "75"
     },
     {

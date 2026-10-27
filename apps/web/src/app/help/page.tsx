@@ -44,6 +44,14 @@ export default function HelpPage() {
           body: 'Open Journal to write a private daily entry. Preview privacy lives under Settings → Privacy and data, and on the Journal list.',
         },
         {
+          title: 'Upload a file',
+          body: 'From Library, choose Upload, pick a supported type, and wait for processing before preview or download. Cancel releases the reservation; delete removes your reference and schedules private-byte cleanup. Storage quota includes reserved and stored bytes. Uploads stay off in the free hosted preview.',
+        },
+        {
+          title: 'Record audio',
+          body: 'Recording needs an explicit Start after microphone permission. Limits are 10 minutes and 25 MB for the recorder (file-upload audio ceiling can be higher). Pause, stop, review, then save to attach — never ambient or onboarding recording. Drafts stay account-scoped; Log out stops playback of the prior account. Separate from assistant transcription.',
+        },
+        {
           title: 'Find all features',
           body: 'Open All features from the shell header or sidebar. Search by name, then open a destination. Path: All features → destination (two navigation actions from the shell).',
         },

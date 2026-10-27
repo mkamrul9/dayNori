@@ -136,12 +136,29 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
+      // Persist a final durable draft from the in-memory blob before teardown so
+      // close/account interruption does not claim an unsaved buffer was lost when
+      // IndexedDB (or memory fallback) still holds recoverable bytes.
+      const blob = recordedBlob;
+      if (blob && blob.size > 0 && workspaceId) {
+        void blob.arrayBuffer().then((buffer) =>
+          saveDurableAudioDraft({
+            workspaceId,
+            accountId,
+            mimeType: recordedMimeType,
+            durationSeconds: Math.max(1, elapsedSecondsRef.current || elapsedSeconds),
+            byteSize: buffer.byteLength,
+            audioBuffer: buffer,
+          })
+        );
+      }
       cleanupMedia();
       setPhase('idle');
       setElapsedSeconds(0);
       setRecordedBlob(null);
       setFeedback(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- close transition only
   }, [isOpen, cleanupMedia]);
 
   // Select preferred supported mime type

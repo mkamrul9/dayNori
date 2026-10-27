@@ -516,6 +516,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (currentWsId) {
       void OfflineFileCache.clearWorkspace(currentWsId).catch(() => {});
+      // Stop prior-account audio draft playback/upload under the next session.
+      void import('@daynori/ui-web')
+        .then(({ clearDurableAudioDraft }) =>
+          clearDurableAudioDraft(currentWsId, currentUserId ?? undefined)
+        )
+        .catch(() => {});
     }
 
     // Clean up browser push subscription on backend and reset bound account state

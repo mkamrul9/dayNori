@@ -3476,6 +3476,7 @@ export default function LibraryPage() {
         onClose={() => setAudioRecorderOpen(false)}
         themeMode={themeMode}
         workspaceId={workspaceId || ''}
+        accountId={user?.id}
         attachedItemTitle={currentFolder ? currentFolder.name : 'Workspace Root'}
         attachedItemType="file"
         onSaveAudio={handleSaveRecordedAudio}

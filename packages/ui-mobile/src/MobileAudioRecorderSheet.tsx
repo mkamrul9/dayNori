@@ -109,10 +109,28 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
 
   useEffect(() => {
     if (!visible) {
+      // Release an in-progress capture (mic). A stopped review file stays on disk
+      // until explicit Discard — do not call discardRecordingAsync merely because
+      // the sheet closed after Stop.
       if (activeAdapter.isRecording()) {
         void activeAdapter.discardRecordingAsync().catch(() => {});
       }
       resetState();
+      return;
+    }
+
+    const prior = activeAdapter.peekLastRecording?.() ?? null;
+    if (prior && prior.uri && prior.byteSize > 0) {
+      setRecordedUri(prior.uri);
+      setRecordedBytes(prior.byteSize);
+      setRecordedDuration(prior.durationSeconds);
+      setRecordedFileName(prior.fileName);
+      setPhase('stopped');
+      setFeedback({
+        severity: 'info',
+        message:
+          'Recovered a previous unsaved recording on this device. Review, save, or discard it before starting a new one.',
+      });
     }
   }, [visible, activeAdapter, resetState]);
 
@@ -140,6 +158,14 @@ export const MobileAudioRecorderSheet: React.FC<MobileAudioRecorderSheetProps> =
   // Explicit user action to start recording
   const handleStartRecording = async () => {
     setFeedback(null);
+    if (phase === 'stopped' || recordedUri) {
+      setFeedback({
+        severity: 'warning',
+        message:
+          'An unsaved recording is waiting. Discard it explicitly before starting a new recording.',
+      });
+      return;
+    }
     try {
       const perm = await activeAdapter.requestPermissionsAsync();
       if (!perm.granted) {
