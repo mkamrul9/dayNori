@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "updatedAt": "2026-10-27",
   "activePhase": null,
-  "nextPhase": "77",
-  "schedulingDecision": "Phase 76 complete (2026-10-27) under ADR 0076. Next ready phase is 77 (dependsOn 72+73+74). Phase 75 stays blocked with real mic/browser/provider evidence outstanding (referenced attachment input only; no waiver). Phase 71 stays blocked (TalkBack) and is not a global scheduling blocker (ADR 0074). Hosted preview uploads/audio remain off (DEF-V2-002). Standing rule: completed phases push to origin/codex/free-core-preview without force.",
+  "nextPhase": null,
+  "schedulingDecision": "Phase 77 complete (2026-10-27). No nextPhase pointer: Phase 78 depends on blocked Phase 75 (do not waive). Phase 71 stays blocked (TalkBack). Standing push rule (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -451,11 +451,13 @@
     },
     {
       "id": "77",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-77.md"
     },
     {
       "id": "78",
-      "status": "planned"
+      "status": "planned",
+      "reason": "Depends on completed 72–74 and blocked Phase 75. Do not start until Phase 75 acceptance is met or the owner amends scheduling."
     },
     {
       "id": "79",

@@ -162,6 +162,8 @@ export class MobileProviderAuthAdapter {
     const opts = typeof options === 'boolean' ? { initialAuthenticated: options } : options;
     this.secureStore = opts?.secureStore ?? defaultSecureStorage;
     this.quarantineManager = opts?.quarantineManager ?? defaultDraftQuarantine;
+    // Phase 77: restore durable quarantine after process restart (best-effort).
+    void this.quarantineManager.hydrate().catch(() => undefined);
     const runtime = getMobileRuntimeConfig();
     this.supabaseUrl = opts?.supabaseUrl ?? runtime.supabaseUrl;
     this.supabaseAnonKey = opts?.supabaseAnonKey ?? runtime.supabaseAnonKey;
@@ -858,6 +860,11 @@ export class MobileProviderAuthAdapter {
         'mobile_uncommitted_draft',
         uncommittedDraft
       );
+      try {
+        await this.quarantineManager.flush();
+      } catch {
+        // Quarantine remains in memory; secure-store flush failure must not block sign-out.
+      }
     }
 
     // Bump generation first so in-flight provision/sign-in cannot apply to the next account.

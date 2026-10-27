@@ -18,12 +18,12 @@ Update banners shared the same screen corner.
    shared Cache Storage.
 2. **Already-open sessions** continue offline through account-scoped IndexedDB repositories
    and the sync mutation queue. UI must show an honest offline/sync status.
-3. **Cold offline launch** (app closed, then opened with no network) serves the improved
-   public `offline.html` shell explaining that this device needs a prior signed-in session
-   and that reconnecting restores cloud sync. While online, the client may post observed
-   allowlisted `/_next/static` URLs to the service worker (`PRECACHE_PUBLIC_STATIC`) to warm
-   Cache Storage. Authenticated HTML, RSC, and APIs remain uncached. Cold reopen still
-   cannot reconstruct private organizer screens without a network.
+3. **Cold offline launch** (historical): served the improved public `offline.html` shell.
+   Authenticated HTML, RSC, and APIs remain uncached; while online the client may post
+   allowlisted `/_next/static` URLs (`PRECACHE_PUBLIC_STATIC`). **Superseded for product
+   cold-reopen by [ADR 0077](0077-trusted-device-offline-boot-and-session.md):** trusted
+   devices may reopen a public executable shell that restores account-scoped IndexedDB.
+   Private-cache bans and safe Update/Later rules in this ADR remain in force.
 4. **Safe updates:** document-level `data-daynori-unsaved` signals dirty editors. The Update
    action refuses to activate SKIP_WAITING while unsaved; Later dismisses; no unconditional
    timed reload while dirty; drafts/IndexedDB/receipts are never cleared as an update fix.
@@ -35,6 +35,6 @@ Update banners shared the same screen corner.
 
 ## Consequences
 
-Full offline reopen of every screen without a prior warm JS cache remains a tracked gap.
+Trusted-device cold reopen of local organizer screens is specified in ADR 0077 / Phase 77.
 Rooms/chat stay production-disabled without a separate reviewed preview capability.
 Physical Android verification and owner login remain required for account evidence.

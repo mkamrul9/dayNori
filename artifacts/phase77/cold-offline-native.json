@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-27T10:35:37.219Z",
+  "revision": "b36f97c832bc08eb8a0fb15b334f70eefba829c9",
+  "result": "unmet",
+  "steps": [
+    {
+      "step": "adb-devices",
+      "status": "skipped",
+      "details": "{\"online\":[],\"raw\":[]}"
+    }
+  ],
+  "limits": [
+    "No online adb device; native cold launch unmet"
+  ]
+}

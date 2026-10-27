@@ -4,6 +4,10 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import type { AuthSession, SignInResponse, SignUpResponse } from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
 import { OfflineFileCache } from '../data/offlineFileCache.js';
+import {
+  getTrustedDeviceConsent,
+  IndexedDbLocalRepository,
+} from '../data/indexedDbRepository';
 import { cleanupWebPushOnSignOutAsync } from '../notifications/webPushManager';
 
 export interface AuthUser {
@@ -511,6 +515,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const currentUserId = user?.id;
     const currentWsId = workspaceId;
+
+    // Phase 77: durable quarantine of editor drafts + mark repo drafts quarantined.
+    if (currentUserId && currentWsId && getTrustedDeviceConsent()) {
+      try {
+        const repo = new IndexedDbLocalRepository();
+        await repo.initialize({ userId: currentUserId, workspaceId: currentWsId });
+        await repo.quarantineUserDrafts(currentUserId);
+        for (const draft of quarantinedDrafts.filter((d) => d.userId === currentUserId)) {
+          await repo.putAuthQuarantineDraft(draft);
+        }
+        await repo.close();
+      } catch {
+        // Quarantine best-effort; do not block sign-out.
+      }
+    }
+
     if (currentUserId) {
       void OfflineFileCache.clearAccount(currentUserId).catch(() => {});
     }
@@ -537,6 +557,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(false);
     setWorkspaceId(null);
     setPreferences(null);
+    setQuarantinedDrafts([]);
     broadcastAuthEvent('LOGOUT');
 
     try {
@@ -594,6 +615,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       payload,
     };
     setQuarantinedDrafts((prev) => [...prev, newQuarantine]);
+    const ws = workspaceId || user.workspaceId;
+    if (ws && getTrustedDeviceConsent()) {
+      void (async () => {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({ userId: user.id, workspaceId: ws });
+          await repo.putAuthQuarantineDraft(newQuarantine);
+          await repo.close();
+        } catch {
+          /* durable write best-effort */
+        }
+      })();
+    }
   };
 
   const restoreDraft = (draftId: string) => {
@@ -601,12 +635,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const found = quarantinedDrafts.find((d) => d.id === draftId && d.userId === user.id);
     if (!found) return null;
     setQuarantinedDrafts((prev) => prev.filter((d) => d.id !== draftId));
+    const ws = workspaceId || user.workspaceId;
+    if (ws && getTrustedDeviceConsent()) {
+      void (async () => {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({ userId: user.id, workspaceId: ws });
+          await repo.deleteAuthQuarantineDraft(user.id, draftId);
+          await repo.close();
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
     return found.payload;
   };
 
   const dismissDraft = (draftId: string) => {
+    const ownerId = user?.id;
     setQuarantinedDrafts((prev) => prev.filter((d) => d.id !== draftId));
+    if (!ownerId) return;
+    const ws = workspaceId || user?.workspaceId;
+    if (ws && getTrustedDeviceConsent()) {
+      void (async () => {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({ userId: ownerId, workspaceId: ws });
+          await repo.deleteAuthQuarantineDraft(ownerId, draftId);
+          await repo.close();
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
   };
+
+  // Reload durable auth quarantine when an authorized namespace is available.
+  useEffect(() => {
+    if (!user?.id || !workspaceId || !getTrustedDeviceConsent()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const repo = new IndexedDbLocalRepository();
+        await repo.initialize({ userId: user.id, workspaceId });
+        const rows = await repo.listAuthQuarantineDrafts(user.id);
+        await repo.close();
+        if (cancelled) return;
+        setQuarantinedDrafts((prev) => {
+          const others = prev.filter((d) => d.userId !== user.id);
+          return [...others, ...rows];
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, workspaceId]);
 
   return (
     <AuthContext.Provider

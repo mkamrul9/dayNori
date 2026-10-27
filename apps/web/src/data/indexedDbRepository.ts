@@ -38,8 +38,18 @@ import {
 
 export const TRUSTED_DEVICE_CONSENT_KEY = 'daynori_trusted_device_consent';
 export const DB_NAME = 'daynori_web_storage';
-export const DB_VERSION = 8;
+/** v9: durable offline_boot context for trusted-device cold reopen (ADR 0077). */
+export const DB_VERSION = 9;
 export const COORDINATION_CHANNEL_NAME = 'daynori_storage_coordination';
+export const OFFLINE_BOOT_PRIMARY_KEY = 'primary';
+
+export interface OfflineBootContext {
+  id: typeof OFFLINE_BOOT_PRIMARY_KEY;
+  userId: string;
+  workspaceId: string;
+  updatedAt: string;
+  shellBuildId?: string;
+}
 
 function getStorage(): Storage | null {
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -298,6 +308,15 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
               unique: false,
             });
           }
+          if (!db.objectStoreNames.contains('offline_boot')) {
+            db.createObjectStore('offline_boot', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('auth_quarantine')) {
+            const aq = db.createObjectStore('auth_quarantine', {
+              keyPath: ['userId', 'id'],
+            });
+            aq.createIndex('by_user', 'userId', { unique: false });
+          }
         } catch (err: unknown) {
           reject(
             new StorageMigrationError(
@@ -314,7 +333,13 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
           void this.close();
         };
 
-        resolve();
+        // Best-effort durable boot context for trusted-device cold reopen (ADR 0077).
+        void this.saveOfflineBootContext({
+          userId: validatedNs.userId,
+          workspaceId: validatedNs.workspaceId,
+        })
+          .catch(() => undefined)
+          .finally(() => resolve());
       };
 
       request.onerror = () => {
@@ -494,6 +519,127 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       store.delete([workspaceId, userId, id]);
 
       tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  /**
+   * Persists the last authorized namespace for trusted-device cold offline reopen.
+   * Not an API credential — shell validates that namespaced local records exist.
+   */
+  async saveOfflineBootContext(params: {
+    userId: string;
+    workspaceId: string;
+    shellBuildId?: string;
+  }): Promise<void> {
+    this.ensureNamespace(params.workspaceId, params.userId);
+    const db = this.ensureOpen();
+    const record: OfflineBootContext = {
+      id: OFFLINE_BOOT_PRIMARY_KEY,
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+      updatedAt: new Date().toISOString(),
+      shellBuildId: params.shellBuildId,
+    };
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('offline_boot', 'readwrite');
+      tx.objectStore('offline_boot').put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async getOfflineBootContext(): Promise<OfflineBootContext | null> {
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('offline_boot', 'readonly');
+      const req = tx.objectStore('offline_boot').get(OFFLINE_BOOT_PRIMARY_KEY);
+      req.onsuccess = () => {
+        const row = req.result as OfflineBootContext | undefined;
+        if (
+          !row ||
+          typeof row.userId !== 'string' ||
+          typeof row.workspaceId !== 'string' ||
+          !row.userId ||
+          !row.workspaceId
+        ) {
+          resolve(null);
+          return;
+        }
+        resolve(row);
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async putAuthQuarantineDraft(draft: {
+    id: string;
+    userId: string;
+    quarantinedAt: string;
+    draftType: string;
+    payload: Record<string, unknown>;
+  }): Promise<void> {
+    if (!draft.userId || !draft.id) {
+      throw new StorageUnavailableError('Auth quarantine draft requires userId and id.');
+    }
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('auth_quarantine', 'readwrite');
+      tx.objectStore('auth_quarantine').put(draft);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(this.mapError(tx.error));
+      tx.onabort = () => reject(this.mapError(tx.error));
+    });
+  }
+
+  async listAuthQuarantineDrafts(userId: string): Promise<
+    Array<{
+      id: string;
+      userId: string;
+      quarantinedAt: string;
+      draftType: string;
+      payload: Record<string, unknown>;
+    }>
+  > {
+    if (!userId) return [];
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('auth_quarantine', 'readonly');
+      const index = tx.objectStore('auth_quarantine').index('by_user');
+      const req = index.getAll(userId);
+      req.onsuccess = () => {
+        const rows = (req.result ?? []) as Array<{
+          id: string;
+          userId: string;
+          quarantinedAt: string;
+          draftType: string;
+          payload: Record<string, unknown>;
+        }>;
+        resolve(rows.filter((r) => r.userId === userId));
+      };
+      req.onerror = () => reject(this.mapError(req.error));
+    });
+  }
+
+  async deleteAuthQuarantineDraft(userId: string, draftId: string): Promise<boolean> {
+    if (!userId || !draftId) return false;
+    const db = this.ensureOpen();
+    return new Promise((resolve, reject) => {
+      let deleted = false;
+      const tx = db.transaction('auth_quarantine', 'readwrite');
+      const store = tx.objectStore('auth_quarantine');
+      const getReq = store.get([userId, draftId]);
+      getReq.onsuccess = () => {
+        const row = getReq.result as { userId?: string } | undefined;
+        if (!row || row.userId !== userId) {
+          return;
+        }
+        deleted = true;
+        store.delete([userId, draftId]);
+      };
+      tx.oncomplete = () => resolve(deleted);
       tx.onerror = () => reject(this.mapError(tx.error));
       tx.onabort = () => reject(this.mapError(tx.error));
     });

@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 77 — Safe offline reopen, sync, and upgrade recovery — 2026-10-27
+
+- ADR 0077: trusted-device offline boot/session boundaries; public executable shell; local unlock ≠ API auth; supersedes ADR 0066 cold-organizer claim while retaining private-cache and safe-update rules.
+- Service worker `daynori-static-v8` precaches `/offline-shell.html` + `/offline-shell.js`; navigate fallback prefers the shell then `offline.html`; required-asset install failures keep the prior worker.
+- IndexedDB v9: durable `offline_boot` + `auth_quarantine`; web sign-out quarantines drafts; native `DraftQuarantineManager` persists via SecureStore across process restart.
+- Cold Edge CDP drill proves local organizer reopen offline with zero forbidden Cache Storage entries; native installed cold launch remains unmet without device attestation.
+- Commit: `feat(offline): preserve organizer access and upgrade recovery`.
+
 ## Phase 76 — Expenses and safe custom sections completion — 2026-10-27
 
 - ADR 0076: Phase 76 proceeds with hard prerequisites 73+74; Phase 75 stays blocked with real attachment evidence outstanding; receipt/section attachment UI stays capability-gated (no file/audio waiver). Phase 71 TalkBack remains blocked (ADR 0074).

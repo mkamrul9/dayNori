@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#146B63" />
+    <meta name="robots" content="noindex" />
+    <title>Daynori — Offline organizer</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f5ef;
+        --card: #ffffff;
+        --ink: #0d1919;
+        --muted: #4a5c5c;
+        --accent: #146b63;
+        --border: #d5ddd9;
+        --warn: #8a5a00;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1919;
+          --card: #152222;
+          --ink: #f7f5ef;
+          --muted: #a8b8b8;
+          --accent: #73c2b6;
+          --border: #2a3a3a;
+          --warn: #e6c07b;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        padding: 16px;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0;
+      }
+      .status {
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+      .banner {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        font-size: 0.875rem;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      .banner strong {
+        color: var(--ink);
+      }
+      .warn {
+        color: var(--warn);
+      }
+      nav.tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      nav.tabs button {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--ink);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 0.8125rem;
+        cursor: pointer;
+      }
+      nav.tabs button[aria-selected='true'] {
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 4px 0;
+        min-height: 200px;
+      }
+      .row {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .row:last-child {
+        border-bottom: none;
+      }
+      .row .title {
+        font-size: 0.9375rem;
+        overflow-wrap: anywhere;
+      }
+      .row .meta {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .empty {
+        padding: 20px 14px;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .actions a,
+      .actions button {
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.875rem;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--ink);
+      }
+      .actions .primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      #fallback {
+        display: none;
+        max-width: 440px;
+        margin: 48px auto;
+      }
+      #app {
+        display: none;
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      #loading {
+        text-align: center;
+        color: var(--muted);
+        padding: 48px 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading" role="status">Opening local organizer…</div>
+    <div id="fallback" role="alert">
+      <div class="banner">
+        <strong>Local organizer unavailable offline</strong>
+        <p id="fallback-reason" class="warn" style="margin: 8px 0 0"></p>
+        <p style="margin: 8px 0 0">
+          This page never caches private HTML or API responses. Reconnect when you can, or open the
+          explanatory offline page for recovery steps.
+        </p>
+      </div>
+      <div class="actions">
+        <a class="primary" href="/offline.html">Offline help</a>
+        <button type="button" id="retry-btn">Try again</button>
+      </div>
+    </div>
+    <div id="app">
+      <header>
+        <h1>Daynori</h1>
+        <span class="status" id="conn-status">Offline · local data</span>
+      </header>
+      <div class="banner" id="limits-banner">
+        <strong>Saved on this device.</strong>
+        Uncached remote content, uploads, and live sync are unavailable until you reconnect and
+        authorization is revalidated. Search coverage is limited to records already stored locally.
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Local organizer sections">
+        <button type="button" role="tab" data-tab="notes" aria-selected="true">Notes</button>
+        <button type="button" role="tab" data-tab="tasks" aria-selected="false">Tasks</button>
+        <button type="button" role="tab" data-tab="routines" aria-selected="false">Routines</button>
+        <button type="button" role="tab" data-tab="journal" aria-selected="false">Journal</button>
+        <button type="button" role="tab" data-tab="queue" aria-selected="false">Pending</button>
+      </nav>
+      <div class="panel" id="list" role="tabpanel" aria-live="polite"></div>
+      <div class="actions">
+        <button type="button" class="primary" id="reload-online">Reconnect when online</button>
+      </div>
+    </div>
+    <script src="/offline-shell.js" defer></script>
+  </body>
+</html>

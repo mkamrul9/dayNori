@@ -182,11 +182,14 @@ describe('Android Mobile Authentication & Session Lifecycle (Phase 09 Hardened)'
     }
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     memoryStore = new InMemorySecureStore();
-    defaultDraftQuarantine.clearAllQuarantines();
     secureStore = new SecureStorageAdapter(memoryStore);
-    quarantine = new DraftQuarantineManager();
+    quarantine = new DraftQuarantineManager({ secureStore });
+    await quarantine.hydrate();
+    quarantine.clearAllQuarantines();
+    await quarantine.flush();
+    defaultDraftQuarantine.clearAllQuarantines();
     mockProvider = new MockMobileProvider();
     authAdapter = new MobileProviderAuthAdapter({
       secureStore,
@@ -530,6 +533,38 @@ describe('Android Mobile Authentication & Session Lifecycle (Phase 09 Hardened)'
       const user1Quarantine = authAdapter.getQuarantinedDrafts();
       expect(user1Quarantine.length).toBe(1);
       expect(user1Quarantine[0]?.userId).toBe(user1.id);
+    });
+
+    it('recovers quarantined drafts from secure storage after process restart', async () => {
+      await authAdapter.signUp({
+        email: 'persist-q@daynori.local',
+        password: 'passwordPersistQ',
+        displayName: 'Persist Q',
+      });
+      await authAdapter.signInWithPassword({
+        email: 'persist-q@daynori.local',
+        password: 'passwordPersistQ',
+      });
+      const user = authAdapter.getCurrentUser()!;
+      await authAdapter.signOut({ type: 'note', title: 'Survives restart', body: 'বাংলা' });
+
+      // Simulate cold process: new manager + adapter sharing the same secure store.
+      const restartedQuarantine = new DraftQuarantineManager({ secureStore });
+      await restartedQuarantine.hydrate();
+      const restartedAdapter = new MobileProviderAuthAdapter({
+        secureStore,
+        quarantineManager: restartedQuarantine,
+        providerClient: mockProvider,
+        initialAuthenticated: false,
+      });
+      await restartedAdapter.signInWithPassword({
+        email: 'persist-q@daynori.local',
+        password: 'passwordPersistQ',
+      });
+      const recovered = restartedAdapter.getQuarantinedDrafts();
+      expect(recovered.length).toBe(1);
+      expect(recovered[0]?.userId).toBe(user.id);
+      expect(recovered[0]?.payload.title).toBe('Survives restart');
     });
   });
 

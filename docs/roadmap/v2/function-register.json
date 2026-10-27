@@ -4717,16 +4717,21 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
+        "pnpm exec vitest run tests/unit/phase77-offline-shell.test.ts tests/unit/pwa-session-and-banners.test.ts",
+        "pnpm exec vitest run apps/web/src/data/indexedDbRepository.test.ts apps/mobile/src/auth.test.ts",
+        "node scripts/phase77-cold-offline-evidence.mjs",
         "tests/integration/phase13-client-sync-engine.test.ts",
         "tests/integration/phase34-conflict-recovery.test.ts",
         "tests/integration/phase35-portability-export-import.test.ts"
       ],
       "evidenceRefs": [
-        "docs/decisions/0066-offline-shell-and-safe-pwa-updates.md"
+        "docs/decisions/0077-trusted-device-offline-boot-and-session.md",
+        "docs/decisions/0066-offline-shell-and-safe-pwa-updates.md",
+        "docs/phase-reports/phase-77.md",
+        "artifacts/phase77/cold-offline-pwa.json"
       ],
-      "blockerOrDefect": "DEF-V2-003",
-      "authorization": "Workspace member when authenticated; public where route is public.",
+      "blockerOrDefect": null,
+      "authorization": "Trusted-device consent + durable offline boot context; live API auth revalidated before sync.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
       "platforms": {
         "web": "supported",
@@ -4740,29 +4745,30 @@
       },
       "id": "offline.cold-reopen",
       "featureFamily": "offline-and-portability",
-      "userBenefit": "Cold offline reopen of private organizer shell.",
-      "description": "Cold offline reopen of private organizer shell.",
-      "implementationStatus": "gated",
+      "userBenefit": "Cold offline reopen of local organizer shell on a trusted device.",
+      "description": "Public offline-shell restores account-scoped IndexedDB without caching private HTML/API.",
+      "implementationStatus": "existing",
       "entryPoints": [
-        "/review",
-        "/v1/sync/*",
-        "export/import APIs",
-        "offline.html"
+        "/offline-shell.html",
+        "/offline-shell.js",
+        "/offline.html",
+        "sw.js navigate fallback"
       ],
       "implementationPaths": [
-        "apps/api/src/modules/sync/routes.ts",
-        "packages/sync",
-        "apps/api/src/routes/v1/portability.ts",
-        "docs/decisions/0066-offline-shell-and-safe-pwa-updates.md"
+        "apps/web/public/sw.js",
+        "apps/web/public/offline-shell.html",
+        "apps/web/public/offline-shell.js",
+        "apps/web/src/data/indexedDbRepository.ts",
+        "docs/decisions/0077-trusted-device-offline-boot-and-session.md"
       ],
-      "readiness": "blocked",
-      "acceptanceJourney": "Cold offline reopen of private organizer shell.",
-      "observedResult": "fail",
+      "readiness": "verified_local",
+      "acceptanceJourney": "Trusted device seeds local records online, process closes, reopen offline via public shell, Cache Storage has no private responses.",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "api-local",
+        "date": "2026-10-27",
+        "revision": "pending-phase77-commit",
+        "environment": "local-windows-edge-cdp-static-fixture",
+        "platform": "installedPwa-fixture",
         "evidenceLayer": "browser_ui"
       },
       "repairPhase": "77",
@@ -6830,22 +6836,25 @@
         "web"
       ],
       "severity": "critical",
+      "status": "resolved_local",
       "userImpact": "Previously authorized trusted device cannot reopen local organizer when fully offline.",
       "expected": "Safe public shell can unlock account-scoped local data without caching private HTML/API in shared Cache Storage.",
-      "observed": "ADR 0066: cold offline reopen shows public offline page.",
+      "observed": "Phase 77: offline-shell.html restores IndexedDB notes/tasks/queue offline; Cache Storage daynori-static-v8 has zero forbidden private entries (Edge CDP fixture).",
       "reproduction": [
-        "Install PWA",
-        "Load Today while online",
-        "Go fully offline and cold restart",
-        "Observe offline.html"
+        "Install/register SW with public shell assets",
+        "Seed trusted consent + offline_boot + local records",
+        "Go fully offline and cold reopen",
+        "Observe organizer shell (not explanatory offline.html alone)"
       ],
-      "environment": "documented-adr-0066",
+      "environment": "local-windows-edge-cdp-static-fixture",
       "evidenceRefs": [
-        "docs/decisions/0066-offline-shell-and-safe-pwa-updates.md"
+        "docs/decisions/0077-trusted-device-offline-boot-and-session.md",
+        "docs/phase-reports/phase-77.md",
+        "artifacts/phase77/cold-offline-pwa.json"
       ],
-      "workaround": "Reconnect to network to reopen organizer.",
-      "dependency": "Offline boot ADR + Phase 77 implementation.",
-      "nextAction": "Phase 77 designs and verifies safe offline reopen.",
+      "workaround": "n/a — local cold reopen verified; reconnect still required for sync.",
+      "dependency": "Native self-contained installed-build cold launch remains unmet without device attestation.",
+      "nextAction": "Optional: attest installed Android offline reopen with DAYNORI_NATIVE_OFFLINE_OK=1.",
       "owningPhase": "77"
     },
     {

@@ -1,0 +1,135 @@
+{
+  "at": "2026-10-27T10:35:36.549Z",
+  "revision": "b36f97c832bc08eb8a0fb15b334f70eefba829c9",
+  "node": "v24.21.0",
+  "platform": "win32",
+  "browserExe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "steps": [
+    {
+      "step": "assets",
+      "status": "pass",
+      "details": "Required public shell assets present"
+    },
+    {
+      "step": "static-server",
+      "status": "pass",
+      "details": "http://127.0.0.1:3199"
+    },
+    {
+      "step": "cdp",
+      "status": "pass",
+      "details": "Edg/156.0.4314.42"
+    },
+    {
+      "step": "seed-idb-sw",
+      "status": "pass",
+      "details": "{\"ok\":true,\"sw\":true}"
+    },
+    {
+      "step": "go-offline",
+      "status": "pass",
+      "details": "Network.emulateNetworkConditions offline=true"
+    },
+    {
+      "step": "cold-offline-shell",
+      "status": "pass",
+      "details": "{\"href\":\"http://127.0.0.1:3199/offline-shell.html\",\"appVisible\":true,\"hasBangla\":true,\"hasTask\":false,\"textSample\":\"Phase 77 Bangla নোট\\n2026-10-27T10:35:38.735Z\",\"mode\":\"direct-shell\"}"
+    },
+    {
+      "step": "cache-storage-private-ban",
+      "status": "pass",
+      "details": "{\"keys\":[\"daynori-static-v8\"],\"forbidden\":[],\"allowedCount\":14}"
+    },
+    {
+      "step": "screenshot",
+      "status": "pass",
+      "details": "cold-offline-shell.png"
+    }
+  ],
+  "cacheInspection": {
+    "keys": [
+      "daynori-static-v8"
+    ],
+    "forbidden": [],
+    "allowedCount": 14,
+    "sample": [
+      {
+        "cache": "daynori-static-v8",
+        "path": "/offline-shell.html",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/offline.html",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/favicon.ico",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/offline-shell.js",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/manifest.json",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/apple-touch-icon.png",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/icon.svg",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/brand/daynori-logo.svg",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/brand/daynori-logo-inverse.svg",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/brand/daynori-symbol.svg",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/brand/daynori-symbol-inverse.svg",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/brand/icon-192.png",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/brand/icon-512.png",
+        "search": ""
+      },
+      {
+        "cache": "daynori-static-v8",
+        "path": "/brand/icon-maskable-512.png",
+        "search": ""
+      }
+    ]
+  },
+  "result": "pass",
+  "limits": [
+    "Static fixture server has no /today HTML; SW navigate fallback may 404 without precached shell match — direct offline-shell reopen exercised.",
+    "This drill uses a public static fixture origin (not a full Next.js production install). Installed-PWA claim is limited to SW+IDB shell behavior on Chromium CDP.",
+    "Native installed-build cold launch is recorded separately; Dev Client+Metro does not satisfy self-contained offline launch."
+  ],
+  "browserVersion": "Edg/156.0.4314.42"
+}

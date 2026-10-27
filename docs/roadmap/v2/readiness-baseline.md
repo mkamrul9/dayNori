@@ -70,7 +70,7 @@ Historical `artifacts/web-e2e/*.png` remain historical.
 
 ## Most important gaps (by severity)
 
-1. **DEF-V2-003 (critical)** — Cold offline reopen cannot reconstruct the private organizer (ADR 0066) → Phase 77.
+1. **DEF-V2-003 (critical, resolved_local)** — Cold offline reopen: Phase 77 public shell + IndexedDB boot (ADR 0077). Native self-contained installed cold launch still unmet without device attestation. Not `release_ready`.
 2. **DEF-V2-001 / DEF-V2-011 (high)** — Real-provider auth and physical Android/TalkBack evidence missing → Phases 72, 71, 99.
 3. **DEF-V2-002 (high)** — Hosted core preview disables files, audio, reminder delivery → Phases 75, 84–85.
 4. **DEF-V2-006 / 007 / 008 / 004 (high–medium)** — Rooms, billing, AI, vault production-gated → Phases 86–90+.

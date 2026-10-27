@@ -81,7 +81,7 @@ export default function HelpPage() {
         },
         {
           title: 'Offline and updates',
-          body: 'Edits on this device queue while offline. When an update is ready, save your work then tap Update — Later waits. Cold offline reopen shows a simple offline page.',
+          body: 'Edits on this device queue while offline. When an update is ready, save your work then tap Update — Later waits. On a trusted device with local data already saved, cold offline reopen loads a public organizer shell from IndexedDB — not cached private pages. Missing consent or storage shows an honest offline help page instead.',
         },
         ...(isCorePreview
           ? [

@@ -85,11 +85,29 @@ describe('PWA unsaved-work guard and banner stacking', () => {
     expect(offline.toLowerCase()).toContain('offline');
     expect(offline).toContain('safe-area-inset-bottom');
     expect(offline).toContain('/today');
+    const shellHtml = fs.readFileSync(
+      path.join(repoRoot, 'apps/web/public/offline-shell.html'),
+      'utf8'
+    );
+    const shellJs = fs.readFileSync(
+      path.join(repoRoot, 'apps/web/public/offline-shell.js'),
+      'utf8'
+    );
+    expect(shellHtml).toContain('offline-shell.js');
+    expect(shellHtml).toContain('Saved on this device');
+    expect(shellJs).toContain('daynori_trusted_device_consent');
+    expect(shellJs).toContain('offline_boot');
+    expect(shellJs).not.toContain('/api/');
     const sw = fs.readFileSync(path.join(repoRoot, 'apps/web/public/sw.js'), 'utf8');
-    expect(sw).toMatch(/daynori-static-v7/);
+    expect(sw).toMatch(/daynori-static-v8/);
     expect(sw).toContain("path.startsWith('/api/')");
     expect(sw).toContain('/offline.html');
+    expect(sw).toContain('/offline-shell.html');
+    expect(sw).toContain('navigationOfflineFallback');
     expect(sw).toContain('PRECACHE_PUBLIC_STATIC');
+    expect(sw).toContain('REQUIRED_SHELL_ASSETS');
+    // Never instruct caching of private HTML navigations into Cache Storage.
+    expect(sw).not.toMatch(/cache\.put\([^)]*navigate/);
   });
 
   it('Library default chrome hides secondary tools until More tools', () => {
