@@ -4728,19 +4728,21 @@
         "docs/decisions/0077-trusted-device-offline-boot-and-session.md",
         "docs/decisions/0066-offline-shell-and-safe-pwa-updates.md",
         "docs/phase-reports/phase-77.md",
-        "artifacts/phase77/cold-offline-pwa.json"
+        "artifacts/phase77/cold-offline-pwa-fixture.json",
+        "artifacts/phase77/cold-offline-pwa-installed.json",
+        "artifacts/phase77/cold-offline-native.json"
       ],
-      "blockerOrDefect": "DEF-V2-003",
+      "blockerOrDefect": null,
       "authorization": "Trusted-device consent + durable offline boot context; live API auth revalidated before sync.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
       "platforms": {
-        "web": "partial",
-        "installedPwa": "partial",
-        "android": "partial",
+        "web": "supported",
+        "installedPwa": "supported",
+        "android": "supported",
         "iosNative": "gated"
       },
       "releaseCapability": {
-        "local": "partial",
+        "local": "available",
         "hostedPreview": "partial"
       },
       "id": "offline.cold-reopen",
@@ -4761,14 +4763,14 @@
         "apps/web/src/data/indexedDbRepository.ts",
         "docs/decisions/0077-trusted-device-offline-boot-and-session.md"
       ],
-      "readiness": "blocked",
+      "readiness": "verified_local",
       "acceptanceJourney": "Trusted device seeds local records online, process closes, reopen offline via installed PWA or self-contained native build; Cache Storage has no private responses.",
-      "observedResult": "fail",
+      "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-10-27",
-        "revision": "a4fb4cc",
-        "environment": "local-windows-edge-cdp-static-fixture",
-        "platform": "browser-static-fixture",
+        "revision": "6aa2204",
+        "environment": "local-windows-edge-installed-pwa+emulator-embedded-x86_64",
+        "platform": "installed-pwa+android-emulator",
         "evidenceLayer": "browser_ui"
       },
       "repairPhase": "77",
@@ -6833,28 +6835,30 @@
       ],
       "platforms": [
         "installedPwa",
-        "web"
+        "web",
+        "android"
       ],
       "severity": "critical",
       "userImpact": "Previously authorized trusted device cannot reopen local organizer when fully offline on an installed PWA or self-contained native build.",
       "expected": "Safe public shell unlocks account-scoped local data without caching private HTML/API; proven on installed production PWA and installed native build.",
-      "observed": "Phase 77 shipped shell/quarantine (a4fb4cc). Edge CDP static-fixture drill passed; full installed production PWA cold reopen and native installed-build cold launch remain unmet. Phase 77 status blocked.",
+      "observed": "Closed locally 2026-10-27: installed production Next PWA cold reopen (Edge isolated profile) and Metro-free embedded x86_64 emulator APK cold launch passed. Fixture remains supplementary only. Physical-device native cold launch not claimed.",
       "reproduction": [
         "Install production PWA (not static fixture alone)",
         "Seed trusted consent + offline_boot + local records online",
         "Terminate process, go fully offline, cold reopen",
         "Repeat on self-contained native installed build"
       ],
-      "environment": "local-windows-edge-cdp-static-fixture; adb devices empty at native drill",
+      "environment": "local-windows-edge-cdp-installed-pwa; emulator-5554 daynori_vault_api35 embedded-x86_64; local GoTrue+API",
       "evidenceRefs": [
         "docs/decisions/0077-trusted-device-offline-boot-and-session.md",
         "docs/phase-reports/phase-77.md",
-        "artifacts/phase77/cold-offline-pwa.json",
+        "artifacts/phase77/cold-offline-pwa-installed.json",
         "artifacts/phase77/cold-offline-native.json"
       ],
-      "workaround": "Use already-open warm session offline, or reconnect. Static-fixture shell is engineering evidence only.",
-      "dependency": "Installed-PWA cold reopen + DAYNORI_NATIVE_OFFLINE_OK attestation on installed build.",
-      "nextAction": "Complete installed-PWA and native cold-launch drills before marking Phase 77 complete.",
+      "workaround": null,
+      "dependency": null,
+      "nextAction": "Optional: record physical-device native cold launch before release_ready claims.",
+      "status": "closed_local",
       "owningPhase": "77"
     },
     {

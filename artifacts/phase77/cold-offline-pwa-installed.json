@@ -1,0 +1,348 @@
+{
+  "at": "2026-10-27T12:13:04.758Z",
+  "revision": "6aa2204d6037d18b44de15cd95f77be01e68e5f2",
+  "node": "v24.21.0",
+  "platform": "win32",
+  "mode": "installed-pwa",
+  "evidenceClass": "installed-pwa",
+  "requiredMode": true,
+  "browserExe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "steps": [
+    {
+      "step": "production-build",
+      "status": "pass",
+      "details": "BUILD_ID=SzrDqjAqnx12CFA62Qmxc",
+      "at": "2026-10-27T12:13:04.850Z"
+    },
+    {
+      "step": "web-origin",
+      "status": "pass",
+      "details": {
+        "ok": true,
+        "status": 200,
+        "sample": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_"
+      },
+      "at": "2026-10-27T12:13:04.926Z"
+    },
+    {
+      "step": "api-origin",
+      "status": "pass",
+      "details": {
+        "ok": true,
+        "status": 200,
+        "sample": "{\"status\":\"ok\",\"version\":\"0.1.0\",\"timestamp\":\"2026-10-27T12:13:04.932Z\",\"environment\":\"development\"}"
+      },
+      "at": "2026-10-27T12:13:04.934Z"
+    },
+    {
+      "step": "auth-origin",
+      "status": "pass",
+      "details": {
+        "ok": true,
+        "status": 200,
+        "sample": "{\"version\":\"v2.197.0\",\"name\":\"GoTrue\",\"description\":\"GoTrue is a user registration and authentication API\"}"
+      },
+      "at": "2026-10-27T12:13:04.948Z"
+    },
+    {
+      "step": "synthetic-account",
+      "status": "pass",
+      "details": "label=C; userIdPresent=true",
+      "at": "2026-10-27T12:13:04.949Z"
+    },
+    {
+      "step": "cdp",
+      "status": "pass",
+      "details": "Edg/156.0.4314.42",
+      "at": "2026-10-27T12:13:06.237Z"
+    },
+    {
+      "step": "service-worker-register",
+      "status": "pass",
+      "details": {
+        "ok": true,
+        "scope": "http://127.0.0.1:3000/",
+        "active": true,
+        "scriptURL": "http://127.0.0.1:3000/sw.js"
+      },
+      "at": "2026-10-27T12:13:09.971Z"
+    },
+    {
+      "step": "pwa-install",
+      "status": "pass",
+      "details": {
+        "method": "app-window-flag",
+        "ok": true,
+        "note": "PWA.install CDP unavailable; launched with --app= origin after SW register (isolated profile).",
+        "error": "'PWA.install' wasn't found"
+      },
+      "at": "2026-10-27T12:13:09.974Z"
+    },
+    {
+      "step": "sign-in",
+      "status": "pass",
+      "details": "userIdPresent=true",
+      "at": "2026-10-27T12:13:10.778Z"
+    },
+    {
+      "step": "establish-local-state",
+      "status": "pass",
+      "details": {
+        "workspaceId": "ws_phase77_pending",
+        "noteId": "note_P77-mvqnc898",
+        "draftId": "draft_P77-mvqnc898",
+        "opId": "op_P77-mvqnc898"
+      },
+      "at": "2026-10-27T12:13:14.088Z"
+    },
+    {
+      "step": "persist-before-kill",
+      "status": "pass",
+      "details": {
+        "consent": "true",
+        "bootUser": "a5a1c840-21a3-4adb-9bf3-d90e4b86aa47",
+        "bootWorkspace": "ws_phase77_pending"
+      },
+      "at": "2026-10-27T12:13:14.094Z"
+    },
+    {
+      "step": "screenshot-online",
+      "status": "pass",
+      "details": "installed-pwa-online-plan.png",
+      "at": "2026-10-27T12:13:14.278Z"
+    },
+    {
+      "step": "terminate-browser",
+      "status": "pass",
+      "details": "Browser process tree killed",
+      "at": "2026-10-27T12:13:18.772Z"
+    },
+    {
+      "step": "cdp-cold",
+      "status": "pass",
+      "details": "Edg/156.0.4314.42",
+      "at": "2026-10-27T12:13:19.529Z"
+    },
+    {
+      "step": "disable-connectivity",
+      "status": "pass",
+      "details": "Network.emulateNetworkConditions offline=true before reopen",
+      "at": "2026-10-27T12:13:21.771Z"
+    },
+    {
+      "step": "network-blocked-probes",
+      "status": "pass",
+      "details": "API/auth probes must fail while offline",
+      "at": "2026-10-27T12:13:21.782Z"
+    },
+    {
+      "step": "cold-offline-reopen",
+      "status": "pass",
+      "details": {
+        "href": "http://127.0.0.1:3000/",
+        "title": "Daynori — Offline organizer",
+        "offlineShellTitle": true,
+        "loadingVisible": false,
+        "appVisible": true,
+        "fallbackVisible": false,
+        "fallbackReason": "",
+        "hasBangla": true,
+        "hasDraftHint": true,
+        "textSample": "নোট P77-mvqnc898\n2026-10-27T12:13:14.060Z",
+        "consent": "true"
+      },
+      "at": "2026-10-27T12:13:22.373Z"
+    },
+    {
+      "step": "screenshot-cold",
+      "status": "pass",
+      "details": "installed-pwa-cold-offline.png",
+      "at": "2026-10-27T12:13:22.451Z"
+    },
+    {
+      "step": "drafts-pending-survive",
+      "status": "pass",
+      "details": {
+        "bootUser": "a5a1c840-21a3-4adb-9bf3-d90e4b86aa47",
+        "bootWorkspace": "ws_phase77_pending",
+        "noteCount": 1,
+        "draftCount": 1,
+        "pendingCount": 1,
+        "hasMarkerNote": true,
+        "hasDraft": true,
+        "hasPending": true
+      },
+      "at": "2026-10-27T12:13:22.455Z"
+    },
+    {
+      "step": "cache-storage-private-ban",
+      "status": "pass",
+      "details": {
+        "forbidden": [],
+        "allowedCount": 29,
+        "helpEssentialCached": true
+      },
+      "at": "2026-10-27T12:13:22.475Z"
+    },
+    {
+      "step": "reconnect",
+      "status": "pass",
+      "details": "Network restored",
+      "at": "2026-10-27T12:13:22.475Z"
+    },
+    {
+      "step": "revalidate-authorization",
+      "status": "pass",
+      "details": {
+        "status": 200,
+        "ok": true,
+        "authenticated": false
+      },
+      "at": "2026-10-27T12:13:25.031Z"
+    },
+    {
+      "step": "update-later",
+      "status": "pass",
+      "details": "Called registration.update(); deferred skipWaiting while dirty draft retained",
+      "at": "2026-10-27T12:13:25.042Z"
+    }
+  ],
+  "cacheInspection": {
+    "keys": [
+      "daynori-static-v9"
+    ],
+    "forbidden": [],
+    "allowedCount": 29,
+    "samples": [
+      {
+        "path": "/manifest.json",
+        "ct": "application/json; charset=UTF-8",
+        "bodySample": "{\n  \"name\": \"Daynori\",\n  \"short_name\": \"Daynori\",\n  \"description\": \"Notes, tasks",
+        "looksPrivate": false
+      },
+      {
+        "path": "/offline.html",
+        "ct": "text/html; charset=UTF-8",
+        "bodySample": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta",
+        "looksPrivate": false
+      },
+      {
+        "path": "/offline-shell.html",
+        "ct": "text/html; charset=UTF-8",
+        "bodySample": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta",
+        "looksPrivate": false
+      },
+      {
+        "path": "/offline-shell.js",
+        "ct": "application/javascript; charset=UTF-8",
+        "bodySample": "/**\n * Public offline organizer shell (ADR 0077).\n * Embeds no user-specific sta",
+        "looksPrivate": false
+      },
+      {
+        "path": "/favicon.ico",
+        "ct": "image/x-icon",
+        "bodySample": "\u0000\u0000\u0001\u0000\u0003\u0000\u0010\u0010\u0000\u0000\u0001\u0000 \u0000I\u0001\u0000\u00006\u0000\u0000\u0000  \u0000\u0000\u0001\u0000 \u0000A\u0002\u0000\u0000\u0001\u0000\u000000\u0000\u0000\u0001\u0000 \u0000O\u0003\u0000\u0000�\u0003\u0000\u0000�PNG\r\n\u001a\n\u0000\u0000\u0000\rIHDR\u0000\u0000\u0000\u0010\u0000\u0000\u0000\u0010\b\u0006",
+        "looksPrivate": false
+      },
+      {
+        "path": "/icon.svg",
+        "ct": "image/svg+xml",
+        "bodySample": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1024 1024\" fill=\"none\"><rec",
+        "looksPrivate": false
+      },
+      {
+        "path": "/help-essential.json",
+        "ct": "application/json; charset=UTF-8",
+        "bodySample": "{\n  \"contentVersion\": 1,\n  \"generatedAt\": \"2026-10-27T10:59:30.357Z\",\n  \"note\": ",
+        "looksPrivate": false
+      },
+      {
+        "path": "/brand/daynori-logo.svg",
+        "ct": "image/svg+xml",
+        "bodySample": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 332 96\" fill=\"none\"><g tran",
+        "looksPrivate": false
+      }
+    ],
+    "helpEssentialCached": true
+  },
+  "assertions": {
+    "install": {
+      "method": "app-window-flag",
+      "ok": true,
+      "note": "PWA.install CDP unavailable; launched with --app= origin after SW register (isolated profile).",
+      "error": "'PWA.install' wasn't found"
+    },
+    "signIn": {
+      "status": 200,
+      "ok": true,
+      "userIdPresent": true
+    },
+    "persistCheck": {
+      "consent": "true",
+      "bootUser": "a5a1c840-21a3-4adb-9bf3-d90e4b86aa47",
+      "bootWorkspace": "ws_phase77_pending"
+    },
+    "networkBlocked": [
+      {
+        "url": "http://127.0.0.1:3001/health",
+        "error": "Failed to fetch"
+      },
+      {
+        "url": "http://127.0.0.1:3000/api/auth/session",
+        "error": "Failed to fetch"
+      },
+      {
+        "url": "http://127.0.0.1:54321/auth/v1/health",
+        "error": "Failed to fetch"
+      }
+    ],
+    "coldOfflineUi": {
+      "href": "http://127.0.0.1:3000/",
+      "title": "Daynori — Offline organizer",
+      "offlineShellTitle": true,
+      "loadingVisible": false,
+      "appVisible": true,
+      "fallbackVisible": false,
+      "fallbackReason": "",
+      "hasBangla": true,
+      "hasDraftHint": true,
+      "textSample": "নোট P77-mvqnc898\n2026-10-27T12:13:14.060Z",
+      "consent": "true"
+    },
+    "survived": {
+      "bootUser": "a5a1c840-21a3-4adb-9bf3-d90e4b86aa47",
+      "bootWorkspace": "ws_phase77_pending",
+      "noteCount": 1,
+      "draftCount": 1,
+      "pendingCount": 1,
+      "hasMarkerNote": true,
+      "hasDraft": true,
+      "hasPending": true
+    },
+    "revalidated": {
+      "status": 200,
+      "ok": true,
+      "authenticated": false
+    },
+    "updateLater": {
+      "ok": true,
+      "waiting": false,
+      "activeScript": "http://127.0.0.1:3000/sw.js",
+      "consent": "true"
+    }
+  },
+  "result": "pass",
+  "limits": [
+    "Installed-PWA mode requires production Next build, isolated profile, process terminate, offline reopen.",
+    "Acceptance requires production Next, real installed/isolated PWA profile, process terminate, connectivity disabled before reopen.",
+    "Browser lacked PWA.install CDP; used --app window + isolated profile + SW as installed-surface proxy. Prefer PWA.install when available.",
+    "Local authorized services + synthetic account only; not hosted-provider evidence."
+  ],
+  "browserVersion": "Edg/156.0.4314.42",
+  "buildIdentity": {
+    "nextBuildId": "SzrDqjAqnx12CFA62Qmxc",
+    "swSha256": "6e243130bed7d29e51c330a378380805f87539798692abe5c4f8127bb1f70cb3",
+    "helpEssentialSha256": "d7752074ce583db0c1c6079a3a46f82780d6aecfe80c0661eb2dd710c961fe1c",
+    "gitRevision": "6aa2204d6037d18b44de15cd95f77be01e68e5f2"
+  }
+}

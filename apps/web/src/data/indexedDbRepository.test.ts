@@ -466,6 +466,7 @@ describe('Web IndexedDB Local Repository (Node.js Contract Tests with fake-index
       const boot = await repo.getOfflineBootContext();
       expect(boot?.userId).toBe(user1);
       expect(boot?.workspaceId).toBe(ws1);
+      expect(boot?.trustedDeviceConsent).toBe(true);
       await repo.close();
 
       const repo2 = new IndexedDbLocalRepository();
@@ -473,6 +474,7 @@ describe('Web IndexedDB Local Repository (Node.js Contract Tests with fake-index
       const boot2 = await repo2.getOfflineBootContext();
       expect(boot2?.userId).toBe(user1);
       expect(boot2?.workspaceId).toBe(ws1);
+      expect(boot2?.trustedDeviceConsent).toBe(true);
       await repo2.close();
     });
 

@@ -29,8 +29,11 @@ describe('Phase 77 public offline shell and SW policy', () => {
     expect(shellHtml).not.toMatch(/usr_|ws_[0-9a-f-]{8}/i);
     expect(shellJs).toContain('hasTrustedConsent');
     expect(shellJs).toContain('offline_boot');
+    expect(shellJs).toContain('trustedDeviceConsent');
     expect(shellJs).toContain('showFallback');
-    expect(shellJs).not.toContain('localStorage.setItem');
+    // May rehydrate the consent flag from durable offline_boot after hard process kill.
+    expect(shellJs).toContain("localStorage.setItem(CONSENT_KEY, 'true')");
+    expect(shellJs).not.toMatch(/localStorage\.setItem\((?!CONSENT_KEY)/);
   });
 
   it('prefers offline-shell then offline.html for navigate fallback', () => {
@@ -38,6 +41,8 @@ describe('Phase 77 public offline shell and SW policy', () => {
     expect(sw).toContain("caches.match('/offline.html')");
     expect(sw).toContain('REQUIRED_SHELL_ASSETS');
     expect(sw).toContain('response.redirected');
+    expect(sw).toContain('AbortController');
+    expect(sw).toContain('Inline the shell script');
   });
 
   it('excludes private routes and capability query params from Cache Storage allowlist', () => {

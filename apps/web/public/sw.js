@@ -212,12 +212,30 @@ self.addEventListener('message', (event) => {
 
 async function navigationOfflineFallback() {
   const shell = await caches.match('/offline-shell.html');
-  if (shell) {
-    const shellJs = await caches.match('/offline-shell.js');
-    if (shellJs) {
+  const shellJs = await caches.match('/offline-shell.js');
+  // Inline the shell script into the HTML response so cold offline reopen does not depend
+  // on a second subresource fetch (CDP/OS offline emulation can block SW subresource loads).
+  if (shell && shellJs) {
+    try {
+      const html = await shell.text();
+      const js = await shellJs.text();
+      const safeJs = js.replace(/<\/script/gi, '<\\/script');
+      const inlined = html.replace(
+        /<script\s+src=["']\/offline-shell\.js["'][^>]*>\s*<\/script>/i,
+        '<script>' + safeJs + '</script>'
+      );
+      return new Response(inlined, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      });
+    } catch {
       return shell;
     }
   }
+  if (shell) return shell;
   const html = await caches.match('/offline.html');
   if (html) return html;
   return new Response('Offline: Daynori requires an active connection for this view.', {
@@ -258,9 +276,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests: Network-first, falling back to public offline shell (never cache HTML).
+  // Navigation requests: Network-first (no-store), falling back to public offline shell.
+  // Never put personalized HTML into Cache Storage. Abort hung navigations so cold offline
+  // reopen cannot stick on a blank/spinner document when the network is unavailable.
   if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(() => navigationOfflineFallback()));
+    event.respondWith(
+      (async () => {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 4000);
+          const response = await fetch(req, {
+            cache: 'no-store',
+            credentials: req.credentials,
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+          if (!response || !response.ok) {
+            return navigationOfflineFallback();
+          }
+          return response;
+        } catch {
+          return navigationOfflineFallback();
+        }
+      })()
+    );
     return;
   }
 

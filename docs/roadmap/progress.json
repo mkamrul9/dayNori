@@ -451,8 +451,7 @@
     },
     {
       "id": "77",
-      "status": "blocked",
-      "reason": "Implementation shipped (a4fb4cc / ADR 0077): public offline shell, durable quarantine, sync suites, Edge CDP static-fixture cold drill. Required acceptance still unmet: full installed production PWA cold reopen and self-contained native installed-build cold launch (no device attestation). Do not waive. See docs/phase-reports/phase-77.md.",
+      "status": "complete",
       "report": "docs/phase-reports/phase-77.md"
     },
     {
@@ -463,7 +462,7 @@
     {
       "id": "79",
       "status": "planned",
-      "reason": "Depends on 66, 68, 77, 78. Phase 77 remains blocked on installed-PWA/native cold-launch evidence — do not start Phase 79 until dependencies complete or the owner amends scheduling."
+      "reason": "Depends on 66, 68, 77, 78 — all complete. Eligible to start when the owner selects Phase 79; do not auto-start."
     },
     {
       "id": "80",

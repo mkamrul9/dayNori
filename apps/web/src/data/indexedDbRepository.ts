@@ -49,6 +49,11 @@ export interface OfflineBootContext {
   workspaceId: string;
   updatedAt: string;
   shellBuildId?: string;
+  /**
+   * Durable echo of trusted-device consent for cold reopen when localStorage is
+   * unavailable after a hard process kill (ADR 0077). Never an auth credential.
+   */
+  trustedDeviceConsent?: boolean;
 }
 
 function getStorage(): Storage | null {
@@ -541,6 +546,8 @@ export class IndexedDbLocalRepository implements LocalRepositoryPort {
       workspaceId: params.workspaceId,
       updatedAt: new Date().toISOString(),
       shellBuildId: params.shellBuildId,
+      // saveOfflineBootContext is only reachable after consent-gated initialize.
+      trustedDeviceConsent: true,
     };
     return new Promise((resolve, reject) => {
       const tx = db.transaction('offline_boot', 'readwrite');

@@ -1,135 +1,82 @@
 {
-  "at": "2026-10-27T10:35:36.549Z",
-  "revision": "b36f97c832bc08eb8a0fb15b334f70eefba829c9",
+  "at": "2026-10-27T11:50:17.348Z",
+  "revision": "6aa2204d6037d18b44de15cd95f77be01e68e5f2",
   "node": "v24.21.0",
   "platform": "win32",
+  "mode": "fixture",
+  "evidenceClass": "fixture-static-public-assets",
+  "requiredMode": true,
   "browserExe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
   "steps": [
     {
       "step": "assets",
       "status": "pass",
-      "details": "Required public shell assets present"
+      "details": "Required public shell assets present",
+      "at": "2026-10-27T11:50:17.351Z"
     },
     {
       "step": "static-server",
       "status": "pass",
-      "details": "http://127.0.0.1:3199"
+      "details": "http://127.0.0.1:3199",
+      "at": "2026-10-27T11:50:17.374Z"
     },
     {
       "step": "cdp",
       "status": "pass",
-      "details": "Edg/156.0.4314.42"
+      "details": "Edg/156.0.4314.42",
+      "at": "2026-10-27T11:50:18.389Z"
     },
     {
       "step": "seed-idb-sw",
       "status": "pass",
-      "details": "{\"ok\":true,\"sw\":true}"
+      "details": "{\"ok\":true,\"sw\":true}",
+      "at": "2026-10-27T11:50:19.731Z"
     },
     {
       "step": "go-offline",
       "status": "pass",
-      "details": "Network.emulateNetworkConditions offline=true"
+      "details": "Network.emulateNetworkConditions offline=true",
+      "at": "2026-10-27T11:50:21.247Z"
     },
     {
       "step": "cold-offline-shell",
       "status": "pass",
-      "details": "{\"href\":\"http://127.0.0.1:3199/offline-shell.html\",\"appVisible\":true,\"hasBangla\":true,\"hasTask\":false,\"textSample\":\"Phase 77 Bangla নোট\\n2026-10-27T10:35:38.735Z\",\"mode\":\"direct-shell\"}"
+      "details": "{\"href\":\"http://127.0.0.1:3199/offline-shell.html\",\"appVisible\":true,\"hasBangla\":true,\"hasTask\":false,\"textSample\":\"Phase 77 Bangla নোট\\n2026-10-27T11:50:19.595Z\"}",
+      "at": "2026-10-27T11:50:22.296Z"
     },
     {
       "step": "cache-storage-private-ban",
       "status": "pass",
-      "details": "{\"keys\":[\"daynori-static-v8\"],\"forbidden\":[],\"allowedCount\":14}"
+      "details": "{\"keys\":[\"daynori-static-v9\"],\"forbidden\":[],\"allowedCount\":15}",
+      "at": "2026-10-27T11:50:22.304Z"
     },
     {
       "step": "screenshot",
       "status": "pass",
-      "details": "cold-offline-shell.png"
+      "details": "cold-offline-shell-fixture.png",
+      "at": "2026-10-27T11:50:22.355Z"
     }
   ],
   "cacheInspection": {
     "keys": [
-      "daynori-static-v8"
+      "daynori-static-v9"
     ],
     "forbidden": [],
-    "allowedCount": 14,
-    "sample": [
-      {
-        "cache": "daynori-static-v8",
-        "path": "/offline-shell.html",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/offline.html",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/favicon.ico",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/offline-shell.js",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/manifest.json",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/apple-touch-icon.png",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/icon.svg",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/brand/daynori-logo.svg",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/brand/daynori-logo-inverse.svg",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/brand/daynori-symbol.svg",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/brand/daynori-symbol-inverse.svg",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/brand/icon-192.png",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/brand/icon-512.png",
-        "search": ""
-      },
-      {
-        "cache": "daynori-static-v8",
-        "path": "/brand/icon-maskable-512.png",
-        "search": ""
-      }
-    ]
+    "allowedCount": 15
+  },
+  "assertions": {
+    "fixtureShell": {
+      "href": "http://127.0.0.1:3199/offline-shell.html",
+      "appVisible": true,
+      "hasBangla": true,
+      "hasTask": false,
+      "textSample": "Phase 77 Bangla নোট\n2026-10-27T11:50:19.595Z"
+    }
   },
   "result": "pass",
   "limits": [
-    "Static fixture server has no /today HTML; SW navigate fallback may 404 without precached shell match — direct offline-shell reopen exercised.",
-    "This drill uses a public static fixture origin (not a full Next.js production install). Installed-PWA claim is limited to SW+IDB shell behavior on Chromium CDP.",
-    "Native installed-build cold launch is recorded separately; Dev Client+Metro does not satisfy self-contained offline launch."
+    "FIXTURE ONLY: static apps/web/public server + direct IndexedDB seed. Not installed-PWA acceptance.",
+    "Fixture pass is supplementary; run DAYNORI_PHASE77_MODE=installed-pwa for acceptance."
   ],
   "browserVersion": "Edg/156.0.4314.42"
 }

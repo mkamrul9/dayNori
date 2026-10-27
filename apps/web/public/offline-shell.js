@@ -216,13 +216,6 @@
   }
 
   async function boot() {
-    if (!hasTrustedConsent()) {
-      showFallback(
-        'Trusted-device consent is missing or revoked. Local organizer storage is not available.'
-      );
-      return;
-    }
-
     var db;
     try {
       db = await openDb();
@@ -255,6 +248,23 @@
         );
         db.close();
         return;
+      }
+
+      // Consent may live only in IndexedDB after a hard browser process kill.
+      var durableConsent = boot.trustedDeviceConsent === true;
+      if (!hasTrustedConsent() && !durableConsent) {
+        showFallback(
+          'Trusted-device consent is missing or revoked. Local organizer storage is not available.'
+        );
+        db.close();
+        return;
+      }
+      if (durableConsent && !hasTrustedConsent()) {
+        try {
+          localStorage.setItem(CONSENT_KEY, 'true');
+        } catch (_e) {
+          /* ignore rehydrate failures; durable IDB consent already validated */
+        }
       }
 
       var headers = filterWs(await idbGetAll(db, 'item_headers'), boot.workspaceId);

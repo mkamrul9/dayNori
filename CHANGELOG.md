@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 77 acceptance — Installed PWA and native cold recovery — 2026-10-27
+
+- Prove installed production-PWA cold offline reopen (isolated Edge profile, process kill, connectivity disabled before reopen) and Metro-free native emulator cold launch with embedded x86_64 APK.
+- Product repairs: SW navigate fallback inlines offline-shell JS; durable `offline_boot.trustedDeviceConsent`; evidence helpers required-mode nonzero exits (fixture ≠ acceptance; attestation env ignored).
+- DEF-V2-003 closed for local installed-PWA + emulator native; Phase 77 marked complete. Phase 78 scheduling preserved; Phase 79 not started.
+- Commit: `test(offline): prove installed PWA and native cold recovery`.
+
 ## Phase 78 — Complete contextual Help and user instructions — 2026-10-27
 
 - ADR 0078: Phase 78 hard dependsOn 73+74+76; Phases 75 and 77 referenced only (not waived). Phase 77 progress reconciled to blocked (installed-PWA/native cold launch unmet; `a4fb4cc` retained).

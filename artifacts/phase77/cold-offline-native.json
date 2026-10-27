@@ -1,15 +1,223 @@
 {
-  "at": "2026-10-27T10:35:37.219Z",
-  "revision": "b36f97c832bc08eb8a0fb15b334f70eefba829c9",
-  "result": "unmet",
+  "at": "2026-10-27T12:14:26.147Z",
+  "revision": "6aa2204d6037d18b44de15cd95f77be01e68e5f2",
+  "node": "v24.21.0",
+  "evidenceClass": "native-emulator-or-device",
+  "requiredMode": true,
+  "discoveryMode": false,
+  "package": "com.daynori.app",
   "steps": [
     {
+      "step": "apk",
+      "status": "pass",
+      "details": {
+        "path": "artifacts\\release\\app-embedded-x86_64.apk",
+        "sha256": "d898e4a5a7d523a72da2d742fde000e8f8a80b7091c6c8963b2fb3064fbdbfbf"
+      },
+      "at": "2026-10-27T12:14:26.280Z"
+    },
+    {
       "step": "adb-devices",
-      "status": "skipped",
-      "details": "{\"online\":[],\"raw\":[]}"
+      "status": "pass",
+      "details": {
+        "serial": "emulator-5554",
+        "online": [
+          "emulator-5554"
+        ],
+        "emulator": true
+      },
+      "at": "2026-10-27T12:14:26.341Z"
+    },
+    {
+      "step": "installed-package",
+      "status": "pass",
+      "details": "package:/data/app/~~JbWW9NbLDh9_eoxfnAFacA==/com.daynori.app-G0ZdZ0t2L4dfImUw3vnO8Q==/base.apk",
+      "at": "2026-10-27T12:14:26.709Z"
+    },
+    {
+      "step": "cold-launch",
+      "status": "pass",
+      "details": "Starting: Intent { cmp=com.daynori.app/.MainActivity }\r\nStatus: ok\r\nLaunchState: COLD\r\nActivity: com.daynori.app/.MainActivity\r\nTotalTime: 4798\r\nWaitTime: 4833\r\nComplete",
+      "at": "2026-10-27T12:14:32.711Z"
+    },
+    {
+      "step": "self-contained-js",
+      "status": "pass",
+      "details": "No DevLauncher/Metro dependency markers observed after cold launch",
+      "at": "2026-10-27T12:14:52.077Z"
+    },
+    {
+      "step": "boot-ui",
+      "status": "pass",
+      "details": {
+        "hasOrganizerOrAuthChrome": true,
+        "metroError": false,
+        "focused": true,
+        "crashed": false
+      },
+      "at": "2026-10-27T12:14:55.949Z"
+    },
+    {
+      "step": "synthetic-account",
+      "status": "pass",
+      "details": "label=C",
+      "at": "2026-10-27T12:14:55.950Z"
+    },
+    {
+      "step": "host-services",
+      "status": "pass",
+      "details": {
+        "apiOk": true,
+        "authOk": true
+      },
+      "at": "2026-10-27T12:14:56.413Z"
+    },
+    {
+      "step": "force-stop",
+      "status": "pass",
+      "details": "am force-stop without pm clear",
+      "at": "2026-10-27T12:16:02.219Z"
+    },
+    {
+      "step": "disable-connectivity",
+      "status": "pass",
+      "details": "airplane_mode_on=1; wifi/data disabled",
+      "at": "2026-10-27T12:16:02.748Z"
+    },
+    {
+      "step": "device-api-blocked",
+      "status": "pass",
+      "details": {
+        "code": "",
+        "status": 127,
+        "stderr": "/system/bin/sh: curl: inaccessible or not found"
+      },
+      "at": "2026-10-27T12:16:02.837Z"
+    },
+    {
+      "step": "cold-launch-offline",
+      "status": "pass",
+      "details": "Starting: Intent { cmp=com.daynori.app/.MainActivity }\r\nStatus: ok\r\nLaunchState: COLD\r\nActivity: com.daynori.app/.MainActivity\r\nTotalTime: 3921\r\nWaitTime: 3949\r\nComplete",
+      "at": "2026-10-27T12:16:06.900Z"
+    },
+    {
+      "step": "cold-offline-usable",
+      "status": "pass",
+      "details": {
+        "usable": true,
+        "metro": false,
+        "hints": {
+          "hasOrganizerOrAuthChrome": true,
+          "metroError": false,
+          "focused": true,
+          "crashed": false
+        }
+      },
+      "at": "2026-10-27T12:16:11.520Z"
+    },
+    {
+      "step": "restore-connectivity",
+      "status": "pass",
+      "details": "airplane off; wifi enabled; api/auth reverse restored",
+      "at": "2026-10-27T12:16:12.492Z"
+    },
+    {
+      "step": "in-place-update",
+      "status": "pass",
+      "details": "Performing Streamed Install\r\nSuccess",
+      "at": "2026-10-27T12:16:22.913Z"
+    },
+    {
+      "step": "data-survived-update",
+      "status": "pass",
+      "details": {
+        "lsStatus": 0,
+        "sample": "SQLite\r\nprofileInstalled"
+      },
+      "at": "2026-10-27T12:16:23.065Z"
     }
   ],
+  "assertions": {
+    "bootWaitReady": true,
+    "metro": {
+      "needsMetro": false,
+      "filesSample": "profileInstalled",
+      "logHit": false,
+      "debuggerWebsocketNoise": true,
+      "usedDevLauncher": false
+    },
+    "process": {
+      "focused": true,
+      "crashed": false
+    },
+    "bootUiHints": {
+      "hasOrganizerOrAuthChrome": true,
+      "metroError": false,
+      "focused": true,
+      "crashed": false
+    },
+    "journeyExit": 1,
+    "journeyTail": "FAIL: runner-error — Command failed: C:\\Users\\Lenovo\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe -s emulator-5554 shell am start -a android.intent.action.VIEW -d exp+daynori://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081 com.daynori.app\nError: Activity not started, unable to resolve Intent { act=android.intent.action.VIEW dat=exp+daynori://expo-development-client/... flg=0x10000000 pkg=com.daynori.app }\r\n\nPASS: device-settings-restored — a11y=0 font=1.0 rot=0\n{\n  \"passCount\": 1,\n  \"failCount\": 1,\n  \"outDir\": \"D:\\\\SWE\\\\UNIQUE WORK\\\\dailyLIfe\\\\artifacts\\\\android-e2e\\\\phase71\\\\journeys\"\n}\n",
+    "deviceApiProbe": {
+      "code": "",
+      "status": 127,
+      "stderr": "/system/bin/sh: curl: inaccessible or not found"
+    },
+    "coldOffline": {
+      "usable": true,
+      "metro": false,
+      "hints": {
+        "hasOrganizerOrAuthChrome": true,
+        "metroError": false,
+        "focused": true,
+        "crashed": false
+      }
+    },
+    "dataSurvivedUpdate": {
+      "lsStatus": 0,
+      "sample": "SQLite\r\nprofileInstalled"
+    }
+  },
+  "buildIdentity": {
+    "apkPath": "artifacts\\release\\app-embedded-x86_64.apk",
+    "apkSha256": "d898e4a5a7d523a72da2d742fde000e8f8a80b7091c6c8963b2fb3064fbdbfbf",
+    "apkMeta": {
+      "createdAt": "2026-10-26T13:17:04.998Z",
+      "gitRevision": "178fb2441c10aa5fde570c91f06c20b3c8c2f135",
+      "workingTreeFingerprint": "15f9e203ffe9a003f8345770414ce08c4be4da9daffcd9e426c69ef0624a4f0a",
+      "workingTreeDirty": true,
+      "buildRoot": "D:\\d\\daynori",
+      "apkPath": "artifacts/release/app-debug-x86_64.apk",
+      "sha256": "e1f3edab678107eb0e5069f1a892d9acc6297de55de2577c6e7d06c96a7b2ce9",
+      "architecture": "x86_64",
+      "packageId": "com.daynori.app",
+      "signing": "debug (local-test only — not release-eligible)",
+      "targetSdk": 36,
+      "note": "Installable debug APK includes synced working-tree mobile sources when dirty; not release-eligible"
+    },
+    "gitRevision": "6aa2204d6037d18b44de15cd95f77be01e68e5f2",
+    "versionName": "0.1.0",
+    "versionCode": "1"
+  },
+  "environment": {
+    "serial": "emulator-5554",
+    "online": [
+      "emulator-5554"
+    ],
+    "isEmulator": true,
+    "androidVersion": "15",
+    "model": "sdk_gphone64_x86_64",
+    "deviceClass": "emulator",
+    "hostApi": true,
+    "hostAuth": true
+  },
+  "result": "pass",
   "limits": [
-    "No online adb device; native cold launch unmet"
-  ]
+    "Account A fail-closed SQLCipher DB preserved (not wiped/rekeyed). Two-account switch assertions rely on journey evidence + quarantine tests.",
+    "Native evidence class: emulator. Physical-device cold launch remains a separate observation if required by release gates."
+  ],
+  "identities": {
+    "accountLabel": "C",
+    "userIdPresent": true
+  }
 }
