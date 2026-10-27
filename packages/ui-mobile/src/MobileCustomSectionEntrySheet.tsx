@@ -16,6 +16,9 @@ export interface MobileCustomSectionEntrySheetProps {
   initialValues?: Record<string, unknown>;
   initialFolderId?: string | null;
   availableFolders?: Array<{ id: string; name: string }>;
+  eligibleAttachments?: Array<{ id: string; fileName: string }>;
+  attachmentsEnabled?: boolean;
+  attachmentsUnavailableMessage?: string;
   themeMode?: ThemeMode;
   onSubmit: (data: {
     fieldValues: Record<string, unknown>;
@@ -32,6 +35,9 @@ export const MobileCustomSectionEntrySheet: React.FC<MobileCustomSectionEntryShe
   initialValues = {},
   initialFolderId = null,
   availableFolders = [],
+  eligibleAttachments = [],
+  attachmentsEnabled = false,
+  attachmentsUnavailableMessage = 'New file attachments are unavailable here. Existing attachment values stay preserved.',
   themeMode = 'light',
   onSubmit,
 }) => {
@@ -263,23 +269,50 @@ export const MobileCustomSectionEntrySheet: React.FC<MobileCustomSectionEntryShe
           }
 
           if (field.type === 'attachment') {
+            const current =
+              typeof val === 'object' && val !== null
+                ? (val as { fileName?: string; fileId?: string })
+                : null;
             return (
-              <MobileTextField
-                key={field.id}
-                label={`${field.label} (Attachment Reference)`}
-                placeholder="Enter file or attachment name"
-                value={
-                  typeof val === 'string'
-                    ? val
-                    : typeof val === 'object' && val !== null
-                      ? (val as { fileName?: string }).fileName || ''
-                      : ''
-                }
-                onChangeText={(text) =>
-                  handleFieldChange(field.id, text ? { fileName: text } : null)
-                }
-                themeMode={themeMode}
-              />
+              <View key={field.id} style={{ gap: spacing.xs }}>
+                <Text style={{ fontWeight: '600', color: palette.text.primary }}>
+                  {field.label}
+                  {field.required ? ' *' : ''}
+                </Text>
+                {current?.fileName ? (
+                  <Text style={{ color: palette.text.secondary }}>
+                    <Icon name="attachment" /> {current.fileName}
+                    {current.fileId ? '' : ' (reference incomplete)'}
+                  </Text>
+                ) : null}
+                {attachmentsEnabled && eligibleAttachments.length > 0 ? (
+                  <ScrollView horizontal contentContainerStyle={{ gap: spacing.xs }}>
+                    {eligibleAttachments.map((f) => (
+                      <Pressable
+                        key={f.id}
+                        onPress={() =>
+                          handleFieldChange(field.id, { fileId: f.id, fileName: f.fileName })
+                        }
+                        style={{
+                          paddingHorizontal: spacing.sm,
+                          paddingVertical: spacing.xs,
+                          borderRadius: radii.sm,
+                          borderWidth: 1,
+                          borderColor: palette.border.strong,
+                        }}
+                      >
+                        <Text style={{ color: palette.text.primary }}>{f.fileName}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <MobileFeedback
+                    severity="info"
+                    message={attachmentsUnavailableMessage}
+                    themeMode={themeMode}
+                  />
+                )}
+              </View>
             );
           }
 

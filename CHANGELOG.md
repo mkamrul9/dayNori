@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 76 — Expenses and safe custom sections completion — 2026-10-27
+
+- ADR 0076: Phase 76 proceeds with hard prerequisites 73+74; Phase 75 stays blocked with real attachment evidence outstanding; receipt/section attachment UI stays capability-gated (no file/audio waiver). Phase 71 TalkBack remains blocked (ADR 0074).
+- Expense capture required-fields-first with Details for optional category/note/receipt/payment (web + native); honest receipt-unavailable messaging under core preview.
+- Custom section entry attachments no longer fabricate local-only file names; builder reorder announces via aria-live; Help how-tos for expenses and custom sections.
+- Commit: `feat(extensions): finish expenses and approved custom sections`.
+
 ## Phase 75 — Files and audio attachment readiness (blocked) — 2026-10-27
 
 - Harden private file/audio readiness: account-scoped web audio drafts + logout clear; Expo/mobile unsaved-recording preservation (`peekLastRecording`); non-production local memory storage and policy-scanner opt-ins (ADR 0075); Help upload/audio how-tos; `.env.example` storage/scanner placeholders.

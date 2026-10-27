@@ -3958,13 +3958,26 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "excess precision",
+        "negative amount",
+        "over-refund",
+        "cross-workspace",
+        "currency mix"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase39-expenses.test.ts",
         "tests/integration/phase40-expenses-reports-budgets.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; expenses may be preference-toggled on mobile.",
       "personalVisibility": "Mobile expensesEnabled preference; not authorization.",
@@ -3993,14 +4006,14 @@
         "apps/web/src/app/expenses/page.tsx",
         "apps/mobile/src/views/ExpensesView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create expense; budget; export synthetic data.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",
@@ -4016,13 +4029,26 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "excess precision",
+        "negative amount",
+        "over-refund",
+        "cross-workspace",
+        "currency mix"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase39-expenses.test.ts",
         "tests/integration/phase40-expenses-reports-budgets.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; expenses may be preference-toggled on mobile.",
       "personalVisibility": "Mobile expensesEnabled preference; not authorization.",
@@ -4051,14 +4077,14 @@
         "apps/web/src/app/expenses/page.tsx",
         "apps/mobile/src/views/ExpensesView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create expense; budget; export synthetic data.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",
@@ -4074,13 +4100,26 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "excess precision",
+        "negative amount",
+        "over-refund",
+        "cross-workspace",
+        "currency mix"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase39-expenses.test.ts",
         "tests/integration/phase40-expenses-reports-budgets.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; expenses may be preference-toggled on mobile.",
       "personalVisibility": "Mobile expensesEnabled preference; not authorization.",
@@ -4109,14 +4148,14 @@
         "apps/web/src/app/expenses/page.tsx",
         "apps/mobile/src/views/ExpensesView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create expense; budget; export synthetic data.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",
@@ -4132,13 +4171,26 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "excess precision",
+        "negative amount",
+        "over-refund",
+        "cross-workspace",
+        "currency mix"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase39-expenses.test.ts",
         "tests/integration/phase40-expenses-reports-budgets.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; expenses may be preference-toggled on mobile.",
       "personalVisibility": "Mobile expensesEnabled preference; not authorization.",
@@ -4167,14 +4219,14 @@
         "apps/web/src/app/expenses/page.tsx",
         "apps/mobile/src/views/ExpensesView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create expense; budget; export synthetic data.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",
@@ -4190,13 +4242,25 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "invalid block",
+        "reserved id",
+        "cross-workspace ref",
+        "unsupported schema fallback"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase42-custom-sections.test.ts",
         "tests/integration/phase43-custom-section-builder.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; approved block types only — no user scripts/SQL.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -4225,14 +4289,14 @@
         "apps/web/src/app/custom-sections/page.tsx",
         "apps/mobile/src/views/CustomSectionsView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create section; add record; reorder accessibly; remove section; refs remain.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",
@@ -4248,13 +4312,25 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "invalid block",
+        "reserved id",
+        "cross-workspace ref",
+        "unsupported schema fallback"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase42-custom-sections.test.ts",
         "tests/integration/phase43-custom-section-builder.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; approved block types only — no user scripts/SQL.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -4283,14 +4359,14 @@
         "apps/web/src/app/custom-sections/page.tsx",
         "apps/mobile/src/views/CustomSectionsView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create section; add record; reorder accessibly; remove section; refs remain.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",
@@ -4306,13 +4382,25 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "invalid block",
+        "reserved id",
+        "cross-workspace ref",
+        "unsupported schema fallback"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase42-custom-sections.test.ts",
         "tests/integration/phase43-custom-section-builder.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; approved block types only — no user scripts/SQL.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -4341,14 +4429,14 @@
         "apps/web/src/app/custom-sections/page.tsx",
         "apps/mobile/src/views/CustomSectionsView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create section; add record; reorder accessibly; remove section; refs remain.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",
@@ -4364,13 +4452,25 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
+      "validationNegativeCases": [
+        "invalid block",
+        "reserved id",
+        "cross-workspace ref",
+        "unsupported schema fallback"
+      ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase42-custom-sections.test.ts",
         "tests/integration/phase43-custom-section-builder.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "tests/integration/phase39-expenses.test.ts",
+        "tests/integration/phase40-expenses-reports-budgets.test.ts",
+        "tests/integration/phase42-custom-sections.test.ts",
+        "tests/integration/phase43-custom-section-builder.test.ts",
+        "tests/unit/phase76-expenses-sections-readiness.test.ts",
+        "docs/phase-reports/phase-76.md"
+      ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; approved block types only — no user scripts/SQL.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -4399,14 +4499,14 @@
         "apps/web/src/app/custom-sections/page.tsx",
         "apps/mobile/src/views/CustomSectionsView.tsx"
       ],
-      "readiness": "unverified",
+      "readiness": "verified_local",
       "acceptanceJourney": "Create section; add record; reorder accessibly; remove section; refs remain.",
-      "observedResult": "untested",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-10-27",
+        "revision": "ccf17f2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-rerun-phase65",
+        "platform": "api-local+web-components",
         "evidenceLayer": "api_integration"
       },
       "repairPhase": "76",

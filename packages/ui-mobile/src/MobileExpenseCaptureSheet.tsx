@@ -29,6 +29,9 @@ export interface MobileExpenseCaptureSheetProps {
     categoryId?: string | null;
   }>;
   availableReceipts?: Array<{ id: string; fileName?: string; filename?: string }>;
+  /** When false, receipt picker is hidden and an honest unavailable message is shown. */
+  receiptsEnabled?: boolean;
+  receiptsUnavailableMessage?: string;
   initialValues?: {
     kind?: 'expense' | 'income' | 'refund';
     amount?: string;
@@ -43,7 +46,7 @@ export interface MobileExpenseCaptureSheetProps {
   themeMode?: ThemeMode;
 }
 
-const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'BDT', 'JPY'];
+const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'BDT', 'JPY', 'CAD', 'AUD', 'INR', 'SGD'];
 
 function getLocalCalendarDate(date: Date = new Date()): string {
   const year = date.getFullYear();
@@ -59,6 +62,8 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
   categories,
   availableOriginalExpenses = [],
   availableReceipts = [],
+  receiptsEnabled = true,
+  receiptsUnavailableMessage = 'Receipt attachment is unavailable here. You can still save without a receipt.',
   initialValues,
   themeMode = 'light',
 }) => {
@@ -84,6 +89,7 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (visible && initialValues) {
@@ -211,10 +217,13 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.label, { color: palette.text.primary }]}>Currency</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                  {SUPPORTED_CURRENCIES.slice(0, 3).map((c) => (
+                  {SUPPORTED_CURRENCIES.map((c) => (
                     <Pressable
                       key={c}
                       onPress={() => setCurrency(c)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Currency ${c}`}
+                      accessibilityState={{ selected: currency === c }}
                       style={[
                         styles.chip,
                         currency === c && { backgroundColor: palette.action.primary },
@@ -273,43 +282,7 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
               </View>
             )}
 
-            {/* Category Selector */}
-            <View>
-              <Text style={[styles.label, { color: palette.text.primary }]}>Category</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: spacing.xs }}
-              >
-                <Pressable
-                  onPress={() => setCategoryId(null)}
-                  style={[
-                    styles.chip,
-                    categoryId === null && { backgroundColor: palette.action.primary },
-                  ]}
-                >
-                  <Text style={{ color: categoryId === null ? '#fff' : palette.text.primary }}>
-                    All
-                  </Text>
-                </Pressable>
-                {categories.map((cat) => (
-                  <Pressable
-                    key={cat.id}
-                    onPress={() => setCategoryId(cat.id)}
-                    style={[
-                      styles.chip,
-                      categoryId === cat.id && { backgroundColor: palette.action.primary },
-                    ]}
-                  >
-                    <Text style={{ color: categoryId === cat.id ? '#fff' : palette.text.primary }}>
-                      {cat.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-
-            {/* Date */}
+            {/* Date (required) */}
             <View>
               <Text style={[styles.label, { color: palette.text.primary }]}>Date (YYYY-MM-DD)</Text>
               <TextInput
@@ -317,6 +290,7 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
                 onChangeText={setTransactionDate}
                 placeholder="2026-10-19"
                 placeholderTextColor={palette.text.muted}
+                accessibilityLabel="Transaction date"
                 style={[
                   styles.input,
                   {
@@ -328,90 +302,163 @@ export const MobileExpenseCaptureSheet: React.FC<MobileExpenseCaptureSheetProps>
               />
             </View>
 
-            {/* Payment Label */}
-            <View>
-              <Text style={[styles.label, { color: palette.text.primary }]}>
-                Payment Method / Label
+            {!receiptsEnabled && (
+              <MobileFeedback
+                severity="info"
+                message={receiptsUnavailableMessage}
+                themeMode={themeMode}
+              />
+            )}
+
+            <Pressable
+              onPress={() => setDetailsOpen((open) => !open)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: detailsOpen }}
+              accessibilityLabel={
+                detailsOpen
+                  ? 'Hide optional details'
+                  : 'Show details for category, note, receipt, and payment'
+              }
+            >
+              <Text style={{ fontWeight: '600', color: palette.action.primary }}>
+                {detailsOpen ? 'Hide details' : 'Details'} — category, note, receipt, payment
               </Text>
-              <TextInput
-                value={paymentLabel}
-                onChangeText={setPaymentLabel}
-                placeholder="e.g. Card, Cash, bKash"
-                placeholderTextColor={palette.text.muted}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: palette.border.strong,
-                    color: palette.text.primary,
-                    backgroundColor: palette.surfaceRaised,
-                  },
-                ]}
-              />
-            </View>
+            </Pressable>
 
-            {/* Note */}
-            <View>
-              <Text style={[styles.label, { color: palette.text.primary }]}>Note</Text>
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder="Description of transaction"
-                placeholderTextColor={palette.text.muted}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: palette.border.strong,
-                    color: palette.text.primary,
-                    backgroundColor: palette.surfaceRaised,
-                  },
-                ]}
-              />
-            </View>
-
-            {/* Receipt File */}
-            {availableReceipts.length > 0 && (
-              <View>
-                <Text style={[styles.label, { color: palette.text.primary }]}>
-                  Attached Receipt
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: spacing.xs }}
-                >
-                  <Pressable
-                    onPress={() => setReceiptFileId(null)}
-                    style={[
-                      styles.chip,
-                      receiptFileId === null && { backgroundColor: palette.action.primary },
-                    ]}
+            {detailsOpen && (
+              <>
+                <View>
+                  <Text style={[styles.label, { color: palette.text.primary }]}>Category</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: spacing.xs }}
                   >
-                    <Text style={{ color: receiptFileId === null ? '#fff' : palette.text.primary }}>
-                      None
-                    </Text>
-                  </Pressable>
-                  {availableReceipts.map((file) => (
                     <Pressable
-                      key={file.id}
-                      onPress={() => setReceiptFileId(file.id)}
+                      onPress={() => setCategoryId(null)}
                       style={[
                         styles.chip,
-                        receiptFileId === file.id && { backgroundColor: palette.action.primary },
+                        categoryId === null && { backgroundColor: palette.action.primary },
                       ]}
                     >
-                      <Text
-                        style={{ color: receiptFileId === file.id ? '#fff' : palette.text.primary }}
-                      >
-                        <Icon
-                          name="attachment"
-                          color={receiptFileId === file.id ? '#fff' : palette.text.primary}
-                        />{' '}
-                        {file.fileName || file.filename}
+                      <Text style={{ color: categoryId === null ? '#fff' : palette.text.primary }}>
+                        Uncategorized
                       </Text>
                     </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
+                    {categories.map((cat) => (
+                      <Pressable
+                        key={cat.id}
+                        onPress={() => setCategoryId(cat.id)}
+                        style={[
+                          styles.chip,
+                          categoryId === cat.id && { backgroundColor: palette.action.primary },
+                        ]}
+                      >
+                        <Text
+                          style={{ color: categoryId === cat.id ? '#fff' : palette.text.primary }}
+                        >
+                          {cat.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                <View>
+                  <Text style={[styles.label, { color: palette.text.primary }]}>
+                    Payment Method / Label
+                  </Text>
+                  <TextInput
+                    value={paymentLabel}
+                    onChangeText={setPaymentLabel}
+                    placeholder="e.g. Card, Cash, bKash"
+                    placeholderTextColor={palette.text.muted}
+                    style={[
+                      styles.input,
+                      {
+                        borderColor: palette.border.strong,
+                        color: palette.text.primary,
+                        backgroundColor: palette.surfaceRaised,
+                      },
+                    ]}
+                  />
+                </View>
+
+                <View>
+                  <Text style={[styles.label, { color: palette.text.primary }]}>Note</Text>
+                  <TextInput
+                    value={note}
+                    onChangeText={setNote}
+                    placeholder="Description of transaction"
+                    placeholderTextColor={palette.text.muted}
+                    style={[
+                      styles.input,
+                      {
+                        borderColor: palette.border.strong,
+                        color: palette.text.primary,
+                        backgroundColor: palette.surfaceRaised,
+                      },
+                    ]}
+                  />
+                </View>
+
+                {receiptsEnabled && availableReceipts.length > 0 ? (
+                  <View>
+                    <Text style={[styles.label, { color: palette.text.primary }]}>
+                      Attached Receipt
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: spacing.xs }}
+                    >
+                      <Pressable
+                        onPress={() => setReceiptFileId(null)}
+                        style={[
+                          styles.chip,
+                          receiptFileId === null && { backgroundColor: palette.action.primary },
+                        ]}
+                      >
+                        <Text
+                          style={{ color: receiptFileId === null ? '#fff' : palette.text.primary }}
+                        >
+                          None
+                        </Text>
+                      </Pressable>
+                      {availableReceipts.map((file) => (
+                        <Pressable
+                          key={file.id}
+                          onPress={() => setReceiptFileId(file.id)}
+                          style={[
+                            styles.chip,
+                            receiptFileId === file.id && {
+                              backgroundColor: palette.action.primary,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={{
+                              color: receiptFileId === file.id ? '#fff' : palette.text.primary,
+                            }}
+                          >
+                            <Icon
+                              name="attachment"
+                              color={receiptFileId === file.id ? '#fff' : palette.text.primary}
+                            />{' '}
+                            {file.fileName || file.filename}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : receiptsEnabled ? (
+                  <MobileFeedback
+                    severity="info"
+                    message={receiptsUnavailableMessage}
+                    themeMode={themeMode}
+                  />
+                ) : null}
+              </>
             )}
 
             {/* Actions */}

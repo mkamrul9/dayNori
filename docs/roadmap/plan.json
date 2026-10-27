@@ -2708,8 +2708,7 @@
       "title": "Expenses and safe custom sections completion",
       "dependsOn": [
         "73",
-        "74",
-        "75"
+        "74"
       ],
       "scope": [
         "apps/web/src/app/expenses",
@@ -2721,7 +2720,8 @@
       "steps": [
         "Apply simple expense entry, categories/budgets/reports and approved section templates with optional advanced controls.",
         "Verify money/currency/date rules and typed-block validation, accessible ordering, schema migration and referenced-item preservation.",
-        "Complete missing bounded family actions from the inventory and attach instructions/coverage without exposing arbitrary code or SQL."
+        "Complete missing bounded family actions from the inventory and attach instructions/coverage without exposing arbitrary code or SQL.",
+        "Gate receipt/attachment controls on actual upload capability (ADR 0076 / ADR 0075); receipt-free expense capture must work without Phase 75 completion."
       ],
       "acceptance": [
         "Expense create/edit/report/export and section create/fill/reorder/remove/recover journeys work across promised platforms.",
@@ -2737,7 +2737,10 @@
         "docs/roadmap/v2/feature-coverage.md",
         "docs/engineering/handoff.md",
         "docs/product/requirements.md",
-        "docs/roadmap/v2/design-and-mobile.md"
+        "docs/roadmap/v2/design-and-mobile.md",
+        "docs/decisions/0076-phase-76-before-phase-75-acceptance.md",
+        "docs/phase-reports/phase-75.md",
+        "docs/decisions/0075-attachment-readiness-environment-matrix.md"
       ],
       "commit": "feat(extensions): finish expenses and approved custom sections"
     },

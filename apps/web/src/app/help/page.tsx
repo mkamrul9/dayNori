@@ -52,6 +52,14 @@ export default function HelpPage() {
           body: 'Recording needs an explicit Start after microphone permission. Limits are 10 minutes and 25 MB for the recorder (file-upload audio ceiling can be higher). Pause, stop, review, then save to attach — never ambient or onboarding recording. Drafts stay account-scoped; Log out stops playback of the prior account. Separate from assistant transcription.',
         },
         {
+          title: 'Track an expense',
+          body: 'Open Expenses from All features (or enable it under Settings). Enter amount, currency, and date first; optional category, note, payment, and receipt live under Details. Refunds must name the original expense and stay within its amount. Reports and budgets never mix currencies. Export keeps exact amounts and dates.',
+        },
+        {
+          title: 'Custom sections',
+          body: 'Create a section from an approved template or empty builder. Add typed fields or a view of existing notes/tasks — references stay the original records. Reorder with Move up/Move down (no dragging required). Removing a section or field does not delete referenced items; migration preview explains recoverable values before you confirm.',
+        },
+        {
           title: 'Find all features',
           body: 'Open All features from the shell header or sidebar. Search by name, then open a destination. Path: All features → destination (two navigation actions from the shell).',
         },

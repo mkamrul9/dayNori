@@ -36,6 +36,7 @@ import type {
 import { useAuth } from '../../components/AuthContext';
 import { useShell } from '../../components/ShellContext';
 import { createWebApiClient } from '../../data/webApiClient';
+import { isCorePreview } from '../../config/preview';
 
 export default function CustomSectionsPage() {
   const router = useRouter();
@@ -784,6 +785,12 @@ export default function CustomSectionsPage() {
           initialValues={activeEditingRecord ? activeEditingRecord.values || {} : {}}
           initialFolderId={activeEditingRecord?.folderId}
           availableFolders={availableFolders}
+          attachmentsEnabled={!isCorePreview}
+          attachmentsUnavailableMessage={
+            isCorePreview
+              ? 'New file attachments are off in this free testing preview. Existing attachment values stay preserved; other fields can still be saved.'
+              : 'No verified files are available to attach yet. Existing attachment values stay preserved.'
+          }
           themeMode={themeMode}
           onSubmit={handleSaveEntry}
         />

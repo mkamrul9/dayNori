@@ -8,7 +8,6 @@ Group: V2 everyday experience. Status is tracked in [progress](../progress.json)
 
 - [73 — Tasks routines and calendar workflow completion](73-tasks-routines-and-calendar-workflow-completion.md)
 - [74 — Library writing journal and search completion](74-library-writing-journal-and-search-completion.md)
-- [75 — Files and audio attachment readiness](75-files-and-audio-attachment-readiness.md)
 
 Read prerequisite reports and linked specifications before editing. A planned dependency is not satisfied by its folder or documentation alone.
 
@@ -27,6 +26,7 @@ Paths identify intended ownership. Phase 01 creates real application/package dir
 1. Apply simple expense entry, categories/budgets/reports and approved section templates with optional advanced controls.
 2. Verify money/currency/date rules and typed-block validation, accessible ordering, schema migration and referenced-item preservation.
 3. Complete missing bounded family actions from the inventory and attach instructions/coverage without exposing arbitrary code or SQL.
+4. Gate receipt/attachment controls on actual upload capability (ADR 0076 / ADR 0075); receipt-free expense capture must work without Phase 75 completion.
 
 ## Acceptance
 
@@ -55,6 +55,9 @@ Choose real commands from the current workspace, not guessed script names. Recor
 - [docs/engineering/handoff.md](../../engineering/handoff.md)
 - [docs/product/requirements.md](../../product/requirements.md)
 - [docs/roadmap/v2/design-and-mobile.md](../v2/design-and-mobile.md)
+- [docs/decisions/0076-phase-76-before-phase-75-acceptance.md](../../decisions/0076-phase-76-before-phase-75-acceptance.md)
+- [docs/phase-reports/phase-75.md](../../phase-reports/phase-75.md)
+- [docs/decisions/0075-attachment-readiness-environment-matrix.md](../../decisions/0075-attachment-readiness-environment-matrix.md)
 
 ## Commit target
 

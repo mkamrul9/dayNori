@@ -23,6 +23,7 @@ import type {
   ExistingRecordViewItemSummary,
 } from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
+import { isCorePreview } from '../config/runtime.js';
 
 export interface MobileRecordViewData {
   id: string;
@@ -398,6 +399,12 @@ export const CustomSectionsView: React.FC<CustomSectionsViewProps> = ({
           initialValues={activeEditingRecord ? activeEditingRecord.values || {} : {}}
           initialFolderId={activeEditingRecord?.folderId}
           availableFolders={availableFolders}
+          attachmentsEnabled={!isCorePreview}
+          attachmentsUnavailableMessage={
+            isCorePreview
+              ? 'New file attachments are off in this free testing preview. Existing attachment values stay preserved.'
+              : 'No verified files are available to attach yet. Existing attachment values stay preserved.'
+          }
           themeMode={themeMode}
           onSubmit={handleSaveEntry}
         />

@@ -1037,4 +1037,47 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('Data is preserved safely');
     });
   });
+
+  describe('Phase 76: Expense capture and gated attachments', () => {
+    it('renders expense capture with required fields first and Details for optional receipt/note', async () => {
+      const { ExpenseCaptureDialog } = await import('./ExpenseCaptureDialog.js');
+      const html = renderToString(
+        React.createElement(ExpenseCaptureDialog, {
+          isOpen: true,
+          onClose: () => {},
+          onSubmit: async () => {},
+          categories: [{ id: 'c1', name: 'Food' }],
+          receiptsEnabled: false,
+          receiptsUnavailableMessage: 'Receipt attachment is unavailable in this environment.',
+        })
+      );
+      expect(html).toContain('Amount');
+      expect(html).toContain('Currency');
+      expect(html).toContain('Date');
+      expect(html).toContain('Details');
+      expect(html).toContain('Receipt attachment is unavailable in this environment.');
+      expect(html).not.toContain('type="file"');
+    });
+
+    it('does not offer free-form file upload when section attachments are gated', async () => {
+      const { CustomSectionEntryDialog } = await import('./CustomSectionEntryDialog.js');
+      const html = renderToString(
+        React.createElement(CustomSectionEntryDialog, {
+          isOpen: true,
+          onClose: () => {},
+          onSubmit: async () => {},
+          collection: {
+            id: 'block1',
+            type: 'field_collection',
+            title: 'Entries',
+            fields: [{ id: 'f_att', type: 'attachment', label: 'Receipt', required: false }],
+          },
+          attachmentsEnabled: false,
+          attachmentsUnavailableMessage: 'New file attachments are unavailable here.',
+        })
+      );
+      expect(html).toContain('New file attachments are unavailable here.');
+      expect(html).not.toContain('type="file"');
+    });
+  });
 });
