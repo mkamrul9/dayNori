@@ -529,8 +529,8 @@
         "ref": "help/preferences"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-personalization"
+        "status": "existing",
+        "ref": "tour.personalization / chapter.navigation"
       }
     },
     {
@@ -650,8 +650,8 @@
         "ref": "help/today"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-today"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -709,8 +709,8 @@
         "ref": "help/plan"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-plan"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -768,8 +768,8 @@
         "ref": "help/library"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-library"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -827,8 +827,8 @@
         "ref": "help/journal"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-journal"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -886,8 +886,8 @@
         "ref": "help/settings"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-settings"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -945,8 +945,8 @@
         "ref": "help.using-help"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-help"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -1004,8 +1004,8 @@
         "ref": "help/support"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-support"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -1063,8 +1063,8 @@
         "ref": "help/review"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-nav-review"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -1182,8 +1182,8 @@
         "ref": "help/all-features"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-find-features"
+        "status": "existing",
+        "ref": "tour.navigation / chapter.navigation"
       }
     },
     {
@@ -1243,8 +1243,8 @@
         "ref": "help/personalize-navigation"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-personalization"
+        "status": "existing",
+        "ref": "tour.personalization / chapter.navigation"
       }
     },
     {
@@ -1304,8 +1304,8 @@
         "ref": "help/theme"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-personalization"
+        "status": "existing",
+        "ref": "tour.personalization / chapter.navigation"
       }
     },
     {
@@ -1360,8 +1360,8 @@
         "ref": "help/accessibility-prefs"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-personalization"
+        "status": "existing",
+        "ref": "tour.personalization / chapter.navigation"
       },
       "note": "Phase 70 e2e exercised Bangla/RTL/200% text on /settings/appearance."
     },
@@ -1491,8 +1491,8 @@
         "ref": "/help Add a task"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-tasks"
+        "status": "existing",
+        "ref": "tour.tasks + tour.task-create-save / chapter.tasks-routines"
       }
     },
     {
@@ -1686,8 +1686,8 @@
         "ref": "/help Add a task"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-tasks"
+        "status": "existing",
+        "ref": "tour.tasks + tour.task-create-save / chapter.tasks-routines"
       }
     },
     {
@@ -1751,8 +1751,8 @@
         "ref": "/help Add a task"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-tasks"
+        "status": "existing",
+        "ref": "tour.tasks + tour.task-create-save / chapter.tasks-routines"
       }
     },
     {
@@ -1816,8 +1816,8 @@
         "ref": "/help Add a task"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-tasks"
+        "status": "existing",
+        "ref": "tour.tasks + tour.task-create-save / chapter.tasks-routines"
       }
     },
     {
@@ -1879,8 +1879,8 @@
         "ref": "help.tasks-vs-routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-routines"
+        "status": "existing",
+        "ref": "tour.routines / chapter.tasks-routines"
       }
     },
     {
@@ -1942,8 +1942,8 @@
         "ref": "/help Tasks vs routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-routines"
+        "status": "existing",
+        "ref": "tour.routines / chapter.tasks-routines"
       }
     },
     {
@@ -2005,8 +2005,8 @@
         "ref": "/help Tasks vs routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-routines"
+        "status": "existing",
+        "ref": "tour.routines / chapter.tasks-routines"
       }
     },
     {
@@ -2068,8 +2068,8 @@
         "ref": "/help Tasks vs routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-routines"
+        "status": "existing",
+        "ref": "tour.routines / chapter.tasks-routines"
       }
     },
     {
@@ -2131,8 +2131,8 @@
         "ref": "/help Tasks vs routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-routines"
+        "status": "existing",
+        "ref": "tour.routines / chapter.tasks-routines"
       }
     },
     {
@@ -2194,8 +2194,8 @@
         "ref": "/help Tasks vs routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-routines"
+        "status": "existing",
+        "ref": "tour.routines / chapter.tasks-routines"
       }
     },
     {
@@ -2257,8 +2257,8 @@
         "ref": "/help Tasks vs routines"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-routines"
+        "status": "existing",
+        "ref": "tour.routines / chapter.tasks-routines"
       }
     },
     {
@@ -2315,8 +2315,8 @@
         "ref": "help/calendar"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-calendar"
+        "status": "existing",
+        "ref": "tour.calendar / chapter.calendar"
       }
     },
     {
@@ -2373,8 +2373,8 @@
         "ref": "help/calendar"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-calendar"
+        "status": "existing",
+        "ref": "tour.calendar / chapter.calendar"
       }
     },
     {
@@ -2431,8 +2431,8 @@
         "ref": "help/calendar"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-calendar"
+        "status": "existing",
+        "ref": "tour.calendar / chapter.calendar"
       }
     },
     {
@@ -2489,8 +2489,8 @@
         "ref": "help/calendar"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-calendar"
+        "status": "existing",
+        "ref": "tour.calendar / chapter.calendar"
       }
     },
     {
@@ -2547,8 +2547,8 @@
         "ref": "help/calendar"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-calendar"
+        "status": "existing",
+        "ref": "tour.calendar / chapter.calendar"
       }
     },
     {
@@ -2612,8 +2612,8 @@
         "ref": "help.notes-and-library"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-notes"
+        "status": "existing",
+        "ref": "tour.notes-library / chapter.notes-library"
       }
     },
     {
@@ -2677,8 +2677,8 @@
         "ref": "/help Write a note"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-notes"
+        "status": "existing",
+        "ref": "tour.notes-library / chapter.notes-library"
       }
     },
     {
@@ -2742,8 +2742,8 @@
         "ref": "/help Write a note"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-notes"
+        "status": "existing",
+        "ref": "tour.notes-library / chapter.notes-library"
       }
     },
     {
@@ -2807,8 +2807,8 @@
         "ref": "/help Write a note"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-notes"
+        "status": "existing",
+        "ref": "tour.notes-library / chapter.notes-library"
       }
     },
     {
@@ -2872,8 +2872,8 @@
         "ref": "/help Write a note"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-notes"
+        "status": "existing",
+        "ref": "tour.notes-library / chapter.notes-library"
       }
     },
     {
@@ -2932,8 +2932,8 @@
         "ref": "/help Journal"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-journal"
+        "status": "existing",
+        "ref": "tour.journal / chapter.journal"
       }
     },
     {
@@ -2992,8 +2992,8 @@
         "ref": "/help Journal"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-journal"
+        "status": "existing",
+        "ref": "tour.journal / chapter.journal"
       }
     },
     {
@@ -3052,8 +3052,8 @@
         "ref": "/help Journal"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-journal"
+        "status": "existing",
+        "ref": "tour.journal / chapter.journal"
       }
     },
     {
@@ -3112,8 +3112,8 @@
         "ref": "help.journal-privacy"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-journal"
+        "status": "existing",
+        "ref": "tour.journal / chapter.journal"
       }
     },
     {
@@ -3172,8 +3172,8 @@
         "ref": "/help Journal"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-journal"
+        "status": "existing",
+        "ref": "tour.journal / chapter.journal"
       }
     },
     {
@@ -3236,8 +3236,8 @@
         "ref": "help/library-folders"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-library"
+        "status": "existing",
+        "ref": "tour.folders-search / chapter.notes-library"
       }
     },
     {
@@ -3300,8 +3300,8 @@
         "ref": "help/library-folders"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-library"
+        "status": "existing",
+        "ref": "tour.folders-search / chapter.notes-library"
       }
     },
     {
@@ -3364,8 +3364,8 @@
         "ref": "help/library-folders"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-library"
+        "status": "existing",
+        "ref": "tour.folders-search / chapter.notes-library"
       }
     },
     {
@@ -3428,8 +3428,8 @@
         "ref": "help/library-folders"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-library"
+        "status": "existing",
+        "ref": "tour.folders-search / chapter.notes-library"
       }
     },
     {
@@ -3492,8 +3492,8 @@
         "ref": "help/library-folders"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-library"
+        "status": "existing",
+        "ref": "tour.folders-search / chapter.notes-library"
       }
     },
     {
@@ -3557,8 +3557,8 @@
         "ref": "help/search"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-search"
+        "status": "existing",
+        "ref": "tour.folders-search / chapter.notes-library"
       }
     },
     {

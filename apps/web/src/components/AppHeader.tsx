@@ -122,21 +122,24 @@ export const AppHeader: React.FC = () => {
           flexWrap: 'nowrap',
         }}
       >
-        <Link
-          href="/features"
-          id="global-all-features-btn"
-          aria-label="All features directory"
-          style={{ ...buttonStyle, textDecoration: 'none' }}
-          className="daynori-header-all-features hide-below-380"
-        >
-          <span aria-hidden="true">
-            <Icon name="sliders" />
-          </span>
-          <span className="desktop-only" style={{ marginLeft: '4px' }}>
-            All features
-          </span>
-        </Link>
+        <TourTarget id="shell.all-features">
+          <Link
+            href="/features"
+            id="global-all-features-btn"
+            aria-label="All features directory"
+            style={{ ...buttonStyle, textDecoration: 'none' }}
+            className="daynori-header-all-features hide-below-380"
+          >
+            <span aria-hidden="true">
+              <Icon name="sliders" />
+            </span>
+            <span className="desktop-only" style={{ marginLeft: '4px' }}>
+              All features
+            </span>
+          </Link>
+        </TourTarget>
 
+        <TourTarget id="shell.search">
         <button
           type="button"
           id="global-search-btn"
@@ -165,6 +168,7 @@ export const AppHeader: React.FC = () => {
             /
           </kbd>
         </button>
+        </TourTarget>
 
         <TourTarget id="shell.create">
         <button

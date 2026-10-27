@@ -122,8 +122,11 @@ export default function App() {
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
-  /** Phase 79: tour presentation is independent of create/search modals. */
+  /** Phase 79–80: tour presentation is independent of create/search modals. */
   const [guidedTourVisible, setGuidedTourVisible] = useState(false);
+  const [guidedTourChapterId, setGuidedTourChapterId] = useState<string>(
+    TOUR_CHAPTER_TASK_CREATE_SAVE.id
+  );
   /** Phase 79 proof-tour evidence bridge from Create/Plan real controls. */
   const [tourPendingEvidence, setTourPendingEvidence] = useState<{
     type:
@@ -919,6 +922,43 @@ export default function App() {
             isOnline={isOnline}
             targetTaskId={targetTaskId}
             onClearTarget={() => setTargetTaskId(null)}
+            onTourTaskMutation={(info) => {
+              if (!guidedTourVisible) return;
+              if (info.command === 'completeTask') {
+                setTourPendingEvidence({
+                  type: 'entity_completed',
+                  entityId: info.entityId,
+                  entityType: 'task',
+                  operationId: info.operationId,
+                  persistence: 'local',
+                  expectedAction: 'complete_practice_task',
+                  command: info.command,
+                  targetId: 'task.complete',
+                });
+              } else if (info.command === 'reopenTask') {
+                setTourPendingEvidence({
+                  type: 'entity_completion_undone',
+                  entityId: info.entityId,
+                  entityType: 'task',
+                  operationId: info.operationId,
+                  persistence: 'local',
+                  expectedAction: 'undo_practice_task_completion',
+                  command: info.command,
+                  targetId: 'task.undo-complete',
+                });
+              } else if (info.command === 'createTask' || info.command === 'updateTask') {
+                setTourPendingEvidence({
+                  type: 'local_mutation_committed',
+                  entityId: info.entityId,
+                  entityType: 'task',
+                  operationId: info.operationId,
+                  persistence: 'local',
+                  expectedAction: 'save_practice_task',
+                  command: info.command,
+                  targetId: 'create.task.save',
+                });
+              }
+            }}
           />
         )}
 
@@ -1392,7 +1432,8 @@ export default function App() {
             userId={userNamespace?.userId ?? null}
             onClose={returnToSettingsFromNested}
             onReplayOnboarding={() => setActiveModal('onboarding-replay')}
-            onStartGuidedTour={() => {
+            onStartGuidedTour={(tourChapterId) => {
+              setGuidedTourChapterId(tourChapterId);
               setCreateDraft({
                 type: 'task',
                 title: TOUR_PRACTICE_TASK_TITLE,
@@ -1411,6 +1452,7 @@ export default function App() {
 
       <TourCoachmarkSheet
         visible={guidedTourVisible}
+        chapterId={guidedTourChapterId}
         themeMode={themeMode}
         apiClient={apiClient ?? undefined}
         workspaceId={userNamespace?.workspaceId ?? null}
@@ -1420,7 +1462,11 @@ export default function App() {
         onRequestRoute={(route) => {
           if (route.includes('plan')) {
             setCurrentTab('plan');
-            setPlanSubView('tasks');
+            setPlanSubView(route.includes('calendar') ? 'calendar' : 'tasks');
+          } else if (route.includes('library')) {
+            setCurrentTab('library');
+          } else if (route.includes('journal')) {
+            setCurrentTab('journal');
           } else if (route === '/' || route.includes('today')) {
             setCurrentTab('today');
           }

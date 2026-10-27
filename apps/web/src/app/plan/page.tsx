@@ -1726,14 +1726,17 @@ export default function PlanPage() {
                         if (
                           isPractice &&
                           tour?.isPresenting &&
-                          tour.activeChapter?.currentStepId === 'reopen-task'
+                          (tour.activeChapter?.currentStepId === 'reopen-task' ||
+                            tour.activeChapter?.currentStepId === 'reopen-edit' ||
+                            tour.activeChapter?.currentStepId === 'reopen')
                         ) {
                           void tour.reportEvidence({
-                            type: 'entity_visible',
+                            type: 'entity_opened',
                             entityId: task.id,
                             entityType: 'task',
                             targetId: 'plan.task.practice',
                             expectedAction: 'reopen_practice_task',
+                            recordLoaded: true,
                           });
                         }
                       }}

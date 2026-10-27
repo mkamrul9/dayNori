@@ -2,8 +2,9 @@ import { L } from './text.js';
 import type { LearningChapter } from './types.js';
 
 /**
- * Learn the app chapter catalog (Phase 78).
- * Runnable action-verified tours are Phase 79 — chapters stay honest about state.
+ * Learn the app chapter catalog (Phase 78–80).
+ * `runnable` only when action-verified tour definitions are implemented and verified.
+ * Phase 81 advanced/gated chapters stay gated or coming later.
  */
 export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
   {
@@ -17,7 +18,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'available_replay',
     stateExplanation: L(
       'help.chapter.account-first-use.state',
-      'Replay the existing beginner onboarding from Help. A full action-verified tour engine arrives later.'
+      'Replay the beginner onboarding from Help. Everyday guided chapters cover workflows after first use.'
     ),
   },
   {
@@ -25,27 +26,27 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     title: L('help.chapter.navigation.title', 'Find your way around'),
     summary: L(
       'help.chapter.navigation.summary',
-      'Today, Plan, Library, Create, and All features.'
+      'Today, Plan, Library, Journal, Create, Search, and All features — plus personalization.'
     ),
     relatedArticleIds: ['help.navigate-shell', 'help.all-features-pins'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.navigation.state',
-      'Guided practice for this chapter is coming later. Read the related Help articles now.'
+      'Start guided navigation and personalization chapters. They advance only after real shell actions.'
     ),
   },
   {
     id: 'chapter.task-create-save',
-    title: L('help.chapter.task-create-save.title', 'Your first task (guided)'),
+    title: L('help.chapter.task-create-save.title', 'Starter: your first task'),
     summary: L(
       'help.chapter.task-create-save.summary',
-      'Action-verified practice: create, save, reopen, complete, and undo one task.'
+      'Optional short starter: create, save, reopen, complete, and undo one task.'
     ),
     relatedArticleIds: ['help.tasks-vs-routines'],
     state: 'runnable',
     stateExplanation: L(
       'help.chapter.task-create-save.state',
-      'Start the short guided chapter. It uses real Create/Plan controls and advances only after verified saves.'
+      'Start the short starter chapter, or continue with Tasks and routines for fuller coverage.'
     ),
   },
   {
@@ -53,38 +54,38 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     title: L('help.chapter.tasks-routines.title', 'Tasks and routines'),
     summary: L(
       'help.chapter.tasks-routines.summary',
-      'One-time tasks versus repeating routines.'
+      'Day-to-day tasks, filters, routines, and independent occurrences.'
     ),
     relatedArticleIds: ['help.tasks-vs-routines'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.tasks-routines.state',
-      'Broader tasks/routines coverage is coming later. Try the short “Your first task” guided chapter now.'
+      'Guided chapters for tasks and routines use real Create/Plan controls and durable save checks.'
     ),
   },
   {
     id: 'chapter.calendar',
     title: L('help.chapter.calendar.title', 'Calendar'),
-    summary: L('help.chapter.calendar.summary', 'Agenda, month, and canonical projections.'),
+    summary: L('help.chapter.calendar.summary', 'Agenda, month, projections, and private events.'),
     relatedArticleIds: ['help.calendar'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.calendar.state',
-      'Guided practice coming later. Open Plan → Calendar with the Help article beside you.'
+      'Guided calendar practice opens projections as source records and can create a practice event.'
     ),
   },
   {
     id: 'chapter.notes-library',
-    title: L('help.chapter.notes-library.title', 'Notes and Library'),
+    title: L('help.chapter.notes-library.title', 'Notes, Library, folders, and search'),
     summary: L(
       'help.chapter.notes-library.summary',
-      'Writing, folders, filters, and save status.'
+      'Notes, save labels, folders, filters, and search reopen.'
     ),
     relatedArticleIds: ['help.notes-and-library', 'help.search'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.notes-library.state',
-      'Guided practice coming later. Articles stay available offline for essentials.'
+      'Guided notes/library and folders/search chapters are available. Reading articles alone is not practice completion.'
     ),
   },
   {
@@ -92,10 +93,10 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     title: L('help.chapter.journal.title', 'Journal privacy'),
     summary: L('help.chapter.journal.summary', 'Private entries and preview settings.'),
     relatedArticleIds: ['help.journal-privacy'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.journal.state',
-      'Guided practice coming later. Opening articles is not the same as finishing a guided chapter.'
+      'Guided journal practice never stores entry bodies in tour progress.'
     ),
   },
   {
@@ -109,7 +110,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'gated_unavailable',
     stateExplanation: L(
       'help.chapter.files-audio.state',
-      'Live practice stays unavailable while attachment capabilities are gated. Read the Help articles for honest prerequisites.'
+      'Live practice stays unavailable while attachment capabilities are gated (Phase 75/81).'
     ),
   },
   {
@@ -120,7 +121,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'coming_later',
     stateExplanation: L(
       'help.chapter.expenses.state',
-      'Guided practice coming later. Help never creates a real expense.'
+      'Advanced guided practice for expenses is Phase 81. Help never creates a real expense.'
     ),
   },
   {
@@ -134,7 +135,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'coming_later',
     stateExplanation: L(
       'help.chapter.custom-sections.state',
-      'Guided practice coming later.'
+      'Advanced guided practice is Phase 81.'
     ),
   },
   {
@@ -148,7 +149,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'coming_later',
     stateExplanation: L(
       'help.chapter.offline-sync.state',
-      'Essential recovery articles are available offline. Guided offline practice chapters are coming later.'
+      'Essential recovery articles are available offline. Advanced offline/portability practice is Phase 81.'
     ),
   },
   {
@@ -168,7 +169,7 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'gated_unavailable',
     stateExplanation: L(
       'help.chapter.optional-gated.state',
-      'These features may be off in your build. Help explains availability; practice stays unavailable when gated.'
+      'These features may be off in your build. Practice stays unavailable when gated (Phase 81).'
     ),
   },
   {
@@ -176,13 +177,13 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     title: L('help.chapter.help-learning.title', 'Using Help'),
     summary: L(
       'help.chapter.help-learning.summary',
-      'Search Help, Learn the app, and beginner replay.'
+      'Open Help, return to drafts, pause/resume learning, and review practice cleanup.'
     ),
     relatedArticleIds: ['help.using-help', 'help.support-and-feedback'],
-    state: 'available_replay',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.help-learning.state',
-      'You can replay the beginner guide now. Article reading is not a substitute for a future guided chapter.'
+      'Start the Help-return guided chapter, or replay the beginner guide.'
     ),
   },
 ] as const;

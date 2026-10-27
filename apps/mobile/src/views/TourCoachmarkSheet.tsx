@@ -32,6 +32,8 @@ export const MOBILE_PROOF_TOUR_ID = TOUR_CHAPTER_TASK_CREATE_SAVE.id;
 export interface TourCoachmarkSheetProps {
   visible: boolean;
   themeMode: ThemeMode;
+  /** Active tour chapter id — required for multi-chapter Phase 80 catalog. */
+  chapterId?: string;
   apiClient?: DaynoriApiClient;
   workspaceId?: string | null;
   userId?: string | null;
@@ -54,12 +56,13 @@ export interface TourCoachmarkSheetProps {
 }
 
 /**
- * Native presentation adapter for the Phase 79 proof tour.
+ * Native presentation adapter for action-verified tours (Phase 79–80).
  * Targets are semantic IDs (testID); progress is account/workspace scoped.
  */
 export const TourCoachmarkSheet: React.FC<TourCoachmarkSheetProps> = ({
   visible,
   themeMode,
+  chapterId: chapterIdProp,
   apiClient,
   workspaceId,
   userId,
@@ -72,7 +75,7 @@ export const TourCoachmarkSheet: React.FC<TourCoachmarkSheetProps> = ({
   const [progress, setProgress] = useState<TourProgressState>(getDefaultTourProgress);
   const [revision, setRevision] = useState<number | null>(null);
   const [announce, setAnnounce] = useState('');
-  const chapterId = MOBILE_PROOF_TOUR_ID;
+  const chapterId = chapterIdProp || MOBILE_PROOF_TOUR_ID;
 
   const chapter = useMemo(
     () => findChapterProgress(progress, chapterId) ?? null,

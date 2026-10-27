@@ -1,6 +1,6 @@
 # V2 guided tour contract
 
-Status: Phase 79 engine + proof chapter `tour.task-create-save` shipped (ADR 0079). Everyday/advanced chapter collections remain Phases 80–81. Help catalog states in Phase 78. Reuse and migrate the Phase 31 onboarding state rather than layering a second independent “finished tutorial” flag over it.
+Status: Phase 79 engine + starter `tour.task-create-save` (ADR 0079). Phase 80 everyday chapter definitions/adapters shipped (ADR 0080); real UI journey attestation still required for Phase 80 acceptance. Advanced/gated collections remain Phase 81. Help catalog states updated for runnable everyday chapters. Reuse and migrate the Phase 31 onboarding state rather than layering a second independent “finished tutorial” flag over it.
 
 ## Learning experience
 

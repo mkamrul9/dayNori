@@ -134,6 +134,28 @@ export const TourStepRecordSchema = z
   })
   .strict();
 
+export const TourPracticeArtifactSchema = z
+  .object({
+    entityId: z.string().min(1).max(128),
+    entityType: z.enum([
+      'task',
+      'routine',
+      'note',
+      'journal_entry',
+      'calendar_event',
+      'folder',
+      'preference',
+    ]),
+    chapterId: z.string().min(1).max(128),
+    role: z.string().min(1).max(64),
+    createdByTour: z.boolean(),
+    userOwned: z.boolean(),
+    labeledPractice: z.boolean(),
+    linkedOrEdited: z.boolean(),
+    createdAt: z.string().datetime(),
+  })
+  .strict();
+
 export const TourChapterProgressSchema = z
   .object({
     chapterId: z.string().min(1).max(128),
@@ -143,7 +165,8 @@ export const TourChapterProgressSchema = z
     currentStepId: z.string().min(1).max(128).nullable(),
     runId: z.string().min(1).max(128).nullable(),
     steps: z.array(TourStepRecordSchema).max(40),
-    practiceEntityIds: z.array(z.string().min(1).max(128)).max(20),
+    practiceEntityIds: z.array(z.string().min(1).max(128)).max(60),
+    practiceArtifacts: z.array(TourPracticeArtifactSchema).max(80).optional(),
     updatedAt: z.string().datetime(),
     blockedReason: z.string().max(512).nullable().optional(),
   })

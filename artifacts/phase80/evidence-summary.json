@@ -1,0 +1,61 @@
+{
+  "phase": 80,
+  "required": true,
+  "at": "2026-10-27T14:43:55.316Z",
+  "node": "v24.21.0",
+  "checks": [
+    {
+      "label": "phase80-everyday-tours",
+      "ok": true,
+      "status": 0,
+      "durationMs": 2428,
+      "stdoutTail": "\n RUN  v4.1.11 D:/SWE/UNIQUE WORK/dailyLIfe\n\n\n Test Files  1 passed (1)\n      Tests  6 passed (6)\n   Start at  20:43:45\n   Duration  1.40s (transform 447ms, setup 0ms, import 1.20s, tests 10ms, environment 0ms)\n\n",
+      "stderrTail": ""
+    },
+    {
+      "label": "phase79-regression",
+      "ok": true,
+      "status": 0,
+      "durationMs": 2432,
+      "stdoutTail": "\n RUN  v4.1.11 D:/SWE/UNIQUE WORK/dailyLIfe\n\n\n Test Files  1 passed (1)\n      Tests  5 passed (5)\n   Start at  20:43:47\n   Duration  1.38s (transform 440ms, setup 0ms, import 1.16s, tests 9ms, environment 0ms)\n\n",
+      "stderrTail": ""
+    },
+    {
+      "label": "phase78-help-regression",
+      "ok": true,
+      "status": 0,
+      "durationMs": 1664,
+      "stdoutTail": "\n RUN  v4.1.11 D:/SWE/UNIQUE WORK/dailyLIfe\n\n\n Test Files  2 passed (2)\n      Tests  9 passed (9)\n   Start at  20:43:50\n   Duration  657ms (transform 118ms, setup 0ms, import 277ms, tests 24ms, environment 0ms)\n\n",
+      "stderrTail": ""
+    },
+    {
+      "label": "domain-build",
+      "ok": true,
+      "status": 0,
+      "durationMs": 3811,
+      "stdoutTail": "\n> @daynori/domain@0.1.0 build D:\\SWE\\UNIQUE WORK\\dailyLIfe\\packages\\domain\n> tsc -b\n\n",
+      "stderrTail": ""
+    },
+    {
+      "label": "contracts-build",
+      "ok": true,
+      "status": 0,
+      "durationMs": 776,
+      "stdoutTail": "\n> @daynori/contracts@0.1.0 build D:\\SWE\\UNIQUE WORK\\dailyLIfe\\packages\\contracts\n> tsc -b\n\n",
+      "stderrTail": ""
+    },
+    {
+      "label": "real-ui-journeys",
+      "ok": false,
+      "status": "unmet",
+      "detail": "No manual/UI attestation file. Record desktop web, narrow PWA, and native Android journeys with canonical IDs.",
+      "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase80\\manual-ui-evidence.json"
+    }
+  ],
+  "unmet": [
+    "real-ui-journeys"
+  ],
+  "limits": {
+    "note": "Phase 79 unit evidence helper success does not prove Phase 80 UI journeys. Phase 71 TalkBack spoken gate remains separate."
+  }
+}

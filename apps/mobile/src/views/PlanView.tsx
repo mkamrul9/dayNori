@@ -100,6 +100,12 @@ export interface PlanViewProps {
   isDemo?: boolean;
   targetTaskId?: string | null;
   onClearTarget?: () => void;
+  /** Phase 80: correlated tour evidence from normal Plan commands (complete/undo/save). */
+  onTourTaskMutation?: (info: {
+    command: 'createTask' | 'updateTask' | 'completeTask' | 'reopenTask' | 'trashTask';
+    entityId: string;
+    operationId: string;
+  }) => void;
 }
 
 export const SAMPLE_MOBILE_TASKS: TaskRecord[] = [
@@ -308,6 +314,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   isDemo,
   targetTaskId,
   onClearTarget,
+  onTourTaskMutation,
 }) => {
   const palette = colors[themeMode];
   const [activeSubView, setActiveSubView] = useState<PlanSubView>(initialSubView);
@@ -967,7 +974,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
     if (syncEngine) {
       try {
-        await syncEngine.saveItem(itemHeader, undefined, command, { payload });
+        const mutation = await syncEngine.saveItem(itemHeader, undefined, command, { payload });
+        onTourTaskMutation?.({
+          command,
+          entityId: task.id,
+          operationId: mutation.operationId,
+        });
         return true;
       } catch {
         return false;
@@ -992,13 +1004,24 @@ export const PlanView: React.FC<PlanViewProps> = ({
           lastError: null,
         };
         await repository.saveItemTransaction(itemHeader, mutation, undefined, undefined, task);
+        onTourTaskMutation?.({
+          command,
+          entityId: task.id,
+          operationId: mutation.operationId,
+        });
         return true;
       } catch {
         return false;
       }
     }
 
-    return true; // memory fallback for standalone test rendering
+    // memory fallback for standalone test rendering
+    onTourTaskMutation?.({
+      command,
+      entityId: task.id,
+      operationId: generateUuid(),
+    });
+    return true;
   };
 
   // Quick Add Task with timezone-aware calendar dates

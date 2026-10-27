@@ -18,6 +18,7 @@ import {
   articleTitle,
   findHelpArticle,
   getLearningChapters,
+  listTourChaptersForLearningChapter,
   resolveHelpText,
   searchCatalogHelp,
   type HelpArticle,
@@ -31,7 +32,7 @@ export function HelpCatalogView(props: {
   userId?: string | null;
   onClose: () => void;
   onReplayOnboarding?: () => void;
-  onStartGuidedTour?: () => void;
+  onStartGuidedTour?: (tourChapterId: string) => void;
   onOpenSupport?: () => void;
 }) {
   const { themeMode, onClose, onReplayOnboarding, onStartGuidedTour, onOpenSupport } = props;
@@ -122,17 +123,21 @@ export function HelpCatalogView(props: {
             <Text style={[styles.body, { color: palette.text.secondary }]}>
               {resolveHelpText(ch.stateExplanation)}
             </Text>
-            {ch.state === 'runnable' && onStartGuidedTour ? (
-              <MobileButton
-                themeMode={themeMode}
-                variant="primary"
-                onPress={onStartGuidedTour}
-                style={{ marginTop: spacing.sm }}
-                testID="help-start-tour-task-create-save"
-              >
-                Start guided chapter
-              </MobileButton>
-            ) : ch.state === 'available_replay' && onReplayOnboarding ? (
+            {ch.state === 'runnable' && onStartGuidedTour
+              ? listTourChaptersForLearningChapter(ch.id).map((tourDef) => (
+                  <MobileButton
+                    key={tourDef.id}
+                    themeMode={themeMode}
+                    variant="primary"
+                    onPress={() => onStartGuidedTour(tourDef.id)}
+                    style={{ marginTop: spacing.sm }}
+                    testID={`help-start-${tourDef.id.replace(/\./g, '-')}`}
+                  >
+                    Start: {tourDef.title.defaultText}
+                  </MobileButton>
+                ))
+              : null}
+            {ch.state === 'available_replay' && onReplayOnboarding ? (
               <MobileButton
                 themeMode={themeMode}
                 variant="secondary"
@@ -141,11 +146,11 @@ export function HelpCatalogView(props: {
               >
                 Replay beginner guide
               </MobileButton>
-            ) : (
+            ) : ch.state !== 'runnable' ? (
               <Text style={{ marginTop: spacing.sm, fontSize: 12, color: palette.text.secondary }}>
                 Guided practice unavailable
               </Text>
-            )}
+            ) : null}
             {ch.relatedArticleIds.map((id) => {
               const a = findHelpArticle(id);
               if (!a) return null;

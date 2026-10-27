@@ -13,6 +13,7 @@ import {
   articleTitle,
   findHelpArticle,
   getLearningChapters,
+  listTourChaptersForLearningChapter,
   resolveHelpText,
   searchCatalogHelp,
   type HelpArticle,
@@ -27,7 +28,8 @@ import {
   readHelpReturnContext,
   saveContinueLearning,
 } from '../../help/helpReturnContext';
-import { useTourOptional, PROOF_LEARNING_CHAPTER_ID, PROOF_TOUR_CHAPTER_ID } from '../../tours/TourContext';
+import { useTourOptional } from '../../tours/TourContext';
+import { TourCleanupPanel } from '../../tours/TourCleanupPanel';
 
 type HelpView = 'home' | 'article' | 'learn' | 'category';
 
@@ -272,29 +274,26 @@ function HelpPageInner() {
                   Status: {chapter.state.replace(/_/g, ' ')}. {resolveHelpText(chapter.stateExplanation)}
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {chapter.state === 'runnable' ? (
-                    <Button
-                      variant="primary"
-                      size="compact"
-                      themeMode={themeMode}
-                      id={
-                        chapter.id === PROOF_LEARNING_CHAPTER_ID
-                          ? 'help-start-tour-task-create-save'
-                          : undefined
-                      }
-                      onClick={() => {
-                        if (user?.id) saveContinueLearning(user.id, chapter.id);
-                        void tour?.startChapter(
-                          chapter.id === PROOF_LEARNING_CHAPTER_ID
-                            ? PROOF_TOUR_CHAPTER_ID
-                            : PROOF_TOUR_CHAPTER_ID
-                        );
-                        router.push('/');
-                      }}
-                    >
-                      Start guided chapter
-                    </Button>
-                  ) : chapter.state === 'available_replay' ? (
+                  {chapter.state === 'runnable'
+                    ? listTourChaptersForLearningChapter(chapter.id).map((tourDef) => (
+                        <Button
+                          key={tourDef.id}
+                          variant="primary"
+                          size="compact"
+                          themeMode={themeMode}
+                          id={`help-start-${tourDef.id.replace(/\./g, '-')}`}
+                          onClick={() => {
+                            if (user?.id) saveContinueLearning(user.id, chapter.id);
+                            void tour?.startChapter(tourDef.id);
+                            const route = tourDef.steps.find((s) => s.route)?.route ?? '/';
+                            router.push(route);
+                          }}
+                        >
+                          Start: {tourDef.title.defaultText}
+                        </Button>
+                      ))
+                    : null}
+                  {chapter.state === 'available_replay' ? (
                     <Button
                       variant="secondary"
                       size="compact"
@@ -306,11 +305,11 @@ function HelpPageInner() {
                     >
                       Replay beginner guide
                     </Button>
-                  ) : (
+                  ) : chapter.state !== 'runnable' ? (
                     <span style={{ fontSize: 12, color: palette.text.secondary }}>
                       Guided practice unavailable
                     </span>
-                  )}
+                  ) : null}
                   {chapter.relatedArticleIds.map((aid) => {
                     const a = findHelpArticle(aid);
                     if (!a) return null;
@@ -333,6 +332,9 @@ function HelpPageInner() {
               </li>
             ))}
           </ul>
+          <div style={{ marginTop: spacing.md }}>
+            <TourCleanupPanel themeMode={themeMode} />
+          </div>
         </Card>
       ) : null}
 

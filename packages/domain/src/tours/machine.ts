@@ -1,14 +1,17 @@
 import { createDeterministicUuid } from '../onboarding.js';
 import { correlateTourEvidence, getStepDefinition } from './correlation.js';
 import { getTourChapterDefinition } from './definitions.js';
+import { createPracticeArtifact, upsertPracticeArtifact } from './practice.js';
 import {
   emptyChapterProgress,
   findChapterProgress,
+  TOUR_PROGRESS_MAX_PRACTICE_IDS,
   upsertChapterProgress,
 } from './progress.js';
 import type {
   TourChapterProgress,
   TourControl,
+  TourEntityType,
   TourEvidenceEvent,
   TourProgressState,
   TourStepRecord,
@@ -361,6 +364,26 @@ export function applyTourEvidence(
     practiceIds.push(event.entityId);
   }
 
+  let artifacts = [...(chapter.practiceArtifacts ?? [])];
+  if (event.entityId) {
+    const entityType = (event.entityType as TourEntityType | undefined) ?? stepDef.entityType ?? 'task';
+    artifacts = upsertPracticeArtifact(
+      artifacts,
+      createPracticeArtifact({
+        entityId: event.entityId,
+        entityType,
+        chapterId,
+        role: 'primary',
+        createdByTour: true,
+        userOwned: false,
+        labeledPractice: true,
+        linkedOrEdited: event.type === 'entity_opened' || event.type === 'local_mutation_committed'
+          ? false
+          : false,
+      })
+    );
+  }
+
   chapter = patchStep(chapter, chapter.currentStepId, {
     outcome: 'completed',
     completedAt: nowIso(),
@@ -369,7 +392,8 @@ export function applyTourEvidence(
   });
   chapter = {
     ...chapter,
-    practiceEntityIds: practiceIds.slice(0, 20),
+    practiceEntityIds: practiceIds.slice(0, TOUR_PROGRESS_MAX_PRACTICE_IDS),
+    practiceArtifacts: artifacts,
   };
 
   return advanceToFollowingStep(state, chapter, def.steps.map((s) => s.id));

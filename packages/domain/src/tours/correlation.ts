@@ -13,6 +13,8 @@ export type CorrelationRejectReason =
   | 'wrong_target'
   | 'wrong_create_type'
   | 'cloud_required'
+  | 'record_not_loaded'
+  | 'missing_operation'
   | 'stale_or_unrelated';
 
 export interface CorrelationContext {
@@ -57,9 +59,46 @@ function matchesScope(event: TourEvidenceEvent, ctx: CorrelationContext): Correl
   return { accepted: true };
 }
 
+function requireEntityMatch(
+  event: TourEvidenceEvent,
+  ctx: CorrelationContext
+): CorrelationResult | null {
+  const expected = ctx.expectedEntityId;
+  if (expected && event.entityId && event.entityId !== expected) {
+    return { accepted: false, reason: 'wrong_entity' };
+  }
+  if (
+    !expected &&
+    event.entityId &&
+    ctx.practiceEntityIds &&
+    ctx.practiceEntityIds.length > 0 &&
+    !ctx.practiceEntityIds.includes(event.entityId)
+  ) {
+    return { accepted: false, reason: 'wrong_entity' };
+  }
+  return null;
+}
+
+function requireLocalMutation(event: TourEvidenceEvent, entityType?: string): CorrelationResult {
+  if (event.type !== 'local_mutation_committed') {
+    return { accepted: false, reason: 'wrong_action' };
+  }
+  if (entityType && event.entityType && event.entityType !== entityType) {
+    return { accepted: false, reason: 'wrong_entity' };
+  }
+  if (event.persistence === 'cloud') {
+    return { accepted: false, reason: 'cloud_required' };
+  }
+  if (!event.operationId || !event.entityId) {
+    return { accepted: false, reason: 'missing_operation' };
+  }
+  return { accepted: true };
+}
+
 /**
  * Returns whether an evidence event may complete the current step.
  * Tour correlation is never authorization — API membership remains authoritative.
+ * Target clicks prove activation only — never save/preference/completion success.
  */
 export function correlateTourEvidence(
   step: TourStepDefinition,
@@ -85,70 +124,129 @@ export function correlateTourEvidence(
       return { accepted: true };
 
     case 'create_sheet_task_selected':
+    case 'create_type_selected': {
       if (event.type !== 'create_type_selected') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (event.createType !== 'task') {
+      const want = step.createType ?? (step.completionPredicate === 'create_sheet_task_selected' ? 'task' : undefined);
+      if (want && event.createType !== want) {
         return { accepted: false, reason: 'wrong_create_type' };
-      }
-      return { accepted: true };
-
-    case 'practice_task_saved_locally': {
-      if (event.type !== 'local_mutation_committed') {
-        return { accepted: false, reason: 'wrong_action' };
-      }
-      if (event.entityType && event.entityType !== 'task') {
-        return { accepted: false, reason: 'wrong_entity' };
-      }
-      if (event.persistence === 'cloud') {
-        // Cloud ack is fine after local; local-save step requires local durability.
-        // Accept cloud only if we also know a local commit happened — adapters should emit local.
-        return { accepted: false, reason: 'cloud_required' };
-      }
-      const expected = ctx.expectedEntityId;
-      if (expected && event.entityId && event.entityId !== expected) {
-        return { accepted: false, reason: 'wrong_entity' };
-      }
-      if (
-        !expected &&
-        event.entityId &&
-        ctx.practiceEntityIds &&
-        ctx.practiceEntityIds.length > 0 &&
-        !ctx.practiceEntityIds.includes(event.entityId)
-      ) {
-        // Unrelated existing item — reject.
-        return { accepted: false, reason: 'wrong_entity' };
-      }
-      if (!event.operationId) {
-        return { accepted: false, reason: 'stale_or_unrelated' };
       }
       return { accepted: true };
     }
 
+    case 'practice_task_saved_locally': {
+      const base = requireLocalMutation(event, 'task');
+      if (!base.accepted) return base;
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
+    }
+
+    case 'entity_saved_locally':
+    case 'entity_updated_locally': {
+      const base = requireLocalMutation(event, step.entityType);
+      if (!base.accepted) return base;
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
+    }
+
     case 'practice_task_visible_in_plan':
-      if (event.type !== 'entity_visible' && event.type !== 'target_activated') {
+      // Legacy Phase 79 predicate — prefer practice_task_opened / entity_opened.
+      if (event.type !== 'entity_visible' && event.type !== 'target_activated' && event.type !== 'entity_opened') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (ctx.expectedEntityId && event.entityId && event.entityId !== ctx.expectedEntityId) {
-        return { accepted: false, reason: 'wrong_entity' };
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
+
+    case 'practice_task_opened':
+    case 'entity_opened':
+    case 'calendar_projection_opened': {
+      if (
+        event.type !== 'entity_opened' &&
+        event.type !== 'calendar_projection_opened' &&
+        !(step.completionPredicate === 'practice_task_opened' && event.type === 'entity_visible')
+      ) {
+        return { accepted: false, reason: 'wrong_action' };
       }
-      return { accepted: true };
+      if (event.recordLoaded === false) {
+        return { accepted: false, reason: 'record_not_loaded' };
+      }
+      // Require explicit loaded flag for reopen/edit steps (row visibility alone is insufficient).
+      if (event.type === 'entity_opened' || event.type === 'calendar_projection_opened') {
+        if (event.recordLoaded !== true) {
+          return { accepted: false, reason: 'record_not_loaded' };
+        }
+      }
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
+    }
 
     case 'practice_task_completed':
       if (event.type !== 'entity_completed' && event.type !== 'local_mutation_committed') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (ctx.expectedEntityId && event.entityId && event.entityId !== ctx.expectedEntityId) {
-        return { accepted: false, reason: 'wrong_entity' };
+      if (event.type === 'local_mutation_committed' && !event.operationId) {
+        return { accepted: false, reason: 'missing_operation' };
       }
-      return { accepted: true };
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
 
     case 'practice_task_completion_undone':
       if (event.type !== 'entity_completion_undone' && event.type !== 'local_mutation_committed') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (ctx.expectedEntityId && event.entityId && event.entityId !== ctx.expectedEntityId) {
-        return { accepted: false, reason: 'wrong_entity' };
+      if (event.type === 'local_mutation_committed' && !event.operationId) {
+        return { accepted: false, reason: 'missing_operation' };
+      }
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
+
+    case 'occurrence_action_verified': {
+      if (event.type !== 'occurrence_action' && event.type !== 'local_mutation_committed') {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      if (!event.operationId && event.type === 'local_mutation_committed') {
+        return { accepted: false, reason: 'missing_operation' };
+      }
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
+    }
+
+    case 'preference_changed':
+      if (event.type !== 'preference_changed') {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      if (!event.preferenceKey) {
+        return { accepted: false, reason: 'stale_or_unrelated' };
+      }
+      return { accepted: true };
+
+    case 'search_result_opened':
+      if (event.type !== 'search_result_opened' && event.type !== 'entity_opened') {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      if (event.recordLoaded !== true && event.type === 'entity_opened') {
+        return { accepted: false, reason: 'record_not_loaded' };
+      }
+      return requireEntityMatch(event, ctx) ?? { accepted: true };
+
+    case 'help_article_opened':
+      if (event.type !== 'help_article_opened') {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      if (!event.articleId) {
+        return { accepted: false, reason: 'stale_or_unrelated' };
+      }
+      return { accepted: true };
+
+    case 'help_return_to_editor':
+      if (event.type !== 'help_return_to_editor') {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      return { accepted: true };
+
+    case 'filter_view_changed':
+      if (event.type !== 'filter_changed') {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      return { accepted: true };
+
+    case 'cleanup_selection_confirmed':
+      if (event.type !== 'cleanup_confirmed') {
+        return { accepted: false, reason: 'wrong_action' };
       }
       return { accepted: true };
 

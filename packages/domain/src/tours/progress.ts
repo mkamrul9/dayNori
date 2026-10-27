@@ -1,9 +1,16 @@
 import type {
   TourChapterDefinition,
   TourChapterProgress,
+  TourPracticeArtifact,
   TourProgressState,
   TourStepRecord,
 } from './types.js';
+
+/** Soft caps — never silently drop mid-chapter steps; reject oversized payloads at API. */
+export const TOUR_PROGRESS_MAX_CHAPTERS = 40;
+export const TOUR_PROGRESS_MAX_STEPS = 40;
+export const TOUR_PROGRESS_MAX_PRACTICE_IDS = 60;
+export const TOUR_PROGRESS_MAX_ARTIFACTS = 80;
 
 export function getDefaultTourProgress(): TourProgressState {
   return {
@@ -37,6 +44,7 @@ export function emptyChapterProgress(
       })
     ),
     practiceEntityIds: [],
+    practiceArtifacts: [],
     updatedAt: at,
     blockedReason: null,
   };
@@ -68,13 +76,13 @@ export function validateTourProgressState(input: unknown): TourProgressState {
   const chaptersRaw = Array.isArray(obj['chapters']) ? obj['chapters'] : [];
   const chapters: TourChapterProgress[] = [];
 
-  for (const raw of chaptersRaw.slice(0, 40)) {
+  for (const raw of chaptersRaw.slice(0, TOUR_PROGRESS_MAX_CHAPTERS)) {
     if (!raw || typeof raw !== 'object') continue;
     const c = raw as Record<string, unknown>;
     const chapterId = typeof c['chapterId'] === 'string' ? c['chapterId'].slice(0, 128) : '';
     if (!chapterId) continue;
     const stepsRaw = Array.isArray(c['steps']) ? c['steps'] : [];
-    const steps: TourStepRecord[] = stepsRaw.slice(0, 40).map((s) => {
+    const steps: TourStepRecord[] = stepsRaw.slice(0, TOUR_PROGRESS_MAX_STEPS).map((s) => {
       const row = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>;
       const outcome = row['outcome'];
       const safeOutcome =
@@ -107,8 +115,40 @@ export function validateTourProgressState(input: unknown): TourProgressState {
     const practiceEntityIds = Array.isArray(c['practiceEntityIds'])
       ? c['practiceEntityIds']
           .filter((id): id is string => typeof id === 'string' && id.length > 0)
-          .slice(0, 20)
+          .slice(0, TOUR_PROGRESS_MAX_PRACTICE_IDS)
       : [];
+    const artifactsRaw = Array.isArray(c['practiceArtifacts']) ? c['practiceArtifacts'] : [];
+    const practiceArtifacts: TourPracticeArtifact[] = [];
+    for (const a of artifactsRaw.slice(0, TOUR_PROGRESS_MAX_ARTIFACTS)) {
+      if (!a || typeof a !== 'object') continue;
+      const row = a as Record<string, unknown>;
+      const entityId = typeof row['entityId'] === 'string' ? row['entityId'].slice(0, 128) : '';
+      if (!entityId) continue;
+      const entityType = row['entityType'];
+      const safeType =
+        entityType === 'task' ||
+        entityType === 'routine' ||
+        entityType === 'note' ||
+        entityType === 'journal_entry' ||
+        entityType === 'calendar_event' ||
+        entityType === 'folder' ||
+        entityType === 'preference'
+          ? entityType
+          : 'task';
+      practiceArtifacts.push({
+        entityId,
+        entityType: safeType,
+        chapterId:
+          typeof row['chapterId'] === 'string' ? row['chapterId'].slice(0, 128) : chapterId,
+        role: typeof row['role'] === 'string' ? row['role'].slice(0, 64) : 'primary',
+        createdByTour: row['createdByTour'] === true,
+        userOwned: row['userOwned'] === true,
+        labeledPractice: row['labeledPractice'] !== false,
+        linkedOrEdited: row['linkedOrEdited'] === true,
+        createdAt:
+          typeof row['createdAt'] === 'string' ? row['createdAt'] : new Date().toISOString(),
+      });
+    }
     chapters.push({
       chapterId,
       definitionVersion:
@@ -124,6 +164,7 @@ export function validateTourProgressState(input: unknown): TourProgressState {
       runId: typeof c['runId'] === 'string' ? c['runId'] : null,
       steps,
       practiceEntityIds,
+      practiceArtifacts,
       updatedAt:
         typeof c['updatedAt'] === 'string' ? c['updatedAt'] : new Date().toISOString(),
       blockedReason: typeof c['blockedReason'] === 'string' ? c['blockedReason'] : null,
@@ -197,10 +238,37 @@ function mergeChapterProgress(
     steps: Array.from(stepMap.values()),
     practiceEntityIds: Array.from(
       new Set([...server.practiceEntityIds, ...local.practiceEntityIds])
-    ).slice(0, 20),
+    ).slice(0, TOUR_PROGRESS_MAX_PRACTICE_IDS),
+    practiceArtifacts: mergeArtifacts(
+      server.practiceArtifacts ?? [],
+      local.practiceArtifacts ?? []
+    ),
     updatedAt: newer.updatedAt,
     blockedReason: newer.blockedReason ?? null,
   };
+}
+
+function mergeArtifacts(
+  a: TourPracticeArtifact[],
+  b: TourPracticeArtifact[]
+): TourPracticeArtifact[] {
+  const map = new Map<string, TourPracticeArtifact>();
+  for (const item of [...a, ...b]) {
+    const key = `${item.chapterId}:${item.entityId}:${item.role}`;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, item);
+      continue;
+    }
+    map.set(key, {
+      ...prev,
+      ...item,
+      linkedOrEdited: prev.linkedOrEdited || item.linkedOrEdited,
+      userOwned: prev.userOwned || item.userOwned,
+      createdByTour: prev.createdByTour || item.createdByTour,
+    });
+  }
+  return Array.from(map.values()).slice(0, TOUR_PROGRESS_MAX_ARTIFACTS);
 }
 
 function mergeStepRecord(a: TourStepRecord, b: TourStepRecord): TourStepRecord {

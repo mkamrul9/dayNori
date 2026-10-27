@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 80 — Everyday guided practice chapters (blocked on UI evidence) — 2026-10-27
+
+- ADR 0080: extend Phase 79 engine with everyday chapters (navigation, personalization, tasks, routines, calendar, notes, journal, folders/search, Help return), practice provenance, selective cleanup, stronger open/save predicates.
+- Help Learn marks everyday chapters runnable; Phase 81/gated topics stay honest. Function-register tour mappings updated for core everyday families.
+- Required UI journey attestation still unmet (`scripts/phase80-tour-evidence.mjs --required`). Phase 80 remains blocked — not release-ready.
+- Commit: `feat(tours): teach everyday workflows through real actions`.
+
 ## Phase 79 — Action-verified resumable tour engine — 2026-10-27
 
 - ADR 0079: shared versioned tour definitions/state machine, durable scoped `preferences.tourProgress`, action/result correlation, web + native adapters, safe V1 migration, one proof chapter (`tour.task-create-save`).

@@ -3,7 +3,7 @@
   "updatedAt": "2026-10-27",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 79 complete (2026-10-27) under ADR 0079 (action-verified tour engine + proof chapter). Phase 77 is complete (installed-PWA/native cold recovery); stale “77 blocked” scheduling text reconciled. Phase 80 eligible when selected (depends on 79). Phase 75 stays blocked. Phase 71 stays blocked (TalkBack). Standing push (ADR 0074). No release_ready claims. Engine proof ≠ full chapter coverage or release readiness.",
+  "schedulingDecision": "Phase 80 everyday tour definitions/adapters implemented (ADR 0080) but acceptance blocked pending real desktop/narrow-PWA/native UI journey attestation (see phase-80 report). Phase 79 complete. Phase 81 depends on 80 + blocked Phase 75 — do not auto-start or waive attachments. Phase 71 TalkBack remains blocked. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -466,7 +466,9 @@
     },
     {
       "id": "80",
-      "status": "planned"
+      "status": "blocked",
+      "reason": "Everyday chapter definitions, predicates, Help mappings, and web/native adapters delivered; required real UI journey attestation (desktop web, narrow PWA, native Android) unmet — unit evidence alone is not acceptance. See docs/phase-reports/phase-80.md.",
+      "report": "docs/phase-reports/phase-80.md"
     },
     {
       "id": "81",
