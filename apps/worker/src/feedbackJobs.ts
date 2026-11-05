@@ -110,3 +110,41 @@ export async function handleFeedbackDeliveryJob(
     },
   };
 }
+
+/**
+ * Handles bounded retention cleanup for expired feedback reports.
+ * Deletes terminal reports (resolved, closed, dismissed, duplicate)
+ * exceeding retentionDays (default 90).
+ */
+export async function handleFeedbackRetentionCleanupJob(
+  client: DatabaseClient,
+  payload: Record<string, unknown>
+): Promise<FeedbackDeliveryResult> {
+  const retentionDays =
+    typeof payload['retentionDays'] === 'number' ? payload['retentionDays'] : 90;
+
+  if (client) {
+    const res = await client.query<{ purge_expired_feedback_reports: number }>(
+      `SELECT app.purge_expired_feedback_reports($1) AS purge_expired_feedback_reports`,
+      [retentionDays]
+    );
+    const purgedCount = res.rows[0]?.purge_expired_feedback_reports ?? 0;
+    return {
+      status: 'completed',
+      details: {
+        taskType: 'feedback_retention_cleanup',
+        purgedCount,
+        retentionDays,
+      },
+    };
+  }
+
+  return {
+    status: 'completed',
+    details: {
+      taskType: 'feedback_retention_cleanup',
+      purgedCount: 0,
+      retentionDays,
+    },
+  };
+}

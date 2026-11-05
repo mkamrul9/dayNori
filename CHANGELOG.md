@@ -1,5 +1,16 @@
 # Changelog
 
+## Phase 83 — Developer feedback triage and verified support contact — 2026-11-05
+
+- ADR 0083: restricted operator feedback triage surface at `/developer/triage` protected by `OperatorGate` and server-side `DAYNORI_OPERATOR_USER_IDS` allowlist check.
+- Confidential internal notes: segregated `app.feedback_internal_notes` table with dual-boundary PostgreSQL RLS ensuring internal operator notes are never disclosed to reporters.
+- Immutable triage audit trail: `app.feedback_triage_audit` capturing operator mutations, status transitions, priority updates, notes, and responses without logging user secrets or report bodies.
+- Verified reporter support contact: operator response composer storing verified developer responses delivered to reporters on `/support` with live status refresh.
+- Bounded retention & cleanup: database function `app.purge_expired_feedback_reports(retention_days)` and background worker job `feedback_retention_cleanup`.
+- DEF-V2-009 resolved locally via in-app verified developer contact route and restricted triage dashboard.
+- Real UI journeys verified: reporter bug submission, operator triage with notes and response, reporter verified response inspection, and unauthorized access denial (`artifacts/phase83/phase83-journey-summary.json`).
+- Commit: `feat(support): provide verified developer contact and report triage`.
+
 ## Phase 82 — Durable bug, suggestion, and contact submissions — 2026-11-05
 
 - ADR 0082: first-party durable feedback intake with PostgreSQL Row-Level Security, unique client report IDs for idempotency and replay safety, account/workspace-scoped draft quarantine, opt-in reviewable redacted technical diagnostics, truthful unconfigured delivery notices, and background worker delivery jobs.

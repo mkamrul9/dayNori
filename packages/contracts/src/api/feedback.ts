@@ -11,7 +11,10 @@ export const FeedbackSeveritySchema = z.enum(['low', 'medium', 'high', 'critical
 export type FeedbackSeverity = z.infer<typeof FeedbackSeveritySchema>;
 
 export const FeedbackReportStatusSchema = z.enum([
+  'new',
   'received',
+  'acknowledged',
+  'investigating',
   'triaged',
   'in_progress',
   'resolved',
@@ -20,6 +23,9 @@ export const FeedbackReportStatusSchema = z.enum([
   'duplicate',
 ]);
 export type FeedbackReportStatus = z.infer<typeof FeedbackReportStatusSchema>;
+
+export const FeedbackPrioritySchema = z.enum(['low', 'medium', 'high', 'critical']);
+export type FeedbackPriority = z.infer<typeof FeedbackPrioritySchema>;
 
 export const FeedbackDeliveryStatusSchema = z.enum([
   'unconfigured',
@@ -104,6 +110,12 @@ export const FeedbackReportReceiptSchema = z
     diagnostics: FeedbackDiagnosticsSchema.nullable().optional(),
     attachments: z.array(FeedbackAttachmentRefSchema),
     status: FeedbackReportStatusSchema,
+    priority: FeedbackPrioritySchema.optional(),
+    duplicateOfId: z.string().uuid().nullable().optional(),
+    acknowledgedAt: z.string().datetime().nullable().optional(),
+    resolvedAt: z.string().datetime().nullable().optional(),
+    responseText: z.string().nullable().optional(),
+    respondedAt: z.string().datetime().nullable().optional(),
     deliveryStatus: FeedbackDeliveryStatusSchema,
     deliveryNotice: z.string(),
     createdAt: z.string().datetime(),
@@ -124,3 +136,125 @@ export const FeedbackReportListResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type FeedbackReportListResponse = z.infer<typeof FeedbackReportListResponseSchema>;
+
+// Phase 83 Operator Triage Schemas
+
+export const FeedbackTriageQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(50).default(20),
+    status: FeedbackReportStatusSchema.optional(),
+    category: z.string().optional(),
+    reportType: FeedbackReportTypeSchema.optional(),
+    priority: FeedbackPrioritySchema.optional(),
+    search: z.string().max(100).optional(),
+    createdAfter: z.string().datetime().optional(),
+    createdBefore: z.string().datetime().optional(),
+  })
+  .strict();
+export type FeedbackTriageQuery = z.input<typeof FeedbackTriageQuerySchema>;
+
+export const FeedbackReportUpdateSchema = z
+  .object({
+    status: FeedbackReportStatusSchema.optional(),
+    priority: FeedbackPrioritySchema.optional(),
+    assignedTo: z.string().uuid().nullable().optional(),
+    duplicateOfId: z.string().uuid().nullable().optional(),
+    responseText: z.string().max(5000).optional(),
+  })
+  .strict();
+export type FeedbackReportUpdate = z.infer<typeof FeedbackReportUpdateSchema>;
+
+export const FeedbackInternalNoteCreateSchema = z
+  .object({
+    note: z.string().min(1).max(5000),
+  })
+  .strict();
+export type FeedbackInternalNoteCreate = z.infer<typeof FeedbackInternalNoteCreateSchema>;
+
+export const FeedbackInternalNoteSchema = z
+  .object({
+    id: z.string().uuid(),
+    reportId: z.string().uuid(),
+    authorId: z.string().uuid(),
+    note: z.string(),
+    createdAt: z.string().datetime(),
+  })
+  .strict();
+export type FeedbackInternalNote = z.infer<typeof FeedbackInternalNoteSchema>;
+
+export const FeedbackInternalNoteListResponseSchema = z.object({
+  data: z.array(FeedbackInternalNoteSchema),
+  meta: ResponseMetaSchema,
+});
+export type FeedbackInternalNoteListResponse = z.infer<
+  typeof FeedbackInternalNoteListResponseSchema
+>;
+
+export const FeedbackTriageAuditSchema = z
+  .object({
+    id: z.string().uuid(),
+    reportId: z.string().uuid(),
+    actorId: z.string().uuid(),
+    action: z.string(),
+    details: z.record(z.unknown()),
+    createdAt: z.string().datetime(),
+  })
+  .strict();
+export type FeedbackTriageAudit = z.infer<typeof FeedbackTriageAuditSchema>;
+
+export const FeedbackTriageAuditListResponseSchema = z.object({
+  data: z.array(FeedbackTriageAuditSchema),
+  meta: ResponseMetaSchema,
+});
+export type FeedbackTriageAuditListResponse = z.infer<
+  typeof FeedbackTriageAuditListResponseSchema
+>;
+
+export const FeedbackTriageItemSchema = FeedbackReportReceiptSchema.extend({
+  assignedTo: z.string().uuid().nullable().optional(),
+  duplicateOfId: z.string().uuid().nullable().optional(),
+  internalNotesCount: z.number().int().nonnegative().optional(),
+});
+export type FeedbackTriageItem = z.infer<typeof FeedbackTriageItemSchema>;
+
+export const FeedbackTriagePaginationSchema = z.object({
+  page: z.number().int().min(1),
+  pageSize: z.number().int().min(1),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
+export type FeedbackTriagePagination = z.infer<typeof FeedbackTriagePaginationSchema>;
+
+export const FeedbackTriageListResponseSchema = z.object({
+  data: z.array(FeedbackTriageItemSchema),
+  pagination: FeedbackTriagePaginationSchema,
+  meta: ResponseMetaSchema,
+});
+export type FeedbackTriageListResponse = z.infer<typeof FeedbackTriageListResponseSchema>;
+
+export const FeedbackTriageResponseSchema = z.object({
+  data: FeedbackTriageItemSchema,
+  meta: ResponseMetaSchema,
+});
+export type FeedbackTriageResponse = z.infer<typeof FeedbackTriageResponseSchema>;
+
+export const FeedbackRetentionPurgeRequestSchema = z
+  .object({
+    retentionDays: z.coerce.number().int().min(1).max(365).default(90),
+  })
+  .strict();
+export type FeedbackRetentionPurgeRequest = z.input<
+  typeof FeedbackRetentionPurgeRequestSchema
+>;
+
+export const FeedbackRetentionPurgeResponseSchema = z.object({
+  data: z.object({
+    purgedCount: z.number().int().nonnegative(),
+    cutoffDate: z.string().datetime(),
+  }),
+  meta: ResponseMetaSchema,
+});
+export type FeedbackRetentionPurgeResponse = z.infer<
+  typeof FeedbackRetentionPurgeResponseSchema
+>;

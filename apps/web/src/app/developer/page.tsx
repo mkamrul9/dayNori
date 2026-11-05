@@ -38,6 +38,11 @@ function DeveloperToolsBody() {
       <Card themeMode={themeMode} style={{ marginBottom: spacing.base }}>
         <h2 style={{ marginTop: 0, fontSize: typography.webScale.sectionHeading }}>Harnesses</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Link href="/developer/triage" style={{ textDecoration: 'none' }}>
+            <Button variant="secondary" size="compact" themeMode={themeMode}>
+              Feedback & support triage
+            </Button>
+          </Link>
           <Link href="/dev/vault-harness" style={{ textDecoration: 'none' }}>
             <Button variant="secondary" size="compact" themeMode={themeMode}>
               Synthetic vault harness

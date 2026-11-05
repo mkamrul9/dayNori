@@ -100,6 +100,46 @@ export async function withTenantContext<T>(
 }
 
 /**
+ * Executes a unit of work scoped to an authorized platform operator.
+ * Sets PostgreSQL session variables:
+ * - app.current_user_id = operatorUserId
+ * - app.is_platform_operator = 'true'
+ * with is_local=true so that operator RLS policies (cross-workspace triage) apply
+ * strictly to this transaction and are automatically cleared on commit/rollback.
+ */
+export async function withOperatorContext<T>(
+  pool: Pool,
+  operatorUserId: string,
+  callback: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  if (!operatorUserId) {
+    throw new Error('withOperatorContext requires operatorUserId');
+  }
+
+  const client = await pool.connect();
+  let discardConnection = false;
+  try {
+    await client.query('BEGIN;');
+    await client.query("SELECT set_config('app.current_user_id', $1, true);", [operatorUserId]);
+    await client.query("SELECT set_config('app.is_platform_operator', 'true', true);");
+
+    const result = await callback(client);
+    await client.query('COMMIT;');
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK;');
+    } catch {
+      discardConnection = true;
+    }
+    throw error;
+  } finally {
+    client.release(discardConnection);
+  }
+}
+
+
+/**
  * Executes a unit of work scoped to a verified user context inside a database transaction.
  * Used for listing workspaces or creating an initial workspace prior to workspace context selection.
  */

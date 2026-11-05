@@ -6633,13 +6633,26 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
-      "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
-      "existingTests": [],
-      "evidenceRefs": [],
+      "validationNegativeCases": [
+        "Unauthorized user denied access to /developer/triage with 403",
+        "Non-operator cannot view internal notes or cross-workspace reports",
+        "Invalid triage status transition rejected with 400"
+      ],
+      "offlineRetryConflict": "Triage requires server connectivity; reports queued locally on client until connected.",
+      "existingTests": [
+        "tests/unit/phase83-feedback-triage-domain.test.ts",
+        "tests/integration/phase83-feedback-triage.test.ts"
+      ],
+      "evidenceRefs": [
+        "docs/phase-reports/phase-83.md",
+        "tests/integration/phase83-feedback-triage.test.ts",
+        "tests/unit/phase83-feedback-triage-domain.test.ts",
+        "artifacts/phase83/phase83-journey-summary.json",
+        "docs/decisions/0083-developer-feedback-triage-and-verified-support-contact.md"
+      ],
       "blockerOrDefect": null,
-      "authorization": "Workspace member when authenticated; public where route is public.",
-      "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
+      "authorization": "DAYNORI_OPERATOR_USER_IDS allowlist required; unauthenticated/non-operator denied fail-closed.",
+      "personalVisibility": "Operator triage across reports; internal notes confidential; reporter-visible responses only to reporter.",
       "platforms": {
         "web": "supported",
         "installedPwa": "supported",
@@ -6647,27 +6660,32 @@
         "iosNative": "gated"
       },
       "releaseCapability": {
-        "local": "unavailable",
+        "local": "available",
         "hostedPreview": "unavailable"
       },
       "id": "dev.feedback-triage",
       "featureFamily": "developer-and-operations",
       "userBenefit": "Triage user feedback securely.",
-      "description": "Restricted developer triage surface (planned).",
-      "implementationStatus": "planned",
+      "description": "Restricted developer triage surface and verified support contact route.",
+      "implementationStatus": "existing",
       "entryPoints": [
-        "planned operator triage"
+        "/developer/triage",
+        "/support"
       ],
-      "implementationPaths": [],
-      "readiness": "unverified",
-      "acceptanceJourney": "Authorized operator reviews synthetic report; unauthorized denied.",
-      "observedResult": "unavailable",
+      "implementationPaths": [
+        "apps/web/src/app/developer/triage/page.tsx",
+        "apps/api/src/routes/v1/operatorFeedback.ts",
+        "packages/domain/src/feedback/triage.ts"
+      ],
+      "readiness": "verified_local",
+      "acceptanceJourney": "Authorized operator reviews synthetic report, posts note and response; unauthorized denied; reporter views response.",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-05",
+        "revision": "844b35eea56f7965c0d53bc6065a7dafd33b8066",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-built",
-        "evidenceLayer": "api_integration"
+        "platform": "web",
+        "evidenceLayer": "browser_ui"
       },
       "repairPhase": "83",
       "helpArticle": {
@@ -7044,22 +7062,25 @@
         "web",
         "android"
       ],
-      "severity": "high",
+      "severity": "low",
       "userImpact": "Users cannot reliably reach a monitored human or track submissions.",
       "expected": "Durable intake, receipt, triage, verified contact route.",
-      "observed": "Phase 82 completed durable intake and server receipts; Phase 83 owns operator triage and verified monitored contact destinations.",
+      "observed": "Phase 82 completed durable intake and server receipts; Phase 83 completed restricted developer triage at /developer/triage and verified in-app operator response delivery on /support.",
       "reproduction": [
         "Open /support"
       ],
-      "environment": "product-copy",
+      "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "docs/phase-reports/phase-83.md",
+        "artifacts/phase83/phase83-journey-summary.json",
         "apps/web/src/app/support/page.tsx",
-        "docs/roadmap/v2/help-and-feedback.md"
+        "apps/web/src/app/developer/triage/page.tsx",
+        "docs/decisions/0083-developer-feedback-triage-and-verified-support-contact.md"
       ],
-      "workaround": null,
-      "dependency": "Owner contact destination + Phases 82–83.",
-      "nextAction": "Phase 83 implements restricted developer triage and verified operator contact destinations.",
-      "owningPhase": "82"
+      "workaround": "In-app support contact with server receipts and operator triage at /developer/triage.",
+      "dependency": "Resolved in Phase 83 for local and in-app routes. External commercial SLA / unstaffed physical phone promises remain unmade.",
+      "nextAction": "Resolved in Phase 83 via in-app verified developer contact route and restricted triage dashboard.",
+      "owningPhase": "83"
     },
     {
       "id": "DEF-V2-010",

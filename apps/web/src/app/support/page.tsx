@@ -53,6 +53,8 @@ export default function SupportPage() {
     workspaceId ||
     (typeof window !== 'undefined' ? localStorage.getItem('daynori_workspace_id') : null);
 
+  const apiClient = useMemo(() => createWebApiClient({ csrfToken }), [csrfToken]);
+
   const [reportType, setReportType] = useState<FeedbackReportType>('bug');
   const [draft, setDraft] = useState<FeedbackDraft>(() => createFeedbackDraft('bug'));
   const [submissionState, setSubmissionState] =
@@ -341,14 +343,58 @@ export default function SupportPage() {
                   <span style={{ color: palette.text.secondary }}>Client ID:</span>
                   <code data-testid="receipt-client-id" style={{ color: palette.text.primary }}>{receipt.clientReportId}</code>
                   <span style={{ color: palette.text.secondary }}>Status:</span>
-                  <span style={{ color: palette.status.success, fontWeight: 600 }}>
+                  <span data-testid="receipt-status" style={{ color: palette.status.success, fontWeight: 600 }}>
                     {receipt.status}
                   </span>
                   <span style={{ color: palette.text.secondary }}>Delivery:</span>
                   <span style={{ color: palette.text.primary }}>{receipt.deliveryNotice}</span>
                 </div>
 
-                <div style={{ marginTop: spacing.md }}>
+                {receipt.responseText && (
+                  <div
+                    data-testid="feedback-operator-response"
+                    style={{
+                      marginTop: spacing.md,
+                      padding: spacing.md,
+                      backgroundColor: palette.surfaceRaised,
+                      border: `1px solid ${palette.border.subtle}`,
+                      borderRadius: radii.sm,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs }}>
+                      <Icon name="help" />
+                      <strong style={{ color: palette.text.primary, fontSize: 14 }}>
+                        Developer Response (Verified Support Route)
+                      </strong>
+                    </div>
+                    <p style={{ margin: `0 0 ${spacing.xs}px`, color: palette.text.primary, fontSize: 14, whiteSpace: 'pre-wrap' }}>
+                      {receipt.responseText}
+                    </p>
+                    {receipt.respondedAt && (
+                      <span style={{ fontSize: 12, color: palette.text.secondary }}>
+                        Responded on {new Date(receipt.respondedAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ marginTop: spacing.md, display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
+                  <Button
+                    themeMode={themeMode}
+                    variant="secondary"
+                    data-testid="btn-check-status"
+                    onClick={async () => {
+                      if (!workspaceId || !receipt) return;
+                      try {
+                        const refreshed = await apiClient.getFeedbackReport(workspaceId, receipt.id);
+                        setReceipt(refreshed.data);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                  >
+                    Check status / refresh
+                  </Button>
                   <Button
                     themeMode={themeMode}
                     variant="secondary"
