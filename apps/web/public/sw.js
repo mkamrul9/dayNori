@@ -1,11 +1,14 @@
-// Daynori Service Worker (Phase 29/30/31: Web Reminders & Reviewed PWA Shell)
-const CACHE_VERSION = 'daynori-static-v7';
+// Daynori Service Worker (Phase 29/30/31 + Phase 77 trusted-device offline shell)
+const CACHE_VERSION = 'daynori-static-v9';
 
 // Strict allowlist: immutable public static assets only.
 // Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.
 const ALLOWLISTED_STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
+  '/offline-shell.html',
+  '/offline-shell.js',
+  '/help-essential.json',
   '/favicon.ico',
   '/icon.svg',
   '/apple-touch-icon.png',
@@ -16,6 +19,13 @@ const ALLOWLISTED_STATIC_ASSETS = [
   '/brand/icon-192.png',
   '/brand/icon-512.png',
   '/brand/icon-maskable-512.png',
+];
+
+const REQUIRED_SHELL_ASSETS = [
+  '/offline-shell.html',
+  '/offline-shell.js',
+  '/offline.html',
+  '/help-essential.json',
 ];
 
 /**
@@ -77,14 +87,50 @@ function isAllowlistedStaticAsset(url) {
   }
 }
 
+/**
+ * Precache each allowlisted URL individually so a single failure does not abort the whole install.
+ * Required shell assets must succeed; otherwise install fails and the prior worker keeps serving.
+ */
+async function precacheAllowlistedAssets(cache) {
+  const results = await Promise.allSettled(
+    ALLOWLISTED_STATIC_ASSETS.map(async (path) => {
+      const response = await fetch(path, { credentials: 'same-origin', cache: 'no-cache' });
+      if (!response || response.status !== 200 || response.type !== 'basic') {
+        throw new Error('Unexpected response for ' + path);
+      }
+      // Reject redirects / private markers even if status looks OK.
+      if (response.redirected) {
+        throw new Error('Redirected response rejected for ' + path);
+      }
+      const ct = (response.headers.get('content-type') || '').toLowerCase();
+      if (path.endsWith('.html') && !ct.includes('text/html')) {
+        throw new Error('Non-HTML content-type for ' + path);
+      }
+      if (response.headers.get('set-cookie')) {
+        throw new Error('Set-Cookie response rejected for ' + path);
+      }
+      await cache.put(path, response.clone());
+      return path;
+    })
+  );
+
+  const failedRequired = [];
+  for (let i = 0; i < ALLOWLISTED_STATIC_ASSETS.length; i++) {
+    const path = ALLOWLISTED_STATIC_ASSETS[i];
+    const result = results[i];
+    if (result.status === 'rejected' && REQUIRED_SHELL_ASSETS.includes(path)) {
+      failedRequired.push(path + ': ' + (result.reason && result.reason.message));
+    }
+  }
+  if (failedRequired.length > 0) {
+    throw new Error('Required offline shell assets failed to precache: ' + failedRequired.join('; '));
+  }
+}
+
 // 1. Install Lifecycle: precache allowlisted public static assets only
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll(ALLOWLISTED_STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Precache failed for some assets:', err);
-      });
-    })
+    caches.open(CACHE_VERSION).then((cache) => precacheAllowlistedAssets(cache))
   );
 });
 
@@ -133,7 +179,7 @@ self.addEventListener('message', (event) => {
   }
 
   // Warm Cache Storage with allowlisted /_next/static URLs observed while online.
-  // Does not cache authenticated documents, RSC, or APIs (ADR 0066).
+  // Does not cache authenticated documents, RSC, or APIs (ADR 0066 / 0077).
   if (data.type === 'PRECACHE_PUBLIC_STATIC' && Array.isArray(data.urls)) {
     event.waitUntil(
       caches.open(CACHE_VERSION).then(async (cache) => {
@@ -150,6 +196,7 @@ self.addEventListener('message', (event) => {
               response &&
               response.status === 200 &&
               response.type === 'basic' &&
+              !response.redirected &&
               !response.headers.get('set-cookie')
             ) {
               await cache.put(absolute, response.clone());
@@ -162,6 +209,40 @@ self.addEventListener('message', (event) => {
     );
   }
 });
+
+async function navigationOfflineFallback() {
+  const shell = await caches.match('/offline-shell.html');
+  const shellJs = await caches.match('/offline-shell.js');
+  // Inline the shell script into the HTML response so cold offline reopen does not depend
+  // on a second subresource fetch (CDP/OS offline emulation can block SW subresource loads).
+  if (shell && shellJs) {
+    try {
+      const html = await shell.text();
+      const js = await shellJs.text();
+      const safeJs = js.replace(/<\/script/gi, '<\\/script');
+      const inlined = html.replace(
+        /<script\s+src=["']\/offline-shell\.js["'][^>]*>\s*<\/script>/i,
+        '<script>' + safeJs + '</script>'
+      );
+      return new Response(inlined, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      });
+    } catch {
+      return shell;
+    }
+  }
+  if (shell) return shell;
+  const html = await caches.match('/offline.html');
+  if (html) return html;
+  return new Response('Offline: Daynori requires an active connection for this view.', {
+    status: 503,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  });
+}
 
 // 3. Fetch Handler: strict allowlist caching policy
 self.addEventListener('fetch', (event) => {
@@ -195,21 +276,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests: Network-first, falling back to clean offline shell.
-  // NEVER cache HTML responses from navigation in static CacheStorage.
+  // Navigation requests: Network-first (no-store), falling back to public offline shell.
+  // Never put personalized HTML into Cache Storage. Abort hung navigations so cold offline
+  // reopen cannot stick on a blank/spinner document when the network is unavailable.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).catch(() => {
-        return caches.match('/offline.html').then((fallback) => {
-          return (
-            fallback ||
-            new Response('Offline: Daynori requires an active connection for this view.', {
-              status: 503,
-              headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-            })
-          );
-        });
-      })
+      (async () => {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 4000);
+          const response = await fetch(req, {
+            cache: 'no-store',
+            credentials: req.credentials,
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+          if (!response || !response.ok) {
+            return navigationOfflineFallback();
+          }
+          return response;
+        } catch {
+          return navigationOfflineFallback();
+        }
+      })()
     );
     return;
   }
@@ -226,6 +315,7 @@ self.addEventListener('fetch', (event) => {
             response &&
             response.status === 200 &&
             response.type === 'basic' &&
+            !response.redirected &&
             !response.headers.get('set-cookie') &&
             !response.headers.get('cache-control')?.includes('no-store') &&
             !response.headers.get('cache-control')?.includes('private')

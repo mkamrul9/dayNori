@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" data-direction="warm" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Daynori Phase 67 — Direction comparison frames</title>
+    <link rel="stylesheet" href="css/directions.css" />
+    <link rel="stylesheet" href="css/prototype.css" />
+    <style>
+      .pair {
+        margin-bottom: 32px;
+      }
+      iframe {
+        width: 100%;
+        height: 480px;
+        border: 0;
+        background: #fff;
+      }
+      .frame-label {
+        font-size: 13px;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="banner-proto">
+      Static side-by-side frames load the interactive prototype with query hints. Prefer the live
+      prototype for keyboard and state testing.
+    </div>
+    <main class="content" style="max-width: 1200px; margin: 0 auto">
+      <p><a href="index.html">← Hub</a> · <a href="prototype.html">Interactive prototype</a></p>
+      <h1>Same screens, two directions</h1>
+      <p class="muted">
+        Warm notebook (left) vs Crisp utility (right). Toggle themes inside each iframe via the
+        review bar. Representative journeys: Welcome, Today, Task editor, Library, Journal, Help.
+      </p>
+
+      <div class="pair grid-2">
+        <div>
+          <p class="frame-label">Warm · desktop-ish</p>
+          <div class="device-frame">
+            <header>warm / light</header>
+            <iframe title="Warm notebook prototype" src="prototype.html#warm-light"></iframe>
+          </div>
+        </div>
+        <div>
+          <p class="frame-label">Crisp · desktop-ish</p>
+          <div class="device-frame">
+            <header>crisp / light</header>
+            <iframe title="Crisp utility prototype" src="prototype.html#crisp-light"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted">
+        For 360px inspection, resize the browser or use DevTools device mode on
+        <a href="prototype.html">prototype.html</a>. Capture script records viewports into
+        <code>artifacts/local/phase67/</code> (gitignored).
+      </p>
+    </main>
+    <script>
+      // Apply hash hints after iframe load is not shared-origin for file://; users switch via review bar.
+      document.querySelectorAll('iframe').forEach((frame, i) => {
+        frame.addEventListener('load', () => {
+          try {
+            const doc = frame.contentDocument;
+            if (!doc) return;
+            const dir = i === 0 ? 'warm' : 'crisp';
+            doc.documentElement.dataset.direction = dir;
+            const btn = doc.getElementById(dir === 'warm' ? 'dir-warm' : 'dir-crisp');
+            if (btn) btn.click();
+          } catch (_) {
+            /* file:// may block; manual switch still works in interactive tab */
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

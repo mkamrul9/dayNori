@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import type { TourEvidenceEvent } from '@daynori/domain';
 import {
   Icon,
   MobileButton,
@@ -26,6 +27,7 @@ import {
   REFLECTION_TEMPLATES,
   instantiateReflectionTemplate,
   createNoteDocumentFromPlainText,
+  createPracticeArtifact,
   type JournalPromptItem,
   type NoteDocument,
 } from '@daynori/domain';
@@ -41,6 +43,9 @@ import type {
 import type { DaynoriApiClient } from '@daynori/api-client';
 
 export interface JournalViewProps {
+  onCaptureTourEvidence?: () => (event: Partial<TourEvidenceEvent>) => void;
+  onGetPracticeCreationId?: (entityType: 'journal_entry') => string | undefined;
+  onOpenContextualHelp?: (articleId: string) => void;
   themeMode: ThemeMode;
   isAuthenticated: boolean;
   onLoginSynthetic: () => void;
@@ -188,6 +193,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
   isOnline = true,
   userTimezone: propTimezone,
   targetEntryId,
+  onCaptureTourEvidence,
+  onGetPracticeCreationId,
+  onOpenContextualHelp,
   targetDate,
   onClearTarget,
 }) => {
@@ -460,20 +468,28 @@ export const JournalView: React.FC<JournalViewProps> = ({
     }
   }, [isAuthenticated, repository, workspaceId, userId, reloadFromRepository, apiClient, isOnline]);
 
-  // Subscribe to syncEngine events
+  // Subscribe to syncEngine events (including immediate local-save refresh)
   useEffect(() => {
     if (!syncEngine) return;
     const unsubscribe = syncEngine.onEvent((evt) => {
       if (
         evt.type === 'sync_completed' ||
         evt.type === 'conflict_detected' ||
-        evt.type === 'conflict_resolved'
+        evt.type === 'conflict_resolved' ||
+        evt.type === 'local_mutation_committed'
       ) {
+        if (
+          evt.type === 'local_mutation_committed' &&
+          workspaceId &&
+          evt.workspaceId !== workspaceId
+        ) {
+          return;
+        }
         void reloadFromRepository();
       }
     });
     return unsubscribe;
-  }, [syncEngine, reloadFromRepository]);
+  }, [syncEngine, reloadFromRepository, workspaceId]);
 
   // Durable draft persistence helper
   const persistDraftNow = useCallback(async () => {
@@ -595,7 +611,11 @@ export const JournalView: React.FC<JournalViewProps> = ({
 
   // Open writing form for a new reflection
   const handleOpenNewEntry = useCallback(() => {
-    activeDraftIdRef.current = generateUuid();
+    activeDraftIdRef.current = onGetPracticeCreationId?.('journal_entry') ?? generateUuid();
+    onCaptureTourEvidence?.()({
+      type: 'target_activated',
+      targetId: 'journal.entry.save',
+    });
     setEditingEntryId(null);
     setEditingRevision(0);
     setEditingCreatedAt(null);
@@ -614,24 +634,33 @@ export const JournalView: React.FC<JournalViewProps> = ({
   }, [selectedDate]);
 
   // Open writing form to edit an existing entry
-  const handleEditEntry = useCallback((item: LocalJournalItem) => {
-    activeDraftIdRef.current = generateUuid();
-    setEditingEntryId(item.id);
-    setEditingRevision(item.serverRevision ?? 0);
-    setEditingCreatedAt(item.createdAt ?? null);
-    setEditingDocument(item.document);
-    setOriginalPlainText(item.plainText);
-    setEntryTitle(item.title);
-    setEntryDate(item.entryDate);
-    setEntryBody(item.plainText);
-    setEntryMood(item.mood ?? null);
-    setEntryTags(item.tags ?? []);
-    setEntryPrompts(item.prompts ?? []);
-    setSelectedFolderId(item.folderId ?? null);
-    setShowPromptTray((item.prompts ?? []).length > 0);
-    setSaveError(null);
-    setIsWriting(true);
-  }, []);
+  const handleEditEntry = useCallback(
+    (item: LocalJournalItem) => {
+      activeDraftIdRef.current = generateUuid();
+      setEditingEntryId(item.id);
+      setEditingRevision(item.serverRevision ?? 0);
+      setEditingCreatedAt(item.createdAt ?? null);
+      setEditingDocument(item.document);
+      setOriginalPlainText(item.plainText);
+      setEntryTitle(item.title);
+      setEntryDate(item.entryDate);
+      setEntryBody(item.plainText);
+      setEntryMood(item.mood ?? null);
+      setEntryTags(item.tags ?? []);
+      setEntryPrompts(item.prompts ?? []);
+      setSelectedFolderId(item.folderId ?? null);
+      setShowPromptTray((item.prompts ?? []).length > 0);
+      setSaveError(null);
+      setIsWriting(true);
+      onCaptureTourEvidence?.()({
+        type: 'entity_opened',
+        entityId: item.id,
+        entityType: 'journal_entry',
+        recordLoaded: true,
+      });
+    },
+    [onCaptureTourEvidence]
+  );
 
   // Handle target navigation (e.g. from SearchSheet or deep links)
   useEffect(() => {
@@ -797,7 +826,8 @@ export const JournalView: React.FC<JournalViewProps> = ({
     setSaveError(null);
 
     const isNew = !editingEntryId;
-    const id = editingEntryId ?? activeDraftIdRef.current;
+    const practiceCreationId = onGetPracticeCreationId?.('journal_entry');
+    const id = editingEntryId ?? practiceCreationId ?? activeDraftIdRef.current;
     const baseRev = editingRevision;
     const nowIso = new Date().toISOString();
     const resolvedTitle =
@@ -879,6 +909,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
       lastError: null,
     };
 
+    const reportTour = onCaptureTourEvidence?.();
     try {
       await repository.saveItemTransaction(
         itemHeader,
@@ -890,6 +921,26 @@ export const JournalView: React.FC<JournalViewProps> = ({
         undefined,
         journalEntry
       );
+      reportTour?.({
+        type: 'local_mutation_committed',
+        persistence: 'local',
+        entityType: 'journal_entry',
+        entityId: id,
+        operationId: mutation.operationId,
+        practiceArtifact:
+          isNew && practiceCreationId === id
+            ? createPracticeArtifact({
+                entityId: id,
+                entityType: 'journal_entry',
+                chapterId: 'tour.journal',
+                creationOperationId: mutation.operationId,
+                createdByTour: true,
+                userOwned: false,
+                linkedOrEdited: false,
+                at: nowIso,
+              })
+            : undefined,
+      });
 
       // Clean up draft after durable save
       try {
@@ -1372,14 +1423,27 @@ export const JournalView: React.FC<JournalViewProps> = ({
         </View>
 
         {!isWriting && (
-          <MobileButton
-            variant="primary"
-            themeMode={themeMode}
-            onPress={handleOpenNewEntry}
-            accessibilityLabel="Write new reflection"
-          >
-            <Icon name="edit" /> Write
-          </MobileButton>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {onOpenContextualHelp ? (
+              <MobileButton
+                variant="subtle"
+                themeMode={themeMode}
+                testID="journal-contextual-help"
+                onPress={() => onOpenContextualHelp('help.journal-privacy')}
+                accessibilityLabel="Contextual Help"
+              >
+                Help
+              </MobileButton>
+            ) : null}
+            <MobileButton
+              variant="primary"
+              themeMode={themeMode}
+              onPress={handleOpenNewEntry}
+              accessibilityLabel="Write new reflection"
+            >
+              <Icon name="edit" /> Write
+            </MobileButton>
+          </View>
         )}
       </View>
 
@@ -1434,9 +1498,28 @@ export const JournalView: React.FC<JournalViewProps> = ({
       {isWriting ? (
         <View style={styles.writeContainer}>
           <MobileCard themeMode={themeMode}>
-            <Text style={[styles.writeCardTitle, { color: palette.text.primary }]}>
-              {editingEntryId ? 'Edit Reflection' : 'New Reflection'}
-            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={[styles.writeCardTitle, { color: palette.text.primary }]}>
+                {editingEntryId ? 'Edit Reflection' : 'New Reflection'}
+              </Text>
+              {onOpenContextualHelp ? (
+                <MobileButton
+                  variant="subtle"
+                  themeMode={themeMode}
+                  testID="journal-contextual-help"
+                  onPress={() => onOpenContextualHelp('help.journal-privacy')}
+                  accessibilityLabel="Contextual Help"
+                >
+                  Help
+                </MobileButton>
+              ) : null}
+            </View>
 
             {/* Save Error Banner */}
             {saveError && (

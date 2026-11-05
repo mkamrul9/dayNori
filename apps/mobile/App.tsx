@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   BackHandler,
   Linking,
   PixelRatio,
   Platform,
-  SafeAreaView,
   Share,
   StatusBar,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
 import {
+  androidStatusBarTopPad,
   MobileHeader,
   MobileNavigationBar,
   MobileSyncDiagnosticsSheet,
@@ -50,7 +50,6 @@ import {
 import { ExpoFileSystemOfflineStorageAdapter } from './src/data/expoFileSystemStorageAdapter.js';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { generateUuid } from '@daynori/domain';
 import { ExpoAudioRecorderAdapter } from './src/audio/audioAdapter.js';
 
 MobileOfflineFileCache.setAdapter(new ExpoFileSystemOfflineStorageAdapter());
@@ -60,11 +59,21 @@ import { PlanView } from './src/views/PlanView';
 import { LibraryView } from './src/views/LibraryView';
 import { JournalView } from './src/views/JournalView';
 import { SettingsView } from './src/views/SettingsView';
+import { HelpCatalogView } from './src/views/HelpCatalogView';
+import { SupportFeedbackView } from './src/views/SupportFeedbackView';
+import { SettingsHubView } from './src/views/SettingsHubView';
+import {
+  SETTINGS_NESTED_MODALS,
+  type MobileSettingsGroupId,
+} from './src/settings/settingsGroups.js';
 import { AccountSheet } from './src/views/AccountSheet.js';
 import { SearchSheet } from './src/views/SearchSheet';
 import { CreateSheet } from './src/views/CreateSheet';
 import { ComponentGalleryView } from './src/views/ComponentGalleryView';
+import { AllFeaturesSheet } from './src/views/AllFeaturesSheet';
 import { OnboardingSheet } from './src/views/OnboardingSheet';
+import { TourCoachmarkSheet, type NativeTourSession } from './src/views/TourCoachmarkSheet';
+import { TOUR_CHAPTER_TASK_CREATE_SAVE, type TourEvidenceEvent } from '@daynori/domain';
 import { ExpensesView } from './src/views/ExpensesView';
 import { CustomSectionsView } from './src/views/CustomSectionsView';
 import { VaultHarnessView } from './src/vault/VaultHarnessView';
@@ -72,6 +81,16 @@ import { DriveConnectionsSheet } from './src/views/DriveConnectionsSheet';
 import { RoomsSheet } from './src/views/RoomsSheet';
 import { AssistantSheet } from './src/views/AssistantSheet';
 import { BillingSheet } from './src/views/BillingSheet';
+import {
+  generateUuid,
+  getDefaultFeaturePersonalization,
+  isPlatformOperator,
+  listPrimaryShellTabs,
+  sanitizeAndMigrateFeaturePersonalization,
+  type FeatureAuthContext,
+  type FeaturePersonalization,
+  type FeatureReleaseContext,
+} from '@daynori/domain';
 import {
   setupForegroundNotificationHandler,
   setupNotificationChannelsAsync,
@@ -85,7 +104,7 @@ import {
   type NotificationCapabilityState,
 } from './src/notifications/adapter.js';
 import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
-import { isCorePreview } from './src/config/runtime.js';
+import { isCorePreview, mobileOperatorUserIds } from './src/config/runtime.js';
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
@@ -100,6 +119,70 @@ export default function App() {
   const [planSubView, setPlanSubView] = useState<PlanSubView>('tasks');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+  /** Phase 79–80: tour presentation is independent of create/search modals. */
+  const [guidedTourVisible, setGuidedTourVisible] = useState(false);
+  const [guidedTourChapterId, setGuidedTourChapterId] = useState<string>(
+    TOUR_CHAPTER_TASK_CREATE_SAVE.id
+  );
+  const [tourPracticeOptIn, setTourPracticeOptIn] = useState(false);
+  const tourSessionRef = useRef<NativeTourSession | null>(null);
+  const pendingSearchTargetRef = useRef<string | null>(null);
+  const [contextualHelpArticleId, setContextualHelpArticleId] = useState<string | null>(null);
+  const [tourPendingEvidence, updateTourPendingEvidence] =
+    useState<Partial<TourEvidenceEvent> | null>(null);
+  // Synchronous UI actions bind their original session. Async mutation results use
+  // SyncEngine's started/committed receipt pair rather than retagging late callbacks.
+  const setTourPendingEvidence = useCallback((event: Partial<TourEvidenceEvent> | null) => {
+    if (!event) {
+      updateTourPendingEvidence(null);
+      return;
+    }
+    const captured = tourSessionRef.current;
+    if (captured) updateTourPendingEvidence({ ...event, ...captured });
+  }, []);
+  const captureTourEvidence = useCallback(() => {
+    const session = tourSessionRef.current;
+    return (event: Partial<TourEvidenceEvent>) => {
+      if (!session) return;
+      if (
+        event.type === 'entity_opened' &&
+        event.recordLoaded === true &&
+        event.entityId &&
+        pendingSearchTargetRef.current === event.entityId
+      ) {
+        pendingSearchTargetRef.current = null;
+        updateTourPendingEvidence({
+          ...event,
+          type: 'search_result_opened',
+          expectedAction: 'open_search_result',
+          ...session,
+        });
+        return;
+      }
+      updateTourPendingEvidence({ ...event, ...session });
+    };
+  }, []);
+  const getPracticeCreationId = useCallback(
+    (entityType: string) =>
+      tourSessionRef.current?.practiceCreation?.entityType === entityType
+        ? tourSessionRef.current.practiceCreation.id
+        : undefined,
+    []
+  );
+  const handleOpenContextualHelp = useCallback(
+    (articleId: string) => {
+      setContextualHelpArticleId(articleId);
+      setSettingsGroup(null);
+      setActiveModal('help-catalog');
+      setTourPendingEvidence({
+        type: 'help_article_opened',
+        articleId,
+      });
+    },
+    [setTourPendingEvidence]
+  );
+  /** null = Settings hub; set when a focused group screen is open (Phase 71). */
+  const [settingsGroup, setSettingsGroup] = useState<MobileSettingsGroupId | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [notificationCapability, setNotificationCapability] =
     useState<NotificationCapabilityState | null>(null);
@@ -113,6 +196,8 @@ export default function App() {
     userId: string;
     workspaceId: string;
   } | null>(null);
+  const userNamespaceRef = useRef(userNamespace);
+  userNamespaceRef.current = userNamespace;
   const [isOnline] = useState<boolean>(true);
   const audioRecorderAdapter = useRef(new ExpoAudioRecorderAdapter()).current;
 
@@ -142,6 +227,39 @@ export default function App() {
   const [targetJournalDate, setTargetJournalDate] = useState<string | null>(null);
 
   const palette = colors[themeMode];
+  const isOperator = isPlatformOperator(
+    { userId: userNamespace?.userId },
+    { DAYNORI_OPERATOR_USER_IDS: mobileOperatorUserIds }
+  );
+  const [featurePersonalization, setFeaturePersonalization] = useState(() =>
+    getDefaultFeaturePersonalization()
+  );
+  const [journalPreviewHidden, setJournalPreviewHidden] = useState(true);
+  const mobileRelease: FeatureReleaseContext = {
+    platform: 'android',
+    corePreview: isCorePreview,
+    production: typeof __DEV__ !== 'undefined' ? !__DEV__ : true,
+    moduleReleased: {
+      vault: false,
+      drive: false,
+      rooms: false,
+      billing: false,
+      assistant: false,
+    },
+    capabilityKnown: true,
+  };
+  const mobileAuth: FeatureAuthContext = {
+    authenticated: isAuthenticated,
+    hasWorkspaceMembership: Boolean(userNamespace?.workspaceId),
+    isPlatformOperator: isOperator,
+    privilegeKnown: true,
+  };
+  const primaryShellTabs = listPrimaryShellTabs(mobileRelease, mobileAuth, featurePersonalization);
+  const visiblePrimaryTabs = primaryShellTabs
+    .map((t) => t.mobileDestination)
+    .filter(
+      (d): d is MobileTab => d === 'today' || d === 'plan' || d === 'library' || d === 'journal'
+    );
 
   // Sync Diagnostics, Recovery Export, and Conflict Review state (Phase 34)
   const [syncDiagnostics, setSyncDiagnostics] = useState<RedactedSyncDiagnostics | null>(null);
@@ -151,7 +269,10 @@ export default function App() {
   const [expensesEnabled, setExpensesEnabled] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!userNamespace?.userId) return;
+    if (!userNamespace?.userId) {
+      setFeaturePersonalization(getDefaultFeaturePersonalization());
+      return;
+    }
     const key = `daynori_expenses_enabled_${userNamespace.userId}`;
     defaultSecureStorage
       .getItemAsync(key)
@@ -162,6 +283,52 @@ export default function App() {
       })
       .catch(() => {});
   }, [userNamespace?.userId]);
+
+  const previousJournalVisible = useRef(visiblePrimaryTabs.includes('journal'));
+  useEffect(() => {
+    const wasVisible = previousJournalVisible.current;
+    previousJournalVisible.current = visiblePrimaryTabs.includes('journal');
+    if (currentTab === 'journal' && wasVisible && !previousJournalVisible.current) {
+      setCurrentTab('today');
+    }
+  }, [currentTab, visiblePrimaryTabs]);
+
+  const persistFeaturePersonalization = async (next: FeaturePersonalization) => {
+    if (!apiClient || !userNamespace)
+      throw new Error('Sign in and reconnect to save personalization.');
+    const report = captureTourEvidence();
+    const latest = await apiClient.getUserPreferences();
+    const saved = await apiClient.updateUserPreferences({
+      expectedRevision: latest.data.revision,
+      preferences: { featurePersonalization: next },
+    });
+    if (
+      userNamespaceRef.current?.userId !== userNamespace.userId ||
+      userNamespaceRef.current?.workspaceId !== userNamespace.workspaceId
+    )
+      return;
+    setFeaturePersonalization(next);
+    const journalWasHidden = featurePersonalization.hiddenFeatureIds.includes('journal');
+    const journalHidden = next.hiddenFeatureIds.includes('journal');
+    if (journalWasHidden !== journalHidden)
+      report({
+        type: 'preference_changed',
+        preferenceRevision: saved.data.revision,
+        preferenceKey: 'featurePersonalization.hiddenFeatureIds',
+        preferenceValue: journalHidden ? 'journal:hidden' : 'journal:visible',
+      });
+    else if (
+      next.pinnedFeatureIds.some((id) => !featurePersonalization.pinnedFeatureIds.includes(id))
+    )
+      report({
+        type: 'preference_changed',
+        preferenceRevision: saved.data.revision,
+        preferenceKey: 'featurePersonalization.pinnedFeatureIds',
+        preferenceValue: next.pinnedFeatureIds.find(
+          (id) => !featurePersonalization.pinnedFeatureIds.includes(id)
+        ),
+      });
+  };
 
   const handleToggleExpensesEnabled = async (enabled: boolean) => {
     setExpensesEnabled(enabled);
@@ -178,13 +345,48 @@ export default function App() {
     }
   };
 
-  // Reset diagnostics and recovery export on session / workspace change
+  // Reset diagnostics / personalization on session / workspace change (Phase 66 isolates accounts).
   useEffect(() => {
     sessionGenRef.current += 1;
     setSyncDiagnostics(null);
     setRecoveryExport(null);
     setActiveConflict(null);
-  }, [userNamespace?.userId, userNamespace?.workspaceId]);
+
+    if (!apiClient || !userNamespace?.userId) {
+      setFeaturePersonalization(getDefaultFeaturePersonalization());
+      setJournalPreviewHidden(true);
+      return;
+    }
+    const gen = sessionGenRef.current;
+    const userId = userNamespace.userId;
+    void apiClient
+      .getUserPreferences()
+      .then((profile) => {
+        if (sessionGenRef.current !== gen || userNamespace.userId !== userId) return;
+        const prefs = profile.data?.preferences as
+          | {
+              featurePersonalization?: unknown;
+              homeLayout?: { moduleShortcuts?: unknown };
+              journalPreviewHidden?: boolean;
+            }
+          | undefined;
+        setJournalPreviewHidden(
+          prefs?.journalPreviewHidden !== undefined ? Boolean(prefs.journalPreviewHidden) : true
+        );
+        setFeaturePersonalization(
+          sanitizeAndMigrateFeaturePersonalization(
+            prefs?.featurePersonalization ?? null,
+            (prefs?.homeLayout?.moduleShortcuts as
+              Array<{ id: string; visible: boolean; order: number }> | undefined) ?? null
+          )
+        );
+      })
+      .catch(() => {
+        if (sessionGenRef.current === gen) {
+          setFeaturePersonalization(getDefaultFeaturePersonalization());
+        }
+      });
+  }, [apiClient, userNamespace?.userId, userNamespace?.workspaceId]);
 
   // Listen for conflict_detected from active sync engine
   useEffect(() => {
@@ -283,14 +485,29 @@ export default function App() {
     return unsubscribe;
   }, [pendingProtectedDest]);
 
-  // Production Storage & Sync Engine Lifecycle
+  // Production Storage & Sync Engine Lifecycle.
+  // Serialize open/close: React Strict Mode remounts this effect and Expo SQLite shares
+  // one native handle per DB name — overlapping close+initialize causes flaky failures.
+  const storageGenerationRef = useRef(0);
+  const storageQueueRef = useRef<Promise<void>>(Promise.resolve());
+
   useEffect(() => {
-    let isCancelled = false;
+    const generation = ++storageGenerationRef.current;
     let openedRepository: SqliteLocalRepository | null = null;
     let openedEngine: SyncEngine | null = null;
 
-    async function initMobileStorage() {
+    const runExclusive = (fn: () => Promise<void>) => {
+      const next = storageQueueRef.current.then(fn, fn);
+      storageQueueRef.current = next.then(
+        () => undefined,
+        () => undefined
+      );
+      return next;
+    };
+
+    void runExclusive(async () => {
       if (!isAuthenticated) {
+        if (generation !== storageGenerationRef.current) return;
         setSyncEngine(null);
         setRepository(null);
         setApiClient(null);
@@ -301,11 +518,13 @@ export default function App() {
 
       const currentUser = defaultAuthAdapter.getCurrentUser();
       if (!currentUser?.id || !currentUser?.workspaceId) {
+        if (generation !== storageGenerationRef.current) return;
         setApiClient(null);
         setUserNamespace(null);
         return;
       }
 
+      if (generation !== storageGenerationRef.current) return;
       setRepository(null);
       setSyncEngine(null);
       setApiClient(null);
@@ -321,8 +540,9 @@ export default function App() {
           workspaceId: currentUser.workspaceId,
         });
 
-        if (isCancelled) {
+        if (generation !== storageGenerationRef.current) {
           await repo.close();
+          openedRepository = null;
           return;
         }
 
@@ -339,8 +559,11 @@ export default function App() {
         });
         openedEngine = engine;
 
-        if (isCancelled) {
+        if (generation !== storageGenerationRef.current) {
+          await engine.stop();
           await repo.close();
+          openedEngine = null;
+          openedRepository = null;
           return;
         }
 
@@ -350,7 +573,6 @@ export default function App() {
         void registerDeviceAsync(client);
         setupPushTokenRotationListener(client);
 
-        // Initial reconciliation of upcoming reminders
         void client
           .listReminderInstances(currentUser.workspaceId)
           .then((res) => {
@@ -359,57 +581,93 @@ export default function App() {
             }
           })
           .catch(() => {});
-      } catch {
-        if (!isCancelled)
+      } catch (err) {
+        if (generation === storageGenerationRef.current) {
+          const raw = err instanceof Error ? err.message : String(err);
+          const code =
+            raw.match(
+              /\b(NO_SECURE_RANDOM|KEY_NOT_FOUND|KEY_INVALIDATED_OR_MISMATCH|INVALID_KEY_FORMAT|SQLCIPHER_UNAVAILABLE|SECURE_STORE_[A-Z_]+|WORKSPACE_INDEX_FAILED|StorageUnavailableError|StorageKeyError)\b/
+            )?.[1] ?? (err instanceof Error ? err.name : 'unknown');
+          const hint =
+            /Failed to open encrypted database/i.test(raw) &&
+            !/KEY_|NO_SECURE|SQLCIPHER/i.test(code)
+              ? raw.replace(/Failed to open encrypted database "[^"]+":\s*/i, '').slice(0, 120)
+              : code;
           setStorageMessage(
-            'Could not open your saved data. Reopen the app to retry. Your data has not been cleared.'
+            `Could not open your saved data (${hint}). Reopen the app to retry. Your data has not been cleared.`
           );
+        }
       }
-    }
-
-    const initialization = initMobileStorage();
+    });
 
     return () => {
-      isCancelled = true;
-      void initialization
-        .then(async () => {
+      void runExclusive(async () => {
+        if (generation !== storageGenerationRef.current) {
+          // Successor effect owns the namespace; only close handles this generation opened.
+        }
+        try {
           await openedEngine?.stop();
+        } catch {
+          /* ignore */
+        }
+        try {
           await openedRepository?.close();
-        })
-        .catch(() => console.warn('Could not close the prior account storage session.'));
+        } catch {
+          console.warn('Could not close the prior account storage session.');
+        }
+      });
     };
   }, [isAuthenticated, accountNamespaceKey]);
 
+  const openSettingsHub = () => {
+    setSettingsGroup(null);
+    setActiveModal('settings');
+  };
+
+  const returnToSettingsFromNested = () => {
+    setActiveModal('settings');
+  };
+
   // 2. Android hardware back + shared dismiss stack (iOS uses sheet Close / system gestures)
+  // Priority: topmost overlay → Settings group → Settings hub → Plan/Library detail → Today → exit
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
     const onHardwareBack = (): boolean => {
-      // 1. If any modal sheet is open, dismiss it
-      if (activeModal !== 'none') {
+      if (activeModal !== 'none' && activeModal !== 'settings') {
+        if (SETTINGS_NESTED_MODALS.has(activeModal)) {
+          setActiveModal('settings');
+          return true;
+        }
         setActiveModal('none');
-        return true; // handled
+        return true;
       }
 
-      // 2. If in Plan sub-view other than default 'tasks', return to 'tasks'
+      if (activeModal === 'settings') {
+        if (settingsGroup !== null) {
+          setSettingsGroup(null);
+          return true;
+        }
+        setActiveModal('none');
+        setSettingsGroup(null);
+        return true;
+      }
+
       if (currentTab === 'plan' && planSubView !== 'tasks') {
         setPlanSubView('tasks');
         return true;
       }
 
-      // 3. If in Library with a specific filter active, reset filter to 'all'
       if (currentTab === 'library' && libraryFilter !== 'all') {
         setLibraryFilter('all');
         return true;
       }
 
-      // 4. If on any tab other than Today, navigate back to Today tab
       if (currentTab !== 'today') {
         setCurrentTab('today');
         return true;
       }
 
-      // 5. On Today dashboard with no modals, allow default system exit
       return false;
     };
 
@@ -421,7 +679,7 @@ export default function App() {
         BackHandler.removeEventListener('hardwareBackPress', onHardwareBack);
       }
     };
-  }, [activeModal, currentTab, planSubView, libraryFilter]);
+  }, [activeModal, settingsGroup, currentTab, planSubView, libraryFilter]);
 
   // 3. App Resume / Background Lifecycle Handling
   useEffect(() => {
@@ -496,9 +754,10 @@ export default function App() {
           setCurrentTab('journal');
           setActiveModal('none');
         } else if (dest === 'settings') {
-          setActiveModal('settings');
+          openSettingsHub();
         } else if (dest === 'review') {
-          setActiveModal('gallery');
+          // Phase 66: gallery is operator-only; deny ordinary deep links.
+          setActiveModal('none');
         } else if (String(dest).includes('vault')) {
           // Production vault deep links remain closed while Phase 44/45 gates are unmet.
           // Do not open decrypted vault content from a notification/deep link.
@@ -605,9 +864,10 @@ export default function App() {
         setCurrentTab('journal');
         setActiveModal('none');
       } else if (dest === 'settings') {
-        setActiveModal('settings');
+        openSettingsHub();
       } else if (dest === 'review') {
-        setActiveModal('gallery');
+        // Phase 66: gallery is operator-only; deny ordinary notification deep links.
+        setActiveModal('none');
       }
     });
 
@@ -638,643 +898,919 @@ export default function App() {
 
   const headerInfo = getHeaderInfo();
 
+  // Single inset policy: androidStatusBarTopPad (density-portable 48dp floor when
+  // StatusBar under-reports on edge-to-edge). Optional measuredTopInset reserved for
+  // a future linked safe-area provider — current Dev Client APK does not ship it.
+  const topPad = Platform.OS === 'android' ? androidStatusBarTopPad() : 0;
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+    <View style={[styles.container, { backgroundColor: palette.background }]}>
       <StatusBar
         barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'}
         backgroundColor={Platform.OS === 'android' ? palette.surface : undefined}
       />
-
-      {/* Main Top Header */}
-      <MobileHeader
-        title={headerInfo.title}
-        subtitle={headerInfo.subtitle}
-        themeMode={themeMode}
-        onOpenSearch={() => setActiveModal('search')}
-        onOpenCreate={() => setActiveModal('create')}
-        onOpenSettings={() => setActiveModal('settings')}
-      />
-
-      {/* Main Content Area */}
-      {isCorePreview && (
-        <Text
-          accessibilityRole="text"
-          style={{ color: palette.text.primary, backgroundColor: palette.surface, padding: 12 }}
-        >
-          Free testing preview: uploads, audio attachments, and reminder delivery are unavailable.
-          The server may take a minute to wake up. Use sample content.
-        </Text>
-      )}
-      {storageMessage && (
-        <Text accessibilityRole="alert" style={{ color: palette.status.danger, padding: 16 }}>
-          {storageMessage}
-        </Text>
-      )}
-      <View style={styles.contentArea}>
-        {currentTab === 'today' && (
-          <TodayView
-            themeMode={themeMode}
-            onNavigateToPlan={() => setCurrentTab('plan')}
-            onNavigateToJournal={() => setCurrentTab('journal')}
-            onNavigateToLibrary={(_folderId?: string) => {
-              setCurrentTab('library');
-            }}
-            onOpenCreate={() => setActiveModal('create')}
-            onTriggerOnboarding={() => setActiveModal('onboarding')}
-            repository={repository ?? undefined}
-            syncEngine={syncEngine ?? undefined}
-            apiClient={apiClient ?? undefined}
-            workspaceId={userNamespace?.workspaceId ?? null}
-            userId={userNamespace?.userId ?? null}
-            isOnline={isOnline}
-            refreshTrigger={refreshTrigger}
-          />
-        )}
-
-        {currentTab === 'plan' && (
-          <PlanView
-            themeMode={themeMode}
-            initialSubView={planSubView}
-            onSubViewChange={setPlanSubView}
-            repository={repository ?? undefined}
-            syncEngine={syncEngine ?? undefined}
-            workspaceId={userNamespace?.workspaceId ?? null}
-            userId={userNamespace?.userId ?? null}
-            isOnline={isOnline}
-            targetTaskId={targetTaskId}
-            onClearTarget={() => setTargetTaskId(null)}
-          />
-        )}
-
-        {currentTab === 'library' && (
-          <LibraryView
-            themeMode={themeMode}
-            initialFilter={libraryFilter}
-            onFilterChange={setLibraryFilter}
-            onOpenCreate={() => setActiveModal('create')}
-            repository={repository ?? undefined}
-            syncEngine={syncEngine ?? undefined}
-            workspaceId={userNamespace?.workspaceId ?? null}
-            userId={userNamespace?.userId ?? null}
-            isOnline={isOnline}
-            apiClient={apiClient ?? undefined}
-            targetItemId={targetLibraryItemId}
-            targetFolderId={targetFolderId}
-            onClearTarget={() => {
-              setTargetLibraryItemId(null);
-              setTargetFolderId(null);
-            }}
-          />
-        )}
-
-        {currentTab === 'journal' && (
-          <JournalView
-            themeMode={themeMode}
-            isAuthenticated={isAuthenticated}
-            onLoginSynthetic={() => setActiveModal('account')}
-            onNavigateToToday={() => setCurrentTab('today')}
-            repository={repository ?? undefined}
-            syncEngine={syncEngine ?? undefined}
-            workspaceId={userNamespace?.workspaceId ?? null}
-            userId={userNamespace?.userId ?? null}
-            isOnline={isOnline}
-            targetEntryId={targetJournalEntryId}
-            targetDate={targetJournalDate}
-            onClearTarget={() => {
-              setTargetJournalEntryId(null);
-              setTargetJournalDate(null);
-            }}
-          />
-        )}
-      </View>
-
-      {/* Bottom Organizer Navigation Bar */}
-      <MobileNavigationBar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        themeMode={themeMode}
-      />
-
-      {/* Search Sheet */}
-      <SearchSheet
-        visible={activeModal === 'search'}
-        onClose={() => setActiveModal('none')}
-        themeMode={themeMode}
-        initialQuery={searchQuery}
-        onQueryChange={setSearchQuery}
-        workspaceId={userNamespace?.workspaceId}
-        userId={userNamespace?.userId}
-        apiClient={apiClient ?? undefined}
-        localRepository={repository ?? undefined}
-        onSelectItem={(item) => {
-          setActiveModal('none');
-          if (item.displayType === 'note' || item.displayType === 'knowledge') {
-            setCurrentTab('library');
-            setTargetLibraryItemId(item.id);
-          } else if (item.displayType === 'file') {
-            setCurrentTab('library');
-            setLibraryFilter('files');
-            setTargetLibraryItemId(item.id);
-          } else if (item.displayType === 'folder') {
-            setCurrentTab('library');
-            setTargetFolderId(item.id);
-          } else if (item.displayType === 'task') {
-            setCurrentTab('plan');
-            setPlanSubView('tasks');
-            setTargetTaskId(item.id);
-          } else if (item.displayType === 'journal') {
-            setCurrentTab('journal');
-            setTargetJournalEntryId(item.id);
-            setTargetJournalDate((item.metadata?.entryDate as string) || null);
-          }
+      <View
+        style={{
+          flex: 1,
+          paddingTop: topPad,
+          backgroundColor: palette.background,
         }}
-      />
-
-      {/* Create Sheet */}
-      <CreateSheet
-        visible={activeModal === 'create'}
-        onClose={() => setActiveModal((current) => (current === 'create' ? 'none' : current))}
-        themeMode={themeMode}
-        initialDraft={createDraft}
-        onDraftChange={setCreateDraft}
-        onCreateItem={async (draft) => {
-          await saveQuickCapture(
-            syncEngine,
-            userNamespace?.workspaceId ?? null,
-            draft,
-            Intl.DateTimeFormat().resolvedOptions().timeZone
-          );
-          setCreateDraft({ type: 'task', title: '', details: '' });
-          if (draft.type === 'task' || draft.type === 'routine') {
-            setPlanSubView(draft.type === 'task' ? 'tasks' : 'routines');
-            setCurrentTab('plan');
-          } else setCurrentTab(draft.type === 'journal' ? 'journal' : 'library');
-        }}
-        onRecordAudio={isCorePreview ? undefined : () => setActiveModal('audio-recorder')}
-      />
-
-      {/* Settings Modal */}
-      {activeModal === 'account' && (
-        <AccountSheet themeMode={themeMode} onClose={() => setActiveModal('none')} />
-      )}
-      {activeModal === 'settings' && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 100 }]}
-        >
-          <SettingsView
-            themeMode={themeMode}
-            onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
-            textScale={textScale}
-            onChangeTextScale={setTextScale}
-            isAuthenticated={isAuthenticated}
-            onOpenAccount={() => setActiveModal('account')}
-            onToggleAuth={() => {
-              if (isAuthenticated) {
-                if (apiClient) {
-                  void defaultScheduleCoordinator.cancelAll(apiClient);
-                  void deactivateDeviceAsync(apiClient);
-                }
-                resetNotificationResponseState();
-                setPendingProtectedDest(null);
-                if (userNamespace?.userId) {
-                  void MobileOfflineFileCache.clearAccount(userNamespace.userId).catch(() => {});
-                }
-                if (userNamespace?.workspaceId) {
-                  void MobileOfflineFileCache.clearWorkspace(userNamespace.workspaceId).catch(
-                    () => {}
-                  );
-                }
-                void defaultAuthAdapter.signOut({ createDraft, searchQuery });
-                setCreateDraft({ type: 'task', title: '', details: '' });
-                setSearchQuery('');
-                if (currentTab === 'journal') {
-                  setCurrentTab('today');
-                }
-              } else {
-                setActiveModal('account');
-              }
-            }}
-            notificationCapability={notificationCapability}
-            onRequestNotificationPermission={async () => {
-              const cap = await requestNotificationPermissionAsync();
-              setNotificationCapability(cap);
-              if (apiClient && cap.status === 'granted') {
-                void registerDeviceAsync(apiClient);
-              }
-            }}
-            onOpenGallery={() => setActiveModal('gallery')}
-            onOpenOnboarding={() => setActiveModal('onboarding-replay')}
-            onOpenSyncDiagnostics={() => {
-              void loadDiagnostics();
-              setActiveModal('sync-diagnostics');
-            }}
-            onOpenRecoveryExport={() => {
-              void loadRecoveryExport();
-              setActiveModal('recovery-export');
-            }}
-            onOpenPortability={() => setActiveModal('workspace-portability')}
-            onOpenAccountDeletion={() => setActiveModal('account-deletion')}
-            expensesEnabled={expensesEnabled}
-            onToggleExpensesEnabled={handleToggleExpensesEnabled}
-            onOpenExpenses={() => setActiveModal('expenses')}
-            onOpenCustomSections={() => setActiveModal('custom-sections')}
-            onOpenVaultHarness={
-              typeof __DEV__ !== 'undefined' && __DEV__
-                ? () => setActiveModal('vault-harness')
-                : undefined
-            }
-            onOpenDriveConnections={
-              apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('drive-connections')
-                : undefined
-            }
-            onOpenRooms={
-              apiClient && userNamespace?.workspaceId ? () => setActiveModal('rooms') : undefined
-            }
-            onOpenAssistant={
-              apiClient && userNamespace?.workspaceId
-                ? () => setActiveModal('assistant')
-                : undefined
-            }
-            onOpenBilling={
-              apiClient && userNamespace?.workspaceId ? () => setActiveModal('billing') : undefined
-            }
-            onClose={() => setActiveModal('none')}
-          />
-        </View>
-      )}
-
-      {/* Phase 57 provisional billing */}
-      {activeModal === 'billing' && apiClient && userNamespace?.workspaceId ? (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
-        >
-          <BillingSheet
-            themeMode={themeMode}
-            workspaceId={userNamespace.workspaceId}
-            apiClient={apiClient}
-            onClose={() => setActiveModal('settings')}
-          />
-        </View>
-      ) : null}
-
-      {/* Phase 56 provisional assistant */}
-      {activeModal === 'assistant' && apiClient && userNamespace?.workspaceId ? (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
-        >
-          <AssistantSheet
-            themeMode={themeMode}
-            workspaceId={userNamespace.workspaceId}
-            apiClient={apiClient}
-            onClose={() => setActiveModal('settings')}
-          />
-        </View>
-      ) : null}
-
-      {/* Phase 51 provisional shared rooms */}
-      {activeModal === 'rooms' && apiClient && userNamespace?.workspaceId ? (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
-        >
-          <RoomsSheet
-            themeMode={themeMode}
-            personalWorkspaceId={userNamespace.workspaceId}
-            userId={userNamespace.userId}
-            apiClient={apiClient}
-            onClose={() => setActiveModal('settings')}
-          />
-        </View>
-      ) : null}
-
-      {/* Phase 49 provisional Drive connections */}
-      {activeModal === 'drive-connections' && apiClient && userNamespace?.workspaceId ? (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
-        >
-          <DriveConnectionsSheet
-            themeMode={themeMode}
-            workspaceId={userNamespace.workspaceId}
-            apiClient={apiClient}
-            openSystemBrowser={(url) => {
-              void Linking.openURL(url);
-            }}
-            onClose={() => setActiveModal('settings')}
-          />
-        </View>
-      ) : null}
-
-      {/* Phase 46 synthetic vault harness — development only; unavailable in release */}
-      {typeof __DEV__ !== 'undefined' && __DEV__ && activeModal === 'vault-harness' && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
-        >
-          <VaultHarnessView
-            themeMode={themeMode}
-            accountId={userNamespace?.userId ?? 'synthetic-account'}
-            workspaceId={userNamespace?.workspaceId ?? '11111111-1111-4111-8111-111111111111'}
-            isOnline={isOnline}
-            onClose={() => setActiveModal('none')}
-          />
-        </View>
-      )}
-
-      {/* Component Gallery Modal (Phase 04 Review Destination) */}
-      {activeModal === 'gallery' && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 101 }]}
-        >
-          <ComponentGalleryView
-            themeMode={themeMode}
-            onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
-            onClose={() => setActiveModal('settings')}
-          />
-        </View>
-      )}
-
-      {/* Expenses Modal (Phase 40 Opt-In) */}
-      {activeModal === 'expenses' && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
-        >
-          <ExpensesView
-            themeMode={themeMode}
-            workspaceId={userNamespace?.workspaceId ?? null}
-            apiClient={apiClient ?? undefined}
-            isOnline={isOnline}
-            onClose={() => setActiveModal('none')}
-          />
-        </View>
-      )}
-
-      {/* Custom Sections Modal (Phase 43) */}
-      {activeModal === 'custom-sections' && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 103 }]}
-        >
-          <CustomSectionsView
-            themeMode={themeMode}
-            workspaceId={userNamespace?.workspaceId ?? ''}
-            apiClient={apiClient}
-            onClose={() => setActiveModal('none')}
-          />
-        </View>
-      )}
-
-      {/* Onboarding Tutorial Sheet (Phase 31 First-Use Discovery) */}
-      <OnboardingSheet
-        visible={activeModal === 'onboarding' || activeModal === 'onboarding-replay'}
-        onClose={() => setActiveModal('none')}
-        themeMode={themeMode}
-        apiClient={apiClient ?? undefined}
-        repository={repository ?? undefined}
-        workspaceId={userNamespace?.workspaceId ?? null}
-        userId={userNamespace?.userId ?? null}
-        isReplay={activeModal === 'onboarding-replay'}
-        onComplete={() => {
-          setActiveModal('none');
-          setRefreshTrigger((prev) => prev + 1);
-        }}
-      />
-
-      {/* Phase 34 Sync Diagnostics Sheet */}
-      <MobileSyncDiagnosticsSheet
-        visible={activeModal === 'sync-diagnostics'}
-        onClose={() => setActiveModal('none')}
-        diagnostics={syncDiagnostics}
-        onRefresh={loadDiagnostics}
-        onSyncNow={async () => {
-          if (syncEngine) {
-            await syncEngine.syncNow();
-            await loadDiagnostics();
-          }
-        }}
-        onOpenRecoveryExport={() => {
-          void loadRecoveryExport();
-          setActiveModal('recovery-export');
-        }}
-        themeMode={themeMode}
-      />
-
-      {/* Phase 34 Recovery Export Sheet */}
-      <MobileRecoveryExportSheet
-        visible={activeModal === 'recovery-export'}
-        onClose={() => setActiveModal('none')}
-        exportData={recoveryExport}
-        onShareOrCopy={handleShareOrCopyRecovery}
-        themeMode={themeMode}
-      />
-
-      {/* Phase 34 Conflict Review Sheet */}
-      <MobileConflictReviewSheet
-        visible={activeModal === 'conflict-review' && activeConflict !== null}
-        onClose={() => setActiveModal('none')}
-        conflict={activeConflict}
-        onResolve={async (resolution, customPayload) => {
-          if (syncEngine && activeConflict) {
-            await syncEngine.resolveConflict(activeConflict.id, resolution, customPayload);
-            setActiveConflict(null);
-            setActiveModal('none');
-            await loadDiagnostics();
-          }
-        }}
-        themeMode={themeMode}
-      />
-
-      {/* Phase 35 Workspace Portability Sheet */}
-      <MobileWorkspacePortabilitySheet
-        visible={activeModal === 'workspace-portability'}
-        onClose={() => setActiveModal('none')}
-        workspaceId={userNamespace?.workspaceId ?? ''}
-        themeMode={themeMode}
-        onExportWorkspace={async (password) => {
-          if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
-          const reauthRes = await apiClient.reauthenticate({
-            purpose: 'protected_export',
-            password,
-            sessionBinding: userNamespace.workspaceId,
-          });
-          return await apiClient.createWorkspaceExport(userNamespace.workspaceId, {
-            reauthToken: reauthRes.reauthToken,
-            includeAttachments: true,
-          });
-        }}
-        onPreviewImport={async (archiveBase64) => {
-          if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
-          return await apiClient.previewWorkspaceImport(userNamespace.workspaceId, {
-            archiveBase64,
-          });
-        }}
-        onExecuteImport={async (previewId, strategy) => {
-          if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
-          return await apiClient.executeWorkspaceImport(userNamespace.workspaceId, {
-            previewId,
-            duplicateStrategy: strategy,
-          });
-        }}
-        onPickArchive={async () => {
-          try {
-            const res = await DocumentPicker.getDocumentAsync({
-              copyToCacheDirectory: true,
-              type: [
-                'application/zip',
-                'application/x-zip-compressed',
-                'application/octet-stream',
-                '*/*',
-              ],
-            });
-            if (res.canceled || !res.assets || res.assets.length === 0) {
-              return null;
-            }
-            const asset = res.assets[0];
-            if (!asset) return null;
-            const base64Data = await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            return { name: asset.name, base64: base64Data };
-          } catch (err) {
-            console.error('Failed to pick document archive:', err);
-            return null;
-          }
-        }}
-        onDownloadExport={async (downloadUrl: string) => {
-          try {
-            const targetPath = `${FileSystem.documentDirectory}daynori-export-${Date.now()}.zip`;
-            const fullUrl = downloadUrl.startsWith('http') ? downloadUrl : downloadUrl;
-            const result = await FileSystem.downloadAsync(fullUrl, targetPath);
-            if (result.status === 200) {
-              await Share.share({
-                title: 'Daynori Export',
-                message: `Export saved to ${result.uri}`,
-                url: result.uri,
+      >
+        {/* Main Top Header */}
+        <MobileHeader
+          title={headerInfo.title}
+          subtitle={headerInfo.subtitle}
+          themeMode={themeMode}
+          onOpenSearch={() => {
+            setActiveModal('search');
+            setTourPendingEvidence({ type: 'target_activated', targetId: 'shell.search' });
+          }}
+          onOpenCreate={() => {
+            setActiveModal('create');
+            if (guidedTourVisible) {
+              setTourPendingEvidence({
+                type: 'target_activated',
+                targetId: 'shell.create',
+                expectedAction: 'open_create',
               });
             }
-          } catch (err) {
-            console.error('Failed to download export:', err);
-          }
-        }}
-      />
+          }}
+          onOpenAllFeatures={() => {
+            setActiveModal('all-features');
+            setTourPendingEvidence({ type: 'target_activated', targetId: 'shell.all-features' });
+          }}
+          onOpenSettings={openSettingsHub}
+        />
 
-      {/* Phase 36 Account Deletion Sheet */}
-      <MobileAccountDeletionSheet
-        visible={activeModal === 'account-deletion'}
-        onClose={() => setActiveModal('none')}
-        themeMode={themeMode}
-        userEmail={defaultAuthAdapter.getCurrentUser()?.email ?? undefined}
-        onRequestDeletion={async (password) => {
-          if (!apiClient) throw new Error('API client not available');
-          return await apiClient.requestAccountDeletion({ password });
-        }}
-        onConfirmDeletion={async (confirmationToken) => {
-          if (!apiClient) throw new Error('API client not available');
-          return await apiClient.confirmAccountDeletion({ confirmationToken });
-        }}
-        onSuccess={() => {
-          setActiveModal('none');
-          void defaultAuthAdapter.signOut({ createDraft, searchQuery });
-        }}
-      />
+        {/* Main Content Area */}
+        {isCorePreview && (
+          <Text
+            accessibilityRole="text"
+            style={{ color: palette.text.primary, backgroundColor: palette.surface, padding: 12 }}
+          >
+            Free testing preview: uploads, audio attachments, and reminder delivery are unavailable.
+            The server may take a minute to wake up. Use sample content.
+          </Text>
+        )}
+        {storageMessage && (
+          <Text accessibilityRole="alert" style={{ color: palette.status.danger, padding: 16 }}>
+            {storageMessage}
+          </Text>
+        )}
+        <View style={styles.contentArea}>
+          {currentTab === 'today' && (
+            <TodayView
+              themeMode={themeMode}
+              onNavigateToPlan={() => setCurrentTab('plan')}
+              onNavigateToJournal={() => setCurrentTab('journal')}
+              onNavigateToLibrary={(_folderId?: string) => {
+                setCurrentTab('library');
+              }}
+              onOpenCreate={() => setActiveModal('create')}
+              onTriggerOnboarding={() => setActiveModal('onboarding')}
+              repository={repository ?? undefined}
+              syncEngine={syncEngine ?? undefined}
+              apiClient={apiClient ?? undefined}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              userId={userNamespace?.userId ?? null}
+              isOnline={isOnline}
+              refreshTrigger={refreshTrigger}
+            />
+          )}
 
-      {/* Phase 41 Mobile Audio Recorder Sheet */}
-      <MobileAudioRecorderSheet
-        visible={activeModal === 'audio-recorder'}
-        onClose={() => setActiveModal('none')}
-        workspaceId={userNamespace?.workspaceId ?? ''}
-        themeMode={themeMode}
-        recorderAdapter={audioRecorderAdapter}
-        onSaveAudio={async (data) => {
-          if (!data.uri) {
-            throw new Error('No recording file was produced.');
-          }
-          const workspaceId = userNamespace?.workspaceId;
-          if (!workspaceId) {
-            throw new Error('No active workspace.');
-          }
+          {currentTab === 'plan' && (
+            <PlanView
+              onCaptureTourEvidence={captureTourEvidence}
+              onGetPracticeCreationId={getPracticeCreationId}
+              themeMode={themeMode}
+              initialSubView={planSubView}
+              onSubViewChange={setPlanSubView}
+              repository={repository ?? undefined}
+              syncEngine={syncEngine ?? undefined}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              userId={userNamespace?.userId ?? null}
+              isOnline={isOnline}
+              targetTaskId={targetTaskId}
+              onClearTarget={() => setTargetTaskId(null)}
+            />
+          )}
 
-          // 1. Read recording binary bytes from disk
-          const base64 = await FileSystem.readAsStringAsync(data.uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          const buffer = base64ToArrayBuffer(base64);
-          const sha256 = await computeMobileBufferSha256(buffer);
+          {currentTab === 'library' && (
+            <LibraryView
+              onCaptureTourEvidence={captureTourEvidence}
+              onGetPracticeCreationId={getPracticeCreationId}
+              onOpenContextualHelp={handleOpenContextualHelp}
+              themeMode={themeMode}
+              initialFilter={libraryFilter}
+              onFilterChange={setLibraryFilter}
+              onOpenCreate={() => setActiveModal('create')}
+              repository={repository ?? undefined}
+              syncEngine={syncEngine ?? undefined}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              userId={userNamespace?.userId ?? null}
+              isOnline={isOnline}
+              apiClient={apiClient ?? undefined}
+              targetItemId={targetLibraryItemId}
+              targetFolderId={targetFolderId}
+              onClearTarget={() => {
+                setTargetLibraryItemId(null);
+                setTargetFolderId(null);
+              }}
+            />
+          )}
 
-          let fileId = generateUuid();
+          {currentTab === 'journal' && (
+            <JournalView
+              onCaptureTourEvidence={captureTourEvidence}
+              onGetPracticeCreationId={getPracticeCreationId}
+              onOpenContextualHelp={handleOpenContextualHelp}
+              themeMode={themeMode}
+              isAuthenticated={isAuthenticated}
+              onLoginSynthetic={() => setActiveModal('account')}
+              onNavigateToToday={() => setCurrentTab('today')}
+              repository={repository ?? undefined}
+              syncEngine={syncEngine ?? undefined}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              userId={userNamespace?.userId ?? null}
+              isOnline={isOnline}
+              targetEntryId={targetJournalEntryId}
+              targetDate={targetJournalDate}
+              onClearTarget={() => {
+                setTargetJournalEntryId(null);
+                setTargetJournalDate(null);
+              }}
+            />
+          )}
+        </View>
 
-          if (apiClient) {
-            // Online flow: standard private binary upload lifecycle
-            const reserveRes = await apiClient.reserveFileUpload(workspaceId, {
-              fileName: data.fileName,
-              declaredMimeType: data.mimeType,
-              declaredBytes: data.byteSize,
+        {/* Bottom Organizer Navigation Bar */}
+        <MobileNavigationBar
+          currentTab={currentTab}
+          onSelectTab={(tab) => {
+            setCurrentTab(tab);
+            setTourPendingEvidence({ type: 'target_activated', targetId: `shell.nav.${tab}` });
+          }}
+          themeMode={themeMode}
+          visibleTabs={visiblePrimaryTabs}
+        />
+
+        {/* Search Sheet */}
+        <SearchSheet
+          visible={activeModal === 'search'}
+          onClose={() => setActiveModal('none')}
+          themeMode={themeMode}
+          initialQuery={searchQuery}
+          onQueryChange={setSearchQuery}
+          workspaceId={userNamespace?.workspaceId}
+          userId={userNamespace?.userId}
+          apiClient={apiClient ?? undefined}
+          localRepository={repository ?? undefined}
+          journalPreviewHidden={journalPreviewHidden}
+          onSelectItem={(item) => {
+            pendingSearchTargetRef.current = item.id;
+            setActiveModal('none');
+            if (item.displayType === 'note' || item.displayType === 'knowledge') {
+              setCurrentTab('library');
+              setTargetLibraryItemId(item.id);
+            } else if (item.displayType === 'file') {
+              setCurrentTab('library');
+              setLibraryFilter('files');
+              setTargetLibraryItemId(item.id);
+            } else if (item.displayType === 'folder') {
+              setCurrentTab('library');
+              setTargetFolderId(item.id);
+            } else if (item.displayType === 'task') {
+              setCurrentTab('plan');
+              setPlanSubView('tasks');
+              setTargetTaskId(item.id);
+            } else if (item.displayType === 'journal') {
+              setCurrentTab('journal');
+              setTargetJournalEntryId(item.id);
+              setTargetJournalDate((item.metadata?.entryDate as string) || null);
+            }
+          }}
+        />
+
+        {/* Create Sheet */}
+        <CreateSheet
+          visible={activeModal === 'create'}
+          onClose={() => setActiveModal((current) => (current === 'create' ? 'none' : current))}
+          themeMode={themeMode}
+          initialDraft={createDraft}
+          onDraftChange={setCreateDraft}
+          onTourEvidence={(type) => {
+            setTourPendingEvidence({
+              type: 'create_type_selected',
+              createType: type,
+              targetId: `create.type.${type}`,
             });
-            const { reservationId, uploadUrl, headers } = reserveRes.data;
+          }}
+          onCreateItem={async (draft) => {
+            const captured = tourSessionRef.current;
+            const entityType = draft.type === 'journal' ? 'journal_entry' : draft.type;
+            const practiceId =
+              captured?.practiceCreation?.entityType === entityType
+                ? captured.practiceCreation.id
+                : undefined;
+            await saveQuickCapture(
+              syncEngine,
+              userNamespace?.workspaceId ?? null,
+              draft,
+              Intl.DateTimeFormat().resolvedOptions().timeZone,
+              practiceId ? { id: practiceId } : undefined
+            );
+            setCreateDraft({ type: 'task', title: '', details: '' });
+            if (draft.type === 'task' || draft.type === 'routine') {
+              setPlanSubView(draft.type === 'task' ? 'tasks' : 'routines');
+              setCurrentTab('plan');
+            } else setCurrentTab(draft.type === 'journal' ? 'journal' : 'library');
+          }}
+          onRecordAudio={isCorePreview ? undefined : () => setActiveModal('audio-recorder')}
+        />
 
-            const putRes = await fetch(uploadUrl, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': data.mimeType,
-                ...(headers || {}),
+        {/* Settings Modal */}
+        {activeModal === 'account' && (
+          <AccountSheet themeMode={themeMode} onClose={() => setActiveModal('none')} />
+        )}
+        {activeModal === 'settings' && (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: palette.background,
+                zIndex: 100,
               },
-              body: buffer,
+            ]}
+          >
+            {settingsGroup === null ? (
+              <SettingsHubView
+                themeMode={themeMode}
+                onOpenGroup={setSettingsGroup}
+                onClose={() => {
+                  setActiveModal('none');
+                  setSettingsGroup(null);
+                }}
+              />
+            ) : (
+              <SettingsView
+                themeMode={themeMode}
+                group={settingsGroup}
+                onBackToHub={() => setSettingsGroup(null)}
+                onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
+                textScale={textScale}
+                onChangeTextScale={setTextScale}
+                isAuthenticated={isAuthenticated}
+                isOperator={isOperator}
+                workspaceId={
+                  defaultAuthAdapter.getCurrentUser()?.workspaceId ??
+                  userNamespace?.workspaceId ??
+                  null
+                }
+                onProvisionWorkspace={async () => {
+                  const result = await defaultAuthAdapter.provisionPersonalWorkspaceDetailed();
+                  if (result.status !== 'ready' || !result.workspaceId) {
+                    setStorageMessage(
+                      result.message ??
+                        'Could not provision your personal workspace. Check the network and retry. Your session was kept.'
+                    );
+                  }
+                }}
+                onOpenAccount={() => setActiveModal('account')}
+                onToggleAuth={() => {
+                  if (isAuthenticated) {
+                    if (apiClient) {
+                      void defaultScheduleCoordinator.cancelAll(apiClient);
+                      void deactivateDeviceAsync(apiClient);
+                    }
+                    resetNotificationResponseState();
+                    setPendingProtectedDest(null);
+                    if (userNamespace?.userId) {
+                      void MobileOfflineFileCache.clearAccount(userNamespace.userId).catch(
+                        () => {}
+                      );
+                    }
+                    if (userNamespace?.workspaceId) {
+                      void MobileOfflineFileCache.clearWorkspace(userNamespace.workspaceId).catch(
+                        () => {}
+                      );
+                    }
+                    void defaultAuthAdapter.signOut({ createDraft, searchQuery });
+                    setCreateDraft({ type: 'task', title: '', details: '' });
+                    setSearchQuery('');
+                    if (currentTab === 'journal') {
+                      setCurrentTab('today');
+                    }
+                  } else {
+                    setActiveModal('account');
+                  }
+                }}
+                notificationCapability={notificationCapability}
+                onRequestNotificationPermission={async () => {
+                  const cap = await requestNotificationPermissionAsync();
+                  setNotificationCapability(cap);
+                  if (apiClient && cap.status === 'granted') {
+                    void registerDeviceAsync(apiClient);
+                  }
+                }}
+                onOpenAllFeatures={() => setActiveModal('all-features')}
+                onOpenGallery={isOperator ? () => setActiveModal('gallery') : undefined}
+                onOpenOnboarding={() => setActiveModal('onboarding-replay')}
+                onOpenHelpCatalog={() => setActiveModal('help-catalog')}
+                onOpenSupportFeedback={() => setActiveModal('support-feedback')}
+                onOpenSyncDiagnostics={() => {
+                  void loadDiagnostics();
+                  setActiveModal('sync-diagnostics');
+                }}
+                onOpenRecoveryExport={() => {
+                  void loadRecoveryExport();
+                  setActiveModal('recovery-export');
+                }}
+                onOpenPortability={() => setActiveModal('workspace-portability')}
+                onOpenAccountDeletion={() => setActiveModal('account-deletion')}
+                expensesEnabled={expensesEnabled}
+                onToggleExpensesEnabled={handleToggleExpensesEnabled}
+                onOpenExpenses={() => setActiveModal('expenses')}
+                onOpenCustomSections={() => setActiveModal('custom-sections')}
+                onOpenVaultHarness={
+                  isOperator && typeof __DEV__ !== 'undefined' && __DEV__
+                    ? () => setActiveModal('vault-harness')
+                    : undefined
+                }
+                onOpenDriveConnections={
+                  isOperator && apiClient && userNamespace?.workspaceId
+                    ? () => setActiveModal('drive-connections')
+                    : undefined
+                }
+                onOpenRooms={
+                  isOperator && apiClient && userNamespace?.workspaceId
+                    ? () => setActiveModal('rooms')
+                    : undefined
+                }
+                onOpenAssistant={
+                  isOperator && apiClient && userNamespace?.workspaceId
+                    ? () => setActiveModal('assistant')
+                    : undefined
+                }
+                onOpenBilling={
+                  isOperator && apiClient && userNamespace?.workspaceId
+                    ? () => setActiveModal('billing')
+                    : undefined
+                }
+                onClose={() => {
+                  setActiveModal('none');
+                  setSettingsGroup(null);
+                }}
+              />
+            )}
+          </View>
+        )}
+
+        {activeModal === 'all-features' ? (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 101 }]}
+          >
+            <AllFeaturesSheet
+              themeMode={themeMode}
+              isAuthenticated={isAuthenticated}
+              hasWorkspace={Boolean(userNamespace?.workspaceId)}
+              isOperator={isOperator}
+              personalization={featurePersonalization}
+              onChangePersonalization={persistFeaturePersonalization}
+              onClose={() => {
+                // Header opens All features over shell; Settings workspace returns to hub.
+                if (settingsGroup !== null) {
+                  returnToSettingsFromNested();
+                } else {
+                  setActiveModal('none');
+                }
+              }}
+              onOpenDestination={(destination) => {
+                setTourPendingEvidence({
+                  type: 'target_activated',
+                  targetId: `shell.nav.${destination}`,
+                });
+                setActiveModal('none');
+                if (destination === 'settings') {
+                  openSettingsHub();
+                  return;
+                }
+                if (destination === 'search') {
+                  setActiveModal('search');
+                  return;
+                }
+                if (destination === 'create') {
+                  setActiveModal('create');
+                  return;
+                }
+                if (
+                  destination === 'today' ||
+                  destination === 'plan' ||
+                  destination === 'library' ||
+                  destination === 'journal'
+                ) {
+                  setCurrentTab(destination);
+                }
+              }}
+            />
+          </View>
+        ) : null}
+
+        {/* Phase 57 provisional billing — operator-gated */}
+        {activeModal === 'billing' && isOperator && apiClient && userNamespace?.workspaceId ? (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+          >
+            <BillingSheet
+              themeMode={themeMode}
+              workspaceId={userNamespace.workspaceId}
+              apiClient={apiClient}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        ) : null}
+
+        {/* Phase 56 provisional assistant — operator-gated */}
+        {activeModal === 'assistant' && isOperator && apiClient && userNamespace?.workspaceId ? (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+          >
+            <AssistantSheet
+              themeMode={themeMode}
+              workspaceId={userNamespace.workspaceId}
+              apiClient={apiClient}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        ) : null}
+
+        {/* Phase 51 provisional shared rooms — operator-gated */}
+        {activeModal === 'rooms' && isOperator && apiClient && userNamespace?.workspaceId ? (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+          >
+            <RoomsSheet
+              themeMode={themeMode}
+              personalWorkspaceId={userNamespace.workspaceId}
+              userId={userNamespace.userId}
+              apiClient={apiClient}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        ) : null}
+
+        {/* Phase 49 provisional Drive connections — operator-gated */}
+        {activeModal === 'drive-connections' &&
+        isOperator &&
+        apiClient &&
+        userNamespace?.workspaceId ? (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+          >
+            <DriveConnectionsSheet
+              themeMode={themeMode}
+              workspaceId={userNamespace.workspaceId}
+              apiClient={apiClient}
+              openSystemBrowser={(url) => {
+                void Linking.openURL(url);
+              }}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        ) : null}
+
+        {/* Phase 46 synthetic vault harness — operator + development only */}
+        {isOperator &&
+          typeof __DEV__ !== 'undefined' &&
+          __DEV__ &&
+          activeModal === 'vault-harness' && (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: palette.background, zIndex: 102 },
+              ]}
+            >
+              <VaultHarnessView
+                themeMode={themeMode}
+                accountId={userNamespace?.userId ?? 'synthetic-account'}
+                workspaceId={userNamespace?.workspaceId ?? '11111111-1111-4111-8111-111111111111'}
+                isOnline={isOnline}
+                onClose={returnToSettingsFromNested}
+              />
+            </View>
+          )}
+
+        {/* Component Gallery Modal — operator-gated (Phase 66) */}
+        {activeModal === 'gallery' && isOperator && (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 101 }]}
+          >
+            <ComponentGalleryView
+              themeMode={themeMode}
+              onToggleTheme={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        )}
+
+        {/* Expenses Modal (Phase 40 Opt-In) */}
+        {activeModal === 'expenses' && (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
+          >
+            <ExpensesView
+              themeMode={themeMode}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              apiClient={apiClient ?? undefined}
+              isOnline={isOnline}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        )}
+
+        {/* Custom Sections Modal (Phase 43) */}
+        {activeModal === 'custom-sections' && (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 103 }]}
+          >
+            <CustomSectionsView
+              themeMode={themeMode}
+              workspaceId={userNamespace?.workspaceId ?? ''}
+              apiClient={apiClient}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        )}
+
+        {activeModal === 'help-catalog' ? (
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: palette.background, zIndex: 120 },
+            ]}
+            testID="help-catalog-sheet"
+          >
+            <HelpCatalogView
+              themeMode={themeMode}
+              userId={userNamespace?.userId ?? null}
+              initialArticleId={contextualHelpArticleId}
+              onOpenArticle={(articleId) => {
+                setTourPendingEvidence({
+                  type: 'help_article_opened',
+                  articleId,
+                });
+              }}
+              onReturnToEditor={() => {
+                setContextualHelpArticleId(null);
+                setActiveModal('none');
+                setTourPendingEvidence({
+                  type: 'help_return_to_editor',
+                  recordLoaded: true,
+                  draftPreserved: true,
+                });
+              }}
+              onClose={() => {
+                const wasContextual = contextualHelpArticleId !== null;
+                setContextualHelpArticleId(null);
+                if (wasContextual) {
+                  setActiveModal('none');
+                  setTourPendingEvidence({
+                    type: 'help_return_to_editor',
+                    recordLoaded: true,
+                    draftPreserved: true,
+                  });
+                } else {
+                  returnToSettingsFromNested();
+                }
+              }}
+              onReplayOnboarding={() => setActiveModal('onboarding-replay')}
+              onStartGuidedTour={(tourChapterId, practiceOptIn) => {
+                setContextualHelpArticleId(null);
+                setGuidedTourChapterId(tourChapterId);
+                setTourPracticeOptIn(practiceOptIn === true);
+                setGuidedTourVisible(true);
+                setActiveModal('none');
+              }}
+              onOpenSupport={() => {
+                setContextualHelpArticleId(null);
+                setActiveModal('support-feedback');
+              }}
+            />
+          </View>
+        ) : null}
+
+        {activeModal === 'support-feedback' ? (
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: palette.background, zIndex: 120 },
+            ]}
+            testID="support-feedback-container"
+          >
+            <SupportFeedbackView
+              themeMode={themeMode}
+              userId={userNamespace?.userId ?? null}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              apiClient={apiClient}
+              onClose={returnToSettingsFromNested}
+            />
+          </View>
+        ) : null}
+
+        <TourCoachmarkSheet
+          visible={guidedTourVisible}
+          chapterId={guidedTourChapterId}
+          themeMode={themeMode}
+          practiceOptIn={tourPracticeOptIn}
+          repository={repository ?? undefined}
+          syncEngine={syncEngine ?? undefined}
+          onSessionChange={(session) => {
+            tourSessionRef.current = session;
+          }}
+          apiClient={apiClient ?? undefined}
+          workspaceId={userNamespace?.workspaceId ?? null}
+          userId={userNamespace?.userId ?? null}
+          pendingEvidence={tourPendingEvidence}
+          onPendingEvidenceConsumed={() => setTourPendingEvidence(null)}
+          onRequestRoute={(route) => {
+            if (route.includes('plan')) {
+              setCurrentTab('plan');
+              setPlanSubView(route.includes('calendar') ? 'calendar' : 'tasks');
+            } else if (route.includes('library')) {
+              setCurrentTab('library');
+            } else if (route.includes('journal')) {
+              setCurrentTab('journal');
+            } else if (route === '/' || route.includes('today')) {
+              setCurrentTab('today');
+            }
+          }}
+          onClose={() => setGuidedTourVisible(false)}
+        />
+
+        {/* Onboarding Tutorial Sheet (Phase 31 First-Use Discovery) */}
+        <OnboardingSheet
+          visible={activeModal === 'onboarding' || activeModal === 'onboarding-replay'}
+          onClose={() => {
+            if (activeModal === 'onboarding-replay') {
+              returnToSettingsFromNested();
+            } else {
+              setActiveModal('none');
+            }
+          }}
+          themeMode={themeMode}
+          apiClient={apiClient ?? undefined}
+          repository={repository ?? undefined}
+          workspaceId={userNamespace?.workspaceId ?? null}
+          userId={userNamespace?.userId ?? null}
+          isReplay={activeModal === 'onboarding-replay'}
+          onComplete={() => {
+            if (activeModal === 'onboarding-replay') {
+              returnToSettingsFromNested();
+            } else {
+              setActiveModal('none');
+            }
+            setRefreshTrigger((prev) => prev + 1);
+          }}
+        />
+
+        {/* Phase 34 Sync Diagnostics Sheet */}
+        <MobileSyncDiagnosticsSheet
+          visible={activeModal === 'sync-diagnostics'}
+          onClose={returnToSettingsFromNested}
+          diagnostics={syncDiagnostics}
+          onRefresh={loadDiagnostics}
+          onSyncNow={async () => {
+            if (syncEngine) {
+              await syncEngine.syncNow();
+              await loadDiagnostics();
+            }
+          }}
+          onOpenRecoveryExport={() => {
+            void loadRecoveryExport();
+            setActiveModal('recovery-export');
+          }}
+          themeMode={themeMode}
+        />
+
+        {/* Phase 34 Recovery Export Sheet */}
+        <MobileRecoveryExportSheet
+          visible={activeModal === 'recovery-export'}
+          onClose={returnToSettingsFromNested}
+          exportData={recoveryExport}
+          onShareOrCopy={handleShareOrCopyRecovery}
+          themeMode={themeMode}
+        />
+
+        {/* Phase 34 Conflict Review Sheet */}
+        <MobileConflictReviewSheet
+          visible={activeModal === 'conflict-review' && activeConflict !== null}
+          onClose={() => setActiveModal('none')}
+          conflict={activeConflict}
+          onResolve={async (resolution, customPayload) => {
+            if (syncEngine && activeConflict) {
+              await syncEngine.resolveConflict(activeConflict.id, resolution, customPayload);
+              setActiveConflict(null);
+              setActiveModal('none');
+              await loadDiagnostics();
+            }
+          }}
+          themeMode={themeMode}
+        />
+
+        {/* Phase 35 Workspace Portability Sheet */}
+        <MobileWorkspacePortabilitySheet
+          visible={activeModal === 'workspace-portability'}
+          onClose={returnToSettingsFromNested}
+          workspaceId={userNamespace?.workspaceId ?? ''}
+          themeMode={themeMode}
+          onExportWorkspace={async (password) => {
+            if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
+            const reauthRes = await apiClient.reauthenticate({
+              purpose: 'protected_export',
+              password,
+              sessionBinding: userNamespace.workspaceId,
             });
-            if (!putRes.ok) {
-              throw new Error(`Upload transfer failed with HTTP ${putRes.status}`);
+            return await apiClient.createWorkspaceExport(userNamespace.workspaceId, {
+              reauthToken: reauthRes.reauthToken,
+              includeAttachments: true,
+            });
+          }}
+          onPreviewImport={async (archiveBase64) => {
+            if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
+            return await apiClient.previewWorkspaceImport(userNamespace.workspaceId, {
+              archiveBase64,
+            });
+          }}
+          onExecuteImport={async (previewId, strategy) => {
+            if (!apiClient || !userNamespace) throw new Error('Client or workspace not available');
+            return await apiClient.executeWorkspaceImport(userNamespace.workspaceId, {
+              previewId,
+              duplicateStrategy: strategy,
+            });
+          }}
+          onPickArchive={async () => {
+            try {
+              const res = await DocumentPicker.getDocumentAsync({
+                copyToCacheDirectory: true,
+                type: [
+                  'application/zip',
+                  'application/x-zip-compressed',
+                  'application/octet-stream',
+                  '*/*',
+                ],
+              });
+              if (res.canceled || !res.assets || res.assets.length === 0) {
+                return null;
+              }
+              const asset = res.assets[0];
+              if (!asset) return null;
+              const base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              return { name: asset.name, base64: base64Data };
+            } catch (err) {
+              console.error('Failed to pick document archive:', err);
+              return null;
+            }
+          }}
+          onDownloadExport={async (downloadUrl: string) => {
+            try {
+              const targetPath = `${FileSystem.documentDirectory}daynori-export-${Date.now()}.zip`;
+              const fullUrl = downloadUrl.startsWith('http') ? downloadUrl : downloadUrl;
+              const result = await FileSystem.downloadAsync(fullUrl, targetPath);
+              if (result.status === 200) {
+                await Share.share({
+                  title: 'Daynori Export',
+                  message: `Export saved to ${result.uri}`,
+                  url: result.uri,
+                });
+              }
+            } catch (err) {
+              console.error('Failed to download export:', err);
+            }
+          }}
+        />
+
+        {/* Phase 36 Account Deletion Sheet */}
+        <MobileAccountDeletionSheet
+          visible={activeModal === 'account-deletion'}
+          onClose={returnToSettingsFromNested}
+          themeMode={themeMode}
+          userEmail={defaultAuthAdapter.getCurrentUser()?.email ?? undefined}
+          onRequestDeletion={async (password) => {
+            if (!apiClient) throw new Error('API client not available');
+            return await apiClient.requestAccountDeletion({ password });
+          }}
+          onConfirmDeletion={async (confirmationToken) => {
+            if (!apiClient) throw new Error('API client not available');
+            return await apiClient.confirmAccountDeletion({ confirmationToken });
+          }}
+          onSuccess={() => {
+            setActiveModal('none');
+            void defaultAuthAdapter.signOut({ createDraft, searchQuery });
+          }}
+        />
+
+        {/* Phase 41 Mobile Audio Recorder Sheet */}
+        <MobileAudioRecorderSheet
+          visible={activeModal === 'audio-recorder'}
+          onClose={() => setActiveModal('none')}
+          workspaceId={userNamespace?.workspaceId ?? ''}
+          themeMode={themeMode}
+          recorderAdapter={audioRecorderAdapter}
+          onSaveAudio={async (data) => {
+            if (!data.uri) {
+              throw new Error('No recording file was produced.');
+            }
+            const workspaceId = userNamespace?.workspaceId;
+            if (!workspaceId) {
+              throw new Error('No active workspace.');
             }
 
-            const finalizeRes = await apiClient.finalizeFileUpload(workspaceId, reservationId, {
-              clientChecksum: sha256,
+            // 1. Read recording binary bytes from disk
+            const base64 = await FileSystem.readAsStringAsync(data.uri, {
+              encoding: FileSystem.EncodingType.Base64,
             });
-            fileId = finalizeRes.data.fileId;
-          }
+            const buffer = base64ToArrayBuffer(base64);
+            const sha256 = await computeMobileBufferSha256(buffer);
 
-          // 2. Persist binary to local mobile offline cache
-          if (userNamespace?.userId) {
-            await MobileOfflineFileCache.saveBinary({
-              accountId: userNamespace.userId,
-              workspaceId,
+            let fileId = generateUuid();
+
+            if (apiClient) {
+              // Online flow: standard private binary upload lifecycle
+              const reserveRes = await apiClient.reserveFileUpload(workspaceId, {
+                fileName: data.fileName,
+                declaredMimeType: data.mimeType,
+                declaredBytes: data.byteSize,
+              });
+              const { reservationId, uploadUrl, headers } = reserveRes.data;
+
+              const putRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': data.mimeType,
+                  ...(headers || {}),
+                },
+                body: buffer,
+              });
+              if (!putRes.ok) {
+                throw new Error(`Upload transfer failed with HTTP ${putRes.status}`);
+              }
+
+              const finalizeRes = await apiClient.finalizeFileUpload(workspaceId, reservationId, {
+                clientChecksum: sha256,
+              });
+              fileId = finalizeRes.data.fileId;
+            }
+
+            // 2. Persist binary to local mobile offline cache
+            if (userNamespace?.userId) {
+              await MobileOfflineFileCache.saveBinary({
+                accountId: userNamespace.userId,
+                workspaceId,
+                fileId,
+                version: 1,
+                fileName: data.fileName,
+                mimeType: data.mimeType,
+                expectedSha256: sha256,
+                data: buffer,
+              }).catch(() => {});
+            }
+
+            // 3. Upsert to local repository
+            if (repository) {
+              const now = new Date().toISOString();
+              await repository.upsertFile({
+                id: fileId,
+                workspaceId,
+                folderId: null,
+                fileName: data.fileName,
+                declaredMimeType: data.mimeType,
+                detectedMimeType: data.mimeType,
+                byteSize: data.byteSize,
+                sha256Checksum: sha256,
+                version: '1',
+                quarantineStatus: 'verified',
+                rejectionReason: null,
+                createdBy: userNamespace?.userId || workspaceId,
+                createdAt: now,
+                updatedAt: now,
+                verifiedAt: now,
+              });
+            }
+
+            setActiveModal('none');
+            return {
               fileId,
-              version: 1,
               fileName: data.fileName,
-              mimeType: data.mimeType,
-              expectedSha256: sha256,
-              data: buffer,
-            }).catch(() => {});
-          }
-
-          // 3. Upsert to local repository
-          if (repository) {
-            const now = new Date().toISOString();
-            await repository.upsertFile({
-              id: fileId,
-              workspaceId,
-              folderId: null,
-              fileName: data.fileName,
-              declaredMimeType: data.mimeType,
-              detectedMimeType: data.mimeType,
+              durationSeconds: data.durationSeconds,
               byteSize: data.byteSize,
-              sha256Checksum: sha256,
-              version: '1',
-              quarantineStatus: 'verified',
-              rejectionReason: null,
-              createdBy: userNamespace?.userId || workspaceId,
-              createdAt: now,
-              updatedAt: now,
-              verifiedAt: now,
-            });
-          }
-
-          setActiveModal('none');
-          return {
-            fileId,
-            fileName: data.fileName,
-            durationSeconds: data.durationSeconds,
-            byteSize: data.byteSize,
-            mimeType: data.mimeType,
-            createdAt: new Date().toISOString(),
-          };
-        }}
-      />
-    </SafeAreaView>
+              mimeType: data.mimeType,
+              createdAt: new Date().toISOString(),
+            };
+          }}
+        />
+      </View>
+    </View>
   );
 }
 

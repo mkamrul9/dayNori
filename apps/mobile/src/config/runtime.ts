@@ -1,6 +1,9 @@
 export const isCorePreview = process.env.EXPO_PUBLIC_DAYNORI_CORE_PREVIEW === 'true';
 export const mobileApiTimeoutMs = isCorePreview ? 75_000 : 10_000;
 
+/** Operator allowlist for native developer surfaces (deny-by-default). */
+export const mobileOperatorUserIds = process.env.EXPO_PUBLIC_DAYNORI_OPERATOR_USER_IDS ?? '';
+
 /** Expo only substitutes public variables accessed using direct dot notation. */
 export function getMobileRuntimeConfig() {
   return {

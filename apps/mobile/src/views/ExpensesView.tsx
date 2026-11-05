@@ -33,6 +33,7 @@ import type {
 } from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
 import { defaultSecureStorage } from '../auth/secureStorage.js';
+import { isCorePreview } from '../config/runtime.js';
 
 export interface ExpensesViewProps {
   themeMode: ThemeMode;
@@ -179,16 +180,20 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         // fallback
       }
 
-      // 6. Verified receipts
-      try {
-        const itemsRes = await apiClient.listItems(workspaceId, { kind: 'file' });
-        if (itemsRes && Array.isArray(itemsRes.data)) {
-          setAvailableReceipts(
-            itemsRes.data.map((item) => ({ id: item.id, fileName: item.name || item.id }))
-          );
+      // 6. Candidate receipt files (server still enforces verified same-workspace ownership)
+      if (!isCorePreview) {
+        try {
+          const itemsRes = await apiClient.listItems(workspaceId, { kind: 'file' });
+          if (itemsRes && Array.isArray(itemsRes.data)) {
+            setAvailableReceipts(
+              itemsRes.data.map((item) => ({ id: item.id, fileName: item.name || item.id }))
+            );
+          }
+        } catch {
+          setAvailableReceipts([]);
         }
-      } catch {
-        // fallback
+      } else {
+        setAvailableReceipts([]);
       }
     } catch (err: unknown) {
       setFeedback({
@@ -880,6 +885,12 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         onSubmit={handleCreateOrUpdateExpense}
         categories={categories}
         availableReceipts={availableReceipts}
+        receiptsEnabled={!isCorePreview}
+        receiptsUnavailableMessage={
+          isCorePreview
+            ? 'Receipt uploads are off in this free testing preview. Save without a new receipt; existing links stay preserved.'
+            : 'No receipt files are available to attach yet. You can still save the transaction.'
+        }
         availableOriginalExpenses={eligibleOriginalExpenses}
         initialValues={
           editingExpense

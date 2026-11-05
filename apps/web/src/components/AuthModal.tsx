@@ -16,11 +16,13 @@ export function AuthModal() {
   const [displayName, setDisplayName] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setErrorMsg(null);
     setSuccessMsg(null);
     setPassword('');
+    setSubmitting(false);
   }, [isAuthModalOpen, activeTab]);
 
   const handleClose = () => {
@@ -30,32 +32,64 @@ export function AuthModal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting || isLoading) return;
     setErrorMsg(null);
     setSuccessMsg(null);
+    setSubmitting(true);
 
-    if (activeTab === 'signin') {
-      const res = await signIn(email, password);
-      if (!res.success) {
-        setErrorMsg(res.error || 'Failed to sign in. Please verify your credentials.');
-      }
-    } else if (activeTab === 'signup') {
-      const res = await signUp(email, password, displayName || undefined);
-      if (!res.success) {
-        setErrorMsg(res.error || 'Failed to create account.');
-      } else {
-        setSuccessMsg(res.message || 'Account created successfully.');
-        if (!res.requiresVerification) {
-          // If auto-confirmed in local mode, automatically sign in
-          await signIn(email, password);
+    try {
+      if (activeTab === 'signin') {
+        const res = await signIn(email, password);
+        if (!res.success) {
+          const raw = res.error || '';
+          // Never present cold/outage failures as invalid credentials.
+          if (/unavailable|network|timeout|5\d\d/i.test(raw)) {
+            setErrorMsg('Sign-in is temporarily unavailable. Try again shortly.');
+          } else if (/rate|too many/i.test(raw)) {
+            setErrorMsg('Too many sign-in attempts. Wait and retry.');
+          } else if (/verif|confirm/i.test(raw)) {
+            setErrorMsg('Verify your email, then return here to sign in.');
+          } else {
+            setErrorMsg(raw || 'Invalid email or password.');
+          }
+        } else {
+          setPassword('');
+        }
+      } else if (activeTab === 'signup') {
+        const res = await signUp(email, password, displayName || undefined);
+        if (!res.success) {
+          const raw = res.error || '';
+          setErrorMsg(
+            /unavailable|network|timeout/i.test(raw)
+              ? 'Account creation is temporarily unavailable. Try again shortly.'
+              : raw || 'Failed to create account.'
+          );
+        } else {
+          setPassword('');
+          setSuccessMsg(res.message || 'Account created successfully.');
+          if (!res.requiresVerification) {
+            // If auto-confirmed in local mode, automatically sign in
+            await signIn(email, password);
+          }
+        }
+      } else if (activeTab === 'recover') {
+        const res = await recoverPassword(email);
+        if (!res.success) {
+          const raw = res.error || '';
+          // Same generic copy whether or not the account exists.
+          setErrorMsg(
+            /unavailable|network|timeout/i.test(raw)
+              ? 'Recovery is temporarily unavailable. Try again shortly.'
+              : 'If an account exists for that email, recovery instructions were sent.'
+          );
+        } else {
+          setSuccessMsg(
+            'If an account exists for that email, recovery instructions were sent.'
+          );
         }
       }
-    } else if (activeTab === 'recover') {
-      const res = await recoverPassword(email);
-      if (!res.success) {
-        setErrorMsg(res.error || 'Recovery request failed.');
-      } else {
-        setSuccessMsg(res.message || 'Recovery email sent.');
-      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -91,7 +125,7 @@ export function AuthModal() {
             aria-pressed={activeTab === tab.id}
             themeMode={themeMode}
             onClick={() => setActiveTab(tab.id)}
-            disabled={isLoading}
+            disabled={isLoading || submitting}
           >
             {tab.label}
           </Button>
@@ -109,7 +143,7 @@ export function AuthModal() {
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@domain.com"
           themeMode={themeMode}
-          disabled={isLoading}
+          disabled={isLoading || submitting}
         />
         {activeTab === 'signup' && (
           <TextField
@@ -118,7 +152,7 @@ export function AuthModal() {
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             themeMode={themeMode}
-            disabled={isLoading}
+            disabled={isLoading || submitting}
           />
         )}
         {activeTab !== 'recover' && (
@@ -132,10 +166,10 @@ export function AuthModal() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             themeMode={themeMode}
-            disabled={isLoading}
+            disabled={isLoading || submitting}
           />
         )}
-        <Button type="submit" loading={isLoading} themeMode={themeMode}>
+        <Button type="submit" loading={isLoading || submitting} themeMode={themeMode}>
           {activeTab === 'signin'
             ? 'Sign In'
             : activeTab === 'signup'

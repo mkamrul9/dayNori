@@ -28,6 +28,11 @@ import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
+import { ContextualHelpLink } from './ContextualHelpLink';
+import { TourTarget } from '../tours/TourTarget';
+import { useTour } from '../tours/TourContext';
+import { beginTourRecordNavigation } from '../tours/recordNavigation';
+import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { createWebApiClient } from '../data/webApiClient';
 import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
 import { getActiveWebSyncEngine, createWebSyncEngine } from '../data/syncAdapter';
@@ -36,10 +41,12 @@ import { highlightMatch, searchDownloadedRecords } from '@daynori/domain';
 import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 
 export const AppModals: React.FC = () => {
+  const tour = useTour();
   const router = useRouter();
   const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
   const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken } = useAuth();
+  const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
   const palette = colors[themeMode];
   const [searchQuery, setSearchQuery] = useState('');
@@ -311,6 +318,26 @@ export const AppModals: React.FC = () => {
   };
 
   const navigateToSearchResult = (item: SearchResultItem) => {
+    const entityType =
+      item.displayType === 'journal'
+        ? 'journal_entry'
+        : item.displayType === 'knowledge'
+          ? 'note'
+          : item.displayType;
+    if (
+      user?.id &&
+      workspaceId &&
+      ['note', 'task', 'journal_entry', 'folder'].includes(entityType)
+    ) {
+      beginTourRecordNavigation({
+        accountUserId: user.id,
+        workspaceId,
+        entityId: item.id,
+        entityType: entityType as 'note' | 'task' | 'journal_entry' | 'folder',
+        source: 'search',
+        report: tour.captureEvidence(item.id),
+      });
+    }
     const wsParam = workspaceId ? `workspaceId=${encodeURIComponent(workspaceId)}` : '';
     let href = '/today';
 
@@ -377,9 +404,71 @@ export const AppModals: React.FC = () => {
 
         if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
 
-        setSearchResults(res.data);
+        let mergedResults = res.data;
+        let mergedTotal = res.meta.totalCount;
+        try {
+          if (!localRepoRef.current) {
+            const repo = new IndexedDbLocalRepository();
+            await repo.initialize({
+              userId: user?.id || 'anonymous',
+              workspaceId,
+            });
+            localRepoRef.current = repo;
+          }
+          const repo = localRepoRef.current;
+          const [headers, notes, tasks, journals, files, prefSnapshot] = await Promise.all([
+            repo.listItemHeaders(workspaceId),
+            repo.listNotes(workspaceId),
+            repo.listTasks(workspaceId),
+            repo.listJournalEntries(workspaceId),
+            repo.listFiles(workspaceId),
+            repo.getPreferenceSnapshot(user?.id || 'anonymous'),
+          ]);
+          const displayPrefs = (prefSnapshot?.preferences as Record<string, unknown>)
+            ?.displayPreferences as Record<string, unknown> | undefined;
+          const localRes = searchDownloadedRecords({
+            workspaceId,
+            query: {
+              q: trimmedQuery,
+              types,
+              startDate: startDate ? new Date(startDate).toISOString() : undefined,
+              endDate: endDate ? new Date(endDate).toISOString() : undefined,
+              limit: 20,
+              offset,
+            },
+            items: {
+              headers,
+              notes,
+              tasks,
+              journalEntries: journals,
+              files,
+            },
+            preferences: {
+              journalPreviewHidden:
+                displayPrefs?.journalPreviewHidden !== undefined
+                  ? Boolean(displayPrefs.journalPreviewHidden)
+                  : true,
+              suppressBodySnippets:
+                displayPrefs?.suppressBodySnippets !== undefined
+                  ? Boolean(displayPrefs.suppressBodySnippets)
+                  : true,
+            },
+          });
+          const seenIds = new Set(mergedResults.map((r) => r.id));
+          const unsyncedLocal = localRes.data.filter((r) => !seenIds.has(r.id));
+          if (unsyncedLocal.length > 0) {
+            mergedResults = [...mergedResults, ...unsyncedLocal].slice(0, 20);
+            mergedTotal += unsyncedLocal.length;
+          }
+        } catch {
+          /* ignore local merge errors */
+        }
+
+        if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+        setSearchResults(mergedResults);
         setCoverage(res.meta.coverage);
-        setTotalCount(res.meta.totalCount);
+        setTotalCount(mergedTotal);
         setIsOffline(false);
         setIsLoading(false);
       } catch (err: unknown) {
@@ -968,26 +1057,35 @@ export const AppModals: React.FC = () => {
             message="Choose an item below to open its editor. Sign in and open your workspace to save and sync your content."
             themeMode={themeMode}
           />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <ContextualHelpLink articleId="help.tasks-vs-routines" label="Tasks vs routines Help" />
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
-            <ListRow
-              title="New Task"
-              subtitle="Add a one-off task with optional deadline and priority"
-              onClick={() => navigateTo('/plan')}
-              themeMode={themeMode}
-            />
-            <ListRow
-              title="New Routine"
-              subtitle="Add a recurring daily or weekday habit with independent completion"
-              onClick={() => navigateTo('/plan')}
-              themeMode={themeMode}
-            />
-            <ListRow
-              title="New Note"
-              subtitle="Save reference knowledge, guides, or rich documents"
-              onClick={() => navigateTo('/library?create=note')}
-              themeMode={themeMode}
-            />
+            <TourTarget id="create.type.task">
+              <ListRow
+                title="New Task"
+                subtitle="Add a one-off task with optional deadline and priority"
+                onClick={() => navigateTo('/plan?tourCreate=task')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
+            <TourTarget id="create.type.routine">
+              <ListRow
+                title="New Routine"
+                subtitle="Add a recurring daily or weekday habit with independent completion"
+                onClick={() => navigateTo('/today')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
+            <TourTarget id="create.type.note">
+              <ListRow
+                title="New Note"
+                subtitle="Save reference knowledge, guides, or rich documents"
+                onClick={() => navigateTo('/library?create=note')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
             {!isCorePreview && (
               <ListRow
                 title="Upload File"
@@ -996,18 +1094,22 @@ export const AppModals: React.FC = () => {
                 themeMode={themeMode}
               />
             )}
-            <ListRow
-              title="New Journal Entry"
-              subtitle="Open a quiet writing surface for reflection"
-              onClick={() => navigateTo('/journal')}
-              themeMode={themeMode}
-            />
-            <ListRow
-              title="New Folder"
-              subtitle="Create a workspace folder to group tasks and documents"
-              onClick={() => navigateTo('/library')}
-              themeMode={themeMode}
-            />
+            <TourTarget id="create.type.journal">
+              <ListRow
+                title="New Journal Entry"
+                subtitle="Open a quiet writing surface for reflection"
+                onClick={() => navigateTo('/journal')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
+            <TourTarget id="create.type.folder">
+              <ListRow
+                title="New Folder"
+                subtitle="Create a workspace folder to group tasks and documents"
+                onClick={() => navigateTo('/library')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
           </div>
 
           <div
@@ -1190,32 +1292,40 @@ export const AppModals: React.FC = () => {
               color: palette.text.secondary,
             }}
           >
-            Everyday
+            Primary
           </p>
-          <ListRow
-            title="Today"
-            subtitle="What needs attention now"
-            onClick={() => navigateTo('/today')}
-            themeMode={themeMode}
-          />
-          <ListRow
-            title="Plan"
-            subtitle="Tasks and repeating routines"
-            onClick={() => navigateTo('/plan')}
-            themeMode={themeMode}
-          />
-          <ListRow
-            title="Library"
-            subtitle="Notes and folders"
-            onClick={() => navigateTo('/library')}
-            themeMode={themeMode}
-          />
-          <ListRow
-            title="Journal"
-            subtitle="Private daily writing"
-            onClick={() => navigateTo('/journal')}
-            themeMode={themeMode}
-          />
+          {primaryTabs.map((tab) => (
+            <ListRow
+              key={tab.id}
+              title={tab.label}
+              onClick={() => navigateTo(tab.webPath)}
+              themeMode={themeMode}
+            />
+          ))}
+          {pins.length > 0 ? (
+            <>
+              <p
+                style={{
+                  margin: `${spacing.xs}px 0 0`,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: palette.text.secondary,
+                }}
+              >
+                Pins
+              </p>
+              {pins.map((pin) => (
+                <ListRow
+                  key={pin.id}
+                  title={pin.label}
+                  onClick={() => navigateTo(pin.webPath)}
+                  themeMode={themeMode}
+                />
+              ))}
+            </>
+          ) : null}
           <div
             style={{
               borderTop: `1px solid ${palette.border.subtle}`,
@@ -1232,8 +1342,14 @@ export const AppModals: React.FC = () => {
               color: palette.text.secondary,
             }}
           >
-            More
+            Utilities
           </p>
+          <ListRow
+            title="All features"
+            subtitle="Find, pin, hide, or restore modules"
+            onClick={() => navigateTo('/features')}
+            themeMode={themeMode}
+          />
           <ListRow
             title="Calendar"
             subtitle="See Plan on a calendar"
@@ -1276,6 +1392,14 @@ export const AppModals: React.FC = () => {
             }}
             themeMode={themeMode}
           />
+          {isOperator ? (
+            <ListRow
+              title="Developer"
+              subtitle="Operator tools"
+              onClick={() => navigateTo('/developer')}
+              themeMode={themeMode}
+            />
+          ) : null}
         </div>
       </Dialog>
 

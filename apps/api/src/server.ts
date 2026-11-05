@@ -17,6 +17,7 @@ import { registerHealthRoutes } from './routes/v1/health.js';
 import { registerOpenApiRoutes } from './routes/v1/openapi.js';
 import { registerWorkspaceRoutes } from './routes/v1/workspaces.js';
 import { registerUserRoutes } from './routes/v1/users.js';
+import { registerOperatorRoutes } from './routes/v1/operator.js';
 import { registerMemberRoutes } from './routes/v1/members.js';
 import { registerItemRoutes } from './routes/v1/items.js';
 import { registerOrganizationRoutes } from './routes/v1/organization.js';
@@ -48,6 +49,7 @@ import { registerDriveRoutes } from './routes/v1/drive.js';
 import { registerRoomRoutes } from './routes/v1/rooms.js';
 import { registerChatRoutes } from './routes/v1/chat.js';
 import { registerSafetyRoutes } from './routes/v1/safety.js';
+import { registerFeedbackRoutes } from './routes/v1/feedback.js';
 import { registerAiRoutes } from './routes/v1/ai.js';
 import { registerAssistantRoutes } from './routes/v1/assistant.js';
 import { registerBillingRoutes } from './routes/v1/billing.js';
@@ -262,6 +264,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerBetaRoutes(authScope, runtimePool);
       registerWorkspaceRoutes(authScope, runtimePool);
       registerUserRoutes(authScope, runtimePool);
+      registerOperatorRoutes(authScope);
       registerMemberRoutes(authScope, runtimePool);
       registerItemRoutes(authScope, runtimePool);
       registerOrganizationRoutes(authScope, runtimePool);
@@ -282,6 +285,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerRoomRoutes(authScope, runtimePool);
       registerChatRoutes(authScope, runtimePool);
       registerSafetyRoutes(authScope, runtimePool);
+      registerFeedbackRoutes(authScope, runtimePool);
       registerAiRoutes(authScope, runtimePool);
       registerAssistantRoutes(authScope, runtimePool);
       if (isBillingLocallyEnabled(process.env)) {

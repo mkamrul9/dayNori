@@ -1,6 +1,6 @@
 # Design system direction
 
-Status: proposed visual specification. These values are not shipped tokens or proof of accessibility. Implement shared semantic tokens and validate complete components during the design-system phase.
+Status: proposed visual specification aligned to **Warm notebook** (Phase 67 owner selection 2026-10-25, ADR 0069). These values are not alone proof of accessibility. Implement and validate shared semantic tokens and complete components in Phase 68. Interactive prototypes: [v2/phase67](v2/phase67/README.md).
 
 ## Visual character
 
@@ -111,6 +111,10 @@ Artwork provenance: Daynori line icons are original project vectors generated in
 Regression check: `node scripts/check-ui-icons.mjs`.
 
 Use one coherent icon family with consistent stroke/weight. Pair unfamiliar icons with text. Priority uses text and a recognizable marker; color is supplementary. Biometric, vault and encryption language must match the security implementation, not imply assurances that have not been verified.
+
+## Mobile web / PWA layout (Phase 70)
+
+Production shell uses `--daynori-keyboard-inset` / `--daynori-vv-height` from a feature-detected `visualViewport` adapter, safe-area insets on header/bottom nav/banners, full-screen mobile editor panels for tasks/routines, and sticky dialog actions. Keyboard simulation in capture tooling is not physical Android IME evidence. See [ADR 0070](../decisions/0070-mobile-web-pwa-layout-and-settings.md).
 
 ## Handoff deliverables
 

@@ -4,6 +4,7 @@ import { connection } from 'next/server';
 import './globals.css';
 import { AuthProvider } from '../components/AuthContext';
 import { ShellProvider } from '../components/ShellContext';
+import { TourProvider } from '../tours/TourContext';
 import { AppShell } from '../components/AppShell';
 
 export const metadata: Metadata = {
@@ -33,7 +34,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <AuthProvider>
           <ShellProvider>
-            <AppShell>{children}</AppShell>
+            <TourProvider>
+              <AppShell>{children}</AppShell>
+            </TourProvider>
           </ShellProvider>
         </AuthProvider>
       </body>

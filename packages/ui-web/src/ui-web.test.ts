@@ -381,8 +381,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       const html = renderToString(
         React.createElement(NoteEditor, {
           initialTitle: 'Test Note',
-          localSaveStatus: 'Saved locally',
-          cloudSyncStatus: 'Synced',
+          localSaveStatus: 'Saved on this device',
+          cloudSyncStatus: 'Synchronized',
         })
       );
       expect(html).toContain('data-testid="note-editor"');
@@ -395,8 +395,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('data-testid="format-bold"');
       expect(html).toContain('data-testid="editor-undo"');
       expect(html).toContain('data-testid="editor-redo"');
-      expect(html).toContain('Saved locally');
-      expect(html).toContain('Synced');
+      expect(html).toContain('Saved on this device');
+      expect(html).toContain('Synchronized');
     });
 
     it('renders conflict banner when conflict is present', () => {
@@ -597,8 +597,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
           initialEntryDate: '2026-10-16',
           initialMood: 'reflective',
           initialTags: ['evening', 'focus'],
-          localSaveStatus: 'Saved locally',
-          cloudSyncStatus: 'Synced with cloud',
+          localSaveStatus: 'Saved on this device',
+          cloudSyncStatus: 'Synchronized',
         })
       );
 
@@ -610,8 +610,8 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       expect(html).toContain('data-testid="journal-tag-evening"');
       expect(html).toContain('data-testid="journal-tag-focus"');
       expect(html).toContain('data-testid="journal-toggle-prompts-btn"');
-      expect(html).toContain('Saved locally');
-      expect(html).toContain('Synced with cloud');
+      expect(html).toContain('Saved on this device');
+      expect(html).toContain('Synchronized');
     });
 
     it('displays backdated indicator badge when entry date is in the past', () => {
@@ -1035,6 +1035,49 @@ describe('UI Web Primitives Accessibility & Interaction Contracts', () => {
       // Read-only fallback for unknown future block
       expect(html).toContain('Read-Only');
       expect(html).toContain('Data is preserved safely');
+    });
+  });
+
+  describe('Phase 76: Expense capture and gated attachments', () => {
+    it('renders expense capture with required fields first and Details for optional receipt/note', async () => {
+      const { ExpenseCaptureDialog } = await import('./ExpenseCaptureDialog.js');
+      const html = renderToString(
+        React.createElement(ExpenseCaptureDialog, {
+          isOpen: true,
+          onClose: () => {},
+          onSubmit: async () => {},
+          categories: [{ id: 'c1', name: 'Food' }],
+          receiptsEnabled: false,
+          receiptsUnavailableMessage: 'Receipt attachment is unavailable in this environment.',
+        })
+      );
+      expect(html).toContain('Amount');
+      expect(html).toContain('Currency');
+      expect(html).toContain('Date');
+      expect(html).toContain('Details');
+      expect(html).toContain('Receipt attachment is unavailable in this environment.');
+      expect(html).not.toContain('type="file"');
+    });
+
+    it('does not offer free-form file upload when section attachments are gated', async () => {
+      const { CustomSectionEntryDialog } = await import('./CustomSectionEntryDialog.js');
+      const html = renderToString(
+        React.createElement(CustomSectionEntryDialog, {
+          isOpen: true,
+          onClose: () => {},
+          onSubmit: async () => {},
+          collection: {
+            id: 'block1',
+            type: 'field_collection',
+            title: 'Entries',
+            fields: [{ id: 'f_att', type: 'attachment', label: 'Receipt', required: false }],
+          },
+          attachmentsEnabled: false,
+          attachmentsUnavailableMessage: 'New file attachments are unavailable here.',
+        })
+      );
+      expect(html).toContain('New file attachments are unavailable here.');
+      expect(html).not.toContain('type="file"');
     });
   });
 });

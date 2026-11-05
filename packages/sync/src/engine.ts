@@ -34,11 +34,7 @@ import type {
 } from './models.js';
 import { type SyncTransportPort } from './transport.js';
 import { type TabCoordinationPort, SingleProcessCoordinator } from './coordination.js';
-import {
-  MAX_OFFLINE_HORIZON_MS,
-  validateFolderMovePolicy,
-  mergeTaskFields,
-} from './recovery.js';
+import { MAX_OFFLINE_HORIZON_MS, validateFolderMovePolicy, mergeTaskFields } from './recovery.js';
 import {
   applyRoomRevocationPurge,
   classifyRoomSyncFailure,
@@ -79,6 +75,17 @@ export interface SyncEngineOptions {
 export type SyncEngineEvent =
   | { type: 'state_changed'; status: CloudSyncStatus }
   | { type: 'sync_completed'; changesCount: number; pushedCount: number }
+  | {
+      type: 'local_mutation_started' | 'local_mutation_committed';
+      workspaceId: string;
+      entityType: string;
+      entityId: string;
+      command: SyncCommandType;
+      operationId: string;
+      parentEntityId?: string;
+      occurrenceDate?: string;
+      occurrenceAction?: 'complete' | 'skip' | 'undo';
+    }
   | { type: 'conflict_detected'; conflict: ConflictRecord }
   | { type: 'conflict_resolved'; conflictId: string }
   | {
@@ -353,15 +360,6 @@ export class SyncEngine {
     const operationId = this.generateId();
     const clientTimestamp = new Date().toISOString();
 
-    // 1. Resolve dependency operations:
-    // If there are pending operations for this entity, automatically depend on the latest one
-    // to guarantee deterministic ordering within this client queue.
-    const pendingForEntity = await this.getPendingForEntity(item.id);
-    const inferredDeps = pendingForEntity.map((m) => m.operationId);
-    const resolvedDeps = Array.from(
-      new Set([...(options?.dependencyOperationIds || []), ...inferredDeps])
-    );
-
     const isFolder =
       item.kind === 'folder' || (command !== undefined && command.includes('Folder'));
     const isNote =
@@ -380,7 +378,8 @@ export class SyncEngine {
       (command !== undefined && (command.includes('Journal') || command.includes('journal')));
     const isCalendar =
       item.kind === 'calendar_event' ||
-      (command !== undefined && (command.includes('CalendarEvent') || command.includes('Calendar')));
+      (command !== undefined &&
+        (command.includes('CalendarEvent') || command.includes('Calendar')));
 
     const determinedCommand =
       command ||
@@ -431,6 +430,30 @@ export class SyncEngine {
             determinedCommand === 'createCalendarEvent'
           ? 'create'
           : 'update';
+
+    this.emit({
+      type: 'local_mutation_started',
+      workspaceId: item.workspaceId,
+      entityType: item.kind,
+      entityId: item.id,
+      operationId,
+      command: determinedCommand,
+    });
+
+    // Capture command-start correlation before the first asynchronous storage boundary.
+    const pendingForEntity = await this.getPendingForEntity(item.id);
+    if (
+      action === 'create' &&
+      (await this.repository.getItemHeader(this.namespace.workspaceId, item.id))
+    ) {
+      throw new Error(
+        'This record already exists. Open or restore it instead of creating it again.'
+      );
+    }
+    const inferredDeps = pendingForEntity.map((m) => m.operationId);
+    const resolvedDeps = Array.from(
+      new Set([...(options?.dependencyOperationIds || []), ...inferredDeps])
+    );
 
     if (isFolder && action !== 'delete') {
       const targetParentId =
@@ -578,17 +601,17 @@ export class SyncEngine {
                     isPinned: item.isPinned,
                     ...(options?.payload || {}),
                   }
-              : {
-                  kind: item.kind,
-                  rank: item.rank,
-                  folderId: item.folderId,
-                  securityScope: item.securityScope,
-                  isArchived: item.isArchived,
-                  isPinned: item.isPinned,
-                  ...(item.name ? { name: item.name } : {}),
-                  ...(item.title ? { title: item.title } : {}),
-                  ...(options?.payload || {}),
-                };
+                : {
+                    kind: item.kind,
+                    rank: item.rank,
+                    folderId: item.folderId,
+                    securityScope: item.securityScope,
+                    isArchived: item.isArchived,
+                    isPinned: item.isPinned,
+                    ...(item.name ? { name: item.name } : {}),
+                    ...(item.title ? { title: item.title } : {}),
+                    ...(options?.payload || {}),
+                  };
 
     // Calculate baseRevision for unsent intents:
     // If there are pending operations for this entity, chain expected base revision
@@ -865,6 +888,14 @@ export class SyncEngine {
       lastSyncedRevision: item.serverRevision,
     });
     this.setOverallStatus('saved_locally');
+    this.emit({
+      type: 'local_mutation_committed',
+      workspaceId: item.workspaceId,
+      entityType: mutationRecord.entityType,
+      entityId: item.id,
+      command: determinedCommand,
+      operationId,
+    });
 
     // 4. Request sync if online and autoSync is not false
     if (options?.autoSync !== false && this.networkStatus === 'online') {
@@ -1020,6 +1051,30 @@ export class SyncEngine {
   ): Promise<PendingMutationRecord> {
     const operationId = this.generateId();
     const clientTimestamp = new Date().toISOString();
+    const determinedCommand: SyncCommandType =
+      command ||
+      (occurrence.status === 'done'
+        ? 'completeOccurrence'
+        : occurrence.status === 'skipped'
+          ? 'skipOccurrence'
+          : 'reopenOccurrence');
+    const occurrenceAction =
+      occurrence.status === 'done'
+        ? ('complete' as const)
+        : occurrence.status === 'skipped'
+          ? ('skip' as const)
+          : ('undo' as const);
+    this.emit({
+      type: 'local_mutation_started',
+      workspaceId: occurrence.workspaceId,
+      entityType: 'routine_occurrence',
+      entityId: occurrence.id,
+      command: determinedCommand,
+      operationId,
+      parentEntityId: occurrence.routineId,
+      occurrenceDate: occurrence.scheduledDate,
+      occurrenceAction,
+    });
 
     const pendingForEntity = await this.getPendingForEntity(occurrence.id);
     const pendingForRoutine = await this.getPendingForEntity(occurrence.routineId);
@@ -1039,14 +1094,6 @@ export class SyncEngine {
         baseRevision = lastPending.baseRevision + 1;
       }
     }
-
-    const determinedCommand: SyncCommandType =
-      command ||
-      (occurrence.status === 'done'
-        ? 'completeOccurrence'
-        : occurrence.status === 'skipped'
-          ? 'skipOccurrence'
-          : 'reopenOccurrence');
 
     const mutationPayload = {
       id: occurrence.id,
@@ -1121,6 +1168,17 @@ export class SyncEngine {
       lastSyncedRevision: occurrence.serverRevision,
     });
     this.setOverallStatus('saved_locally');
+    this.emit({
+      type: 'local_mutation_committed',
+      workspaceId: occurrence.workspaceId,
+      entityType: 'routine_occurrence',
+      entityId: occurrence.id,
+      command: determinedCommand,
+      operationId,
+      parentEntityId: occurrence.routineId,
+      occurrenceDate: occurrence.scheduledDate,
+      occurrenceAction,
+    });
 
     if (options?.autoSync !== false && this.networkStatus === 'online') {
       if (this.coordination.isLeader) {
@@ -1583,7 +1641,7 @@ export class SyncEngine {
               title:
                 updatedHeader.title !== undefined && updatedHeader.title !== null
                   ? updatedHeader.title
-                  : (updatedHeader.name || existingCal.title),
+                  : updatedHeader.name || existingCal.title,
               folderId: updatedHeader.folderId ?? null,
               deletedAt: updatedHeader.deletedAt,
             };
@@ -1981,10 +2039,7 @@ export class SyncEngine {
             deletedAt = null;
           }
 
-          const rawPurpose =
-            typeof data.purpose === 'string'
-              ? data.purpose
-              : existing?.purpose;
+          const rawPurpose = typeof data.purpose === 'string' ? data.purpose : existing?.purpose;
           const notePurpose: NotePurpose | undefined =
             rawPurpose && ['standard', 'guide', 'cheatsheet', 'reference'].includes(rawPurpose)
               ? (rawPurpose as NotePurpose)
@@ -1992,7 +2047,9 @@ export class SyncEngine {
 
           // If note has a knowledge purpose, classify header as knowledge
           const finalKind =
-            (kind === 'note' || change.entityType === 'note') && notePurpose && notePurpose !== 'standard'
+            (kind === 'note' || change.entityType === 'note') &&
+            notePurpose &&
+            notePurpose !== 'standard'
               ? 'knowledge'
               : kind;
 
@@ -3294,6 +3351,31 @@ export class SyncEngine {
     return this.repository.getNote(this.namespace.workspaceId, id);
   }
 
+  getAccountNamespace(): Readonly<AccountNamespace> {
+    return { ...this.namespace };
+  }
+
+  async getItemHeader(id: string): Promise<ItemHeaderRecord | null> {
+    return this.repository.getItemHeader(this.namespace.workspaceId, id);
+  }
+
+  async listItemHeaders(): Promise<ItemHeaderRecord[]> {
+    return this.repository.listItemHeaders(this.namespace.workspaceId);
+  }
+
+  async getPendingOperation(
+    entityId: string
+  ): Promise<Pick<PendingMutationRecord, 'operationId' | 'command' | 'action'> | null> {
+    const pending = await this.repository.getPendingMutations(
+      this.namespace.workspaceId,
+      this.namespace.userId
+    );
+    const operation = pending.find((p) => p.entityId === entityId);
+    return operation
+      ? { operationId: operation.operationId, command: operation.command, action: operation.action }
+      : null;
+  }
+
   async getTask(id: string): Promise<TaskRecord | null> {
     return this.repository.getTask(this.namespace.workspaceId, id);
   }
@@ -3338,7 +3420,6 @@ export class SyncEngine {
   }): Promise<JournalEntryRecord[]> {
     return this.repository.listJournalEntries(this.namespace.workspaceId, options);
   }
-
 
   // --- Auth & Account Boundary Handlers ---
 
@@ -3394,9 +3475,7 @@ export class SyncEngine {
     reason: RoomRevocationReason | string = 'membership_removed'
   ): Promise<void> {
     const typedReason = (
-      requiresRoomContentPurge(reason as RoomRevocationReason)
-        ? reason
-        : 'membership_removed'
+      requiresRoomContentPurge(reason as RoomRevocationReason) ? reason : 'membership_removed'
     ) as RoomRevocationReason;
 
     this.log('warn', `Room membership revoked (${typedReason}); purging local room cache`);
@@ -3409,18 +3488,12 @@ export class SyncEngine {
 
     let purgeFailed = false;
     try {
-      await applyRoomRevocationPurge(
-        this.repository,
-        scope,
-        this.abortController ?? undefined
-      );
+      await applyRoomRevocationPurge(this.repository, scope, this.abortController ?? undefined);
     } catch (err) {
       purgeFailed = true;
       this.log(
         'error',
-        err instanceof RoomRevocationPurgeError
-          ? err.message
-          : 'Room revocation purge failed',
+        err instanceof RoomRevocationPurgeError ? err.message : 'Room revocation purge failed',
         { err: String(err) }
       );
     }

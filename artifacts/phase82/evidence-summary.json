@@ -1,0 +1,45 @@
+{
+  "phase": 82,
+  "completedAt": "2026-11-05T08:50:25.124Z",
+  "gitRev": "70b8a477ac8e2c09b44c7ea6f671389130b74978",
+  "checks": [
+    {
+      "label": "desktopWebBug",
+      "ok": true
+    },
+    {
+      "label": "narrowPwaSuggestion",
+      "ok": true
+    },
+    {
+      "label": "desktopWebContact",
+      "ok": true
+    },
+    {
+      "label": "nativeAndroid",
+      "ok": true
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "artifacts/phase82/journeys/desktop-bug-report.png",
+      "sha256": "b6f31b0c4a3433620d727e08303990a5020b63ec392b5235dc561ae17844d36c"
+    },
+    {
+      "path": "artifacts/phase82/journeys/narrow-suggestion-report.png",
+      "sha256": "4d02841db84735e444fa614e90db9c4baddc85dd09326032b493cc108f3e961b"
+    },
+    {
+      "path": "artifacts/phase82/journeys/desktop-contact-report.png",
+      "sha256": "8198caadcd55b0469282a8814a0855b1b47ed7f6592441fefde105b5cab640e5"
+    },
+    {
+      "path": "artifacts/phase82/journeys/native-feedback-receipt.png",
+      "sha256": "60d2414e18f770d312e712b0ab3ffdc34340b641f77a2a481f7dd211ddaf3f53"
+    },
+    {
+      "path": "artifacts/phase82/journeys/native-feedback-receipt.xml",
+      "sha256": "dd257ebd06019901894c7c5c2daee0fa9c729acdd731b301774470fa62542f65"
+    }
+  ]
+}

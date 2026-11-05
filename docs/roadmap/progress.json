@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-22",
-  "activePhase": "60",
+  "updatedAt": "2026-11-05",
+  "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 60 preview: session keep-on-cold-start, Journal unsaved guard, first-login tour any-route, SW v7 public static warm, overflow-aware shots. Rooms/chat production-off. Owner sign-in for kamrul@/shahrin@ evidence; physical Android PWA pending. Full release gates open. Phases 61–62 unchanged. No Phase 63.",
-  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started.",
+  "schedulingDecision": "Phase 82 complete (2026-11-05) under ADR 0082 (durable bug, suggestion, and contact submissions with workspace scoping, client idempotency keys, reviewable diagnostics, and truthful delivery notices). Verified across desktop web, narrow PWA, and native Android emulator. Outstanding acceptance checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, and Phase 99 prototype review retain their recorded states. Phase 83 eligible when selected. Standing push (ADR 0074). No release_ready claims.",
+  "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
       "id": "00",
@@ -380,6 +380,188 @@
     },
     {
       "id": "63",
+      "status": "planned"
+    },
+    {
+      "id": "64",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-64.md"
+    },
+    {
+      "id": "65",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-65.md"
+    },
+    {
+      "id": "66",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-66.md"
+    },
+    {
+      "id": "67",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-67.md"
+    },
+    {
+      "id": "68",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-68.md"
+    },
+    {
+      "id": "69",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-69.md"
+    },
+    {
+      "id": "70",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-70.md"
+    },
+    {
+      "id": "71",
+      "status": "blocked",
+      "reason": "Standing ADR 0074: later phases may proceed without Phase 71 completion. Remaining Phase 71 acceptance: spoken TalkBack listen-through; remaining verification gaps. Do not mark complete or waive. See docs/phase-reports/phase-71.md.",
+      "report": "docs/phase-reports/phase-71.md"
+    },
+    {
+      "id": "72",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-72.md"
+    },
+    {
+      "id": "73",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-73.md"
+    },
+    {
+      "id": "74",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-74.md"
+    },
+    {
+      "id": "75",
+      "status": "blocked",
+      "reason": "Local file/audio stack repaired and verified (memory storage, policy scanner opt-in, account-scoped audio drafts). Phase 75 acceptance still unmet: physical Android mic capture/playback/cancel/background and nominated browser MediaRecorder journeys not evidenced; live Supabase bucket/scanner not claimed (mocked live-storage test only). Hosted preview uploads/audio remain disabled (DEF-V2-002). See docs/phase-reports/phase-75.md.",
+      "report": "docs/phase-reports/phase-75.md"
+    },
+    {
+      "id": "76",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-76.md"
+    },
+    {
+      "id": "77",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-77.md"
+    },
+    {
+      "id": "78",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-78.md"
+    },
+    {
+      "id": "79",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-79.md"
+    },
+    {
+      "id": "80",
+      "status": "blocked",
+      "reason": "Everyday chapter definitions, predicates, Help mappings, and web/native adapters delivered with verified fresh native bundle provenance (SHA-256 17e66a5a...) and genuine desktop web, narrow PWA, and native emulator journeys completed. Completion blocked pending physical Android phone verification and human spoken screen-reader review. See docs/phase-reports/phase-80.md.",
+      "report": "docs/phase-reports/phase-80.md"
+    },
+    {
+      "id": "81",
+      "status": "planned"
+    },
+    {
+      "id": "82",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-82.md"
+    },
+    {
+      "id": "83",
+      "status": "planned"
+    },
+    {
+      "id": "84",
+      "status": "planned"
+    },
+    {
+      "id": "85",
+      "status": "planned"
+    },
+    {
+      "id": "86",
+      "status": "planned"
+    },
+    {
+      "id": "87",
+      "status": "planned"
+    },
+    {
+      "id": "88",
+      "status": "planned"
+    },
+    {
+      "id": "89",
+      "status": "planned"
+    },
+    {
+      "id": "90",
+      "status": "planned"
+    },
+    {
+      "id": "91",
+      "status": "planned"
+    },
+    {
+      "id": "92",
+      "status": "planned"
+    },
+    {
+      "id": "93",
+      "status": "planned"
+    },
+    {
+      "id": "94",
+      "status": "planned"
+    },
+    {
+      "id": "95",
+      "status": "planned"
+    },
+    {
+      "id": "96",
+      "status": "planned"
+    },
+    {
+      "id": "97",
+      "status": "planned"
+    },
+    {
+      "id": "98",
+      "status": "planned"
+    },
+    {
+      "id": "99",
+      "status": "planned",
+      "reason": "Carries deferred Phase 67 five-participant prototype usability review (owner amendment 2026-10-25). Sessions did not occur in Phase 67; obligation remains before V2 release."
+    },
+    {
+      "id": "100",
+      "status": "planned"
+    },
+    {
+      "id": "101",
+      "status": "planned"
+    },
+    {
+      "id": "102",
+      "status": "planned"
+    },
+    {
+      "id": "103",
       "status": "planned"
     }
   ]

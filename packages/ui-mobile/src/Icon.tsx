@@ -1,5 +1,4 @@
-import React from 'react';
-import { Image, type ImageStyle, type StyleProp } from 'react-native';
+import { Image, Text, type ImageStyle, type StyleProp, type TextStyle } from 'react-native';
 import { resolveIconName, splitIconText } from '@daynori/design-tokens';
 import { iconImages } from './iconImages.js';
 
@@ -30,16 +29,20 @@ export function IconText({
   text,
   color,
   size = 18,
+  textStyle,
 }: {
   text: string;
   color?: string;
   size?: number;
+  textStyle?: StyleProp<TextStyle>;
 }) {
   return (
     <>
       {splitIconText(text).map((part, index) =>
         part.kind === 'text' ? (
-          <React.Fragment key={index}>{part.text}</React.Fragment>
+          <Text key={index} style={[{ color, fontSize: size }, textStyle]}>
+            {part.text}
+          </Text>
         ) : (
           <Icon key={index} name={part.name} color={color} size={size} />
         )

@@ -54,32 +54,82 @@ function main() {
   // Shared local clone: checkout matching revision
   run('git', ['checkout', '--force', rev], { cwd: SHORT_ROOT });
 
-  // Prefer hoisted linker for shorter native paths
-  const npmrc = path.join(SHORT_ROOT, '.npmrc');
-  let npmrcText = fs.existsSync(npmrc) ? fs.readFileSync(npmrc, 'utf8') : '';
-  if (!/node-linker\s*=\s*hoisted/.test(npmrcText)) {
-    npmrcText += '\nnode-linker=hoisted\n';
-    fs.writeFileSync(npmrc, npmrcText);
-  }
-
   // Sync critical plugin from source (may be ahead of last commit)
   const pluginSrc = path.join(SOURCE_ROOT, 'apps/mobile/plugins/withReleaseSigningGuard.js');
   const pluginDst = path.join(SHORT_ROOT, 'apps/mobile/plugins/withReleaseSigningGuard.js');
   fs.copyFileSync(pluginSrc, pluginDst);
 
-  const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-  run(pnpm, ['install'], { cwd: SHORT_ROOT });
-  run(pnpm, ['prebuild'], { cwd: path.join(SHORT_ROOT, 'apps', 'mobile') });
+  // Sync uncommitted mobile/ui-mobile (and related) sources so Phase APKs are not HEAD-only.
+  run(process.execPath, [path.join(SOURCE_ROOT, 'scripts/sync-short-build-working-tree.mjs')], {
+    env: { ...process.env, DAYNORI_SHORT_BUILD_ROOT: SHORT_ROOT },
+  });
 
+  // Prefer hoisted linker for shorter native paths. Must run AFTER working-tree sync
+  // so a primary-repo .npmrc with node-linker=isolated cannot overwrite this.
+  const npmrc = path.join(SHORT_ROOT, '.npmrc');
+  let npmrcText = fs.existsSync(npmrc) ? fs.readFileSync(npmrc, 'utf8') : '';
+  if (/node-linker\s*=\s*\S+/.test(npmrcText)) {
+    npmrcText = npmrcText.replace(/node-linker\s*=\s*\S+/g, 'node-linker=hoisted');
+  } else {
+    npmrcText += '\nnode-linker=hoisted\n';
+  }
+  fs.writeFileSync(npmrc, npmrcText.trim() + '\n');
+
+  const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  // Drop stale workspace-local node_modules left by prior isolated installs;
+  // hoisted resolution must use the short-root public node_modules tree.
+  for (const rel of ['apps/mobile/node_modules', 'apps/web/node_modules', 'apps/api/node_modules']) {
+    const nested = path.join(SHORT_ROOT, rel);
+    if (fs.existsSync(nested)) {
+      fs.rmSync(nested, { recursive: true, force: true });
+    }
+  }
+  run(pnpm, ['install'], { cwd: SHORT_ROOT });
+  // Use pnpm exec so Expo resolves from the hoisted root, not a broken junction.
+  run(
+    pnpm,
+    [
+      'exec',
+      'expo',
+      'prebuild',
+      '--no-install',
+      '-p',
+      'android',
+    ],
+    { cwd: path.join(SHORT_ROOT, 'apps', 'mobile') }
+  );
+  run(process.execPath, [
+    '-e',
+    "if (!require('fs').existsSync('android/build.gradle')) { console.error('Native android generation failed'); process.exit(1); }",
+  ], { cwd: path.join(SHORT_ROOT, 'apps', 'mobile') });
+  run(process.execPath, [
+    path.join(SHORT_ROOT, 'scripts/mobile-android-release-path.mjs'),
+    'inspect',
+    '--android-dir',
+    'android',
+  ], { cwd: path.join(SHORT_ROOT, 'apps', 'mobile') });
+
+  // Match selected device/emulator ABI (default arm64-v8a; x86_64 AVD uses DAYNORI_ANDROID_ABI=x86_64).
+  const abi = process.env.DAYNORI_ANDROID_ABI || 'arm64-v8a';
   const gp = path.join(SHORT_ROOT, 'apps/mobile/android/gradle.properties');
   let gpText = fs.readFileSync(gp, 'utf8');
-  gpText = gpText.replace(/reactNativeArchitectures=.*/g, 'reactNativeArchitectures=arm64-v8a');
+  gpText = gpText.replace(/reactNativeArchitectures=.*/g, `reactNativeArchitectures=${abi}`);
   fs.writeFileSync(gp, gpText);
 
   const androidDir = path.join(SHORT_ROOT, 'apps/mobile/android');
   const gradlew = path.join(androidDir, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+  // Windows Gradle file watchers have crashed with NativeException: bad allocation
+  // against large RN/Expo trees. Disable VFS watch and bound workers; do not raise heap blindly.
+  const gradleArgs = [
+    ':app:assembleDebug',
+    '--console=plain',
+    '--no-watch-fs',
+    '--max-workers=2',
+    '-Dorg.gradle.vfs.watch=false',
+    '-Dorg.gradle.parallel=false',
+  ];
   if (process.platform === 'win32') {
-    const r = spawnSync(`"${gradlew}" :app:assembleDebug --console=plain`, {
+    const r = spawnSync(`"${gradlew}" ${gradleArgs.join(' ')}`, {
       cwd: androidDir,
       encoding: 'utf8',
       stdio: 'inherit',
@@ -88,7 +138,7 @@ function main() {
     });
     if (r.status !== 0) throw new Error(`assembleDebug failed with ${r.status}`);
   } else {
-    run(gradlew, [':app:assembleDebug', '--console=plain'], { cwd: androidDir });
+    run(gradlew, gradleArgs, { cwd: androidDir });
   }
 
   const apk = path.join(androidDir, 'app/build/outputs/apk/debug/app-debug.apk');
@@ -96,20 +146,30 @@ function main() {
 
   const destDir = path.join(SOURCE_ROOT, 'artifacts', 'release');
   fs.mkdirSync(destDir, { recursive: true });
-  const destApk = path.join(destDir, 'app-debug-arm64.apk');
+  const apkName = abi === 'arm64-v8a' ? 'app-debug-arm64.apk' : `app-debug-${abi}.apk`;
+  const destApk = path.join(destDir, apkName);
   fs.copyFileSync(apk, destApk);
   const sha256 = crypto.createHash('sha256').update(fs.readFileSync(destApk)).digest('hex');
+
+  let workingTreeSync = null;
+  const syncPath = path.join(destDir, 'android-working-tree-sync.json');
+  if (fs.existsSync(syncPath)) {
+    workingTreeSync = JSON.parse(fs.readFileSync(syncPath, 'utf8'));
+  }
 
   const evidence = {
     createdAt: new Date().toISOString(),
     gitRevision: rev,
+    workingTreeFingerprint: workingTreeSync?.workingTreeFingerprint ?? null,
+    workingTreeDirty: workingTreeSync?.workingTreeDirty ?? null,
     buildRoot: SHORT_ROOT,
-    apkPath: 'artifacts/release/app-debug-arm64.apk',
+    apkPath: `artifacts/release/${apkName}`,
     sha256,
-    architecture: 'arm64-v8a',
+    architecture: abi,
+    packageId: 'com.daynori.app',
     signing: 'debug (local-test only — not release-eligible)',
     targetSdk: 36,
-    note: 'Installable debug APK; DAYNORI_ALLOW_DEBUG_RELEASE_SIGNING / release keystore still required for RC',
+    note: 'Installable debug APK includes synced working-tree mobile sources when dirty; not release-eligible',
   };
   fs.writeFileSync(
     path.join(destDir, 'android-debug-apk-evidence.json'),

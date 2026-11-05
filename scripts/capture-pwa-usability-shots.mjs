@@ -26,6 +26,9 @@ const routes = [
   { path: '/journal', name: 'journal' },
   { path: '/help', name: 'help' },
   { path: '/settings', name: 'settings' },
+  { path: '/settings/appearance', name: 'settings-appearance' },
+  { path: '/settings/privacy', name: 'settings-privacy' },
+  { path: '/plan/calendar', name: 'calendar' },
 ];
 const OVERFLOW_TOLERANCE_PX = 2;
 

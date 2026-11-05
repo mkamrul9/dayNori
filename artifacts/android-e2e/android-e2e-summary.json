@@ -1,12 +1,23 @@
 {
-  "timestamp": "2026-10-21T11:04:45.821Z",
-  "status": "BLOCKED_MISSING_PREREQUISITE",
-  "connectedDevices": [],
-  "apkExists": false,
-  "apkSize": null,
-  "missingPrerequisites": [
-    "Connected physical Android device or emulator",
-    "Compiled debug APK (app-debug.apk)"
+  "timestamp": "2026-10-25T20:08:52.188Z",
+  "status": "PASSED",
+  "connectedDevices": [
+    "emulator-5554"
   ],
-  "exitCode": 2
+  "targetDevice": "emulator-5554",
+  "preferredSerial": "emulator-5554",
+  "apkPath": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\release\\app-debug-x86_64.apk",
+  "apkSize": 57289538,
+  "onDeviceChecks": {
+    "installation": "PASS",
+    "activityLaunch": "PASS",
+    "coldStartIntent": "PASS",
+    "warmStartIntent": "PASS",
+    "settingsIntent": "PASS",
+    "libraryIntent": "PASS",
+    "planIntent": "PASS",
+    "screenCapture": "PASS",
+    "note": "Intent/smoke only — create/save/Back/keyboard/TalkBack journeys require recorded device procedure"
+  },
+  "exitCode": 0
 }

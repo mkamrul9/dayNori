@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import type { AuthSession, SignInResponse, SignUpResponse } from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
 import { OfflineFileCache } from '../data/offlineFileCache.js';
+import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../data/indexedDbRepository';
 import { cleanupWebPushOnSignOutAsync } from '../notifications/webPushManager';
 
 export interface AuthUser {
@@ -13,6 +14,19 @@ export interface AuthUser {
   workspaceId?: string | null;
 }
 
+export interface FeaturePersonalizationState {
+  version: 1;
+  hiddenFeatureIds: string[];
+  pinnedFeatureIds: string[];
+}
+
+export interface QuietHoursState {
+  enabled: boolean;
+  start: string;
+  end: string;
+  timezone: string;
+}
+
 export interface UserPreferencesState {
   timeZone: string;
   preferredLocale: string;
@@ -20,6 +34,10 @@ export interface UserPreferencesState {
   theme: 'system' | 'light' | 'dark';
   compactMode: boolean;
   expensesEnabled: boolean;
+  journalPreviewHidden: boolean;
+  suppressBodySnippets: boolean;
+  quietHours?: QuietHoursState;
+  featurePersonalization?: FeaturePersonalizationState;
   revision: number;
 }
 
@@ -79,6 +97,61 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_CHANNEL_NAME = 'daynori_auth_channel';
 const AUTH_SYNC_STORAGE_KEY = 'daynori_auth_sync_event';
 
+function mapProfileToPreferences(prof: {
+  timeZone: string;
+  preferredLocale: string;
+  weekStart: 'monday' | 'sunday' | 'saturday';
+  revision: number;
+  preferences?: {
+    theme?: 'system' | 'light' | 'dark';
+    compactMode?: boolean;
+    expensesEnabled?: boolean;
+    journalPreviewHidden?: boolean;
+    suppressBodySnippets?: boolean;
+    quietHours?: QuietHoursState;
+    featurePersonalization?: FeaturePersonalizationState;
+  };
+}): UserPreferencesState {
+  const fp = prof.preferences?.featurePersonalization;
+  const qh = prof.preferences?.quietHours;
+  return {
+    timeZone: prof.timeZone,
+    preferredLocale: prof.preferredLocale,
+    weekStart: prof.weekStart,
+    theme: prof.preferences?.theme || 'system',
+    compactMode: Boolean(prof.preferences?.compactMode),
+    expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
+    journalPreviewHidden:
+      prof.preferences?.journalPreviewHidden !== undefined
+        ? Boolean(prof.preferences.journalPreviewHidden)
+        : true,
+    suppressBodySnippets:
+      prof.preferences?.suppressBodySnippets !== undefined
+        ? Boolean(prof.preferences.suppressBodySnippets)
+        : true,
+    quietHours: qh
+      ? {
+          enabled: Boolean(qh.enabled),
+          start: typeof qh.start === 'string' ? qh.start : '22:00',
+          end: typeof qh.end === 'string' ? qh.end : '08:00',
+          timezone: typeof qh.timezone === 'string' ? qh.timezone : 'UTC',
+        }
+      : undefined,
+    featurePersonalization: fp
+      ? {
+          version: 1,
+          hiddenFeatureIds: Array.isArray(fp.hiddenFeatureIds)
+            ? fp.hiddenFeatureIds.map(String)
+            : [],
+          pinnedFeatureIds: Array.isArray(fp.pinnedFeatureIds)
+            ? fp.pinnedFeatureIds.map(String)
+            : [],
+        }
+      : undefined,
+    revision: prof.revision,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -127,15 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (payload.data?.profile) {
           const prof = payload.data.profile;
-          setPreferences({
-            timeZone: prof.timeZone,
-            preferredLocale: prof.preferredLocale,
-            weekStart: prof.weekStart,
-            theme: prof.preferences?.theme || 'system',
-            compactMode: Boolean(prof.preferences?.compactMode),
-            expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
-            revision: prof.revision,
-          });
+          setPreferences(mapProfileToPreferences(prof));
         }
         return wsId;
       }
@@ -153,16 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (res.ok) {
         const payload = await res.json();
-        const prof = payload.data;
-        const loaded: UserPreferencesState = {
-          timeZone: prof.timeZone,
-          preferredLocale: prof.preferredLocale,
-          weekStart: prof.weekStart,
-          theme: prof.preferences?.theme || 'system',
-          compactMode: Boolean(prof.preferences?.compactMode),
-          expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
-          revision: prof.revision,
-        };
+        const loaded = mapProfileToPreferences(payload.data);
         setPreferences(loaded);
         return loaded;
       }
@@ -183,20 +239,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updated?: UserPreferencesState;
     }> => {
       try {
+        const prefsPatch: Record<string, unknown> = {};
+        if (updates.theme !== undefined) prefsPatch.theme = updates.theme;
+        if (updates.compactMode !== undefined) prefsPatch.compactMode = updates.compactMode;
+        if (updates.expensesEnabled !== undefined)
+          prefsPatch.expensesEnabled = updates.expensesEnabled;
+        if (updates.journalPreviewHidden !== undefined)
+          prefsPatch.journalPreviewHidden = updates.journalPreviewHidden;
+        if (updates.suppressBodySnippets !== undefined)
+          prefsPatch.suppressBodySnippets = updates.suppressBodySnippets;
+        if (updates.quietHours !== undefined) prefsPatch.quietHours = updates.quietHours;
+        if (updates.featurePersonalization !== undefined)
+          prefsPatch.featurePersonalization = updates.featurePersonalization;
+
         const payload: Record<string, unknown> = {
           ...(updates.timeZone ? { timeZone: updates.timeZone } : {}),
           ...(updates.preferredLocale ? { preferredLocale: updates.preferredLocale } : {}),
           ...(updates.weekStart ? { weekStart: updates.weekStart } : {}),
-          ...(updates.theme !== undefined ||
-          updates.compactMode !== undefined ||
-          updates.expensesEnabled !== undefined
+          ...(Object.keys(prefsPatch).length
             ? {
-                preferences: {
-                  theme: updates.theme ?? preferences?.theme ?? 'system',
-                  compactMode: updates.compactMode ?? preferences?.compactMode ?? false,
-                  expensesEnabled:
-                    updates.expensesEnabled ?? preferences?.expensesEnabled ?? false,
-                },
+                // Patch only the user's intended fields. Tour saves share the
+                // same revision and must not overwrite unrelated preferences.
+                preferences: prefsPatch,
               }
             : {}),
           expectedRevision: expectedRevision ?? preferences?.revision,
@@ -223,16 +287,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: data.error?.message || 'Failed to save preferences' };
         }
 
-        const prof = data.data;
-        const updated: UserPreferencesState = {
-          timeZone: prof.timeZone,
-          preferredLocale: prof.preferredLocale,
-          weekStart: prof.weekStart,
-          theme: prof.preferences?.theme || 'system',
-          compactMode: Boolean(prof.preferences?.compactMode),
-          expensesEnabled: Boolean(prof.preferences?.expensesEnabled),
-          revision: prof.revision,
-        };
+        const updated = mapProfileToPreferences(data.data);
         setPreferences(updated);
         return { success: true, updated };
       } catch (err) {
@@ -437,11 +492,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const currentUserId = user?.id;
     const currentWsId = workspaceId;
+
+    // Phase 77: durable quarantine of editor drafts + mark repo drafts quarantined.
+    if (currentUserId && currentWsId && getTrustedDeviceConsent()) {
+      try {
+        const repo = new IndexedDbLocalRepository();
+        await repo.initialize({ userId: currentUserId, workspaceId: currentWsId });
+        await repo.quarantineUserDrafts(currentUserId);
+        for (const draft of quarantinedDrafts.filter((d) => d.userId === currentUserId)) {
+          await repo.putAuthQuarantineDraft(draft);
+        }
+        await repo.close();
+      } catch {
+        // Quarantine best-effort; do not block sign-out.
+      }
+    }
+
     if (currentUserId) {
       void OfflineFileCache.clearAccount(currentUserId).catch(() => {});
     }
     if (currentWsId) {
       void OfflineFileCache.clearWorkspace(currentWsId).catch(() => {});
+      // Stop prior-account audio draft playback/upload under the next session.
+      void import('@daynori/ui-web')
+        .then(({ clearDurableAudioDraft }) =>
+          clearDurableAudioDraft(currentWsId, currentUserId ?? undefined)
+        )
+        .catch(() => {});
     }
 
     // Clean up browser push subscription on backend and reset bound account state
@@ -457,6 +534,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(false);
     setWorkspaceId(null);
     setPreferences(null);
+    setQuarantinedDrafts([]);
     broadcastAuthEvent('LOGOUT');
 
     try {
@@ -514,6 +592,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       payload,
     };
     setQuarantinedDrafts((prev) => [...prev, newQuarantine]);
+    const ws = workspaceId || user.workspaceId;
+    if (ws && getTrustedDeviceConsent()) {
+      void (async () => {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({ userId: user.id, workspaceId: ws });
+          await repo.putAuthQuarantineDraft(newQuarantine);
+          await repo.close();
+        } catch {
+          /* durable write best-effort */
+        }
+      })();
+    }
   };
 
   const restoreDraft = (draftId: string) => {
@@ -521,12 +612,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const found = quarantinedDrafts.find((d) => d.id === draftId && d.userId === user.id);
     if (!found) return null;
     setQuarantinedDrafts((prev) => prev.filter((d) => d.id !== draftId));
+    const ws = workspaceId || user.workspaceId;
+    if (ws && getTrustedDeviceConsent()) {
+      void (async () => {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({ userId: user.id, workspaceId: ws });
+          await repo.deleteAuthQuarantineDraft(user.id, draftId);
+          await repo.close();
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
     return found.payload;
   };
 
   const dismissDraft = (draftId: string) => {
+    const ownerId = user?.id;
     setQuarantinedDrafts((prev) => prev.filter((d) => d.id !== draftId));
+    if (!ownerId) return;
+    const ws = workspaceId || user?.workspaceId;
+    if (ws && getTrustedDeviceConsent()) {
+      void (async () => {
+        try {
+          const repo = new IndexedDbLocalRepository();
+          await repo.initialize({ userId: ownerId, workspaceId: ws });
+          await repo.deleteAuthQuarantineDraft(ownerId, draftId);
+          await repo.close();
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
   };
+
+  // Reload durable auth quarantine when an authorized namespace is available.
+  useEffect(() => {
+    if (!user?.id || !workspaceId || !getTrustedDeviceConsent()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const repo = new IndexedDbLocalRepository();
+        await repo.initialize({ userId: user.id, workspaceId });
+        const rows = await repo.listAuthQuarantineDrafts(user.id);
+        await repo.close();
+        if (cancelled) return;
+        setQuarantinedDrafts((prev) => {
+          const others = prev.filter((d) => d.userId !== user.id);
+          return [...others, ...rows];
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, workspaceId]);
 
   return (
     <AuthContext.Provider

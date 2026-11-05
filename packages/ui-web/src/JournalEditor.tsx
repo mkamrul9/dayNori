@@ -783,6 +783,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           conflict={conflict}
           onChange={handleNoteChange}
           onSave={handleNoteSave}
+          saveTargetId="journal.entry.save"
           onResolveConflict={onResolveConflict}
           onClose={onClose}
           onDelete={onTrash}

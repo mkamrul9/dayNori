@@ -125,8 +125,10 @@ export function validateCustomLabel(input: unknown): string | null {
 }
 
 /**
- * Returns a small, calm default HomeLayout with 5 visible primary cards
- * and 2 optional cards, meeting the 3-5 initial card requirement.
+ * Returns a calm default HomeLayout for Phase 69 focused Today:
+ * three primary groups + optional journal prompt (≤5 cards).
+ * Module shortcut chips default off — primary destinations live in the shell.
+ * Quick Capture defaults off; shell Create remains the primary capture path.
  */
 export function getDefaultHomeLayout(): HomeLayout {
   return {
@@ -136,18 +138,18 @@ export function getDefaultHomeLayout(): HomeLayout {
       { id: 'tasks', visible: true, order: 0, customLabel: null },
       { id: 'routines', visible: true, order: 1, customLabel: null },
       { id: 'upcoming_summary', visible: true, order: 2, customLabel: null },
-      { id: 'quick_capture', visible: true, order: 3, customLabel: null },
-      { id: 'journal_prompt', visible: true, order: 4, customLabel: null },
+      { id: 'journal_prompt', visible: true, order: 3, customLabel: null },
+      { id: 'quick_capture', visible: false, order: 4, customLabel: null },
       { id: 'recent_items', visible: false, order: 5, customLabel: null },
       { id: 'favorite_folders', visible: false, order: 6, customLabel: null },
     ],
     moduleShortcuts: [
-      { id: 'today', visible: true, order: 0, customLabel: null },
-      { id: 'plan', visible: true, order: 1, customLabel: null },
-      { id: 'library', visible: true, order: 2, customLabel: null },
-      { id: 'journal', visible: true, order: 3, customLabel: null },
-      { id: 'notes', visible: true, order: 4, customLabel: null },
-      { id: 'files', visible: true, order: 5, customLabel: null },
+      { id: 'today', visible: false, order: 0, customLabel: null },
+      { id: 'plan', visible: false, order: 1, customLabel: null },
+      { id: 'library', visible: false, order: 2, customLabel: null },
+      { id: 'journal', visible: false, order: 3, customLabel: null },
+      { id: 'notes', visible: false, order: 4, customLabel: null },
+      { id: 'files', visible: false, order: 5, customLabel: null },
       { id: 'tasks', visible: false, order: 6, customLabel: null },
       { id: 'routines', visible: false, order: 7, customLabel: null },
       { id: 'calendar', visible: false, order: 8, customLabel: null },

@@ -35,6 +35,8 @@ export interface SearchDownloadedRecordsInput {
       id: string;
       workspaceId: string;
       kind: string;
+      name?: string | null;
+      title?: string | null;
       folderId: string | null;
       securityScope: 'standard' | 'vault';
       deletedAt: string | null;
@@ -395,7 +397,15 @@ export function searchDownloadedRecords(input: SearchDownloadedRecordsInput): {
       bodyText = `${file.declaredMimeType} (${(file.byteSize / 1024).toFixed(1)} KB)`;
       metadata = { byteSize: file.byteSize, mimeType: file.declaredMimeType };
     } else if (header.kind === 'folder') {
-      const folder = folderMap.get(header.id);
+      const folder =
+        folderMap.get(header.id) ??
+        (header.name || header.title
+          ? {
+              id: header.id,
+              name: header.name || header.title || 'Folder',
+              parentId: header.folderId ?? null,
+            }
+          : undefined);
       if (!folder) continue;
       displayType = 'folder';
       title = folder.name;

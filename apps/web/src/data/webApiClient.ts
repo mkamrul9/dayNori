@@ -11,17 +11,22 @@ export function getWebCsrfToken(): string | null {
 }
 
 export interface WebApiClientOptions {
+  token?: string | null;
   csrfToken?: string | null;
   defaultTimeoutMs?: number;
 }
 
 /**
  * Creates an authenticated DaynoriApiClient configured for the Next.js BFF proxy (/api).
- * Automatically passes CSRF protection header for mutating requests using double-submit cookies.
+ * Automatically passes CSRF protection header for mutating requests using double-submit cookies,
+ * and passes Authorization bearer token if available in local storage or provided in options.
  */
 export function createWebApiClient(options?: WebApiClientOptions): DaynoriApiClient {
   return createApiClient({
     baseUrl: '/api',
+    token: () =>
+      options?.token ??
+      (typeof window !== 'undefined' ? localStorage.getItem('daynori_token') : null),
     csrfToken: () => options?.csrfToken ?? getWebCsrfToken(),
     defaultTimeoutMs: options?.defaultTimeoutMs ?? (isCorePreview ? 75_000 : 10_000),
   });

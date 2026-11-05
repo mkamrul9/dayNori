@@ -2,6 +2,7 @@
 
 import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef, useId, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, EmptyState, Feedback, TaskRow, TaskDetailEditor } from '@daynori/ui-web';
 import { ReminderAgendaView } from '../../components/ReminderAgendaView';
@@ -26,10 +27,14 @@ import {
   compareTasksUpcoming,
   getCalendarDateInTimezone,
   addCalendarDays,
+  TOUR_PRACTICE_TASK_TITLE,
   type TaskPriority,
   type TaskStatus,
   type TaskDeadline,
 } from '@daynori/domain';
+import { useTourOptional } from '../../tours/TourContext';
+import { TourTarget } from '../../tours/TourTarget';
+import { confirmTourRecordLoaded } from '../../tours/recordNavigation';
 
 export type PlanViewFilter =
   'today' | 'upcoming' | 'overdue' | 'completed' | 'undated' | 'reminders' | 'all';
@@ -47,6 +52,7 @@ export default function PlanPage() {
   const { themeMode } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user } = useAuth();
+  const tour = useTourOptional();
 
   // Active view filters
   const [activeView, setActiveView] = useState<PlanViewFilter>('today');
@@ -130,6 +136,15 @@ export default function PlanPage() {
   useEffect(() => {
     setSelectedTaskIds(new Set());
   }, [activeView, selectedFolderId, priorityFilter]);
+
+  // Flag dirty work while the task editor is open (ADR 0066 / Phase 70 Update banner)
+  useEffect(() => {
+    if (!(editingTask || isCreatingNew)) return;
+    void import('../../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(true));
+    return () => {
+      void import('../../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(false));
+    };
+  }, [editingTask, isCreatingNew]);
 
   // Online / Offline tracking
   useEffect(() => {
@@ -332,6 +347,7 @@ export default function PlanPage() {
     mutationPayload: Record<string, unknown>
   ): Promise<boolean> => {
     if (!workspaceId || !user?.id) return false;
+    const reportMutation = tour?.captureMutation();
 
     const nowIso = new Date().toISOString();
     const itemHeader: ItemHeaderRecord = {
@@ -350,12 +366,23 @@ export default function PlanPage() {
       deletedAt: task.deletedAt,
     };
 
+    const emitTourLocalCommit = (operationId: string) => {
+      void reportMutation?.({
+        workspaceId,
+        entityId: task.id,
+        entityType: 'task',
+        command,
+        operationId,
+      });
+    };
+
     if (syncEngineRef.current) {
       try {
-        await syncEngineRef.current.saveItem(itemHeader, undefined, command, {
+        const mutation = await syncEngineRef.current.saveItem(itemHeader, undefined, command, {
           payload: mutationPayload,
         });
         setLocalSaveStatus('Saved locally');
+        emitTourLocalCommit(mutation.operationId);
         return true;
       } catch (err) {
         setErrorMessage(
@@ -391,6 +418,7 @@ export default function PlanPage() {
           task
         );
         setLocalSaveStatus('Saved locally');
+        emitTourLocalCommit(mutation.operationId);
         return true;
       } catch (err) {
         setErrorMessage(
@@ -434,6 +462,7 @@ export default function PlanPage() {
           });
         }
         setLocalSaveStatus('Online only (no device storage)');
+        // Server acknowledgment cannot manufacture a local-save receipt or trusted-device consent.
         return true;
       } catch (err) {
         setErrorMessage(
@@ -516,6 +545,31 @@ export default function PlanPage() {
     [tasks]
   );
 
+  // Open create editor when Create → Task (tour or normal) lands on Plan.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tourCreate') !== 'task') return;
+    setIsCreatingNew(true);
+    setActiveView('all');
+    if (tour?.practiceTaskId) {
+      // Prefill handled via TaskDetailEditor initial props below.
+    }
+    params.delete('tourCreate');
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
+    window.history.replaceState({}, '', next);
+  }, [tour?.practiceTaskId]);
+
+  // Register Save control as semantic tour target while the editor is open for create.
+  useEffect(() => {
+    if (!tour || !isCreatingNew) return;
+    const el = document.querySelector(
+      '[data-tour-target="create.task.save"]'
+    ) as HTMLElement | null;
+    tour.registerTarget('create.task.save', el);
+    return () => tour.registerTarget('create.task.save', null);
+  }, [tour, isCreatingNew, editingTask]);
+
   // Quick Task Creation (timezone-aware calendar dates)
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -531,7 +585,8 @@ export default function PlanPage() {
       deadline = { type: 'date', date: tomorrowDateStr };
     }
 
-    const taskId = crypto.randomUUID();
+    const usePracticeId = tour?.getPracticeCreationId('task');
+    const taskId = usePracticeId || crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
     const newTask: TaskRecord = {
@@ -580,19 +635,27 @@ export default function PlanPage() {
         if (found) {
           setEditingTask(found);
           setLiveAnnouncement(`Opened reminder target task: ${found.title}`);
+          if (user?.id && workspaceId)
+            void confirmTourRecordLoaded({
+              accountUserId: user.id,
+              workspaceId,
+              entityId: found.id,
+              entityType: 'task',
+            });
         }
       }
     },
-    [tasks]
+    [tasks, user?.id, workspaceId]
   );
 
-  // Resolve and reauthorize notification arrival query parameters (?targetId=...&targetType=...&workspaceId=...)
+  // Resolve canonical / notification deep links (?taskId= / ?task= / ?targetId=&targetType=…)
   useEffect(() => {
     if (typeof window === 'undefined' || !workspaceId || tasks.length === 0) return;
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const paramWsId = searchParams.get('workspaceId');
-      const targetId = searchParams.get('targetId');
+      const targetId =
+        searchParams.get('targetId') || searchParams.get('taskId') || searchParams.get('task');
       const targetType = searchParams.get('targetType') || 'task';
       const reminderInstanceId = searchParams.get('reminderInstanceId');
 
@@ -804,8 +867,9 @@ export default function PlanPage() {
         announce(`Updated task "${data.title}"`);
       }
     } else {
-      // Create fresh task from editor
-      const newId = crypto.randomUUID();
+      // Create fresh task from editor (deterministic practice ID during tour save step)
+      const usePracticeId = tour?.getPracticeCreationId('task');
+      const newId = usePracticeId || crypto.randomUUID();
       const freshTask: TaskRecord = {
         id: newId,
         workspaceId,
@@ -1050,6 +1114,25 @@ export default function PlanPage() {
           >
             Upcoming task lists, priorities, and deadlines
           </p>
+          <Link
+            href="/plan/calendar"
+            id="plan-calendar-link"
+            data-tour-target="plan.calendar"
+            onClick={() => void tour?.reportTargetActivated('plan.calendar')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 8,
+              minHeight: touchTargets.webMin,
+              color: palette.action.primary,
+              fontWeight: 600,
+              fontSize: 14,
+              textDecoration: 'none',
+            }}
+          >
+            <Icon name="calendar" size={16} /> Calendar &amp; deadlines
+          </Link>
         </div>
 
         {/* Sync & Save status indicators & timezone */}
@@ -1281,6 +1364,7 @@ export default function PlanPage() {
       <div
         role="tablist"
         aria-label="Task views"
+        data-tour-target="plan.filter"
         style={{
           display: 'flex',
           gap: `${spacing.xs}px`,
@@ -1306,7 +1390,17 @@ export default function PlanPage() {
               key={tab.key}
               role="tab"
               aria-selected={isSelected}
-              onClick={() => setActiveView(tab.key)}
+              onClick={() => {
+                const report = tour?.captureEvidence();
+                setActiveView(tab.key);
+                requestAnimationFrame(() => {
+                  void report?.({
+                    type: 'filter_changed',
+                    filterId: `plan:${tab.key}`,
+                    filterCleared: tab.key === 'all',
+                  });
+                });
+              }}
               style={{
                 padding: `${spacing.sm}px ${spacing.base}px`,
                 fontSize: '14px',
@@ -1595,26 +1689,50 @@ export default function PlanPage() {
                     ? { completed: completedCount, total: childSubtasks.length }
                     : undefined;
 
+                const isPractice =
+                  Boolean(tour?.practiceTaskId) && task.id === tour?.practiceTaskId;
+                const row = (
+                  <TaskRow
+                    id={task.id}
+                    title={task.title}
+                    details={task.details}
+                    priority={task.priority}
+                    status={task.status}
+                    deadline={task.deadline}
+                    folderName={folders.find((f) => f.id === task.folderId)?.name}
+                    tags={task.tags}
+                    subtaskCount={subtaskCount}
+                    depth={1}
+                    isSelected={selectedTaskIds.has(task.id)}
+                    themeMode={themeMode}
+                    userTimezone={viewingTimezone}
+                    onToggleComplete={handleToggleComplete}
+                    onSelect={handleSelectTask}
+                    onClick={() => {
+                      setEditingTask(task);
+                      if (tour?.isPresenting) {
+                        void tour.captureEvidence(task.id)({
+                          type: 'entity_opened',
+                          entityId: task.id,
+                          entityType: 'task',
+                          targetId: 'plan.task.practice',
+                          recordLoaded: true,
+                        });
+                      }
+                    }}
+                  />
+                );
                 return (
                   <React.Fragment key={task.id}>
-                    <TaskRow
-                      id={task.id}
-                      title={task.title}
-                      details={task.details}
-                      priority={task.priority}
-                      status={task.status}
-                      deadline={task.deadline}
-                      folderName={folders.find((f) => f.id === task.folderId)?.name}
-                      tags={task.tags}
-                      subtaskCount={subtaskCount}
-                      depth={1}
-                      isSelected={selectedTaskIds.has(task.id)}
-                      themeMode={themeMode}
-                      userTimezone={viewingTimezone}
-                      onToggleComplete={handleToggleComplete}
-                      onSelect={handleSelectTask}
-                      onClick={() => setEditingTask(task)}
-                    />
+                    {isPractice ? (
+                      <TourTarget id="plan.task.practice" reportActivate={false}>
+                        <TourTarget id="task.complete" reportActivate={false}>
+                          {row}
+                        </TourTarget>
+                      </TourTarget>
+                    ) : (
+                      row
+                    )}
 
                     {/* Indented Subtask Rows */}
                     {childSubtasks.map((subtask) => (
@@ -1665,9 +1783,11 @@ export default function PlanPage() {
           }}
         >
           <span>Completed "{undoToast.taskTitle}".</span>
-          <Button size="compact" variant="secondary" onClick={handleUndo}>
-            Undo
-          </Button>
+          <TourTarget id="task.undo-complete">
+            <Button size="compact" variant="secondary" onClick={handleUndo}>
+              Undo
+            </Button>
+          </TourTarget>
         </div>
       )}
 
@@ -1757,11 +1877,18 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* Task Detail Editor Modal */}
+      {/* Task Detail Editor Modal — full-screen on narrow; preserves unsaved-work for PWA Update */}
       {(editingTask || isCreatingNew) && (
         <TaskDetailEditor
           id={editingTask?.id}
-          initialTitle={editingTask?.title || ''}
+          initialTitle={
+            editingTask?.title ||
+            (isCreatingNew &&
+            tour?.isPresenting &&
+            tour.activeChapter?.currentStepId === 'save-task'
+              ? TOUR_PRACTICE_TASK_TITLE
+              : '')
+          }
           initialDetails={editingTask?.details || ''}
           initialPriority={editingTask?.priority || 'normal'}
           initialStatus={editingTask?.status || 'todo'}
@@ -1780,8 +1907,15 @@ export default function PlanPage() {
           folders={folders}
           themeMode={themeMode}
           userTimezone={viewingTimezone}
-          onSave={handleSaveDetailTask}
+          onSave={async (task) => {
+            await handleSaveDetailTask(task);
+            const { setUnsavedWork } = await import('../../editing/unsavedWork');
+            setUnsavedWork(false);
+          }}
           onClose={() => {
+            void import('../../editing/unsavedWork').then(({ setUnsavedWork }) =>
+              setUnsavedWork(false)
+            );
             setEditingTask(null);
             setIsCreatingNew(false);
           }}

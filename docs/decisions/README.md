@@ -69,4 +69,17 @@ Decisions below are accepted for planning on 2026-10-13. They do not imply a ven
 - [ADR-0065: Mobile PWA usability for free preview](0065-mobile-pwa-usability-preview.md)
 - [ADR-0066: Offline shell and safe PWA updates](0066-offline-shell-and-safe-pwa-updates.md)
 
+- [ADR-0067: Version 2 planning before public launch closure](0067-version-two-planning-and-release-boundaries.md)
+- [ADR-0068: Feature registry, personalization, and operator boundaries](0068-feature-registry-personalization-and-operator-boundaries.md)
+- [ADR-0069: Version 2 visual direction prototypes (pending owner selection)](0069-version-two-visual-direction-prototypes.md)
+- [ADR-0070: Mobile web/PWA layout and grouped Settings](0070-mobile-web-pwa-layout-and-settings.md)
+- [ADR-0071: Native Android Settings hub and insets](0071-native-android-settings-hub-and-insets.md)
+- [ADR-0072: Owner scheduling — Phase 72 before Phase 71 acceptance](0072-phase-72-before-phase-71-acceptance.md)
+- [ADR-0073: Owner scheduling — Phase 73 before Phase 71 acceptance](0073-phase-73-before-phase-71-acceptance.md)
+- [ADR-0074: Standing Phase 71 scheduling and commit/push to working branch](0074-standing-phase71-scheduling-and-push.md)
+- [ADR-0075: Attachment readiness environment matrix](0075-attachment-readiness-environment-matrix.md)
+- [ADR-0076: Owner scheduling — Phase 76 before Phase 75 acceptance](0076-phase-76-before-phase-75-acceptance.md)
+- [ADR-0077: Trusted-device offline boot and session boundaries](0077-trusted-device-offline-boot-and-session.md)
+- [ADR-0078: Owner scheduling — Phase 78 before Phase 75 and Phase 77 acceptance](0078-phase-78-before-phase-75-and-77-acceptance.md)
+
 New records use the next unused integer and include status, context, decision, alternatives, consequences, validation and revisit triggers. Keep old records when superseded, link both directions, and update the affected architecture/phase docs. A crypto library/key-envelope design, production provider/region/plan, broader Drive scopes, exact alarm mode and live collaborative editor require additional records before implementation approval for those capabilities.

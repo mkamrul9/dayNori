@@ -23,6 +23,7 @@ import type {
 import { useAuth } from '../../components/AuthContext';
 import { useShell } from '../../components/ShellContext';
 import { createWebApiClient } from '../../data/webApiClient';
+import { isCorePreview } from '../../config/preview';
 
 type ExpenseCaptureDraft = {
   kind?: ExpenseKind;
@@ -956,6 +957,12 @@ export default function ExpensesPage() {
         onSubmit={handleCreateOrUpdateExpense}
         categories={categories}
         availableReceipts={availableReceipts}
+        receiptsEnabled={!isCorePreview}
+        receiptsUnavailableMessage={
+          isCorePreview
+            ? 'Receipt uploads are off in this free testing preview. Record the expense without a new receipt; existing receipt links stay preserved.'
+            : 'No verified receipt files are available to attach yet. You can still save the transaction.'
+        }
         availableOriginalExpenses={eligibleOriginalExpenses}
         initialValues={
           editingExpense

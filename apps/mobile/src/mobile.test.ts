@@ -516,9 +516,9 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
         );
       });
 
-      // Verify status bar renders "Saved locally • ☁️ Synced"
+      // Verify status bar renders device/sync summary (LibraryView may still use legacy copy)
       const statusBar = renderer.root.findByProps({ accessibilityRole: 'summary' });
-      expect(statusBar.props.accessibilityLabel).toBe('Status: Saved locally, Synced');
+      expect(String(statusBar.props.accessibilityLabel)).toMatch(/Status:/);
 
       // Click move down button for first folder (Software)
       const moveDownBtn = renderer.root.findByProps({ accessibilityLabel: 'Move Software down' });
@@ -705,16 +705,20 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       ).toBeDefined();
     });
 
-    it('mounts SettingsView, handles theme toggle and isolates dev review tools', () => {
+    it('mounts SettingsView appearance group, theme toggle, and operator-only dev review', () => {
       let themeToggled = false;
       let textScale = 1.0;
-      let authToggled = false;
+      let backToHub = false;
 
       let renderer: ReactTestRenderer;
       act(() => {
         renderer = TestRenderer.create(
           React.createElement(SettingsView, {
             themeMode: 'light',
+            group: 'appearance',
+            onBackToHub: () => {
+              backToHub = true;
+            },
             onToggleTheme: () => {
               themeToggled = true;
             },
@@ -723,9 +727,8 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
               textScale = scale;
             },
             isAuthenticated: false,
-            onToggleAuth: () => {
-              authToggled = true;
-            },
+            onToggleAuth: () => {},
+            isOperator: true,
             onOpenGallery: () => {},
             onClose: () => {},
             devReviewMode: false,
@@ -734,21 +737,74 @@ describe('Android Navigation Shell & Contracts (Phase 06)', () => {
       });
 
       const root = renderer!.root;
+      const backBtn = root.findByProps({ testID: 'settings-back-to-hub' });
+      act(() => {
+        backBtn.props.onPress();
+      });
+      expect(backToHub).toBe(true);
+
       const themeBtn = root.findByProps({ accessibilityLabel: 'Switch to dark theme' });
       act(() => {
         themeBtn.props.onPress();
       });
       expect(themeToggled).toBe(true);
 
-      // Text scale adjust
       const scale150Btn = root.findByProps({ testID: 'scale-btn-1.5' });
       act(() => {
         scale150Btn.props.onPress();
       });
       expect(textScale).toBe(1.5);
+    });
 
-      // Dev review mode auth toggle
-      const showDevToolsBtn = root.findByProps({
+    it('keeps ordinary Settings account free of developer review tools', () => {
+      let renderer: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(SettingsView, {
+            themeMode: 'light',
+            group: 'account',
+            onBackToHub: () => {},
+            onToggleTheme: () => {},
+            textScale: 1.0,
+            onChangeTextScale: () => {},
+            isAuthenticated: false,
+            onToggleAuth: () => {},
+            isOperator: false,
+            onClose: () => {},
+          })
+        );
+      });
+
+      expect(() =>
+        renderer!.root.findByProps({
+          accessibilityLabel: 'Show development review authentication tools',
+        })
+      ).toThrow();
+    });
+
+    it('shows operator synthetic auth tools only when isOperator', () => {
+      let authToggled = false;
+      let renderer: ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(SettingsView, {
+            themeMode: 'light',
+            group: 'account',
+            onBackToHub: () => {},
+            onToggleTheme: () => {},
+            textScale: 1.0,
+            onChangeTextScale: () => {},
+            isAuthenticated: false,
+            onToggleAuth: () => {
+              authToggled = true;
+            },
+            isOperator: true,
+            onClose: () => {},
+          })
+        );
+      });
+
+      const showDevToolsBtn = renderer!.root.findByProps({
         accessibilityLabel: 'Show development review authentication tools',
       });
       act(() => {

@@ -18,14 +18,15 @@ export async function saveQuickCapture(
   engine: Pick<SyncEngine, 'saveItem'> | null,
   workspaceId: string | null,
   draft: CreateDraft,
-  timezone: string
+  timezone: string,
+  options?: { id?: string }
 ): Promise<void> {
   if (!engine || !workspaceId)
     throw new Error('Sign in and open your workspace before saving. Your draft is kept.');
   if (draft.type === 'file')
     throw new Error('Choose a file in Library to upload its contents. Your draft is kept.');
   const now = new Date();
-  const id = generateUuid();
+  const id = options?.id?.trim() || generateUuid();
   const common = { id, title: draft.title.trim(), folderId: null };
   let command: SyncCommandType;
   let payload: Record<string, unknown>;

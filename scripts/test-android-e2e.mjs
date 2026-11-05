@@ -50,29 +50,32 @@ try {
   log(`Note: adb execution failed: ${err.message}`);
 }
 
-// 3. Locate compiled development APK
+// 3. Locate compiled development APK (prefer short-path / artifacts release copies)
 log('\n[2/4] Verifying Android development APK artifact...');
-const apkPath = path.join(
-  root,
-  'apps',
-  'mobile',
-  'android',
-  'app',
-  'build',
-  'outputs',
-  'apk',
-  'debug',
-  'app-debug.apk'
-);
+const apkCandidates = [
+  process.env.DAYNORI_ANDROID_APK,
+  path.join(root, 'artifacts', 'release', 'app-debug-x86_64.apk'),
+  path.join(root, 'artifacts', 'release', 'app-debug-arm64.apk'),
+  path.join(root, 'apps', 'mobile', 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
+  path.join('D:\\d\\daynori', 'apps', 'mobile', 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
+].filter(Boolean);
 
-const apkExists = fs.existsSync(apkPath);
+let apkPath = null;
+for (const candidate of apkCandidates) {
+  if (fs.existsSync(candidate)) {
+    apkPath = candidate;
+    break;
+  }
+}
+
+const apkExists = Boolean(apkPath);
 let apkSize = null;
 if (apkExists) {
   apkSize = fs.statSync(apkPath).size;
   log(`✓ Found development APK at ${apkPath}`);
   log(`  Size: ${(apkSize / (1024 * 1024)).toFixed(2)} MB (${apkSize} bytes)`);
 } else {
-  log(`❌ Development APK not found at ${apkPath}`);
+  log(`❌ Development APK not found (checked artifacts/release and local android outputs)`);
 }
 
 // 4. Evaluate prerequisites for genuine on-device testing
@@ -111,7 +114,16 @@ if (connectedDevices.length === 0 || !apkExists) {
 }
 
 // 5. Genuine On-Device Installation and Deep Link Intent Execution
-const targetDevice = connectedDevices[0];
+const preferredSerial = process.env.DAYNORI_ANDROID_SERIAL;
+const targetDevice =
+  preferredSerial && connectedDevices.includes(preferredSerial)
+    ? preferredSerial
+    : connectedDevices[0];
+if (preferredSerial && preferredSerial !== targetDevice) {
+  log(`⚠ Preferred serial ${preferredSerial} not connected; using ${targetDevice}`);
+} else {
+  log(`Selected device serial: ${targetDevice}${preferredSerial ? ' (explicit)' : ' (first connected)'}`);
+}
 log(`\n[4/4] Executing on-device acceptance tests against target device: ${targetDevice}...`);
 
 try {
@@ -153,7 +165,24 @@ try {
   );
   log(`✓ Calendar destination intent accepted by OS.`);
 
-  // E. Capture device screenshot for evidence
+  // E. Settings + Library + Search intents (Phase 71 smoke; UI journeys still need manual/TalkBack)
+  const extraIntents = [
+    { name: 'settings', uri: 'daynori://settings' },
+    { name: 'library', uri: 'daynori://library' },
+    { name: 'plan', uri: 'daynori://plan' },
+  ];
+  const intentResults = {};
+  for (const intent of extraIntents) {
+    log(`-> Dispatching intent: ${intent.uri}...`);
+    execSync(
+      `"${adbPath}" -s ${targetDevice} shell am start -a android.intent.action.VIEW -d "${intent.uri}" com.daynori.app`,
+      { stdio: 'inherit', encoding: 'utf-8' }
+    );
+    intentResults[intent.name] = 'PASS';
+    log(`✓ ${intent.name} intent accepted by OS.`);
+  }
+
+  // F. Capture device screenshot for evidence
   const screenshotPath = path.join(artifactsDir, 'device-plan-calendar.png');
   const screencap = spawnSync(`"${adbPath}"`, ['-s', targetDevice, 'exec-out', 'screencap', '-p'], {
     shell: true,
@@ -168,6 +197,7 @@ try {
     status: 'PASSED',
     connectedDevices,
     targetDevice,
+    preferredSerial: preferredSerial || null,
     apkPath,
     apkSize,
     onDeviceChecks: {
@@ -175,7 +205,11 @@ try {
       activityLaunch: 'PASS',
       coldStartIntent: 'PASS',
       warmStartIntent: 'PASS',
+      settingsIntent: intentResults.settings || 'SKIP',
+      libraryIntent: intentResults.library || 'SKIP',
+      planIntent: intentResults.plan || 'SKIP',
       screenCapture: fs.existsSync(screenshotPath) ? 'PASS' : 'WARN',
+      note: 'Intent/smoke only — create/save/Back/keyboard/TalkBack journeys require recorded device procedure',
     },
     exitCode: 0,
   };

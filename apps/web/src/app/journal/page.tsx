@@ -1,6 +1,8 @@
 'use client';
+import { confirmTourRecordLoaded } from '../../tours/recordNavigation';
 
 import { Icon } from '@daynori/ui-web';
+import { useTourOptional } from '../../tours/TourContext';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
@@ -32,6 +34,7 @@ import type {
 } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
 import { useAuth } from '../../components/AuthContext';
+import { ContextualHelpLink } from '../../components/ContextualHelpLink';
 import { IndexedDbLocalRepository } from '../../data/indexedDbRepository';
 import { createWebSyncEngine } from '../../data/syncAdapter';
 
@@ -82,6 +85,7 @@ function offsetMonthIso(dateIso: string, monthOffset: number): string {
 }
 
 export default function JournalPage() {
+  const tour = useTourOptional();
   const { themeMode } = useShell();
   const { isAuthenticated, openAuthModal, user, workspaceId } = useAuth();
   const palette = colors[themeMode];
@@ -310,14 +314,14 @@ export default function JournalPage() {
   // Open writing surface for a new entry
   const handleOpenNewEntry = useCallback(
     (targetDate: string = selectedDate) => {
-      const newId = generateUuid();
+      const newId = tour?.getPracticeCreationId('journal_entry') ?? generateUuid();
       activeDraftIdRef.current = newId;
       setEditingEntry(null);
       setSelectedDate(targetDate);
       setIsEditorOpen(true);
       announce(`Opened reflection writing surface for ${targetDate}`);
     },
-    [selectedDate, announce]
+    [selectedDate, announce, tour]
   );
 
   // Open writing surface to edit an existing entry
@@ -328,8 +332,21 @@ export default function JournalPage() {
       setSelectedDate(entry.entryDate);
       setIsEditorOpen(true);
       announce(`Opened editor for ${entry.title || 'journal entry'}`);
+      void tour?.captureEvidence(entry.id)({
+        type: 'entity_opened',
+        entityId: entry.id,
+        entityType: 'journal_entry',
+        recordLoaded: true,
+      });
+      if (user?.id && workspaceId)
+        void confirmTourRecordLoaded({
+          accountUserId: user.id,
+          workspaceId,
+          entityId: entry.id,
+          entityType: 'journal_entry',
+        });
     },
-    [announce]
+    [announce, tour, user?.id, workspaceId]
   );
 
   // Handle URL query parameters (?date=..., ?entryId=..., ?create=true)
@@ -534,6 +551,7 @@ export default function JournalPage() {
       tags: string[];
       folderId?: string | null;
     }) => {
+      const reportMutation = tour?.captureMutation();
       const repo = localRepoRef.current;
       if (!repo || !workspaceId || !user) {
         setLocalSaveStatus('Storage error: not initialized');
@@ -641,6 +659,13 @@ export default function JournalPage() {
           undefined,
           journalEntry
         );
+        void reportMutation?.({
+          workspaceId,
+          entityId: entryId,
+          entityType: 'journal_entry',
+          operationId: mutation.operationId,
+          command: mutation.command!,
+        });
 
         // Update editingEntry with the saved entry so subsequent saves are updates
         setEditingEntry(journalEntry);
@@ -673,7 +698,7 @@ export default function JournalPage() {
         }
       }
     },
-    [editingEntry, workspaceId, user, suppressSnippets, pendingDraft, reloadEntries, announce]
+    [editingEntry, workspaceId, user, suppressSnippets, pendingDraft, reloadEntries, announce, tour]
   );
 
   // Conflict resolution handler
@@ -953,6 +978,7 @@ export default function JournalPage() {
         }}
       >
         <RouteAnnouncer message={liveAnnouncement} />
+        <ContextualHelpLink articleId="help.journal-privacy" label="Writing Help" />
         <JournalEditor
           id={editingEntry?.id ?? activeDraftIdRef.current}
           initialTitle={editingEntry?.title ?? ''}
@@ -1037,6 +1063,7 @@ export default function JournalPage() {
             variant="primary"
             themeMode={themeMode}
             data-testid="write-entry-button"
+            data-tour-target={!isEditorOpen ? 'journal.entry.save' : undefined}
             onClick={() => handleOpenNewEntry(selectedDate)}
           >
             <Icon name="edit" /> Write Entry
@@ -1273,7 +1300,7 @@ export default function JournalPage() {
         </div>
 
         {/* Privacy snippet toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <Button
             size="compact"
             variant="subtle"
@@ -1286,8 +1313,17 @@ export default function JournalPage() {
             }
             onClick={handleToggleSnippets}
           >
-            {suppressSnippets ? (<><Icon name='eye' /> {'Show Snippets'}</>) : (<><Icon name='lock' /> {'Hide Snippets'}</>)}
+            {suppressSnippets ? (
+              <>
+                <Icon name="eye" /> {'Show Snippets'}
+              </>
+            ) : (
+              <>
+                <Icon name="lock" /> {'Hide Snippets'}
+              </>
+            )}
           </Button>
+          <ContextualHelpLink articleId="help.journal-privacy" label="Journal privacy Help" />
         </div>
       </div>
 
@@ -1450,6 +1486,7 @@ export default function JournalPage() {
                           variant="subtle"
                           themeMode={themeMode}
                           data-testid={`edit-entry-${entry.id}`}
+                          data-tour-target="journal.entry.practice"
                           onClick={() => handleEditEntry(entry)}
                         >
                           <Icon name="edit" /> Edit

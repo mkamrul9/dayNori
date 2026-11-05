@@ -12,6 +12,10 @@ import {
   View,
 } from 'react-native';
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
+import {
+  keyboardAvoidingBehavior,
+  subscribeAndroidKeyboardInsets,
+} from './androidInsets.js';
 
 export interface MobileModalSheetProps {
   visible: boolean;
@@ -32,6 +36,7 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
 }) => {
   const palette = colors[themeMode];
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,6 +62,22 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
     };
   }, []);
 
+  // Android Modal + KeyboardAvoidingView often under-shifts; pad with measured IME height
+  // so Create/Settings Save rows stay reachable while the keyboard is open.
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'android') {
+      setKeyboardHeight(0);
+      return undefined;
+    }
+    return subscribeAndroidKeyboardInsets((snap) => {
+      setKeyboardHeight(snap.keyboardHeight);
+    });
+  }, [visible]);
+
+  const baseBottomPad = Platform.OS === 'ios' ? spacing.xl : spacing.lg;
+  const sheetBottomPad =
+    Platform.OS === 'android' ? baseBottomPad + Math.max(0, keyboardHeight) : baseBottomPad;
+
   return (
     <Modal
       testID={testID}
@@ -74,15 +95,16 @@ export const MobileModalSheet: React.FC<MobileModalSheetProps> = ({
           accessibilityLabel="Dismiss sheet"
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          // Android: measured IME height via paddingBottom only — combining
+          // KeyboardAvoidingView behavior=padding with the same height double-shifts.
+          behavior={Platform.OS === 'ios' ? keyboardAvoidingBehavior() : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
           style={[
             styles.sheet,
             {
               backgroundColor: palette.surface,
               borderColor: palette.border.subtle,
-              // Home-indicator clearance on iOS; Android uses nav bar insets separately.
-              paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
+              paddingBottom: sheetBottomPad,
             },
           ]}
         >

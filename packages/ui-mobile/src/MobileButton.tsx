@@ -60,6 +60,26 @@ export const MobileButton: React.FC<MobileButtonProps> = ({
   const computedAccessibilityLabel =
     accessibilityLabel || (typeof labelText === 'string' ? labelText : undefined);
 
+  const renderChildren = () => {
+    if (!children) {
+      return <Text style={[styles.text, { color: fg }]}>{title}</Text>;
+    }
+    if (typeof children === 'string' || typeof children === 'number') {
+      return <Text style={[styles.text, { color: fg }]}>{children}</Text>;
+    }
+    // Mixed Icon + string children must wrap strings in Text (RN invariant).
+    return React.Children.map(children, (child, index) => {
+      if (typeof child === 'string' || typeof child === 'number') {
+        return (
+          <Text key={`btn-text-${index}`} style={[styles.text, { color: fg }]}>
+            {child}
+          </Text>
+        );
+      }
+      return child;
+    });
+  };
+
   return (
     <Pressable
       accessible={true}
@@ -82,14 +102,8 @@ export const MobileButton: React.FC<MobileButtonProps> = ({
     >
       {loading ? (
         <ActivityIndicator size="small" color={fg} accessibilityLabel="Loading" />
-      ) : children ? (
-        typeof children === 'string' ? (
-          <Text style={[styles.text, { color: fg }]}>{children}</Text>
-        ) : (
-          children
-        )
       ) : (
-        <Text style={[styles.text, { color: fg }]}>{title}</Text>
+        renderChildren()
       )}
     </Pressable>
   );

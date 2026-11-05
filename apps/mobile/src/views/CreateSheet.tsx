@@ -13,6 +13,8 @@ export interface CreateSheetProps {
   onDraftChange?: (draft: CreateDraft) => void;
   onCreateItem: (item: CreateDraft) => void | Promise<void>;
   onRecordAudio?: () => void;
+  /** Phase 79: notify tour engine of real create-sheet actions. */
+  onTourEvidence?: (type: CreateDraft['type']) => void;
   testID?: string;
 }
 
@@ -24,6 +26,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
   onDraftChange,
   onCreateItem,
   onRecordAudio,
+  onTourEvidence,
   testID = 'create-sheet',
 }) => {
   const palette = colors[themeMode];
@@ -43,6 +46,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
   const handleTypeSelect = (type: CreateDraft['type']) => {
     setItemType(type);
     updateDraft(type, title, details);
+    onTourEvidence?.(type);
   };
 
   const handleTitleChange = (text: string) => {
@@ -71,9 +75,17 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
       setError(null);
       onDraftChange?.({ type: itemType, title: '', details: '' });
       onClose();
-    } catch {
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      // Keep drafts; surface a safe actionable reason (never key material).
+      const safe =
+        raw.match(
+          /\b(Sign in and open your workspace|Choose a file in Library|Please provide a title|NO_SECURE_RANDOM|KEY_NOT_FOUND|KEY_INVALIDATED_OR_MISMATCH|SQLCIPHER_UNAVAILABLE|StorageUnavailableError)\b/
+        )?.[1] ?? null;
       setError(
-        'Could not save. Sign in and open your workspace, or use Library for files. Your draft is kept.'
+        safe
+          ? `Could not save (${safe}). Your draft is kept.`
+          : 'Could not save. Sign in and open your workspace, or use Library for files. Your draft is kept.'
       );
     } finally {
       saving.current = false;
@@ -112,7 +124,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
                   key={t.key}
                   testID={`create-type-${t.key}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`Create ${t.label}`}
+                  accessibilityLabel={`Item type ${t.label}`}
                   accessibilityState={{ selected: isSelected }}
                   onPress={() => handleTypeSelect(t.key)}
                   disabled={isSaving}
@@ -137,8 +149,9 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
             })}
         </View>
 
-        {/* Inputs */}
+        {/* Inputs — stable testIDs distinct from type chips and submit */}
         <MobileTextField
+          testID="create-title-input"
           label="Title"
           placeholder={`Give your ${itemType} a clear title...`}
           value={title}
@@ -149,6 +162,7 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
         />
 
         <MobileTextField
+          testID="create-details-input"
           label="Details or Notes (optional)"
           placeholder="Add tags, deadlines, or additional context..."
           value={details}
@@ -178,16 +192,18 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
 
         <View style={styles.actionRow}>
           <MobileButton
+            testID="create-submit-btn"
             variant="primary"
             themeMode={themeMode}
             onPress={() => void handleSubmit()}
             disabled={isSaving}
-            accessibilityLabel={`Create ${itemType}`}
+            accessibilityLabel={`Submit create ${itemType}`}
           >
             Create {itemType.charAt(0).toUpperCase() + itemType.slice(1)}
           </MobileButton>
           <View style={{ height: spacing.xs }} />
           <MobileButton
+            testID="create-cancel-btn"
             variant="subtle"
             themeMode={themeMode}
             onPress={onClose}

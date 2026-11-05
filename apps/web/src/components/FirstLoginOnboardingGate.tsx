@@ -45,7 +45,12 @@ export function FirstLoginOnboardingGate() {
 
         const client = createWebApiClient({ csrfToken });
         const prefRes = await client.getUserPreferences().catch(() => null);
-        const onboarding = prefRes?.data?.preferences?.onboarding as OnboardingState | undefined;
+        // Preference outage must not be treated as a fresh account (would overwrite personalization).
+        if (!prefRes?.data) {
+          if (!cancelled) attemptedRef.current = null;
+          return;
+        }
+        const onboarding = prefRes.data.preferences?.onboarding as OnboardingState | undefined;
 
         if (cancelled) return;
         if (!localDraftCompletedOrSkipped && shouldShowOnboarding(onboarding)) {

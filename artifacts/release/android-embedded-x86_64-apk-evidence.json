@@ -1,0 +1,12 @@
+{
+    "embeddedJs":  true,
+    "apkPath":  "artifacts/release/app-embedded-x86_64.apk",
+    "architecture":  "x86_64",
+    "createdAt":  "2026-10-27T12:04:12.5218241Z",
+    "packageId":  "com.daynori.app",
+    "signing":  "debug (local-test only)",
+    "sha256":  "d898e4a5a7d523a72da2d742fde000e8f8a80b7091c6c8963b2fb3064fbdbfbf",
+    "expoDevClient":  false,
+    "gitRevision":  "6aa2204d6037d18b44de15cd95f77be01e68e5f2",
+    "buildRoot":  "D:\\d\\daynori"
+}

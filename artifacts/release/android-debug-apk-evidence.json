@@ -1,15 +1,14 @@
 {
-    "adbDevices":  [
-                       "List of devices attached",
-                       ""
-                   ],
-    "architecture":  "arm64-v8a",
-    "createdAt":  "2026-10-21T06:45:37.5496398Z",
-    "targetSdk":  36,
-    "buildRoot":  "D:\\d\\daynori",
-    "sha256":  "0379F71CB48C953C5020CB393BA49084507D1F37AFA06066622EB351C800A5B7",
-    "compileSdk":  36,
-    "signing":  "debug (local-test only — not release-eligible)",
-    "apkPath":  "artifacts/release/app-debug-arm64.apk",
-    "note":  "Built from space-free short path with node-linker=hoisted; original UNIQUE WORK path remains NDK-hostile"
+  "createdAt": "2026-10-26T13:17:04.998Z",
+  "gitRevision": "178fb2441c10aa5fde570c91f06c20b3c8c2f135",
+  "workingTreeFingerprint": "15f9e203ffe9a003f8345770414ce08c4be4da9daffcd9e426c69ef0624a4f0a",
+  "workingTreeDirty": true,
+  "buildRoot": "D:\\d\\daynori",
+  "apkPath": "artifacts/release/app-debug-x86_64.apk",
+  "sha256": "e1f3edab678107eb0e5069f1a892d9acc6297de55de2577c6e7d06c96a7b2ce9",
+  "architecture": "x86_64",
+  "packageId": "com.daynori.app",
+  "signing": "debug (local-test only â€” not release-eligible)",
+  "targetSdk": 36,
+  "note": "Installable debug APK includes synced working-tree mobile sources when dirty; not release-eligible"
 }

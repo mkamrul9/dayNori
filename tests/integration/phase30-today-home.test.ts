@@ -127,16 +127,19 @@ describe('Phase 30: Today Home and Personal Customization Suite', () => {
       expect(visibleIds).toContain('tasks');
       expect(visibleIds).toContain('routines');
       expect(visibleIds).toContain('upcoming_summary');
-      expect(visibleIds).toContain('quick_capture');
       expect(visibleIds).toContain('journal_prompt');
+      // Phase 69: Quick Capture and module chips default off — shell Create/nav are primary
+      expect(visibleIds).not.toContain('quick_capture');
 
       // Optional heavier cards are hidden by default
       const hiddenIds = defaultLayout.widgets.filter((w) => !w.visible).map((w) => w.id);
+      expect(hiddenIds).toContain('quick_capture');
       expect(hiddenIds).toContain('recent_items');
       expect(hiddenIds).toContain('favorite_folders');
 
-      // Module shortcuts default order covers key canonical modules
+      // Module shortcuts remain registered but default hidden (shell owns primary destinations)
       expect(defaultLayout.moduleShortcuts.length).toBe(APPROVED_MODULE_SHORTCUT_IDS.length);
+      expect(defaultLayout.moduleShortcuts.every((s) => s.visible === false)).toBe(true);
       expect(defaultLayout.favoriteFolderIds).toEqual([]);
     });
 

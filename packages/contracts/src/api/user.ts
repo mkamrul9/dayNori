@@ -11,8 +11,14 @@ export type ThemePreference = z.infer<typeof ThemePreferenceSchema>;
 export const QuietHoursPreferenceSchema = z
   .object({
     enabled: z.boolean().default(false),
-    start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('22:00'),
-    end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('08:00'),
+    start: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .default('22:00'),
+    end: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .default('08:00'),
     timezone: z.string().min(1).max(64).default('UTC'),
   })
   .strict();
@@ -98,6 +104,102 @@ export const OnboardingStateSchema = z
   .strict();
 export type OnboardingState = z.infer<typeof OnboardingStateSchema>;
 
+/**
+ * Phase 66 — personal feature visibility and pins (user profile preference).
+ * Never encodes release capability or operator authority.
+ */
+export const FeaturePersonalizationSchema = z
+  .object({
+    version: z.literal(1).default(1),
+    hiddenFeatureIds: z.array(z.string().min(1).max(64)).max(40).default([]),
+    pinnedFeatureIds: z.array(z.string().min(1).max(64)).max(20).default([]),
+  })
+  .strict();
+export type FeaturePersonalization = z.infer<typeof FeaturePersonalizationSchema>;
+
+/** Phase 79 — bounded tour progress (IDs/refs only; no private bodies). */
+export const TourStepOutcomeSchema = z.enum(['completed', 'skipped', 'blocked', 'unfinished']);
+export const TourChapterLifecycleSchema = z.enum([
+  'not_started',
+  'active',
+  'paused',
+  'completed',
+  'skipped',
+  'blocked',
+]);
+
+export const TourStepRecordSchema = z
+  .object({
+    stepId: z.string().min(1).max(128),
+    outcome: TourStepOutcomeSchema,
+    completedAt: z.string().datetime().nullable().optional(),
+    skippedAt: z.string().datetime().nullable().optional(),
+    operationId: z.string().min(1).max(128).nullable().optional(),
+    entityId: z.string().min(1).max(128).nullable().optional(),
+    attemptId: z.string().min(1).max(128).nullable().optional(),
+  })
+  .strict();
+
+export const TourPracticeArtifactSchema = z
+  .object({
+    entityId: z.string().min(1).max(128),
+    entityType: z.enum([
+      'task',
+      'routine',
+      'note',
+      'journal_entry',
+      'calendar_event',
+      'folder',
+      'preference',
+    ]),
+    chapterId: z.string().min(1).max(128),
+    role: z.string().min(1).max(64),
+    createdByTour: z.boolean(),
+    userOwned: z.boolean(),
+    labeledPractice: z.boolean(),
+    linkedOrEdited: z.boolean(),
+    createdAt: z.string().datetime(),
+    creationOperationId: z.string().min(1).max(128).optional(),
+  })
+  .strict();
+
+export const TourChapterProgressSchema = z
+  .object({
+    chapterId: z.string().min(1).max(128),
+    definitionVersion: z.number().int().positive(),
+    contentVersion: z.number().int().positive(),
+    lifecycle: TourChapterLifecycleSchema,
+    currentStepId: z.string().min(1).max(128).nullable(),
+    runId: z.string().min(1).max(128).nullable(),
+    steps: z.array(TourStepRecordSchema).max(40),
+    practiceEntityIds: z.array(z.string().min(1).max(128)).max(60),
+    practiceArtifacts: z.array(TourPracticeArtifactSchema).max(80).optional(),
+    updatedAt: z.string().datetime(),
+    blockedReason: z.string().max(512).nullable().optional(),
+    practiceOptIn: z.boolean().optional(),
+  })
+  .strict();
+
+const TourProgressSnapshotSchema = z
+  .object({
+    version: z.literal(1).default(1),
+    scope: z
+      .object({
+        accountUserId: z.string().min(1).max(128),
+        workspaceId: z.string().min(1).max(128),
+      })
+      .strict()
+      .optional(),
+    chapters: z.array(TourChapterProgressSchema).max(40).default([]),
+    migratedFromOnboardingV1: z.boolean().default(false),
+    migratedAt: z.string().datetime().nullable().optional(),
+  })
+  .strict();
+export const TourProgressStateSchema = TourProgressSnapshotSchema.extend({
+  otherScopes: z.array(TourProgressSnapshotSchema).max(12).optional(),
+}).strict();
+export type TourProgressState = z.infer<typeof TourProgressStateSchema>;
+
 export const DisplayPreferencesSchema = z
   .object({
     theme: ThemePreferenceSchema.default('system'),
@@ -107,7 +209,9 @@ export const DisplayPreferencesSchema = z
     quietHours: QuietHoursPreferenceSchema.optional(),
     homeLayout: HomeLayoutSchema.optional(),
     onboarding: OnboardingStateSchema.optional(),
+    tourProgress: TourProgressStateSchema.optional(),
     expensesEnabled: z.boolean().default(false),
+    featurePersonalization: FeaturePersonalizationSchema.optional(),
   })
   .strict();
 export type DisplayPreferences = z.infer<typeof DisplayPreferencesSchema>;

@@ -17,6 +17,10 @@ export interface CustomSectionEntryDialogProps {
   initialValues?: Record<string, unknown>;
   initialFolderId?: string | null;
   availableFolders?: Array<{ id: string; name: string }>;
+  /** Verified same-workspace files eligible to attach. Empty + disabled = honest unavailable. */
+  eligibleAttachments?: Array<{ id: string; fileName: string }>;
+  attachmentsEnabled?: boolean;
+  attachmentsUnavailableMessage?: string;
   themeMode?: ThemeMode;
   onSubmit: (data: {
     fieldValues: Record<string, unknown>;
@@ -33,6 +37,9 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
   initialValues = {},
   initialFolderId = null,
   availableFolders = [],
+  eligibleAttachments = [],
+  attachmentsEnabled = false,
+  attachmentsUnavailableMessage = 'New file attachments are unavailable here. Existing attachment values stay preserved; other fields can still be saved.',
   themeMode = 'light',
   onSubmit,
 }) => {
@@ -382,6 +389,7 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
                   >
                     <span style={{ fontSize: '0.85rem', color: palette.text.primary }}>
                       <Icon name="attachment" /> {currentAttachment.fileName || 'Attached File'}
+                      {currentAttachment.fileId ? '' : ' (reference incomplete)'}
                     </span>
                     <button
                       type="button"
@@ -397,24 +405,38 @@ export const CustomSectionEntryDialog: React.FC<CustomSectionEntryDialogProps> =
                       Remove
                     </button>
                   </div>
-                ) : (
-                  <input
-                    type="file"
+                ) : attachmentsEnabled && eligibleAttachments.length > 0 ? (
+                  <select
                     id={`field-${field.id}`}
+                    value=""
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
+                      const fileId = e.target.value;
+                      const picked = eligibleAttachments.find((f) => f.id === fileId);
+                      if (picked) {
                         handleFieldChange(field.id, {
-                          fileName: file.name,
-                          byteSize: file.size,
-                          mimeType: file.type || 'application/octet-stream',
+                          fileId: picked.id,
+                          fileName: picked.fileName,
                         });
                       }
                     }}
                     style={{
                       fontSize: '0.85rem',
-                      color: palette.text.secondary,
+                      color: palette.text.primary,
+                      minHeight: 40,
                     }}
+                  >
+                    <option value="">Select a verified file…</option>
+                    {eligibleAttachments.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.fileName}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Feedback
+                    severity="info"
+                    message={attachmentsUnavailableMessage}
+                    themeMode={themeMode}
                   />
                 )}
               </div>

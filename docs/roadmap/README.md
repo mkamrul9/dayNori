@@ -1,8 +1,10 @@
 # Delivery roadmap
 
-This roadmap contains **64 bounded phases, numbered 00–63**. Phase 00 is planning; Phase 01 establishes runnable foundations. Each phase has its own implementation instructions, acceptance, verification, references and suggested commit. There are no calendar promises or estimated completion dates. Size phases by reviewable outcomes; split a phase when implementation exposes more work.
+This roadmap contains **104 bounded phases, numbered 00–103**. Original phases 00–63 retain their history; [Version 2](v2/README.md) appends phases 64–103. Phase 00 is original planning; Phase 01 establishes runnable foundations. Phase 64 is V2 planning only, and Phase 65 is its first implementation selection. Each phase has its own instructions, acceptance, verification, references and suggested commit. There are no calendar promises or estimated completion dates. Size phases by reviewable outcomes; split a phase when implementation exposes more work.
 
 ## Current state
+
+The owner selected the [detailed V2 roadmap](v2/README.md) on 2026-10-25. It covers a professional icon-based redesign, simple personalized navigation, mobile-specific layouts, complete action-based tours, Help/feedback/contact, notifications, and an optional grounded text/voice creation assistant with an original companion. Planning does not complete the existing preview/public-release gates or start implementation. See [ADR 0067](../decisions/0067-version-two-planning-and-release-boundaries.md).
 
 Read [progress](progress.json) and the actual [phase reports](../phase-reports/README.md). Future phase files are specifications, not completion evidence. Start the next selected phase only after its prerequisites are complete. Phase 00 stops after planning and a local commit; it does not start application implementation automatically.
 
@@ -20,6 +22,14 @@ Read [progress](progress.json) and the actual [phase reports](../phase-reports/R
 - 57–60: subscriptions, capacity/operations proof, current Play policy gate and public Android/web release.
 - 61–62: iOS adaptation and release, with native/store gates.
 - 63: a bounded post-launch review and append-only next roadmap.
+- 64–68: V2 planning, function readiness inventory, navigation, visual prototypes and accessible components.
+- 69–77: V2 desktop/PWA/native experience, first use, organizer workflow completion and safe offline reopen.
+- 78–83: complete Help, action-verified tours, durable feedback and verified developer contact.
+- 84–89: PWA/native notification delivery and independent vault/Drive/rooms/billing gate closure.
+- 90–96: consented AI provider, scoped retrieval, chat, confirmed creation, voice and original Nori companion.
+- 97–103: security, performance, accessibility, full-scope beta, release preparation, authorized publication and review.
+
+Full V2 phase links and supporting specifications are in the [V2 catalog](v2/README.md#phase-catalog). Phase 64 is an owner-directed planning amendment independent of Phase 63; it does not claim that the required earlier launch or review occurred.
 
 Optional modules are released behind their own gates. Public launch does not depend on every advanced module: it depends on the tested enabled scope. The vault, chat, AI and Drive cannot be marketed before their specific gates pass. Phase 50 may be deferred with evidence if Google access/verification prerequisites are unavailable; a deferred feature is excluded from claims and is never treated as implemented.
 

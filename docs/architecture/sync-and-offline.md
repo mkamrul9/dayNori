@@ -6,6 +6,8 @@ Status: protocol baseline to implement and prove before multiple-device editing 
 
 Mobile users can read cached ordinary items and create/edit notes, todos, routines, journals and expenses offline. Each local change displays `Saved on this device`, `Syncing`, `Synced`, `Conflict`, or `Needs attention`. Never label an unacknowledged local mutation as safely backed up. File metadata can be queued offline; uploading an uncached binary and server integrations require a connection. Web offline caching requires explicit trusted-device consent and remains subject to browser eviction.
 
+Trusted-device cold reopen (ADR 0077): after process close without network, a previously authorized browser may serve the public `/offline-shell.html` executable shell from Cache Storage and restore account-scoped IndexedDB records. Private HTML, RSC, and API responses stay out of shared Cache Storage (ADR 0066 retained). Local unlock of retained data is not permission to call authenticated APIs or replay mutations until live authorization is revalidated.
+
 The server owns accepted state, revision order, access control and durable receipts. The local database owns drafts, cache, pending operations and recoverable conflict copies. Sync is not a backup.
 
 ## Local write transaction

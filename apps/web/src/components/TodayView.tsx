@@ -1,8 +1,10 @@
 'use client';
+import { confirmTourRecordLoaded } from '../tours/recordNavigation';
 
 import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef, useId, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { useTourOptional } from '../tours/TourContext';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
   Button,
@@ -12,6 +14,7 @@ import {
   RoutineRow,
   RoutineDetailEditor,
   RoutineHistoryViewer,
+  SyncStatusBadge,
 } from '@daynori/ui-web';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
@@ -101,8 +104,9 @@ function getRecentItemHref(item: RecentItemEntry): string {
 }
 
 export const TodayView: React.FC = () => {
+  const tour = useTourOptional();
   const liveRegionId = useId();
-  const { themeMode, themePreference, setTheme, activeModal } = useShell();
+  const { themeMode, themePreference, setTheme, activeModal, openModal } = useShell();
   const palette = colors[themeMode];
   const { workspaceId, user, csrfToken, preferences: authPreferences } = useAuth();
 
@@ -203,6 +207,39 @@ export const TodayView: React.FC = () => {
     setConflictState(null);
     setHasUnsupportedVersion(false);
   }, [workspaceId, user?.id]);
+
+  // Open canonical routine from calendar / deep links (?routineId=)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !workspaceId || routines.length === 0) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const routineId = params.get('routineId') || params.get('routine');
+      if (!routineId) return;
+      const found = routines.find((r) => r.id === routineId && !r.deletedAt);
+      if (found) {
+        setEditingRoutine(found);
+        setIsEditorOpen(true);
+        setLiveAnnouncement(`Opened routine: ${found.title}`);
+        if (user?.id)
+          void confirmTourRecordLoaded({
+            accountUserId: user.id,
+            workspaceId,
+            entityId: found.id,
+            entityType: 'routine',
+          });
+      }
+    } catch {
+      // Ignore malformed query strings
+    }
+  }, [workspaceId, user?.id, routines]);
+
+  useEffect(() => {
+    if (!isEditorOpen) return;
+    void import('../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(true));
+    return () => {
+      void import('../editing/unsavedWork').then(({ setUnsavedWork }) => setUnsavedWork(false));
+    };
+  }, [isEditorOpen]);
 
   const announce = useCallback((msg: string) => {
     setLiveAnnouncement(msg);
@@ -1036,7 +1073,7 @@ export const TodayView: React.FC = () => {
 
       announce(`Updated routine "${updated.title}".`);
     } else {
-      const newId = crypto.randomUUID();
+      const newId = tour?.getPracticeCreationId('routine') ?? crypto.randomUUID();
       const newRoutine: RoutineRecord = {
         id: newId,
         workspaceId,
@@ -1405,10 +1442,10 @@ export const TodayView: React.FC = () => {
               className="daynori-break"
               style={{
                 margin: 0,
-                fontSize: `${typography.webScale.welcomeTitle}px`,
-                fontWeight: 800,
+                fontSize: `${typography.webScale.pageTitle}px`,
+                fontWeight: 700,
                 color: palette.text.primary,
-                letterSpacing: '-0.5px',
+                letterSpacing: '-0.3px',
               }}
             >
               Today
@@ -1427,18 +1464,20 @@ export const TodayView: React.FC = () => {
                 month: 'long',
                 day: 'numeric',
                 year: 'numeric',
+                timeZone: viewingTimezone,
               })}
+              <span style={{ color: palette.text.muted }}> · {viewingTimezone}</span>
             </p>
-            <p
-              className="daynori-break"
-              style={{
-                margin: '6px 0 0',
-                fontSize: '12px',
-                color: palette.text.muted,
-              }}
-            >
-              Timezone: {viewingTimezone}
-            </p>
+            <div style={{ marginTop: spacing.sm }}>
+              <SyncStatusBadge
+                status={
+                  typeof navigator !== 'undefined' && navigator.onLine === false
+                    ? 'offline'
+                    : 'synced'
+                }
+                themeMode={themeMode}
+              />
+            </div>
           </div>
 
           <div
@@ -1450,6 +1489,16 @@ export const TodayView: React.FC = () => {
               minWidth: 0,
             }}
           >
+            <Button
+              id="today-create-btn"
+              variant="primary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => openModal('create')}
+              aria-label="Create"
+            >
+              <Icon name="plus" /> Create
+            </Button>
             <Button
               id="customize-today-btn"
               variant="secondary"
@@ -1463,7 +1512,7 @@ export const TodayView: React.FC = () => {
 
             <Button
               id="create-routine-btn"
-              variant="primary"
+              variant="subtle"
               size="compact"
               themeMode={themeMode}
               onClick={() => {
@@ -2031,6 +2080,12 @@ export const TodayView: React.FC = () => {
                               if (r) {
                                 setEditingRoutine(r);
                                 setIsEditorOpen(true);
+                                void tour?.captureEvidence(r.id)({
+                                  type: 'entity_opened',
+                                  entityId: r.id,
+                                  entityType: 'routine',
+                                  recordLoaded: true,
+                                });
                               }
                             }}
                             onViewHistory={(id) => {
@@ -2570,10 +2625,17 @@ export const TodayView: React.FC = () => {
         <RoutineDetailEditor
           isOpen={isEditorOpen}
           onClose={() => {
+            void import('../editing/unsavedWork').then(({ setUnsavedWork }) =>
+              setUnsavedWork(false)
+            );
             setIsEditorOpen(false);
             setEditingRoutine(null);
           }}
-          onSave={handleSaveRoutine}
+          onSave={async (data) => {
+            await handleSaveRoutine(data);
+            const { setUnsavedWork } = await import('../editing/unsavedWork');
+            setUnsavedWork(false);
+          }}
           initialRoutine={
             editingRoutine
               ? {

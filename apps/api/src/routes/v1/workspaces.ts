@@ -10,9 +10,6 @@ import {
   type WorkspaceListResponse,
   type WorkspaceResponse,
   type ProvisionWorkspaceResponse,
-  type QuietHoursPreference,
-  type HomeLayout,
-  type OnboardingState,
 } from '@daynori/contracts';
 import {
   withUserContext,
@@ -23,6 +20,7 @@ import {
   provisionPersonalWorkspace,
   getPersonalWorkspace,
 } from '../../db/index.js';
+import { mapDisplayPreferences } from '../../modules/preferences/featurePersonalization.js';
 import {
   NotFoundError,
   ConflictError,
@@ -64,16 +62,9 @@ export function registerWorkspaceRoutes(app: FastifyInstance, runtimePool: Pool)
             preferredLocale: result.profile.preferred_locale,
             timeZone: result.profile.time_zone,
             weekStart: result.profile.week_start,
-            preferences: {
-              theme: result.profile.preferences?.theme || 'system',
-              compactMode: Boolean(result.profile.preferences?.compactMode),
-              journalPreviewHidden: result.profile.preferences?.journalPreviewHidden !== false,
-              suppressBodySnippets: result.profile.preferences?.suppressBodySnippets !== false,
-              expensesEnabled: Boolean(result.profile.preferences?.expensesEnabled),
-              quietHours: (result.profile.preferences?.quietHours as QuietHoursPreference | undefined) || undefined,
-              homeLayout: (result.profile.preferences?.homeLayout as HomeLayout | undefined) || undefined,
-              onboarding: (result.profile.preferences?.onboarding as OnboardingState | undefined) || undefined,
-            },
+            preferences: mapDisplayPreferences(
+              result.profile.preferences as Record<string, unknown> | undefined
+            ),
             preferencesSchemaVersion: result.profile.preferences_schema_version,
             revision: Number(result.profile.revision),
             createdAt: result.profile.created_at.toISOString(),

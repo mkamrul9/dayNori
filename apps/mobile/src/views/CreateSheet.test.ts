@@ -3,6 +3,25 @@ import { expect, it, vi } from 'vitest';
 import { CreateSheet } from './CreateSheet.js';
 import { TestRenderer, act } from '../test-render.js';
 
+it('reports the selected non-task type but never fabricates a Save receipt', async () => {
+  const evidence = vi.fn();
+  const renderer = TestRenderer.create(
+    React.createElement(CreateSheet, {
+      visible: true,
+      themeMode: 'light',
+      onClose: vi.fn(),
+      onCreateItem: vi.fn().mockRejectedValue(new Error('Disk full')),
+      onTourEvidence: evidence,
+      initialDraft: { type: 'task', title: 'Synthetic practice note', details: '' },
+    })
+  );
+  act(() => renderer.root.findByProps({ testID: 'create-type-note' }).props.onPress());
+  act(() => renderer.root.findByProps({ testID: 'create-submit-btn' }).props.onPress());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(evidence.mock.calls).toEqual([['note']]);
+  renderer.unmount();
+});
+
 it('retains entered content and stays open when the save fails', async () => {
   const close = vi.fn();
   const save = vi.fn().mockRejectedValue(new Error('Disk full'));
@@ -16,13 +35,13 @@ it('retains entered content and stays open when the save fails', async () => {
     })
   );
   act(() => {
-    renderer.root.findByProps({ accessibilityLabel: 'Create task' }).props.onPress();
+    renderer.root.findByProps({ testID: 'create-submit-btn' }).props.onPress();
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(close).not.toHaveBeenCalled();
-  expect(
-    renderer.root.findByProps({ placeholder: 'Give your task a clear title...' }).props.value
-  ).toBe('Synthetic draft');
+  expect(renderer.root.findByProps({ testID: 'create-title-input' }).props.value).toBe(
+    'Synthetic draft'
+  );
   renderer.unmount();
 });
 
@@ -47,8 +66,8 @@ it('waits for a successful durable save before clearing the draft and closing', 
     })
   );
   act(() => {
-    renderer.root.findByProps({ accessibilityLabel: 'Create task' }).props.onPress();
-    renderer.root.findByProps({ accessibilityLabel: 'Create task' }).props.onPress();
+    renderer.root.findByProps({ testID: 'create-submit-btn' }).props.onPress();
+    renderer.root.findByProps({ testID: 'create-submit-btn' }).props.onPress();
   });
   expect(save).toHaveBeenCalledTimes(1);
   expect(close).not.toHaveBeenCalled();

@@ -299,6 +299,9 @@ import {
   VerifyPurchaseResponseSchema,
   RestorePurchasesResponseSchema,
   BillingEventIngestResponseSchema,
+  CreateFeedbackReportRequestSchema,
+  FeedbackReportResponseSchema,
+  FeedbackReportListResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -364,6 +367,9 @@ import {
   type RestorePurchasesResponse,
   type BillingEventIngestRequest,
   type BillingEventIngestResponse,
+  type CreateFeedbackReportRequest,
+  type FeedbackReportResponse,
+  type FeedbackReportListResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -413,7 +419,7 @@ export class DaynoriApiClient {
     this.tokenResolver = options.token;
     this.csrfTokenResolver = options.csrfToken;
     this.headersResolver = options.headers;
-    this.fetch = options.fetchFn ?? globalThis.fetch;
+    this.fetch = options.fetchFn ?? globalThis.fetch.bind(globalThis);
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? 10_000;
   }
 
@@ -3006,7 +3012,10 @@ export class DaynoriApiClient {
     workspaceId: string,
     linkedFileId: string,
     options?: RequestOptions
-  ): Promise<{ data: { success: boolean; remoteOriginalDeleted: boolean }; meta: { requestId: string } }> {
+  ): Promise<{
+    data: { success: boolean; remoteOriginalDeleted: boolean };
+    meta: { requestId: string };
+  }> {
     return this.request(
       `/v1/workspaces/${workspaceId}/drive/files/${linkedFileId}`,
       { method: 'DELETE' },
@@ -3137,11 +3146,7 @@ export class DaynoriApiClient {
     userId: string,
     options?: RequestOptions
   ): Promise<{ data: { removed: boolean }; meta: { requestId: string } }> {
-    return this.request(
-      `/v1/rooms/${roomId}/members/${userId}`,
-      { method: 'DELETE' },
-      options
-    );
+    return this.request(`/v1/rooms/${roomId}/members/${userId}`, { method: 'DELETE' }, options);
   }
 
   async leaveRoom(
@@ -3363,10 +3368,7 @@ export class DaynoriApiClient {
     return UserBlockListResponseSchema.parse(raw);
   }
 
-  async blockUser(
-    request: BlockUserRequest,
-    options?: RequestOptions
-  ): Promise<UserBlockResponse> {
+  async blockUser(request: BlockUserRequest, options?: RequestOptions): Promise<UserBlockResponse> {
     const raw = await this.request<unknown>(
       `/v1/safety/blocks`,
       { method: 'POST', body: JSON.stringify(request) },
@@ -3461,7 +3463,11 @@ export class DaynoriApiClient {
   }
 
   async purgeAiDerived(options?: RequestOptions): Promise<AiPurgeResponse> {
-    const raw = await this.request<unknown>(`/v1/ai/purge`, { method: 'POST', body: '{}' }, options);
+    const raw = await this.request<unknown>(
+      `/v1/ai/purge`,
+      { method: 'POST', body: '{}' },
+      options
+    );
     return AiPurgeResponseSchema.parse(raw);
   }
 
@@ -3488,10 +3494,7 @@ export class DaynoriApiClient {
     return AiAssistantHistoryResponseSchema.parse(raw);
   }
 
-  async saveAssistantDraft(
-    request: SaveAiDraftRequest,
-    options?: RequestOptions
-  ): Promise<void> {
+  async saveAssistantDraft(request: SaveAiDraftRequest, options?: RequestOptions): Promise<void> {
     await this.request<unknown>(
       `/v1/ai/assistant/draft`,
       { method: 'POST', body: JSON.stringify(request) },
@@ -3511,10 +3514,7 @@ export class DaynoriApiClient {
     return AiAssistantDraftResponseSchema.parse(raw);
   }
 
-  async clearAssistantDraft(
-    request: ClearAiDraftRequest,
-    options?: RequestOptions
-  ): Promise<void> {
+  async clearAssistantDraft(request: ClearAiDraftRequest, options?: RequestOptions): Promise<void> {
     await this.request<unknown>(
       `/v1/ai/assistant/draft/clear`,
       { method: 'POST', body: JSON.stringify(request) },
@@ -3629,6 +3629,47 @@ export class DaynoriApiClient {
       options
     );
     return BillingEventIngestResponseSchema.parse(raw);
+  }
+
+  // --- Phase 82: Durable feedback, bug, and contact submissions ---
+
+  async createFeedbackReport(
+    workspaceId: string,
+    request: CreateFeedbackReportRequest,
+    options?: RequestOptions
+  ): Promise<FeedbackReportResponse> {
+    const validated = CreateFeedbackReportRequestSchema.parse(request);
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/feedback/reports`,
+      { method: 'POST', body: JSON.stringify(validated) },
+      options
+    );
+    return FeedbackReportResponseSchema.parse(raw);
+  }
+
+  async listFeedbackReports(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<FeedbackReportListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/feedback/reports`,
+      { method: 'GET' },
+      options
+    );
+    return FeedbackReportListResponseSchema.parse(raw);
+  }
+
+  async getFeedbackReport(
+    workspaceId: string,
+    reportId: string,
+    options?: RequestOptions
+  ): Promise<FeedbackReportResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/feedback/reports/${encodeURIComponent(reportId)}`,
+      { method: 'GET' },
+      options
+    );
+    return FeedbackReportResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

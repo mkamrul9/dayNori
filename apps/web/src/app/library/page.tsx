@@ -1,7 +1,9 @@
 'use client';
+import { confirmTourRecordLoaded } from '../../tours/recordNavigation';
 
 import { Icon } from '@daynori/ui-web';
 import { isCorePreview } from '../../config/preview';
+import { useTourOptional } from '../../tours/TourContext';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
@@ -46,6 +48,7 @@ import {
 import type { DaynoriApiClient } from '@daynori/api-client';
 import type { ItemHeaderRecord, SyncEngine, FileRecord, ConflictRecord } from '@daynori/sync';
 import { useShell } from '../../components/ShellContext';
+import { ContextualHelpLink } from '../../components/ContextualHelpLink';
 import { useAuth } from '../../components/AuthContext';
 import { createWebApiClient } from '../../data/webApiClient';
 import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../../data/indexedDbRepository';
@@ -91,6 +94,7 @@ export type LibraryTypeFilter = 'all' | 'notes' | 'knowledge' | 'files' | 'tasks
 const ITEMS_PER_PAGE = 10;
 
 export default function LibraryPage() {
+  const tour = useTourOptional();
   const liveRegionId = useId();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
@@ -222,7 +226,7 @@ export default function LibraryPage() {
       if (syncEngineRef.current) {
         syncEngineRef.current.setNetworkStatus('online');
       } else {
-        setCloudSyncStatus('Synced');
+        setCloudSyncStatus('Synchronized');
       }
       announce('Network connected. Changes syncing.');
     };
@@ -299,7 +303,7 @@ export default function LibraryPage() {
             return;
           }
           localRepoRef.current = repo;
-          setLocalSaveStatus('Saved on device');
+          setLocalSaveStatus('Saved on this device');
 
           // Initialize sync engine
           const engine = createWebSyncEngine({
@@ -315,22 +319,22 @@ export default function LibraryPage() {
             if (evt.type === 'state_changed') {
               switch (evt.status) {
                 case 'synced':
-                  setCloudSyncStatus('Synced');
+                  setCloudSyncStatus('Synchronized');
                   break;
                 case 'syncing':
-                  setCloudSyncStatus('Syncing changes...');
+                  setCloudSyncStatus('Waiting to sync');
                   break;
                 case 'saved_locally':
-                  setCloudSyncStatus('Offline — saved locally');
+                  setCloudSyncStatus('Offline ? saved locally');
                   break;
                 case 'conflict':
                   setCloudSyncStatus('Conflict detected');
                   break;
                 case 'error':
-                  setCloudSyncStatus('Sync error');
+                  setCloudSyncStatus('Failed ? retry');
                   break;
                 default:
-                  setCloudSyncStatus('Synced');
+                  setCloudSyncStatus('Synchronized');
               }
             } else if (evt.type === 'conflict_detected') {
               setConflictMessage(evt.conflict.conflictReason);
@@ -401,7 +405,7 @@ export default function LibraryPage() {
                     rank: '00001000',
                     scope: 'workspace',
                     revision: Number(f.version) || 1,
-                    metadata: `${formatByteSize(f.byteSize)} • ${f.quarantineStatus}`,
+                    metadata: `${formatByteSize(f.byteSize)} ? ${f.quarantineStatus}`,
                   });
                 }
               }
@@ -436,7 +440,7 @@ export default function LibraryPage() {
 
             setFolders(loadedFolders);
             setItems(loadedItems);
-            setCloudSyncStatus('Synced');
+            setCloudSyncStatus('Synchronized');
           }
         } catch {
           if (!isCancelled) {
@@ -466,7 +470,7 @@ export default function LibraryPage() {
               trashedAt: f.deletedAt ?? null,
             }));
             setFolders(loaded);
-            setCloudSyncStatus('Synced');
+            setCloudSyncStatus('Synchronized');
           }
 
           const usageRes = await client.getWorkspaceStorageQuota(workspaceId!);
@@ -726,7 +730,7 @@ export default function LibraryPage() {
 
     const siblings = folders.filter((f) => f.parentId === createParentId && !f.trashedAt);
     const newRank = generateInitialRank(siblings.length);
-    const newId = generateUuid();
+    const newId = tour?.getPracticeCreationId('folder') ?? generateUuid();
     const now = new Date().toISOString();
 
     const newFolder: FolderNode = {
@@ -767,14 +771,14 @@ export default function LibraryPage() {
     try {
       if (syncEngineRef.current) {
         await syncEngineRef.current.saveItem(header, undefined, 'createFolder');
-        setLocalSaveStatus('Saved on device');
+        setLocalSaveStatus('Saved on this device');
         if (isOnline) {
-          setCloudSyncStatus('Syncing...');
+          setCloudSyncStatus('Waiting to sync');
           await syncEngineRef.current.syncNow();
-          setCloudSyncStatus('Synced');
+          setCloudSyncStatus('Synchronized');
         }
       } else if (apiClientRef.current && workspaceId) {
-        setCloudSyncStatus('Syncing...');
+        setCloudSyncStatus('Waiting to sync');
         await apiClientRef.current.createFolder(
           workspaceId,
           {
@@ -788,10 +792,10 @@ export default function LibraryPage() {
           },
           { headers: { 'x-operation-id': generateUuid() } }
         );
-        setCloudSyncStatus('Synced');
+        setCloudSyncStatus('Synchronized');
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed ? retry');
     }
   };
 
@@ -860,7 +864,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed ? retry');
     }
 
     // Reversible Undo Toast
@@ -990,7 +994,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed ? retry');
     }
 
     // Reversible Undo Toast
@@ -1100,7 +1104,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed ? retry');
     }
   };
 
@@ -1157,7 +1161,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed ? retry');
     }
   };
 
@@ -1257,7 +1261,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Sync failed');
+      setCloudSyncStatus('Failed ? retry');
     }
 
     // Reversible Undo Toast
@@ -1304,7 +1308,7 @@ export default function LibraryPage() {
 
   // Note Editor Handlers
   const handleOpenNewNote = useCallback(() => {
-    const newId = generateUuid();
+    const newId = tour?.getPracticeCreationId('note') ?? generateUuid();
     setEditingNote({
       id: newId,
       title: '',
@@ -1314,7 +1318,7 @@ export default function LibraryPage() {
       conflict: null,
     });
     announce('Opened new note editor');
-  }, [currentFolderId, announce]);
+  }, [currentFolderId, announce, tour]);
 
   const handleOpenNewPresetNote = useCallback(
     (preset: 'guide' | 'cheatsheet') => {
@@ -1444,6 +1448,7 @@ export default function LibraryPage() {
 
   const handleOpenItem = useCallback(
     async (item: LibraryItemRecord) => {
+      const report = tour?.captureEvidence(item.id);
       if (item.kind === 'note' || item.kind === 'knowledge') {
         let doc: NoteDocument | undefined;
         let conflictInfo: {
@@ -1496,6 +1501,21 @@ export default function LibraryPage() {
           conflict: conflictInfo,
         });
         announce(`Opened note ${item.title}`);
+        if (doc) {
+          void report?.({
+            type: 'entity_opened',
+            entityId: item.id,
+            entityType: 'note',
+            recordLoaded: true,
+          });
+          if (user?.id && workspaceId)
+            void confirmTourRecordLoaded({
+              accountUserId: user.id,
+              workspaceId,
+              entityId: item.id,
+              entityType: 'note',
+            });
+        }
       } else if (item.kind === 'file') {
         const f = filesMap[item.id];
         let isOffline = false;
@@ -1531,7 +1551,7 @@ export default function LibraryPage() {
         announce(`Opened preview for ${item.title}`);
       }
     },
-    [workspaceId, announce, filesMap, user, folders]
+    [workspaceId, announce, filesMap, user, folders, tour]
   );
 
   const refreshFilesAndUsage = useCallback(async () => {
@@ -1743,7 +1763,7 @@ export default function LibraryPage() {
           rank: generateInitialRank(items.length),
           scope: 'workspace',
           revision: 1,
-          metadata: `${formatByteSize(rec.byteSize)} • ${status}`,
+          metadata: `${formatByteSize(rec.byteSize)} ? ${status}`,
         };
         setItems((prev) => [newItem, ...prev.filter((i) => i.id !== rec.fileId)]);
         void refreshFilesAndUsage();
@@ -1933,7 +1953,7 @@ export default function LibraryPage() {
               },
             }
           );
-          setLocalSaveStatus('Saved on device');
+          setLocalSaveStatus('Saved on this device');
           setEditingNote((prev) =>
             prev
               ? {
@@ -1966,7 +1986,7 @@ export default function LibraryPage() {
             updatedAt: now,
             deletedAt: null,
           });
-          setLocalSaveStatus('Saved on device');
+          setLocalSaveStatus('Saved on this device');
           setEditingNote((prev) =>
             prev
               ? {
@@ -1991,7 +2011,7 @@ export default function LibraryPage() {
               rank: header.rank,
               scope: 'workspace',
               revision: prevRev || 1,
-              metadata: itemKind === 'knowledge' ? 'Knowledge • Just now' : 'Note • Just now',
+              metadata: itemKind === 'knowledge' ? 'Knowledge ? Just now' : 'Note ? Just now',
             },
             ...prev,
           ]);
@@ -2153,6 +2173,14 @@ export default function LibraryPage() {
     const folderId = params.get('folderId');
     if (folderId) {
       setCurrentFolderId(folderId);
+      const loaded = folders.find((folder) => folder.id === folderId && !folder.trashedAt);
+      if (loaded && user?.id && workspaceId)
+        void confirmTourRecordLoaded({
+          accountUserId: user.id,
+          workspaceId,
+          entityId: loaded.id,
+          entityType: 'folder',
+        });
     }
 
     const noteId = params.get('noteId');
@@ -2323,7 +2351,7 @@ export default function LibraryPage() {
               margin: '4px 0 0 0',
             }}
           >
-            Notes, folders, and saved items — search or write a note to begin
+            Notes, folders, and saved items ? search or write a note to begin
           </p>
         </div>
 
@@ -2418,6 +2446,7 @@ export default function LibraryPage() {
             >
               <Icon name="arrow-left" /> Back to Library
             </Button>
+            <ContextualHelpLink articleId="help.notes-and-library" label="Writing Help" />
             <Button
               variant="primary"
               onClick={() => {
@@ -2522,7 +2551,7 @@ export default function LibraryPage() {
           >
             <input
               type="search"
-              placeholder="Search notes and folders…"
+              placeholder="Search notes and folders?"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -2543,13 +2572,19 @@ export default function LibraryPage() {
                 boxSizing: 'border-box',
               }}
             />
-            <Button variant="primary" onClick={handleOpenNewNote} aria-label="Write a new note">
+            <Button
+              variant="primary"
+              onClick={handleOpenNewNote}
+              aria-label="Write a new note"
+              data-tour-target={!editingNote ? 'create.note.save' : undefined}
+            >
               <Icon name="plus" /> Write note
             </Button>
             <Button
               variant="secondary"
               onClick={() => handleOpenCreateModal(currentFolderId)}
               aria-label="Create new folder"
+              data-tour-target={!isCreateModalOpen ? 'library.folder.create' : undefined}
             >
               New folder
             </Button>
@@ -2558,6 +2593,15 @@ export default function LibraryPage() {
               aria-expanded={libraryToolsOpen}
               aria-controls="library-more-tools"
               onClick={() => setLibraryToolsOpen((v) => !v)}
+              data-tour-target={
+                !libraryToolsOpen &&
+                typeFilter === 'all' &&
+                !activeSavedViewId &&
+                !showArchived &&
+                !searchQuery.trim()
+                  ? 'library.filter'
+                  : undefined
+              }
             >
               {libraryToolsOpen ? 'Hide tools' : 'More tools'}
             </Button>
@@ -2578,7 +2622,7 @@ export default function LibraryPage() {
                 className="daynori-break"
                 style={{ fontSize: 12, color: palette.text.secondary, fontWeight: 600 }}
               >
-                Active filters
+                Active filters (view only ? does not move items)
                 {typeFilter !== 'all' ? ` · ${typeFilter}` : ''}
                 {searchQuery.trim() ? ' · search' : ''}
                 {activeSavedViewId ? ' · saved view' : ''}
@@ -2587,17 +2631,30 @@ export default function LibraryPage() {
               <Button
                 variant="subtle"
                 size="compact"
+                data-tour-target="library.filter"
                 onClick={() => {
+                  const report = tour?.captureEvidence();
                   setTypeFilter('all');
                   setSearchQuery('');
                   setActiveSavedViewId(null);
                   setShowArchived(false);
                   setPage(1);
-                  announce('Filters cleared');
+                  announce('Filters cleared. Folder ownership unchanged.');
+                  requestAnimationFrame(() => {
+                    void report?.({
+                      type: 'filter_changed',
+                      filterId: 'library',
+                      filterCleared: true,
+                    });
+                  });
                 }}
               >
                 Clear filters
               </Button>
+              <ContextualHelpLink
+                articleId="help.notes-and-library"
+                label="Folders & filters Help"
+              />
             </div>
           )}
 
@@ -2619,6 +2676,11 @@ export default function LibraryPage() {
               <div
                 role="tablist"
                 aria-label="Filter by type"
+                data-tour-target={
+                  typeFilter === 'all' && !activeSavedViewId && !showArchived && !searchQuery.trim()
+                    ? 'library.filter'
+                    : undefined
+                }
                 style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
               >
                 {(
@@ -2638,9 +2700,22 @@ export default function LibraryPage() {
                       role="tab"
                       aria-selected={isSelected}
                       onClick={() => {
+                        const report = tour?.captureEvidence();
+                        const wasFiltered =
+                          typeFilter !== 'all' ||
+                          Boolean(activeSavedViewId) ||
+                          showArchived ||
+                          Boolean(searchQuery.trim());
                         setTypeFilter(tab.key);
                         setPage(1);
                         announce(`Showing ${tab.label}`);
+                        requestAnimationFrame(() => {
+                          void report?.({
+                            type: 'filter_changed',
+                            filterId: 'library',
+                            filterCleared: wasFiltered && tab.key === 'all',
+                          });
+                        });
                       }}
                       style={{
                         minHeight: touchTargets.webMin,
@@ -2898,7 +2973,7 @@ export default function LibraryPage() {
                             }}
                           >
                             {count} {count === 1 ? 'item' : 'items'}
-                            {f.archivedAt && ' • Archived'}
+                            {f.archivedAt && ' ? Archived'}
                           </div>
                         </div>
                       </button>
@@ -3020,7 +3095,9 @@ export default function LibraryPage() {
                     ? 'Nothing matches these filters. Clear filters or write a new note.'
                     : 'Write a note or create a folder to get started.'
                 }
-                actionLabel={searchQuery.trim() || typeFilter !== 'all' ? 'Clear filters' : 'Write note'}
+                actionLabel={
+                  searchQuery.trim() || typeFilter !== 'all' ? 'Clear filters' : 'Write note'
+                }
                 onAction={
                   searchQuery.trim() || typeFilter !== 'all'
                     ? () => {
@@ -3042,6 +3119,7 @@ export default function LibraryPage() {
                   <div
                     key={item.id}
                     role="listitem"
+                    data-tour-target={item.kind === 'note' ? 'library.note.practice' : undefined}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -3315,7 +3393,11 @@ export default function LibraryPage() {
             <Button variant="subtle" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleConfirmCreate}>
+            <Button
+              variant="primary"
+              onClick={handleConfirmCreate}
+              data-tour-target="library.folder.create"
+            >
               Create Folder
             </Button>
           </div>
@@ -3476,6 +3558,7 @@ export default function LibraryPage() {
         onClose={() => setAudioRecorderOpen(false)}
         themeMode={themeMode}
         workspaceId={workspaceId || ''}
+        accountId={user?.id}
         attachedItemTitle={currentFolder ? currentFolder.name : 'Workspace Root'}
         attachedItemType="file"
         onSaveAudio={handleSaveRecordedAudio}

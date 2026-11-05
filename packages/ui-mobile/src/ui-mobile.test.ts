@@ -19,6 +19,8 @@ import {
   MobileFilePreviewSheet,
   MobileAudioPlayerCard,
   MobileAudioRecorderSheet,
+  keyboardAvoidingBehavior,
+  readAndroidInsets,
 } from './index.js';
 
 describe('UI Mobile Primitives', () => {
@@ -97,7 +99,7 @@ describe('UI Mobile Primitives', () => {
     const editor = React.createElement(MobileNoteEditor, {
       initialTitle: 'Mobile Meeting Notes',
       initialFolderId: 'folder-123',
-      localSaveStatus: 'Saved locally',
+      localSaveStatus: 'Saved on this device',
       cloudSyncStatus: 'Syncing...',
       conflict: {
         serverRevision: 4,
@@ -292,5 +294,24 @@ describe('UI Mobile Primitives', () => {
     expect(renderer.type).toBe(MobileCustomSectionRenderer);
     expect(renderer.props.section.title).toBe('Mobile Reading List');
     expect(renderer.props.records?.length).toBe(1);
+  });
+});
+
+describe('Phase 71 Android inset / keyboard helpers', () => {
+  it('exports keyboardAvoidingBehavior and readAndroidInsets contracts', () => {
+    expect(typeof keyboardAvoidingBehavior()).toBe('string');
+    const snap = readAndroidInsets(240);
+    expect(snap.keyboardHeight).toBe(240);
+    expect(snap.bottomChromePad).toBeGreaterThanOrEqual(0);
+    expect(typeof snap.statusBarHeight).toBe('number');
+  });
+
+  it('exports androidStatusBarTopPad for edge-to-edge header clearance', async () => {
+    const { androidStatusBarTopPad } = await import('./androidInsets.js');
+    expect(typeof androidStatusBarTopPad()).toBe('number');
+    expect(androidStatusBarTopPad()).toBeGreaterThanOrEqual(0);
+    // Explicit measured inset wins; zero/omitted falls back to StatusBar + 48dp density floor.
+    expect(androidStatusBarTopPad(48)).toBe(48);
+    expect(androidStatusBarTopPad(0)).toBe(androidStatusBarTopPad());
   });
 });

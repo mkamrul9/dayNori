@@ -24,6 +24,9 @@ export interface ExpenseCaptureDialogProps {
   }) => Promise<void> | void;
   categories: Array<{ id: string; name: string; color?: string | null }>;
   availableReceipts?: Array<{ id: string; fileName: string }>;
+  /** When false, receipt picker is hidden and an honest unavailable message is shown. */
+  receiptsEnabled?: boolean;
+  receiptsUnavailableMessage?: string;
   availableOriginalExpenses?: Array<{
     id: string;
     amountFormatted?: string;
@@ -64,12 +67,15 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
   onSubmit,
   categories,
   availableReceipts = [],
+  receiptsEnabled = true,
+  receiptsUnavailableMessage = 'Receipt attachment is unavailable in this environment. You can still save the transaction without a receipt.',
   availableOriginalExpenses = [],
   initialValues,
   mode = 'create',
 }) => {
   const titleId = useId();
   const descId = useId();
+  const detailsId = useId();
 
   const [kind, setKind] = useState<'expense' | 'income' | 'refund'>(
     initialValues?.kind || 'expense'
@@ -96,6 +102,7 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
     null
   );
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -413,127 +420,160 @@ export const ExpenseCaptureDialog: React.FC<ExpenseCaptureDialogProps> = ({
             </div>
           )}
 
-          {/* Category & Date */}
-          <div style={{ display: 'flex', gap: spacing.sm }}>
-            <div style={{ flex: 1 }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: typography.webScale.supporting,
-                  fontWeight: '500',
-                  marginBottom: spacing.xs,
-                  color: palette.text.primary,
-                }}
-              >
-                Category
-              </label>
-              <select
-                value={categoryId || ''}
-                onChange={(e) => setCategoryId(e.target.value || null)}
-                disabled={kind === 'refund' && Boolean(originalExpenseId)}
-                style={{
-                  width: '100%',
-                  padding: `${spacing.sm}px ${spacing.md}px`,
-                  borderRadius: radii.sm,
-                  border: '1px solid #CBD5E1',
-                  backgroundColor:
-                    kind === 'refund' && Boolean(originalExpenseId) ? '#F1F5F9' : '#FFFFFF',
-                  color: palette.text.primary,
-                  height: touchTargets.webMin,
-                  fontSize: typography.webScale.body,
-                }}
-              >
-                <option value="">(Uncategorized)</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <TextField
+            label="Date"
+            name="transactionDate"
+            type="date"
+            value={transactionDate}
+            onChange={(e) => setTransactionDate(e.target.value)}
+            required
+          />
 
-            <div style={{ flex: 1 }}>
-              <TextField
-                label="Date"
-                name="transactionDate"
-                type="date"
-                value={transactionDate}
-                onChange={(e) => setTransactionDate(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Payment Label & Timezone */}
-          <div style={{ display: 'flex', gap: spacing.sm }}>
-            <div style={{ flex: 2 }}>
-              <TextField
-                label="Payment Label / Method"
-                name="paymentLabel"
-                value={paymentLabel}
-                onChange={(e) => setPaymentLabel(e.target.value)}
-                placeholder="e.g. Credit Card, Cash, bKash"
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <TextField
-                label="Timezone"
-                name="timezone"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                placeholder="UTC"
-              />
-            </div>
-          </div>
-
-          {/* Note */}
-          <div>
-            <TextField
-              label="Note / Description"
-              name="note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. Grocery shopping at Agora, Client lunch"
-            />
-          </div>
-
-          {/* Receipt Attachment Selector */}
-          {availableReceipts.length > 0 && (
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: typography.webScale.supporting,
-                  fontWeight: '500',
-                  marginBottom: spacing.xs,
-                  color: palette.text.primary,
-                }}
-              >
-                Attach Receipt File
-              </label>
-              <select
-                value={receiptFileId || ''}
-                onChange={(e) => setReceiptFileId(e.target.value || null)}
-                style={{
-                  width: '100%',
-                  padding: `${spacing.sm}px ${spacing.md}px`,
-                  borderRadius: radii.sm,
-                  border: '1px solid #CBD5E1',
-                  backgroundColor: '#FFFFFF',
-                  color: palette.text.primary,
-                  height: touchTargets.webMin,
-                  fontSize: typography.webScale.supporting,
-                }}
-              >
-                <option value="">(No Receipt Attached)</option>
-                {availableReceipts.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.fileName}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {!receiptsEnabled && (
+            <Feedback severity="info" message={receiptsUnavailableMessage} />
           )}
+
+          <div>
+            <button
+              type="button"
+              id={detailsId}
+              aria-expanded={detailsOpen}
+              aria-controls={`${detailsId}-panel`}
+              onClick={() => setDetailsOpen((open) => !open)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                color: palette.action.primary,
+                fontWeight: 600,
+                fontSize: typography.webScale.supporting,
+                cursor: 'pointer',
+                minHeight: touchTargets.webMin,
+              }}
+            >
+              {detailsOpen ? 'Hide details' : 'Details'} — category, note, receipt, payment
+            </button>
+            {detailsOpen && (
+              <div
+                id={`${detailsId}-panel`}
+                role="region"
+                aria-labelledby={detailsId}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: spacing.md,
+                  marginTop: spacing.sm,
+                  paddingTop: spacing.sm,
+                  borderTop: '1px solid #E2E8F0',
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: typography.webScale.supporting,
+                      fontWeight: '500',
+                      marginBottom: spacing.xs,
+                      color: palette.text.primary,
+                    }}
+                  >
+                    Category
+                  </label>
+                  <select
+                    value={categoryId || ''}
+                    onChange={(e) => setCategoryId(e.target.value || null)}
+                    disabled={kind === 'refund' && Boolean(originalExpenseId)}
+                    style={{
+                      width: '100%',
+                      padding: `${spacing.sm}px ${spacing.md}px`,
+                      borderRadius: radii.sm,
+                      border: '1px solid #CBD5E1',
+                      backgroundColor:
+                        kind === 'refund' && Boolean(originalExpenseId) ? '#F1F5F9' : '#FFFFFF',
+                      color: palette.text.primary,
+                      height: touchTargets.webMin,
+                      fontSize: typography.webScale.body,
+                    }}
+                  >
+                    <option value="">(Uncategorized)</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: spacing.sm }}>
+                  <div style={{ flex: 2 }}>
+                    <TextField
+                      label="Payment Label / Method"
+                      name="paymentLabel"
+                      value={paymentLabel}
+                      onChange={(e) => setPaymentLabel(e.target.value)}
+                      placeholder="e.g. Credit Card, Cash, bKash"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <TextField
+                      label="Timezone"
+                      name="timezone"
+                      value={timezone}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      placeholder="UTC"
+                    />
+                  </div>
+                </div>
+
+                <TextField
+                  label="Note / Description"
+                  name="note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="e.g. Grocery shopping at Agora, Client lunch"
+                />
+
+                {receiptsEnabled && availableReceipts.length > 0 ? (
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: typography.webScale.supporting,
+                        fontWeight: '500',
+                        marginBottom: spacing.xs,
+                        color: palette.text.primary,
+                      }}
+                    >
+                      Attach Receipt File
+                    </label>
+                    <select
+                      value={receiptFileId || ''}
+                      onChange={(e) => setReceiptFileId(e.target.value || null)}
+                      style={{
+                        width: '100%',
+                        padding: `${spacing.sm}px ${spacing.md}px`,
+                        borderRadius: radii.sm,
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        color: palette.text.primary,
+                        height: touchTargets.webMin,
+                        fontSize: typography.webScale.supporting,
+                      }}
+                    >
+                      <option value="">(No Receipt Attached)</option>
+                      {availableReceipts.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.fileName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : receiptsEnabled ? (
+                  <Feedback severity="info" message={receiptsUnavailableMessage} />
+                ) : null}
+              </div>
+            )}
+          </div>
 
           {/* Actions */}
           <div

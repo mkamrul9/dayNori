@@ -1,5 +1,141 @@
 # Changelog
 
+## Phase 82 — Durable bug, suggestion, and contact submissions — 2026-11-05
+
+- ADR 0082: first-party durable feedback intake with PostgreSQL Row-Level Security, unique client report IDs for idempotency and replay safety, account/workspace-scoped draft quarantine, opt-in reviewable redacted technical diagnostics, truthful unconfigured delivery notices, and background worker delivery jobs.
+- Shared contracts and pure domain: `@daynori/contracts` schemas and `@daynori/domain/feedback` sanitizers stripping tokens, passwords, cookies, journal entries, prompts, and audio.
+- Web UI (`apps/web/src/app/support/page.tsx`): Bug, Suggestion, and Contact forms with scoped auto-save drafts, reviewable diagnostics toggle, Phase 75 attachment capability notice, and durable server receipt card (`feedback-receipt-card`).
+- Native Mobile UI (`apps/mobile/src/views/SupportFeedbackView.tsx`): integrated in `Settings -> Help and feedback -> Feedback & Support` with segmented type control, category chips, diagnostics switch, and server receipt card.
+- Fresh embedded x86_64 debug APK built (`artifacts/local/phase82/phase82-embedded-x86_64.apk`, SHA-256 `8825480553d0fdd10b2d1b21409dd93bc7346901713d82ca1dc013d51a9e1c8d`), installed and verified on Android emulator `emulator-5554` (API 35).
+- Executed and verified real UI journeys across desktop web (1440x900 bug report), narrow PWA (390x844 suggestion report), desktop contact (1440x900), and native Android emulator (`artifacts/phase82/evidence-summary.json`).
+- Commit: `feat(feedback): add durable private bug and suggestion reports`.
+
+## Phase 80 — Everyday guided practice chapters — 2026-11-05
+
+- Fresh native debug APK built with verified current-source JS bundle provenance (SHA-256 `17e66a5a2e86c4aab5cd6632b1bec8c10947ab676de334080c520841284875b2`, 1013 bundled modules). Verified standalone launch on Android emulator `emulator-5554` without Metro.
+- Executed and recorded genuine real-control UI journeys across all 14 `PHASE80_JOURNEYS` for desktopWeb (1440x900), narrowPwa (390x844), and nativeAndroid emulator, capturing canonical record IDs, durable operation receipts, screenshots, and XML dumps (`artifacts/phase80/manual-ui-evidence.json`).
+- Automated tests pass (Phase 80 everyday tours, recovery/safety, Phase 79 engine regressions, Phase 78 Help catalog/return context, domain/contracts builds, mobile/web typechecks).
+- Physical Android phone and human spoken screen-reader reviews honestly marked unmet; required evidence mode correctly exits nonzero; Phase 80 remains blocked in roadmap progress pending physical device verification.
+- Commit: `fix(tours): complete everyday chapter wiring and UI verification`.
+
+## Phase 80 — Everyday guided practice chapters (blocked on UI evidence) — 2026-10-27
+
+- ADR 0080: extend Phase 79 engine with everyday chapters (navigation, personalization, tasks, routines, calendar, notes, journal, folders/search, Help return), practice provenance, selective cleanup, stronger open/save predicates.
+- Help Learn marks everyday chapters runnable; Phase 81/gated topics stay honest. Function-register tour mappings updated for core everyday families.
+- Required UI journey attestation still unmet (`scripts/phase80-tour-evidence.mjs --required`). Phase 80 remains blocked — not release-ready.
+- Commit: `feat(tours): teach everyday workflows through real actions`.
+
+## Phase 79 — Action-verified resumable tour engine — 2026-10-27
+
+- ADR 0079: shared versioned tour definitions/state machine, durable scoped `preferences.tourProgress`, action/result correlation, web + native adapters, safe V1 migration, one proof chapter (`tour.task-create-save`).
+- Help Learn the app marks only the verified proof chapter `runnable`; Next cannot fake action steps; practice IDs deterministic and non-duplicating on replay.
+- Evidence: `tests/unit/phase79-tour-engine.test.ts`, Phase 78 Help regressions, `scripts/phase79-tour-evidence.mjs --required`. Progress scheduling text reconciled with completed Phase 77.
+- Commit: `feat(tours): add action-verified resumable guidance`.
+
+## Phase 77 acceptance — Installed PWA and native cold recovery — 2026-10-27
+
+- Prove installed production-PWA cold offline reopen (isolated Edge profile, process kill, connectivity disabled before reopen) and Metro-free native emulator cold launch with embedded x86_64 APK.
+- Product repairs: SW navigate fallback inlines offline-shell JS; durable `offline_boot.trustedDeviceConsent`; evidence helpers required-mode nonzero exits (fixture ≠ acceptance; attestation env ignored).
+- DEF-V2-003 closed for local installed-PWA + emulator native; Phase 77 marked complete. Phase 78 scheduling preserved; Phase 79 not started.
+- Commit: `test(offline): prove installed PWA and native cold recovery`.
+
+## Phase 78 — Complete contextual Help and user instructions — 2026-10-27
+
+- ADR 0078: Phase 78 hard dependsOn 73+74+76; Phases 75 and 77 referenced only (not waived). Phase 77 progress reconciled to blocked (installed-PWA/native cold launch unmet; `a4fb4cc` retained).
+- Shared versioned Help catalog in `@daynori/domain` with full function-register action coverage, instructional search, Learn-the-app chapter states, and public essential offline JSON (`help-essential.json` / SW v9).
+- Web Help rebuilt (search, categories, articles, deep links, contextual links without losing drafts); native Help catalog from Settings with Back handling.
+- Commit: `feat(help): add complete contextual instructions and learning catalog`.
+
+## Phase 77 — Safe offline reopen, sync, and upgrade recovery — 2026-10-27
+
+- ADR 0077: trusted-device offline boot/session boundaries; public executable shell; local unlock ≠ API auth; supersedes ADR 0066 cold-organizer claim while retaining private-cache and safe-update rules.
+- Service worker `daynori-static-v8` precaches `/offline-shell.html` + `/offline-shell.js`; navigate fallback prefers the shell then `offline.html`; required-asset install failures keep the prior worker.
+- IndexedDB v9: durable `offline_boot` + `auth_quarantine`; web sign-out quarantines drafts; native `DraftQuarantineManager` persists via SecureStore across process restart.
+- Cold Edge CDP drill proves local organizer reopen offline with zero forbidden Cache Storage entries; native installed cold launch remains unmet without device attestation.
+- Commit: `feat(offline): preserve organizer access and upgrade recovery`.
+
+## Phase 76 — Expenses and safe custom sections completion — 2026-10-27
+
+- ADR 0076: Phase 76 proceeds with hard prerequisites 73+74; Phase 75 stays blocked with real attachment evidence outstanding; receipt/section attachment UI stays capability-gated (no file/audio waiver). Phase 71 TalkBack remains blocked (ADR 0074).
+- Expense capture required-fields-first with Details for optional category/note/receipt/payment (web + native); honest receipt-unavailable messaging under core preview.
+- Custom section entry attachments no longer fabricate local-only file names; builder reorder announces via aria-live; Help how-tos for expenses and custom sections.
+- Commit: `feat(extensions): finish expenses and approved custom sections`.
+
+## Phase 75 — Files and audio attachment readiness (blocked) — 2026-10-27
+
+- Harden private file/audio readiness: account-scoped web audio drafts + logout clear; Expo/mobile unsaved-recording preservation (`peekLastRecording`); non-production local memory storage and policy-scanner opt-ins (ADR 0075); Help upload/audio how-tos; `.env.example` storage/scanner placeholders.
+- Reconfirm cancel/retry/quota/delete and audio attachment local suites; function-register local readiness updated. Hosted preview uploads/audio stay off (DEF-V2-002).
+- Phase 75 remains **blocked** pending physical Android and nominated-browser capture evidence; completion commit deferred. Phase 71 TalkBack still blocked.
+
+## Phase 74 — Library writing journal and search completion — 2026-10-27
+
+- Standing ADR 0074: Phase 71 unfinished verification no longer blocks later phases; completed phases commit and push to `origin/codex/free-core-preview` without force. Plan edges for 74/85/86/88/89/92/96 updated accordingly.
+- Canonical note save/sync vocabulary (Unsaved / Saved on this device / Waiting to sync / Synchronized / Failed — retry); library filter scope copy; mobile search honors journal preview privacy preference; Help updated.
+- Commit: `feat(content): complete focused writing and library workflows`.
+
+## Phase 73 — Tasks routines and calendar workflow completion — 2026-10-27
+
+- Required-fields-first task/routine editors (web + native Plan): title/deadline or schedule first; optional notes/priority/folder/tags/subtasks under Details.
+- Fix canonical calendar deep links (`taskId` / `routineId`) so projections open the same task or routine; Help and function-register calendar family updated.
+- Reconfirm no tomorrow copies on task completion and independent routine occurrences (domain + API journeys). Phase 71 TalkBack remains blocked. Commit: `feat(planning): complete clear task routine and calendar journeys`.
+
+## Phase 72 — Welcome startup onboarding and authentication polish — 2026-10-27
+
+- Polish web/native auth copy and failure classification so outages/rate limits do not impersonate invalid credentials; keep sign-in distinct from workspace readiness with retry that preserves the session.
+- Fix AccountSheet provision abort after password sign-in (`sessionGeneration` race), Autofill cross-account clobber on Android fields, and FirstLoginOnboardingGate false-open when preference fetch fails.
+- Prove ordinary Account C→B isolation and return-to-C on AVD with local GoTrue/API (journey run18); Phase 71 remains blocked on TalkBack. Commit: `feat(onboarding): polish welcome and account journeys`.
+
+## Phase 71 — Native Android interface (in progress) — 2026-10-26
+
+- Settings hub/groups, BackHandler priority, androidInsets keyboard helper, and density-portable StatusBar top pad (`max(reported, 48dp×density)`) so header taps clear edge-to-edge StatusBar intercept (ADR 0071).
+- CreateSheet stable testIDs (`create-type-*`, `create-title-input`, `create-submit-btn`); journeys use node-scoped resource-id parsing and strong save/reopen assertions; prior create-* passes without those IDs remain provisional.
+- MobileModalSheet pads by measured Android IME height; journeys restore a11y/font/rotation; ordinary Account sign-in path uses local GoTrue + JWKS API (no operator synthetic-login).
+- Short-root APK rebuild: disable Gradle VFS watch (NativeException bad allocation); force hoisted `node-linker` after sync; x86_64 Dev Client with linked `expo-crypto` (`getRandomBytesAsync`).
+- Key manager fail-closed error classes; Settings wires `workspaceId` / Provision; storage open/close serialized against Strict Mode SQLite races. Persistence proven on clean synthetic account C; spoken TalkBack / IME-open Save / pin-hide / isolation still open — no completion commit.
+
+## Phase 70 — Mobile web and PWA layout redesign — 2026-10-26
+
+- Compact phone chrome, labeled Create, registry bottom tabs, and grouped Settings subpages (`/settings/*`).
+- Mobile full-screen task/routine editors with sticky actions and unsaved-work Update protection; agenda-first calendar; visualViewport/safe-area banner coordination (ADR 0070).
+- Responsive e2e and CDP overflow captures at 320–412/768; physical installed-PWA IME still unverified. No release_ready claim.
+
+## Phase 69 — Desktop shell and focused Today — 2026-10-25
+
+- Desktop sidebar Primary/Pins/Utilities hierarchy; Warm page density; registry-driven mobile drawer.
+- Focused Today defaults (≤4 visible cards; module chips and Quick Capture off by default); Create opens shell menu.
+
+## Phase 68 — Warm notebook tokens and accessible primitives — 2026-10-25
+
+- Align design tokens to Warm notebook (muted contrast, radii 10/14/18, density, reduced-motion map).
+- Add web/mobile primitives: icon button, text link, textarea, checkbox/radio/switch, segmented control, sync status, loading/error-retry, creation menu, reorder controls, coachmark, nav item.
+- Extend operator-only `/review` gallery; preserve Phase 66 operator boundaries.
+
+## Phase 67 — Warm notebook visual direction — 2026-10-25
+
+- Add isolated Phase 67 review package under `docs/design/v2/phase67/` (Warm notebook vs Crisp utility interactive prototype, journeys/states, reference board, contrast helper).
+- Repair pass: CDP/iframe capture with explicit pass/fail/skipped semantics; prototype interaction and SVG icon CSS fixes; expanded opaque contrast pairs; smoke assertions.
+- Owner selects **Warm notebook** (2026-10-25). ADR 0069 accepted. Five-participant prototype sessions explicitly deferred to Phase 99 before V2 release (sessions did not occur).
+
+## Phase 66 — Simple navigation personalization and developer boundaries — 2026-10-25
+
+- Add shared feature registry and eligibility (release × auth × personal visibility) with user-profile `featurePersonalization` migration from legacy homeLayout shortcuts.
+- Ship searchable All features (web `/features`, mobile sheet), pin/hide/restore, and Journal-hide → three primary tabs (ADR 0068).
+- Move developer galleries/harnesses/provisional panels behind deny-by-default `DAYNORI_OPERATOR_USER_IDS` and `/v1/operator/session`; ordinary Settings keeps recovery tools only.
+- DEF-V2-010 verified locally for web/API/domain; physical Android and production operator identity remain unmet. No gated-module production enablement.
+
+## Phase 65 — Version 2 function inventory and readiness baseline — 2026-10-25
+
+- Add machine-readable `docs/roadmap/v2/function-register.json` (109 actions, 12 defects, 22 families), schema, validator, and readiness baseline narrative.
+- Record nominated local environment, synthetic core organizer journey results, short performance soak summary, and fresh visual emulation manifest (historical `artifacts/web-e2e` labeled separately).
+- Map gaps to repair/Help/tour phases without implementing redesigns or enabling gated vault/Drive/rooms/AI/billing/notification delivery. No `release_ready` claims.
+
+## Phase 64 — Version 2 roadmap and experience planning — 2026-10-25
+
+- Append 40 bounded phases (64–103), detailed specifications, acceptance gates and Antigravity handoff rules; retain every original phase definition and blocked/deferred status.
+- Plan a professional icon-based redesign with no app-authored emoji, simple personalized navigation, restricted developer tools, mobile-specific layouts, welcome/auth polish and complete action-verified tours.
+- Specify richer Help, durable bug/suggestion/contact reports, verified developer support, physical PWA/native notification evidence, and an optional grounded text/voice creation assistant with the proposed original Nori companion.
+- Include existing-function readiness, safe offline reopen, vault/Drive/rooms/billing gate closure, measured security/performance/accessibility and full-scope beta/release evidence. App behavior and deployment are unchanged; Phase 65 remains unstarted.
+
 ## Phase 60 — Session cold-start, dirty editors, SW v7 (preview) — 2026-10-22
 
 - Refresh/session routes no longer clear cookies on temporary auth outages (503 keep-session); invalid refresh still clears.

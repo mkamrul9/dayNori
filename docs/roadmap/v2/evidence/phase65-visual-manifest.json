@@ -1,0 +1,2277 @@
+{
+  "phase": "65",
+  "capturedAt": "2026-10-25T05:19:33.850Z",
+  "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+  "baseUrl": "http://127.0.0.1:2786",
+  "label": "phase65-fresh-visual-baseline",
+  "historicalSiblingNote": "artifacts/web-e2e/*.png from earlier phases are historical and must not be treated as this revision.",
+  "captures": [
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-desktop.png",
+      "route": "/today",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:12.464Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-desktop.png",
+      "route": "/today",
+      "uiState": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:18:14.280Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-tablet.png",
+      "route": "/today",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:15.650Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-tablet.png",
+      "route": "/today",
+      "uiState": "dark",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:18:17.367Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-412.png",
+      "route": "/today",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:18.702Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-412.png",
+      "route": "/today",
+      "uiState": "dark",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:18:20.424Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-390.png",
+      "route": "/today",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:21.723Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-390.png",
+      "route": "/today",
+      "uiState": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:18:23.444Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-360.png",
+      "route": "/today",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:24.762Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-360.png",
+      "route": "/today",
+      "uiState": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:18:26.488Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-320.png",
+      "route": "/today",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:27.772Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-320.png",
+      "route": "/today",
+      "uiState": "dark",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:18:29.452Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-desktop.png",
+      "route": "/plan",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:30.753Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-tablet.png",
+      "route": "/plan",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:32.038Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-412.png",
+      "route": "/plan",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:33.321Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-390.png",
+      "route": "/plan",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:34.603Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-360.png",
+      "route": "/plan",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:35.886Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-320.png",
+      "route": "/plan",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:37.153Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-desktop.png",
+      "route": "/plan/calendar",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:38.436Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-tablet.png",
+      "route": "/plan/calendar",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:39.806Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-412.png",
+      "route": "/plan/calendar",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:41.205Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-390.png",
+      "route": "/plan/calendar",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:42.486Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-360.png",
+      "route": "/plan/calendar",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:43.751Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-320.png",
+      "route": "/plan/calendar",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:45.035Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-desktop.png",
+      "route": "/library",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:46.322Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-tablet.png",
+      "route": "/library",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:47.620Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-412.png",
+      "route": "/library",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:48.887Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-390.png",
+      "route": "/library",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:50.180Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-360.png",
+      "route": "/library",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:51.468Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-320.png",
+      "route": "/library",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:52.736Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-desktop.png",
+      "route": "/journal",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:54.015Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-tablet.png",
+      "route": "/journal",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:55.301Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-412.png",
+      "route": "/journal",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:56.583Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-390.png",
+      "route": "/journal",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:57.849Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-360.png",
+      "route": "/journal",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:18:59.134Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-320.png",
+      "route": "/journal",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:00.410Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-desktop.png",
+      "route": "/settings",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:01.738Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-desktop.png",
+      "route": "/settings",
+      "uiState": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:19:03.419Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-tablet.png",
+      "route": "/settings",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:04.702Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-tablet.png",
+      "route": "/settings",
+      "uiState": "dark",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:19:06.412Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-412.png",
+      "route": "/settings",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:07.720Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-412.png",
+      "route": "/settings",
+      "uiState": "dark",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:19:09.415Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-390.png",
+      "route": "/settings",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:10.683Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-390.png",
+      "route": "/settings",
+      "uiState": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:19:12.383Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-360.png",
+      "route": "/settings",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:13.667Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-360.png",
+      "route": "/settings",
+      "uiState": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:19:15.377Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-320.png",
+      "route": "/settings",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:16.674Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-320.png",
+      "route": "/settings",
+      "uiState": "dark",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "dark",
+      "timestamp": "2026-10-25T05:19:18.423Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-desktop.png",
+      "route": "/help",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:19.734Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-tablet.png",
+      "route": "/help",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:21.017Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-412.png",
+      "route": "/help",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:22.298Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-390.png",
+      "route": "/help",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:23.582Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-360.png",
+      "route": "/help",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:24.848Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-320.png",
+      "route": "/help",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:26.116Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-desktop.png",
+      "route": "/support",
+      "uiState": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:27.396Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-tablet.png",
+      "route": "/support",
+      "uiState": "light",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "label": "tablet"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:28.682Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-412.png",
+      "route": "/support",
+      "uiState": "light",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "label": "412"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:29.958Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-390.png",
+      "route": "/support",
+      "uiState": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "label": "390"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:31.266Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-360.png",
+      "route": "/support",
+      "uiState": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "label": "360"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:32.555Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-320.png",
+      "route": "/support",
+      "uiState": "light",
+      "viewport": {
+        "width": 320,
+        "height": 720,
+        "label": "320"
+      },
+      "scale": 1,
+      "theme": "light",
+      "timestamp": "2026-10-25T05:19:33.850Z",
+      "gitRevision": "a8d50fae5dd82e4cc296e0386d23f6da1f494bcc",
+      "platform": "headless-chromium-emulation",
+      "browser": "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "baseUrl": "http://127.0.0.1:2786",
+      "authMode": "anonymous-or-shell-session",
+      "fixtureIdentity": "none-synthetic-shell",
+      "environment": "local-phase65",
+      "overflowXPx": 0,
+      "clippedControlsSample": [
+        {
+          "tag": "A",
+          "id": null,
+          "text": "Skip to main content",
+          "right": -9999,
+          "left": -10000
+        }
+      ],
+      "historical": false,
+      "note": "Browser device emulation only; not installed PWA or physical Android."
+    }
+  ],
+  "overflowFindings": [
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/today-dark-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/plan-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/calendar-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/library-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/journal-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/settings-dark-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/help-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-desktop.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-tablet.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-412.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-390.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-360.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    },
+    {
+      "file": "artifacts/local/phase65/screenshots/support-light-320.png",
+      "overflowXPx": 0,
+      "clippedCount": 1
+    }
+  ],
+  "manualInspectionRequired": true,
+  "accessibilityNote": "Automated overflow/clip sampling only. Keyboard/focus/screen-reader not fully exercised in this capture script.",
+  "manualInspection": {
+    "inspectedAt": "2026-10-25T05:20:08.399Z",
+    "inspector": "phase-65-agent",
+    "method": "Read tool image inspection of representative captures plus overflow metrics",
+    "samples": [
+      "artifacts/local/phase65/screenshots/today-light-320.png",
+      "artifacts/local/phase65/screenshots/settings-light-320.png",
+      "artifacts/local/phase65/screenshots/library-light-320.png",
+      "artifacts/local/phase65/screenshots/help-light-desktop.png",
+      "artifacts/local/phase65/screenshots/support-light-412.png"
+    ],
+    "findings": [
+      {
+        "id": "VIS-65-001",
+        "severity": "info",
+        "summary": "Skip-to-main-content link reported as clipped at left:-10000 — expected off-screen skip link, not a layout defect.",
+        "owningPhase": "99"
+      },
+      {
+        "id": "VIS-65-002",
+        "severity": "medium",
+        "summary": "Narrow Today/Library show PWA install prompt overlapping bottom content area; bottom nav remains visible.",
+        "owningPhase": "70"
+      },
+      {
+        "id": "VIS-65-003",
+        "severity": "medium",
+        "summary": "Library at 320px shows Signed out / Not connected while Create and Write note remain visible — expected for anonymous shell; authenticated journeys unverified in this capture.",
+        "owningPhase": "72"
+      },
+      {
+        "id": "VIS-65-004",
+        "severity": "low",
+        "summary": "No horizontal document overflow (overflowX=0) on captured routes/viewports. Professional icons observed in chrome; no app-authored emoji in sampled chrome.",
+        "owningPhase": "68"
+      }
+    ],
+    "accessibilityAutomatedOnly": true,
+    "screenReaderNotRun": true,
+    "physicalDeviceNotRun": true,
+    "installedPwaNotProven": true
+  },
+  "overflowFindingsNote": "All 60 overflowFindings are skip-link false positives (clippedCount=1, overflowX=0). See VIS-65-001."
+}

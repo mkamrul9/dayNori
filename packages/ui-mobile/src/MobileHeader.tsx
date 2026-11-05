@@ -10,6 +10,7 @@ export interface MobileHeaderProps {
   themeMode?: ThemeMode;
   onOpenSearch?: () => void;
   onOpenCreate?: () => void;
+  onOpenAllFeatures?: () => void;
   onOpenSettings?: () => void;
   testID?: string;
 }
@@ -20,6 +21,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   themeMode = 'light',
   onOpenSearch,
   onOpenCreate,
+  onOpenAllFeatures,
   onOpenSettings,
   testID = 'mobile-header',
 }) => {
@@ -74,17 +76,15 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               },
             ]}
           >
-            <Text style={styles.actionIcon} aria-hidden={true}>
-              <Icon name="search" color={palette.text.primary} />
-            </Text>
+            <Icon name="search" color={palette.text.primary} />
           </Pressable>
         )}
 
         {onOpenCreate && (
           <Pressable
             testID="header-create-btn"
-            accessibilityRole="button"
             accessibilityLabel="Create item"
+            accessibilityRole="button"
             onPress={onOpenCreate}
             style={({ pressed }) => [
               styles.actionButton,
@@ -93,9 +93,24 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               },
             ]}
           >
-            <Text style={styles.actionIcon} aria-hidden={true}>
-              <Icon name="plus" color={palette.text.primary} />
-            </Text>
+            <Icon name="plus" color={palette.text.primary} />
+          </Pressable>
+        )}
+
+        {onOpenAllFeatures && (
+          <Pressable
+            testID="header-all-features-btn"
+            accessibilityRole="button"
+            accessibilityLabel="All features"
+            onPress={onOpenAllFeatures}
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: pressed ? palette.action.subtle : 'transparent',
+              },
+            ]}
+          >
+            <Icon name="sliders" color={palette.text.primary} />
           </Pressable>
         )}
 
@@ -112,9 +127,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               },
             ]}
           >
-            <Text style={styles.actionIcon} aria-hidden={true}>
-              <Icon name="settings" color={palette.text.primary} />
-            </Text>
+            <Icon name="settings" color={palette.text.primary} />
           </Pressable>
         )}
       </View>

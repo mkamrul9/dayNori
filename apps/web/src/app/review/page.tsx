@@ -6,14 +6,22 @@ import { colors, spacing, touchTargets, typography, type ThemeMode } from '@dayn
 import {
   Button,
   Card,
+  Checkbox,
+  Coachmark,
   Dialog,
   Feedback,
+  IconButton,
   ListRow,
+  SegmentedControl,
+  SyncStatusBadge,
+  TextArea,
   TextField,
+  TextLink,
   type FeedbackSeverity,
 } from '@daynori/ui-web';
+import { OperatorGate } from '../../components/OperatorGate';
 
-export default function ComponentReviewPage() {
+function ComponentReviewGallery() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [direction, setDirection] = useState<'ltr' | 'rtl'>('ltr');
   const [textScale, setTextScale] = useState<number>(100);
@@ -27,6 +35,8 @@ export default function ComponentReviewPage() {
     'warning',
     'danger',
   ]);
+  const [segment, setSegment] = useState('tasks');
+  const [coachOpen, setCoachOpen] = useState(true);
 
   const palette = colors[themeMode];
 
@@ -104,7 +114,8 @@ export default function ComponentReviewPage() {
                 lineHeight: typography.lineHeight.relaxed,
               }}
             >
-              Phase 04 — Semantic design tokens & accessible browser primitives verification.
+              Phase 68 — Warm notebook tokens & accessible primitives (operator-only). Not ordinary
+              Settings.
             </p>
           </div>
 
@@ -210,6 +221,49 @@ export default function ComponentReviewPage() {
               <Button id="btn-compact" variant="primary" size="compact" themeMode={themeMode}>
                 Compact (36px)
               </Button>
+              <IconButton label="Search" icon="search" themeMode={themeMode} />
+              <TextLink href="/help" themeMode={themeMode}>
+                Text link to Help
+              </TextLink>
+              <SyncStatusBadge status="device" themeMode={themeMode} />
+              <SyncStatusBadge status="synced" themeMode={themeMode} />
+            </div>
+          </Card>
+        </section>
+
+        <section aria-labelledby="heading-p68" style={{ marginBottom: `${spacing.xl}px` }}>
+          <h2 id="heading-p68" style={{ fontSize: `${(20 * textScale) / 100}px`, fontWeight: 600 }}>
+            Phase 68 — Segmented, textarea, checkbox, coachmark
+          </h2>
+          <Card themeMode={themeMode}>
+            <div style={{ display: 'grid', gap: `${spacing.base}px` }}>
+              <SegmentedControl
+                label="Plan views"
+                value={segment}
+                onChange={setSegment}
+                themeMode={themeMode}
+                options={[
+                  { value: 'tasks', label: 'Tasks' },
+                  { value: 'routines', label: 'Routines' },
+                  { value: 'calendar', label: 'Calendar' },
+                ]}
+              />
+              <TextArea
+                label="Journal sample"
+                bangla
+                defaultValue={'Capture a thought.\n\nবাংলা নমুনা: ছোট ধাপে কাজ ভাগ করি।'}
+                themeMode={themeMode}
+              />
+              <Checkbox label="Include notes in search" themeMode={themeMode} defaultChecked />
+              <Coachmark
+                open={coachOpen}
+                title="Find Create"
+                description="Use the header Create control. Presentation only — tour engine is Phase 79."
+                stepLabel="Step 1 of 4"
+                themeMode={themeMode}
+                onContinue={() => setCoachOpen(false)}
+                onExit={() => setCoachOpen(false)}
+              />
             </div>
           </Card>
         </section>
@@ -719,5 +773,13 @@ export default function ComponentReviewPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function ComponentReviewPage() {
+  return (
+    <OperatorGate title="Component review gallery">
+      <ComponentReviewGallery />
+    </OperatorGate>
   );
 }

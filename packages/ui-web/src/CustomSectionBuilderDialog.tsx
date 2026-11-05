@@ -87,6 +87,7 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
   // Feedback & Loading
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState<string>('');
 
   const resetForm = () => {
     setStep(1);
@@ -228,6 +229,10 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
     reordered[index] = reordered[targetIndex]!;
     reordered[targetIndex] = temp;
     setFields(reordered);
+    const moved = temp.label || temp.id;
+    setReorderAnnouncement(
+      `Moved ${moved} ${direction === 'up' ? 'up' : 'down'} to position ${targetIndex + 1} of ${reordered.length}.`
+    );
   };
 
   const handleSubmit = async () => {
@@ -304,6 +309,19 @@ export const CustomSectionBuilderDialog: React.FC<CustomSectionBuilderDialogProp
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.base, minWidth: 380 }}>
         {error && <Feedback severity="danger" message={error} themeMode={themeMode} />}
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+          }}
+        >
+          {reorderAnnouncement}
+        </div>
 
         {/* Step Navigation Bar */}
         <div

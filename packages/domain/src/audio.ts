@@ -170,6 +170,8 @@ export interface NativeAudioRecorderAdapter {
   discardRecordingAsync(): Promise<void>;
   isRecording(): boolean;
   isPaused(): boolean;
+  /** Optional: recover a stopped-but-unsaved review file after sheet close. */
+  peekLastRecording?: () => AudioRecordingResult | null;
 }
 
 export interface NativeAudioPlayerStatus {
@@ -196,6 +198,7 @@ export class MockAudioRecorderAdapter implements NativeAudioRecorderAdapter {
   private _durationSeconds = 0;
   private _byteSize = 16384;
   private _permissionGranted = true;
+  private _lastResult: AudioRecordingResult | null = null;
 
   constructor(options?: { permissionGranted?: boolean; durationSeconds?: number; byteSize?: number }) {
     if (options?.permissionGranted !== undefined) this._permissionGranted = options.permissionGranted;
@@ -209,6 +212,7 @@ export class MockAudioRecorderAdapter implements NativeAudioRecorderAdapter {
 
   async startRecordingAsync(): Promise<void> {
     if (!this._permissionGranted) throw new Error('Microphone permission denied');
+    // Do not clear a prior unsaved review result — callers must discard explicitly.
     this._isRecording = true;
     this._isPaused = false;
   }
@@ -226,18 +230,25 @@ export class MockAudioRecorderAdapter implements NativeAudioRecorderAdapter {
     this._isPaused = false;
     const duration = Math.max(1, this._durationSeconds || 5);
     const byteSize = this._byteSize || duration * 8192;
-    return {
+    const result: AudioRecordingResult = {
       uri: `file:///test-cache/recording-${Date.now()}.m4a`,
       durationSeconds: duration,
       byteSize,
       mimeType: 'audio/mp4',
       fileName: `recording-${Date.now()}.m4a`,
     };
+    this._lastResult = result;
+    return result;
   }
 
   async discardRecordingAsync(): Promise<void> {
     this._isRecording = false;
     this._isPaused = false;
+    this._lastResult = null;
+  }
+
+  peekLastRecording(): AudioRecordingResult | null {
+    return this._lastResult;
   }
 
   isRecording(): boolean {

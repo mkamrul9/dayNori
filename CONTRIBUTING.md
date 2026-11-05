@@ -5,12 +5,13 @@ Start with [the handoff](docs/engineering/handoff.md), the selected [phase speci
 ## Work cycle
 
 1. Inspect `git status`, the current branch, progress, and the active phase. Never overwrite unrelated changes.
-2. Verify dependencies are complete. Read applicable decisions and the feature acceptance scenarios.
+2. Verify the selected phase’s own `dependsOn` entries are complete ([ADR 0074](docs/decisions/0074-standing-phase71-scheduling-and-push.md)). Do not stop solely because Phase 71 remains blocked. Read applicable decisions and the feature acceptance scenarios.
 3. Write a short phase plan. Refine a phase if its scope no longer fits one reviewable commit; reserve new IDs without renumbering completed work.
 4. Implement only that phase. Keep business rules in shared domain packages or backend modules, platform behavior behind adapters, and tests beside the behavior they verify.
 5. Run the phase's checks. Add negative authorization, migration, retry, and accessibility cases where relevant. A successful build alone is insufficient evidence.
 6. Write `docs/phase-reports/phase-NN.md` from [the report template](docs/templates/phase-report.md). Update affected docs, progress, and changelog. Include evidence for actual results; do not fabricate screenshots or commands.
 7. Review `git diff --check`, the diff, and paths. Stage only the phase's files. Review `git diff --cached` and commit once.
+8. After acceptance, push the completion commit to the configured working branch (currently `origin/codex/free-core-preview`) without force and without rewriting history. Do not invent remotes/branches. If the remote advanced, fetch and integrate non-destructively. Verify the remote SHA. Owner standing instruction (ADR 0074): do not re-ask for push permission for completed phase commits. Publication is not production activation, store submission, or paid-service enablement.
 
 If a check fails, the phase stays `in_progress` or `blocked`. A blocked individual phase is a project status, not an instruction to alter any assistant goal. Record the cause and next step. Do not mark complete to preserve a schedule.
 
@@ -30,9 +31,9 @@ Validation: domain, API authorization, and web/mobile task journeys pass
 
 The exact subject for each phase is a suggested template; use the final implemented behavior. Never report checks as passed if they were not run. Do not include an assistant signature or claim production readiness prematurely.
 
-## GitHub later
+## Git remote and push
 
-Phase 00 and 01 were committed locally. Continuous integration workflows (`.github/workflows/ci.yml`, `.github/workflows/security.yml`), issue templates, PR templates, and branch protection specifications were established in Phase 02 (see [Contributor Automation](docs/engineering/contributor-automation.md)). When the owner provides a remote URL, inspect existing remotes and destination history, add or update the agreed remote, and push commits without squashing phase history. Do not blindly force-push. Hosted CI execution remains unverified until the GitHub remote is connected.
+Continuous integration workflows (`.github/workflows/ci.yml`, `.github/workflows/security.yml`), issue templates, PR templates, and branch protection specifications were established in Phase 02 (see [Contributor Automation](docs/engineering/contributor-automation.md)). The configured working branch for this repository is `origin/codex/free-core-preview` unless the owner names another. After a phase acceptance commit, push that commit without force and without squashing phase history ([ADR 0074](docs/decisions/0074-standing-phase71-scheduling-and-push.md)). Do not blindly force-push. Hosted CI execution remains environment-dependent.
 
 ## Code and documentation
 
