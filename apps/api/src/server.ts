@@ -49,6 +49,7 @@ import { registerDriveRoutes } from './routes/v1/drive.js';
 import { registerRoomRoutes } from './routes/v1/rooms.js';
 import { registerChatRoutes } from './routes/v1/chat.js';
 import { registerSafetyRoutes } from './routes/v1/safety.js';
+import { registerFeedbackRoutes } from './routes/v1/feedback.js';
 import { registerAiRoutes } from './routes/v1/ai.js';
 import { registerAssistantRoutes } from './routes/v1/assistant.js';
 import { registerBillingRoutes } from './routes/v1/billing.js';
@@ -284,6 +285,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
       registerRoomRoutes(authScope, runtimePool);
       registerChatRoutes(authScope, runtimePool);
       registerSafetyRoutes(authScope, runtimePool);
+      registerFeedbackRoutes(authScope, runtimePool);
       registerAiRoutes(authScope, runtimePool);
       registerAssistantRoutes(authScope, runtimePool);
       if (isBillingLocallyEnabled(process.env)) {

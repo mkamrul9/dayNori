@@ -38,4 +38,5 @@ export * from './aiConsent.js';
 export * from './billingGate.js';
 export * from './billingLifecycle.js';
 export * from './help/index.js';
+export * from './feedback/index.js';
 

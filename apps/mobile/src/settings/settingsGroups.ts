@@ -63,5 +63,6 @@ export const SETTINGS_NESTED_MODALS = new Set([
   'all-features',
   'onboarding-replay',
   'help-catalog',
+  'support-feedback',
   'account',
 ]);

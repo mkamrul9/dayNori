@@ -1,5 +1,15 @@
 # Changelog
 
+## Phase 82 — Durable bug, suggestion, and contact submissions — 2026-11-05
+
+- ADR 0082: first-party durable feedback intake with PostgreSQL Row-Level Security, unique client report IDs for idempotency and replay safety, account/workspace-scoped draft quarantine, opt-in reviewable redacted technical diagnostics, truthful unconfigured delivery notices, and background worker delivery jobs.
+- Shared contracts and pure domain: `@daynori/contracts` schemas and `@daynori/domain/feedback` sanitizers stripping tokens, passwords, cookies, journal entries, prompts, and audio.
+- Web UI (`apps/web/src/app/support/page.tsx`): Bug, Suggestion, and Contact forms with scoped auto-save drafts, reviewable diagnostics toggle, Phase 75 attachment capability notice, and durable server receipt card (`feedback-receipt-card`).
+- Native Mobile UI (`apps/mobile/src/views/SupportFeedbackView.tsx`): integrated in `Settings -> Help and feedback -> Feedback & Support` with segmented type control, category chips, diagnostics switch, and server receipt card.
+- Fresh embedded x86_64 debug APK built (`artifacts/local/phase82/phase82-embedded-x86_64.apk`, SHA-256 `8825480553d0fdd10b2d1b21409dd93bc7346901713d82ca1dc013d51a9e1c8d`), installed and verified on Android emulator `emulator-5554` (API 35).
+- Executed and verified real UI journeys across desktop web (1440x900 bug report), narrow PWA (390x844 suggestion report), desktop contact (1440x900), and native Android emulator (`artifacts/phase82/evidence-summary.json`).
+- Commit: `feat(feedback): add durable private bug and suggestion reports`.
+
 ## Phase 80 — Everyday guided practice chapters — 2026-11-05
 
 - Fresh native debug APK built with verified current-source JS bundle provenance (SHA-256 `17e66a5a2e86c4aab5cd6632b1bec8c10947ab676de334080c520841284875b2`, 1013 bundled modules). Verified standalone launch on Android emulator `emulator-5554` without Metro.

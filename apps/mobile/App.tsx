@@ -60,6 +60,7 @@ import { LibraryView } from './src/views/LibraryView';
 import { JournalView } from './src/views/JournalView';
 import { SettingsView } from './src/views/SettingsView';
 import { HelpCatalogView } from './src/views/HelpCatalogView';
+import { SupportFeedbackView } from './src/views/SupportFeedbackView';
 import { SettingsHubView } from './src/views/SettingsHubView';
 import {
   SETTINGS_NESTED_MODALS,
@@ -1215,6 +1216,7 @@ export default function App() {
                 onOpenGallery={isOperator ? () => setActiveModal('gallery') : undefined}
                 onOpenOnboarding={() => setActiveModal('onboarding-replay')}
                 onOpenHelpCatalog={() => setActiveModal('help-catalog')}
+                onOpenSupportFeedback={() => setActiveModal('support-feedback')}
                 onOpenSyncDiagnostics={() => {
                   void loadDiagnostics();
                   setActiveModal('sync-diagnostics');
@@ -1489,10 +1491,27 @@ export default function App() {
                 setActiveModal('none');
               }}
               onOpenSupport={() => {
-                // Support lives under Settings; return then open Account/Help group honesty via Support article.
                 setContextualHelpArticleId(null);
-                returnToSettingsFromNested();
+                setActiveModal('support-feedback');
               }}
+            />
+          </View>
+        ) : null}
+
+        {activeModal === 'support-feedback' ? (
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: palette.background, zIndex: 120 },
+            ]}
+            testID="support-feedback-container"
+          >
+            <SupportFeedbackView
+              themeMode={themeMode}
+              userId={userNamespace?.userId ?? null}
+              workspaceId={userNamespace?.workspaceId ?? null}
+              apiClient={apiClient}
+              onClose={returnToSettingsFromNested}
             />
           </View>
         ) : null}

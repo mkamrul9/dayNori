@@ -24,6 +24,7 @@ export interface SettingsViewProps {
   onOpenAllFeatures?: () => void;
   onOpenOnboarding?: () => void;
   onOpenHelpCatalog?: () => void;
+  onOpenSupportFeedback?: () => void;
   onClose: () => void;
   /** Operator-only: synthetic auth / gallery / harness entry. */
   isOperator?: boolean;
@@ -70,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenAllFeatures,
   onOpenOnboarding,
   onOpenHelpCatalog,
+  onOpenSupportFeedback,
   onClose,
   isOperator = false,
   testID = 'settings-view',
@@ -835,6 +837,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               accessibilityLabel="Open Help catalog"
             >
               <Icon name="help" /> Open Help <Icon name="arrow-right" />
+            </MobileButton>
+            <MobileButton
+              testID="btn-open-support-feedback"
+              variant="secondary"
+              themeMode={themeMode}
+              onPress={onOpenSupportFeedback}
+              accessibilityLabel="Open Feedback and Support"
+            >
+              <Icon name="help" /> Feedback &amp; Support <Icon name="arrow-right" />
             </MobileButton>
             <MobileButton
               testID="btn-replay-tutorial"

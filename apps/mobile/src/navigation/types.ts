@@ -31,7 +31,9 @@ export type ActiveModal =
   /** Phase 56 provisional assistant — not live/production AI enablement. */
   | 'assistant'
   /** Phase 57 provisional billing — not production purchase activation. */
-  | 'billing';
+  | 'billing'
+  /** Phase 82 durable feedback, bug, and contact submissions. */
+  | 'support-feedback';
 
 export interface CreateDraft {
   type: 'task' | 'routine' | 'note' | 'journal' | 'file';

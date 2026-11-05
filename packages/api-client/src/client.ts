@@ -299,6 +299,9 @@ import {
   VerifyPurchaseResponseSchema,
   RestorePurchasesResponseSchema,
   BillingEventIngestResponseSchema,
+  CreateFeedbackReportRequestSchema,
+  FeedbackReportResponseSchema,
+  FeedbackReportListResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -364,6 +367,9 @@ import {
   type RestorePurchasesResponse,
   type BillingEventIngestRequest,
   type BillingEventIngestResponse,
+  type CreateFeedbackReportRequest,
+  type FeedbackReportResponse,
+  type FeedbackReportListResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -3623,6 +3629,47 @@ export class DaynoriApiClient {
       options
     );
     return BillingEventIngestResponseSchema.parse(raw);
+  }
+
+  // --- Phase 82: Durable feedback, bug, and contact submissions ---
+
+  async createFeedbackReport(
+    workspaceId: string,
+    request: CreateFeedbackReportRequest,
+    options?: RequestOptions
+  ): Promise<FeedbackReportResponse> {
+    const validated = CreateFeedbackReportRequestSchema.parse(request);
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/feedback/reports`,
+      { method: 'POST', body: JSON.stringify(validated) },
+      options
+    );
+    return FeedbackReportResponseSchema.parse(raw);
+  }
+
+  async listFeedbackReports(
+    workspaceId: string,
+    options?: RequestOptions
+  ): Promise<FeedbackReportListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/feedback/reports`,
+      { method: 'GET' },
+      options
+    );
+    return FeedbackReportListResponseSchema.parse(raw);
+  }
+
+  async getFeedbackReport(
+    workspaceId: string,
+    reportId: string,
+    options?: RequestOptions
+  ): Promise<FeedbackReportResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/feedback/reports/${encodeURIComponent(reportId)}`,
+      { method: 'GET' },
+      options
+    );
+    return FeedbackReportResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

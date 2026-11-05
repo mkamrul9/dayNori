@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-05",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 80 everyday tour definitions, fresh native x86_64 bundle provenance, and genuine desktop/narrow-PWA/native UI journeys verified (see phase-80 report); completion blocked pending physical Android hardware and human spoken screen-reader reviews. Phase 79 complete. Phase 81 depends on 80 + blocked Phase 75 — do not auto-start or waive attachments. Phase 71 TalkBack remains blocked. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Phase 82 complete (2026-11-05) under ADR 0082 (durable bug, suggestion, and contact submissions with workspace scoping, client idempotency keys, reviewable diagnostics, and truthful delivery notices). Verified across desktop web, narrow PWA, and native Android emulator. Outstanding acceptance checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, and Phase 99 prototype review retain their recorded states. Phase 83 eligible when selected. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -476,7 +476,8 @@
     },
     {
       "id": "82",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-82.md"
     },
     {
       "id": "83",

@@ -6338,9 +6338,18 @@
       "dependencies": [],
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
-      "existingTests": [],
-      "evidenceRefs": [],
-      "blockerOrDefect": "DEF-V2-009",
+      "existingTests": [
+        "tests/unit/phase82-feedback-domain.test.ts",
+        "tests/integration/phase82-feedback-durable.test.ts",
+        "apps/mobile/src/views/SupportFeedbackView.test.ts",
+        "scripts/phase82-run-all-journeys.mjs"
+      ],
+      "evidenceRefs": [
+        "artifacts/phase82/evidence-summary.json",
+        "artifacts/phase82/journeys/desktop-contact-report.png",
+        "artifacts/phase82/journeys/native-feedback-receipt.png"
+      ],
+      "blockerOrDefect": null,
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
       "platforms": {
@@ -6359,19 +6368,23 @@
       "description": "Support page; monitored inbox not configured.",
       "implementationStatus": "existing",
       "entryPoints": [
-        "/support"
+        "/support",
+        "Settings -> Help and feedback -> Feedback & Support"
       ],
       "implementationPaths": [
-        "apps/web/src/app/support/page.tsx"
+        "apps/web/src/app/support/page.tsx",
+        "apps/mobile/src/views/SupportFeedbackView.tsx",
+        "apps/api/src/modules/feedback/service.ts",
+        "infra/supabase/migrations/00075_feedback_reports_and_durable_delivery.sql"
       ],
-      "readiness": "blocked",
+      "readiness": "verified_local",
       "acceptanceJourney": "Submit contact; durable receipt and triage.",
-      "observedResult": "unavailable",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-05",
+        "revision": "70b8a47",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "api-local",
+        "platform": "web-and-android-local",
         "evidenceLayer": "browser_ui"
       },
       "repairPhase": "82",
@@ -6389,9 +6402,19 @@
       "dependencies": [],
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
-      "existingTests": [],
-      "evidenceRefs": [],
-      "blockerOrDefect": "DEF-V2-009",
+      "existingTests": [
+        "tests/unit/phase82-feedback-domain.test.ts",
+        "tests/integration/phase82-feedback-durable.test.ts",
+        "apps/mobile/src/views/SupportFeedbackView.test.ts",
+        "scripts/phase82-run-all-journeys.mjs"
+      ],
+      "evidenceRefs": [
+        "artifacts/phase82/evidence-summary.json",
+        "artifacts/phase82/journeys/desktop-bug-report.png",
+        "artifacts/phase82/journeys/narrow-suggestion-report.png",
+        "artifacts/phase82/journeys/native-feedback-receipt.png"
+      ],
+      "blockerOrDefect": null,
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
       "platforms": {
@@ -6401,28 +6424,32 @@
         "iosNative": "gated"
       },
       "releaseCapability": {
-        "local": "unavailable",
-        "hostedPreview": "unavailable"
+        "local": "available",
+        "hostedPreview": "partial"
       },
       "id": "support.bug-suggestion-submit",
       "featureFamily": "help-and-support",
       "userBenefit": "Report bugs and suggestions with durable delivery.",
       "description": "Feedback intake with queue/receipt (planned durable path).",
-      "implementationStatus": "planned",
+      "implementationStatus": "existing",
       "entryPoints": [
-        "Support/Feedback UI"
+        "/support",
+        "Settings -> Help and feedback -> Feedback & Support"
       ],
       "implementationPaths": [
-        "apps/web/src/app/support/page.tsx"
+        "apps/web/src/app/support/page.tsx",
+        "apps/mobile/src/views/SupportFeedbackView.tsx",
+        "apps/api/src/modules/feedback/service.ts",
+        "infra/supabase/migrations/00075_feedback_reports_and_durable_delivery.sql"
       ],
-      "readiness": "blocked",
+      "readiness": "verified_local",
       "acceptanceJourney": "Submit synthetic bug; status Submitted with server ack.",
-      "observedResult": "unavailable",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-05",
+        "revision": "70b8a47",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "api-local",
+        "platform": "web-and-android-local",
         "evidenceLayer": "browser_ui"
       },
       "repairPhase": "82",
@@ -7011,8 +7038,6 @@
       "id": "DEF-V2-009",
       "title": "Support contact and durable feedback delivery not configured",
       "affectedActions": [
-        "support.contact-form",
-        "support.bug-suggestion-submit",
         "dev.feedback-triage"
       ],
       "platforms": [
@@ -7022,7 +7047,7 @@
       "severity": "high",
       "userImpact": "Users cannot reliably reach a monitored human or track submissions.",
       "expected": "Durable intake, receipt, triage, verified contact route.",
-      "observed": "Support copy states monitored inbox is not configured.",
+      "observed": "Phase 82 completed durable intake and server receipts; Phase 83 owns operator triage and verified monitored contact destinations.",
       "reproduction": [
         "Open /support"
       ],
@@ -7033,7 +7058,7 @@
       ],
       "workaround": null,
       "dependency": "Owner contact destination + Phases 82–83.",
-      "nextAction": "Phases 82–83 implement durable submission and triage.",
+      "nextAction": "Phase 83 implements restricted developer triage and verified operator contact destinations.",
       "owningPhase": "82"
     },
     {

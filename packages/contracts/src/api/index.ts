@@ -28,4 +28,5 @@ export * from './safety.js';
 export * from './ai.js';
 export * from './assistant.js';
 export * from './billing.js';
+export * from './feedback.js';
 
