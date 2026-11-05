@@ -8,7 +8,16 @@ export type TourPlatform = 'web' | 'installedPwa' | 'android' | 'iosNative';
 export type TourStepKind = 'informational' | 'action';
 
 export type TourEntityType =
-  'task' | 'routine' | 'note' | 'journal_entry' | 'calendar_event' | 'folder' | 'preference';
+  | 'task'
+  | 'routine'
+  | 'note'
+  | 'journal_entry'
+  | 'calendar_event'
+  | 'folder'
+  | 'preference'
+  | 'file'
+  | 'expense'
+  | 'custom_section';
 
 /** Trusted completion predicates — evaluated by platform adapters / engine helpers. */
 export type TourCompletionPredicate =
@@ -104,6 +113,14 @@ export interface TourChapterDefinition {
   steps: readonly TourStepDefinition[];
   /** When true, offered as short optional starter. */
   isStarter?: boolean;
+  /** When true, categorized as an advanced or recovery chapter (Phase 81). */
+  isAdvanced?: boolean;
+  /** When true, represents a safe explanatory treatment for destructive/privileged actions. */
+  isSafeTreatment?: boolean;
+  /** When true, chapter is capability-gated on unreleased features. */
+  isGated?: boolean;
+  /** Human-readable explanation of why this chapter is gated. */
+  gatedReason?: string;
   /** Coverage family tags for register mapping. */
   coverageFamilies?: readonly string[];
 }

@@ -20,6 +20,14 @@ Shared definitions live in `packages/domain/src/tours/`. Presentation adapters m
 
 Definitions in `everydayChapters.ts` + starter `tour.task-create-save`. Map Help chapters via `listTourChaptersForLearningChapter`.
 
+## Advanced and safe treatment catalog (Phase 81)
+
+Definitions in `packages/domain/src/tours/advancedChapters.ts`.
+- **Available advanced chapters**: `tour.files-audio`, `tour.expenses`, `tour.custom-sections`, `tour.offline-sync`, `tour.trash-recovery`.
+- **Safe explanatory treatments**: `tour.account-deletion-safe`, `tour.recovery-secrets-safe`, `tour.billing-safe`, `tour.sharing-safe`. Learning never requires irreversible destruction, live financial charges, secret disclosure, or external invitations.
+- **Dormant capability-gated chapters**: `tour.reminders-gated`, `tour.vault-gated`, `tour.drive-gated`, `tour.rooms-gated`, `tour.billing-gated`, `tour.assistant-gated`. Must fail closed on `start` (`{ ok: false, code: 'feature_gated' }`); fake live practice is strictly prohibited until owning feature phase passes.
+- **Selective cleanup safety**: `listCleanupCandidates` strictly strips user-owned items (`a.userOwned: true`), ensuring real user content is never presented for deletion review.
+
 ## Web / native adapters
 
 - Web: `apps/web/src/tours/` (`TourProvider`, `TourTarget`, `TourCoachmark`, `TourCleanupPanel`).
@@ -28,6 +36,7 @@ Definitions in `everydayChapters.ts` + starter `tour.task-create-save`. Map Help
 
 ## Validation
 
-- `pnpm exec vitest run tests/unit/phase79-tour-engine.test.ts tests/unit/phase80-everyday-tours.test.ts`
-- `node scripts/phase80-tour-evidence.mjs --required` (requires real UI attestation under `artifacts/phase80/`)
+- `pnpm exec vitest run tests/unit/phase79-tour-engine.test.ts tests/unit/phase80-everyday-tours.test.ts tests/unit/phase81-advanced-tours.test.ts`
+- `node --test scripts/lib/phase81-ui-evidence.test.mjs`
+- `node scripts/phase81-run-all-journeys.mjs` (records genuine UI evidence under `artifacts/phase81/`)
 - Phase 78 Help catalog regressions remain green when chapter states change.

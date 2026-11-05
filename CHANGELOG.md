@@ -1,5 +1,16 @@
 # Changelog
 
+## Phase 81 — Advanced recovery and optional-feature tour coverage — 2026-11-05
+
+- ADR 0081: comprehensive guided practice catalog covering available advanced features, safe non-destructive explanatory treatments, fail-closed dormant capability gates, and complete function register inventory mapping.
+- Available advanced practice chapters: `tour.files-audio`, `tour.expenses`, `tour.custom-sections`, `tour.offline-sync`, and `tour.trash-recovery` with action verification, deterministic practice entity titles, and correlated durable mutation receipts.
+- Fail-closed dormant capability gates: `tour.reminders-gated`, `tour.vault-gated`, `tour.drive-gated`, `tour.rooms-gated`, `tour.billing-gated`, and `tour.assistant-gated` fail closed with `feature_gated` on start, preventing simulated or fake live practice until owning feature phases pass.
+- Safe non-destructive learning treatments: `tour.account-deletion-safe`, `tour.recovery-secrets-safe`, `tour.billing-safe`, and `tour.sharing-safe` explain sensitive, financial, and irreversible actions safely without requiring real account deletions, payment card charges, invitation dispatches, or secret disclosures.
+- Selective cleanup provenance: `TourPracticeArtifactSchema.entityType` extended with `'file' | 'expense' | 'custom_section'`; `listCleanupCandidates` strictly strips user-owned items (`a.userOwned: true`) to ensure personal content is never offered for deletion.
+- Function register: 100% of the 109 inventory actions across 22 families in `docs/roadmap/v2/function-register.json` mapped to real tour chapters or safe treatments; validated cleanly via `pnpm validate:function-register`.
+- Real UI journeys: executed and recorded all 13 journeys across Desktop Web (1440x900), Narrow PWA (390x844), and Native Android Emulator (`emulator-5554`) with 52 verified artifacts in `artifacts/phase81/journeys/`.
+- Commit: `feat(tours): cover advanced features and safe recovery practice`.
+
 ## Phase 83 — Developer feedback triage and verified support contact — 2026-11-05
 
 - ADR 0083: restricted operator feedback triage surface at `/developer/triage` protected by `OperatorGate` and server-side `DAYNORI_OPERATOR_USER_IDS` allowlist check.

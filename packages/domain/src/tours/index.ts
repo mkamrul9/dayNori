@@ -1,6 +1,7 @@
 export * from './types.js';
 export * from './definitions.js';
 export * from './everydayChapters.js';
+export * from './advancedChapters.js';
 export * from './practice.js';
 export * from './cleanup.js';
 export * from './progress.js';

@@ -104,13 +104,13 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     title: L('help.chapter.files-audio.title', 'Files and audio'),
     summary: L(
       'help.chapter.files-audio.summary',
-      'Uploads, quota, and recording — often gated.'
+      'Uploads, quota, and recording controls.'
     ),
     relatedArticleIds: ['help.files-upload', 'help.audio-recording'],
-    state: 'gated_unavailable',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.files-audio.state',
-      'Live practice stays unavailable while attachment capabilities are gated (Phase 75/81).'
+      'Guided practice covers quota-safe local file attachments and audio recording controls.'
     ),
   },
   {
@@ -118,10 +118,10 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     title: L('help.chapter.expenses.title', 'Expenses'),
     summary: L('help.chapter.expenses.summary', 'Exact amounts, refunds, and reports.'),
     relatedArticleIds: ['help.expenses'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.expenses.state',
-      'Advanced guided practice for expenses is Phase 81. Help never creates a real expense.'
+      'Guided practice teaches creating expenses, categories, and reviewable budgets with zero real charges.'
     ),
   },
   {
@@ -132,10 +132,10 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
       'Templates, fields, reorder, and migration recovery.'
     ),
     relatedArticleIds: ['help.custom-sections'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.custom-sections.state',
-      'Advanced guided practice is Phase 81.'
+      'Guided practice teaches composing approved section blocks and accessible reordering safely.'
     ),
   },
   {
@@ -146,10 +146,10 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
       'Local save labels, conflicts, trusted-device offline, Update/Later.'
     ),
     relatedArticleIds: ['help.save-and-sync', 'help.offline-reopen', 'help.export-import'],
-    state: 'coming_later',
+    state: 'runnable',
     stateExplanation: L(
       'help.chapter.offline-sync.state',
-      'Essential recovery articles are available offline. Advanced offline/portability practice is Phase 81.'
+      'Guided practice covers durable local save receipts, offline queueing, and non-destructive conflict handling.'
     ),
   },
   {
@@ -169,7 +169,21 @@ export const LEARNING_CHAPTERS: readonly LearningChapter[] = [
     state: 'gated_unavailable',
     stateExplanation: L(
       'help.chapter.optional-gated.state',
-      'These features may be off in your build. Practice stays unavailable when gated (Phase 81).'
+      'These features are currently gated (Phase 60 vault, Phase 69 reminders, Drive, rooms, billing, assistant). Fake live practice is prohibited.'
+    ),
+  },
+  {
+    id: 'chapter.integrations-future',
+    title: L('help.chapter.integrations-future.title', 'Future integrations and automations'),
+    summary: L(
+      'help.chapter.integrations-future.summary',
+      'Third-party sync, external calendar integrations, and webhook automations.'
+    ),
+    relatedArticleIds: ['help.save-and-sync'],
+    state: 'coming_later',
+    stateExplanation: L(
+      'help.chapter.integrations-future.state',
+      'External third-party bridges, calendar automations, and sync relays will be covered in future releases.'
     ),
   },
   {

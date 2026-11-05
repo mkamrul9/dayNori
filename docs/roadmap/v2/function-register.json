@@ -182,8 +182,8 @@
         "ref": "help/account-sign-up"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     },
     {
@@ -244,8 +244,8 @@
         "ref": "help/account-sign-in"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       },
       "note": "Core journeys use injected JWT, not real provider login."
     },
@@ -296,8 +296,8 @@
         "ref": "help/account-recovery"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-recovery-safe-demo"
+        "status": "existing",
+        "ref": "tour.recovery-secrets-safe / chapter.account-first-use"
       }
     },
     {
@@ -354,8 +354,8 @@
         "ref": "/help stay signed in"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-session-recovery"
+        "status": "existing",
+        "ref": "tour.recovery-secrets-safe / chapter.account-first-use"
       }
     },
     {
@@ -406,8 +406,8 @@
         "ref": "help/sign-out"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     },
     {
@@ -463,8 +463,8 @@
         "ref": "help/workspace"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     },
     {
@@ -591,8 +591,8 @@
         "ref": "help/account-deletion-safe"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-dangerous-ops-safe-demo"
+        "status": "existing",
+        "ref": "tour.account-deletion-safe / chapter.account-first-use"
       }
     },
     {
@@ -3609,8 +3609,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-search"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -3674,8 +3674,8 @@
         "ref": "help.files-upload"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3739,8 +3739,8 @@
         "ref": "help/files"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3811,8 +3811,8 @@
         "ref": "help/files"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3883,8 +3883,8 @@
         "ref": "help/files"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3951,8 +3951,8 @@
         "ref": "help/audio-attachments"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-audio"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -4022,8 +4022,8 @@
         "ref": "help.expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses / chapter.expenses"
       }
     },
     {
@@ -4093,8 +4093,8 @@
         "ref": "help/expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses / chapter.expenses"
       }
     },
     {
@@ -4164,8 +4164,8 @@
         "ref": "help/expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses / chapter.expenses"
       }
     },
     {
@@ -4235,8 +4235,8 @@
         "ref": "help/expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses + tour.trash-recovery / chapter.expenses"
       }
     },
     {
@@ -4305,8 +4305,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4375,8 +4375,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4445,8 +4445,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4515,8 +4515,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4579,8 +4579,8 @@
         "ref": "help.save-and-sync"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4643,8 +4643,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4707,8 +4707,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4779,8 +4779,8 @@
         "ref": "help.offline-reopen"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4843,8 +4843,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4906,7 +4906,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -4968,7 +4968,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -5030,7 +5030,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -5092,7 +5092,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -5148,7 +5148,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5204,7 +5204,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5260,7 +5260,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5317,7 +5317,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5377,7 +5377,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-drive"
+        "ref": "tour.drive-gated (gated DEF-V2-005) / chapter.optional-gated"
       }
     },
     {
@@ -5437,7 +5437,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-drive"
+        "ref": "tour.drive-gated (gated DEF-V2-005) / chapter.optional-gated"
       }
     },
     {
@@ -5497,7 +5497,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-drive"
+        "ref": "tour.drive-gated (gated DEF-V2-005) / chapter.optional-gated"
       }
     },
     {
@@ -5557,8 +5557,8 @@
         "ref": "help/rooms"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "status": "existing",
+        "ref": "tour.sharing-safe + tour.rooms-gated / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5620,7 +5620,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "ref": "tour.rooms-gated (gated DEF-V2-006) / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5681,8 +5681,8 @@
         "ref": "help/rooms"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "status": "existing",
+        "ref": "tour.sharing-safe + tour.rooms-gated / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5743,8 +5743,8 @@
         "ref": "help/rooms"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "status": "existing",
+        "ref": "tour.sharing-safe + tour.rooms-gated / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5802,8 +5802,8 @@
         "ref": "help/billing"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-billing-no-real-charges"
+        "status": "existing",
+        "ref": "tour.billing-safe + tour.billing-gated / chapter.optional-gated"
       }
     },
     {
@@ -5860,8 +5860,8 @@
         "ref": "help/billing"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-billing-no-real-charges"
+        "status": "existing",
+        "ref": "tour.billing-safe + tour.billing-gated / chapter.optional-gated"
       }
     },
     {
@@ -5918,8 +5918,8 @@
         "ref": "help/billing"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-billing-no-real-charges"
+        "status": "existing",
+        "ref": "tour.billing-safe + tour.billing-gated / chapter.optional-gated"
       }
     },
     {
@@ -5980,7 +5980,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6041,7 +6041,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6102,7 +6102,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6163,7 +6163,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6224,7 +6224,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6393,8 +6393,8 @@
         "ref": "help.support-and-feedback"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-feedback"
+        "status": "existing",
+        "ref": "tour.help-return / chapter.help-learning"
       }
     },
     {
@@ -6458,8 +6458,8 @@
         "ref": "help.support-and-feedback"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-feedback"
+        "status": "existing",
+        "ref": "tour.help-return / chapter.help-learning"
       }
     },
     {
@@ -6694,7 +6694,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "operator-guide"
+        "ref": "operator-guide-exclude-from-user-tour"
       }
     },
     {
@@ -6752,7 +6752,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "operator-guide"
+        "ref": "operator-guide-exclude-from-user-tour"
       }
     },
     {
@@ -6804,8 +6804,8 @@
         "ref": "/privacy"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     }
   ],
