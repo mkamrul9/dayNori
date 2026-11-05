@@ -13,6 +13,7 @@ import {
   MobileFeedback,
 } from '@daynori/ui-mobile';
 import type { PlanSubView } from '../navigation/types';
+import type { TourEvidenceEvent } from '@daynori/domain';
 import type {
   LocalRepositoryPort,
   SyncEngine,
@@ -83,6 +84,8 @@ function resolveLocalTimeToUtc(dateStr: string, timeStr: string, timezone: strin
 export type MobileTaskFilter = 'all' | 'today' | 'upcoming' | 'overdue' | 'completed' | 'undated';
 
 export interface PlanViewProps {
+  onCaptureTourEvidence?: () => (event: Partial<TourEvidenceEvent>) => void;
+  onGetPracticeCreationId?: (entityType: 'task' | 'routine' | 'calendar_event') => string | undefined;
   themeMode: ThemeMode;
   initialSubView?: PlanSubView;
   onSubViewChange?: (subView: PlanSubView) => void;
@@ -315,6 +318,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
   targetTaskId,
   onClearTarget,
   onTourTaskMutation,
+  onCaptureTourEvidence,
+  onGetPracticeCreationId,
 }) => {
   const palette = colors[themeMode];
   const [activeSubView, setActiveSubView] = useState<PlanSubView>(initialSubView);
@@ -325,7 +330,6 @@ export const PlanView: React.FC<PlanViewProps> = ({
     if (targetTaskId) {
       setActiveSubView('tasks');
       setTaskFilter('all');
-      onClearTarget?.();
     }
   }, [targetTaskId, onClearTarget]);
 
@@ -452,15 +456,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     setRoutineRecords([]);
     setRoutineOccurrences([]);
     setJournalEntries([]);
-  }, [
-    workspaceId,
-    userId,
-    repository,
-    isDemoOrTest,
-    initialTasks,
-    initialEvents,
-    initialRoutines,
-  ]);
+  }, [workspaceId, userId, repository, isDemoOrTest, initialTasks, initialEvents, initialRoutines]);
 
   // Subscribe to production repository and sync engine (including local saves)
   useEffect(() => {
@@ -492,9 +488,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
         setRoutinesLoadError(null);
       } catch (err) {
         if (isCancelled || loadGenerationRef.current !== generation) return;
-        setRoutinesLoadError(
-          err instanceof Error ? err.message : 'Failed to load Plan records.'
-        );
+        setRoutinesLoadError(err instanceof Error ? err.message : 'Failed to load Plan records.');
       } finally {
         if (!isCancelled && loadGenerationRef.current === generation) {
           setRoutinesLoading(false);
@@ -512,10 +506,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
           evt.type === 'conflict_resolved' ||
           evt.type === 'local_mutation_committed'
         ) {
-          if (
-            evt.type === 'local_mutation_committed' &&
-            evt.workspaceId !== workspaceId
-          ) {
+          if (evt.type === 'local_mutation_committed' && evt.workspaceId !== workspaceId) {
             return;
           }
           void reloadData();
@@ -650,7 +641,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     }
 
     const activeWorkspace = workspaceId || (isDemoOrTest ? 'ws-sample' : null);
-    const newId = generateUuid();
+    const newId = onGetPracticeCreationId?.('calendar_event') ?? generateUuid();
     const nowIso = new Date().toISOString();
 
     const newEvent: CalendarEventRecord = {
@@ -762,10 +753,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       const today = getCalendarDateInTimezone(new Date(), routine.timezone || userTimezone);
       return (
         routineOccurrences.find(
-          (o) =>
-            o.routineId === routine.id &&
-            o.scheduledDate === today &&
-            o.status !== 'cancelled'
+          (o) => o.routineId === routine.id && o.scheduledDate === today && o.status !== 'cancelled'
         ) || null
       );
     },
@@ -775,6 +763,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const handleOpenRoutineDetail = (routine: RoutineRecord) => {
     setEditingRoutine(routine);
     setRoutineActionError(null);
+    onCaptureTourEvidence?.()({
+      type: 'entity_opened',
+      entityId: routine.id,
+      entityType: 'routine',
+      recordLoaded: true,
+    });
   };
 
   const persistOccurrenceChange = async (
@@ -825,8 +819,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     const prevStatus: RoutineOccurrenceStatus = existing?.status || 'pending';
     const prevHistory = existing?.history || [];
     const occId =
-      existing?.id ||
-      computeDeterministicOccurrenceId(activeWorkspace, routine.id, today);
+      existing?.id || computeDeterministicOccurrenceId(activeWorkspace, routine.id, today);
     const updatedHistory: RoutineOccurrenceTransition[] = [
       ...prevHistory,
       {
@@ -1015,12 +1008,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       }
     }
 
-    // memory fallback for standalone test rendering
-    onTourTaskMutation?.({
-      command,
-      entityId: task.id,
-      operationId: generateUuid(),
-    });
+    // Standalone rendering has no durable receipt and cannot establish tour proof.
     return true;
   };
 
@@ -1042,7 +1030,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       deadline = { type: 'date', date: tomorrowDateStr };
     }
 
-    const newId = generateUuid();
+    const newId = onGetPracticeCreationId?.('task') ?? generateUuid();
     const nowIso = now.toISOString();
 
     const newTask: TaskRecord = {
@@ -1223,17 +1211,40 @@ export const PlanView: React.FC<PlanViewProps> = ({
         subtaskCount > 0
     );
     setEditError(null);
+    onCaptureTourEvidence?.()({
+      type: 'entity_opened',
+      entityId: task.id,
+      entityType: 'task',
+      recordLoaded: true,
+    });
   };
 
   const handleOpenCalendarItem = (item: CalendarItem) => {
     if (item.sourceType === 'task_deadline') {
       const task = tasks.find((t) => t.id === item.taskId && t.deletedAt === null);
-      if (task) handleOpenDetail(task);
+      if (task) {
+        const report = onCaptureTourEvidence?.();
+        handleOpenDetail(task);
+        report?.({
+          type: 'calendar_projection_opened',
+          entityId: task.id,
+          entityType: 'task',
+          recordLoaded: true,
+        });
+      }
       return;
     }
     if (item.sourceType === 'routine_occurrence') {
       const routine = routineRecords.find((r) => r.id === item.routineId && r.deletedAt === null);
-      if (routine) setEditingRoutine(routine);
+      if (routine) {
+        handleOpenRoutineDetail(routine);
+        onCaptureTourEvidence?.()({
+          type: 'calendar_projection_opened',
+          entityId: routine.id,
+          entityType: 'routine',
+          recordLoaded: true,
+        });
+      }
       return;
     }
     if (item.sourceType === 'calendar_event') {
@@ -1242,6 +1253,15 @@ export const PlanView: React.FC<PlanViewProps> = ({
       setCalendarViewMode('agenda');
     }
   };
+
+  useEffect(() => {
+    if (!targetTaskId) return;
+    const task = tasks.find((item) => item.id === targetTaskId && !item.deletedAt);
+    if (task) {
+      handleOpenDetail(task);
+      onClearTarget?.();
+    }
+  }, [targetTaskId, tasks, onClearTarget]);
 
   // Save Detail Sheet with verified timezone rules and no fixed 18:00 UTC substitution
   const handleSaveDetail = async () => {
@@ -1554,7 +1574,14 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={`Filter by ${filter.label}`}
-                  onPress={() => setTaskFilter(filter.id)}
+                  onPress={() => {
+                    setTaskFilter(filter.id);
+                    onCaptureTourEvidence?.()({
+                      type: 'filter_changed',
+                      filterId: `task:${filter.id}`,
+                      filterCleared: filter.id === 'all',
+                    });
+                  }}
                   style={[
                     styles.filterChip,
                     {
@@ -2489,10 +2516,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
               {
                 explainWhyDueToday(
                   editingRoutine,
-                  getCalendarDateInTimezone(
-                    new Date(),
-                    editingRoutine.timezone || userTimezone
-                  )
+                  getCalendarDateInTimezone(new Date(), editingRoutine.timezone || userTimezone)
                 ).reason
               }
             </Text>
@@ -2667,61 +2691,68 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
             {taskDetailsExpanded && (
               <>
-            <MobileTextField
-              label="Notes"
-              value={editDetails}
-              onChangeText={setEditDetails}
-              placeholder="Add description or notes..."
-              themeMode={themeMode}
-            />
-
-            {/* Priority Selector */}
-            <View style={styles.sheetFieldGroup}>
-              <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Priority</Text>
-              <View style={styles.sheetPillRow}>
-                {(['low', 'normal', 'high', 'urgent'] as const).map((p) => (
-                  <Pressable
-                    key={p}
-                    onPress={() => setEditPriority(p)}
-                    style={[
-                      styles.sheetPill,
-                      {
-                        backgroundColor:
-                          editPriority === p ? palette.action.primary : palette.surface,
-                        borderColor: palette.border.subtle,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.sheetPillText,
-                        { color: editPriority === p ? palette.action.label : palette.text.primary },
-                      ]}
-                    >
-                      {p.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* Subtasks Section */}
-            <View style={styles.sheetFieldGroup}>
-              <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>Subtasks</Text>
-              <View style={styles.addSubtaskRow}>
-                <TextInput
-                  value={newSubtaskTitle}
-                  onChangeText={setNewSubtaskTitle}
-                  placeholder="New subtask..."
-                  placeholderTextColor={palette.text.muted}
-                  style={[
-                    styles.subtaskInput,
-                    { color: palette.text.primary, borderColor: palette.border.subtle },
-                  ]}
+                <MobileTextField
+                  label="Notes"
+                  value={editDetails}
+                  onChangeText={setEditDetails}
+                  placeholder="Add description or notes..."
+                  themeMode={themeMode}
                 />
-                <MobileButton title="+ Add" onPress={handleAddSubtask} themeMode={themeMode} />
-              </View>
-            </View>
+
+                {/* Priority Selector */}
+                <View style={styles.sheetFieldGroup}>
+                  <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>
+                    Priority
+                  </Text>
+                  <View style={styles.sheetPillRow}>
+                    {(['low', 'normal', 'high', 'urgent'] as const).map((p) => (
+                      <Pressable
+                        key={p}
+                        onPress={() => setEditPriority(p)}
+                        style={[
+                          styles.sheetPill,
+                          {
+                            backgroundColor:
+                              editPriority === p ? palette.action.primary : palette.surface,
+                            borderColor: palette.border.subtle,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.sheetPillText,
+                            {
+                              color:
+                                editPriority === p ? palette.action.label : palette.text.primary,
+                            },
+                          ]}
+                        >
+                          {p.toUpperCase()}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Subtasks Section */}
+                <View style={styles.sheetFieldGroup}>
+                  <Text style={[styles.sheetLabel, { color: palette.text.secondary }]}>
+                    Subtasks
+                  </Text>
+                  <View style={styles.addSubtaskRow}>
+                    <TextInput
+                      value={newSubtaskTitle}
+                      onChangeText={setNewSubtaskTitle}
+                      placeholder="New subtask..."
+                      placeholderTextColor={palette.text.muted}
+                      style={[
+                        styles.subtaskInput,
+                        { color: palette.text.primary, borderColor: palette.border.subtle },
+                      ]}
+                    />
+                    <MobileButton title="+ Add" onPress={handleAddSubtask} themeMode={themeMode} />
+                  </View>
+                </View>
               </>
             )}
 

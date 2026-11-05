@@ -24,16 +24,15 @@ export function TourTarget({
 }: TourTargetProps) {
   const tour = useTourOptional();
   const ref = useRef<HTMLSpanElement>(null);
+  const registerTarget = tour?.registerTarget;
 
   useLayoutEffect(() => {
-    if (!tour) return;
+    if (!registerTarget) return;
     const host = ref.current;
-    const measure =
-      (host?.firstElementChild as HTMLElement | null) ??
-      host;
-    tour.registerTarget(id, measure);
-    return () => tour.registerTarget(id, null);
-  }, [tour, id, children]);
+    const measure = (host?.firstElementChild as HTMLElement | null) ?? host;
+    registerTarget(id, measure);
+    return () => registerTarget(id, null);
+  }, [registerTarget, id]);
 
   const onClickCapture = () => {
     if (reportActivate && tour?.isPresenting) {

@@ -1,7 +1,7 @@
 import { createDeterministicUuid } from '../onboarding.js';
 import { correlateTourEvidence, getStepDefinition } from './correlation.js';
 import { getTourChapterDefinition } from './definitions.js';
-import { createPracticeArtifact, upsertPracticeArtifact } from './practice.js';
+import { upsertPracticeArtifact } from './practice.js';
 import {
   emptyChapterProgress,
   findChapterProgress,
@@ -11,7 +11,6 @@ import {
 import type {
   TourChapterProgress,
   TourControl,
-  TourEntityType,
   TourEvidenceEvent,
   TourProgressState,
   TourStepRecord,
@@ -86,12 +85,12 @@ export function applyTourControl(
         return {
           ok: false,
           state,
-          error: 'Chapter already finished. Use Restart chapter to replay without duplicating practice.',
+          error:
+            'Chapter already finished. Use Restart chapter to replay without duplicating practice.',
           code: 'already_finished',
         };
       }
-      const runId =
-        chapter.runId || newRunId(ctx.workspaceId, ctx.accountUserId, chapterId);
+      const runId = chapter.runId || newRunId(ctx.workspaceId, ctx.accountUserId, chapterId);
       const firstUnfinished =
         chapter.steps.find((s) => s.outcome === 'unfinished' || s.outcome === 'blocked')?.stepId ??
         def.steps[0]?.id ??
@@ -199,7 +198,11 @@ export function applyTourControl(
           completedAt: nowIso(),
         });
       }
-      return advanceToFollowingStep(state, chapter, def.steps.map((s) => s.id));
+      return advanceToFollowingStep(
+        state,
+        chapter,
+        def.steps.map((s) => s.id)
+      );
     }
     case 'skip_step': {
       const stepId = chapter.currentStepId;
@@ -219,7 +222,11 @@ export function applyTourControl(
         outcome: 'skipped',
         skippedAt: nowIso(),
       });
-      return advanceToFollowingStep(state, chapter, def.steps.map((s) => s.id));
+      return advanceToFollowingStep(
+        state,
+        chapter,
+        def.steps.map((s) => s.id)
+      );
     }
     case 'skip_chapter': {
       chapter = {
@@ -232,9 +239,13 @@ export function applyTourControl(
     }
     case 'restart_chapter': {
       const preservedIds = chapter.practiceEntityIds;
+      const preservedArtifacts = chapter.practiceArtifacts;
+      const practiceOptIn = chapter.practiceOptIn;
       chapter = {
         ...emptyChapterProgress(def),
         practiceEntityIds: preservedIds,
+        practiceArtifacts: preservedArtifacts,
+        practiceOptIn,
         lifecycle: 'active',
         runId: newRunId(ctx.workspaceId, ctx.accountUserId, chapterId),
         currentStepId: def.steps[0]?.id ?? null,
@@ -318,11 +329,19 @@ export function applyTourEvidence(
 
   // Prefer explicit practice ID from the adapter; otherwise the entity recorded on a
   // prior completed save step for this chapter (never arbitrary first list entry alone).
+  const wantedEntityType = stepDef.entityType ?? event.entityType;
   const savedEntityId =
-    chapter.steps.find((s) => s.stepId === 'save-task' && s.outcome === 'completed')?.entityId ??
-    null;
-  const expectedEntityId =
-    ctx.expectedPracticeEntityId ?? savedEntityId ?? chapter.practiceEntityIds[0] ?? null;
+    chapter.steps.find(
+      (s) =>
+        s.entityId &&
+        s.outcome === 'completed' &&
+        (!wantedEntityType || getStepDefinition(def, s.stepId)?.entityType === wantedEntityType)
+    )?.entityId ?? null;
+  const expectedEntityId = ctx.expectedPracticeEntityId ?? savedEntityId;
+  const practiceEntityIds =
+    stepDef.completionPredicate === 'search_result_opened' && !stepDef.entityType
+      ? Array.from(new Set(state.chapters.flatMap((c) => c.practiceEntityIds)))
+      : chapter.practiceEntityIds;
 
   const correlation = correlateTourEvidence(stepDef, event, {
     accountUserId: ctx.accountUserId,
@@ -333,7 +352,8 @@ export function applyTourEvidence(
     stepId: chapter.currentStepId,
     attemptId: stepRecord.attemptId,
     expectedEntityId,
-    practiceEntityIds: chapter.practiceEntityIds,
+    practiceEntityIds,
+    practiceArtifacts: chapter.practiceArtifacts,
   });
 
   if (!correlation.accepted) {
@@ -360,28 +380,25 @@ export function applyTourEvidence(
   }
 
   const practiceIds = [...chapter.practiceEntityIds];
-  if (event.entityId && !practiceIds.includes(event.entityId)) {
+  const artifact = event.practiceArtifact;
+  const validCreation =
+    artifact &&
+    event.type === 'local_mutation_committed' &&
+    event.command?.startsWith('create') &&
+    artifact.entityId === event.entityId &&
+    artifact.chapterId === chapterId &&
+    artifact.creationOperationId === event.operationId &&
+    artifact.createdByTour &&
+    !artifact.userOwned;
+  if (validCreation && event.entityId && !practiceIds.includes(event.entityId)) {
     practiceIds.push(event.entityId);
   }
 
   let artifacts = [...(chapter.practiceArtifacts ?? [])];
-  if (event.entityId) {
-    const entityType = (event.entityType as TourEntityType | undefined) ?? stepDef.entityType ?? 'task';
-    artifacts = upsertPracticeArtifact(
-      artifacts,
-      createPracticeArtifact({
-        entityId: event.entityId,
-        entityType,
-        chapterId,
-        role: 'primary',
-        createdByTour: true,
-        userOwned: false,
-        labeledPractice: true,
-        linkedOrEdited: event.type === 'entity_opened' || event.type === 'local_mutation_committed'
-          ? false
-          : false,
-      })
-    );
+  if (validCreation && artifact) {
+    // Opening/searching/editing a personal item never manufactures cleanup ownership.
+    const existing = artifacts.find((a) => a.entityId === artifact.entityId);
+    artifacts = upsertPracticeArtifact(artifacts, existing ?? artifact);
   }
 
   chapter = patchStep(chapter, chapter.currentStepId, {
@@ -396,7 +413,11 @@ export function applyTourEvidence(
     practiceArtifacts: artifacts,
   };
 
-  return advanceToFollowingStep(state, chapter, def.steps.map((s) => s.id));
+  return advanceToFollowingStep(
+    state,
+    chapter,
+    def.steps.map((s) => s.id)
+  );
 }
 
 export function getActiveAttemptId(chapter: TourChapterProgress): string | null {

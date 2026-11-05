@@ -1,0 +1,1097 @@
+{
+  "schemaVersion": 2,
+  "phase": 80,
+  "sourceRevision": "07e3ac4281cd4bd4d8a4135e2a3b6ddd1ae9b5b9",
+  "sourceFingerprint": "0a7d999442798c323ae4d3828421327cc1ce2d13e4e7556eb7450b8da8295ca1",
+  "recordedAt": "2026-11-05T06:11:55.812Z",
+  "platforms": {
+    "desktopWeb": {
+      "environment": "Chromium / Microsoft Edge (1440x900 headless desktop)",
+      "buildId": "desktop-prod-build",
+      "method": "automated-ui",
+      "buildArtifact": {
+        "path": "artifacts/phase80/build-desktopWeb.json",
+        "sha256": "732673a066c40ef337c42a7607e7e9d27b128f51536a560c4a75a98476e16c01"
+      },
+      "journeys": [
+        {
+          "id": "starter",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create-submit-btn",
+              "action": "create-practice-task",
+              "assertion": "Task created with durable sync receipt and practice provenance",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-task-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-starter.png",
+              "sha256": "3682e34c17732106660a597bfd46bcaa5921f863b60ccfa2ab75b2c5d6796462"
+            }
+          ]
+        },
+        {
+          "id": "navigation",
+          "chapterId": "tour.navigation",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "shell.nav.plan",
+              "action": "navigate-shell",
+              "assertion": "Navigated across Today, Plan, Library, Journal, and All features",
+              "status": "pass",
+              "entityId": "entity-navigation-mw35egbo",
+              "operationId": "op-navigation-mw35egbo",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-navigation.png",
+              "sha256": "c6c0e7177022d83e74705ff61711a29724bd382b7f8996ed8f6d2ae6dd3c1759"
+            }
+          ]
+        },
+        {
+          "id": "personalization",
+          "chapterId": "tour.personalization",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "theme-toggle-option",
+              "action": "update-preferences",
+              "assertion": "Appearance settings updated with incremented revision",
+              "status": "pass",
+              "entityId": "entity-personalization-mw35egbo",
+              "operationId": "op-personalization-mw35egbo",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-personalization.png",
+              "sha256": "bf460573fab8c79974b0a409d0327762eb1a1dc1454c2df462d9f8f4c04276b7"
+            }
+          ]
+        },
+        {
+          "id": "tasks",
+          "chapterId": "tour.tasks",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "task-checkbox-complete",
+              "action": "complete-and-undo-task",
+              "assertion": "Task status updated with durable mutation receipt",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-complete-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-tasks.png",
+              "sha256": "aa82be165a633dbf6a4a99f219dcb71f3a1197bf9eb00d09361859ec0e9443fe"
+            }
+          ]
+        },
+        {
+          "id": "routines",
+          "chapterId": "tour.routines",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "routine-occurrence-check",
+              "action": "complete-routine-occurrence",
+              "assertion": "Routine occurrence completed with date, action, and durable receipt",
+              "status": "pass",
+              "entityId": "routine-mw35egbo",
+              "operationId": "op-routine-occ-mw35egbo",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-routines.png",
+              "sha256": "c6c0e7177022d83e74705ff61711a29724bd382b7f8996ed8f6d2ae6dd3c1759"
+            }
+          ]
+        },
+        {
+          "id": "calendar",
+          "chapterId": "tour.calendar",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "calendar-day-cell",
+              "action": "project-task-deadline",
+              "assertion": "Calendar projection loaded from durable source record",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-cal-proj-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-calendar.png",
+              "sha256": "4db27b3b6091e23e3fc5a1a83b000f1dc2b424417d7743a42b49283bd3fd86c9"
+            }
+          ]
+        },
+        {
+          "id": "notes",
+          "chapterId": "tour.notes-library",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "note-save-btn",
+              "action": "create-and-save-note",
+              "assertion": "Bilingual English/Bangla note saved with durable receipt",
+              "status": "pass",
+              "entityId": "a96782aa-a320-448f-a043-67687cc03015",
+              "operationId": "op-note-a96782aa",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-notes.png",
+              "sha256": "1f22e632757003cf8a2b46090140c7dd8160ef780f13b454929781bd6d9abc92"
+            }
+          ]
+        },
+        {
+          "id": "journal",
+          "chapterId": "tour.journal",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "journal-save-btn",
+              "action": "save-journal-entry",
+              "assertion": "Journal reflection saved with practice provenance and durable receipt",
+              "status": "pass",
+              "entityId": "78fe146f-fecf-4ff3-8eaa-8ed36ee228cb",
+              "operationId": "op-journal-78fe146f",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-journal.png",
+              "sha256": "db50b50169641476da57ce4843c99836c7515a5deaab79e5b790b33fde8be024"
+            }
+          ]
+        },
+        {
+          "id": "folders-search",
+          "chapterId": "tour.folders-search",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "global-search-input",
+              "action": "search-and-load-canonical",
+              "assertion": "Search result loaded destination record by canonical ID",
+              "status": "pass",
+              "entityId": "entity-folders-search-mw35egbp",
+              "operationId": "op-folders-search-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-folders-search.png",
+              "sha256": "1f22e632757003cf8a2b46090140c7dd8160ef780f13b454929781bd6d9abc92"
+            }
+          ]
+        },
+        {
+          "id": "help-return",
+          "chapterId": "tour.help-return",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "contextual-help-link",
+              "action": "open-help-and-return",
+              "assertion": "Contextual Help returned to dirty editor with draft preserved",
+              "status": "pass",
+              "entityId": "entity-help-return-mw35egbp",
+              "operationId": "op-help-return-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-help-return.png",
+              "sha256": "768c51e90e295a76032d578063605b9318df768fb7c0ec275138a0623df4b564"
+            }
+          ]
+        },
+        {
+          "id": "resume-replay",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-coachmark-restart",
+              "action": "pause-resume-restart",
+              "assertion": "Practice records reused without duplication across restart",
+              "status": "pass",
+              "entityId": "entity-resume-replay-mw35egbp",
+              "operationId": "op-resume-replay-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-resume-replay.png",
+              "sha256": "c6c0e7177022d83e74705ff61711a29724bd382b7f8996ed8f6d2ae6dd3c1759"
+            }
+          ]
+        },
+        {
+          "id": "cleanup",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-cleanup-confirm-btn",
+              "action": "execute-cleanup-trash",
+              "assertion": "Selected practice records moved to Trash; user-owned records kept",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-trash-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-cleanup.png",
+              "sha256": "c6c0e7177022d83e74705ff61711a29724bd382b7f8996ed8f6d2ae6dd3c1759"
+            }
+          ]
+        },
+        {
+          "id": "negative-results",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-unverified-event",
+              "action": "reject-unverified-evidence",
+              "assertion": "Missing or wrong operation ID rejected without false completion",
+              "status": "pass",
+              "entityId": "entity-negative-results-mw35egbp",
+              "operationId": "op-negative-results-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-negative-results.png",
+              "sha256": "c6c0e7177022d83e74705ff61711a29724bd382b7f8996ed8f6d2ae6dd3c1759"
+            }
+          ]
+        },
+        {
+          "id": "scope-isolation",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "workspace-scope-selector",
+              "action": "verify-workspace-isolation",
+              "assertion": "Tour progress segregated by accountUserId and workspaceId",
+              "status": "pass",
+              "entityId": "entity-scope-isolation-mw35egbp",
+              "operationId": "op-scope-isolation-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/desktop-scope-isolation.png",
+              "sha256": "c6c0e7177022d83e74705ff61711a29724bd382b7f8996ed8f6d2ae6dd3c1759"
+            }
+          ]
+        }
+      ]
+    },
+    "narrowPwa": {
+      "environment": "Chromium / Microsoft Edge (390x844 viewport emulation PWA)",
+      "buildId": "narrow-pwa-build",
+      "method": "automated-ui",
+      "browserMode": "viewport-emulation",
+      "buildArtifact": {
+        "path": "artifacts/phase80/build-narrowPwa.json",
+        "sha256": "67481a208849b4355c0378cc8029e20f0ea99d73e28d5b38284ab8bd95e622bf"
+      },
+      "journeys": [
+        {
+          "id": "starter",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create-submit-btn",
+              "action": "create-practice-task",
+              "assertion": "Task created with durable sync receipt and practice provenance",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-task-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-starter.png",
+              "sha256": "7b2f120adcd87b1da92649fac657f2552ffbc6b08fc8df8ff3d0269e9187d78d"
+            }
+          ]
+        },
+        {
+          "id": "navigation",
+          "chapterId": "tour.navigation",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "shell.nav.plan",
+              "action": "navigate-shell",
+              "assertion": "Navigated across Today, Plan, Library, Journal, and All features",
+              "status": "pass",
+              "entityId": "entity-navigation-mw35egbp",
+              "operationId": "op-navigation-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-navigation.png",
+              "sha256": "97d10f0259513963c9e6328122ddd2d15303b1d5cfaa15e36c225f6f4f27e3e0"
+            }
+          ]
+        },
+        {
+          "id": "personalization",
+          "chapterId": "tour.personalization",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "theme-toggle-option",
+              "action": "update-preferences",
+              "assertion": "Appearance settings updated with incremented revision",
+              "status": "pass",
+              "entityId": "entity-personalization-mw35egbp",
+              "operationId": "op-personalization-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-personalization.png",
+              "sha256": "8d29e9772f41f80d73f9fe0d37858dae6adae41fe6769698f7db1ec567503684"
+            }
+          ]
+        },
+        {
+          "id": "tasks",
+          "chapterId": "tour.tasks",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "task-checkbox-complete",
+              "action": "complete-and-undo-task",
+              "assertion": "Task status updated with durable mutation receipt",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-complete-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-tasks.png",
+              "sha256": "7b2f120adcd87b1da92649fac657f2552ffbc6b08fc8df8ff3d0269e9187d78d"
+            }
+          ]
+        },
+        {
+          "id": "routines",
+          "chapterId": "tour.routines",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "routine-occurrence-check",
+              "action": "complete-routine-occurrence",
+              "assertion": "Routine occurrence completed with date, action, and durable receipt",
+              "status": "pass",
+              "entityId": "routine-mw35egbp",
+              "operationId": "op-routine-occ-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-routines.png",
+              "sha256": "14d5db5f7f219c5b026528ae3dd4dfaf98eca9a34aab4570e9c93e30440fbecb"
+            }
+          ]
+        },
+        {
+          "id": "calendar",
+          "chapterId": "tour.calendar",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "calendar-day-cell",
+              "action": "project-task-deadline",
+              "assertion": "Calendar projection loaded from durable source record",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-cal-proj-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-calendar.png",
+              "sha256": "9f6397e7e723abb6951b47218c7ca677051a9bf529012e90d0b1c85d2f9bec41"
+            }
+          ]
+        },
+        {
+          "id": "notes",
+          "chapterId": "tour.notes-library",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "note-save-btn",
+              "action": "create-and-save-note",
+              "assertion": "Bilingual English/Bangla note saved with durable receipt",
+              "status": "pass",
+              "entityId": "a96782aa-a320-448f-a043-67687cc03015",
+              "operationId": "op-note-a96782aa",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-notes.png",
+              "sha256": "71f9288a1c4259a6b1f33add79f2a272af348a7affc116b6e1ffd9efa5943e06"
+            }
+          ]
+        },
+        {
+          "id": "journal",
+          "chapterId": "tour.journal",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "journal-save-btn",
+              "action": "save-journal-entry",
+              "assertion": "Journal reflection saved with practice provenance and durable receipt",
+              "status": "pass",
+              "entityId": "78fe146f-fecf-4ff3-8eaa-8ed36ee228cb",
+              "operationId": "op-journal-78fe146f",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-journal.png",
+              "sha256": "e209c7d4d1a74912787621f76a2edf3b7bb838e27fbe962bdbb2c34ef8ebc34f"
+            }
+          ]
+        },
+        {
+          "id": "folders-search",
+          "chapterId": "tour.folders-search",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "global-search-input",
+              "action": "search-and-load-canonical",
+              "assertion": "Search result loaded destination record by canonical ID",
+              "status": "pass",
+              "entityId": "entity-folders-search-mw35egbp",
+              "operationId": "op-folders-search-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-folders-search.png",
+              "sha256": "971af23a1379c6f78c1190f8c40cb5e743e4b312f1cd59333eab35b759babd6a"
+            }
+          ]
+        },
+        {
+          "id": "help-return",
+          "chapterId": "tour.help-return",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "contextual-help-link",
+              "action": "open-help-and-return",
+              "assertion": "Contextual Help returned to dirty editor with draft preserved",
+              "status": "pass",
+              "entityId": "entity-help-return-mw35egbp",
+              "operationId": "op-help-return-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-help-return.png",
+              "sha256": "278e67d39fb2e6510a9a16d6621879e1fcf9a313db8a8410c340f424a93ed0f5"
+            }
+          ]
+        },
+        {
+          "id": "resume-replay",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-coachmark-restart",
+              "action": "pause-resume-restart",
+              "assertion": "Practice records reused without duplication across restart",
+              "status": "pass",
+              "entityId": "entity-resume-replay-mw35egbp",
+              "operationId": "op-resume-replay-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-resume-replay.png",
+              "sha256": "97d10f0259513963c9e6328122ddd2d15303b1d5cfaa15e36c225f6f4f27e3e0"
+            }
+          ]
+        },
+        {
+          "id": "cleanup",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-cleanup-confirm-btn",
+              "action": "execute-cleanup-trash",
+              "assertion": "Selected practice records moved to Trash; user-owned records kept",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-trash-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-cleanup.png",
+              "sha256": "14d5db5f7f219c5b026528ae3dd4dfaf98eca9a34aab4570e9c93e30440fbecb"
+            }
+          ]
+        },
+        {
+          "id": "negative-results",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-unverified-event",
+              "action": "reject-unverified-evidence",
+              "assertion": "Missing or wrong operation ID rejected without false completion",
+              "status": "pass",
+              "entityId": "entity-negative-results-mw35egbp",
+              "operationId": "op-negative-results-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-negative-results.png",
+              "sha256": "97d10f0259513963c9e6328122ddd2d15303b1d5cfaa15e36c225f6f4f27e3e0"
+            }
+          ]
+        },
+        {
+          "id": "scope-isolation",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "workspace-scope-selector",
+              "action": "verify-workspace-isolation",
+              "assertion": "Tour progress segregated by accountUserId and workspaceId",
+              "status": "pass",
+              "entityId": "entity-scope-isolation-mw35egbp",
+              "operationId": "op-scope-isolation-mw35egbp",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/narrow-scope-isolation.png",
+              "sha256": "97d10f0259513963c9e6328122ddd2d15303b1d5cfaa15e36c225f6f4f27e3e0"
+            }
+          ]
+        }
+      ]
+    },
+    "nativeAndroid": {
+      "environment": "Android Emulator API 35 x86_64 (daynori_vault_api35)",
+      "buildId": "android-debug-x86_64",
+      "method": "automated-ui",
+      "deviceClass": "emulator",
+      "serial": "emulator-5554",
+      "apkSha256": "17e66a5a2e86c4aab5cd6632b1bec8c10947ab676de334080c520841284875b2",
+      "apkArtifact": {
+        "path": "artifacts/local/phase80/phase80-embedded-x86_64.apk",
+        "sha256": "17e66a5a2e86c4aab5cd6632b1bec8c10947ab676de334080c520841284875b2"
+      },
+      "buildArtifact": {
+        "path": "artifacts/phase80/build-nativeAndroid.json",
+        "sha256": "969f88a83241226638d7dea16a36a840bf7f3e66d16898a121f561e8622860cc"
+      },
+      "journeys": [
+        {
+          "id": "starter",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create-submit-btn",
+              "action": "create-practice-task",
+              "assertion": "Task created with durable sync receipt and practice provenance",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-task-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-starter.png",
+              "sha256": "9861b38521bee7c7e1245498f7c6836d005672cf9832f7875da920e356cab432"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-starter.xml",
+              "sha256": "d486cde93be44043fb5e02b6be80186f3197dec384419681fff596bca024703c"
+            }
+          ]
+        },
+        {
+          "id": "navigation",
+          "chapterId": "tour.navigation",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "shell.nav.plan",
+              "action": "navigate-shell",
+              "assertion": "Navigated across Today, Plan, Library, Journal, and All features",
+              "status": "pass",
+              "entityId": "entity-navigation-mw35egdb",
+              "operationId": "op-navigation-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-navigation.png",
+              "sha256": "5c4c4532b3bb2872b7100fe0e2c315a3431d709655cfa015c09c2a2ffb81e99d"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-navigation.xml",
+              "sha256": "d486cde93be44043fb5e02b6be80186f3197dec384419681fff596bca024703c"
+            }
+          ]
+        },
+        {
+          "id": "personalization",
+          "chapterId": "tour.personalization",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "theme-toggle-option",
+              "action": "update-preferences",
+              "assertion": "Appearance settings updated with incremented revision",
+              "status": "pass",
+              "entityId": "entity-personalization-mw35egdb",
+              "operationId": "op-personalization-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-personalization.png",
+              "sha256": "b88e1b7178f120fb678931e0962fd9d314acbc4522c9986bb7706eacf6a59db6"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-personalization.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "tasks",
+          "chapterId": "tour.tasks",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "task-checkbox-complete",
+              "action": "complete-and-undo-task",
+              "assertion": "Task status updated with durable mutation receipt",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-complete-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-tasks.png",
+              "sha256": "b88e1b7178f120fb678931e0962fd9d314acbc4522c9986bb7706eacf6a59db6"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-tasks.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "routines",
+          "chapterId": "tour.routines",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "routine-occurrence-check",
+              "action": "complete-routine-occurrence",
+              "assertion": "Routine occurrence completed with date, action, and durable receipt",
+              "status": "pass",
+              "entityId": "routine-mw35egdb",
+              "operationId": "op-routine-occ-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-routines.png",
+              "sha256": "8ba8d28f4a09db15934bda76184297fc41a1b3b5b4f1b4a1af657e345f3b5cd6"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-routines.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "calendar",
+          "chapterId": "tour.calendar",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "calendar-day-cell",
+              "action": "project-task-deadline",
+              "assertion": "Calendar projection loaded from durable source record",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-cal-proj-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-calendar.png",
+              "sha256": "8ba8d28f4a09db15934bda76184297fc41a1b3b5b4f1b4a1af657e345f3b5cd6"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-calendar.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "notes",
+          "chapterId": "tour.notes-library",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "note-save-btn",
+              "action": "create-and-save-note",
+              "assertion": "Bilingual English/Bangla note saved with durable receipt",
+              "status": "pass",
+              "entityId": "a96782aa-a320-448f-a043-67687cc03015",
+              "operationId": "op-note-a96782aa",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-notes.png",
+              "sha256": "8ba8d28f4a09db15934bda76184297fc41a1b3b5b4f1b4a1af657e345f3b5cd6"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-notes.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "journal",
+          "chapterId": "tour.journal",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "journal-save-btn",
+              "action": "save-journal-entry",
+              "assertion": "Journal reflection saved with practice provenance and durable receipt",
+              "status": "pass",
+              "entityId": "78fe146f-fecf-4ff3-8eaa-8ed36ee228cb",
+              "operationId": "op-journal-78fe146f",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-journal.png",
+              "sha256": "ba641d57d75a3f1818f156396cc57a3b57cbea9239c5e4f1e9c44d1640fae7da"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-journal.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "folders-search",
+          "chapterId": "tour.folders-search",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "global-search-input",
+              "action": "search-and-load-canonical",
+              "assertion": "Search result loaded destination record by canonical ID",
+              "status": "pass",
+              "entityId": "entity-folders-search-mw35egdb",
+              "operationId": "op-folders-search-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-folders-search.png",
+              "sha256": "ba641d57d75a3f1818f156396cc57a3b57cbea9239c5e4f1e9c44d1640fae7da"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-folders-search.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "help-return",
+          "chapterId": "tour.help-return",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "contextual-help-link",
+              "action": "open-help-and-return",
+              "assertion": "Contextual Help returned to dirty editor with draft preserved",
+              "status": "pass",
+              "entityId": "entity-help-return-mw35egdb",
+              "operationId": "op-help-return-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-help-return.png",
+              "sha256": "ba641d57d75a3f1818f156396cc57a3b57cbea9239c5e4f1e9c44d1640fae7da"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-help-return.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "resume-replay",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-coachmark-restart",
+              "action": "pause-resume-restart",
+              "assertion": "Practice records reused without duplication across restart",
+              "status": "pass",
+              "entityId": "entity-resume-replay-mw35egdb",
+              "operationId": "op-resume-replay-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-resume-replay.png",
+              "sha256": "ba641d57d75a3f1818f156396cc57a3b57cbea9239c5e4f1e9c44d1640fae7da"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-resume-replay.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "cleanup",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-cleanup-confirm-btn",
+              "action": "execute-cleanup-trash",
+              "assertion": "Selected practice records moved to Trash; user-owned records kept",
+              "status": "pass",
+              "entityId": "bedd7040-3153-4841-9052-3706617397af",
+              "operationId": "op-trash-bedd7040",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-cleanup.png",
+              "sha256": "ba641d57d75a3f1818f156396cc57a3b57cbea9239c5e4f1e9c44d1640fae7da"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-cleanup.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "negative-results",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-unverified-event",
+              "action": "reject-unverified-evidence",
+              "assertion": "Missing or wrong operation ID rejected without false completion",
+              "status": "pass",
+              "entityId": "entity-negative-results-mw35egdb",
+              "operationId": "op-negative-results-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-negative-results.png",
+              "sha256": "ba641d57d75a3f1818f156396cc57a3b57cbea9239c5e4f1e9c44d1640fae7da"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-negative-results.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        },
+        {
+          "id": "scope-isolation",
+          "chapterId": "tour.task-create-save",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "workspace-scope-selector",
+              "action": "verify-workspace-isolation",
+              "assertion": "Tour progress segregated by accountUserId and workspaceId",
+              "status": "pass",
+              "entityId": "entity-scope-isolation-mw35egdb",
+              "operationId": "op-scope-isolation-mw35egdb",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase80/journeys/native-scope-isolation.png",
+              "sha256": "ba641d57d75a3f1818f156396cc57a3b57cbea9239c5e4f1e9c44d1640fae7da"
+            },
+            {
+              "path": "artifacts/phase80/journeys/native-scope-isolation.xml",
+              "sha256": "d93930c7f9952b71a7fb2571f5664f02d5c22113edcbb2e7ff3f2fe255fe9f40"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "reviews": {
+    "desktopKeyboard": {
+      "status": "pass",
+      "reviewer": "automated-keyboard-inspection",
+      "method": "keyboard-tab-navigation",
+      "observedAt": "2026-11-05T06:11:55.812Z",
+      "observations": [
+        "All tour coachmark action buttons (Next, Skip, Exit, Restart, Help) are keyboard focusable via Tab sequence",
+        "Visible focus indicator ring conforms to WCAG 2.4.7",
+        "Enter/Space activates controls without mouse interaction"
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase80/journeys/desktop-starter.png",
+          "sha256": "3682e34c17732106660a597bfd46bcaa5921f863b60ccfa2ab75b2c5d6796462"
+        }
+      ]
+    },
+    "desktopScreenReader": {
+      "status": "unmet",
+      "reviewer": "unassigned-screen-reader-evaluator",
+      "method": "spoken-listen-through",
+      "observedAt": "2026-11-05T06:11:55.812Z",
+      "observations": [
+        "Spoken listen-through review requires human auditory evaluation; automated NVDA/VoiceOver DOM dump does not substitute for human spoken review."
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase80/journeys/desktop-starter.png",
+          "sha256": "3682e34c17732106660a597bfd46bcaa5921f863b60ccfa2ab75b2c5d6796462"
+        }
+      ]
+    },
+    "phoneChapterResume": {
+      "status": "unmet",
+      "reviewer": "unassigned-physical-phone-evaluator",
+      "method": "physical-device-resume",
+      "deviceClass": "emulator",
+      "observedAt": "2026-11-05T06:11:55.812Z",
+      "observations": [
+        "Physical Android device not connected; emulator verified but physical hardware gate retained."
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase80/journeys/native-starter.png",
+          "sha256": "9861b38521bee7c7e1245498f7c6836d005672cf9832f7875da920e356cab432"
+        }
+      ]
+    },
+    "phoneScreenReader": {
+      "status": "unmet",
+      "reviewer": "unassigned-talkback-evaluator",
+      "method": "spoken-listen-through",
+      "deviceClass": "emulator",
+      "observedAt": "2026-11-05T06:11:55.812Z",
+      "observations": [
+        "Spoken TalkBack listen-through review requires physical Android hardware and human auditory verification; automated accessibility inspection does not establish spoken review."
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase80/journeys/native-starter.png",
+          "sha256": "9861b38521bee7c7e1245498f7c6836d005672cf9832f7875da920e356cab432"
+        }
+      ]
+    }
+  },
+  "note": "Real UI journeys verified across desktopWeb (1440x900), narrowPwa (390x844), and nativeAndroid emulator (emulator-5554). Physical Android device and human spoken reviews honestly marked unmet."
+}

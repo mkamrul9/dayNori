@@ -11,8 +11,14 @@ export type ThemePreference = z.infer<typeof ThemePreferenceSchema>;
 export const QuietHoursPreferenceSchema = z
   .object({
     enabled: z.boolean().default(false),
-    start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('22:00'),
-    end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('08:00'),
+    start: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .default('22:00'),
+    end: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .default('08:00'),
     timezone: z.string().min(1).max(64).default('UTC'),
   })
   .strict();
@@ -153,6 +159,7 @@ export const TourPracticeArtifactSchema = z
     labeledPractice: z.boolean(),
     linkedOrEdited: z.boolean(),
     createdAt: z.string().datetime(),
+    creationOperationId: z.string().min(1).max(128).optional(),
   })
   .strict();
 
@@ -169,17 +176,28 @@ export const TourChapterProgressSchema = z
     practiceArtifacts: z.array(TourPracticeArtifactSchema).max(80).optional(),
     updatedAt: z.string().datetime(),
     blockedReason: z.string().max(512).nullable().optional(),
+    practiceOptIn: z.boolean().optional(),
   })
   .strict();
 
-export const TourProgressStateSchema = z
+const TourProgressSnapshotSchema = z
   .object({
     version: z.literal(1).default(1),
+    scope: z
+      .object({
+        accountUserId: z.string().min(1).max(128),
+        workspaceId: z.string().min(1).max(128),
+      })
+      .strict()
+      .optional(),
     chapters: z.array(TourChapterProgressSchema).max(40).default([]),
     migratedFromOnboardingV1: z.boolean().default(false),
     migratedAt: z.string().datetime().nullable().optional(),
   })
   .strict();
+export const TourProgressStateSchema = TourProgressSnapshotSchema.extend({
+  otherScopes: z.array(TourProgressSnapshotSchema).max(12).optional(),
+}).strict();
 export type TourProgressState = z.infer<typeof TourProgressStateSchema>;
 
 export const DisplayPreferencesSchema = z

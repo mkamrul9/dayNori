@@ -1,4 +1,9 @@
-import type { TourChapterDefinition, TourEvidenceEvent, TourStepDefinition } from './types.js';
+import type {
+  TourChapterDefinition,
+  TourEvidenceEvent,
+  TourStepDefinition,
+  TourPracticeArtifact,
+} from './types.js';
 
 export type CorrelationRejectReason =
   | 'wrong_account'
@@ -15,6 +20,7 @@ export type CorrelationRejectReason =
   | 'cloud_required'
   | 'record_not_loaded'
   | 'missing_operation'
+  | 'wrong_occurrence'
   | 'stale_or_unrelated';
 
 export interface CorrelationContext {
@@ -27,6 +33,7 @@ export interface CorrelationContext {
   attemptId: string;
   expectedEntityId?: string | null;
   practiceEntityIds?: string[];
+  practiceArtifacts?: TourPracticeArtifact[];
 }
 
 export interface CorrelationResult {
@@ -64,7 +71,7 @@ function requireEntityMatch(
   ctx: CorrelationContext
 ): CorrelationResult | null {
   const expected = ctx.expectedEntityId;
-  if (expected && event.entityId && event.entityId !== expected) {
+  if (!event.entityId || (expected && event.entityId !== expected)) {
     return { accepted: false, reason: 'wrong_entity' };
   }
   if (
@@ -83,10 +90,10 @@ function requireLocalMutation(event: TourEvidenceEvent, entityType?: string): Co
   if (event.type !== 'local_mutation_committed') {
     return { accepted: false, reason: 'wrong_action' };
   }
-  if (entityType && event.entityType && event.entityType !== entityType) {
+  if (entityType && event.entityType !== entityType) {
     return { accepted: false, reason: 'wrong_entity' };
   }
-  if (event.persistence === 'cloud') {
+  if (event.persistence !== 'local') {
     return { accepted: false, reason: 'cloud_required' };
   }
   if (!event.operationId || !event.entityId) {
@@ -107,6 +114,25 @@ export function correlateTourEvidence(
 ): CorrelationResult {
   const scope = matchesScope(event, ctx);
   if (!scope.accepted) return scope;
+  if (event.expectedAction && step.expectedAction && event.expectedAction !== step.expectedAction) {
+    return { accepted: false, reason: 'wrong_action' };
+  }
+  if (event.type === 'practice_reused') {
+    const owned = ctx.practiceArtifacts?.find(
+      (a) =>
+        a.entityId === event.entityId &&
+        a.creationOperationId === event.operationId &&
+        a.createdByTour &&
+        !a.userOwned
+    );
+    return ['entity_saved_locally', 'practice_task_saved_locally'].includes(
+      step.completionPredicate
+    ) &&
+      event.recordLoaded === true &&
+      owned
+      ? (requireEntityMatch(event, ctx) ?? { accepted: true })
+      : { accepted: false, reason: 'stale_or_unrelated' };
+  }
 
   switch (step.completionPredicate) {
     case 'informational_acknowledged':
@@ -128,7 +154,9 @@ export function correlateTourEvidence(
       if (event.type !== 'create_type_selected') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      const want = step.createType ?? (step.completionPredicate === 'create_sheet_task_selected' ? 'task' : undefined);
+      const want =
+        step.createType ??
+        (step.completionPredicate === 'create_sheet_task_selected' ? 'task' : undefined);
       if (want && event.createType !== want) {
         return { accepted: false, reason: 'wrong_create_type' };
       }
@@ -150,7 +178,11 @@ export function correlateTourEvidence(
 
     case 'practice_task_visible_in_plan':
       // Legacy Phase 79 predicate — prefer practice_task_opened / entity_opened.
-      if (event.type !== 'entity_visible' && event.type !== 'target_activated' && event.type !== 'entity_opened') {
+      if (
+        event.type !== 'entity_visible' &&
+        event.type !== 'target_activated' &&
+        event.type !== 'entity_opened'
+      ) {
         return { accepted: false, reason: 'wrong_action' };
       }
       return requireEntityMatch(event, ctx) ?? { accepted: true };
@@ -158,6 +190,12 @@ export function correlateTourEvidence(
     case 'practice_task_opened':
     case 'entity_opened':
     case 'calendar_projection_opened': {
+      if (
+        step.completionPredicate === 'calendar_projection_opened' &&
+        event.type !== 'calendar_projection_opened'
+      ) {
+        return { accepted: false, reason: 'wrong_action' };
+      }
       if (
         event.type !== 'entity_opened' &&
         event.type !== 'calendar_projection_opened' &&
@@ -181,7 +219,7 @@ export function correlateTourEvidence(
       if (event.type !== 'entity_completed' && event.type !== 'local_mutation_committed') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (event.type === 'local_mutation_committed' && !event.operationId) {
+      if (!event.operationId) {
         return { accepted: false, reason: 'missing_operation' };
       }
       return requireEntityMatch(event, ctx) ?? { accepted: true };
@@ -190,7 +228,7 @@ export function correlateTourEvidence(
       if (event.type !== 'entity_completion_undone' && event.type !== 'local_mutation_committed') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (event.type === 'local_mutation_committed' && !event.operationId) {
+      if (!event.operationId) {
         return { accepted: false, reason: 'missing_operation' };
       }
       return requireEntityMatch(event, ctx) ?? { accepted: true };
@@ -199,8 +237,15 @@ export function correlateTourEvidence(
       if (event.type !== 'occurrence_action' && event.type !== 'local_mutation_committed') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (!event.operationId && event.type === 'local_mutation_committed') {
+      if (!event.operationId) {
         return { accepted: false, reason: 'missing_operation' };
+      }
+      if (!event.occurrenceDate || !/^\d{4}-\d{2}-\d{2}$/.test(event.occurrenceDate)) {
+        return { accepted: false, reason: 'wrong_occurrence' };
+      }
+      const wanted = step.expectedAction === 'occurrence_undo' ? 'undo' : 'complete';
+      if (event.occurrenceAction !== wanted) {
+        return { accepted: false, reason: 'wrong_occurrence' };
       }
       return requireEntityMatch(event, ctx) ?? { accepted: true };
     }
@@ -209,16 +254,35 @@ export function correlateTourEvidence(
       if (event.type !== 'preference_changed') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (!event.preferenceKey) {
+      if (
+        !event.preferenceKey ||
+        !Number.isInteger(event.preferenceRevision) ||
+        event.preferenceRevision! < 0
+      ) {
         return { accepted: false, reason: 'stale_or_unrelated' };
+      }
+      if (
+        step.expectedAction === 'pin_module' &&
+        event.preferenceKey !== 'featurePersonalization.pinnedFeatureIds'
+      ) {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      if (
+        step.expectedAction === 'hide_journal_tab' &&
+        event.preferenceValue !== 'journal:hidden'
+      ) {
+        return { accepted: false, reason: 'wrong_action' };
+      }
+      if (step.expectedAction === 'restore_module' && event.preferenceValue !== 'journal:visible') {
+        return { accepted: false, reason: 'wrong_action' };
       }
       return { accepted: true };
 
     case 'search_result_opened':
-      if (event.type !== 'search_result_opened' && event.type !== 'entity_opened') {
+      if (event.type !== 'search_result_opened') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      if (event.recordLoaded !== true && event.type === 'entity_opened') {
+      if (event.recordLoaded !== true) {
         return { accepted: false, reason: 'record_not_loaded' };
       }
       return requireEntityMatch(event, ctx) ?? { accepted: true };
@@ -236,11 +300,16 @@ export function correlateTourEvidence(
       if (event.type !== 'help_return_to_editor') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      return { accepted: true };
+      return event.recordLoaded === true && event.draftPreserved === true
+        ? { accepted: true }
+        : { accepted: false, reason: 'record_not_loaded' };
 
     case 'filter_view_changed':
       if (event.type !== 'filter_changed') {
         return { accepted: false, reason: 'wrong_action' };
+      }
+      if (!event.filterId || (step.expectedAction === 'clear_filter' && !event.filterCleared)) {
+        return { accepted: false, reason: 'stale_or_unrelated' };
       }
       return { accepted: true };
 
@@ -248,7 +317,9 @@ export function correlateTourEvidence(
       if (event.type !== 'cleanup_confirmed') {
         return { accepted: false, reason: 'wrong_action' };
       }
-      return { accepted: true };
+      return Array.isArray(event.cleanupEntityIds)
+        ? { accepted: true }
+        : { accepted: false, reason: 'stale_or_unrelated' };
 
     default:
       return { accepted: false, reason: 'stale_or_unrelated' };

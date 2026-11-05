@@ -1,7 +1,9 @@
 'use client';
+import { confirmTourRecordLoaded } from '../../tours/recordNavigation';
 
 import { Icon } from '@daynori/ui-web';
 import { isCorePreview } from '../../config/preview';
+import { useTourOptional } from '../../tours/TourContext';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
@@ -92,6 +94,7 @@ export type LibraryTypeFilter = 'all' | 'notes' | 'knowledge' | 'files' | 'tasks
 const ITEMS_PER_PAGE = 10;
 
 export default function LibraryPage() {
+  const tour = useTourOptional();
   const liveRegionId = useId();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
@@ -727,7 +730,7 @@ export default function LibraryPage() {
 
     const siblings = folders.filter((f) => f.parentId === createParentId && !f.trashedAt);
     const newRank = generateInitialRank(siblings.length);
-    const newId = generateUuid();
+    const newId = tour?.getPracticeCreationId('folder') ?? generateUuid();
     const now = new Date().toISOString();
 
     const newFolder: FolderNode = {
@@ -1305,7 +1308,7 @@ export default function LibraryPage() {
 
   // Note Editor Handlers
   const handleOpenNewNote = useCallback(() => {
-    const newId = generateUuid();
+    const newId = tour?.getPracticeCreationId('note') ?? generateUuid();
     setEditingNote({
       id: newId,
       title: '',
@@ -1315,7 +1318,7 @@ export default function LibraryPage() {
       conflict: null,
     });
     announce('Opened new note editor');
-  }, [currentFolderId, announce]);
+  }, [currentFolderId, announce, tour]);
 
   const handleOpenNewPresetNote = useCallback(
     (preset: 'guide' | 'cheatsheet') => {
@@ -1445,6 +1448,7 @@ export default function LibraryPage() {
 
   const handleOpenItem = useCallback(
     async (item: LibraryItemRecord) => {
+      const report = tour?.captureEvidence(item.id);
       if (item.kind === 'note' || item.kind === 'knowledge') {
         let doc: NoteDocument | undefined;
         let conflictInfo: {
@@ -1497,6 +1501,21 @@ export default function LibraryPage() {
           conflict: conflictInfo,
         });
         announce(`Opened note ${item.title}`);
+        if (doc) {
+          void report?.({
+            type: 'entity_opened',
+            entityId: item.id,
+            entityType: 'note',
+            recordLoaded: true,
+          });
+          if (user?.id && workspaceId)
+            void confirmTourRecordLoaded({
+              accountUserId: user.id,
+              workspaceId,
+              entityId: item.id,
+              entityType: 'note',
+            });
+        }
       } else if (item.kind === 'file') {
         const f = filesMap[item.id];
         let isOffline = false;
@@ -1532,7 +1551,7 @@ export default function LibraryPage() {
         announce(`Opened preview for ${item.title}`);
       }
     },
-    [workspaceId, announce, filesMap, user, folders]
+    [workspaceId, announce, filesMap, user, folders, tour]
   );
 
   const refreshFilesAndUsage = useCallback(async () => {
@@ -2154,6 +2173,14 @@ export default function LibraryPage() {
     const folderId = params.get('folderId');
     if (folderId) {
       setCurrentFolderId(folderId);
+      const loaded = folders.find((folder) => folder.id === folderId && !folder.trashedAt);
+      if (loaded && user?.id && workspaceId)
+        void confirmTourRecordLoaded({
+          accountUserId: user.id,
+          workspaceId,
+          entityId: loaded.id,
+          entityType: 'folder',
+        });
     }
 
     const noteId = params.get('noteId');
@@ -2419,6 +2446,7 @@ export default function LibraryPage() {
             >
               <Icon name="arrow-left" /> Back to Library
             </Button>
+            <ContextualHelpLink articleId="help.notes-and-library" label="Writing Help" />
             <Button
               variant="primary"
               onClick={() => {
@@ -2544,13 +2572,19 @@ export default function LibraryPage() {
                 boxSizing: 'border-box',
               }}
             />
-            <Button variant="primary" onClick={handleOpenNewNote} aria-label="Write a new note">
+            <Button
+              variant="primary"
+              onClick={handleOpenNewNote}
+              aria-label="Write a new note"
+              data-tour-target={!editingNote ? 'create.note.save' : undefined}
+            >
               <Icon name="plus" /> Write note
             </Button>
             <Button
               variant="secondary"
               onClick={() => handleOpenCreateModal(currentFolderId)}
               aria-label="Create new folder"
+              data-tour-target={!isCreateModalOpen ? 'library.folder.create' : undefined}
             >
               New folder
             </Button>
@@ -2559,6 +2593,15 @@ export default function LibraryPage() {
               aria-expanded={libraryToolsOpen}
               aria-controls="library-more-tools"
               onClick={() => setLibraryToolsOpen((v) => !v)}
+              data-tour-target={
+                !libraryToolsOpen &&
+                typeFilter === 'all' &&
+                !activeSavedViewId &&
+                !showArchived &&
+                !searchQuery.trim()
+                  ? 'library.filter'
+                  : undefined
+              }
             >
               {libraryToolsOpen ? 'Hide tools' : 'More tools'}
             </Button>
@@ -2580,26 +2623,38 @@ export default function LibraryPage() {
                 style={{ fontSize: 12, color: palette.text.secondary, fontWeight: 600 }}
               >
                 Active filters (view only ? does not move items)
-                {typeFilter !== 'all' ? ` · ${typeFilter}` : ''}
-                {searchQuery.trim() ? ' · search' : ''}
-                {activeSavedViewId ? ' · saved view' : ''}
-                {showArchived ? ' · archived' : ''}
+                {typeFilter !== 'all' ? ` Â· ${typeFilter}` : ''}
+                {searchQuery.trim() ? ' Â· search' : ''}
+                {activeSavedViewId ? ' Â· saved view' : ''}
+                {showArchived ? ' Â· archived' : ''}
               </span>
               <Button
                 variant="subtle"
                 size="compact"
+                data-tour-target="library.filter"
                 onClick={() => {
+                  const report = tour?.captureEvidence();
                   setTypeFilter('all');
                   setSearchQuery('');
                   setActiveSavedViewId(null);
                   setShowArchived(false);
                   setPage(1);
                   announce('Filters cleared. Folder ownership unchanged.');
+                  requestAnimationFrame(() => {
+                    void report?.({
+                      type: 'filter_changed',
+                      filterId: 'library',
+                      filterCleared: true,
+                    });
+                  });
                 }}
               >
                 Clear filters
               </Button>
-              <ContextualHelpLink articleId="help.notes-and-library" label="Folders & filters Help" />
+              <ContextualHelpLink
+                articleId="help.notes-and-library"
+                label="Folders & filters Help"
+              />
             </div>
           )}
 
@@ -2621,6 +2676,11 @@ export default function LibraryPage() {
               <div
                 role="tablist"
                 aria-label="Filter by type"
+                data-tour-target={
+                  typeFilter === 'all' && !activeSavedViewId && !showArchived && !searchQuery.trim()
+                    ? 'library.filter'
+                    : undefined
+                }
                 style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
               >
                 {(
@@ -2640,9 +2700,22 @@ export default function LibraryPage() {
                       role="tab"
                       aria-selected={isSelected}
                       onClick={() => {
+                        const report = tour?.captureEvidence();
+                        const wasFiltered =
+                          typeFilter !== 'all' ||
+                          Boolean(activeSavedViewId) ||
+                          showArchived ||
+                          Boolean(searchQuery.trim());
                         setTypeFilter(tab.key);
                         setPage(1);
                         announce(`Showing ${tab.label}`);
+                        requestAnimationFrame(() => {
+                          void report?.({
+                            type: 'filter_changed',
+                            filterId: 'library',
+                            filterCleared: wasFiltered && tab.key === 'all',
+                          });
+                        });
                       }}
                       style={{
                         minHeight: touchTargets.webMin,
@@ -3022,7 +3095,9 @@ export default function LibraryPage() {
                     ? 'Nothing matches these filters. Clear filters or write a new note.'
                     : 'Write a note or create a folder to get started.'
                 }
-                actionLabel={searchQuery.trim() || typeFilter !== 'all' ? 'Clear filters' : 'Write note'}
+                actionLabel={
+                  searchQuery.trim() || typeFilter !== 'all' ? 'Clear filters' : 'Write note'
+                }
                 onAction={
                   searchQuery.trim() || typeFilter !== 'all'
                     ? () => {
@@ -3044,6 +3119,7 @@ export default function LibraryPage() {
                   <div
                     key={item.id}
                     role="listitem"
+                    data-tour-target={item.kind === 'note' ? 'library.note.practice' : undefined}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -3317,7 +3393,11 @@ export default function LibraryPage() {
             <Button variant="subtle" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleConfirmCreate}>
+            <Button
+              variant="primary"
+              onClick={handleConfirmCreate}
+              data-tour-target="library.folder.create"
+            >
               Create Folder
             </Button>
           </div>

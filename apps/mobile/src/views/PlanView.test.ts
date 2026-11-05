@@ -46,7 +46,7 @@ function createRoutine(
   };
 }
 
-function createMockRepository(store: MutableRepo, boundWorkspaceId: string): LocalRepositoryPort {
+function createMockRepository(store: MutableRepo, _boundWorkspaceId: string): LocalRepositoryPort {
   return {
     listTasks: async (workspaceId: string) =>
       store.tasks.filter((t) => t.workspaceId === workspaceId),
@@ -204,9 +204,7 @@ describe('PlanView routines data path (Phase 71)', () => {
       pressable!.props.onPress();
     });
 
-    expect(
-      renderer.root.findByProps({ testID: `plan-routine-detail-${routineId}` })
-    ).toBeDefined();
+    expect(renderer.root.findByProps({ testID: `plan-routine-detail-${routineId}` })).toBeDefined();
     expect(renderer.root.findByProps({ testID: 'plan-routine-detail-sheet' })).toBeDefined();
   });
 
@@ -249,9 +247,7 @@ describe('PlanView routines data path (Phase 71)', () => {
     await flush();
 
     expect(renderer.root.findByProps({ testID: 'plan-routine-row-routine-a' })).toBeDefined();
-    expect(() =>
-      renderer.root.findByProps({ testID: 'plan-routine-row-routine-b' })
-    ).toThrow();
+    expect(() => renderer.root.findByProps({ testID: 'plan-routine-row-routine-b' })).toThrow();
   });
 
   it('calendar projection does not invent routines when the repository is empty', async () => {
@@ -328,9 +324,7 @@ describe('PlanView routines data path (Phase 71)', () => {
     });
     await flush();
 
-    expect(() =>
-      renderer.root.findByProps({ testID: 'plan-routine-row-routine-ws1' })
-    ).toThrow();
+    expect(() => renderer.root.findByProps({ testID: 'plan-routine-row-routine-ws1' })).toThrow();
     expect(renderer.root.findByProps({ testID: 'plan-routine-row-routine-ws2' })).toBeDefined();
   });
 });

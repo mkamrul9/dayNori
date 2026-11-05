@@ -4,10 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import type { AuthSession, SignInResponse, SignUpResponse } from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
 import { OfflineFileCache } from '../data/offlineFileCache.js';
-import {
-  getTrustedDeviceConsent,
-  IndexedDbLocalRepository,
-} from '../data/indexedDbRepository';
+import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../data/indexedDbRepository';
 import { cleanupWebPushOnSignOutAsync } from '../notifications/webPushManager';
 
 export interface AuthUser {
@@ -143,8 +140,12 @@ function mapProfileToPreferences(prof: {
     featurePersonalization: fp
       ? {
           version: 1,
-          hiddenFeatureIds: Array.isArray(fp.hiddenFeatureIds) ? fp.hiddenFeatureIds.map(String) : [],
-          pinnedFeatureIds: Array.isArray(fp.pinnedFeatureIds) ? fp.pinnedFeatureIds.map(String) : [],
+          hiddenFeatureIds: Array.isArray(fp.hiddenFeatureIds)
+            ? fp.hiddenFeatureIds.map(String)
+            : [],
+          pinnedFeatureIds: Array.isArray(fp.pinnedFeatureIds)
+            ? fp.pinnedFeatureIds.map(String)
+            : [],
         }
       : undefined,
     revision: prof.revision,
@@ -257,33 +258,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ...(updates.weekStart ? { weekStart: updates.weekStart } : {}),
           ...(Object.keys(prefsPatch).length
             ? {
-                preferences: {
-                  theme: (prefsPatch.theme as string) ?? preferences?.theme ?? 'system',
-                  compactMode:
-                    (prefsPatch.compactMode as boolean) ?? preferences?.compactMode ?? false,
-                  expensesEnabled:
-                    (prefsPatch.expensesEnabled as boolean) ??
-                    preferences?.expensesEnabled ??
-                    false,
-                  journalPreviewHidden:
-                    (prefsPatch.journalPreviewHidden as boolean | undefined) ??
-                    preferences?.journalPreviewHidden ??
-                    true,
-                  suppressBodySnippets:
-                    (prefsPatch.suppressBodySnippets as boolean | undefined) ??
-                    preferences?.suppressBodySnippets ??
-                    true,
-                  ...(prefsPatch.quietHours !== undefined
-                    ? { quietHours: prefsPatch.quietHours }
-                    : preferences?.quietHours
-                      ? { quietHours: preferences.quietHours }
-                      : {}),
-                  ...(prefsPatch.featurePersonalization !== undefined
-                    ? { featurePersonalization: prefsPatch.featurePersonalization }
-                    : preferences?.featurePersonalization
-                      ? { featurePersonalization: preferences.featurePersonalization }
-                      : {}),
-                },
+                // Patch only the user's intended fields. Tour saves share the
+                // same revision and must not overwrite unrelated preferences.
+                preferences: prefsPatch,
               }
             : {}),
           expectedRevision: expectedRevision ?? preferences?.revision,

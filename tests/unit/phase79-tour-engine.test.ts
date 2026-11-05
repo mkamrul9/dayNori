@@ -101,29 +101,37 @@ describe('Phase 79 tour engine', () => {
     };
 
     expect(
-      correlateTourEvidence(step, { ...base, accountUserId: 'other' }, {
-        accountUserId: USER,
-        workspaceId: WS,
-        chapterId: CHAPTER,
-        definitionVersion: 1,
-        runId: chapter.runId!,
-        stepId: 'save-task',
-        attemptId: attemptId!,
-        expectedEntityId: practiceId,
-      }).reason
+      correlateTourEvidence(
+        step,
+        { ...base, accountUserId: 'other' },
+        {
+          accountUserId: USER,
+          workspaceId: WS,
+          chapterId: CHAPTER,
+          definitionVersion: 1,
+          runId: chapter.runId!,
+          stepId: 'save-task',
+          attemptId: attemptId!,
+          expectedEntityId: practiceId,
+        }
+      ).reason
     ).toBe('wrong_account');
 
     expect(
-      correlateTourEvidence(step, { ...base, entityId: 'unrelated-task' }, {
-        accountUserId: USER,
-        workspaceId: WS,
-        chapterId: CHAPTER,
-        definitionVersion: 1,
-        runId: chapter.runId!,
-        stepId: 'save-task',
-        attemptId: attemptId!,
-        expectedEntityId: practiceId,
-      }).reason
+      correlateTourEvidence(
+        step,
+        { ...base, entityId: 'unrelated-task' },
+        {
+          accountUserId: USER,
+          workspaceId: WS,
+          chapterId: CHAPTER,
+          definitionVersion: 1,
+          runId: chapter.runId!,
+          stepId: 'save-task',
+          attemptId: attemptId!,
+          expectedEntityId: practiceId,
+        }
+      ).reason
     ).toBe('wrong_entity');
 
     const applied = applyTourEvidence(state, CHAPTER, base, {
@@ -133,12 +141,8 @@ describe('Phase 79 tour engine', () => {
     });
     expect(applied.ok).toBe(true);
     if (!applied.ok) return;
-    expect(applied.chapter.steps.find((s) => s.stepId === 'save-task')?.outcome).toBe(
-      'completed'
-    );
-    expect(applied.chapter.steps.find((s) => s.stepId === 'save-task')?.operationId).toBe(
-      'op_1'
-    );
+    expect(applied.chapter.steps.find((s) => s.stepId === 'save-task')?.outcome).toBe('completed');
+    expect(applied.chapter.steps.find((s) => s.stepId === 'save-task')?.operationId).toBe('op_1');
     expect(applied.chapter.currentStepId).toBe('reopen-task');
 
     // Duplicate same operation resumes without double-advance chaos
@@ -168,7 +172,14 @@ describe('Phase 79 tour engine', () => {
     expect(proof).toBeUndefined();
     expect(migrated.chapters.every((c) => c.lifecycle !== 'completed')).toBe(true);
     const again = ensureTourProgressMigrated({
-      onboarding: { version: 1, step: 'completed', completed: true, skipped: false, selectedInterests: [], createdSampleItemIds: [] },
+      onboarding: {
+        version: 1,
+        step: 'completed',
+        completed: true,
+        skipped: false,
+        selectedInterests: [],
+        createdSampleItemIds: [],
+      },
       tourProgress: migrated,
     });
     expect(again.migratedAt).toBe(migrated.migratedAt);
@@ -205,7 +216,7 @@ describe('Phase 79 tour engine', () => {
           contentVersion: 1,
           lifecycle: 'active',
           currentStepId: 'save-task',
-          runId: 'run-b',
+          runId: 'run-a',
           updatedAt: '2026-10-27T09:00:00.000Z',
           practiceEntityIds: ['task-1'],
           steps: [
@@ -218,7 +229,7 @@ describe('Phase 79 tour engine', () => {
     });
     const merged = mergeTourProgressStates(a, b);
     const ch = merged.chapters[0]!;
-    // Newer updatedAt wins position (a), while completed/skipped outcomes are unioned.
+    // Concurrent observations within one run union outcomes; a restart is a separate run.
     expect(ch.currentStepId).toBe('open-create');
     expect(ch.steps.find((s) => s.stepId === 'intro')?.outcome).toBe('completed');
     expect(ch.steps.find((s) => s.stepId === 'open-create')?.outcome).toBe('skipped');

@@ -17,6 +17,16 @@ export interface WebSyncAdapterOptions {
 }
 
 let activeWebSyncEngine: SyncEngine | null = null;
+const engineObservers = new Set<(engine: SyncEngine | null) => void>();
+export function observeActiveWebSyncEngine(
+  observer: (engine: SyncEngine | null) => void
+): () => void {
+  engineObservers.add(observer);
+  observer(activeWebSyncEngine);
+  return () => {
+    engineObservers.delete(observer);
+  };
+}
 
 export function getActiveWebSyncEngine(): SyncEngine | null {
   return activeWebSyncEngine;
@@ -24,6 +34,7 @@ export function getActiveWebSyncEngine(): SyncEngine | null {
 
 export function setActiveWebSyncEngine(engine: SyncEngine | null): void {
   activeWebSyncEngine = engine;
+  for (const observer of engineObservers) observer(engine);
 }
 
 /**
@@ -57,6 +68,6 @@ export function createWebSyncEngine(options: WebSyncAdapterOptions): SyncEngine 
   };
 
   const engine = new SyncEngine(engineOptions);
-  activeWebSyncEngine = engine;
+  setActiveWebSyncEngine(engine);
   return engine;
 }

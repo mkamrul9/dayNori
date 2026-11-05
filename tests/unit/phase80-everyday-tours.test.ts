@@ -13,6 +13,7 @@ import {
   listRunnableTourChapterIds,
   listStarterTourChapterIds,
   listTourChaptersForLearningChapter,
+  searchDownloadedRecords,
   validateCleanupSelection,
   validateTourProgressState,
 } from '@daynori/domain';
@@ -217,5 +218,169 @@ describe('Phase 80 everyday tour catalog', () => {
     );
     expect(rejected.ok).toBe(false);
     expect(attempt).toBeTruthy();
+  });
+
+  it('completes tour.folders-search when opening either the newly saved folder or a prior practice item from search', () => {
+    let state = getDefaultTourProgress();
+    const noteId = getTourPracticeEntityId(WS, USER, 'tour.notes-library', 'note', 'primary');
+    const folderId = getTourPracticeEntityId(WS, USER, 'tour.folders-search', 'folder', 'primary');
+
+    // Start tour.notes-library and save a practice note first
+    const startedNotes = applyTourControl(state, 'tour.notes-library', 'start', {
+      accountUserId: USER,
+      workspaceId: WS,
+    });
+    expect(startedNotes.ok).toBe(true);
+    if (!startedNotes.ok) return;
+    const notesIntro = applyTourControl(startedNotes.state, 'tour.notes-library', 'next', {
+      accountUserId: USER,
+      workspaceId: WS,
+    });
+    expect(notesIntro.ok).toBe(true);
+    if (!notesIntro.ok) return;
+    state = notesIntro.state;
+    let ch = state.chapters.find((c) => c.chapterId === 'tour.notes-library')!;
+    let att = ch.steps.find((s) => s.stepId === ch.currentStepId)!.attemptId!;
+    const step2 = applyTourEvidence(
+      state,
+      'tour.notes-library',
+      {
+        type: 'local_mutation_committed',
+        at: new Date().toISOString(),
+        accountUserId: USER,
+        workspaceId: WS,
+        chapterId: 'tour.notes-library',
+        definitionVersion: 1,
+        runId: ch.runId!,
+        stepId: 'create-save',
+        attemptId: att,
+        entityId: noteId,
+        entityType: 'note',
+        operationId: 'op-note-1',
+        persistence: 'local',
+      },
+      { accountUserId: USER, workspaceId: WS, expectedPracticeEntityId: noteId }
+    );
+    expect(step2.ok).toBe(true);
+    if (!step2.ok) return;
+    state = step2.state;
+
+    // Now start tour.folders-search
+    const startedFolders = applyTourControl(state, 'tour.folders-search', 'start', {
+      accountUserId: USER,
+      workspaceId: WS,
+    });
+    expect(startedFolders.ok).toBe(true);
+    if (!startedFolders.ok) return;
+    const foldersIntro = applyTourControl(startedFolders.state, 'tour.folders-search', 'next', {
+      accountUserId: USER,
+      workspaceId: WS,
+    });
+    expect(foldersIntro.ok).toBe(true);
+    if (!foldersIntro.ok) return;
+    state = foldersIntro.state;
+    ch = state.chapters.find((c) => c.chapterId === 'tour.folders-search')!;
+    att = ch.steps.find((s) => s.stepId === ch.currentStepId)!.attemptId!;
+
+    const createFolder = applyTourEvidence(
+      state,
+      'tour.folders-search',
+      {
+        type: 'local_mutation_committed',
+        at: new Date().toISOString(),
+        accountUserId: USER,
+        workspaceId: WS,
+        chapterId: 'tour.folders-search',
+        definitionVersion: 1,
+        runId: ch.runId!,
+        stepId: 'create-folder',
+        attemptId: att,
+        entityId: folderId,
+        entityType: 'folder',
+        operationId: 'op-folder-1',
+        persistence: 'local',
+      },
+      { accountUserId: USER, workspaceId: WS, expectedPracticeEntityId: folderId }
+    );
+    expect(createFolder.ok).toBe(true);
+    if (!createFolder.ok) return;
+    state = createFolder.state;
+    ch = state.chapters.find((c) => c.chapterId === 'tour.folders-search')!;
+    att = ch.steps.find((s) => s.stepId === ch.currentStepId)!.attemptId!;
+
+    const clearFilter = applyTourEvidence(
+      state,
+      'tour.folders-search',
+      {
+        type: 'filter_changed',
+        at: new Date().toISOString(),
+        accountUserId: USER,
+        workspaceId: WS,
+        chapterId: 'tour.folders-search',
+        definitionVersion: 1,
+        runId: ch.runId!,
+        stepId: 'filter',
+        attemptId: att,
+        filterId: 'library:all',
+        filterCleared: true,
+      },
+      { accountUserId: USER, workspaceId: WS }
+    );
+    expect(clearFilter.ok).toBe(true);
+    if (!clearFilter.ok) return;
+    state = clearFilter.state;
+    ch = state.chapters.find((c) => c.chapterId === 'tour.folders-search')!;
+    att = ch.steps.find((s) => s.stepId === ch.currentStepId)!.attemptId!;
+
+    // Searching and opening the practice note from tour.notes-library succeeds
+    const searchOpen = applyTourEvidence(
+      state,
+      'tour.folders-search',
+      {
+        type: 'search_result_opened',
+        at: new Date().toISOString(),
+        accountUserId: USER,
+        workspaceId: WS,
+        chapterId: 'tour.folders-search',
+        definitionVersion: 1,
+        runId: ch.runId!,
+        stepId: 'search-open',
+        attemptId: att,
+        entityId: noteId,
+        entityType: 'note',
+        recordLoaded: true,
+        expectedAction: 'open_search_result',
+      },
+      { accountUserId: USER, workspaceId: WS }
+    );
+    expect(searchOpen.ok).toBe(true);
+    if (!searchOpen.ok) return;
+    expect(searchOpen.chapter.currentStepId).toBe('done');
+  });
+
+  it('indexes folder headers in searchDownloadedRecords even when items.folders is omitted', () => {
+    const res = searchDownloadedRecords({
+      workspaceId: WS,
+      query: { q: 'Practice Folder' },
+      items: {
+        headers: [
+          {
+            id: 'folder-1',
+            workspaceId: WS,
+            kind: 'folder',
+            name: 'Practice Folder Alpha',
+            folderId: null,
+            securityScope: 'standard',
+            deletedAt: null,
+            createdAt: '2026-10-28T00:00:00.000Z',
+            updatedAt: '2026-10-28T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+    expect(res.data).toHaveLength(1);
+    expect(res.data[0]?.id).toBe('folder-1');
+    expect(res.data[0]?.displayType).toBe('folder');
+    expect(res.data[0]?.title).toBe('Practice Folder Alpha');
   });
 });

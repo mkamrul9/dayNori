@@ -30,6 +30,8 @@ import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
 import { ContextualHelpLink } from './ContextualHelpLink';
 import { TourTarget } from '../tours/TourTarget';
+import { useTour } from '../tours/TourContext';
+import { beginTourRecordNavigation } from '../tours/recordNavigation';
 import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { createWebApiClient } from '../data/webApiClient';
 import { IndexedDbLocalRepository } from '../data/indexedDbRepository';
@@ -39,6 +41,7 @@ import { highlightMatch, searchDownloadedRecords } from '@daynori/domain';
 import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 
 export const AppModals: React.FC = () => {
+  const tour = useTour();
   const router = useRouter();
   const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
@@ -315,6 +318,26 @@ export const AppModals: React.FC = () => {
   };
 
   const navigateToSearchResult = (item: SearchResultItem) => {
+    const entityType =
+      item.displayType === 'journal'
+        ? 'journal_entry'
+        : item.displayType === 'knowledge'
+          ? 'note'
+          : item.displayType;
+    if (
+      user?.id &&
+      workspaceId &&
+      ['note', 'task', 'journal_entry', 'folder'].includes(entityType)
+    ) {
+      beginTourRecordNavigation({
+        accountUserId: user.id,
+        workspaceId,
+        entityId: item.id,
+        entityType: entityType as 'note' | 'task' | 'journal_entry' | 'folder',
+        source: 'search',
+        report: tour.captureEvidence(item.id),
+      });
+    }
     const wsParam = workspaceId ? `workspaceId=${encodeURIComponent(workspaceId)}` : '';
     let href = '/today';
 
@@ -381,9 +404,71 @@ export const AppModals: React.FC = () => {
 
         if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
 
-        setSearchResults(res.data);
+        let mergedResults = res.data;
+        let mergedTotal = res.meta.totalCount;
+        try {
+          if (!localRepoRef.current) {
+            const repo = new IndexedDbLocalRepository();
+            await repo.initialize({
+              userId: user?.id || 'anonymous',
+              workspaceId,
+            });
+            localRepoRef.current = repo;
+          }
+          const repo = localRepoRef.current;
+          const [headers, notes, tasks, journals, files, prefSnapshot] = await Promise.all([
+            repo.listItemHeaders(workspaceId),
+            repo.listNotes(workspaceId),
+            repo.listTasks(workspaceId),
+            repo.listJournalEntries(workspaceId),
+            repo.listFiles(workspaceId),
+            repo.getPreferenceSnapshot(user?.id || 'anonymous'),
+          ]);
+          const displayPrefs = (prefSnapshot?.preferences as Record<string, unknown>)
+            ?.displayPreferences as Record<string, unknown> | undefined;
+          const localRes = searchDownloadedRecords({
+            workspaceId,
+            query: {
+              q: trimmedQuery,
+              types,
+              startDate: startDate ? new Date(startDate).toISOString() : undefined,
+              endDate: endDate ? new Date(endDate).toISOString() : undefined,
+              limit: 20,
+              offset,
+            },
+            items: {
+              headers,
+              notes,
+              tasks,
+              journalEntries: journals,
+              files,
+            },
+            preferences: {
+              journalPreviewHidden:
+                displayPrefs?.journalPreviewHidden !== undefined
+                  ? Boolean(displayPrefs.journalPreviewHidden)
+                  : true,
+              suppressBodySnippets:
+                displayPrefs?.suppressBodySnippets !== undefined
+                  ? Boolean(displayPrefs.suppressBodySnippets)
+                  : true,
+            },
+          });
+          const seenIds = new Set(mergedResults.map((r) => r.id));
+          const unsyncedLocal = localRes.data.filter((r) => !seenIds.has(r.id));
+          if (unsyncedLocal.length > 0) {
+            mergedResults = [...mergedResults, ...unsyncedLocal].slice(0, 20);
+            mergedTotal += unsyncedLocal.length;
+          }
+        } catch {
+          /* ignore local merge errors */
+        }
+
+        if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+
+        setSearchResults(mergedResults);
         setCoverage(res.meta.coverage);
-        setTotalCount(res.meta.totalCount);
+        setTotalCount(mergedTotal);
         setIsOffline(false);
         setIsLoading(false);
       } catch (err: unknown) {
@@ -985,18 +1070,22 @@ export const AppModals: React.FC = () => {
                 themeMode={themeMode}
               />
             </TourTarget>
-            <ListRow
-              title="New Routine"
-              subtitle="Add a recurring daily or weekday habit with independent completion"
-              onClick={() => navigateTo('/plan')}
-              themeMode={themeMode}
-            />
-            <ListRow
-              title="New Note"
-              subtitle="Save reference knowledge, guides, or rich documents"
-              onClick={() => navigateTo('/library?create=note')}
-              themeMode={themeMode}
-            />
+            <TourTarget id="create.type.routine">
+              <ListRow
+                title="New Routine"
+                subtitle="Add a recurring daily or weekday habit with independent completion"
+                onClick={() => navigateTo('/today')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
+            <TourTarget id="create.type.note">
+              <ListRow
+                title="New Note"
+                subtitle="Save reference knowledge, guides, or rich documents"
+                onClick={() => navigateTo('/library?create=note')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
             {!isCorePreview && (
               <ListRow
                 title="Upload File"
@@ -1005,18 +1094,22 @@ export const AppModals: React.FC = () => {
                 themeMode={themeMode}
               />
             )}
-            <ListRow
-              title="New Journal Entry"
-              subtitle="Open a quiet writing surface for reflection"
-              onClick={() => navigateTo('/journal')}
-              themeMode={themeMode}
-            />
-            <ListRow
-              title="New Folder"
-              subtitle="Create a workspace folder to group tasks and documents"
-              onClick={() => navigateTo('/library')}
-              themeMode={themeMode}
-            />
+            <TourTarget id="create.type.journal">
+              <ListRow
+                title="New Journal Entry"
+                subtitle="Open a quiet writing surface for reflection"
+                onClick={() => navigateTo('/journal')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
+            <TourTarget id="create.type.folder">
+              <ListRow
+                title="New Folder"
+                subtitle="Create a workspace folder to group tasks and documents"
+                onClick={() => navigateTo('/library')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
           </div>
 
           <div

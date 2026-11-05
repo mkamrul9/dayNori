@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   evaluateFeatureEligibility,
   getDefaultFeaturePersonalization,
@@ -33,7 +33,18 @@ function buildReleaseContext(): FeatureReleaseContext {
 }
 
 export function useFeatureNavigation() {
-  const { isAuthenticated, workspaceId, preferences, savePreferences, csrfToken, user } = useAuth();
+  const {
+    isAuthenticated,
+    workspaceId,
+    preferences,
+    savePreferences,
+    loadPreferences,
+    csrfToken,
+    user,
+  } = useAuth();
+  const scopeKey = `${user?.id}:${workspaceId}`;
+  const liveScope = useRef(scopeKey);
+  liveScope.current = scopeKey;
   const [isOperator, setIsOperator] = useState(false);
   const [operatorKnown, setOperatorKnown] = useState(false);
   const [localPersonalization, setLocalPersonalization] = useState<FeaturePersonalization>(() =>
@@ -104,53 +115,66 @@ export function useFeatureNavigation() {
   );
 
   const persistPersonalization = useCallback(
-    async (next: FeaturePersonalization) => {
-      setLocalPersonalization(next);
+    async (transform: (current: FeaturePersonalization) => FeaturePersonalization) => {
       if (!isAuthenticated) {
+        setLocalPersonalization(transform(localPersonalization));
         setSaveStatus('saved');
         setSaveMessage('Saved on this device. Sign in to sync across devices.');
         return { success: true as const };
       }
       setSaveStatus('saving');
       setSaveMessage(null);
-      const res = await savePreferences({ featurePersonalization: next });
-      if (res.conflict) {
-        setSaveStatus('conflict');
-        setSaveMessage(res.error || 'Preference revision conflict. Reload and try again.');
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const latest = await loadPreferences();
+        if (liveScope.current !== scopeKey)
+          return { success: false as const, error: 'Account changed' };
+        if (!latest) break;
+        const next = transform(
+          sanitizeAndMigrateFeaturePersonalization(latest.featurePersonalization)
+        );
+        const res = await savePreferences({ featurePersonalization: next }, latest.revision);
+        if (liveScope.current !== scopeKey)
+          return { success: false as const, error: 'Account changed' };
+        if (res.conflict) continue;
+        if (!res.success) {
+          setSaveStatus('error');
+          setSaveMessage(res.error || 'Could not save personalization.');
+          return res;
+        }
+        setLocalPersonalization(next);
+        setSaveStatus('saved');
+        setSaveMessage('Personalization saved.');
         return res;
       }
-      if (!res.success) {
-        setSaveStatus('error');
-        setSaveMessage(res.error || 'Could not save personalization.');
-        return res;
-      }
-      setSaveStatus('saved');
-      setSaveMessage('Personalization saved.');
-      return res;
+      setSaveStatus('conflict');
+      setSaveMessage('Preferences changed or are unavailable. Reconnect and retry your choice.');
+      return { success: false as const, conflict: true as const };
     },
-    [isAuthenticated, savePreferences]
+    [isAuthenticated, savePreferences, loadPreferences, localPersonalization, scopeKey]
   );
 
   const hideFeature = useCallback(
     async (featureId: string) => {
       const elig = evaluateFeatureEligibility(featureId, release, auth, localPersonalization);
       if (!elig.canHide) return { success: false as const, error: 'Cannot hide this feature' };
-      const next = sanitizeAndMigrateFeaturePersonalization({
-        ...localPersonalization,
-        hiddenFeatureIds: [...new Set([...localPersonalization.hiddenFeatureIds, featureId])],
-      });
-      return persistPersonalization(next);
+      return persistPersonalization((current) =>
+        sanitizeAndMigrateFeaturePersonalization({
+          ...current,
+          hiddenFeatureIds: [...new Set([...current.hiddenFeatureIds, featureId])],
+        })
+      );
     },
     [release, auth, localPersonalization, persistPersonalization]
   );
 
   const restoreFeature = useCallback(
     async (featureId: string) => {
-      const next = sanitizeAndMigrateFeaturePersonalization({
-        ...localPersonalization,
-        hiddenFeatureIds: localPersonalization.hiddenFeatureIds.filter((id) => id !== featureId),
-      });
-      return persistPersonalization(next);
+      return persistPersonalization((current) =>
+        sanitizeAndMigrateFeaturePersonalization({
+          ...current,
+          hiddenFeatureIds: current.hiddenFeatureIds.filter((id) => id !== featureId),
+        })
+      );
     },
     [localPersonalization, persistPersonalization]
   );
@@ -159,25 +183,27 @@ export function useFeatureNavigation() {
     async (featureId: string) => {
       const elig = evaluateFeatureEligibility(featureId, release, auth, localPersonalization);
       if (!elig.canPin) return { success: false as const, error: 'Cannot pin this feature' };
-      const next = sanitizeAndMigrateFeaturePersonalization({
-        ...localPersonalization,
-        pinnedFeatureIds: [
-          ...localPersonalization.pinnedFeatureIds.filter((id) => id !== featureId),
-          featureId,
-        ],
-      });
-      return persistPersonalization(next);
+      return persistPersonalization((current) =>
+        sanitizeAndMigrateFeaturePersonalization({
+          ...current,
+          pinnedFeatureIds: [
+            ...current.pinnedFeatureIds.filter((id) => id !== featureId),
+            featureId,
+          ],
+        })
+      );
     },
     [release, auth, localPersonalization, persistPersonalization]
   );
 
   const unpinFeature = useCallback(
     async (featureId: string) => {
-      const next = sanitizeAndMigrateFeaturePersonalization({
-        ...localPersonalization,
-        pinnedFeatureIds: localPersonalization.pinnedFeatureIds.filter((id) => id !== featureId),
-      });
-      return persistPersonalization(next);
+      return persistPersonalization((current) =>
+        sanitizeAndMigrateFeaturePersonalization({
+          ...current,
+          pinnedFeatureIds: current.pinnedFeatureIds.filter((id) => id !== featureId),
+        })
+      );
     },
     [localPersonalization, persistPersonalization]
   );

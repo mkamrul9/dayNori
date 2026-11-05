@@ -7,3 +7,4 @@ export * from './coordination.js';
 export * from './engine.js';
 export * from './recovery.js';
 export * from './roomRevocation.js';
+export * from './tourCleanup.js';

@@ -20,6 +20,9 @@ import {
   type JournalDateIndicator,
 } from '@daynori/domain';
 import { IndexedDbLocalRepository } from '../../../data/indexedDbRepository';
+import { getActiveWebSyncEngine } from '../../../data/syncAdapter';
+import { useTour } from '../../../tours/TourContext';
+import { beginTourRecordNavigation } from '../../../tours/recordNavigation';
 
 export type CalendarViewMode = 'agenda' | 'day' | 'month';
 
@@ -41,6 +44,7 @@ const weekdayLabels: Record<1 | 6 | 7, string[]> = {
 };
 
 export default function PlanCalendarPage() {
+  const tour = useTour();
   const liveRegionId = useId();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
@@ -450,7 +454,38 @@ export default function PlanCalendarPage() {
       const client = apiClientRef.current;
       if (!client) throw new Error('API client unavailable');
 
-      if (editingEventId) {
+      const engine = getActiveWebSyncEngine();
+      const namespace = engine?.getAccountNamespace();
+      if (engine && namespace?.userId === user?.id && namespace?.workspaceId === workspaceId) {
+        const now = new Date().toISOString();
+        const existing = editingEventId
+          ? items.find((item) => item.sourceType === 'calendar_event' && item.id === editingEventId)
+          : null;
+        await engine.saveCalendarEvent({
+          id: editingEventId ?? tour.getPracticeCreationId('calendar_event') ?? crypto.randomUUID(),
+          workspaceId,
+          folderId: null,
+          title: normalizedTitle,
+          details: eventDetails || null,
+          allDay: eventAllDay,
+          startDate: eventAllDay ? eventStartDate : null,
+          endDate: eventAllDay ? eventEndDate : null,
+          startAt: startAtIso ?? null,
+          endAt: endAtIso ?? null,
+          timezone: eventTimezone,
+          isArchived: false,
+          securityScope: 'standard',
+          serverRevision: editingEventId ? (eventRevision ?? 1) : 0,
+          createdAt:
+            existing && 'createdAt' in existing && typeof existing.createdAt === 'string'
+              ? existing.createdAt
+              : now,
+          updatedAt: now,
+          deletedAt: null,
+        });
+        setLiveAnnouncement('Event saved on this device.');
+        await engine.syncNow();
+      } else if (editingEventId) {
         await client.updateCalendarEvent(workspaceId, editingEventId, {
           title: normalizedTitle,
           details: eventDetails || null,
@@ -693,8 +728,8 @@ export default function PlanCalendarPage() {
               width: '100%',
             }}
           >
-            Agenda is the default on phones. Month stays available; selecting a date keeps your place
-            when you switch views. Timezone: {timezone}.
+            Agenda is the default on phones. Month stays available; selecting a date keeps your
+            place when you switch views. Timezone: {timezone}.
           </p>
         ) : null}
       </div>
@@ -1376,7 +1411,13 @@ export default function PlanCalendarPage() {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" themeMode={themeMode} disabled={isSubmitting}>
+            <Button
+              type="submit"
+              variant="primary"
+              themeMode={themeMode}
+              disabled={isSubmitting}
+              data-tour-target="calendar.event.save"
+            >
               {isSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Schedule Event'}
             </Button>
           </div>
@@ -1394,6 +1435,19 @@ interface CalendarItemRowProps {
 }
 
 function CalendarItemRow({ item, themeMode, onEditEvent, onDeleteEvent }: CalendarItemRowProps) {
+  const tour = useTour();
+  const { user, workspaceId } = useAuth();
+  const beginProjection = (entityId: string, entityType: 'task' | 'routine') => {
+    if (user?.id && workspaceId)
+      beginTourRecordNavigation({
+        accountUserId: user.id,
+        workspaceId,
+        entityId,
+        entityType,
+        source: 'calendar',
+        report: tour.captureEvidence(entityId),
+      });
+  };
   const palette = colors[themeMode];
   const isTask = item.sourceType === 'task_deadline';
   const isRoutine = item.sourceType === 'routine_occurrence';
@@ -1463,6 +1517,8 @@ function CalendarItemRow({ item, themeMode, onEditEvent, onDeleteEvent }: Calend
           {isTask && (
             <Link
               href={`/plan?taskId=${(item as { taskId: string }).taskId}`}
+              data-tour-target="calendar.projection.open"
+              onClick={() => beginProjection((item as { taskId: string }).taskId, 'task')}
               style={{
                 fontSize: '11px',
                 color: palette.action.primary,
@@ -1476,6 +1532,8 @@ function CalendarItemRow({ item, themeMode, onEditEvent, onDeleteEvent }: Calend
           {isRoutine && (
             <Link
               href={`/?routineId=${(item as { routineId: string }).routineId}`}
+              data-tour-target="calendar.projection.open"
+              onClick={() => beginProjection((item as { routineId: string }).routineId, 'routine')}
               style={{
                 fontSize: '11px',
                 color: palette.action.primary,

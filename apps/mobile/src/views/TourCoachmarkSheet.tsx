@@ -1,363 +1,221 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  AccessibilityInfo,
-  BackHandler,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
+import { useEffect, useRef, useState } from 'react';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { colors, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { MobileButton, MobileCard } from '@daynori/ui-mobile';
-import {
-  TOUR_CHAPTER_TASK_CREATE_SAVE,
-  applyTourControl,
-  applyTourEvidence,
-  ensureTourProgressMigrated,
-  findChapterProgress,
-  getActiveAttemptId,
-  getDefaultTourProgress,
-  getStepDefinition,
-  getTourChapterDefinition,
-  getTourPracticeTaskId,
-  mergeTourProgressStates,
-  validateTourProgressState,
-  type TourControl,
-  type TourEvidenceEvent,
-  type TourProgressState,
-} from '@daynori/domain';
-import type { DaynoriApiClient } from '@daynori/api-client';
-
-export const MOBILE_PROOF_TOUR_ID = TOUR_CHAPTER_TASK_CREATE_SAVE.id;
-
-export interface TourCoachmarkSheetProps {
-  visible: boolean;
+import { buildTourCleanupReview, executeTourCleanup, type TourControl } from '@daynori/domain';
+import { createSyncTourCleanupPort } from '@daynori/sync';
+import { useNativeTourController, type NativeTourOptions } from './useNativeTourController';
+export type { NativeTourSession } from './useNativeTourController';
+export const MOBILE_PROOF_TOUR_ID = 'tour.task-create-save';
+export interface TourCoachmarkSheetProps extends NativeTourOptions {
   themeMode: ThemeMode;
-  /** Active tour chapter id — required for multi-chapter Phase 80 catalog. */
-  chapterId?: string;
-  apiClient?: DaynoriApiClient;
-  workspaceId?: string | null;
-  userId?: string | null;
-  onClose: () => void;
-  /** Called when the sheet wants navigation (e.g. open Create / Plan). */
-  onRequestRoute?: (route: string) => void;
-  /** External evidence from Create/Plan real controls. */
-  pendingEvidence?: Omit<
-    TourEvidenceEvent,
-    | 'at'
-    | 'accountUserId'
-    | 'workspaceId'
-    | 'chapterId'
-    | 'definitionVersion'
-    | 'runId'
-    | 'stepId'
-    | 'attemptId'
-  > | null;
-  onPendingEvidenceConsumed?: () => void;
 }
 
-/**
- * Native presentation adapter for action-verified tours (Phase 79–80).
- * Targets are semantic IDs (testID); progress is account/workspace scoped.
- */
-export const TourCoachmarkSheet: React.FC<TourCoachmarkSheetProps> = ({
-  visible,
-  themeMode,
-  chapterId: chapterIdProp,
-  apiClient,
-  workspaceId,
-  userId,
-  onClose,
-  onRequestRoute,
-  pendingEvidence,
-  onPendingEvidenceConsumed,
-}) => {
-  const palette = colors[themeMode];
-  const [progress, setProgress] = useState<TourProgressState>(getDefaultTourProgress);
-  const [revision, setRevision] = useState<number | null>(null);
-  const [announce, setAnnounce] = useState('');
-  const chapterId = chapterIdProp || MOBILE_PROOF_TOUR_ID;
-
-  const chapter = useMemo(
-    () => findChapterProgress(progress, chapterId) ?? null,
-    [progress, chapterId]
-  );
-  const def = getTourChapterDefinition(chapterId)!;
-  const step = chapter?.currentStepId
-    ? getStepDefinition(def, chapter.currentStepId)
-    : null;
-  const practiceTaskId =
-    userId && workspaceId ? getTourPracticeTaskId(workspaceId, userId, chapterId) : null;
-
-  const persist = useCallback(
-    async (next: TourProgressState) => {
-      if (!apiClient || !userId || !workspaceId) return;
-      let expected = revision;
-      for (let i = 0; i < 3; i++) {
-        try {
-          if (expected == null) {
-            const pref = await apiClient.getUserPreferences();
-            expected = pref.data.revision;
-          }
-          const res = await apiClient.updateUserPreferences({
-            preferences: { tourProgress: next },
-            expectedRevision: expected,
-          });
-          setRevision(res.data.revision);
-          return;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (!msg.includes('409') && !msg.includes('conflict')) return;
-          const latest = await apiClient.getUserPreferences().catch(() => null);
-          if (!latest?.data) return;
-          expected = latest.data.revision;
-          setRevision(expected);
-          next = mergeTourProgressStates(
-            next,
-            ensureTourProgressMigrated({
-              onboarding: latest.data.preferences?.onboarding,
-              tourProgress: latest.data.preferences?.tourProgress,
-            })
-          );
-          setProgress(next);
-        }
-      }
-    },
-    [apiClient, userId, workspaceId, revision]
-  );
-
+export function TourCoachmarkSheet(props: TourCoachmarkSheetProps) {
+  const controller = useNativeTourController(props);
+  const { chapter, step, definition, message, control, progress } = controller;
+  const [collapsed, setCollapsed] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [cleanupMessage, setCleanupMessage] = useState('');
+  const liveScope = useRef(props);
+  liveScope.current = props;
+  const palette = colors[props.themeMode];
   useEffect(() => {
-    if (!visible || !userId || !workspaceId) return;
-    let cancelled = false;
-    (async () => {
-      if (!apiClient) {
-        setProgress(getDefaultTourProgress());
-        return;
-      }
-      try {
-        const pref = await apiClient.getUserPreferences();
-        if (cancelled) return;
-        setRevision(pref.data.revision);
-        const migrated = ensureTourProgressMigrated({
-          onboarding: pref.data.preferences?.onboarding,
-          tourProgress: validateTourProgressState(pref.data.preferences?.tourProgress),
-        });
-        setProgress(migrated);
-        const existing = findChapterProgress(migrated, chapterId);
-        const control: TourControl =
-          existing?.lifecycle === 'completed' || existing?.lifecycle === 'skipped'
-            ? 'restart_chapter'
-            : existing?.lifecycle === 'paused' || existing?.lifecycle === 'blocked'
-              ? 'resume'
-              : 'start';
-        const started = applyTourControl(migrated, chapterId, control, {
-          accountUserId: userId,
-          workspaceId,
-        });
-        if (started.ok) {
-          setProgress(started.state);
-          await persist(started.state);
-          const s = started.chapter.currentStepId
-            ? getStepDefinition(def, started.chapter.currentStepId)
-            : null;
-          const msg = `Started ${def.title.defaultText}. ${s?.instruction.defaultText ?? ''}`;
-          setAnnounce(msg);
-          AccessibilityInfo.announceForAccessibility?.(msg);
-        }
-      } catch {
-        /* offline — keep local machine state */
-        const started = applyTourControl(getDefaultTourProgress(), chapterId, 'start', {
-          accountUserId: userId,
-          workspaceId,
-        });
-        if (started.ok) setProgress(started.state);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once per open
-  }, [visible, userId, workspaceId]);
-
-  useEffect(() => {
-    if (!visible) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!userId || !workspaceId) {
-        onClose();
-        return true;
-      }
-      const result = applyTourControl(progress, chapterId, 'exit', {
-        accountUserId: userId,
-        workspaceId,
+    if (!props.visible) return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      void control('exit').then((saved) => {
+        if (saved) props.onClose();
       });
-      if (result.ok) {
-        setProgress(result.state);
-        void persist(result.state);
-      }
-      onClose();
       return true;
     });
-    return () => sub.remove();
-  }, [visible, progress, userId, workspaceId, onClose, persist]);
+    return () => handler.remove();
+  }, [props.visible, props.onClose, control]);
 
-  useEffect(() => {
-    if (!pendingEvidence || !visible || !userId || !workspaceId || !chapter) return;
-    const attemptId = getActiveAttemptId(chapter);
-    if (!attemptId || !chapter.runId || !chapter.currentStepId) return;
-    const event: TourEvidenceEvent = {
-      at: new Date().toISOString(),
-      accountUserId: userId,
-      workspaceId,
-      chapterId,
-      definitionVersion: chapter.definitionVersion,
-      runId: chapter.runId,
-      stepId: chapter.currentStepId,
-      attemptId,
-      ...pendingEvidence,
-    };
-    const result = applyTourEvidence(progress, chapterId, event, {
-      accountUserId: userId,
-      workspaceId,
-      expectedPracticeEntityId: practiceTaskId,
-    });
-    onPendingEvidenceConsumed?.();
-    if (!result.ok) return;
-    setProgress(result.state);
-    void persist(result.state);
-    if (result.chapter.lifecycle === 'completed') {
-      const msg = `${def.title.defaultText} completed.`;
-      setAnnounce(msg);
-      AccessibilityInfo.announceForAccessibility?.(msg);
-      onClose();
-    } else if (result.chapter.currentStepId) {
-      const s = getStepDefinition(def, result.chapter.currentStepId);
-      const msg = `Verified. ${s?.instruction.defaultText ?? ''}`;
-      setAnnounce(msg);
-      AccessibilityInfo.announceForAccessibility?.(msg);
-      if (s?.route) onRequestRoute?.(s.route);
-    }
-  }, [
-    pendingEvidence,
-    visible,
-    userId,
-    workspaceId,
-    chapter,
-    progress,
-    practiceTaskId,
-    persist,
-    onPendingEvidenceConsumed,
-    onClose,
-    onRequestRoute,
-    def,
-  ]);
-
-  const runControl = async (control: TourControl) => {
-    if (!userId || !workspaceId) return;
-    const result = applyTourControl(progress, chapterId, control, {
-      accountUserId: userId,
-      workspaceId,
-    });
-    if (!result.ok) {
-      setAnnounce(result.error);
+  const cleanup = async () => {
+    if (busy) return;
+    const report = controller.capture();
+    if (selected.length === 0) {
+      await report({ type: 'cleanup_confirmed', cleanupEntityIds: [] });
       return;
     }
-    setProgress(result.state);
-    await persist(result.state);
-    if (control === 'exit' || result.chapter.lifecycle === 'completed') {
-      onClose();
+    if (!props.syncEngine || !props.apiClient || !props.workspaceId) {
+      setCleanupMessage('Reconnect to this workspace before removing practice records.');
+      return;
+    }
+    const engine = props.syncEngine;
+    const namespace = engine.getAccountNamespace();
+    setBusy(true);
+    try {
+      const result = await executeTourCleanup(
+        progress,
+        selected,
+        createSyncTourCleanupPort(
+          engine,
+          () => {
+            const current = engine.getAccountNamespace();
+            return (
+              liveScope.current.visible &&
+              liveScope.current.syncEngine === engine &&
+              liveScope.current.userId === namespace.userId &&
+              liveScope.current.workspaceId === namespace.workspaceId &&
+              current.userId === namespace.userId &&
+              current.workspaceId === namespace.workspaceId
+            );
+          },
+          async (id) =>
+            (await props.apiClient!.listItemLinks(namespace.workspaceId, id)).data.length > 0
+        )
+      );
+      if (!(await controller.save(result.state))) return;
+      const failed = result.results.filter((r) => r.status === 'failed');
+      setSelected(failed.map((r) => r.entityId));
+      if (failed.length) {
+        setCleanupMessage('Some records were kept or await acknowledgment. Tracking is retained.');
+        return;
+      }
+      await report({ type: 'cleanup_confirmed', cleanupEntityIds: selected });
+      setCleanupMessage('Selected practice records moved to Trash. Other records were kept.');
+    } catch {
+      setCleanupMessage('Cleanup failed. Tracking was retained for retry.');
+    } finally {
+      setBusy(false);
     }
   };
 
-  if (!visible || !step || !chapter) return null;
-
-  const stepIndex = def.steps.findIndex((s) => s.id === step.id);
-
+  if (!props.visible || !definition) return null;
   return (
     <View
-      style={[styles.overlay, { backgroundColor: 'transparent' }]}
       pointerEvents="box-none"
-      testID="tour-coachmark-sheet"
+      style={[
+        StyleSheet.absoluteFillObject,
+        { justifyContent: 'flex-end', zIndex: 140, elevation: 140 },
+      ]}
     >
       <MobileCard
-        themeMode={themeMode}
-        style={[styles.card, { borderColor: palette.border.strong }]}
-        accessibilityLabel={`${def.title.defaultText}, step ${stepIndex + 1} of ${def.steps.length}. ${step.instruction.defaultText}`}
+        themeMode={props.themeMode}
+        style={{ margin: spacing.sm, marginBottom: 72, maxHeight: collapsed ? 120 : 235 }}
       >
-        <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 16 }}>
-          {def.title.defaultText} · {stepIndex + 1}/{def.steps.length}
-        </Text>
-        <Text style={{ marginTop: 4, fontWeight: '600', color: palette.text.primary }}>
-          {step.title.defaultText}
-        </Text>
-        <Text style={{ marginTop: 6, color: palette.text.secondary, fontSize: 13 }}>
-          {step.instruction.defaultText}
-        </Text>
-        <Text style={{ marginTop: 6, color: palette.text.secondary, fontSize: 12 }}>
-          {step.recovery.defaultText}
-        </Text>
-        {announce ? (
-          <Text style={{ marginTop: 6, color: palette.text.secondary, fontSize: 12 }}>{announce}</Text>
-        ) : null}
-        <View style={styles.row}>
-          <MobileButton themeMode={themeMode} variant="secondary" onPress={() => void runControl('back')}>
-            Back
-          </MobileButton>
-          {step.allowInformationalNext ? (
-            <MobileButton themeMode={themeMode} variant="primary" onPress={() => void runControl('next')}>
-              Next
-            </MobileButton>
-          ) : null}
-          {step.allowSkip ? (
-            <MobileButton
-              themeMode={themeMode}
-              variant="secondary"
-              onPress={() => void runControl('skip_step')}
-            >
-              Skip step
-            </MobileButton>
-          ) : null}
-          <MobileButton themeMode={themeMode} variant="secondary" onPress={() => void runControl('pause')}>
-            Pause
-          </MobileButton>
-          <MobileButton
-            themeMode={themeMode}
-            variant="secondary"
-            onPress={() => void runControl('restart_chapter')}
+        <ScrollView testID="tour-coachmark-sheet" keyboardShouldPersistTaps="handled">
+          <Text
+            accessibilityRole="header"
+            style={{ fontWeight: '700', color: palette.text.primary }}
           >
-            Restart
-          </MobileButton>
-          <MobileButton themeMode={themeMode} variant="secondary" onPress={() => void runControl('exit')}>
-            Exit
-          </MobileButton>
-        </View>
-        {step.targetId ? (
-          <Text style={{ marginTop: 8, fontSize: 11, color: palette.text.secondary }}>
-            Target: {step.targetId}
-            {practiceTaskId ? ` · practice ${practiceTaskId.slice(0, 8)}…` : ''}
+            {definition.title.defaultText}
           </Text>
-        ) : null}
+          {!collapsed ? (
+            <>
+              <Text accessibilityLiveRegion="polite" style={{ color: palette.text.primary }}>
+                {step?.instruction.defaultText ?? message}
+              </Text>
+              {message ? <Text style={{ color: palette.text.secondary }}>{message}</Text> : null}
+              {step?.completionPredicate === 'cleanup_selection_confirmed' ? (
+                <>
+                  {buildTourCleanupReview(progress).map((item) => (
+                    <Pressable
+                      key={item.entityId}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{
+                        checked: selected.includes(item.entityId),
+                        disabled: item.defaultKeep || busy,
+                      }}
+                      disabled={item.defaultKeep || busy}
+                      onPress={() =>
+                        setSelected((ids) =>
+                          ids.includes(item.entityId)
+                            ? ids.filter((id) => id !== item.entityId)
+                            : [...ids, item.entityId]
+                        )
+                      }
+                    >
+                      <Text style={{ color: palette.text.primary }}>
+                        {item.entityType} {item.entityId.slice(0, 8)}{' '}
+                        {item.defaultKeep ? '(keep)' : ''}
+                      </Text>
+                    </Pressable>
+                  ))}
+                  <MobileButton
+                    themeMode={props.themeMode}
+                    disabled={busy}
+                    onPress={() => void cleanup()}
+                    testID="tour-cleanup-confirm"
+                  >
+                    Confirm cleanup selection
+                  </MobileButton>
+                  {cleanupMessage ? (
+                    <Text style={{ color: palette.text.secondary }}>{cleanupMessage}</Text>
+                  ) : null}
+                </>
+              ) : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {chapter?.practiceOptIn &&
+                chapter.practiceArtifacts?.some(
+                  (item) => item.entityType === step?.entityType && item.creationOperationId
+                ) &&
+                step &&
+                ['entity_saved_locally', 'practice_task_saved_locally'].includes(
+                  step.completionPredicate
+                ) ? (
+                  <MobileButton
+                    themeMode={props.themeMode}
+                    onPress={() => void controller.reusePractice()}
+                  >
+                    Use saved practice item
+                  </MobileButton>
+                ) : null}
+                {(
+                  [
+                    'back',
+                    ...(step?.allowInformationalNext ? ['next'] : []),
+                    chapter?.lifecycle === 'paused' ? 'resume' : 'pause',
+                    'skip_step',
+                    'skip_chapter',
+                    'restart_chapter',
+                  ] as TourControl[]
+                ).map((value) => (
+                  <MobileButton
+                    key={value}
+                    themeMode={props.themeMode}
+                    variant="secondary"
+                    onPress={() => void control(value)}
+                  >
+                    {value.replace(/_/g, ' ')}
+                  </MobileButton>
+                ))}
+                {step?.route ? (
+                  <MobileButton
+                    themeMode={props.themeMode}
+                    variant="secondary"
+                    onPress={() => props.onRequestRoute?.(step.route!)}
+                  >
+                    Open destination
+                  </MobileButton>
+                ) : null}
+              </View>
+            </>
+          ) : null}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <MobileButton
+              themeMode={props.themeMode}
+              variant="secondary"
+              onPress={() => setCollapsed(!collapsed)}
+            >
+              {collapsed ? 'Show instructions' : 'Hide instructions'}
+            </MobileButton>
+            <MobileButton
+              themeMode={props.themeMode}
+              variant="secondary"
+              onPress={() => {
+                void control('exit').then((saved) => {
+                  if (saved) props.onClose();
+                });
+              }}
+            >
+              Exit
+            </MobileButton>
+          </View>
+        </ScrollView>
       </MobileCard>
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    zIndex: 80,
-    elevation: 80,
-  },
-  card: {
-    margin: spacing.base,
-    padding: spacing.base,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    marginBottom: spacing.xl,
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: spacing.sm,
-  },
-});
+}

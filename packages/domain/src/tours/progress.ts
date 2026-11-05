@@ -32,17 +32,15 @@ export function emptyChapterProgress(
     lifecycle: 'not_started',
     currentStepId: def.steps[0]?.id ?? null,
     runId: null,
-    steps: def.steps.map(
-      (s): TourStepRecord => ({
-        stepId: s.id,
-        outcome: 'unfinished',
-        completedAt: null,
-        skippedAt: null,
-        operationId: null,
-        entityId: null,
-        attemptId: null,
-      })
-    ),
+    steps: def.steps.map((s): TourStepRecord => ({
+      stepId: s.id,
+      outcome: 'unfinished',
+      completedAt: null,
+      skippedAt: null,
+      operationId: null,
+      entityId: null,
+      attemptId: null,
+    })),
     practiceEntityIds: [],
     practiceArtifacts: [],
     updatedAt: at,
@@ -97,7 +95,8 @@ export function validateTourProgressState(input: unknown): TourProgressState {
         outcome: safeOutcome,
         completedAt: typeof row['completedAt'] === 'string' ? row['completedAt'] : null,
         skippedAt: typeof row['skippedAt'] === 'string' ? row['skippedAt'] : null,
-        operationId: typeof row['operationId'] === 'string' ? row['operationId'].slice(0, 128) : null,
+        operationId:
+          typeof row['operationId'] === 'string' ? row['operationId'].slice(0, 128) : null,
         entityId: typeof row['entityId'] === 'string' ? row['entityId'].slice(0, 128) : null,
         attemptId: typeof row['attemptId'] === 'string' ? row['attemptId'].slice(0, 128) : null,
       };
@@ -145,6 +144,10 @@ export function validateTourProgressState(input: unknown): TourProgressState {
         userOwned: row['userOwned'] === true,
         labeledPractice: row['labeledPractice'] !== false,
         linkedOrEdited: row['linkedOrEdited'] === true,
+        creationOperationId:
+          typeof row['creationOperationId'] === 'string'
+            ? row['creationOperationId'].slice(0, 128)
+            : undefined,
         createdAt:
           typeof row['createdAt'] === 'string' ? row['createdAt'] : new Date().toISOString(),
       });
@@ -165,15 +168,38 @@ export function validateTourProgressState(input: unknown): TourProgressState {
       steps,
       practiceEntityIds,
       practiceArtifacts,
-      updatedAt:
-        typeof c['updatedAt'] === 'string' ? c['updatedAt'] : new Date().toISOString(),
+      updatedAt: typeof c['updatedAt'] === 'string' ? c['updatedAt'] : new Date().toISOString(),
       blockedReason: typeof c['blockedReason'] === 'string' ? c['blockedReason'] : null,
+      practiceOptIn: c['practiceOptIn'] === true,
     });
   }
 
   return {
     version: 1,
     chapters,
+    scope:
+      obj['scope'] &&
+      typeof obj['scope'] === 'object' &&
+      typeof (obj['scope'] as Record<string, unknown>)['accountUserId'] === 'string' &&
+      typeof (obj['scope'] as Record<string, unknown>)['workspaceId'] === 'string'
+        ? {
+            accountUserId: String((obj['scope'] as Record<string, unknown>)['accountUserId']).slice(
+              0,
+              128
+            ),
+            workspaceId: String((obj['scope'] as Record<string, unknown>)['workspaceId']).slice(
+              0,
+              128
+            ),
+          }
+        : undefined,
+    otherScopes: Array.isArray(obj['otherScopes'])
+      ? obj['otherScopes'].slice(0, 12).map((snapshot) => {
+          const row =
+            snapshot && typeof snapshot === 'object' ? (snapshot as Record<string, unknown>) : {};
+          return validateTourProgressState({ ...row, otherScopes: undefined });
+        })
+      : undefined,
     migratedFromOnboardingV1: obj['migratedFromOnboardingV1'] === true,
     migratedAt: typeof obj['migratedAt'] === 'string' ? obj['migratedAt'] : null,
   };
@@ -199,9 +225,10 @@ export function mergeTourProgressStates(
   }
   return {
     version: 1,
+    scope: local.scope ?? server.scope,
+    otherScopes: local.otherScopes ?? server.otherScopes,
     chapters: Array.from(byId.values()),
-    migratedFromOnboardingV1:
-      local.migratedFromOnboardingV1 || server.migratedFromOnboardingV1,
+    migratedFromOnboardingV1: local.migratedFromOnboardingV1 || server.migratedFromOnboardingV1,
     migratedAt: server.migratedAt || local.migratedAt || null,
   };
 }
@@ -210,6 +237,28 @@ function mergeChapterProgress(
   local: TourChapterProgress,
   server: TourChapterProgress
 ): TourChapterProgress {
+  const newer = local.updatedAt >= server.updatedAt ? local : server;
+  // Completion belongs to a run. A restarted run must not inherit the old run's
+  // completed lifecycle or receipts when its first progress upload conflicts.
+  if (
+    (local.runId && server.runId && local.runId !== server.runId) ||
+    local.definitionVersion !== server.definitionVersion
+  ) {
+    const winner =
+      local.definitionVersion === server.definitionVersion
+        ? newer
+        : local.definitionVersion > server.definitionVersion
+          ? local
+          : server;
+    return {
+      ...winner,
+      practiceEntityIds: [...new Set([...local.practiceEntityIds, ...server.practiceEntityIds])],
+      practiceArtifacts: mergeArtifacts(
+        server.practiceArtifacts ?? [],
+        local.practiceArtifacts ?? []
+      ),
+    };
+  }
   const stepMap = new Map<string, TourStepRecord>();
   for (const s of server.steps) stepMap.set(s.stepId, s);
   for (const s of local.steps) {
@@ -220,7 +269,6 @@ function mergeChapterProgress(
     }
     stepMap.set(s.stepId, mergeStepRecord(s, other));
   }
-  const newer = local.updatedAt >= server.updatedAt ? local : server;
   const lifecycle =
     local.lifecycle === 'completed' || server.lifecycle === 'completed'
       ? 'completed'
@@ -245,6 +293,7 @@ function mergeChapterProgress(
     ),
     updatedAt: newer.updatedAt,
     blockedReason: newer.blockedReason ?? null,
+    practiceOptIn: newer.practiceOptIn,
   };
 }
 

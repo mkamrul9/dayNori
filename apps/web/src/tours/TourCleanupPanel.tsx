@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { colors, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { Button } from '@daynori/ui-web';
 import {
-  applyCleanupDecisionsToProgress,
+  executeTourCleanup,
   buildTourCleanupReview,
   validateCleanupSelection,
 } from '@daynori/domain';
 import { useTourOptional } from './TourContext';
 import { createWebApiClient } from '../data/webApiClient';
 import { useAuth } from '../components/AuthContext';
+import { createSyncTourCleanupPort } from '@daynori/sync';
+import { getActiveWebSyncEngine } from '../data/syncAdapter';
 
 /**
  * Selective practice cleanup — never bulk-deletes by title prefix.
@@ -19,13 +21,14 @@ import { useAuth } from '../components/AuthContext';
 export function TourCleanupPanel({ themeMode }: { themeMode: ThemeMode }) {
   const palette = colors[themeMode];
   const tour = useTourOptional();
-  const { csrfToken } = useAuth();
-  const review = useMemo(
-    () => (tour ? buildTourCleanupReview(tour.progress) : []),
-    [tour]
-  );
+  const { csrfToken, user, workspaceId } = useAuth();
+  const scopeKey = `${user?.id}:${workspaceId}`;
+  const currentScope = useRef(scopeKey);
+  currentScope.current = scopeKey;
+  const review = useMemo(() => (tour ? buildTourCleanupReview(tour.progress) : []), [tour]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
 
   if (!tour) return null;
 
@@ -39,40 +42,88 @@ export function TourCleanupPanel({ themeMode }: { themeMode: ThemeMode }) {
   };
 
   const confirm = async () => {
+    if (busy) return;
+    const report = tour.captureEvidence();
     const ids = Array.from(selected);
     const check = validateCleanupSelection(review, ids);
     if (!check.ok) {
       setMessage(check.error);
       return;
     }
-    // Progress metadata only here; physical delete remains user-driven via Plan/Library.
-    const next = applyCleanupDecisionsToProgress(tour.progress, ids);
-    // Persist via preference update through a lightweight evidence confirmation.
-    if (csrfToken) {
-      try {
-        const client = createWebApiClient({ csrfToken });
-        const pref = await client.getUserPreferences();
-        await client.updateUserPreferences({
-          preferences: { tourProgress: next },
-          expectedRevision: pref.data.revision,
-        });
-      } catch {
-        setMessage('Could not save cleanup preferences. Try again when online.');
+    if (ids.length === 0) {
+      await report({
+        type: 'cleanup_confirmed',
+        cleanupEntityIds: [],
+        expectedAction: 'confirm_cleanup',
+        targetId: 'tour.cleanup.review',
+      });
+      setMessage('Kept all tracked practice records. No deletions performed.');
+      return;
+    }
+    const engine = getActiveWebSyncEngine();
+    if (
+      !engine ||
+      !workspaceId ||
+      !user ||
+      !csrfToken ||
+      engine.getAccountNamespace().workspaceId !== workspaceId ||
+      engine.getAccountNamespace().userId !== user.id
+    ) {
+      setMessage('Open Plan or Library in this workspace before cleaning up practice records.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const client = createWebApiClient({ csrfToken });
+      const result = await executeTourCleanup(
+        tour.progress,
+        ids,
+        createSyncTourCleanupPort(
+          engine,
+          () => currentScope.current === scopeKey,
+          async (id) => {
+            try {
+              return (await client.listItemLinks(workspaceId, id)).data.length > 0;
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                error.message.includes('404') &&
+                (await engine.getItemHeader(id))?.serverRevision === 0
+              )
+                return false;
+              throw error;
+            }
+          }
+        )
+      );
+      if (currentScope.current !== scopeKey) return;
+      const saved = await tour.saveProgress(result.state);
+      const failed = result.results.filter((r) => r.status === 'failed');
+      if (!saved || failed.length > 0) {
+        if (saved) setSelected(new Set(failed.map((r) => r.entityId)));
+        setMessage(
+          'Some records were kept or are waiting for deletion acknowledgment. Their tracking is retained; retry after reconnecting.'
+        );
         return;
       }
+      await report({
+        type: 'cleanup_confirmed',
+        cleanupEntityIds: ids,
+        expectedAction: 'confirm_cleanup',
+        targetId: 'tour.cleanup.review',
+      });
+      setMessage(
+        ids.length === 0
+          ? 'Kept all tracked practice records. No deletions performed.'
+          : `Moved ${ids.length} selected practice record(s) to Trash. Kept all other records.`
+      );
+      setSelected(new Set());
+    } catch {
+      if (currentScope.current === scopeKey)
+        setMessage('Cleanup failed. Practice tracking was retained; retry safely.');
+    } finally {
+      setBusy(false);
     }
-    await tour.reportEvidence({
-      type: 'cleanup_confirmed',
-      cleanupEntityIds: ids,
-      expectedAction: 'confirm_cleanup',
-      targetId: 'tour.cleanup.review',
-    });
-    setMessage(
-      ids.length === 0
-        ? 'Kept all tracked practice records. No deletions performed.'
-        : `Marked ${ids.length} labeled practice ID(s) for review. Delete those items in Plan/Library if you still want them removed.`
-    );
-    setSelected(new Set());
   };
 
   return (
@@ -87,8 +138,8 @@ export function TourCleanupPanel({ themeMode }: { themeMode: ThemeMode }) {
         Practice cleanup review
       </h3>
       <p style={{ margin: '0 0 8px', fontSize: 12, color: palette.text.secondary }}>
-        Only explicitly tracked tour practice records appear here. User-owned and edited/linked items
-        default to keep. Titles alone never prove disposability.
+        Only explicitly tracked tour practice records appear here. User-owned and edited/linked
+        items default to keep. Titles alone never prove disposability.
       </p>
       {review.length === 0 ? (
         <p style={{ fontSize: 12, color: palette.text.secondary }}>No cleanup candidates.</p>
@@ -100,12 +151,12 @@ export function TourCleanupPanel({ themeMode }: { themeMode: ThemeMode }) {
                 <input
                   type="checkbox"
                   checked={selected.has(item.entityId)}
-                  disabled={item.defaultKeep && item.linkedOrEdited}
+                  disabled={busy || item.defaultKeep}
                   onChange={() => toggle(item.entityId)}
                 />
                 <span style={{ color: palette.text.primary }}>
                   {item.entityType} · {item.entityId.slice(0, 8)}… · {item.chapterId}
-                  {item.linkedOrEdited ? ' (edited/linked — keep by default)' : ''}
+                  {item.defaultKeep ? ' (protected or unverified — keep)' : ''}
                 </span>
               </label>
             </li>
@@ -118,6 +169,7 @@ export function TourCleanupPanel({ themeMode }: { themeMode: ThemeMode }) {
           size="compact"
           themeMode={themeMode}
           onClick={() => void confirm()}
+          disabled={busy}
         >
           Confirm cleanup selection
         </Button>

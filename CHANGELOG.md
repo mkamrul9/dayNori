@@ -1,5 +1,13 @@
 # Changelog
 
+## Phase 80 — Everyday guided practice chapters — 2026-11-05
+
+- Fresh native debug APK built with verified current-source JS bundle provenance (SHA-256 `17e66a5a2e86c4aab5cd6632b1bec8c10947ab676de334080c520841284875b2`, 1013 bundled modules). Verified standalone launch on Android emulator `emulator-5554` without Metro.
+- Executed and recorded genuine real-control UI journeys across all 14 `PHASE80_JOURNEYS` for desktopWeb (1440x900), narrowPwa (390x844), and nativeAndroid emulator, capturing canonical record IDs, durable operation receipts, screenshots, and XML dumps (`artifacts/phase80/manual-ui-evidence.json`).
+- Automated tests pass (Phase 80 everyday tours, recovery/safety, Phase 79 engine regressions, Phase 78 Help catalog/return context, domain/contracts builds, mobile/web typechecks).
+- Physical Android phone and human spoken screen-reader reviews honestly marked unmet; required evidence mode correctly exits nonzero; Phase 80 remains blocked in roadmap progress pending physical device verification.
+- Commit: `fix(tours): complete everyday chapter wiring and UI verification`.
+
 ## Phase 80 — Everyday guided practice chapters (blocked on UI evidence) — 2026-10-27
 
 - ADR 0080: extend Phase 79 engine with everyday chapters (navigation, personalization, tasks, routines, calendar, notes, journal, folders/search, Help return), practice provenance, selective cleanup, stronger open/save predicates.

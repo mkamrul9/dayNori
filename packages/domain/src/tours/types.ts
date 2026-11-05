@@ -8,13 +8,7 @@ export type TourPlatform = 'web' | 'installedPwa' | 'android' | 'iosNative';
 export type TourStepKind = 'informational' | 'action';
 
 export type TourEntityType =
-  | 'task'
-  | 'routine'
-  | 'note'
-  | 'journal_entry'
-  | 'calendar_event'
-  | 'folder'
-  | 'preference';
+  'task' | 'routine' | 'note' | 'journal_entry' | 'calendar_event' | 'folder' | 'preference';
 
 /** Trusted completion predicates — evaluated by platform adapters / engine helpers. */
 export type TourCompletionPredicate =
@@ -69,12 +63,7 @@ export type TourExpectedAction =
   | 'navigate_shell';
 
 export type TourChapterLifecycle =
-  | 'not_started'
-  | 'active'
-  | 'paused'
-  | 'completed'
-  | 'skipped'
-  | 'blocked';
+  'not_started' | 'active' | 'paused' | 'completed' | 'skipped' | 'blocked';
 
 export type TourStepOutcome = 'completed' | 'skipped' | 'blocked' | 'unfinished';
 
@@ -143,6 +132,8 @@ export interface TourPracticeArtifact {
   labeledPractice: boolean;
   linkedOrEdited: boolean;
   createdAt: string;
+  /** Durable create receipt; legacy/observed records without it are never cleanup-owned. */
+  creationOperationId?: string;
 }
 
 export interface TourChapterProgress {
@@ -158,6 +149,7 @@ export interface TourChapterProgress {
   practiceArtifacts?: TourPracticeArtifact[];
   updatedAt: string;
   blockedReason?: string | null;
+  practiceOptIn?: boolean;
 }
 
 /**
@@ -165,6 +157,9 @@ export interface TourChapterProgress {
  */
 export interface TourProgressState {
   version: 1;
+  scope?: { accountUserId: string; workspaceId: string };
+  /** Other workspace snapshots are retained, never presented as this workspace's progress. */
+  otherScopes?: Omit<TourProgressState, 'otherScopes'>[];
   chapters: TourChapterProgress[];
   /** Legacy V1 onboarding migration marker — never fabricates new chapter completion. */
   migratedFromOnboardingV1: boolean;
@@ -188,7 +183,8 @@ export interface TourEvidenceEvent {
     | 'help_return_to_editor'
     | 'filter_changed'
     | 'calendar_projection_opened'
-    | 'cleanup_confirmed';
+    | 'cleanup_confirmed'
+    | 'practice_reused';
   at: string;
   accountUserId: string;
   workspaceId: string;
@@ -208,14 +204,18 @@ export interface TourEvidenceEvent {
   persistence?: 'local' | 'cloud';
   /** True when the editor actually loaded the canonical record. */
   recordLoaded?: boolean;
+  draftPreserved?: boolean;
   preferenceKey?: string;
   preferenceValue?: string;
+  preferenceRevision?: number;
   occurrenceDate?: string;
   occurrenceAction?: 'complete' | 'skip' | 'undo';
   articleId?: string;
   filterId?: string;
   filterCleared?: boolean;
   cleanupEntityIds?: string[];
+  /** Explicit opt-in provenance emitted only by the actual successful create command. */
+  practiceArtifact?: TourPracticeArtifact;
 }
 
 export type TourControl =

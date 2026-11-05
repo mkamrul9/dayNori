@@ -1,27 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { isCorePreview } from '../config/runtime.js';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
-} from 'react-native';
-import type { LocalRepositoryPort,
-  SyncEngine,
-  FileRecord } from '@daynori/sync';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { LocalRepositoryPort, SyncEngine, FileRecord } from '@daynori/sync';
 import type { DaynoriApiClient } from '@daynori/api-client';
+import type { TourEvidenceEvent } from '@daynori/domain';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Clipboard from 'expo-clipboard';
-import { MobileOfflineFileCache, computeMobileBufferSha256, arrayBufferToBase64, base64ToArrayBuffer } from '../data/offlineFileCache.js';
 import {
-  colors,
-  radii,
-  spacing,
-  touchTargets,
-  type ThemeMode
-} from '@daynori/design-tokens';
+  MobileOfflineFileCache,
+  computeMobileBufferSha256,
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
+} from '../data/offlineFileCache.js';
+import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import {
   Icon,
   MobileBreadcrumb,
@@ -39,7 +31,7 @@ import {
   MobileQuickReferenceView,
   type MobileBreadcrumbSegment,
   type MobileFileItem,
-  type MobileSelectedFile
+  type MobileSelectedFile,
 } from '@daynori/ui-mobile';
 import {
   calculateFolderDepth,
@@ -57,11 +49,14 @@ import {
   sortKnowledgeItems,
   type NoteDocument,
   type SavedView,
-  type ResolvedItemLink
+  type ResolvedItemLink,
 } from '@daynori/domain';
 import type { LibraryFilter } from '../navigation/types';
 
 export interface LibraryViewProps {
+  onCaptureTourEvidence?: () => (event: Partial<TourEvidenceEvent>) => void;
+  onGetPracticeCreationId?: (entityType: 'note' | 'folder') => string | undefined;
+  onOpenContextualHelp?: (articleId: string) => void;
   themeMode: ThemeMode;
   initialFilter?: LibraryFilter;
   onFilterChange?: (filter: LibraryFilter) => void;
@@ -288,6 +283,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   isOnline,
   apiClient,
   targetItemId,
+  onCaptureTourEvidence,
+  onGetPracticeCreationId,
+  onOpenContextualHelp,
   targetFolderId,
   onClearTarget,
 }) => {
@@ -430,10 +428,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             evt.type === 'conflict_resolved' ||
             evt.type === 'local_mutation_committed'
           ) {
-            if (
-              evt.type === 'local_mutation_committed' &&
-              evt.workspaceId !== workspaceId
-            ) {
+            if (evt.type === 'local_mutation_committed' && evt.workspaceId !== workspaceId) {
               return;
             }
             void reloadLibrary();
@@ -601,9 +596,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   } | null>(null);
 
   const setFilter = (f: LibraryFilter) => {
+    const wasFiltered = activeFilter !== 'all';
     setActiveFilter(f);
     setPage(1);
     if (onFilterChange) onFilterChange(f);
+    onCaptureTourEvidence?.()({
+      type: 'filter_changed',
+      filterId: `library:${f}`,
+      filterCleared: wasFiltered && f === 'all',
+    });
   };
 
   // Folder map for hierarchy depth and cycle checks
@@ -785,7 +786,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     }
 
     const newFolder: MobileFolderItem = {
-      id: generateUuid(),
+      id: onGetPracticeCreationId?.('folder') ?? generateUuid(),
       name: trimmed,
       parentId: currentFolderId,
       icon: 'folder',
@@ -1013,7 +1014,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleOpenNewNote = () => {
-    const newId = generateUuid();
+    const newId = onGetPracticeCreationId?.('note') ?? generateUuid();
+    onCaptureTourEvidence?.()({
+      type: 'target_activated',
+      targetId: 'create.note.save',
+    });
     setEditingNote({
       id: newId,
       title: '',
@@ -1096,6 +1101,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleOpenNote = async (item: MobileLibraryRecord) => {
+    const report = onCaptureTourEvidence?.();
     let doc: NoteDocument | undefined;
     let conflictInfo: {
       serverRevision: number;
@@ -1134,6 +1140,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       kind: item.kind === 'knowledge' ? 'knowledge' : 'note',
       conflict: conflictInfo,
     });
+    if (doc)
+      report?.({
+        type: 'entity_opened',
+        entityId: item.id,
+        entityType: 'note',
+        recordLoaded: true,
+      });
   };
 
   const handleOpenFile = async (item: MobileLibraryRecord) => {
@@ -1206,6 +1219,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   useEffect(() => {
     if (targetFolderId) {
       setCurrentFolderId(targetFolderId);
+      onCaptureTourEvidence?.()({
+        type: 'entity_opened',
+        entityId: targetFolderId,
+        entityType: 'folder',
+        recordLoaded: true,
+      });
       onClearTarget?.();
     }
   }, [targetFolderId]);
@@ -1773,6 +1792,35 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   if (editingNote) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
+        {onOpenContextualHelp ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'flex-end',
+              paddingHorizontal: spacing.md,
+              paddingTop: spacing.xs,
+            }}
+          >
+            <Pressable
+              testID="library-contextual-help"
+              accessibilityRole="button"
+              accessibilityLabel="Contextual Help"
+              onPress={() => onOpenContextualHelp('help.notes-and-library')}
+              style={[
+                styles.sampleJourneysBtn,
+                {
+                  backgroundColor: palette.surfaceRaised,
+                  borderWidth: 1,
+                  borderColor: palette.border.subtle,
+                },
+              ]}
+            >
+              <Text style={[styles.sampleJourneysText, { color: palette.action.primary }]}>
+                Help
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
         <MobileNoteEditor
           initialTitle={editingNote.title}
           initialDocument={editingNote.document}
@@ -1807,7 +1855,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         ]}
       >
         <Text style={[styles.statusText, { color: palette.text.secondary }]}>
-          <Icon name="save" /> {localStatus} • <Icon name="cloud" /> {isOffline ? 'Offline' : syncStatus}
+          <Icon name="save" /> {localStatus} • <Icon name="cloud" />{' '}
+          {isOffline ? 'Offline' : syncStatus}
         </Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           <Pressable
@@ -1862,6 +1911,19 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               Demo Journeys
             </Text>
           </Pressable>
+          {onOpenContextualHelp ? (
+            <Pressable
+              testID="library-contextual-help"
+              accessibilityRole="button"
+              accessibilityLabel="Contextual Help"
+              onPress={() => onOpenContextualHelp('help.notes-and-library')}
+              style={styles.sampleJourneysBtn}
+            >
+              <Text style={[styles.sampleJourneysText, { color: palette.action.primary }]}>
+                Help
+              </Text>
+            </Pressable>
+          ) : null}
           {folders.length > 0 && (
             <Pressable
               accessibilityRole="button"
@@ -2039,7 +2101,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <MobileButton
               variant="secondary"
               accessibilityLabel="Create new folder"
-              onPress={() => setCreateFolderSheetOpen(true)}
+              onPress={() => {
+                onCaptureTourEvidence?.()({
+                  type: 'target_activated',
+                  targetId: 'library.folder.create',
+                });
+                setCreateFolderSheetOpen(true);
+              }}
             >
               + Folder
             </MobileButton>

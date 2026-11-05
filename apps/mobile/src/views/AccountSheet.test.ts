@@ -37,15 +37,13 @@ it('signs in through the real adapter contract and provisions a workspace before
 });
 
 it('keeps the session and offers workspace retry when provision fails after sign-in', async () => {
-  const provision = vi
-    .fn()
-    .mockResolvedValueOnce(null)
-    .mockResolvedValueOnce('ws-retry');
+  const provision = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce('ws-retry');
   const adapter = {
     signInWithPassword: vi.fn().mockResolvedValue({ success: true }),
     signUp: vi.fn(),
     recoverPassword: vi.fn(),
     provisionPersonalWorkspace: provision,
+    getSessionGeneration: vi.fn().mockReturnValue(0),
   } satisfies AccountSheetProps['adapter'];
   const close = vi.fn();
   const renderer = TestRenderer.create(

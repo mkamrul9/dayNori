@@ -55,6 +55,7 @@ export interface NoteEditorProps {
   onClose?: () => void;
   onDelete?: () => void;
   autoFocus?: boolean;
+  saveTargetId?: string;
 }
 
 /**
@@ -125,6 +126,7 @@ export function NoteEditor({
   onClose,
   onDelete,
   autoFocus = false,
+  saveTargetId = 'create.note.save',
 }: NoteEditorProps) {
   const palette = colors[themeMode];
   const titleInputId = useId();
@@ -1144,6 +1146,16 @@ export function NoteEditor({
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+            {onSave && !readOnly ? (
+              <Button
+                variant="primary"
+                onClick={() => void performSave()}
+                data-tour-target={saveTargetId}
+                data-testid="editor-save-btn"
+              >
+                Save now
+              </Button>
+            ) : null}
             {onClose && (
               <Button variant="secondary" onClick={onClose} data-testid="editor-close-btn">
                 Done

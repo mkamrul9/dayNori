@@ -3,10 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { colors, radii, spacing, typography } from '@daynori/design-tokens';
 import { Button } from '@daynori/ui-web';
-import {
-  getStepDefinition,
-  getTourChapterDefinition,
-} from '@daynori/domain';
+import { getStepDefinition, getTourChapterDefinition } from '@daynori/domain';
 import { useShell } from '../components/ShellContext';
 import { useTour } from './TourContext';
 
@@ -27,6 +24,7 @@ export function TourCoachmark() {
   const tour = useTour();
   const { activeChapter, activeChapterId, applyControl, missingTarget, getTargetElement } = tour;
   const [rect, setRect] = useState<Rect | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const reduceMotion =
     typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -59,10 +57,6 @@ export function TourCoachmark() {
         width: r.width,
         height: r.height,
       });
-      // Keep target in view without stealing focus traps.
-      if (r.top < 80 || r.bottom > window.innerHeight - 120) {
-        el.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
-      }
     };
     update();
     window.addEventListener('resize', update);
@@ -73,13 +67,18 @@ export function TourCoachmark() {
       window.removeEventListener('scroll', update, true);
       window.clearInterval(id);
     };
-  }, [step?.targetId, activeChapter?.lifecycle, activeChapter?.currentStepId, getTargetElement, reduceMotion]);
+  }, [
+    step?.targetId,
+    activeChapter?.lifecycle,
+    activeChapter?.currentStepId,
+    getTargetElement,
+    reduceMotion,
+  ]);
 
   if (!activeChapter || !def || !step) return null;
   if (activeChapter.lifecycle !== 'active' && activeChapter.lifecycle !== 'paused') return null;
 
   const stepIndex = def.steps.findIndex((s) => s.id === step.id);
-  const panelBottom = 16;
   const highlight = rect && !missingTarget ? rect : null;
 
   return (
@@ -112,9 +111,12 @@ export function TourCoachmark() {
           position: 'fixed',
           left: spacing.base,
           right: spacing.base,
-          bottom: panelBottom,
+          bottom:
+            'calc(16px + var(--daynori-keyboard-inset, 0px) + env(safe-area-inset-bottom, 0px))',
           zIndex: 9500,
           maxWidth: 480,
+          maxHeight: 'min(45vh, calc(var(--daynori-vv-height, 100vh) - 100px))',
+          overflowY: 'auto',
           margin: '0 auto',
           backgroundColor: palette.surface,
           color: palette.text.primary,
@@ -138,102 +140,151 @@ export function TourCoachmark() {
             · {stepIndex + 1}/{def.steps.length}
           </span>
         </p>
-        <p style={{ margin: '4px 0 0', fontSize: 14, fontWeight: 600 }}>{step.title.defaultText}</p>
-        <p
-          id="tour-coachmark-instruction"
-          style={{ margin: '6px 0 0', fontSize: 13, color: palette.text.secondary, lineHeight: 1.4 }}
+        <Button
+          size="compact"
+          variant="secondary"
+          themeMode={themeMode}
+          onClick={() => setCollapsed(!collapsed)}
         >
-          {step.instruction.defaultText}
-        </p>
-        {missingTarget || activeChapter.lifecycle === 'paused' ? (
-          <p style={{ margin: '8px 0 0', fontSize: 12, color: palette.text.secondary }}>
-            {activeChapter.lifecycle === 'paused'
-              ? 'Paused. Progress is saved. Resume when ready.'
-              : step.recovery.defaultText}
-          </p>
-        ) : null}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
-            marginTop: spacing.sm,
-          }}
-        >
-          {activeChapter.lifecycle === 'paused' ? (
-            <Button
-              variant="primary"
-              size="compact"
-              themeMode={themeMode}
-              onClick={() => void applyControl('resume')}
+          {collapsed ? 'Show instructions' : 'Hide instructions'}
+        </Button>
+        {!collapsed ? (
+          <>
+            <p style={{ margin: '4px 0 0', fontSize: 14, fontWeight: 600 }}>
+              {step.title.defaultText}
+            </p>
+            <p
+              id="tour-coachmark-instruction"
+              style={{
+                margin: '6px 0 0',
+                fontSize: 13,
+                color: palette.text.secondary,
+                lineHeight: 1.4,
+              }}
             >
-              Resume
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="secondary"
-                size="compact"
-                themeMode={themeMode}
-                onClick={() => void applyControl('back')}
-              >
-                Back
-              </Button>
-              {step.allowInformationalNext ? (
+              {step.instruction.defaultText}
+            </p>
+            {missingTarget || activeChapter.lifecycle === 'paused' ? (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: palette.text.secondary }}>
+                {activeChapter.lifecycle === 'paused'
+                  ? 'Paused. Progress is saved. Resume when ready.'
+                  : step.recovery.defaultText}
+              </p>
+            ) : null}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginTop: spacing.sm,
+              }}
+            >
+              {step.targetId ? (
+                <Button
+                  size="compact"
+                  variant="secondary"
+                  themeMode={themeMode}
+                  onClick={() =>
+                    getTargetElement(step.targetId!)?.scrollIntoView({
+                      block: 'center',
+                      behavior: reduceMotion ? 'auto' : 'smooth',
+                    })
+                  }
+                >
+                  Show highlighted control
+                </Button>
+              ) : null}
+              {activeChapter.practiceOptIn &&
+              activeChapter.practiceArtifacts?.some(
+                (a) => a.entityType === step.entityType && a.creationOperationId
+              ) &&
+              ['entity_saved_locally', 'practice_task_saved_locally'].includes(
+                step.completionPredicate
+              ) ? (
+                <Button
+                  size="compact"
+                  themeMode={themeMode}
+                  onClick={() => void tour.reusePractice()}
+                >
+                  Use saved practice item
+                </Button>
+              ) : null}
+              {activeChapter.lifecycle === 'paused' ? (
                 <Button
                   variant="primary"
                   size="compact"
                   themeMode={themeMode}
-                  onClick={() => void applyControl('next')}
+                  onClick={() => void applyControl('resume')}
                 >
-                  Next
+                  Resume
                 </Button>
-              ) : null}
-              {step.allowSkip ? (
-                <Button
-                  variant="subtle"
-                  size="compact"
-                  themeMode={themeMode}
-                  onClick={() => void applyControl('skip_step')}
-                >
-                  Skip step
-                </Button>
-              ) : null}
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    themeMode={themeMode}
+                    onClick={() => void applyControl('back')}
+                  >
+                    Back
+                  </Button>
+                  {step.allowInformationalNext ? (
+                    <Button
+                      variant="primary"
+                      size="compact"
+                      themeMode={themeMode}
+                      onClick={() => void applyControl('next')}
+                    >
+                      Next
+                    </Button>
+                  ) : null}
+                  {step.allowSkip ? (
+                    <Button
+                      variant="subtle"
+                      size="compact"
+                      themeMode={themeMode}
+                      onClick={() => void applyControl('skip_step')}
+                    >
+                      Skip step
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="subtle"
+                    size="compact"
+                    themeMode={themeMode}
+                    onClick={() => void applyControl('pause')}
+                  >
+                    Pause
+                  </Button>
+                </>
+              )}
               <Button
                 variant="subtle"
                 size="compact"
                 themeMode={themeMode}
-                onClick={() => void applyControl('pause')}
+                onClick={() => void applyControl('skip_chapter')}
               >
-                Pause
+                Skip chapter
               </Button>
-            </>
-          )}
-          <Button
-            variant="subtle"
-            size="compact"
-            themeMode={themeMode}
-            onClick={() => void applyControl('skip_chapter')}
-          >
-            Skip chapter
-          </Button>
-          <Button
-            variant="subtle"
-            size="compact"
-            themeMode={themeMode}
-            onClick={() => void applyControl('restart_chapter')}
-          >
-            Restart chapter
-          </Button>
-          <Button
-            variant="secondary"
-            size="compact"
-            themeMode={themeMode}
-            onClick={() => void applyControl('exit')}
-          >
-            Exit
-          </Button>
-        </div>
+              <Button
+                variant="subtle"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => void applyControl('restart_chapter')}
+              >
+                Restart chapter
+              </Button>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => void applyControl('exit')}
+              >
+                Exit
+              </Button>
+            </div>
+          </>
+        ) : null}
       </div>
     </>
   );

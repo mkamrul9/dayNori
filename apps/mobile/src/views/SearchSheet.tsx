@@ -146,9 +146,44 @@ export const SearchSheet: React.FC<SearchSheetProps> = ({
 
           if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
 
-          setSearchResults(res.data);
+          let mergedData = res.data;
+          let mergedCount = res.meta.totalCount;
+          if (localRepository) {
+            try {
+              const [headers, notes, tasks, journals, files] = await Promise.all([
+                localRepository.listItemHeaders(workspaceId),
+                localRepository.listNotes(workspaceId),
+                localRepository.listTasks(workspaceId),
+                localRepository.listJournalEntries(workspaceId),
+                localRepository.listFiles(workspaceId),
+              ]);
+              if (abortController.signal.aborted || currentGen !== requestGenRef.current) return;
+              const localRes = searchDownloadedRecords({
+                workspaceId,
+                query: { q: trimmed, types, limit, offset },
+                items: {
+                  headers,
+                  notes,
+                  tasks,
+                  journalEntries: journals,
+                  files,
+                },
+                preferences: { journalPreviewHidden, suppressBodySnippets },
+              });
+              const seenIds = new Set(res.data.map((r) => r.id));
+              const localExtras = localRes.data.filter((r) => !seenIds.has(r.id));
+              if (localExtras.length > 0) {
+                mergedData = [...res.data, ...localExtras].slice(0, limit);
+                mergedCount = Math.max(res.meta.totalCount, mergedData.length);
+              }
+            } catch {
+              // ignore local merge failure when online search succeeds
+            }
+          }
+
+          setSearchResults(mergedData);
           setCoverage(res.meta.coverage);
-          setTotalCount(res.meta.totalCount);
+          setTotalCount(mergedCount);
           setIsOffline(false);
           setIsLoading(false);
         } else if (localRepository) {

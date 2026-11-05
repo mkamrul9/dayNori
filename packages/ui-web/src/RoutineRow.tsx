@@ -148,6 +148,7 @@ export const RoutineRow: React.FC<RoutineRowProps> = ({
           type="button"
           role="checkbox"
           aria-checked={isDone}
+          data-tour-target={isDone ? 'routine.occurrence.undo' : 'routine.occurrence.action'}
           aria-label={
             isDone
               ? `Mark routine "${routine.title}" as pending`
@@ -291,6 +292,7 @@ export const RoutineRow: React.FC<RoutineRowProps> = ({
           {occurrence && isSkipped && (
             <button
               type="button"
+              data-tour-target="routine.occurrence.undo"
               aria-label={`Reopen routine "${routine.title}" for ${viewingDate}`}
               onClick={() => onReopen?.(occurrence.id)}
               style={{
@@ -333,6 +335,7 @@ export const RoutineRow: React.FC<RoutineRowProps> = ({
           {onEdit && (
             <button
               type="button"
+              data-tour-target="plan.routine.practice"
               aria-label={`Edit routine "${routine.title}"`}
               onClick={() => onEdit(routine.id)}
               style={{

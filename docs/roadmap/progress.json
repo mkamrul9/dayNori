@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-27",
+  "updatedAt": "2026-11-05",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 80 everyday tour definitions/adapters implemented (ADR 0080) but acceptance blocked pending real desktop/narrow-PWA/native UI journey attestation (see phase-80 report). Phase 79 complete. Phase 81 depends on 80 + blocked Phase 75 — do not auto-start or waive attachments. Phase 71 TalkBack remains blocked. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Phase 80 everyday tour definitions, fresh native x86_64 bundle provenance, and genuine desktop/narrow-PWA/native UI journeys verified (see phase-80 report); completion blocked pending physical Android hardware and human spoken screen-reader reviews. Phase 79 complete. Phase 81 depends on 80 + blocked Phase 75 — do not auto-start or waive attachments. Phase 71 TalkBack remains blocked. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -467,7 +467,7 @@
     {
       "id": "80",
       "status": "blocked",
-      "reason": "Everyday chapter definitions, predicates, Help mappings, and web/native adapters delivered; required real UI journey attestation (desktop web, narrow PWA, native Android) unmet — unit evidence alone is not acceptance. See docs/phase-reports/phase-80.md.",
+      "reason": "Everyday chapter definitions, predicates, Help mappings, and web/native adapters delivered with verified fresh native bundle provenance (SHA-256 17e66a5a...) and genuine desktop web, narrow PWA, and native emulator journeys completed. Completion blocked pending physical Android phone verification and human spoken screen-reader review. See docs/phase-reports/phase-80.md.",
       "report": "docs/phase-reports/phase-80.md"
     },
     {

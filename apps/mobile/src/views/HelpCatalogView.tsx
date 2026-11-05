@@ -30,16 +30,41 @@ type ThemeMode = 'light' | 'dark';
 export function HelpCatalogView(props: {
   themeMode: ThemeMode;
   userId?: string | null;
+  initialArticleId?: string | null;
+  onOpenArticle?: (articleId: string) => void;
+  onReturnToEditor?: () => void;
   onClose: () => void;
   onReplayOnboarding?: () => void;
-  onStartGuidedTour?: (tourChapterId: string) => void;
+  onStartGuidedTour?: (tourChapterId: string, practiceOptIn: boolean) => void;
   onOpenSupport?: () => void;
 }) {
-  const { themeMode, onClose, onReplayOnboarding, onStartGuidedTour, onOpenSupport } = props;
+  const {
+    themeMode,
+    initialArticleId,
+    onOpenArticle,
+    onReturnToEditor,
+    onClose,
+    onReplayOnboarding,
+    onStartGuidedTour,
+    onOpenSupport,
+  } = props;
   const palette = colors[themeMode];
   const [query, setQuery] = useState('');
-  const [articleId, setArticleId] = useState<string | null>(null);
+  const [articleId, setArticleId] = useState<string | null>(initialArticleId ?? null);
   const [showLearn, setShowLearn] = useState(false);
+  const [practiceOptIn, setPracticeOptIn] = useState(false);
+
+  const openArticle = (id: string) => {
+    setArticleId(id);
+    onOpenArticle?.(id);
+  };
+
+  React.useEffect(() => {
+    if (initialArticleId) {
+      setArticleId(initialArticleId);
+      onOpenArticle?.(initialArticleId);
+    }
+  }, [initialArticleId]);
 
   React.useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -64,16 +89,35 @@ export function HelpCatalogView(props: {
   if (article) {
     return (
       <ScrollView
-        style={{ flex: 1, backgroundColor: palette.bg }}
+        style={{ flex: 1, backgroundColor: palette.background }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xl }}
       >
-        <MobileButton themeMode={themeMode} variant="secondary" onPress={() => setArticleId(null)}>
-          Back
-        </MobileButton>
+        <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+          <MobileButton
+            themeMode={themeMode}
+            variant="secondary"
+            onPress={() => setArticleId(null)}
+          >
+            Back
+          </MobileButton>
+          {onReturnToEditor ? (
+            <MobileButton
+              themeMode={themeMode}
+              variant="primary"
+              testID="help-return-editor"
+              accessibilityLabel="Back to editor"
+              onPress={onReturnToEditor}
+            >
+              Back to editor
+            </MobileButton>
+          ) : null}
+        </View>
         <Text style={[styles.title, { color: palette.text.primary, marginTop: spacing.md }]}>
           {articleTitle(article)}
         </Text>
-        <Text style={[styles.body, { color: palette.text.secondary }]}>{articleSummary(article)}</Text>
+        <Text style={[styles.body, { color: palette.text.secondary }]}>
+          {articleSummary(article)}
+        </Text>
         {article.gatedFeature ? (
           <Text style={[styles.body, { color: palette.text.secondary, marginTop: spacing.sm }]}>
             This feature may be unavailable in your build. Steps describe intended behavior when
@@ -102,7 +146,7 @@ export function HelpCatalogView(props: {
   if (showLearn) {
     return (
       <ScrollView
-        style={{ flex: 1, backgroundColor: palette.bg }}
+        style={{ flex: 1, backgroundColor: palette.background }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xl }}
       >
         <MobileButton themeMode={themeMode} variant="secondary" onPress={() => setShowLearn(false)}>
@@ -115,6 +159,16 @@ export function HelpCatalogView(props: {
           Chapters prepare for guided practice. Reading an article does not complete practice. Only
           runnable chapters start the action-verified tour.
         </Text>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: practiceOptIn }}
+          onPress={() => setPracticeOptIn(!practiceOptIn)}
+          testID="tour-practice-opt-in"
+        >
+          <Text style={[styles.body, { color: palette.text.primary }]}>
+            [{practiceOptIn ? 'x' : ' '}] Use labeled practice items (optional)
+          </Text>
+        </Pressable>
         {chapters.map((ch) => (
           <MobileCard key={ch.id} themeMode={themeMode} style={{ marginTop: spacing.sm }}>
             <Text style={{ fontWeight: '700', color: palette.text.primary }}>
@@ -129,7 +183,7 @@ export function HelpCatalogView(props: {
                     key={tourDef.id}
                     themeMode={themeMode}
                     variant="primary"
-                    onPress={() => onStartGuidedTour(tourDef.id)}
+                    onPress={() => onStartGuidedTour(tourDef.id, practiceOptIn)}
                     style={{ marginTop: spacing.sm }}
                     testID={`help-start-${tourDef.id.replace(/\./g, '-')}`}
                   >
@@ -155,8 +209,12 @@ export function HelpCatalogView(props: {
               const a = findHelpArticle(id);
               if (!a) return null;
               return (
-                <Pressable key={id} onPress={() => setArticleId(id)} style={{ marginTop: spacing.xs }}>
-                  <Text style={{ color: palette.brand.primary, fontWeight: '600' }}>
+                <Pressable
+                  key={id}
+                  onPress={() => openArticle(id)}
+                  style={{ marginTop: spacing.xs }}
+                >
+                  <Text style={{ color: palette.action.primary, fontWeight: '600' }}>
                     {articleTitle(a)}
                   </Text>
                 </Pressable>
@@ -170,15 +228,33 @@ export function HelpCatalogView(props: {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: palette.bg }}
+      style={{ flex: 1, backgroundColor: palette.background }}
       contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xl }}
       keyboardShouldPersistTaps="handled"
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={[styles.title, { color: palette.text.primary }]}>Help</Text>
-        <MobileButton themeMode={themeMode} variant="secondary" onPress={onClose} accessibilityLabel="Close Help">
-          Close
-        </MobileButton>
+        <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+          {onReturnToEditor ? (
+            <MobileButton
+              themeMode={themeMode}
+              variant="primary"
+              testID="help-return-editor"
+              accessibilityLabel="Back to editor"
+              onPress={onReturnToEditor}
+            >
+              Back to editor
+            </MobileButton>
+          ) : null}
+          <MobileButton
+            themeMode={themeMode}
+            variant="secondary"
+            onPress={onClose}
+            accessibilityLabel="Close Help"
+          >
+            Close
+          </MobileButton>
+        </View>
       </View>
       <Text style={[styles.body, { color: palette.text.secondary }]}>
         Search instructional Help only — not your notes or journal.
@@ -202,7 +278,9 @@ export function HelpCatalogView(props: {
         }}
       />
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.md }}>
+      <View
+        style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.md }}
+      >
         <MobileButton themeMode={themeMode} variant="secondary" onPress={() => setShowLearn(true)}>
           <Icon name="graduation" /> Learn the app
         </MobileButton>
@@ -225,25 +303,29 @@ export function HelpCatalogView(props: {
         ? hits.map((h) => ({ id: h.articleId, title: h.title, summary: h.summary }))
         : HELP_COMMON_TASK_ARTICLE_IDS.map((id) => {
             const a = findHelpArticle(id);
-            return a
-              ? { id: a.id, title: articleTitle(a), summary: articleSummary(a) }
-              : null;
+            return a ? { id: a.id, title: articleTitle(a), summary: articleSummary(a) } : null;
           }).filter(Boolean)
       ).map((row) =>
         row ? (
           <Pressable
             key={row.id}
-            onPress={() => setArticleId(row.id)}
+            onPress={() => openArticle(row.id)}
             accessibilityRole="button"
-            style={{ paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: palette.border.subtle }}
+            style={{
+              paddingVertical: spacing.sm,
+              borderBottomWidth: 1,
+              borderBottomColor: palette.border.subtle,
+            }}
           >
-            <Text style={{ fontWeight: '700', color: palette.brand.primary }}>{row.title}</Text>
+            <Text style={{ fontWeight: '700', color: palette.action.primary }}>{row.title}</Text>
             <Text style={[styles.body, { color: palette.text.secondary }]}>{row.summary}</Text>
           </Pressable>
         ) : null
       )}
       {query.trim() && hits.length === 0 ? (
-        <Text style={[styles.body, { color: palette.text.secondary }]}>No matching Help articles.</Text>
+        <Text style={[styles.body, { color: palette.text.secondary }]}>
+          No matching Help articles.
+        </Text>
       ) : null}
 
       <Text style={[styles.heading, { color: palette.text.primary }]}>Troubleshoot</Text>
@@ -251,8 +333,10 @@ export function HelpCatalogView(props: {
         const a = findHelpArticle(id);
         if (!a) return null;
         return (
-          <Pressable key={id} onPress={() => setArticleId(id)} style={{ paddingVertical: 6 }}>
-            <Text style={{ color: palette.brand.primary, fontWeight: '600' }}>{articleTitle(a)}</Text>
+          <Pressable key={id} onPress={() => openArticle(id)} style={{ paddingVertical: 6 }}>
+            <Text style={{ color: palette.action.primary, fontWeight: '600' }}>
+              {articleTitle(a)}
+            </Text>
           </Pressable>
         );
       })}
@@ -266,8 +350,12 @@ export function HelpCatalogView(props: {
               {resolveHelpText(cat.title)}
             </Text>
             {HELP_ARTICLES.filter((a) => a.categoryId === cat.id).map((a: HelpArticle) => (
-              <Pressable key={a.id} onPress={() => setArticleId(a.id)} style={{ paddingVertical: 4 }}>
-                <Text style={{ color: palette.brand.primary }}>{articleTitle(a)}</Text>
+              <Pressable
+                key={a.id}
+                onPress={() => openArticle(a.id)}
+                style={{ paddingVertical: 4 }}
+              >
+                <Text style={{ color: palette.action.primary }}>{articleTitle(a)}</Text>
               </Pressable>
             ))}
           </View>

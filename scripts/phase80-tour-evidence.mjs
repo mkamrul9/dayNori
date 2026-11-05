@@ -17,6 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { phase80SourceFingerprint, validatePhase80UiEvidence } from './lib/phase80-ui-evidence.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -26,7 +27,11 @@ mkdirSync(outDir, { recursive: true });
 
 function run(label, command, args) {
   const started = Date.now();
-  const result = spawnSync(command, args, {
+  const quotedCmd =
+    process.platform === 'win32' && command.includes(' ') && !command.startsWith('"')
+      ? `"${command}"`
+      : command;
+  const result = spawnSync(quotedCmd, args, {
     cwd: root,
     encoding: 'utf8',
     shell: process.platform === 'win32',
@@ -43,6 +48,12 @@ function run(label, command, args) {
 }
 
 const checks = [];
+checks.push(
+  run('ui-evidence-validator', process.execPath, [
+    '--test',
+    'scripts/lib/phase80-ui-evidence.test.mjs',
+  ])
+);
 checks.push(
   run('phase80-everyday-tours', 'pnpm', [
     'exec',
@@ -72,8 +83,7 @@ checks.push(run('domain-build', 'pnpm', ['--filter', '@daynori/domain', 'build']
 checks.push(run('contracts-build', 'pnpm', ['--filter', '@daynori/contracts', 'build']));
 
 const attestationPath =
-  process.env.DAYNORI_PHASE80_UI_ATTESTATION ||
-  path.join(outDir, 'manual-ui-evidence.json');
+  process.env.DAYNORI_PHASE80_UI_ATTESTATION || path.join(outDir, 'manual-ui-evidence.json');
 
 let uiEvidence = {
   label: 'real-ui-journeys',
@@ -87,18 +97,15 @@ let uiEvidence = {
 if (existsSync(attestationPath)) {
   try {
     const raw = JSON.parse(readFileSync(attestationPath, 'utf8'));
-    const platforms = ['desktopWeb', 'narrowPwa', 'nativeAndroid'];
-    const missing = platforms.filter((p) => !(raw[p] && raw[p].ok === true && raw[p].provenance));
-    // TalkBack XML / service enablement alone is not spoken review — reject false substitutes.
-    const falseSubstitute =
-      raw.nativeAndroid?.talkbackXmlOnly === true ||
-      raw.nativeAndroid?.spokenReviewClaimedWithoutSpeech === true;
+    const validated = validatePhase80UiEvidence(raw, {
+      root,
+      fingerprint: phase80SourceFingerprint(root),
+    });
     uiEvidence = {
       label: 'real-ui-journeys',
-      ok: missing.length === 0 && !falseSubstitute,
-      status: missing.length === 0 && !falseSubstitute ? 'met' : 'unmet',
-      missing,
-      falseSubstitute,
+      ok: validated.ok,
+      status: validated.ok ? 'met' : 'unmet',
+      missing: validated.unmet,
       path: attestationPath,
       note: raw.note || null,
     };
@@ -129,7 +136,9 @@ const summary = {
 
 const summaryPath = path.join(outDir, 'evidence-summary.json');
 writeFileSync(summaryPath, JSON.stringify(summary, null, 2), 'utf8');
-console.log(JSON.stringify({ summaryPath, failed: summary.unmet.length > 0, unmet: summary.unmet }, null, 2));
+console.log(
+  JSON.stringify({ summaryPath, failed: summary.unmet.length > 0, unmet: summary.unmet }, null, 2)
+);
 
 if (required && summary.unmet.length > 0) {
   console.error('Phase 80 required evidence unmet:', summary.unmet.join(', '));

@@ -86,11 +86,13 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasOptionalSeed = Boolean(
     (initialRoutine?.details || '').trim() ||
-      initialRoutine?.scheduledTime ||
-      initialRoutine?.activeTo ||
-      initialRoutine?.isPaused
+    initialRoutine?.scheduledTime ||
+    initialRoutine?.activeTo ||
+    initialRoutine?.isPaused
   );
-  const [detailsExpanded, setDetailsExpanded] = useState(hasOptionalSeed || Boolean(initialRoutine?.id));
+  const [detailsExpanded, setDetailsExpanded] = useState(
+    hasOptionalSeed || Boolean(initialRoutine?.id)
+  );
 
   useEffect(() => {
     if (initialRoutine) {
@@ -460,144 +462,49 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
               Details (optional)
             </summary>
 
-          {/* Details / Description */}
-          <div>
-            <label
-              htmlFor="routine-details-input"
-              style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: palette.text.primary,
-                marginBottom: '4px',
-              }}
+            {/* Details / Description */}
+            <div>
+              <label
+                htmlFor="routine-details-input"
+                style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: palette.text.primary,
+                  marginBottom: '4px',
+                }}
+              >
+                Description / Notes
+              </label>
+              <textarea
+                id="routine-details-input"
+                rows={2}
+                maxLength={1000}
+                placeholder="e.g., Focus on non-fiction or career books"
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.strong}`,
+                  backgroundColor: palette.surfaceRaised,
+                  color: palette.text.primary,
+                  fontSize: `${typography.webScale.body}px`,
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            {/* Scheduled Time & Timezone */}
+            <div
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.sm}px` }}
             >
-              Description / Notes
-            </label>
-            <textarea
-              id="routine-details-input"
-              rows={2}
-              maxLength={1000}
-              placeholder="e.g., Focus on non-fiction or career books"
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: `${radii.sm}px`,
-                border: `1px solid ${palette.border.strong}`,
-                backgroundColor: palette.surfaceRaised,
-                color: palette.text.primary,
-                fontSize: `${typography.webScale.body}px`,
-                boxSizing: 'border-box',
-                outline: 'none',
-                resize: 'vertical',
-              }}
-            />
-          </div>
-
-          {/* Scheduled Time & Timezone */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.sm}px` }}>
-            <div>
-              <label
-                htmlFor="routine-time-input"
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: palette.text.primary,
-                  marginBottom: '4px',
-                }}
-              >
-                Scheduled Time
-              </label>
-              <input
-                id="routine-time-input"
-                type="time"
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: `${radii.sm}px`,
-                  border: `1px solid ${palette.border.strong}`,
-                  backgroundColor: palette.surfaceRaised,
-                  color: palette.text.primary,
-                  fontSize: `${typography.webScale.body}px`,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="routine-tz-input"
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: palette.text.primary,
-                  marginBottom: '4px',
-                }}
-              >
-                Timezone
-              </label>
-              <input
-                id="routine-tz-input"
-                type="text"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: `${radii.sm}px`,
-                  border: `1px solid ${palette.border.strong}`,
-                  backgroundColor: palette.surfaceRaised,
-                  color: palette.text.primary,
-                  fontSize: `${typography.webScale.body}px`,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Active Period & Effective Date */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.sm}px` }}>
-            <div>
-              <label
-                htmlFor="routine-active-from"
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: palette.text.primary,
-                  marginBottom: '4px',
-                }}
-              >
-                Active From
-              </label>
-              <input
-                id="routine-active-from"
-                type="date"
-                value={activeFrom}
-                onChange={(e) => setActiveFrom(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: `${radii.sm}px`,
-                  border: `1px solid ${palette.border.strong}`,
-                  backgroundColor: palette.surfaceRaised,
-                  color: palette.text.primary,
-                  fontSize: `${typography.webScale.body}px`,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            {isEditing && (
               <div>
                 <label
-                  htmlFor="routine-effective-date"
+                  htmlFor="routine-time-input"
                   style={{
                     display: 'block',
                     fontSize: '13px',
@@ -606,13 +513,13 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
                     marginBottom: '4px',
                   }}
                 >
-                  Effective Date
+                  Scheduled Time
                 </label>
                 <input
-                  id="routine-effective-date"
-                  type="date"
-                  value={effectiveDate}
-                  onChange={(e) => setEffectiveDate(e.target.value)}
+                  id="routine-time-input"
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -625,61 +532,162 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
                   }}
                 />
               </div>
-            )}
-          </div>
 
-          {/* Schedule Change Impact Info Callout */}
-          <div
-            style={{
-              padding: `${spacing.sm}px`,
-              borderRadius: `${radii.sm}px`,
-              backgroundColor: palette.surfaceRaised,
-              border: `1px solid ${palette.border.subtle}`,
-              fontSize: '12px',
-              color: palette.text.secondary,
-              lineHeight: 1.4,
-            }}
-          >
-            <strong style={{ color: palette.text.primary, display: 'block', marginBottom: '2px' }}>
-              Schedule Reconciliation & History Preservation:
-            </strong>
-            {impactExplanation}
-          </div>
-
-          {/* Pause / Resume Toggle (when editing) */}
-          {isEditing && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: `${spacing.xs}px 0`,
-              }}
-            >
               <div>
-                <span
+                <label
+                  htmlFor="routine-tz-input"
                   style={{
+                    display: 'block',
                     fontSize: '13px',
                     fontWeight: 600,
                     color: palette.text.primary,
-                    display: 'block',
+                    marginBottom: '4px',
                   }}
                 >
-                  Pause Routine
-                </span>
-                <span style={{ fontSize: '12px', color: palette.text.secondary }}>
-                  Temporarily pause occurrences without deleting history.
-                </span>
+                  Timezone
+                </label>
+                <input
+                  id="routine-tz-input"
+                  type="text"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: `${radii.sm}px`,
+                    border: `1px solid ${palette.border.strong}`,
+                    backgroundColor: palette.surfaceRaised,
+                    color: palette.text.primary,
+                    fontSize: `${typography.webScale.body}px`,
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
-              <input
-                type="checkbox"
-                id="routine-pause-toggle"
-                checked={isPaused}
-                onChange={(e) => setIsPaused(e.target.checked)}
-                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-              />
             </div>
-          )}
+
+            {/* Active Period & Effective Date */}
+            <div
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.sm}px` }}
+            >
+              <div>
+                <label
+                  htmlFor="routine-active-from"
+                  style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: palette.text.primary,
+                    marginBottom: '4px',
+                  }}
+                >
+                  Active From
+                </label>
+                <input
+                  id="routine-active-from"
+                  type="date"
+                  value={activeFrom}
+                  onChange={(e) => setActiveFrom(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: `${radii.sm}px`,
+                    border: `1px solid ${palette.border.strong}`,
+                    backgroundColor: palette.surfaceRaised,
+                    color: palette.text.primary,
+                    fontSize: `${typography.webScale.body}px`,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {isEditing && (
+                <div>
+                  <label
+                    htmlFor="routine-effective-date"
+                    style={{
+                      display: 'block',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: palette.text.primary,
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Effective Date
+                  </label>
+                  <input
+                    id="routine-effective-date"
+                    type="date"
+                    value={effectiveDate}
+                    onChange={(e) => setEffectiveDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: `${radii.sm}px`,
+                      border: `1px solid ${palette.border.strong}`,
+                      backgroundColor: palette.surfaceRaised,
+                      color: palette.text.primary,
+                      fontSize: `${typography.webScale.body}px`,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Schedule Change Impact Info Callout */}
+            <div
+              style={{
+                padding: `${spacing.sm}px`,
+                borderRadius: `${radii.sm}px`,
+                backgroundColor: palette.surfaceRaised,
+                border: `1px solid ${palette.border.subtle}`,
+                fontSize: '12px',
+                color: palette.text.secondary,
+                lineHeight: 1.4,
+              }}
+            >
+              <strong
+                style={{ color: palette.text.primary, display: 'block', marginBottom: '2px' }}
+              >
+                Schedule Reconciliation & History Preservation:
+              </strong>
+              {impactExplanation}
+            </div>
+
+            {/* Pause / Resume Toggle (when editing) */}
+            {isEditing && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: `${spacing.xs}px 0`,
+                }}
+              >
+                <div>
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: palette.text.primary,
+                      display: 'block',
+                    }}
+                  >
+                    Pause Routine
+                  </span>
+                  <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                    Temporarily pause occurrences without deleting history.
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  id="routine-pause-toggle"
+                  checked={isPaused}
+                  onChange={(e) => setIsPaused(e.target.checked)}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                />
+              </div>
+            )}
           </details>
 
           {/* Action buttons — sticky on mobile for keyboard reachability */}
@@ -713,6 +721,7 @@ export const RoutineDetailEditor: React.FC<RoutineDetailEditorProps> = ({
             </button>
             <button
               type="submit"
+              data-tour-target="create.routine.save"
               disabled={isSubmitting}
               style={{
                 padding: '8px 20px',

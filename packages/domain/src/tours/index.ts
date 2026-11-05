@@ -7,3 +7,5 @@ export * from './progress.js';
 export * from './correlation.js';
 export * from './machine.js';
 export * from './migration.js';
+export * from './scope.js';
+export * from './mutationEvidence.js';

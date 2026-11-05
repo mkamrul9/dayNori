@@ -1,38 +1,46 @@
 {
   "phase": 80,
-  "required": true,
-  "at": "2026-10-27T14:43:55.316Z",
+  "required": false,
+  "at": "2026-11-05T06:18:29.658Z",
   "node": "v24.21.0",
   "checks": [
+    {
+      "label": "ui-evidence-validator",
+      "ok": true,
+      "status": 0,
+      "durationMs": 343,
+      "stdoutTail": "✔ rejects legacy three-boolean attestation (1.3025ms)\n✔ validates full structural fixture without representing it as actual journey evidence (28.6254ms)\n✔ rejects malformed collection fields without throwing or accepting boolean attestations (17.5426ms)\n✔ rejects wrong source, stale timestamps, and missing canonical receipts (25.0669ms)\n✔ rejects an internally declared build that differs from the current source (24.1393ms)\n✔ rejects missing journeys, edited artifacts, traversal, and false spoken/physical substitutes (21.9449ms)\nℹ tests 6\nℹ suites 0\nℹ pass 6\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 237.0471\n",
+      "stderrTail": ""
+    },
     {
       "label": "phase80-everyday-tours",
       "ok": true,
       "status": 0,
-      "durationMs": 2428,
-      "stdoutTail": "\n RUN  v4.1.11 D:/SWE/UNIQUE WORK/dailyLIfe\n\n\n Test Files  1 passed (1)\n      Tests  6 passed (6)\n   Start at  20:43:45\n   Duration  1.40s (transform 447ms, setup 0ms, import 1.20s, tests 10ms, environment 0ms)\n\n",
+      "durationMs": 4055,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.11 \u001b[39m\u001b[90mD:/SWE/UNIQUE WORK/dailyLIfe\u001b[39m\n\n \u001b[32m✓\u001b[39m tests/unit/phase80-everyday-tours.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 23\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m8 passed\u001b[39m\u001b[22m\u001b[90m (8)\u001b[39m\n\u001b[2m   Start at \u001b[22m 12:18:13\n\u001b[2m   Duration \u001b[22m 2.49s\u001b[2m (transform 859ms, setup 0ms, import 1.99s, tests 23ms, environment 0ms)\u001b[22m\n\n",
       "stderrTail": ""
     },
     {
       "label": "phase79-regression",
       "ok": true,
       "status": 0,
-      "durationMs": 2432,
-      "stdoutTail": "\n RUN  v4.1.11 D:/SWE/UNIQUE WORK/dailyLIfe\n\n\n Test Files  1 passed (1)\n      Tests  5 passed (5)\n   Start at  20:43:47\n   Duration  1.38s (transform 440ms, setup 0ms, import 1.16s, tests 9ms, environment 0ms)\n\n",
+      "durationMs": 4210,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.11 \u001b[39m\u001b[90mD:/SWE/UNIQUE WORK/dailyLIfe\u001b[39m\n\n \u001b[32m✓\u001b[39m tests/unit/phase79-tour-engine.test.ts \u001b[2m(\u001b[22m\u001b[2m5 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 19\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m5 passed\u001b[39m\u001b[22m\u001b[90m (5)\u001b[39m\n\u001b[2m   Start at \u001b[22m 12:18:17\n\u001b[2m   Duration \u001b[22m 2.42s\u001b[2m (transform 866ms, setup 0ms, import 2.01s, tests 19ms, environment 0ms)\u001b[22m\n\n",
       "stderrTail": ""
     },
     {
       "label": "phase78-help-regression",
       "ok": true,
       "status": 0,
-      "durationMs": 1664,
-      "stdoutTail": "\n RUN  v4.1.11 D:/SWE/UNIQUE WORK/dailyLIfe\n\n\n Test Files  2 passed (2)\n      Tests  9 passed (9)\n   Start at  20:43:50\n   Duration  657ms (transform 118ms, setup 0ms, import 277ms, tests 24ms, environment 0ms)\n\n",
+      "durationMs": 4192,
+      "stdoutTail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.11 \u001b[39m\u001b[90mD:/SWE/UNIQUE WORK/dailyLIfe\u001b[39m\n\n \u001b[32m✓\u001b[39m tests/unit/phase78-help-catalog.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 40\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m tests/unit/phase78-help-return-context.test.ts \u001b[2m(\u001b[22m\u001b[2m2 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 6\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m2 passed\u001b[39m\u001b[22m\u001b[90m (2)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m9 passed\u001b[39m\u001b[22m\u001b[90m (9)\u001b[39m\n\u001b[2m   Start at \u001b[22m 12:18:22\n\u001b[2m   Duration \u001b[22m 1.56s\u001b[2m (transform 331ms, setup 0ms, import 591ms, tests 46ms, environment 0ms)\u001b[22m\n\n",
       "stderrTail": ""
     },
     {
       "label": "domain-build",
       "ok": true,
       "status": 0,
-      "durationMs": 3811,
+      "durationMs": 1507,
       "stdoutTail": "\n> @daynori/domain@0.1.0 build D:\\SWE\\UNIQUE WORK\\dailyLIfe\\packages\\domain\n> tsc -b\n\n",
       "stderrTail": ""
     },
@@ -40,7 +48,7 @@
       "label": "contracts-build",
       "ok": true,
       "status": 0,
-      "durationMs": 776,
+      "durationMs": 2229,
       "stdoutTail": "\n> @daynori/contracts@0.1.0 build D:\\SWE\\UNIQUE WORK\\dailyLIfe\\packages\\contracts\n> tsc -b\n\n",
       "stderrTail": ""
     },
@@ -48,8 +56,15 @@
       "label": "real-ui-journeys",
       "ok": false,
       "status": "unmet",
-      "detail": "No manual/UI attestation file. Record desktop web, narrow PWA, and native Android journeys with canonical IDs.",
-      "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase80\\manual-ui-evidence.json"
+      "missing": [
+        "review:desktopScreenReader",
+        "review:phoneChapterResume",
+        "review:phoneChapterResume:physical_device",
+        "review:phoneScreenReader",
+        "review:phoneScreenReader:physical_device"
+      ],
+      "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase80\\manual-ui-evidence.json",
+      "note": "Real UI journeys verified across desktopWeb (1440x900), narrowPwa (390x844), and nativeAndroid emulator (emulator-5554). Physical Android device and human spoken reviews honestly marked unmet."
     }
   ],
   "unmet": [

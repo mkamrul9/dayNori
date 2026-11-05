@@ -28,12 +28,18 @@ import {
   readHelpReturnContext,
   saveContinueLearning,
 } from '../../help/helpReturnContext';
-import { useTourOptional } from '../../tours/TourContext';
+import { useTour } from '../../tours/TourContext';
 import { TourCleanupPanel } from '../../tours/TourCleanupPanel';
 
 type HelpView = 'home' | 'article' | 'learn' | 'category';
 
-function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 'light' | 'dark' }) {
+function ArticleBody({
+  article,
+  themeMode,
+}: {
+  article: HelpArticle;
+  themeMode: 'light' | 'dark';
+}) {
   const palette = colors[themeMode];
   return (
     <div className="daynori-break">
@@ -46,7 +52,14 @@ function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 
       >
         {articleTitle(article)}
       </h2>
-      <p style={{ margin: '0 0 12px', fontSize: 14, color: palette.text.secondary, lineHeight: 1.45 }}>
+      <p
+        style={{
+          margin: '0 0 12px',
+          fontSize: 14,
+          color: palette.text.secondary,
+          lineHeight: 1.45,
+        }}
+      >
         {articleSummary(article)}
       </p>
       {article.gatedFeature ? (
@@ -60,7 +73,9 @@ function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 
       ) : null}
       {article.prerequisites.length > 0 ? (
         <>
-          <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>Prerequisites</h3>
+          <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>
+            Prerequisites
+          </h3>
           <ul style={{ margin: 0, paddingLeft: 18, color: palette.text.secondary, fontSize: 13 }}>
             {article.prerequisites.map((p) => (
               <li key={p.key}>{resolveHelpText(p)}</li>
@@ -69,14 +84,24 @@ function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 
         </>
       ) : null}
       <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>Steps</h3>
-      <ol style={{ margin: 0, paddingLeft: 18, color: palette.text.primary, fontSize: 14, lineHeight: 1.5 }}>
+      <ol
+        style={{
+          margin: 0,
+          paddingLeft: 18,
+          color: palette.text.primary,
+          fontSize: 14,
+          lineHeight: 1.5,
+        }}
+      >
         {article.steps.map((s) => (
           <li key={s.instruction.key} style={{ marginBottom: 6 }}>
             {resolveHelpText(s.instruction)}
           </li>
         ))}
       </ol>
-      <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>Expected result</h3>
+      <h3 style={{ margin: '12px 0 6px', fontSize: 14, color: palette.text.primary }}>
+        Expected result
+      </h3>
       <p style={{ margin: 0, fontSize: 14, color: palette.text.secondary, lineHeight: 1.45 }}>
         {resolveHelpText(article.expectedResult)}
       </p>
@@ -88,7 +113,9 @@ function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: palette.text.secondary }}>
             {article.failures.map((f) => (
               <li key={f.symptom.key} style={{ marginBottom: 8 }}>
-                <strong style={{ color: palette.text.primary }}>{resolveHelpText(f.symptom)}:</strong>{' '}
+                <strong style={{ color: palette.text.primary }}>
+                  {resolveHelpText(f.symptom)}:
+                </strong>{' '}
                 {resolveHelpText(f.recovery)}
               </li>
             ))}
@@ -111,7 +138,7 @@ function ArticleBody({ article, themeMode }: { article: HelpArticle; themeMode: 
 
 function HelpPageInner() {
   const { themeMode, openModal } = useShell();
-  const tour = useTourOptional();
+  const tour = useTour();
   const { user, workspaceId } = useAuth();
   const palette = colors[themeMode];
   const router = useRouter();
@@ -121,6 +148,9 @@ function HelpPageInner() {
   const viewParam = searchParams.get('view');
 
   const [query, setQuery] = useState('');
+  const [practiceOptIn, setPracticeOptIn] = useState(false);
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [launching, setLaunching] = useState(false);
   const [view, setView] = useState<HelpView>('home');
   const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -202,7 +232,12 @@ function HelpPageInner() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.base}px` }}>
           <Card themeMode={themeMode}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-              <Button variant="secondary" size="compact" themeMode={themeMode} onClick={returnFromArticle}>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={returnFromArticle}
+              >
                 Back
               </Button>
             </div>
@@ -238,17 +273,37 @@ function HelpPageInner() {
       {view === 'learn' ? (
         <Card themeMode={themeMode}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            <Button variant="secondary" size="compact" themeMode={themeMode} onClick={() => router.push('/help')}>
+            <Button
+              variant="secondary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => router.push('/help')}
+            >
               Back to Help
             </Button>
           </div>
           <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
             Learn the app
           </h2>
+          {tour?.storageMessage ? (
+            <Feedback severity="warning" message={tour.storageMessage} themeMode={themeMode} />
+          ) : null}
+          {launchError ? (
+            <Feedback severity="warning" message={launchError} themeMode={themeMode} />
+          ) : null}
+          <label style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input
+              type="checkbox"
+              checked={practiceOptIn}
+              onChange={(event) => setPracticeOptIn(event.target.checked)}
+            />
+            Create labeled practice items for this chapter (optional). Leave unchecked to use your
+            own items.
+          </label>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
-            Chapters prepare for guided practice. Opening an article does not mark practice complete.
-            Only chapters marked runnable use the action-verified tour engine; others stay coming later
-            or gated.
+            Chapters prepare for guided practice. Opening an article does not mark practice
+            complete. Only chapters marked runnable use the action-verified tour engine; others stay
+            coming later or gated.
           </p>
           {continueChapterId ? (
             <p style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
@@ -271,7 +326,8 @@ function HelpPageInner() {
                   {resolveHelpText(chapter.summary)}
                 </p>
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: palette.text.secondary }}>
-                  Status: {chapter.state.replace(/_/g, ' ')}. {resolveHelpText(chapter.stateExplanation)}
+                  Status: {chapter.state.replace(/_/g, ' ')}.{' '}
+                  {resolveHelpText(chapter.stateExplanation)}
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {chapter.state === 'runnable'
@@ -282,11 +338,31 @@ function HelpPageInner() {
                           size="compact"
                           themeMode={themeMode}
                           id={`help-start-${tourDef.id.replace(/\./g, '-')}`}
-                          onClick={() => {
-                            if (user?.id) saveContinueLearning(user.id, chapter.id);
-                            void tour?.startChapter(tourDef.id);
-                            const route = tourDef.steps.find((s) => s.route)?.route ?? '/';
-                            router.push(route);
+                          disabled={launching || !user?.id || !workspaceId}
+                          onClick={async () => {
+                            if (launching) return;
+                            setLaunching(true);
+                            setLaunchError(null);
+                            try {
+                              if (user?.id) saveContinueLearning(user.id, chapter.id);
+                              const started = await tour.startChapter(tourDef.id, {
+                                practice: practiceOptIn,
+                              });
+                              if (!started) {
+                                setLaunchError(
+                                  'The chapter could not start. Check your account, workspace, and connection, then retry.'
+                                );
+                                return;
+                              }
+                              const route = tourDef.steps.find((s) => s.route)?.route ?? '/';
+                              router.push(route);
+                            } catch {
+                              setLaunchError(
+                                'The chapter could not start. Your existing progress is retained. Retry when ready.'
+                              );
+                            } finally {
+                              setLaunching(false);
+                            }
                           }}
                         >
                           Start: {tourDef.title.defaultText}
@@ -340,15 +416,24 @@ function HelpPageInner() {
 
       {view === 'category' && activeCategoryId ? (
         <Card themeMode={themeMode}>
-          <Button variant="secondary" size="compact" themeMode={themeMode} onClick={() => router.push('/help')}>
+          <Button
+            variant="secondary"
+            size="compact"
+            themeMode={themeMode}
+            onClick={() => router.push('/help')}
+          >
             Back to Help
           </Button>
           <h2 style={{ margin: '12px 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
-            {HELP_CATEGORIES.find((c) => c.id === activeCategoryId)?.title.defaultText || 'Category'}
+            {HELP_CATEGORIES.find((c) => c.id === activeCategoryId)?.title.defaultText ||
+              'Category'}
           </h2>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {HELP_ARTICLES.filter((a) => a.categoryId === activeCategoryId).map((a) => (
-              <li key={a.id} style={{ padding: '8px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>
+              <li
+                key={a.id}
+                style={{ padding: '8px 0', borderBottom: `1px solid ${palette.border.subtle}` }}
+              >
                 <button
                   type="button"
                   onClick={() => openArticle(a.id)}
@@ -358,7 +443,7 @@ function HelpPageInner() {
                     padding: 0,
                     textAlign: 'left',
                     cursor: 'pointer',
-                    color: palette.brand.primary,
+                    color: palette.action.primary,
                     fontWeight: 700,
                     fontSize: 14,
                   }}
@@ -387,7 +472,8 @@ function HelpPageInner() {
               Getting started
             </h2>
             <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: palette.text.secondary }}>
-              Replay the short beginner guide anytime. It does not reset settings or duplicate samples.
+              Replay the short beginner guide anytime. It does not reset settings or duplicate
+              samples.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <Button
@@ -461,7 +547,7 @@ function HelpPageInner() {
                         border: 'none',
                         padding: 0,
                         cursor: 'pointer',
-                        color: palette.brand.primary,
+                        color: palette.action.primary,
                         fontWeight: 700,
                         fontSize: 14,
                       }}
@@ -481,13 +567,21 @@ function HelpPageInner() {
               </ul>
             ) : (
               <>
-                <h3 style={{ margin: '8px 0', fontSize: 14, color: palette.text.primary }}>Common tasks</h3>
+                <h3 style={{ margin: '8px 0', fontSize: 14, color: palette.text.primary }}>
+                  Common tasks
+                </h3>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                   {HELP_COMMON_TASK_ARTICLE_IDS.map((id) => {
                     const a = findHelpArticle(id);
                     if (!a) return null;
                     return (
-                      <li key={id} style={{ padding: '8px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>
+                      <li
+                        key={id}
+                        style={{
+                          padding: '8px 0',
+                          borderBottom: `1px solid ${palette.border.subtle}`,
+                        }}
+                      >
                         <button
                           type="button"
                           onClick={() => openArticle(id)}
@@ -496,14 +590,16 @@ function HelpPageInner() {
                             border: 'none',
                             padding: 0,
                             cursor: 'pointer',
-                            color: palette.brand.primary,
+                            color: palette.action.primary,
                             fontWeight: 700,
                             fontSize: 14,
                           }}
                         >
                           {articleTitle(a)}
                         </button>
-                        <p style={{ margin: '4px 0 0', fontSize: 13, color: palette.text.secondary }}>
+                        <p
+                          style={{ margin: '4px 0 0', fontSize: 13, color: palette.text.secondary }}
+                        >
                           {articleSummary(a)}
                         </p>
                       </li>
@@ -553,7 +649,7 @@ function HelpPageInner() {
                         border: 'none',
                         padding: 0,
                         cursor: 'pointer',
-                        color: palette.brand.primary,
+                        color: palette.action.primary,
                         fontWeight: 600,
                         fontSize: 14,
                       }}
@@ -570,7 +666,9 @@ function HelpPageInner() {
             <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
               Keyboard shortcuts
             </h2>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, textAlign: 'left' }}>
+            <table
+              style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, textAlign: 'left' }}
+            >
               <thead>
                 <tr style={{ borderBottom: `2px solid ${palette.border.strong}` }}>
                   <th style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>Key</th>
@@ -593,7 +691,10 @@ function HelpPageInner() {
                         {row.key}
                       </kbd>
                     </td>
-                    <td className="daynori-break" style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}>
+                    <td
+                      className="daynori-break"
+                      style={{ padding: `${spacing.xs}px ${spacing.sm}px` }}
+                    >
                       {row.action}
                     </td>
                   </tr>
@@ -613,8 +714,12 @@ function HelpPageInner() {
             <h2 style={{ margin: '0 0 8px', fontSize: `${typography.webScale.sectionHeading}px` }}>
               Need more help?
             </h2>
-            <p className="daynori-break" style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}>
-              See Support for troubleshooting and current contact status. No monitored inbox is invented here.
+            <p
+              className="daynori-break"
+              style={{ margin: '0 0 12px', fontSize: 13, color: palette.text.secondary }}
+            >
+              See Support for troubleshooting and current contact status. No monitored inbox is
+              invented here.
               {workspaceId ? null : null}
               {isCorePreview
                 ? ' This free testing preview keeps uploads, live AI, rooms, and billing off.'
@@ -642,7 +747,12 @@ function HelpPageInner() {
             themeMode={themeMode}
           />
           <div style={{ marginTop: 12 }}>
-            <Button variant="secondary" size="compact" themeMode={themeMode} onClick={() => router.push('/help')}>
+            <Button
+              variant="secondary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => router.push('/help')}
+            >
               Back to Help
             </Button>
           </div>

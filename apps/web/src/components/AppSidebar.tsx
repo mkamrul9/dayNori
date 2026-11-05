@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { colors, density, radii, spacing, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
 import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
+import { TourTarget } from '../tours/TourTarget';
 
 export const AppSidebar: React.FC = () => {
   const pathname = usePathname();
@@ -22,47 +23,53 @@ export const AppSidebar: React.FC = () => {
     ...(isOperator ? [{ href: '/developer', label: 'Developer', icon: 'code' }] : []),
   ];
 
-  const renderNavLink = (
-    item: { href: string; label: string; icon: string },
-    isNested = false
-  ) => {
+  const renderNavLink = (item: { href: string; label: string; icon: string }, isNested = false) => {
     const isActive =
       item.href === '/plan'
         ? pathname === '/plan' || pathname.startsWith('/plan/')
         : pathname === item.href || pathname.startsWith(item.href + '/');
 
     return (
-      <Link
+      <TourTarget
         key={item.href + item.label}
-        href={item.href}
-        aria-current={isActive ? 'page' : undefined}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          minHeight: `${touchTargets.webMin}px`,
-          padding: `${spacing.xs}px ${spacing.sm}px ${spacing.xs}px ${
-            isNested ? spacing.xl : spacing.sm
-          }px`,
-          borderRadius: `${radii.sm}px`,
-          backgroundColor: isActive ? palette.surfaceRaised : 'transparent',
-          color: isActive ? palette.action.primary : palette.text.primary,
-          fontWeight: isActive ? 700 : 500,
-          textDecoration: 'none',
-          fontSize: isNested ? '13px' : '14px',
-          borderLeft: isActive ? `3px solid ${palette.action.primary}` : '3px solid transparent',
-          marginBottom: '2px',
-          boxSizing: 'border-box',
-          transition: 'background-color 120ms ease, color 120ms ease',
-        }}
+        id={
+          item.href === '/features'
+            ? 'shell.all-features'
+            : `shell.nav.${item.href === '/' || item.href === '/today' ? 'today' : item.href.slice(1)}`
+        }
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
-          <span aria-hidden="true" style={{ fontSize: isNested ? '14px' : '16px' }}>
-            <Icon name={item.icon} />
+        <Link
+          key={item.href + item.label}
+          href={item.href}
+          aria-current={isActive ? 'page' : undefined}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            minHeight: `${touchTargets.webMin}px`,
+            padding: `${spacing.xs}px ${spacing.sm}px ${spacing.xs}px ${
+              isNested ? spacing.xl : spacing.sm
+            }px`,
+            borderRadius: `${radii.sm}px`,
+            backgroundColor: isActive ? palette.surfaceRaised : 'transparent',
+            color: isActive ? palette.action.primary : palette.text.primary,
+            fontWeight: isActive ? 700 : 500,
+            textDecoration: 'none',
+            fontSize: isNested ? '13px' : '14px',
+            borderLeft: isActive ? `3px solid ${palette.action.primary}` : '3px solid transparent',
+            marginBottom: '2px',
+            boxSizing: 'border-box',
+            transition: 'background-color 120ms ease, color 120ms ease',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
+            <span aria-hidden="true" style={{ fontSize: isNested ? '14px' : '16px' }}>
+              <Icon name={item.icon} />
+            </span>
+            <span>{item.label}</span>
           </span>
-          <span>{item.label}</span>
-        </span>
-      </Link>
+        </Link>
+      </TourTarget>
     );
   };
 

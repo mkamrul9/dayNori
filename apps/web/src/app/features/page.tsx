@@ -7,8 +7,11 @@ import { Button, Card, Feedback, Icon, TextField } from '@daynori/ui-web';
 import { describeTwoActionPath, type FeatureId } from '@daynori/domain';
 import { useShell } from '../../components/ShellContext';
 import { useFeatureNavigation } from '../../navigation/useFeatureNavigation';
+import { useTourOptional } from '../../tours/TourContext';
+import { TourTarget } from '../../tours/TourTarget';
 
 export default function AllFeaturesPage() {
+  const tour = useTourOptional();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
   const {
@@ -24,6 +27,31 @@ export default function AllFeaturesPage() {
   const [query, setQuery] = useState('');
 
   const results = useMemo(() => searchDirectory(query), [searchDirectory, query]);
+  const perform = async (
+    kind: 'pin' | 'hide' | 'restore',
+    featureId: string,
+    action: () => Promise<{ success: boolean; updated?: { revision: number } }>
+  ) => {
+    const report = tour?.captureEvidence();
+    const result = await action();
+    if (!result.success || !result.updated) return;
+    void report?.({
+      type: 'preference_changed',
+      preferenceRevision: result.updated.revision,
+      preferenceKey:
+        kind === 'pin'
+          ? 'featurePersonalization.pinnedFeatureIds'
+          : 'featurePersonalization.hiddenFeatureIds',
+      preferenceValue:
+        kind === 'hide'
+          ? `${featureId}:hidden`
+          : kind === 'restore'
+            ? `${featureId}:visible`
+            : featureId,
+      expectedAction:
+        kind === 'pin' ? 'pin_module' : kind === 'hide' ? 'hide_journal_tab' : 'restore_module',
+    });
+  };
 
   return (
     <div className="daynori-page">
@@ -49,7 +77,10 @@ export default function AllFeaturesPage() {
       </div>
 
       <Card themeMode={themeMode} style={{ marginBottom: `${spacing.base}px` }}>
-        <label htmlFor="all-features-search" style={{ display: 'block', fontWeight: 600, marginBottom: 8 }}>
+        <label
+          htmlFor="all-features-search"
+          style={{ display: 'block', fontWeight: 600, marginBottom: 8 }}
+        >
           Search features
         </label>
         <TextField
@@ -64,9 +95,7 @@ export default function AllFeaturesPage() {
         {saveMessage ? (
           <div style={{ marginTop: 12 }} role="status" aria-live="polite">
             <Feedback
-              severity={
-                saveStatus === 'error' || saveStatus === 'conflict' ? 'warning' : 'success'
-              }
+              severity={saveStatus === 'error' || saveStatus === 'conflict' ? 'warning' : 'success'}
               message={saveMessage}
               themeMode={themeMode}
             />
@@ -144,23 +173,30 @@ export default function AllFeaturesPage() {
                       }}
                     >
                       {usable ? (
-                        <Link href={feature.webPath} style={{ textDecoration: 'none' }}>
-                          <Button
-                            variant="primary"
-                            size="compact"
-                            themeMode={themeMode}
-                            style={{ minHeight: touchTargets.webMin }}
-                          >
-                            Open
-                          </Button>
-                        </Link>
+                        <TourTarget id={`shell.nav.${feature.id}`}>
+                          <Link href={feature.webPath} style={{ textDecoration: 'none' }}>
+                            <Button
+                              variant="primary"
+                              size="compact"
+                              themeMode={themeMode}
+                              style={{ minHeight: touchTargets.webMin }}
+                            >
+                              Open
+                            </Button>
+                          </Link>
+                        </TourTarget>
                       ) : null}
                       {eligibility.personallyHidden ? (
                         <Button
                           variant="secondary"
                           size="compact"
                           themeMode={themeMode}
-                          onClick={() => void restoreFeature(feature.id)}
+                          data-tour-target={
+                            feature.id === 'journal' ? 'features.restore.journal' : undefined
+                          }
+                          onClick={() =>
+                            void perform('restore', feature.id, () => restoreFeature(feature.id))
+                          }
                         >
                           Restore
                         </Button>
@@ -170,7 +206,12 @@ export default function AllFeaturesPage() {
                           variant="subtle"
                           size="compact"
                           themeMode={themeMode}
-                          onClick={() => void hideFeature(feature.id)}
+                          data-tour-target={
+                            feature.id === 'journal' ? 'features.hide.journal' : undefined
+                          }
+                          onClick={() =>
+                            void perform('hide', feature.id, () => hideFeature(feature.id))
+                          }
                         >
                           Hide
                         </Button>
@@ -180,8 +221,11 @@ export default function AllFeaturesPage() {
                           variant="subtle"
                           size="compact"
                           themeMode={themeMode}
+                          data-tour-target="features.pin"
                           onClick={() =>
-                            void (pinned ? unpinFeature(feature.id) : pinFeature(feature.id))
+                            void perform('pin', feature.id, () =>
+                              pinned ? unpinFeature(feature.id) : pinFeature(feature.id)
+                            )
                           }
                           aria-pressed={pinned}
                         >

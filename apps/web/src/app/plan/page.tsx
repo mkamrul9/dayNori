@@ -34,6 +34,7 @@ import {
 } from '@daynori/domain';
 import { useTourOptional } from '../../tours/TourContext';
 import { TourTarget } from '../../tours/TourTarget';
+import { confirmTourRecordLoaded } from '../../tours/recordNavigation';
 
 export type PlanViewFilter =
   'today' | 'upcoming' | 'overdue' | 'completed' | 'undated' | 'reminders' | 'all';
@@ -346,6 +347,7 @@ export default function PlanPage() {
     mutationPayload: Record<string, unknown>
   ): Promise<boolean> => {
     if (!workspaceId || !user?.id) return false;
+    const reportMutation = tour?.captureMutation();
 
     const nowIso = new Date().toISOString();
     const itemHeader: ItemHeaderRecord = {
@@ -365,39 +367,13 @@ export default function PlanPage() {
     };
 
     const emitTourLocalCommit = (operationId: string) => {
-      if (!tour?.isPresenting || !tour.activeChapter) return;
-      const stepId = tour.activeChapter.currentStepId;
-      if (command === 'createTask' && stepId === 'save-task') {
-        void tour.reportEvidence({
-          type: 'local_mutation_committed',
-          entityId: task.id,
-          entityType: 'task',
-          command,
-          operationId,
-          persistence: 'local',
-          expectedAction: 'save_practice_task',
-        });
-      } else if (command === 'completeTask' && stepId === 'complete-task') {
-        void tour.reportEvidence({
-          type: 'entity_completed',
-          entityId: task.id,
-          entityType: 'task',
-          command,
-          operationId,
-          persistence: 'local',
-          expectedAction: 'complete_practice_task',
-        });
-      } else if (command === 'reopenTask' && stepId === 'undo-complete') {
-        void tour.reportEvidence({
-          type: 'entity_completion_undone',
-          entityId: task.id,
-          entityType: 'task',
-          command,
-          operationId,
-          persistence: 'local',
-          expectedAction: 'undo_practice_task_completion',
-        });
-      }
+      void reportMutation?.({
+        workspaceId,
+        entityId: task.id,
+        entityType: 'task',
+        command,
+        operationId,
+      });
     };
 
     if (syncEngineRef.current) {
@@ -486,8 +462,7 @@ export default function PlanPage() {
           });
         }
         setLocalSaveStatus('Online only (no device storage)');
-        // Online-only consent path: durable server ack stands in for local commit evidence.
-        emitTourLocalCommit(crypto.randomUUID());
+        // Server acknowledgment cannot manufacture a local-save receipt or trusted-device consent.
         return true;
       } catch (err) {
         setErrorMessage(
@@ -610,10 +585,7 @@ export default function PlanPage() {
       deadline = { type: 'date', date: tomorrowDateStr };
     }
 
-    const usePracticeId =
-      tour?.isPresenting &&
-      tour.activeChapter?.currentStepId === 'save-task' &&
-      tour.practiceTaskId;
+    const usePracticeId = tour?.getPracticeCreationId('task');
     const taskId = usePracticeId || crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
@@ -663,10 +635,17 @@ export default function PlanPage() {
         if (found) {
           setEditingTask(found);
           setLiveAnnouncement(`Opened reminder target task: ${found.title}`);
+          if (user?.id && workspaceId)
+            void confirmTourRecordLoaded({
+              accountUserId: user.id,
+              workspaceId,
+              entityId: found.id,
+              entityType: 'task',
+            });
         }
       }
     },
-    [tasks]
+    [tasks, user?.id, workspaceId]
   );
 
   // Resolve canonical / notification deep links (?taskId= / ?task= / ?targetId=&targetType=…)
@@ -676,9 +655,7 @@ export default function PlanPage() {
       const searchParams = new URLSearchParams(window.location.search);
       const paramWsId = searchParams.get('workspaceId');
       const targetId =
-        searchParams.get('targetId') ||
-        searchParams.get('taskId') ||
-        searchParams.get('task');
+        searchParams.get('targetId') || searchParams.get('taskId') || searchParams.get('task');
       const targetType = searchParams.get('targetType') || 'task';
       const reminderInstanceId = searchParams.get('reminderInstanceId');
 
@@ -891,10 +868,7 @@ export default function PlanPage() {
       }
     } else {
       // Create fresh task from editor (deterministic practice ID during tour save step)
-      const usePracticeId =
-        tour?.isPresenting &&
-        tour.activeChapter?.currentStepId === 'save-task' &&
-        tour.practiceTaskId;
+      const usePracticeId = tour?.getPracticeCreationId('task');
       const newId = usePracticeId || crypto.randomUUID();
       const freshTask: TaskRecord = {
         id: newId,
@@ -1143,6 +1117,8 @@ export default function PlanPage() {
           <Link
             href="/plan/calendar"
             id="plan-calendar-link"
+            data-tour-target="plan.calendar"
+            onClick={() => void tour?.reportTargetActivated('plan.calendar')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1388,6 +1364,7 @@ export default function PlanPage() {
       <div
         role="tablist"
         aria-label="Task views"
+        data-tour-target="plan.filter"
         style={{
           display: 'flex',
           gap: `${spacing.xs}px`,
@@ -1413,7 +1390,17 @@ export default function PlanPage() {
               key={tab.key}
               role="tab"
               aria-selected={isSelected}
-              onClick={() => setActiveView(tab.key)}
+              onClick={() => {
+                const report = tour?.captureEvidence();
+                setActiveView(tab.key);
+                requestAnimationFrame(() => {
+                  void report?.({
+                    type: 'filter_changed',
+                    filterId: `plan:${tab.key}`,
+                    filterCleared: tab.key === 'all',
+                  });
+                });
+              }}
               style={{
                 padding: `${spacing.sm}px ${spacing.base}px`,
                 fontSize: '14px',
@@ -1705,42 +1692,35 @@ export default function PlanPage() {
                 const isPractice =
                   Boolean(tour?.practiceTaskId) && task.id === tour?.practiceTaskId;
                 const row = (
-                    <TaskRow
-                      id={task.id}
-                      title={task.title}
-                      details={task.details}
-                      priority={task.priority}
-                      status={task.status}
-                      deadline={task.deadline}
-                      folderName={folders.find((f) => f.id === task.folderId)?.name}
-                      tags={task.tags}
-                      subtaskCount={subtaskCount}
-                      depth={1}
-                      isSelected={selectedTaskIds.has(task.id)}
-                      themeMode={themeMode}
-                      userTimezone={viewingTimezone}
-                      onToggleComplete={handleToggleComplete}
-                      onSelect={handleSelectTask}
-                      onClick={() => {
-                        setEditingTask(task);
-                        if (
-                          isPractice &&
-                          tour?.isPresenting &&
-                          (tour.activeChapter?.currentStepId === 'reopen-task' ||
-                            tour.activeChapter?.currentStepId === 'reopen-edit' ||
-                            tour.activeChapter?.currentStepId === 'reopen')
-                        ) {
-                          void tour.reportEvidence({
-                            type: 'entity_opened',
-                            entityId: task.id,
-                            entityType: 'task',
-                            targetId: 'plan.task.practice',
-                            expectedAction: 'reopen_practice_task',
-                            recordLoaded: true,
-                          });
-                        }
-                      }}
-                    />
+                  <TaskRow
+                    id={task.id}
+                    title={task.title}
+                    details={task.details}
+                    priority={task.priority}
+                    status={task.status}
+                    deadline={task.deadline}
+                    folderName={folders.find((f) => f.id === task.folderId)?.name}
+                    tags={task.tags}
+                    subtaskCount={subtaskCount}
+                    depth={1}
+                    isSelected={selectedTaskIds.has(task.id)}
+                    themeMode={themeMode}
+                    userTimezone={viewingTimezone}
+                    onToggleComplete={handleToggleComplete}
+                    onSelect={handleSelectTask}
+                    onClick={() => {
+                      setEditingTask(task);
+                      if (tour?.isPresenting) {
+                        void tour.captureEvidence(task.id)({
+                          type: 'entity_opened',
+                          entityId: task.id,
+                          entityType: 'task',
+                          targetId: 'plan.task.practice',
+                          recordLoaded: true,
+                        });
+                      }
+                    }}
+                  />
                 );
                 return (
                   <React.Fragment key={task.id}>
@@ -1903,7 +1883,9 @@ export default function PlanPage() {
           id={editingTask?.id}
           initialTitle={
             editingTask?.title ||
-            (isCreatingNew && tour?.isPresenting && tour.activeChapter?.currentStepId === 'save-task'
+            (isCreatingNew &&
+            tour?.isPresenting &&
+            tour.activeChapter?.currentStepId === 'save-task'
               ? TOUR_PRACTICE_TASK_TITLE
               : '')
           }

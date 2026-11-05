@@ -147,8 +147,8 @@ export const TOUR_CHAPTER_NAVIGATION: TourChapterDefinition = {
 
 export const TOUR_CHAPTER_PERSONALIZATION: TourChapterDefinition = {
   id: 'tour.personalization',
-  definitionVersion: 1,
-  contentVersion: 1,
+  definitionVersion: 2,
+  contentVersion: 2,
   title: L('tour.personalization.title', 'Personalize your shell'),
   summary: L(
     'tour.personalization.summary',
@@ -216,10 +216,13 @@ export const TOUR_CHAPTER_PERSONALIZATION: TourChapterDefinition = {
         'tour.personalization.open-hidden.instruction',
         'Open All features and choose Journal to prove hidden destinations remain discoverable.'
       ),
-      targetId: 'shell.all-features',
+      targetId: 'shell.nav.journal',
       expectedAction: 'navigate_shell',
       completionPredicate: 'target_activated',
-      recovery: L('tour.personalization.open-hidden.recovery', 'All features lists hidden modules.'),
+      recovery: L(
+        'tour.personalization.open-hidden.recovery',
+        'All features lists hidden modules.'
+      ),
       allowSkip: true,
       allowInformationalNext: false,
     },
@@ -297,7 +300,10 @@ export const TOUR_CHAPTER_TASKS: TourChapterDefinition = {
       expectedAction: 'save_practice_task',
       completionPredicate: 'practice_task_saved_locally',
       entityType: 'task',
-      recovery: L('tour.tasks.create-save.recovery', 'Retry after a failed save; do not advance on click alone.'),
+      recovery: L(
+        'tour.tasks.create-save.recovery',
+        'Retry after a failed save; do not advance on click alone.'
+      ),
       allowSkip: false,
       allowInformationalNext: false,
     },
@@ -314,7 +320,10 @@ export const TOUR_CHAPTER_TASKS: TourChapterDefinition = {
       expectedAction: 'update_practice_entity',
       completionPredicate: 'entity_updated_locally',
       entityType: 'task',
-      recovery: L('tour.tasks.reopen-edit.recovery', 'Reopen the same ID — do not create a duplicate.'),
+      recovery: L(
+        'tour.tasks.reopen-edit.recovery',
+        'Reopen the same ID — do not create a duplicate.'
+      ),
       allowSkip: true,
       allowInformationalNext: false,
     },
@@ -322,7 +331,10 @@ export const TOUR_CHAPTER_TASKS: TourChapterDefinition = {
       id: 'complete',
       kind: 'action',
       title: L('tour.tasks.complete.title', 'Complete'),
-      instruction: L('tour.tasks.complete.instruction', 'Mark the practice task complete using the normal control.'),
+      instruction: L(
+        'tour.tasks.complete.instruction',
+        'Mark the practice task complete using the normal control.'
+      ),
       targetId: 'task.complete',
       expectedAction: 'complete_practice_task',
       completionPredicate: 'practice_task_completed',
@@ -335,7 +347,10 @@ export const TOUR_CHAPTER_TASKS: TourChapterDefinition = {
       id: 'undo',
       kind: 'action',
       title: L('tour.tasks.undo.title', 'Undo completion'),
-      instruction: L('tour.tasks.undo.instruction', 'Undo completion on the same task — no new day copy.'),
+      instruction: L(
+        'tour.tasks.undo.instruction',
+        'Undo completion on the same task — no new day copy.'
+      ),
       targetId: 'task.undo-complete',
       expectedAction: 'undo_practice_task_completion',
       completionPredicate: 'practice_task_completion_undone',
@@ -424,12 +439,18 @@ export const TOUR_CHAPTER_ROUTINES: TourChapterDefinition = {
       id: 'reopen',
       kind: 'action',
       title: L('tour.routines.reopen.title', 'Reopen the routine'),
-      instruction: L('tour.routines.reopen.instruction', 'Open the same routine record (not a projection stub).'),
+      instruction: L(
+        'tour.routines.reopen.instruction',
+        'Open the same routine record (not a projection stub).'
+      ),
       targetId: 'plan.routine.practice',
       expectedAction: 'open_practice_entity',
       completionPredicate: 'entity_opened',
       entityType: 'routine',
-      recovery: L('tour.routines.reopen.recovery', 'Confirm the editor loaded the canonical routine.'),
+      recovery: L(
+        'tour.routines.reopen.recovery',
+        'Confirm the editor loaded the canonical routine.'
+      ),
       allowSkip: true,
       allowInformationalNext: false,
     },
@@ -453,12 +474,18 @@ export const TOUR_CHAPTER_ROUTINES: TourChapterDefinition = {
       id: 'undo-occurrence',
       kind: 'action',
       title: L('tour.routines.undo-occurrence.title', 'Undo occurrence'),
-      instruction: L('tour.routines.undo-occurrence.instruction', 'Undo that occurrence action if supported.'),
+      instruction: L(
+        'tour.routines.undo-occurrence.instruction',
+        'Undo that occurrence action if supported.'
+      ),
       targetId: 'routine.occurrence.undo',
       expectedAction: 'occurrence_undo',
       completionPredicate: 'occurrence_action_verified',
       entityType: 'routine',
-      recovery: L('tour.routines.undo-occurrence.recovery', 'Skip if undo is unavailable after skip.'),
+      recovery: L(
+        'tour.routines.undo-occurrence.recovery',
+        'Skip if undo is unavailable after skip.'
+      ),
       allowSkip: true,
       allowInformationalNext: false,
     },
@@ -479,7 +506,10 @@ export const TOUR_CHAPTER_ROUTINES: TourChapterDefinition = {
       id: 'done',
       kind: 'informational',
       title: L('tour.routines.done.title', 'Routines covered'),
-      instruction: L('tour.routines.done.instruction', 'Replay will not duplicate the practice routine ID.'),
+      instruction: L(
+        'tour.routines.done.instruction',
+        'Replay will not duplicate the practice routine ID.'
+      ),
       completionPredicate: 'informational_acknowledged',
       recovery: L('tour.routines.done.recovery', 'Tap Next.'),
       allowSkip: false,
@@ -540,7 +570,10 @@ export const TOUR_CHAPTER_CALENDAR: TourChapterDefinition = {
       targetId: 'calendar.projection.open',
       expectedAction: 'open_calendar_projection',
       completionPredicate: 'calendar_projection_opened',
-      recovery: L('tour.calendar.projection.recovery', 'Row visibility alone is not enough — editor must load.'),
+      recovery: L(
+        'tour.calendar.projection.recovery',
+        'Row visibility alone is not enough — editor must load.'
+      ),
       allowSkip: true,
       allowInformationalNext: false,
     },
@@ -695,7 +728,10 @@ export const TOUR_CHAPTER_JOURNAL: TourChapterDefinition = {
       completionPredicate: 'entity_saved_locally',
       entityType: 'journal_entry',
       createType: 'journal',
-      recovery: L('tour.journal.create-save.recovery', 'Retry without copying text into Help or telemetry.'),
+      recovery: L(
+        'tour.journal.create-save.recovery',
+        'Retry without copying text into Help or telemetry.'
+      ),
       allowSkip: false,
       allowInformationalNext: false,
     },
@@ -703,12 +739,18 @@ export const TOUR_CHAPTER_JOURNAL: TourChapterDefinition = {
       id: 'reopen',
       kind: 'action',
       title: L('tour.journal.reopen.title', 'Reopen the entry'),
-      instruction: L('tour.journal.reopen.instruction', 'Reopen the same journal entry and confirm it loaded.'),
+      instruction: L(
+        'tour.journal.reopen.instruction',
+        'Reopen the same journal entry and confirm it loaded.'
+      ),
       targetId: 'journal.entry.practice',
       expectedAction: 'open_practice_entity',
       completionPredicate: 'entity_opened',
       entityType: 'journal_entry',
-      recovery: L('tour.journal.reopen.recovery', 'Editor must load — list visibility is not enough.'),
+      recovery: L(
+        'tour.journal.reopen.recovery',
+        'Editor must load — list visibility is not enough.'
+      ),
       allowSkip: true,
       allowInformationalNext: false,
     },
@@ -875,7 +917,10 @@ export const TOUR_CHAPTER_HELP_RETURN: TourChapterDefinition = {
       targetId: 'help.return.editor',
       expectedAction: 'return_from_help',
       completionPredicate: 'help_return_to_editor',
-      recovery: L('tour.help-return.return.recovery', 'Use Back / return context — do not reload away the draft.'),
+      recovery: L(
+        'tour.help-return.return.recovery',
+        'Use Back / return context — do not reload away the draft.'
+      ),
       allowSkip: true,
       allowInformationalNext: false,
     },

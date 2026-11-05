@@ -5,6 +5,7 @@ const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
+delete config.server.unstable_serverRoot;
 
 config.watchFolders = [monorepoRoot];
 config.resolver.nodeModulesPaths = [

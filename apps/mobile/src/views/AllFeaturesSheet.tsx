@@ -20,7 +20,7 @@ export interface AllFeaturesSheetProps {
   personalization?: FeaturePersonalization;
   onClose: () => void;
   onOpenDestination: (mobileDestination: string) => void;
-  onChangePersonalization?: (next: FeaturePersonalization) => void;
+  onChangePersonalization?: (next: FeaturePersonalization) => void | Promise<void>;
 }
 
 export function AllFeaturesSheet({
@@ -35,6 +35,22 @@ export function AllFeaturesSheet({
 }: AllFeaturesSheetProps) {
   const palette = colors[themeMode];
   const [query, setQuery] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const change = async (next: FeaturePersonalization) => {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await onChangePersonalization?.(next);
+    } catch {
+      setError(
+        'Could not save personalization. Reconnect and retry. Your previous choice is kept.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const release: FeatureReleaseContext = {
     platform: 'android',
@@ -95,6 +111,11 @@ export function AllFeaturesSheet({
         ]}
       />
       <ScrollView contentContainerStyle={styles.list}>
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: palette.text.primary }}>
+            {error}
+          </Text>
+        ) : null}
         {results.length === 0 ? (
           <Text style={{ color: palette.text.secondary }}>
             {query.trim() ? 'No features match that search.' : 'No features available.'}
@@ -126,7 +147,7 @@ export function AllFeaturesSheet({
                     variant="secondary"
                     themeMode={themeMode}
                     onPress={() =>
-                      onChangePersonalization(
+                      void change(
                         sanitizeAndMigrateFeaturePersonalization({
                           ...personalization,
                           hiddenFeatureIds: personalization.hiddenFeatureIds.filter(
@@ -144,7 +165,7 @@ export function AllFeaturesSheet({
                     variant="secondary"
                     themeMode={themeMode}
                     onPress={() =>
-                      onChangePersonalization(
+                      void change(
                         sanitizeAndMigrateFeaturePersonalization({
                           ...personalization,
                           hiddenFeatureIds: [
@@ -155,6 +176,26 @@ export function AllFeaturesSheet({
                     }
                   >
                     Hide
+                  </MobileButton>
+                ) : null}
+                {eligibility.canPin && eligibility.usable && onChangePersonalization ? (
+                  <MobileButton
+                    themeMode={themeMode}
+                    variant="secondary"
+                    disabled={saving}
+                    accessibilityLabel={`${personalization.pinnedFeatureIds.includes(feature.id) ? 'Unpin' : 'Pin'} ${feature.label}`}
+                    onPress={() =>
+                      void change(
+                        sanitizeAndMigrateFeaturePersonalization({
+                          ...personalization,
+                          pinnedFeatureIds: personalization.pinnedFeatureIds.includes(feature.id)
+                            ? personalization.pinnedFeatureIds.filter((id) => id !== feature.id)
+                            : [...personalization.pinnedFeatureIds, feature.id],
+                        })
+                      )
+                    }
+                  >
+                    {personalization.pinnedFeatureIds.includes(feature.id) ? 'Unpin' : 'Pin'}
                   </MobileButton>
                 ) : null}
               </View>

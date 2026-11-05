@@ -1,8 +1,10 @@
 'use client';
+import { confirmTourRecordLoaded } from '../tours/recordNavigation';
 
 import { Icon } from '@daynori/ui-web';
 import React, { useState, useEffect, useRef, useId, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { useTourOptional } from '../tours/TourContext';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import {
   Button,
@@ -102,6 +104,7 @@ function getRecentItemHref(item: RecentItemEntry): string {
 }
 
 export const TodayView: React.FC = () => {
+  const tour = useTourOptional();
   const liveRegionId = useId();
   const { themeMode, themePreference, setTheme, activeModal, openModal } = useShell();
   const palette = colors[themeMode];
@@ -217,11 +220,18 @@ export const TodayView: React.FC = () => {
         setEditingRoutine(found);
         setIsEditorOpen(true);
         setLiveAnnouncement(`Opened routine: ${found.title}`);
+        if (user?.id)
+          void confirmTourRecordLoaded({
+            accountUserId: user.id,
+            workspaceId,
+            entityId: found.id,
+            entityType: 'routine',
+          });
       }
     } catch {
       // Ignore malformed query strings
     }
-  }, [workspaceId, routines]);
+  }, [workspaceId, user?.id, routines]);
 
   useEffect(() => {
     if (!isEditorOpen) return;
@@ -1063,7 +1073,7 @@ export const TodayView: React.FC = () => {
 
       announce(`Updated routine "${updated.title}".`);
     } else {
-      const newId = crypto.randomUUID();
+      const newId = tour?.getPracticeCreationId('routine') ?? crypto.randomUUID();
       const newRoutine: RoutineRecord = {
         id: newId,
         workspaceId,
@@ -2070,6 +2080,12 @@ export const TodayView: React.FC = () => {
                               if (r) {
                                 setEditingRoutine(r);
                                 setIsEditorOpen(true);
+                                void tour?.captureEvidence(r.id)({
+                                  type: 'entity_opened',
+                                  entityId: r.id,
+                                  entityType: 'routine',
+                                  recordLoaded: true,
+                                });
                               }
                             }}
                             onViewHistory={(id) => {

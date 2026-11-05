@@ -12,7 +12,11 @@ export const TOUR_PRACTICE_JOURNAL_TITLE = 'Tour practice journal';
 export const TOUR_PRACTICE_EVENT_TITLE = 'Tour practice event';
 export const TOUR_PRACTICE_FOLDER_NAME = 'Tour practice folder';
 
-export function getTourPracticeTaskId(workspaceId: string, userId: string, chapterId: string): string {
+export function getTourPracticeTaskId(
+  workspaceId: string,
+  userId: string,
+  chapterId: string
+): string {
   return createDeterministicUuid(
     TOUR_PRACTICE_TASK_NAMESPACE,
     `${workspaceId}:${userId}:${chapterId}`
@@ -62,6 +66,7 @@ export function createPracticeArtifact(input: {
   labeledPractice?: boolean;
   linkedOrEdited?: boolean;
   at?: string;
+  creationOperationId?: string;
 }): TourPracticeArtifact {
   return {
     entityId: input.entityId,
@@ -73,6 +78,7 @@ export function createPracticeArtifact(input: {
     labeledPractice: input.labeledPractice ?? input.createdByTour,
     linkedOrEdited: input.linkedOrEdited ?? false,
     createdAt: input.at ?? new Date().toISOString(),
+    creationOperationId: input.creationOperationId,
   };
 }
 
@@ -94,7 +100,7 @@ export function listCleanupCandidates(
   const includeLinked = options?.includeLinkedOrEdited === true;
   return artifacts.filter((a) => {
     if (a.userOwned) return false;
-    if (!a.createdByTour && !a.labeledPractice) return false;
+    if (!a.createdByTour || !a.labeledPractice) return false;
     if (a.linkedOrEdited && !includeLinked) return false;
     return true;
   });
