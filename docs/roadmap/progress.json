@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-05",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 81 delivered under ADR 0081 (advanced recovery and optional-feature tour coverage: action-verified files, expenses, sections, offline sync, and trash chapters; safe non-destructive treatments for account deletion, recovery secrets, billing, and sharing; fail-closed dormant capability gates for unreleased features; 100% function register coverage; verified desktop web, narrow PWA, and native emulator journeys). Completion retained blocked pending physical Android phone verification, human spoken review, and prerequisite 75/80 physical review gates. Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, and Phase 99 prototype review retain their recorded states. Phase 84 eligible when selected. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 84 implemented before Phase 81 final acceptance under ADR 0084 (Mobile PWA push and reminder delivery proof). Phase 81 remains recorded as blocked with its outstanding physical reviews. Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, and Phase 99 prototype review retain their recorded states. Phase 85 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -488,7 +488,9 @@
     },
     {
       "id": "84",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-84.md",
+      "reason": "Automated Web Push pipeline, SSRF endpoint validation, single active endpoint rebinding, mobile platform guidance (iOS 16.4+ Home Screen requirement, Android Chrome settings), content privacy controls, synthetic test notification, and 14 desktopWeb and narrowPwa journeys verified. Completion blocked pending genuine physical iPhone (iOS 16.4+) Home Screen delivery and physical Android hardware delivery proof. See docs/phase-reports/phase-84.md."
     },
     {
       "id": "85",

@@ -1,0 +1,13 @@
+{
+  "phase": 84,
+  "title": "Mobile PWA push and reminder delivery proof",
+  "status": "blocked",
+  "blockReason": "Requires genuine physical iPhone 16.4+ Home Screen and physical Android hardware notification delivery proof; automated pipeline and PWA/desktop web journeys pass.",
+  "totalJourneys": 14,
+  "passedJourneys": 14,
+  "reviewsUnmet": [
+    "physicalIphoneHomeScreen",
+    "physicalAndroidDevice"
+  ],
+  "artifactsDirectory": "artifacts/phase84/"
+}

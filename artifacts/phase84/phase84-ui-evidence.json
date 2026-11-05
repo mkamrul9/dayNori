@@ -1,0 +1,183 @@
+{
+  "phase": 84,
+  "generatedAt": "2026-11-05T15:36:08.557Z",
+  "gitRev": "8c26a33a1fcd4ec62cb566adf396c1e63f762b3c",
+  "sourceFingerprint": "f906d6653d4e0cf45ae607b1fda588a2b1cacfaa7f5d74ac144266949e64a186",
+  "schedulingDecision": {
+    "authorization": "OWNER SCHEDULING AUTHORIZATION",
+    "rationale": "Authorized Phase 84 implementation before Phase 81 final acceptance; Phase 81 remains blocked with outstanding checks.",
+    "recordedInAdr": "docs/decisions/0084-mobile-pwa-push-and-reminder-delivery-proof.md"
+  },
+  "deliveryStateModel": {
+    "states": [
+      "Scheduled",
+      "Worker Dispatched",
+      "Provider Accepted",
+      "Failed / Expired",
+      "Observed Display / Tapped"
+    ],
+    "truthfulDistinctionRule": "Provider acceptance confirms HTTP receipt by FCM/Apple push service; it does NOT constitute physical phone delivery verification."
+  },
+  "platforms": {
+    "desktopWeb": {
+      "journeys": [
+        {
+          "id": "web-push-capability-agenda",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/desktop-web-push-capability-agenda.json",
+              "sha256": "5889876508bc7053567f54f2e5982540a8b40898e411e25b78d20bcc8ebec381"
+            }
+          ]
+        },
+        {
+          "id": "web-push-subscription",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/desktop-web-push-subscription.json",
+              "sha256": "228d84ce904f3c8f7aa974011dbc7a852726f34a8ce2db363cd8f22e6152c441"
+            }
+          ]
+        },
+        {
+          "id": "web-push-test-notification",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/desktop-web-push-test-notification.json",
+              "sha256": "10abc67236af486b4c6a3afa089e115906195c8ae5052cb45340f003800be443"
+            }
+          ]
+        },
+        {
+          "id": "web-push-content-privacy",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/desktop-web-push-content-privacy.json",
+              "sha256": "fc1ba88854c797cc0ac0057cf7601cb4eadd8a007a56a04f651402e94cfdf74a"
+            }
+          ]
+        },
+        {
+          "id": "web-push-quiet-hours",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/desktop-web-push-quiet-hours.json",
+              "sha256": "a0da6d7cb86ad149b04b847db9bd2f617b75ff81ccae3054c96851c798e85ba2"
+            }
+          ]
+        },
+        {
+          "id": "web-push-source-lifecycle",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/desktop-web-push-source-lifecycle.json",
+              "sha256": "9f977a959c764defdb79db943ccee568fdf8f63912c05b058853243bfbd61007"
+            }
+          ]
+        },
+        {
+          "id": "web-push-unsubscribe",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/desktop-web-push-unsubscribe.json",
+              "sha256": "10c5fd26437f4f46112008e844506927596a9cd96a63ab93f6d8252830ce59a2"
+            }
+          ]
+        }
+      ]
+    },
+    "narrowPwa": {
+      "journeys": [
+        {
+          "id": "web-push-capability-agenda",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/narrow-pwa-web-push-capability-agenda.json",
+              "sha256": "6590cbedd2e5d48548cf5369c51b8f93e9a38d43341b02759f3de33aab2e339c"
+            }
+          ]
+        },
+        {
+          "id": "web-push-subscription",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/narrow-pwa-web-push-subscription.json",
+              "sha256": "048ba0b77424ba0d1b1ce3fc49e05c499bdefa4fcd30e8159f7d49b7d92b7834"
+            }
+          ]
+        },
+        {
+          "id": "web-push-test-notification",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/narrow-pwa-web-push-test-notification.json",
+              "sha256": "7d019c2532ab87283140708db9ccbffd7248aa3880fc8cc3ba61f2fe0cace7d3"
+            }
+          ]
+        },
+        {
+          "id": "web-push-content-privacy",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/narrow-pwa-web-push-content-privacy.json",
+              "sha256": "0c514c1c6624608040a7cca69c6b85fd351f41e0c1b8d1b9dd743f2a84a4c9d8"
+            }
+          ]
+        },
+        {
+          "id": "web-push-quiet-hours",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/narrow-pwa-web-push-quiet-hours.json",
+              "sha256": "87932aff7861804c03607398d3265917ad493cd6299023e47596ae0f70a00296"
+            }
+          ]
+        },
+        {
+          "id": "web-push-source-lifecycle",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/narrow-pwa-web-push-source-lifecycle.json",
+              "sha256": "9ed587292b85c5c5df32c0d49798804da61f04c32e6f1ce047238d5d3b47949d"
+            }
+          ]
+        },
+        {
+          "id": "web-push-unsubscribe",
+          "status": "passed",
+          "artifacts": [
+            {
+              "path": "artifacts/phase84/journeys/narrow-pwa-web-push-unsubscribe.json",
+              "sha256": "8e73f82b30105ac432c481dd070d27a47e63376ac30a8a57a19d78c7264168aa"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "reviews": {
+    "physicalIphoneHomeScreen": {
+      "status": "unmet",
+      "deviceClass": "physical",
+      "reason": "Physical iPhone with iOS/iPadOS 16.4+ Home Screen installation unavailable in this local test runner environment"
+    },
+    "physicalAndroidDevice": {
+      "status": "unmet",
+      "deviceClass": "physical",
+      "reason": "Physical Android hardware device with operating SIM/Google Play Services unavailable in this local test runner environment"
+    }
+  }
+}

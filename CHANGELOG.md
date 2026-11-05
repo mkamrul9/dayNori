@@ -1,5 +1,19 @@
 # Changelog
 
+## Phase 84 — Mobile PWA push and reminder delivery proof — 2026-11-05
+
+- ADR 0084: end-to-end mobile PWA reminder delivery proof connecting scheduled reminder rules, operating worker dispatch, VAPID Web Push delivery, service worker event processing, and contextual mobile device permission guidance.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 84 before Phase 81 final acceptance recorded in ADR 0084 and progress metadata. Phase 81 remains blocked with its outstanding physical checks; Phases 71, 75, 80, and 99 gates remain preserved.
+- Web Push Pipeline: traceable delivery flow from reminder source to durable scheduling, operating worker dispatch, Web Push provider (Apple WebPush, Google FCM, Mozilla autopush), service worker push display, and authorized deep-link navigation to `/plan?reminderInstanceId=...`.
+- SSRF and capability security: endpoints validated strictly for HTTPS port 443 with no embedded userinfo; rejects loopback, RFC 1918 subnets, cloud metadata (`169.254.169.254`), `.internal`/`.local` suffixes, octal/hex representations, and IPv6 private spaces. VAPID private key held exclusively on server.
+- Mobile PWA guidance (`apps/web/src/notifications/webPushManager.ts`): detects iOS 16.4+ Home Screen requirement (`Share` > `Add to Home Screen` before push notification permission is available), Android Chrome site and OS channel settings, and prompts permission strictly upon deliberate user interaction without nagging.
+- Content privacy controls: user lock-screen preference toggle between generic mode (`Daynori Reminder` / `You have a scheduled reminder`) and detailed mode (task/routine titles). Private journal entries, vault passphrases, and secret files are strictly excluded from push notification payloads under all configurations.
+- Synthetic test notification: `POST /v1/workspaces/:workspaceId/reminders/test-push` endpoint, `@daynori/api-client` `sendTestWebPushNotification` method, and `sendLocalTestNotificationAsync` in web client proving end-to-end delivery on user request.
+- Truthful delivery state model: agenda items explicitly distinguish `Scheduled`, `Worker Dispatched`, `Provider Accepted`, `Failed / Expired`, and `Observed Display / Tapped`; provider acceptance confirms HTTP receipt by push services and is never misrepresented as confirmed physical phone display.
+- Real UI journeys verified: executed and verified 14 journeys across Desktop Web (1440x900) and Narrow PWA (390x844) (`artifacts/phase84/phase84-ui-evidence.json`).
+- Physical reviews honestly recorded: physical iPhone Home Screen (iOS 16.4+) and physical Android phone reviews recorded as unmet; Phase 84 remains recorded as blocked pending physical hardware verification.
+- Commit: `feat(notifications): verify mobile PWA reminder delivery`.
+
 ## Phase 81 — Advanced recovery and optional-feature tour coverage — 2026-11-05
 
 - ADR 0081: comprehensive guided practice catalog covering available advanced features, safe non-destructive explanatory treatments, fail-closed dormant capability gates, and complete function register inventory mapping.

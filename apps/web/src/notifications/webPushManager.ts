@@ -418,3 +418,161 @@ export async function reconcileWebPushSubscriptionAsync(
 
   return getWebPushCapabilityStateAsync();
 }
+
+// --- Mobile PWA Platform Guidance & Privacy Controls (Phase 84) ---
+
+export interface MobilePwaPlatformInfo {
+  isIOS: boolean;
+  isAndroid: boolean;
+  isStandalone: boolean;
+  iosRequiresHomeScreen: boolean;
+  permission: WebPushPermissionState;
+  guidanceText: string;
+}
+
+/**
+ * Detects mobile platform characteristics to provide contextual permission
+ * and PWA installation guidance (iOS 16.4+ Home Screen web push requirement, Android Chrome settings).
+ */
+export function getMobilePwaPlatformInfo(): MobilePwaPlatformInfo {
+  if (typeof window === 'undefined') {
+    return {
+      isIOS: false,
+      isAndroid: false,
+      isStandalone: false,
+      iosRequiresHomeScreen: false,
+      permission: 'unsupported',
+      guidanceText: 'Server environment. Browser notifications are unavailable.',
+    };
+  }
+
+  const ua = navigator.userAgent || '';
+  const isIOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(ua);
+  const isStandalone =
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+    (typeof window.matchMedia === 'function' &&
+      window.matchMedia('(display-mode: standalone)').matches);
+  const permission = (
+    'Notification' in window ? Notification.permission : 'unsupported'
+  ) as WebPushPermissionState;
+
+  let guidanceText = '';
+  if (isIOS) {
+    if (!isStandalone) {
+      guidanceText =
+        'On iPhone and iPad (iOS 16.4+), Web Push notifications require Daynori to be added to your Home Screen. Tap Share, then "Add to Home Screen" to enable reminders.';
+    } else if (permission === 'default') {
+      guidanceText =
+        'Daynori is running from your Home Screen. Tap "Enable Browser Notifications" to authorize reminder alerts.';
+    } else if (permission === 'denied') {
+      guidanceText =
+        'Notification permission was denied. Open iOS Settings > Notifications > Daynori to allow alerts.';
+    } else {
+      guidanceText =
+        'iOS Home Screen Web Push is active (best-effort delivery via Apple WebPush service).';
+    }
+  } else if (isAndroid) {
+    if (permission === 'default') {
+      guidanceText =
+        'On Android Chrome, tap "Enable Browser Notifications" to allow reminder alerts.';
+    } else if (permission === 'denied') {
+      guidanceText =
+        'Notification permission is blocked. Check Chrome site settings and Android system App notification settings.';
+    } else {
+      guidanceText =
+        'Android Chrome Web Push is active (best-effort delivery via Google FCM).';
+    }
+  } else {
+    if (permission === 'denied') {
+      guidanceText =
+        'Notification permission was denied. Reminders remain visible in the in-app agenda.';
+    } else if (permission === 'granted') {
+      guidanceText = 'Browser Web Push is active on this desktop device.';
+    } else {
+      guidanceText =
+        'Web Push allows reminders to alert you even when Daynori is running in the background.';
+    }
+  }
+
+  return {
+    isIOS,
+    isAndroid,
+    isStandalone,
+    iosRequiresHomeScreen: isIOS && !isStandalone,
+    permission,
+    guidanceText,
+  };
+}
+
+const PUSH_PRIVACY_MODE_KEY = 'daynori_push_privacy_mode';
+
+/**
+ * Returns content privacy preference for push notification display:
+ * - 'generic': 'Daynori Reminder' / 'You have a scheduled reminder' (default)
+ * - 'detailed': Shows task/routine title when opted-in.
+ * NOTE: Private journal entries and vault items are NEVER included in push payloads regardless of mode.
+ */
+export function getPwaPushPrivacyMode(): 'generic' | 'detailed' {
+  if (typeof localStorage === 'undefined') return 'generic';
+  try {
+    const val = localStorage.getItem(PUSH_PRIVACY_MODE_KEY);
+    return val === 'detailed' ? 'detailed' : 'generic';
+  } catch {
+    return 'generic';
+  }
+}
+
+/**
+ * Saves content privacy preference for push notification display.
+ */
+export function setPwaPushPrivacyMode(mode: 'generic' | 'detailed'): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(PUSH_PRIVACY_MODE_KEY, mode);
+  } catch {
+    // Ignore storage failure
+  }
+}
+
+/**
+ * Sends a local test notification via the active Service Worker registration
+ * to prove display capability on the current device.
+ */
+export async function sendLocalTestNotificationAsync(options?: {
+  privacyMode?: 'generic' | 'detailed';
+  title?: string;
+  body?: string;
+}): Promise<boolean> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg.showNotification) return false;
+
+    const privacyMode = options?.privacyMode || getPwaPushPrivacyMode();
+    const isDetailed = privacyMode === 'detailed';
+    const title = isDetailed ? options?.title || 'Daynori Test Reminder' : 'Daynori Reminder';
+    const body = isDetailed
+      ? options?.body || 'Test notification delivery proof - Web Push pipeline is operational.'
+      : 'You have a scheduled reminder';
+
+    await reg.showNotification(title, {
+      body,
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      tag: 'daynori-test-reminder',
+      data: {
+        destination: 'plan',
+        test: true,
+        timestamp: Date.now(),
+      },
+      requireInteraction: false,
+    });
+    return true;
+  } catch (err) {
+    console.warn('[WebPush] Local test notification display failed:', err);
+    return false;
+  }
+}

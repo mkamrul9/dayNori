@@ -1,0 +1,11 @@
+{
+  "genericRedacted": {
+    "title": "Daynori Reminder",
+    "body": "You have a scheduled item waiting in your workspace."
+  },
+  "detailedRedacted": {
+    "title": "Task: Submit tax review",
+    "body": "Scheduled item reminder."
+  },
+  "status": "passed"
+}

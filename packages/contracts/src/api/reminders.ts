@@ -322,3 +322,30 @@ export const VapidPublicKeyResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type VapidPublicKeyResponse = z.infer<typeof VapidPublicKeyResponseSchema>;
+
+// --- Web Push Test Notification (Phase 84) ---
+
+export const TestWebPushRequestSchema = z.object({
+  privacyMode: z.enum(['generic', 'detailed']).optional().default('generic'),
+});
+export type TestWebPushRequest = z.infer<typeof TestWebPushRequestSchema>;
+
+export const TestWebPushDeliveryItemSchema = z.object({
+  id: z.string().uuid(),
+  subscriptionId: z.string().uuid(),
+  status: z.string(),
+  redactedTitle: z.string(),
+  redactedBody: z.string(),
+});
+export type TestWebPushDeliveryItem = z.infer<typeof TestWebPushDeliveryItemSchema>;
+
+export const TestWebPushResponseSchema = z.object({
+  data: z.object({
+    success: z.boolean(),
+    subscriptionsTargeted: z.number().int().nonnegative(),
+    deliveries: z.array(TestWebPushDeliveryItemSchema),
+    message: z.string(),
+  }),
+  meta: ResponseMetaSchema,
+});
+export type TestWebPushResponse = z.infer<typeof TestWebPushResponseSchema>;

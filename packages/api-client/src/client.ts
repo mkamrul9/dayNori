@@ -146,10 +146,13 @@ import {
   WebPushSubscriptionResponseSchema,
   WebPushSubscriptionListResponseSchema,
   VapidPublicKeyResponseSchema,
+  TestWebPushResponseSchema,
   type RegisterWebPushSubscriptionRequest,
   type WebPushSubscriptionResponse,
   type WebPushSubscriptionListResponse,
   type VapidPublicKeyResponse,
+  type TestWebPushRequest,
+  type TestWebPushResponse,
   type CreateReminderRuleRequest,
   type UpdateReminderRuleRequest,
   type SnoozeReminderRequest,
@@ -2101,6 +2104,19 @@ export class DaynoriApiClient {
       options
     );
     return WebPushSubscriptionListResponseSchema.parse(raw);
+  }
+
+  async sendTestWebPushNotification(
+    workspaceId: string,
+    data?: TestWebPushRequest,
+    options?: RequestOptions
+  ): Promise<TestWebPushResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/reminders/test-push`,
+      { method: 'POST', body: JSON.stringify(data || {}) },
+      options
+    );
+    return TestWebPushResponseSchema.parse(raw);
   }
 
   // --- Knowledge & Saved Views (Phase 32) ---

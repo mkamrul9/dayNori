@@ -20,6 +20,8 @@ import {
   WebPushSubscriptionResponseSchema,
   WebPushSubscriptionListResponseSchema,
   VapidPublicKeyResponseSchema,
+  TestWebPushRequestSchema,
+  TestWebPushResponseSchema,
 } from '@daynori/contracts';
 import { withTenantContext, withUserContext } from '../../db/index.js';
 import {
@@ -40,6 +42,7 @@ import {
   deactivateWebPushSubscription,
   listUserWebPushSubscriptions,
   getVapidPublicKey,
+  sendTestWebPushNotification,
 } from '../../modules/reminders/service.js';
 import { validateResponse, NotFoundError } from '../../plugins/errorHandler.js';
 
@@ -545,4 +548,44 @@ export function registerReminderRoutes(app: FastifyInstance, pool: Pool): void {
       );
     });
   });
+
+  // 18. Phase 84: Web Push - Send synthetic test notification
+  app.post(
+    '/v1/workspaces/:workspaceId/reminders/test-push',
+    async (request: FastifyRequest, reply) => {
+      const actor = request.actor;
+      if (!actor) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        });
+      }
+
+      const { workspaceId } = WorkspaceParamsSchema.parse(request.params);
+      const body = TestWebPushRequestSchema.parse(request.body || {});
+
+      return withTenantContext(pool, { userId: actor.userId, workspaceId }, async (client) => {
+        const accessRes = await client.query<{ exists: boolean }>(
+          `SELECT app.user_has_workspace_role($1, 'viewer') as exists;`,
+          [workspaceId]
+        );
+        if (!accessRes.rows[0]?.exists) {
+          throw new NotFoundError('Workspace not found or unauthorized');
+        }
+
+        const result = await sendTestWebPushNotification(
+          client,
+          workspaceId,
+          actor.userId,
+          body.privacyMode
+        );
+
+        return reply.status(200).send(
+          validateResponse(TestWebPushResponseSchema, {
+            data: result,
+            meta: { requestId: request.id, serverTime: new Date().toISOString() },
+          })
+        );
+      });
+    }
+  );
 }

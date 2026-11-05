@@ -1,0 +1,17 @@
+{
+  "phase": 84,
+  "physicalIphoneHomeScreen": {
+    "status": "unmet",
+    "deviceClass": "physical",
+    "evidence": null,
+    "testedOn": null,
+    "comments": "Pending physical iOS 16.4+ device Home Screen installation drill."
+  },
+  "physicalAndroidDevice": {
+    "status": "unmet",
+    "deviceClass": "physical",
+    "evidence": null,
+    "testedOn": null,
+    "comments": "Pending physical Android device locked-screen delivery drill."
+  }
+}

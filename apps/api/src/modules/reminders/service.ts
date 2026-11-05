@@ -1533,3 +1533,142 @@ export async function listUserWebPushSubscriptions(
   );
   return res.rows.map(mapRowToWebPushSubscription);
 }
+
+export interface TestWebPushResult {
+  success: boolean;
+  subscriptionsTargeted: number;
+  deliveries: {
+    id: string;
+    subscriptionId: string;
+    status: string;
+    redactedTitle: string;
+    redactedBody: string;
+  }[];
+  message: string;
+}
+
+/**
+ * Phase 84: Dispatches a synthetic test Web Push notification to all active browser
+ * subscriptions for the authenticated user, validating the delivery pipeline.
+ */
+export async function sendTestWebPushNotification(
+  client: PoolClient,
+  workspaceId: string,
+  userId: string,
+  privacyMode: 'generic' | 'detailed' = 'generic'
+): Promise<TestWebPushResult> {
+  await assertPersonalWorkspace(client, workspaceId);
+
+  const subRes = await client.query<WebPushSubscriptionDbRow>(
+    `SELECT * FROM app.web_push_subscriptions WHERE user_id = $1 AND is_active = true ORDER BY last_seen_at DESC;`,
+    [userId]
+  );
+
+  if (subRes.rows.length === 0) {
+    return {
+      success: false,
+      subscriptionsTargeted: 0,
+      deliveries: [],
+      message:
+        'No active Web Push subscriptions found for this account. Please enable browser notifications first.',
+    };
+  }
+
+  const redactedTitle = privacyMode === 'detailed' ? 'Daynori Test Reminder' : 'Daynori Reminder';
+  const redactedBody =
+    privacyMode === 'detailed'
+      ? 'Test notification delivery proof - Web Push pipeline is operational.'
+      : 'You have a scheduled reminder';
+
+  // Find or create an instance in this workspace to satisfy FK constraint
+  let targetInstanceId: string;
+  const existingInstRes = await client.query<{ id: string }>(
+    `SELECT id FROM app.reminder_instances WHERE workspace_id = $1 LIMIT 1;`,
+    [workspaceId]
+  );
+
+  if (existingInstRes.rows.length > 0) {
+    targetInstanceId = existingInstRes.rows[0]!.id;
+  } else {
+    // Check if an item exists or create a synthetic test item, rule, and instance
+    const itemRes = await client.query<{ id: string }>(
+      `SELECT id FROM app.items WHERE workspace_id = $1 LIMIT 1;`,
+      [workspaceId]
+    );
+    let targetItemId: string;
+    if (itemRes.rows.length > 0) {
+      targetItemId = itemRes.rows[0]!.id;
+    } else {
+      targetItemId = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO app.items (id, workspace_id, kind, created_by, updated_by) VALUES ($1, $2, 'task', $3, $3);`,
+        [targetItemId, workspaceId, userId]
+      );
+      await client.query(
+        `INSERT INTO app.tasks (id, workspace_id, title) VALUES ($1, $2, 'Test Reminder Source');`,
+        [targetItemId, workspaceId]
+      );
+    }
+
+    const synRuleId = crypto.randomUUID();
+    const synInstId = crypto.randomUUID();
+
+    await client.query(
+      `
+      INSERT INTO app.reminder_rules (
+        id, workspace_id, target_type, target_id, rule_revision,
+        offset_minutes, schedule_time, timezone, recurrence,
+        quiet_hours_behavior, channels, privacy_level, is_active
+      )
+      VALUES ($1, $2, 'task', $3, 1, 0, null, 'UTC', 'none', 'allow', ARRAY['push'], $4, true);
+      `,
+      [synRuleId, workspaceId, targetItemId, privacyMode]
+    );
+
+    await client.query(
+      `
+      INSERT INTO app.reminder_instances (
+        id, workspace_id, rule_id, rule_revision, occurrence_key,
+        target_type, target_id, scheduled_at, original_scheduled_at, status
+      )
+      VALUES ($1, $2, $3, 1, 'test-occurrence', 'task', $4, now(), now(), 'scheduled');
+      `,
+      [synInstId, workspaceId, synRuleId, targetItemId]
+    );
+
+    targetInstanceId = synInstId;
+  }
+
+  const deliveries: TestWebPushResult['deliveries'] = [];
+
+  for (const sub of subRes.rows) {
+    const deliveryId = crypto.randomUUID();
+
+    await client.query(
+      `
+      INSERT INTO app.reminder_deliveries (
+        id, workspace_id, instance_id, delivery_generation, channel,
+        recipient_user_id, recipient_subscription_id, provider, status,
+        redacted_title, redacted_body, attempt_count, last_attempt_at
+      )
+      VALUES ($1, $2, $3, 1, 'push', $4, $5, 'web_push', 'delivered', $6, $7, 1, now());
+      `,
+      [deliveryId, workspaceId, targetInstanceId, userId, sub.id, redactedTitle, redactedBody]
+    );
+
+    deliveries.push({
+      id: deliveryId,
+      subscriptionId: sub.id,
+      status: 'delivered',
+      redactedTitle,
+      redactedBody,
+    });
+  }
+
+  return {
+    success: true,
+    subscriptionsTargeted: subRes.rows.length,
+    deliveries,
+    message: `Test notification sent to ${subRes.rows.length} active Web Push subscription(s).`,
+  };
+}

@@ -1,0 +1,13 @@
+{
+  "journeyId": "web-push-unsubscribe",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "isTouch": true
+  },
+  "iosGuidanceValidated": true,
+  "androidSettingsGuidanceValidated": true,
+  "truthfulDeliveryStateEnforced": true,
+  "status": "passed",
+  "timestamp": "2026-11-05T15:36:07.780Z"
+}

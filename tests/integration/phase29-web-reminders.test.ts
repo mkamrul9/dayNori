@@ -875,10 +875,29 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
         eventHandlers[event]!.push(handler);
       };
 
+      const sandboxFetch = async (input: unknown, _init?: unknown) => {
+        const urlStr =
+          typeof input === 'string'
+            ? input
+            : input && typeof input === 'object' && 'url' in input
+              ? (input as { url: string }).url
+              : String(input);
+        const isHtml = urlStr.endsWith('.html');
+        const res = new Response('ok', {
+          status: 200,
+          headers: {
+            'content-type': isHtml ? 'text/html; charset=utf-8' : 'application/json',
+          },
+        });
+        Object.defineProperty(res, 'type', { value: 'basic' });
+        return res;
+      };
+
       sandboxSelf.caches = sandboxCaches;
       sandboxSelf.addEventListener = sandboxAddEventListener;
       sandboxSelf.clients = sandboxClients;
       sandboxSelf.registration = sandboxRegistration;
+      sandboxSelf.fetch = sandboxFetch;
 
       const sandbox: Record<string, unknown> = {
         self: sandboxSelf,
@@ -886,6 +905,7 @@ describe('Phase 29: Web Reminder Delivery and PWA Support Suite', () => {
         addEventListener: sandboxAddEventListener,
         clients: sandboxClients,
         registration: sandboxRegistration,
+        fetch: sandboxFetch,
         Request,
         Response,
         URL,
