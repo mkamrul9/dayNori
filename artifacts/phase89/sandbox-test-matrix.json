@@ -1,0 +1,152 @@
+{
+  "phase": "89",
+  "generatedAt": "2026-11-06T19:05:00Z",
+  "environment": "Synthetic Provider Sandbox & Google Play Billing Developer API v3 Specifications",
+  "scenarios": [
+    {
+      "id": "SB-01",
+      "scenario": "Standard Purchase & Active Subscription Grant",
+      "input": {
+        "provider": "fake_play",
+        "productId": "daynori.plus.monthly.synthetic",
+        "tokenPattern": "fake-ok-<userId>"
+      },
+      "expectedState": "SUBSCRIPTION_STATE_ACTIVE",
+      "expectedEntitlement": "plus_synthetic (active)",
+      "expectedQuotas": {
+        "storageBytes": 5368709120,
+        "aiMonthlyTokens": 500000
+      },
+      "verificationMethod": "POST /v1/billing/purchases/verify",
+      "result": "pass"
+    },
+    {
+      "id": "SB-02",
+      "scenario": "Pending / Deferred Purchase Verification",
+      "input": {
+        "provider": "fake_play",
+        "productId": "daynori.plus.monthly.synthetic",
+        "tokenPattern": "fake-pending-<userId>"
+      },
+      "expectedState": "SUBSCRIPTION_STATE_PENDING",
+      "expectedEntitlement": "free (pending)",
+      "expectedQuotas": {
+        "storageBytes": 104857600,
+        "aiMonthlyTokens": 50000
+      },
+      "verificationMethod": "POST /v1/billing/purchases/verify -> entitlement returns planId: free, grantsPaidAccess: false",
+      "result": "pass"
+    },
+    {
+      "id": "SB-03",
+      "scenario": "Restore Purchases & Reinstall",
+      "input": {
+        "provider": "fake_play",
+        "purchaseTokens": ["fake-ok-<userId>"]
+      },
+      "expectedState": "Restores bound purchase",
+      "expectedEntitlement": "plus_synthetic (active)",
+      "expectedQuotas": {
+        "storageBytes": 5368709120
+      },
+      "verificationMethod": "POST /v1/billing/purchases/restore -> returns restored: 1, skippedCrossAccount: 0",
+      "result": "pass"
+    },
+    {
+      "id": "SB-04",
+      "scenario": "Subscription Renewal & Expiry",
+      "input": {
+        "initialToken": "fake-ok-<userId>",
+        "expiredToken": "fake-expired-<userId>"
+      },
+      "expectedState": "SUBSCRIPTION_STATE_EXPIRED",
+      "expectedEntitlement": "free (expired)",
+      "expectedQuotas": {
+        "storageBytes": 104857600
+      },
+      "verificationMethod": "Worker expireStaleEntitlements -> recompute drops entitlement to free",
+      "result": "pass"
+    },
+    {
+      "id": "SB-05",
+      "scenario": "Cancellation vs End-of-Entitlement Timing",
+      "input": {
+        "provider": "fake_play",
+        "productId": "daynori.plus.monthly.synthetic",
+        "tokenPattern": "fake-canceled-<userId>"
+      },
+      "expectedState": "SUBSCRIPTION_STATE_CANCELED with future validUntil",
+      "expectedEntitlement": "plus_synthetic (canceled, grantsPaidAccess: true)",
+      "expectedQuotas": {
+        "storageBytes": 5368709120
+      },
+      "verificationMethod": "mapVerifiedSubscriptionToAccess -> retains plus quota until expiry date",
+      "result": "pass"
+    },
+    {
+      "id": "SB-06",
+      "scenario": "Revocation / Immediate Refund",
+      "input": {
+        "provider": "fake_play",
+        "productId": "daynori.plus.monthly.synthetic",
+        "tokenPattern": "fake-revoked-<userId>"
+      },
+      "expectedState": "SUBSCRIPTION_STATE_REVOKED",
+      "expectedEntitlement": "free (revoked, grantsPaidAccess: false)",
+      "expectedQuotas": {
+        "storageBytes": 104857600
+      },
+      "verificationMethod": "POST /v1/billing/purchases/verify -> immediately reverts to free tier",
+      "result": "pass"
+    },
+    {
+      "id": "SB-07",
+      "scenario": "Duplicate & Replayed RTDN Events",
+      "input": {
+        "messageId": "msg-dedup-synthetic",
+        "eventType": "SUBSCRIPTION_RENEWED"
+      },
+      "expectedState": "Idempotent insert",
+      "expectedEntitlement": "State unchanged",
+      "verificationMethod": "POST /v1/billing/events -> second invocation returns 202 duplicate: true",
+      "result": "pass"
+    },
+    {
+      "id": "SB-08",
+      "scenario": "Worker Interruption & Lease Recovery",
+      "input": {
+        "leaseOwner": "test-worker-lease",
+        "leaseDurationSec": 60
+      },
+      "expectedState": "Leased locked, then expired for reclaim",
+      "expectedEntitlement": "No orphan locks",
+      "verificationMethod": "claimBillingEvent -> sets lease_owner and lease_until; reclaims after expiration",
+      "result": "pass"
+    },
+    {
+      "id": "SB-09",
+      "scenario": "Account Switch & Cross-Account Restore Rejection",
+      "input": {
+        "userA_token": "fake-ok-<userA>",
+        "userB_attempt": "restore with userA token"
+      },
+      "expectedState": "Reject theft, skip token for user B",
+      "expectedEntitlement": "User A retains Plus; User B stays on Free with skippedCrossAccount: 1",
+      "verificationMethod": "POST /v1/billing/purchases/restore -> skippedCrossAccount incremented, 409 avoided",
+      "result": "pass"
+    },
+    {
+      "id": "SB-10",
+      "scenario": "Downgrade & Retained Data Access",
+      "input": {
+        "preExistingStoredBytes": 52428800,
+        "downgradedMaxBytes": 104857600,
+        "overQuotaAttemptBytes": 62914560
+      },
+      "expectedState": "Data preserved; over-quota writes refused; under-quota writes permitted",
+      "expectedEntitlement": "free (100 MB)",
+      "verificationMethod": "reserveQuota -> throws QuotaExceededError for 60MB new write; allows 20MB new write",
+      "result": "pass"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "phase": "89",
+  "title": "Billing entitlements and sustainable plan readiness findings register",
+  "auditedAt": "2026-11-06T19:00:00Z",
+  "reviewer": "Antigravity Agent",
+  "environment": "Windows 11, Node v24.11.1, PostgreSQL 16 (local daynori_test)",
+  "findings": [
+    {
+      "id": "BL-001",
+      "severity": "high",
+      "category": "security_privacy",
+      "title": "Purchase token isolation and database role separation",
+      "description": "Purchase tokens, credentials, and raw provider receipts must never be leaked into client responses, user-facing logs, diagnostics, or Git. Ordinary database callers (daynori_runtime) must not have privileges to forge entitlements or access event tables.",
+      "disposition": "remediated",
+      "remediation": "00068_billing_role_authority migration isolates all billing DEFINER helpers and event tables to the protected daynori_billing database role. In app.billing_purchases, purchase tokens are SHA-256 hashed and only a 12-char prefix is retained for reference. Raw tokens are excluded from client responses and logs.",
+      "verifiedIn": "tests/integration/phase89-billing-sustainable-readiness.test.ts::BL-009"
+    },
+    {
+      "id": "BL-002",
+      "severity": "high",
+      "category": "user_experience",
+      "title": "Web and mobile billing surfaces lacked restore purchases and clear cancellation guidance",
+      "description": "Previously, web BillingPanel and mobile BillingSheet only provided synthetic purchase and status refresh buttons, with no restore affordance or direct instructions on managing Google Play subscriptions.",
+      "disposition": "remediated",
+      "remediation": "Updated BillingPanel.tsx and BillingSheet.tsx with 'Restore purchases' actions calling apiClient.restoreBillingPurchases(), visual storage meters, quota breakdown, downgrade safety explanations, and explicit deep links / guidance to play.google.com/store/account/subscriptions.",
+      "verifiedIn": "tests/integration/phase89-billing-sustainable-readiness.test.ts::BL-003, BillingPanel.tsx, BillingSheet.tsx"
+    },
+    {
+      "id": "BL-003",
+      "severity": "medium",
+      "category": "entitlement_lifecycle",
+      "title": "Cross-account purchase token theft and reuse prevention",
+      "description": "Purchase tokens must be bound strictly to the authenticated account that verified them. Attempts by another account to claim or restore an already-bound token must be rejected without transferring or corrupting entitlements.",
+      "disposition": "remediated",
+      "remediation": "applyVerifiedPurchase checks existing token hash bindings; if bound to another user, throws 409 BILLING_TOKEN_ACCOUNT_MISMATCH. In restorePurchases, cross-account tokens are cleanly skipped (skippedCrossAccount += 1) without erroring out the user session.",
+      "verifiedIn": "tests/integration/phase89-billing-sustainable-readiness.test.ts::BL-002, BL-003"
+    },
+    {
+      "id": "BL-004",
+      "severity": "high",
+      "category": "data_protection",
+      "title": "Downgrade and expiry data preservation guarantee",
+      "description": "When a subscription expires, is canceled, or is refunded, personal user content must never be deleted or locked from read/export/delete. Over-quota state must be handled transparently.",
+      "disposition": "remediated",
+      "remediation": "app.billing_recompute_entitlement drops max_storage_bytes back to free default (100 MB). Existing stored files and database records are completely preserved. reserveQuota atomically prevents new allocations exceeding quota (QuotaExceededError) while reads, downloads, exports, and deletions remain fully functional.",
+      "verifiedIn": "tests/integration/phase89-billing-sustainable-readiness.test.ts::BL-007"
+    },
+    {
+      "id": "BL-005",
+      "severity": "medium",
+      "category": "provider_events",
+      "title": "Out-of-order and duplicate RTDN provider notification handling",
+      "description": "Real-time developer notifications (RTDN) may arrive duplicated, out of order, or delayed. Blindly trusting event notification labels could erroneously revoke an active subscription or grant unverified access.",
+      "disposition": "remediated",
+      "remediation": "Event ingestion is idempotent via unique (provider, message_id) constraints. During worker reconciliation (processBillingEvent), the server always re-queries the authoritative provider state (purchases.subscriptionsv2.get) rather than relying on event labels. app.billing_recompute_entitlement aggregates all purchases so expired/canceled tokens cannot clobber valid grants.",
+      "verifiedIn": "tests/integration/phase89-billing-sustainable-readiness.test.ts::BL-005"
+    },
+    {
+      "id": "BL-006",
+      "severity": "low",
+      "category": "worker_resilience",
+      "title": "Worker event leasing, crash recovery, and poison pill dead-lettering",
+      "description": "Worker interruptions or unresolvable billing event payloads must not cause duplicate processing or infinite retry loops.",
+      "disposition": "remediated",
+      "remediation": "app.billing_claim_event uses a 60-second lease owner lock. If a worker crashes, lease_until expires and allows reclaim. If an event fails repeatedly (attempt_count >= max_attempts [8]) or lacks required tokens, it transitions cleanly to dead_letter status.",
+      "verifiedIn": "tests/integration/phase89-billing-sustainable-readiness.test.ts::BL-006"
+    },
+    {
+      "id": "BL-007",
+      "severity": "high",
+      "category": "policy_compliance",
+      "title": "Web checkout unsupported per Google Play payments policy",
+      "description": "Under Google Play developer policies, digital subscriptions and app-consumed digital features must use Google Play Billing on Android. Offering a cheaper or alternate web checkout directly inside the Android app violates Play policy.",
+      "disposition": "remediated",
+      "remediation": "Web checkout is explicitly unsupported (web_unsupported product status). Android users are never steered to web purchase flows. BillingPanel and BillingSheet provide transparent guidance pointing to Google Play Payments & Subscriptions.",
+      "verifiedIn": "docs/policy/google-play-billing-policy-review-2026-11-06.md, BillingPanel.tsx, BillingSheet.tsx"
+    },
+    {
+      "id": "BL-008",
+      "severity": "high",
+      "category": "gated_capabilities",
+      "title": "Purchasing must never unlock independently gated modules",
+      "description": "Commercial plan subscription must never bypass or unlock unverified vault cryptography, unstaffed rooms/chat collaboration, unapproved Google Drive integration, or live AI assistance.",
+      "disposition": "remediated",
+      "remediation": "Server entitlements only control max_storage_bytes and ai_monthly_tokens budget ceiling. Module availability is strictly governed by independent feature flags (isVaultLocallyEnabled, isRoomsLocallyEnabled, DAYNORI_DRIVE_*, DAYNORI_AI_*). Paying for Plus has zero effect on gated capabilities.",
+      "verifiedIn": "tests/integration/phase89-billing-sustainable-readiness.test.ts::BL-008"
+    }
+  ]
+}

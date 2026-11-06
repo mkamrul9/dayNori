@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-06",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 88 implemented and independent verification delivered before final acceptance of Phases 75 and 81 under ADR 0088 (Rooms, chat, and staffed moderation readiness). Phase 88 status recorded as blocked due to unmet staffed human 24/7 moderation operations, legal counsel, and physical TalkBack device evidence (DEF-V2-006 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, and Phase 99 prototype review retain their recorded states. Phase 89 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 89 implemented and independent verification delivered before final acceptance of Phases 75 and 81 under ADR 0089 (Billing entitlements and sustainable plan readiness). Phase 89 status recorded as blocked due to unmet Google Payments merchant registration, Play Console product catalog configuration, Cloud Pub/Sub RTDN credentials, and physical device test purchases (DEF-V2-007 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, and Phase 99 prototype review retain their recorded states. Phase 90 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -518,7 +518,9 @@
     },
     {
       "id": "89",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-89.md",
+      "reason": "Billing entitlements and sustainable plan readiness verified: database role isolation (daynori_billing) and token hash privacy verified (BL-001); web and mobile subscription management upgraded with storage meters, AI ceiling, downgrade guarantees, and Google Play links (BL-002); cross-account multi-device restore deduplication verified (BL-003); downgrade/expiry zero data loss invariant verified (BL-004); account mismatch validation and entitlement precedence verified (BL-005); durable webhook event leasing, retry backoff, and dead-letter queue verified (BL-006); anti-steering policy compliance verified (BL-007); independence of security gates (Vault, Rooms, Drive, AI) verified (BL-008); 10 sandbox purchase lifecycle scenarios (SB-01 to SB-10) verified; sustainable cost model, operations runbook, and Google Play billing review delivered; 24 tests passing across 3 billing test suites; production billing fails closed pending Google Payments merchant registration, Play Console product catalog, Cloud Pub/Sub RTDN setup, and physical Android test purchases (DEF-V2-007 retained). See docs/phase-reports/phase-89.md."
     },
     {
       "id": "90",

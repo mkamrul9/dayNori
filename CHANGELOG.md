@@ -1,5 +1,25 @@
 # Changelog
 
+## Phase 89 — Billing entitlements and sustainable plan readiness — 2026-11-06
+
+- ADR 0089: billing entitlements, sustainable plan limits, and purchase lifecycle readiness establishing server verification authority, database role isolation (`daynori_billing`), token hash privacy, downgrade data preservation guarantees, anti-steering Google Play policy compliance, and fail-closed commercial billing release gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 89 implementation and independent verification before final acceptance of Phases 75 and 81 recorded in ADR 0089 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, and 99 remain preserved; DEF-V2-007 retained.
+- Findings register & triage (`artifacts/phase89/findings-register.json`): cataloged BL-001 through BL-008 across token privacy and DB role isolation, web/mobile UI transparency, cross-account multi-device restore deduplication, downgrade data preservation, account mismatch protection, webhook leasing, anti-steering compliance, and independent security module boundaries.
+- Sandbox test matrix (`artifacts/phase89/sandbox-test-matrix.json`): cataloged and verified all 10 sandbox purchase lifecycle scenarios (SB-01 to SB-10) covering first-time subscription, cross-account restore, downgrade quota clamp, active renewal precedence, token expiration, webhook duplicate idempotency, unresolvable dead-lettering, role permission denial, anti-steering restriction, and module boundary independence.
+- Web & mobile UI transparency upgrades:
+  - Web (`apps/web/src/components/BillingPanel.tsx`): upgraded with formatted storage quota meters showing exact bytes breakdown and progress bar, AI monthly compute ceiling readout, downgrade data safety guarantee, independent security gates notice, restore purchases button, and direct deep link to Google Play Subscription management (`https://play.google.com/store/account/subscriptions`) with cancellation guidance.
+  - Mobile (`apps/mobile/src/views/BillingSheet.tsx`): upgraded with formatted storage meter, transparent plan feature lists, downgrade zero-data-loss guarantee, restore purchases affordance, and "Manage in Google Play" subscription link.
+- Sustainable cost and pricing model (`docs/engineering/sustainable-cost-and-pricing-model.md`):
+  - Unit economics model for Free (100 MB), proposed Plus ($3.99/mo, 10 GB storage, $2.00/mo AI compute ceiling, ~77% gross margin), and proposed Pro ($9.99/mo, 50 GB storage, $6.00/mo AI compute ceiling, ~66% gross margin) plans factoring in Google Play 15% developer tier service fees, egress, database compute, and platform overhead.
+  - Outlined required commercial decisions and merchant account prerequisites for repository owner.
+- Billing operations and reconciliation runbook (`docs/engineering/billing-operations-and-reconciliation-guide.md`):
+  - Entitlement state machine transitions, background webhook leasing and retry policies, dead-letter queue resolution, out-of-order event reconciliation, and customer support workflows for payment issues and disputes.
+- Google Play Payments Policy review (`docs/policy/google-play-billing-policy-review-2026-11-06.md`):
+  - Dated review assessing compliance with Google Play digital goods requirements, in-app subscription cancellation rules, restore purchases mandates, grace periods, anti-steering restrictions (no mobile web checkouts), and service fee tiers.
+- Comprehensive test coverage: 3 billing test suites with 24 tests passing (`tests/integration/phase89-billing-sustainable-readiness.test.ts`, `tests/integration/phase57-billing-entitlements.test.ts`, `tests/integration/phase57-billing-repair.test.ts`).
+- Fail-closed release gates preserved: live production Google Play billing remains disabled (`isBillingProductionActivationEnabled()` returns `false`); commercial release requires owner Google Payments merchant setup, Play Console product SKU creation, Cloud Pub/Sub RTDN setup, and physical Android device test purchases; Phase 89 recorded as blocked; DEF-V2-007 retained in function register.
+- Commit: `fix(billing): verify purchase lifecycle and sustainable quotas`.
+
 ## Phase 88 — Rooms, chat, and staffed moderation readiness — 2026-11-06
 
 - ADR 0088: rooms, chat, and staffed moderation readiness establishing Google Play UGC compliance architecture, bounded findings register RM-001 through RM-008, server-enforced content takedown, restricted operator moderation dashboard, member lifecycle controls, explicit personal-to-room copy boundaries, and fail-closed collaboration gates.
