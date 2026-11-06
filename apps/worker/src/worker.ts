@@ -813,6 +813,17 @@ export class DaynoriWorker {
       };
     }
 
+    if (taskType === 'feedback_retention_cleanup' && client) {
+      const { handleFeedbackRetentionCleanupJob } = await import('./feedbackJobs.js');
+      const cleanupRes = await handleFeedbackRetentionCleanupJob(client, payload ?? {});
+      return {
+        jobId,
+        status: cleanupRes.status,
+        processedAt: new Date().toISOString(),
+        details: { taskType, ...cleanupRes.details },
+      };
+    }
+
     // 3. Built-in: Orphan reservation cleanup
     if (taskType === 'file_orphan_cleanup') {
       let deletedStorageObjects = 0;

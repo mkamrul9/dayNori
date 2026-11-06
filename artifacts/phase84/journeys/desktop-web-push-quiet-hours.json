@@ -1,0 +1,9 @@
+{
+  "inQuiet": true,
+  "nextEnd": "2026-11-06T08:00:00.000Z",
+  "snoozed": {
+    "snoozeUntil": "2026-11-06T08:00:00.000Z",
+    "status": "snoozed"
+  },
+  "status": "passed"
+}

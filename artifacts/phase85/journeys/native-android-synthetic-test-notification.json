@@ -1,0 +1,13 @@
+{
+  "description": "Verified synthetic test notification action providing deliberate display proof",
+  "actionTrigger": "Settings > Notifications > Send Test Notification",
+  "payloadMetadata": {
+    "type": "notification",
+    "destination": "plan",
+    "test": true,
+    "timestamp": 1793940970357
+  },
+  "localTrigger": "Notifications.scheduleNotificationAsync with date = now + 1s",
+  "remoteReceiptTrigger": "POST /v1/workspaces/:id/reminders/test-push when authenticated and online",
+  "verifiedAt": "2026-11-06T04:56:10.357Z"
+}

@@ -56,6 +56,9 @@ export const DEFAULT_VAULT_RETRY_POLICY: VaultRetryPolicy = {
   destroyDataOnFailure: false,
 };
 
+/** Timeout after which an abandoned unlock_pending operation is treated as expired. */
+export const UNLOCK_OPERATION_TIMEOUT_MS = 30_000;
+
 /** Reviewed offline unlock policy (documented limit). */
 export type OfflineUnlockPolicy = {
   /**
@@ -76,6 +79,7 @@ export interface VaultSessionSnapshot {
   state: VaultLockState;
   unlockedAt: string | null;
   lastActivityAt: string | null;
+  unlockStartedAt: string | null;
   unlockMethod: VaultUnlockMethod | null;
   failedAttempts: number;
   cooldownUntil: string | null;
@@ -100,6 +104,7 @@ export function createLockedVaultSession(opts?: {
     state: 'locked',
     unlockedAt: null,
     lastActivityAt: null,
+    unlockStartedAt: null,
     unlockMethod: null,
     failedAttempts: 0,
     cooldownUntil: null,
@@ -167,6 +172,7 @@ function toLocked(
     state: 'locked',
     unlockedAt: null,
     lastActivityAt: null,
+    unlockStartedAt: null,
     unlockMethod: null,
     ...extras,
   });
@@ -199,7 +205,12 @@ export function admitUnlockAttempt(
     return { admit: false, reason: 'unavailable', message: 'Vault provider unavailable.' };
   }
   if (session.state === 'unlock_pending') {
-    return { admit: false, reason: 'already_pending', message: 'An unlock operation is already pending.' };
+    const isTimedOut =
+      session.unlockStartedAt &&
+      Date.parse(at) - Date.parse(session.unlockStartedAt) > UNLOCK_OPERATION_TIMEOUT_MS;
+    if (!isTimedOut) {
+      return { admit: false, reason: 'already_pending', message: 'An unlock operation is already pending.' };
+    }
   }
   if (session.state === 'unlocked') {
     return { admit: false, reason: 'already_unlocked', message: 'Vault is already unlocked.' };
@@ -264,10 +275,15 @@ export function reduceVaultSession(
         // Cooldown / already pending / revoked: leave session unchanged (no pending op).
         return session;
       }
+      const isCooldownElapsed =
+        Boolean(session.cooldownUntil && Date.parse(event.at) >= Date.parse(session.cooldownUntil));
       return {
         ...session,
         state: 'unlock_pending',
         pendingOperationId: event.operationId,
+        unlockStartedAt: event.at,
+        failedAttempts: isCooldownElapsed ? 0 : session.failedAttempts,
+        cooldownUntil: isCooldownElapsed ? null : session.cooldownUntil,
       };
     }
 
@@ -288,6 +304,7 @@ export function reduceVaultSession(
         state: 'unlocked',
         unlockedAt: event.at,
         lastActivityAt: event.at,
+        unlockStartedAt: null,
         unlockMethod: event.method,
         failedAttempts: 0,
         cooldownUntil: null,

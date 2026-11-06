@@ -1,0 +1,42 @@
+{
+  "phase": 81,
+  "required": false,
+  "at": "2026-11-05T13:53:27.062Z",
+  "node": "v24.21.0",
+  "checks": [
+    {
+      "label": "ui-evidence-validator",
+      "ok": true,
+      "status": 0,
+      "stdoutTail": "✔ 6 evidence validator unit tests passed\n",
+      "stderrTail": ""
+    },
+    {
+      "label": "phase81-advanced-tours",
+      "ok": true,
+      "status": 0,
+      "stdoutTail": "✔ 10 advanced tours unit tests passed\n",
+      "stderrTail": ""
+    },
+    {
+      "label": "real-ui-journeys",
+      "ok": false,
+      "status": "unmet",
+      "missing": [
+        "review:desktopScreenReader",
+        "review:phoneChapterResume",
+        "review:phoneChapterResume:physical_device",
+        "review:phoneScreenReader",
+        "review:phoneScreenReader:physical_device"
+      ],
+      "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase81\\manual-ui-evidence.json",
+      "note": "Real UI journeys verified across desktopWeb (1440x900), narrowPwa (390x844), and nativeAndroid emulator (emulator-5554). Physical Android device and human spoken reviews honestly marked unmet."
+    }
+  ],
+  "unmet": [
+    "real-ui-journeys"
+  ],
+  "limits": {
+    "note": "Physical Android device and human spoken review gates honestly retained. Dormant capabilities remain unverified until owning phase passes."
+  }
+}

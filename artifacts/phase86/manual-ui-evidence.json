@@ -1,0 +1,29 @@
+{
+  "phase": 86,
+  "title": "Vault Review, Recovery, and Release Gate Closure Manual UI and Hardware Evidence",
+  "status": "blocked",
+  "verificationDate": "2026-11-06",
+  "reason": "Independent external qualified security review and physical Android device evidence remain unmet; vault is fail-closed with production unlock disabled.",
+  "unmetGates": [
+    {
+      "gate": "independent_external_security_review",
+      "status": "unmet",
+      "requiredBy": "docs/engineering/release-gates.md",
+      "description": "Formal written report from a qualified external cryptography/application-security firm reviewing docs/engineering/vault-security-review-packet.md and ADR 0043/0086."
+    },
+    {
+      "gate": "physical_android_device_hardware",
+      "status": "unmet",
+      "requiredBy": "docs/engineering/release-gates.md",
+      "description": "Android candidate-library harness execution on physical ARM64 hardware running Android 14+ with Keystore biometric hardware-backed key enrollment."
+    }
+  ],
+  "ownerVerificationSteps": [
+    "1. Review findings register in artifacts/phase86/findings-register.json against docs/engineering/vault-security-review-packet.md.",
+    "2. Run automated security suites: pnpm vitest run tests/security/phase86-vault-review-recovery.test.ts.",
+    "3. Verify OperatorGate protects /dev/vault-harness: access as ordinary non-operator user receives 403 or denial.",
+    "4. Verify production /vault endpoint returns fail-closed disabled status (GET /v1/vault/status -> 403 / unavailable).",
+    "5. Verify no vault ciphertext or keys leak into server logs, push notification payloads, browser Cache Storage, or AI assistant context.",
+    "6. Retain DEF-V2-004 in docs/roadmap/v2/function-register.json until independent review and physical Android hardware evidence are satisfied."
+  ]
+}

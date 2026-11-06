@@ -1,6 +1,7 @@
 import { createDeterministicUuid } from '../onboarding.js';
 import { correlateTourEvidence, getStepDefinition } from './correlation.js';
 import { getTourChapterDefinition } from './definitions.js';
+import { isChapterGated } from './advancedChapters.js';
 import { upsertPracticeArtifact } from './practice.js';
 import {
   emptyChapterProgress,
@@ -80,6 +81,14 @@ export function applyTourControl(
 
   switch (control) {
     case 'start': {
+      if (isChapterGated(def)) {
+        return {
+          ok: false,
+          state,
+          error: `Chapter '${def.id}' is capability-gated (${def.gatedReason || 'feature currently unavailable'}). Fake live practice is prohibited.`,
+          code: 'feature_gated',
+        };
+      }
       if (chapter.lifecycle === 'completed' || chapter.lifecycle === 'skipped') {
         // Restart semantics for explicit Start after finish — caller may use restart_chapter.
         return {

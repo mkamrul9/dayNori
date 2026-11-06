@@ -1,0 +1,50 @@
+{
+  "phase": 88,
+  "title": "Rooms, chat, and staffed moderation readiness",
+  "verificationDate": "2026-11-06",
+  "prerequisiteSuites": [
+    "tests/integration/phase51-rooms-invitations.test.ts",
+    "tests/integration/phase51-rooms-repair.test.ts",
+    "tests/integration/phase52-room-content-sync.test.ts",
+    "tests/integration/phase53-room-chat.test.ts",
+    "tests/integration/phase53-room-chat-repair.test.ts",
+    "tests/integration/phase54-collaboration-safety.test.ts",
+    "tests/security/phase51-rooms-domain.test.ts",
+    "tests/security/phase52-room-revocation-domain.test.ts"
+  ],
+  "phase88TestSuite": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts",
+  "totalVerifiedTests": 72,
+  "capabilitiesVerified": {
+    "twoParticipantJourney": "Alice provisions room, invites Bob, Bob accepts via single-use token; role starts as editor.",
+    "roleTransitions": "Owner promotes/demotes member; editor has write privileges; viewer receives 403 FORBIDDEN on mutation attempts.",
+    "ownershipTransfer": "Owner transfers ownership to Bob; Bob becomes owner; Alice becomes editor; room invariant (exactly one owner) preserved.",
+    "personalItemCopy": "Explicit copy creates new entity UUID in room; personal original intact; vault and journal items strictly rejected.",
+    "chatSequenceAndReplay": "Server order sequences maintained; deduplication via clientMessageId; event log replay and cursor pagination verified.",
+    "attachments": "Verified non-vault file attachments succeed; unverified, quarantined, or cross-workspace files rejected.",
+    "muteVsBlockVsLeave": "Mute suppresses notifications only; Block hides messages for blocker and blocks mutual invites; Leave/Remove revokes access.",
+    "ugcReporting": "In-app report captures immutable frozen evidence snapshot; duplicate clientReportId returns idempotently; reporter identity strictly confidential.",
+    "operatorModerationTriage": "Developer dashboard at /developer/moderation with status/category filters, evidence drawer, mandatory rationale, and disposition execution.",
+    "contentRemovalEnforcement": "RM-001: Disposition content_removed automatically soft-deletes message (body cleared, deleted_at set) and emits room_message.deleted event.",
+    "accessRevocationPurge": "Removing member rotates access_epoch; client receives 403 MEMBERSHIP_REVOKED, halts polling, purges room cache, leaves personal items untouched."
+  },
+  "failClosedProductionGate": {
+    "status": "blocked",
+    "defect": "DEF-V2-006",
+    "isRoomsLocallyEnabledInProduction": false,
+    "unmetCommercialCriteria": [
+      "Contracted 24/7 human moderation operations team with defined SLAs (< 1hr CSAM / severe harm, < 24hr harassment)",
+      "Official NCMEC Electronic Service Provider registration and verified legal counsel of record",
+      "Physical Android device validation with TalkBack screen reader and touch navigation evidence",
+      "Approved multi-instance production realtime cluster infrastructure"
+    ]
+  },
+  "artifacts": {
+    "findingsRegister": "artifacts/phase88/findings-register.json",
+    "uiEvidence": "artifacts/phase88/phase88-ui-evidence.json",
+    "manualUiEvidence": "artifacts/phase88/manual-ui-evidence.json",
+    "policyReview": "docs/policy/google-play-ugc-review-2026-11-06.md",
+    "operationsPackage": "docs/engineering/moderation-operations-package.md",
+    "decisionRecord": "docs/decisions/0088-rooms-chat-and-moderation-readiness.md",
+    "phaseReport": "docs/phase-reports/phase-88.md"
+  }
+}

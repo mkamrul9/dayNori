@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05",
+  "updatedAt": "2026-11-06",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Phase 82 complete (2026-11-05) under ADR 0082 (durable bug, suggestion, and contact submissions with workspace scoping, client idempotency keys, reviewable diagnostics, and truthful delivery notices). Verified across desktop web, narrow PWA, and native Android emulator. Outstanding acceptance checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, and Phase 99 prototype review retain their recorded states. Phase 83 eligible when selected. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 89 implemented and independent verification delivered before final acceptance of Phases 75 and 81 under ADR 0089 (Billing entitlements and sustainable plan readiness). Phase 89 status recorded as blocked due to unmet Google Payments merchant registration, Play Console product catalog configuration, Cloud Pub/Sub RTDN credentials, and physical device test purchases (DEF-V2-007 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, and Phase 99 prototype review retain their recorded states. Phase 90 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -472,7 +472,9 @@
     },
     {
       "id": "81",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-81.md",
+      "reason": "Action-verified advanced chapters (files/audio, expenses, custom sections, offline recovery, and Trash restoration), fail-closed dormant capability gates (reminders, vault, Drive, rooms, billing, assistant), safe explanatory treatments (account deletion, recovery secrets, billing, sharing), 100% function register coverage, and genuine desktop web, narrow PWA, and native Android emulator journeys verified. Completion blocked pending physical Android phone verification, human spoken screen-reader review, and prerequisite 75/80 physical review gates. See docs/phase-reports/phase-81.md."
     },
     {
       "id": "82",
@@ -481,31 +483,44 @@
     },
     {
       "id": "83",
-      "status": "planned"
+      "status": "complete",
+      "report": "docs/phase-reports/phase-83.md"
     },
     {
       "id": "84",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-84.md",
+      "reason": "Automated Web Push pipeline, SSRF endpoint validation, single active endpoint rebinding, mobile platform guidance (iOS 16.4+ Home Screen requirement, Android Chrome settings), content privacy controls, synthetic test notification, and 14 desktopWeb and narrowPwa journeys verified. Completion blocked pending genuine physical iPhone (iOS 16.4+) Home Screen delivery and physical Android hardware delivery proof. See docs/phase-reports/phase-84.md."
     },
     {
       "id": "85",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-85.md",
+      "reason": "Native Android notification adapter, contextual runtime permission lifecycle, NotificationChannels ('reminders' HIGH/PRIVATE, 'updates' DEFAULT/Silent), lock-screen preview privacy toggle with strict journal/confidential redaction, Google Play policy compliance (no SCHEDULE_EXACT_ALARM), quiet hours defer/drop logic, synthetic test notification, single-active-device suppression ('suppressed_local_schedule'), lifecycle target cancellation on completion/deletion, multi-account isolation, and emulator UI journeys verified. Completion blocked pending genuine physical Android hardware review. See docs/phase-reports/phase-85.md."
     },
     {
       "id": "86",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-86.md",
+      "reason": "Vault security baseline audited against ADR 0043 threat model; findings register VR-001 through VR-008 established; bounded remediations delivered for unlock timeout recovery (VR-001), cooldown counter reset (VR-002), notification destination redaction (VR-003), biometric invalidation guidance (VR-004), cross-tab lock broadcast (VR-005), and recovery secret canonicalization (VR-006); leakage and privacy boundaries verified (zero server/sync/search/cache/log/assistant leakage); review packet prepared under docs/engineering/vault-security-review-packet.md; production vault remains disabled fail-closed pending qualified independent external security audit and physical Android hardware evidence (DEF-V2-004 retained). See docs/phase-reports/phase-86.md."
     },
     {
       "id": "87",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-87.md",
+      "reason": "Google Drive narrow drive.file scope boundary strictly enforced; folder descent bounded without authorizing unpicked descendants; vault content strictly excluded; storage and transfer models solidified (import_copy with SHA-256 integrity and malware quarantine, link_reference, and upload_to_drive with idempotency); AES-256-GCM token encryption at rest with AAD binding verified; ephemeral Picker tokens protected (no-store); disconnect wipes tokens, cancels pending jobs, preserves imported copies, and fences late jobs; configuration guide prepared under docs/engineering/google-drive-oauth-configuration-guide.md; 46 tests passing across 4 test suites; production Google provider fails closed pending owner Google Cloud project OAuth credentials and live interactive consent (DEF-V2-005 retained). See docs/phase-reports/phase-87.md."
     },
     {
       "id": "88",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-88.md",
+      "reason": "Rooms, chat, and UGC safety readiness verified: actioned content removal enforcement (RM-001) soft-deletes messages and emits room_message.deleted events under migration 00077; web Operator Moderation Triage Dashboard (/developer/moderation) implemented under OperatorGate (RM-002); member lifecycle management controls added to web and mobile (RM-003); explicit personal-to-room item copying with UUID isolation and vault/journal strict blocking added (RM-004); access revocation epoch rotation and cache purge verified on MEMBERSHIP_REVOKED (RM-005); Mute vs Block vs Leave boundaries codified (RM-006); monotonic server order sequences and event replay verified (RM-007); Google Play UGC policy review and concrete Moderation Operations Package delivered; 72 tests passing across 9 test suites; production collaboration fails closed pending contracted 24/7 human moderation operations, legal counsel, and physical Android TalkBack device evidence (DEF-V2-006 retained). See docs/phase-reports/phase-88.md."
     },
     {
       "id": "89",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-89.md",
+      "reason": "Billing entitlements and sustainable plan readiness verified: database role isolation (daynori_billing) and token hash privacy verified (BL-001); web and mobile subscription management upgraded with storage meters, AI ceiling, downgrade guarantees, and Google Play links (BL-002); cross-account multi-device restore deduplication verified (BL-003); downgrade/expiry zero data loss invariant verified (BL-004); account mismatch validation and entitlement precedence verified (BL-005); durable webhook event leasing, retry backoff, and dead-letter queue verified (BL-006); anti-steering policy compliance verified (BL-007); independence of security gates (Vault, Rooms, Drive, AI) verified (BL-008); 10 sandbox purchase lifecycle scenarios (SB-01 to SB-10) verified; sustainable cost model, operations runbook, and Google Play billing review delivered; 24 tests passing across 3 billing test suites; production billing fails closed pending Google Payments merchant registration, Play Console product catalog, Cloud Pub/Sub RTDN setup, and physical Android test purchases (DEF-V2-007 retained). See docs/phase-reports/phase-89.md."
     },
     {
       "id": "90",

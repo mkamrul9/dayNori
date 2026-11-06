@@ -10,7 +10,12 @@ import {
   getWebPushCapabilityStateAsync,
   subscribeWebPushAsync,
   unsubscribeWebPushAsync,
+  getMobilePwaPlatformInfo,
+  getPwaPushPrivacyMode,
+  setPwaPushPrivacyMode,
+  sendLocalTestNotificationAsync,
   type WebPushCapabilityState,
+  type MobilePwaPlatformInfo,
 } from '../notifications/webPushManager';
 import { createWebApiClient } from '../data/webApiClient';
 
@@ -35,10 +40,13 @@ export function ReminderAgendaView({
   const apiClient = React.useMemo(() => passedApiClient || createWebApiClient(), [passedApiClient]);
 
   const [capability, setCapability] = useState<WebPushCapabilityState | null>(null);
+  const [platformInfo, setPlatformInfo] = useState<MobilePwaPlatformInfo | null>(null);
+  const [privacyMode, setPrivacyMode] = useState<'generic' | 'detailed'>('generic');
   const [instances, setInstances] = useState<ReminderInstance[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasCachedData, setHasCachedData] = useState<boolean>(false);
   const [isMutatingPush, setIsMutatingPush] = useState<boolean>(false);
+  const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
@@ -56,10 +64,12 @@ export function ReminderAgendaView({
     setHasCachedData(false);
   }, [workspaceId, isAuthenticated]);
 
-  // Load browser capability state
+  // Load browser capability state & platform info
   const refreshCapability = useCallback(async () => {
     const cap = await getWebPushCapabilityStateAsync();
     setCapability(cap);
+    setPlatformInfo(getMobilePwaPlatformInfo());
+    setPrivacyMode(getPwaPushPrivacyMode());
   }, []);
 
   // Load reminder instances from API or account-scoped local cache
@@ -206,6 +216,78 @@ export function ReminderAgendaView({
     }
   };
 
+  // Content privacy preference toggle
+  const handlePrivacyModeChange = (mode: 'generic' | 'detailed') => {
+    setPrivacyMode(mode);
+    setPwaPushPrivacyMode(mode);
+  };
+
+  // Test Notification handler (deliberate user action proving delivery)
+  const handleSendTestNotification = async () => {
+    setIsSendingTest(true);
+    setFeedback(null);
+    try {
+      // 1. Trigger local notification on device
+      const localResult = await sendLocalTestNotificationAsync({
+        privacyMode,
+      });
+
+      // 2. Trigger server test delivery receipt if online & in personal workspace
+      let serverSummary = '';
+      if (workspaceId && isAuthenticated && apiClient && isOnline) {
+        try {
+          const res = await apiClient.sendTestWebPushNotification(workspaceId, {
+            privacyMode,
+          });
+          serverSummary = res.data.message;
+        } catch {
+          // Server push route may be gated or local
+        }
+      }
+
+      if (localResult || serverSummary) {
+        setFeedback({
+          severity: 'success',
+          message: serverSummary
+            ? `Test notification dispatched! ${serverSummary}`
+            : 'Test notification displayed locally on your device.',
+        });
+      } else {
+        setFeedback({
+          severity: 'info',
+          message:
+            'Test notification triggered. If an alert does not appear, check browser and system notification settings.',
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({
+        severity: 'warning',
+        message: `Test notification could not be delivered: ${msg}`,
+      });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
+  const getDeliveryStateLabel = (status: string) => {
+    switch (status) {
+      case 'observed':
+        return { label: 'Observed / Tapped', color: palette.status.success };
+      case 'delivered':
+        return { label: 'Provider Accepted', color: palette.action.primary };
+      case 'dispatched':
+        return { label: 'Worker Dispatched', color: palette.status.warning };
+      case 'failed':
+        return { label: 'Failed', color: palette.status.danger };
+      case 'expired':
+        return { label: 'Expired', color: palette.text.secondary };
+      case 'pending':
+      default:
+        return { label: 'Scheduled', color: palette.text.secondary };
+    }
+  };
+
   const sortedInstances = [...instances].sort((a, b) => {
     const timeA = new Date(a.snoozeUntil || a.scheduledAt).getTime();
     const timeB = new Date(b.snoozeUntil || b.scheduledAt).getTime();
@@ -339,6 +421,17 @@ export function ReminderAgendaView({
           )}
 
           <Button
+            variant="secondary"
+            size="compact"
+            themeMode={themeMode}
+            onClick={handleSendTestNotification}
+            disabled={isSendingTest}
+            id="send-test-notification-btn"
+          >
+            {isSendingTest ? 'Sending Test…' : 'Send Test Notification'}
+          </Button>
+
+          <Button
             variant="subtle"
             size="compact"
             themeMode={themeMode}
@@ -350,6 +443,118 @@ export function ReminderAgendaView({
           >
             Refresh Agenda
           </Button>
+        </div>
+
+        {/* Platform Guidance: iOS PWA Home Screen & Android Chrome */}
+        {platformInfo?.iosRequiresHomeScreen && (
+          <div
+            id="ios-homescreen-pwa-guidance"
+            style={{
+              marginTop: `${spacing.base}px`,
+              padding: `${spacing.sm}px ${spacing.base}px`,
+              borderRadius: `${radii.sm}px`,
+              backgroundColor: palette.status.warning + '18',
+              border: `1px solid ${palette.status.warning}44`,
+              fontSize: '12px',
+              color: palette.text.primary,
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>iPhone / iPad Requirement:</strong> {platformInfo.guidanceText}
+          </div>
+        )}
+
+        {platformInfo?.isAndroid && (
+          <div
+            id="android-chrome-pwa-guidance"
+            style={{
+              marginTop: `${spacing.base}px`,
+              padding: `${spacing.sm}px ${spacing.base}px`,
+              borderRadius: `${radii.sm}px`,
+              backgroundColor: palette.action.primary + '10',
+              border: `1px solid ${palette.action.primary}30`,
+              fontSize: '12px',
+              color: palette.text.primary,
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Android Chrome Setup:</strong> {platformInfo.guidanceText}
+          </div>
+        )}
+
+        {/* Content Privacy Controls */}
+        <div
+          style={{
+            marginTop: `${spacing.base}px`,
+            padding: `${spacing.sm}px ${spacing.base}px`,
+            borderRadius: `${radii.sm}px`,
+            backgroundColor: palette.surfaceRaised,
+            border: `1px solid ${palette.border.subtle}`,
+          }}
+        >
+          <div
+            style={{
+              fontSize: '13px',
+              fontWeight: 600,
+              color: palette.text.primary,
+              marginBottom: '4px',
+            }}
+          >
+            Notification Preview Privacy
+          </div>
+          <p
+            style={{
+              margin: '0 0 10px 0',
+              fontSize: '12px',
+              color: palette.text.secondary,
+              lineHeight: 1.4,
+            }}
+          >
+            Select preview detail for device lock screens. Journal entries, notes, and private files
+            are strictly excluded from push notification payloads.
+          </p>
+          <div style={{ display: 'flex', gap: `${spacing.base}px`, flexWrap: 'wrap' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                color: palette.text.primary,
+              }}
+            >
+              <input
+                type="radio"
+                name="pwaPushPrivacy"
+                value="generic"
+                checked={privacyMode === 'generic'}
+                onChange={() => handlePrivacyModeChange('generic')}
+                id="privacy-mode-generic"
+              />
+              <span>Privacy-minimized ('Daynori Reminder')</span>
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                color: palette.text.primary,
+              }}
+            >
+              <input
+                type="radio"
+                name="pwaPushPrivacy"
+                value="detailed"
+                checked={privacyMode === 'detailed'}
+                onChange={() => handlePrivacyModeChange('detailed')}
+                id="privacy-mode-detailed"
+              />
+              <span>Detailed (shows task/routine title)</span>
+            </label>
+          </div>
         </div>
 
         {/* Architectural Disclosures */}
@@ -452,9 +657,24 @@ export function ReminderAgendaView({
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '12px', color: palette.text.secondary }}>
-                      Due: {formattedTime} • Status: {inst.status}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+                        Due: {formattedTime}
+                      </span>
+                      <span
+                        id={`delivery-state-${inst.id}`}
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: getDeliveryStateLabel(inst.status).color + '20',
+                          color: getDeliveryStateLabel(inst.status).color,
+                        }}
+                      >
+                        {getDeliveryStateLabel(inst.status).label}
+                      </span>
+                    </div>
                   </div>
 
                   {onNavigateToItem && (

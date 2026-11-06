@@ -1,0 +1,30 @@
+{
+  "phase": 87,
+  "title": "Google Drive Connection and Scope Readiness Manual UI and Live Provider Evidence",
+  "status": "blocked",
+  "verificationDate": "2026-11-06",
+  "reason": "Owner Google Cloud project OAuth credentials and live interactive consent remain unconfigured; production Google provider fails closed with fake provider rejected in production runtimes under DEF-V2-005.",
+  "unmetGates": [
+    {
+      "gate": "owner_google_cloud_oauth_credentials",
+      "status": "unmet",
+      "requiredBy": "docs/roadmap/phases/87-google-drive-connection-and-scope-readiness.md",
+      "description": "Owner configuration of Google Cloud project with Google Drive API and Google Picker API enabled, OAuth consent screen configured for narrow drive.file scope, Web client ID/secret and Android client ID configured, and DAYNORI_DRIVE_OAUTH_CLIENT_ID / SECRET populated."
+    },
+    {
+      "gate": "live_interactive_google_account_consent",
+      "status": "unmet",
+      "requiredBy": "docs/engineering/release-gates.md",
+      "description": "Interactive owner sign-in with live Google account through system browser / Custom Tabs verifying that consent screen requests only drive.file scope, succeeds code exchange, and issues functional Picker tokens."
+    }
+  ],
+  "ownerVerificationSteps": [
+    "1. Follow docs/engineering/google-drive-oauth-configuration-guide.md to set up Google Cloud project, OAuth consent screen (drive.file scope only), and Web/Android OAuth client credentials.",
+    "2. Configure DAYNORI_DRIVE_OAUTH_CLIENT_ID, DAYNORI_DRIVE_OAUTH_CLIENT_SECRET, DAYNORI_DRIVE_TOKEN_ENCRYPTION_KEY, and DAYNORI_DRIVE_PRODUCTION_ENABLED=true in production environment secrets.",
+    "3. Run automated verification suites: pnpm vitest run tests/integration/phase87-drive-connection-readiness.test.ts tests/integration/phase49-drive-connector.test.ts tests/security/phase49-drive-connector.test.ts tests/spikes/drive/drive-scope.synthetic.test.ts (all 46 tests must pass).",
+    "4. In Web UI (Settings > Drive Connections), verify that the copy vs. reference explanatory card is displayed, vault disclaimer is visible, and connecting initiates OAuth to accounts.google.com.",
+    "5. In Mobile UI (DriveConnectionsSheet), verify that Custom Tabs opens for Google consent, narrow drive.file is requested, and copy vs. reference distinction is shown.",
+    "6. Verify disconnect wipes stored tokens, increments generation, cancels pending jobs, preserves imported copies in Daynori, and leaves Google Drive originals intact.",
+    "7. Retain DEF-V2-005 in docs/roadmap/v2/function-register.json until live Google account verification is completed."
+  ]
+}

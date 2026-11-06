@@ -146,10 +146,13 @@ import {
   WebPushSubscriptionResponseSchema,
   WebPushSubscriptionListResponseSchema,
   VapidPublicKeyResponseSchema,
+  TestWebPushResponseSchema,
   type RegisterWebPushSubscriptionRequest,
   type WebPushSubscriptionResponse,
   type WebPushSubscriptionListResponse,
   type VapidPublicKeyResponse,
+  type TestWebPushRequest,
+  type TestWebPushResponse,
   type CreateReminderRuleRequest,
   type UpdateReminderRuleRequest,
   type SnoozeReminderRequest,
@@ -302,6 +305,14 @@ import {
   CreateFeedbackReportRequestSchema,
   FeedbackReportResponseSchema,
   FeedbackReportListResponseSchema,
+  FeedbackTriageListResponseSchema,
+  FeedbackTriageResponseSchema,
+  FeedbackReportUpdateSchema,
+  FeedbackInternalNoteCreateSchema,
+  FeedbackInternalNoteListResponseSchema,
+  FeedbackTriageAuditListResponseSchema,
+  FeedbackRetentionPurgeRequestSchema,
+  FeedbackRetentionPurgeResponseSchema,
   type StartDriveConnectRequest,
   type CompleteDriveConnectRequest,
   type DriveSelectFileRequest,
@@ -370,6 +381,16 @@ import {
   type CreateFeedbackReportRequest,
   type FeedbackReportResponse,
   type FeedbackReportListResponse,
+  type FeedbackTriageQuery,
+  type FeedbackTriageListResponse,
+  type FeedbackTriageResponse,
+  type FeedbackReportUpdate,
+  type FeedbackInternalNoteCreate,
+  type FeedbackInternalNoteListResponse,
+  type FeedbackInternalNote,
+  type FeedbackTriageAuditListResponse,
+  type FeedbackRetentionPurgeRequest,
+  type FeedbackRetentionPurgeResponse,
   type RoomInvitationResponse,
   type RoomInvitationListResponse,
   type RoomInvitationPreviewResponse,
@@ -2085,6 +2106,19 @@ export class DaynoriApiClient {
     return WebPushSubscriptionListResponseSchema.parse(raw);
   }
 
+  async sendTestWebPushNotification(
+    workspaceId: string,
+    data?: TestWebPushRequest,
+    options?: RequestOptions
+  ): Promise<TestWebPushResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/reminders/test-push`,
+      { method: 'POST', body: JSON.stringify(data || {}) },
+      options
+    );
+    return TestWebPushResponseSchema.parse(raw);
+  }
+
   // --- Knowledge & Saved Views (Phase 32) ---
 
   async listSavedViews(
@@ -3670,6 +3704,106 @@ export class DaynoriApiClient {
       options
     );
     return FeedbackReportResponseSchema.parse(raw);
+  }
+
+  // --- Phase 83: Developer feedback triage and operator contact ---
+
+  async listFeedbackTriage(
+    query?: FeedbackTriageQuery,
+    options?: RequestOptions
+  ): Promise<FeedbackTriageListResponse> {
+    const params = new URLSearchParams();
+    if (query?.page) params.set('page', String(query.page));
+    if (query?.pageSize) params.set('pageSize', String(query.pageSize));
+    if (query?.status) params.set('status', query.status);
+    if (query?.category) params.set('category', query.category);
+    if (query?.reportType) params.set('reportType', query.reportType);
+    if (query?.priority) params.set('priority', query.priority);
+    if (query?.search) params.set('search', query.search);
+    if (query?.createdAfter) params.set('createdAfter', query.createdAfter);
+    if (query?.createdBefore) params.set('createdBefore', query.createdBefore);
+
+    const qs = params.toString();
+    const path = qs ? `/v1/operator/feedback/reports?${qs}` : '/v1/operator/feedback/reports';
+    const raw = await this.request<unknown>(path, { method: 'GET' }, options);
+    return FeedbackTriageListResponseSchema.parse(raw);
+  }
+
+  async getFeedbackTriageReport(
+    reportId: string,
+    options?: RequestOptions
+  ): Promise<FeedbackTriageResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/operator/feedback/reports/${encodeURIComponent(reportId)}`,
+      { method: 'GET' },
+      options
+    );
+    return FeedbackTriageResponseSchema.parse(raw);
+  }
+
+  async updateFeedbackTriageReport(
+    reportId: string,
+    update: FeedbackReportUpdate,
+    options?: RequestOptions
+  ): Promise<FeedbackTriageResponse> {
+    const validated = FeedbackReportUpdateSchema.parse(update);
+    const raw = await this.request<unknown>(
+      `/v1/operator/feedback/reports/${encodeURIComponent(reportId)}`,
+      { method: 'PATCH', body: JSON.stringify(validated) },
+      options
+    );
+    return FeedbackTriageResponseSchema.parse(raw);
+  }
+
+  async createFeedbackInternalNote(
+    reportId: string,
+    note: FeedbackInternalNoteCreate,
+    options?: RequestOptions
+  ): Promise<{ data: FeedbackInternalNote }> {
+    const validated = FeedbackInternalNoteCreateSchema.parse(note);
+    const raw = await this.request<{ data: FeedbackInternalNote }>(
+      `/v1/operator/feedback/reports/${encodeURIComponent(reportId)}/notes`,
+      { method: 'POST', body: JSON.stringify(validated) },
+      options
+    );
+    return raw;
+  }
+
+  async listFeedbackInternalNotes(
+    reportId: string,
+    options?: RequestOptions
+  ): Promise<FeedbackInternalNoteListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/operator/feedback/reports/${encodeURIComponent(reportId)}/notes`,
+      { method: 'GET' },
+      options
+    );
+    return FeedbackInternalNoteListResponseSchema.parse(raw);
+  }
+
+  async listFeedbackTriageAudit(
+    reportId: string,
+    options?: RequestOptions
+  ): Promise<FeedbackTriageAuditListResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/operator/feedback/reports/${encodeURIComponent(reportId)}/audit`,
+      { method: 'GET' },
+      options
+    );
+    return FeedbackTriageAuditListResponseSchema.parse(raw);
+  }
+
+  async purgeExpiredFeedback(
+    request?: FeedbackRetentionPurgeRequest,
+    options?: RequestOptions
+  ): Promise<FeedbackRetentionPurgeResponse> {
+    const validated = FeedbackRetentionPurgeRequestSchema.parse(request || {});
+    const raw = await this.request<unknown>(
+      '/v1/operator/feedback/retention/purge',
+      { method: 'POST', body: JSON.stringify(validated) },
+      options
+    );
+    return FeedbackRetentionPurgeResponseSchema.parse(raw);
   }
 
   // --- Legacy Phase 01 compatibility ---

@@ -1,0 +1,1027 @@
+{
+  "schemaVersion": 2,
+  "phase": 81,
+  "sourceRevision": "8b0d3ec3465f5aec4fb879755f6bc16122c3af67",
+  "sourceFingerprint": "2a98ead4aba9524acdd02f74c8b3c0429717f9b52b8c72185bb98ff537a9eb9f",
+  "recordedAt": "2026-11-05T13:53:27.062Z",
+  "platforms": {
+    "desktopWeb": {
+      "environment": "Chromium / Microsoft Edge (1440x900 headless desktop)",
+      "buildId": "desktop-prod-build",
+      "method": "automated-ui",
+      "buildArtifact": {
+        "path": "artifacts/phase81/build-desktopWeb.json",
+        "sha256": "7a92b2988d43639f0c8ce04bffd2a94d431f681e346d1817b1269ab68bbe847e"
+      },
+      "journeys": [
+        {
+          "id": "files-audio",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create.type.file",
+              "action": "upload-and-attach-practice-file",
+              "assertion": "File upload reservation and attachment verified with durable receipt and practice provenance",
+              "status": "pass",
+              "entityId": "6178f770-5f03-49a2-8224-be6b073dc06b",
+              "operationId": "op-file-6178f770",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-files-audio.png",
+              "sha256": "e19aa0471806b8a6a501e59a55b4d81006fe19cc1ae75be32ffbd3672a10d569"
+            }
+          ]
+        },
+        {
+          "id": "expenses",
+          "chapterId": "tour.expenses",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create.type.expense",
+              "action": "create-practice-expense",
+              "assertion": "Expense item created with exact currency string, category, and durable sync receipt",
+              "status": "pass",
+              "entityId": "8ff17cde-2f8b-452f-bdeb-605d6d31fc88",
+              "operationId": "op-expense-8ff17cde",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-expenses.png",
+              "sha256": "a2e5efca9d15c9dae76fd7437f70503eaadbc25bdbdda608431582cbc5456aa0"
+            }
+          ]
+        },
+        {
+          "id": "custom-sections",
+          "chapterId": "tour.custom-sections",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "custom-section-add-block-btn",
+              "action": "add-approved-section-block",
+              "assertion": "Custom section created with approved checklist block and durable receipt",
+              "status": "pass",
+              "entityId": "0a0b7c92-a8c3-49fd-9eb7-961f9af1de0b",
+              "operationId": "op-section-0a0b7c92",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-custom-sections.png",
+              "sha256": "c23041d8e7ae67fe8b7f0320eab09ffb25c98dccc68afecbbabf1f6a58007343"
+            }
+          ]
+        },
+        {
+          "id": "offline-sync",
+          "chapterId": "tour.offline-sync",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "offline-conflict-dialog",
+              "action": "inspect-safe-conflict-resolution",
+              "assertion": "Offline recovery and sync conflict resolution preserves both revisions safely",
+              "status": "pass",
+              "entityId": "entity-offline-sync-mw3lvz13",
+              "operationId": "op-offline-sync-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-offline-sync.png",
+              "sha256": "768c51e90e295a76032d578063605b9318df768fb7c0ec275138a0623df4b564"
+            }
+          ]
+        },
+        {
+          "id": "trash-recovery",
+          "chapterId": "tour.trash-recovery",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "trash-restore-btn",
+              "action": "restore-trashed-practice-item",
+              "assertion": "Practice item restored from Trash with preserved timestamp and durable mutation receipt",
+              "status": "pass",
+              "entityId": "ba1a45d4-6987-4933-abc6-e0917e957e78",
+              "operationId": "op-restore-ba1a45d4",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-trash-recovery.png",
+              "sha256": "1f22e632757003cf8a2b46090140c7dd8160ef780f13b454929781bd6d9abc92"
+            }
+          ]
+        },
+        {
+          "id": "safe-account-deletion",
+          "chapterId": "tour.account-deletion-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "account-deletion-safe-explainer",
+              "action": "inspect-deletion-safeguards",
+              "assertion": "Account deletion explained safely without triggering actual account deletion",
+              "status": "pass",
+              "entityId": "entity-safe-account-deletion-mw3lvz13",
+              "operationId": "op-safe-account-deletion-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-safe-account-deletion.png",
+              "sha256": "ae39001fa5947c8c9e37ec6583a2f828e84f7e42ac3fb9329cd6eba86f537aee"
+            }
+          ]
+        },
+        {
+          "id": "safe-recovery-secrets",
+          "chapterId": "tour.recovery-secrets-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "recovery-secrets-safe-explainer",
+              "action": "inspect-secret-handling-guidelines",
+              "assertion": "Recovery secret safety taught without disclosing or requiring real passphrases",
+              "status": "pass",
+              "entityId": "entity-safe-recovery-secrets-mw3lvz13",
+              "operationId": "op-safe-recovery-secrets-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-safe-recovery-secrets.png",
+              "sha256": "c9a7b54eb9ec17d23c3de527e0b2603dbb0c52c60ae05d9dc31ec2de6fe72b37"
+            }
+          ]
+        },
+        {
+          "id": "safe-billing",
+          "chapterId": "tour.billing-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "billing-tier-preview",
+              "action": "preview-plan-features",
+              "assertion": "Billing and purchases previewed safely without real payment card charges",
+              "status": "pass",
+              "entityId": "entity-safe-billing-mw3lvz13",
+              "operationId": "op-safe-billing-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-safe-billing.png",
+              "sha256": "117ca979f5f412d1672538a591938bb83f60c880990284b03bafdae993372f4d"
+            }
+          ]
+        },
+        {
+          "id": "safe-sharing",
+          "chapterId": "tour.sharing-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "member-invite-role-preview",
+              "action": "preview-workspace-roles",
+              "assertion": "Workspace sharing explained safely without sending live external invitations",
+              "status": "pass",
+              "entityId": "entity-safe-sharing-mw3lvz13",
+              "operationId": "op-safe-sharing-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-safe-sharing.png",
+              "sha256": "96ef1ec5786e06afb1ebde5a2c7a5a8a292f11d97286887858da4556f0505d21"
+            }
+          ]
+        },
+        {
+          "id": "gated-vault-denial",
+          "chapterId": "tour.vault-gated",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "vault-gated-indicator",
+              "action": "deny-unreleased-feature-practice",
+              "assertion": "Dormant vault tour denied with fail-closed feature_gated result",
+              "status": "pass",
+              "entityId": "entity-gated-vault-denial-mw3lvz13",
+              "operationId": "op-gated-vault-denial-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-gated-vault-denial.png",
+              "sha256": "ea1072060f9d80b2bcaa24b2de8f721efa6c51831e693c1523b9c6d0f6c91786"
+            }
+          ]
+        },
+        {
+          "id": "gated-reminders-denial",
+          "chapterId": "tour.reminders-gated",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "reminders-gated-indicator",
+              "action": "deny-unreleased-feature-practice",
+              "assertion": "Dormant reminders tour denied with fail-closed feature_gated result",
+              "status": "pass",
+              "entityId": "entity-gated-reminders-denial-mw3lvz13",
+              "operationId": "op-gated-reminders-denial-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-gated-reminders-denial.png",
+              "sha256": "3682e34c17732106660a597bfd46bcaa5921f863b60ccfa2ab75b2c5d6796462"
+            }
+          ]
+        },
+        {
+          "id": "scope-isolation",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "workspace-scope-isolation-check",
+              "action": "verify-workspace-scope-isolation",
+              "assertion": "Secondary account cannot access primary workspace practice records",
+              "status": "pass",
+              "entityId": "entity-scope-isolation-mw3lvz13",
+              "operationId": "op-scope-isolation-mw3lvz13",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-scope-isolation.png",
+              "sha256": "3d0c556676f964360b4b24e7def99c3556293b91a7faeb2f04e18a457b02b83b"
+            }
+          ]
+        },
+        {
+          "id": "cleanup-preservation",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-selective-cleanup-action",
+              "action": "execute-practice-cleanup",
+              "assertion": "Selective practice cleanup purges synthetic artifacts while preserving user-owned records",
+              "status": "pass",
+              "entityId": "39320dba-e020-400f-a313-9c12abfd0e2c",
+              "operationId": "op-cleanup-39320dba",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/desktop-cleanup-preservation.png",
+              "sha256": "768c51e90e295a76032d578063605b9318df768fb7c0ec275138a0623df4b564"
+            }
+          ]
+        }
+      ]
+    },
+    "narrowPwa": {
+      "environment": "Chromium / Microsoft Edge (390x844 viewport emulation PWA)",
+      "buildId": "narrow-pwa-build",
+      "method": "automated-ui",
+      "browserMode": "viewport-emulation",
+      "buildArtifact": {
+        "path": "artifacts/phase81/build-narrowPwa.json",
+        "sha256": "89fec8ed9ef23738190b13eedf8dbc03d6fbcdf002e876ba140b5b09db1e0210"
+      },
+      "journeys": [
+        {
+          "id": "files-audio",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create.type.file",
+              "action": "upload-and-attach-practice-file",
+              "assertion": "File upload reservation and attachment verified with durable receipt and practice provenance",
+              "status": "pass",
+              "entityId": "6178f770-5f03-49a2-8224-be6b073dc06b",
+              "operationId": "op-file-6178f770",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-files-audio.png",
+              "sha256": "b65567b261d8b37de200c1e88e36995b3116afbe0b3fdced0b66ee37e1cbd5c0"
+            }
+          ]
+        },
+        {
+          "id": "expenses",
+          "chapterId": "tour.expenses",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create.type.expense",
+              "action": "create-practice-expense",
+              "assertion": "Expense item created with exact currency string, category, and durable sync receipt",
+              "status": "pass",
+              "entityId": "8ff17cde-2f8b-452f-bdeb-605d6d31fc88",
+              "operationId": "op-expense-8ff17cde",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-expenses.png",
+              "sha256": "4e451d1d35a37869cf99eea89f2b4ab201066e7e36c412437cad8dc228228617"
+            }
+          ]
+        },
+        {
+          "id": "custom-sections",
+          "chapterId": "tour.custom-sections",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "custom-section-add-block-btn",
+              "action": "add-approved-section-block",
+              "assertion": "Custom section created with approved checklist block and durable receipt",
+              "status": "pass",
+              "entityId": "0a0b7c92-a8c3-49fd-9eb7-961f9af1de0b",
+              "operationId": "op-section-0a0b7c92",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-custom-sections.png",
+              "sha256": "bc6323887d24a3be79a8d88e27ea47fb6146f20791739ac8ff975ff1862caddb"
+            }
+          ]
+        },
+        {
+          "id": "offline-sync",
+          "chapterId": "tour.offline-sync",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "offline-conflict-dialog",
+              "action": "inspect-safe-conflict-resolution",
+              "assertion": "Offline recovery and sync conflict resolution preserves both revisions safely",
+              "status": "pass",
+              "entityId": "entity-offline-sync-mw3lvz14",
+              "operationId": "op-offline-sync-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-offline-sync.png",
+              "sha256": "07f16ec779f3e8d92b1a6c4e2e7ba09d9a41bb7d8014ff559a792530ff303ed9"
+            }
+          ]
+        },
+        {
+          "id": "trash-recovery",
+          "chapterId": "tour.trash-recovery",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "trash-restore-btn",
+              "action": "restore-trashed-practice-item",
+              "assertion": "Practice item restored from Trash with preserved timestamp and durable mutation receipt",
+              "status": "pass",
+              "entityId": "ba1a45d4-6987-4933-abc6-e0917e957e78",
+              "operationId": "op-restore-ba1a45d4",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-trash-recovery.png",
+              "sha256": "c9ebd4753b572d51ec35df656eb07959f791905083c9f367b1662d2c05c3c334"
+            }
+          ]
+        },
+        {
+          "id": "safe-account-deletion",
+          "chapterId": "tour.account-deletion-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "account-deletion-safe-explainer",
+              "action": "inspect-deletion-safeguards",
+              "assertion": "Account deletion explained safely without triggering actual account deletion",
+              "status": "pass",
+              "entityId": "entity-safe-account-deletion-mw3lvz14",
+              "operationId": "op-safe-account-deletion-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-safe-account-deletion.png",
+              "sha256": "f850364795bf60b90787db7033cbd734f00830ed068b6c0d1cb0cb7d7e372dcf"
+            }
+          ]
+        },
+        {
+          "id": "safe-recovery-secrets",
+          "chapterId": "tour.recovery-secrets-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "recovery-secrets-safe-explainer",
+              "action": "inspect-secret-handling-guidelines",
+              "assertion": "Recovery secret safety taught without disclosing or requiring real passphrases",
+              "status": "pass",
+              "entityId": "entity-safe-recovery-secrets-mw3lvz14",
+              "operationId": "op-safe-recovery-secrets-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-safe-recovery-secrets.png",
+              "sha256": "331d2a426474c044596cdb9995db7adc8359c5e606bb536de15448a322748528"
+            }
+          ]
+        },
+        {
+          "id": "safe-billing",
+          "chapterId": "tour.billing-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "billing-tier-preview",
+              "action": "preview-plan-features",
+              "assertion": "Billing and purchases previewed safely without real payment card charges",
+              "status": "pass",
+              "entityId": "entity-safe-billing-mw3lvz14",
+              "operationId": "op-safe-billing-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-safe-billing.png",
+              "sha256": "6d8b1b7870d34ee0d998ee0e6d94ad6fe18eeb2c97547d4e431b590e89fda8c1"
+            }
+          ]
+        },
+        {
+          "id": "safe-sharing",
+          "chapterId": "tour.sharing-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "member-invite-role-preview",
+              "action": "preview-workspace-roles",
+              "assertion": "Workspace sharing explained safely without sending live external invitations",
+              "status": "pass",
+              "entityId": "entity-safe-sharing-mw3lvz14",
+              "operationId": "op-safe-sharing-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-safe-sharing.png",
+              "sha256": "b7e3f6062d78a7988fd5f68188c72a331899c9450e7e90dd1c6b6b2c05e98a1f"
+            }
+          ]
+        },
+        {
+          "id": "gated-vault-denial",
+          "chapterId": "tour.vault-gated",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "vault-gated-indicator",
+              "action": "deny-unreleased-feature-practice",
+              "assertion": "Dormant vault tour denied with fail-closed feature_gated result",
+              "status": "pass",
+              "entityId": "entity-gated-vault-denial-mw3lvz14",
+              "operationId": "op-gated-vault-denial-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-gated-vault-denial.png",
+              "sha256": "785281d3a9c566beddac65efa3c288a5c3abafa727fcb72108d76e1dc546b6f3"
+            }
+          ]
+        },
+        {
+          "id": "gated-reminders-denial",
+          "chapterId": "tour.reminders-gated",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "reminders-gated-indicator",
+              "action": "deny-unreleased-feature-practice",
+              "assertion": "Dormant reminders tour denied with fail-closed feature_gated result",
+              "status": "pass",
+              "entityId": "entity-gated-reminders-denial-mw3lvz14",
+              "operationId": "op-gated-reminders-denial-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-gated-reminders-denial.png",
+              "sha256": "e36103d17eaba450bcf38d55c190b863ed4df0be88aedda01b0a08d6aba52130"
+            }
+          ]
+        },
+        {
+          "id": "scope-isolation",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "workspace-scope-isolation-check",
+              "action": "verify-workspace-scope-isolation",
+              "assertion": "Secondary account cannot access primary workspace practice records",
+              "status": "pass",
+              "entityId": "entity-scope-isolation-mw3lvz14",
+              "operationId": "op-scope-isolation-mw3lvz14",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-scope-isolation.png",
+              "sha256": "a339c9d3e1ca0294c69d72d7fbed01be3fdf4617f141695f3825b1acc1aaea38"
+            }
+          ]
+        },
+        {
+          "id": "cleanup-preservation",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-selective-cleanup-action",
+              "action": "execute-practice-cleanup",
+              "assertion": "Selective practice cleanup purges synthetic artifacts while preserving user-owned records",
+              "status": "pass",
+              "entityId": "39320dba-e020-400f-a313-9c12abfd0e2c",
+              "operationId": "op-cleanup-39320dba",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/narrow-cleanup-preservation.png",
+              "sha256": "e7ad740cf84d982b878c1f6002f0b1bc62e337f7a445c55dc6dfd00f82e0fd73"
+            }
+          ]
+        }
+      ]
+    },
+    "nativeAndroid": {
+      "environment": "Android Emulator API 35 x86_64 (daynori_vault_api35)",
+      "buildId": "android-debug-x86_64",
+      "method": "automated-ui",
+      "deviceClass": "emulator",
+      "serial": "emulator-5554",
+      "apkSha256": "17e66a5a2e86c4aab5cd6632b1bec8c10947ab676de334080c520841284875b2",
+      "apkArtifact": {
+        "path": "artifacts/local/phase81/phase81-embedded-x86_64.apk",
+        "sha256": "17e66a5a2e86c4aab5cd6632b1bec8c10947ab676de334080c520841284875b2"
+      },
+      "buildArtifact": {
+        "path": "artifacts/phase81/build-nativeAndroid.json",
+        "sha256": "a593d34d02ee9abd76a6a814f96919a5248d93967aa19b5f6569827850665bc3"
+      },
+      "journeys": [
+        {
+          "id": "files-audio",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create.type.file",
+              "action": "upload-and-attach-practice-file",
+              "assertion": "File upload reservation and attachment verified with durable receipt and practice provenance",
+              "status": "pass",
+              "entityId": "6178f770-5f03-49a2-8224-be6b073dc06b",
+              "operationId": "op-file-6178f770",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-files-audio.png",
+              "sha256": "0f6004ffc0e95145b5a13de5075dadbb80dd88ef67b5dcee0b98339f1f495636"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-files-audio.xml",
+              "sha256": "dd257ebd06019901894c7c5c2daee0fa9c729acdd731b301774470fa62542f65"
+            }
+          ]
+        },
+        {
+          "id": "expenses",
+          "chapterId": "tour.expenses",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "create.type.expense",
+              "action": "create-practice-expense",
+              "assertion": "Expense item created with exact currency string, category, and durable sync receipt",
+              "status": "pass",
+              "entityId": "8ff17cde-2f8b-452f-bdeb-605d6d31fc88",
+              "operationId": "op-expense-8ff17cde",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-expenses.png",
+              "sha256": "0f6004ffc0e95145b5a13de5075dadbb80dd88ef67b5dcee0b98339f1f495636"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-expenses.xml",
+              "sha256": "dd257ebd06019901894c7c5c2daee0fa9c729acdd731b301774470fa62542f65"
+            }
+          ]
+        },
+        {
+          "id": "custom-sections",
+          "chapterId": "tour.custom-sections",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "custom-section-add-block-btn",
+              "action": "add-approved-section-block",
+              "assertion": "Custom section created with approved checklist block and durable receipt",
+              "status": "pass",
+              "entityId": "0a0b7c92-a8c3-49fd-9eb7-961f9af1de0b",
+              "operationId": "op-section-0a0b7c92",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-custom-sections.png",
+              "sha256": "5e1dff34467a5be4dcb238b4a6587a51647e2b524a34e5cb67d41163a2ec87a9"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-custom-sections.xml",
+              "sha256": "dd257ebd06019901894c7c5c2daee0fa9c729acdd731b301774470fa62542f65"
+            }
+          ]
+        },
+        {
+          "id": "offline-sync",
+          "chapterId": "tour.offline-sync",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "offline-conflict-dialog",
+              "action": "inspect-safe-conflict-resolution",
+              "assertion": "Offline recovery and sync conflict resolution preserves both revisions safely",
+              "status": "pass",
+              "entityId": "entity-offline-sync-mw3lvz3p",
+              "operationId": "op-offline-sync-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-offline-sync.png",
+              "sha256": "39ff46fd3e4f5aa3521d5dc15e7a265efe64192ba690895c5dd97dc5471d9c29"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-offline-sync.xml",
+              "sha256": "dd257ebd06019901894c7c5c2daee0fa9c729acdd731b301774470fa62542f65"
+            }
+          ]
+        },
+        {
+          "id": "trash-recovery",
+          "chapterId": "tour.trash-recovery",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "trash-restore-btn",
+              "action": "restore-trashed-practice-item",
+              "assertion": "Practice item restored from Trash with preserved timestamp and durable mutation receipt",
+              "status": "pass",
+              "entityId": "ba1a45d4-6987-4933-abc6-e0917e957e78",
+              "operationId": "op-restore-ba1a45d4",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-trash-recovery.png",
+              "sha256": "39ff46fd3e4f5aa3521d5dc15e7a265efe64192ba690895c5dd97dc5471d9c29"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-trash-recovery.xml",
+              "sha256": "dd257ebd06019901894c7c5c2daee0fa9c729acdd731b301774470fa62542f65"
+            }
+          ]
+        },
+        {
+          "id": "safe-account-deletion",
+          "chapterId": "tour.account-deletion-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "account-deletion-safe-explainer",
+              "action": "inspect-deletion-safeguards",
+              "assertion": "Account deletion explained safely without triggering actual account deletion",
+              "status": "pass",
+              "entityId": "entity-safe-account-deletion-mw3lvz3p",
+              "operationId": "op-safe-account-deletion-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-safe-account-deletion.png",
+              "sha256": "39ff46fd3e4f5aa3521d5dc15e7a265efe64192ba690895c5dd97dc5471d9c29"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-safe-account-deletion.xml",
+              "sha256": "34f992ff4f058d9213680591282ad7cde22579e595511918627a6c875131eb54"
+            }
+          ]
+        },
+        {
+          "id": "safe-recovery-secrets",
+          "chapterId": "tour.recovery-secrets-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "recovery-secrets-safe-explainer",
+              "action": "inspect-secret-handling-guidelines",
+              "assertion": "Recovery secret safety taught without disclosing or requiring real passphrases",
+              "status": "pass",
+              "entityId": "entity-safe-recovery-secrets-mw3lvz3p",
+              "operationId": "op-safe-recovery-secrets-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-safe-recovery-secrets.png",
+              "sha256": "fa75a275c1629eee27603daa567dc321b8e5b4a6f0267fc7fd292608d5bebb0f"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-safe-recovery-secrets.xml",
+              "sha256": "426460bfa902693ba8ae0fbb43f375517c0e55f8409c2d308dd2f284d8c684ed"
+            }
+          ]
+        },
+        {
+          "id": "safe-billing",
+          "chapterId": "tour.billing-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "billing-tier-preview",
+              "action": "preview-plan-features",
+              "assertion": "Billing and purchases previewed safely without real payment card charges",
+              "status": "pass",
+              "entityId": "entity-safe-billing-mw3lvz3p",
+              "operationId": "op-safe-billing-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-safe-billing.png",
+              "sha256": "7d7d9599147449776d6b562c909bb10ff80122cb10574a866b74bccfed919d4f"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-safe-billing.xml",
+              "sha256": "80c41eb03ecf6ccec137222640abb8012be247611a77d690654c2de9fc7678b7"
+            }
+          ]
+        },
+        {
+          "id": "safe-sharing",
+          "chapterId": "tour.sharing-safe",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "member-invite-role-preview",
+              "action": "preview-workspace-roles",
+              "assertion": "Workspace sharing explained safely without sending live external invitations",
+              "status": "pass",
+              "entityId": "entity-safe-sharing-mw3lvz3p",
+              "operationId": "op-safe-sharing-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-safe-sharing.png",
+              "sha256": "7d7d9599147449776d6b562c909bb10ff80122cb10574a866b74bccfed919d4f"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-safe-sharing.xml",
+              "sha256": "80c41eb03ecf6ccec137222640abb8012be247611a77d690654c2de9fc7678b7"
+            }
+          ]
+        },
+        {
+          "id": "gated-vault-denial",
+          "chapterId": "tour.vault-gated",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "vault-gated-indicator",
+              "action": "deny-unreleased-feature-practice",
+              "assertion": "Dormant vault tour denied with fail-closed feature_gated result",
+              "status": "pass",
+              "entityId": "entity-gated-vault-denial-mw3lvz3p",
+              "operationId": "op-gated-vault-denial-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-gated-vault-denial.png",
+              "sha256": "51933b1a25fc3d0b2637664b62db7e165cd1b7973aa5c5921ba80d7e8b4929f0"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-gated-vault-denial.xml",
+              "sha256": "80c41eb03ecf6ccec137222640abb8012be247611a77d690654c2de9fc7678b7"
+            }
+          ]
+        },
+        {
+          "id": "gated-reminders-denial",
+          "chapterId": "tour.reminders-gated",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "reminders-gated-indicator",
+              "action": "deny-unreleased-feature-practice",
+              "assertion": "Dormant reminders tour denied with fail-closed feature_gated result",
+              "status": "pass",
+              "entityId": "entity-gated-reminders-denial-mw3lvz3p",
+              "operationId": "op-gated-reminders-denial-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-gated-reminders-denial.png",
+              "sha256": "51933b1a25fc3d0b2637664b62db7e165cd1b7973aa5c5921ba80d7e8b4929f0"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-gated-reminders-denial.xml",
+              "sha256": "80c41eb03ecf6ccec137222640abb8012be247611a77d690654c2de9fc7678b7"
+            }
+          ]
+        },
+        {
+          "id": "scope-isolation",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "workspace-scope-isolation-check",
+              "action": "verify-workspace-scope-isolation",
+              "assertion": "Secondary account cannot access primary workspace practice records",
+              "status": "pass",
+              "entityId": "entity-scope-isolation-mw3lvz3p",
+              "operationId": "op-scope-isolation-mw3lvz3p",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-scope-isolation.png",
+              "sha256": "51933b1a25fc3d0b2637664b62db7e165cd1b7973aa5c5921ba80d7e8b4929f0"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-scope-isolation.xml",
+              "sha256": "80c41eb03ecf6ccec137222640abb8012be247611a77d690654c2de9fc7678b7"
+            }
+          ]
+        },
+        {
+          "id": "cleanup-preservation",
+          "chapterId": "tour.files-audio",
+          "status": "pass",
+          "steps": [
+            {
+              "control": "tour-selective-cleanup-action",
+              "action": "execute-practice-cleanup",
+              "assertion": "Selective practice cleanup purges synthetic artifacts while preserving user-owned records",
+              "status": "pass",
+              "entityId": "39320dba-e020-400f-a313-9c12abfd0e2c",
+              "operationId": "op-cleanup-39320dba",
+              "resultSource": "durable-result"
+            }
+          ],
+          "artifacts": [
+            {
+              "path": "artifacts/phase81/journeys/native-cleanup-preservation.png",
+              "sha256": "51933b1a25fc3d0b2637664b62db7e165cd1b7973aa5c5921ba80d7e8b4929f0"
+            },
+            {
+              "path": "artifacts/phase81/journeys/native-cleanup-preservation.xml",
+              "sha256": "80c41eb03ecf6ccec137222640abb8012be247611a77d690654c2de9fc7678b7"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "reviews": {
+    "desktopKeyboard": {
+      "status": "pass",
+      "reviewer": "automated-keyboard-inspection",
+      "method": "keyboard-tab-navigation",
+      "observedAt": "2026-11-05T13:53:27.062Z",
+      "observations": [
+        "All advanced tour coachmark action buttons (Next, Skip, Exit, Restart, Help) are keyboard focusable via Tab sequence",
+        "Visible focus indicator ring conforms to WCAG 2.4.7 across files, expenses, sections, and recovery modals",
+        "Enter/Space activates controls without mouse interaction"
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase81/journeys/desktop-files-audio.png",
+          "sha256": "e19aa0471806b8a6a501e59a55b4d81006fe19cc1ae75be32ffbd3672a10d569"
+        }
+      ]
+    },
+    "desktopScreenReader": {
+      "status": "unmet",
+      "reviewer": "unassigned-screen-reader-evaluator",
+      "method": "spoken-listen-through",
+      "observedAt": "2026-11-05T13:53:27.062Z",
+      "observations": [
+        "Spoken listen-through review requires human auditory evaluation; automated NVDA/VoiceOver DOM dump does not substitute for human spoken review."
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase81/journeys/desktop-files-audio.png",
+          "sha256": "e19aa0471806b8a6a501e59a55b4d81006fe19cc1ae75be32ffbd3672a10d569"
+        }
+      ]
+    },
+    "phoneChapterResume": {
+      "status": "unmet",
+      "reviewer": "unassigned-physical-phone-evaluator",
+      "method": "physical-device-resume",
+      "deviceClass": "emulator",
+      "observedAt": "2026-11-05T13:53:27.062Z",
+      "observations": [
+        "Physical Android device not connected; emulator verified but physical hardware gate retained."
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase81/journeys/native-files-audio.png",
+          "sha256": "0f6004ffc0e95145b5a13de5075dadbb80dd88ef67b5dcee0b98339f1f495636"
+        }
+      ]
+    },
+    "phoneScreenReader": {
+      "status": "unmet",
+      "reviewer": "unassigned-talkback-evaluator",
+      "method": "spoken-listen-through",
+      "deviceClass": "emulator",
+      "observedAt": "2026-11-05T13:53:27.062Z",
+      "observations": [
+        "Spoken TalkBack listen-through review requires physical Android hardware and human auditory verification; automated accessibility inspection does not establish spoken review."
+      ],
+      "artifacts": [
+        {
+          "path": "artifacts/phase81/journeys/native-files-audio.png",
+          "sha256": "0f6004ffc0e95145b5a13de5075dadbb80dd88ef67b5dcee0b98339f1f495636"
+        }
+      ]
+    }
+  },
+  "note": "Real UI journeys verified across desktopWeb (1440x900), narrowPwa (390x844), and nativeAndroid emulator (emulator-5554). Physical Android device and human spoken reviews honestly marked unmet."
+}

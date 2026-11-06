@@ -11,6 +11,9 @@ export const TOUR_PRACTICE_NOTE_TITLE = 'Tour practice note';
 export const TOUR_PRACTICE_JOURNAL_TITLE = 'Tour practice journal';
 export const TOUR_PRACTICE_EVENT_TITLE = 'Tour practice event';
 export const TOUR_PRACTICE_FOLDER_NAME = 'Tour practice folder';
+export const TOUR_PRACTICE_FILE_NAME = 'Tour practice file';
+export const TOUR_PRACTICE_EXPENSE_TITLE = 'Tour practice expense';
+export const TOUR_PRACTICE_SECTION_TITLE = 'Tour practice section';
 
 export function getTourPracticeTaskId(
   workspaceId: string,

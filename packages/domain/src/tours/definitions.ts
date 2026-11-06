@@ -1,5 +1,6 @@
 import type { TourChapterDefinition } from './types.js';
 import { TOUR_EVERYDAY_CHAPTERS_WITHOUT_STARTER } from './everydayChapters.js';
+import { TOUR_ADVANCED_CHAPTERS, isChapterGated } from './advancedChapters.js';
 
 const L = (key: string, defaultText: string) => ({ key, defaultText });
 
@@ -171,26 +172,31 @@ export const TOUR_CHAPTER_TASK_CREATE_SAVE: TourChapterDefinition = {
 };
 
 /**
- * All runnable tour chapters (starter + everyday). Phase 81 chapters stay out until gated features pass.
+ * All tour chapters (starter + everyday + advanced + safe treatments + dormant gated definitions).
  */
 export const TOUR_CHAPTER_DEFINITIONS: readonly TourChapterDefinition[] = [
   TOUR_CHAPTER_TASK_CREATE_SAVE,
   ...TOUR_EVERYDAY_CHAPTERS_WITHOUT_STARTER,
+  ...TOUR_ADVANCED_CHAPTERS,
 ];
 
 export function getTourChapterDefinition(chapterId: string): TourChapterDefinition | undefined {
   return TOUR_CHAPTER_DEFINITIONS.find((c) => c.id === chapterId);
 }
 
+/**
+ * Returns IDs of runnable chapters whose feature prerequisites are active.
+ * Dormant capability-gated chapters are excluded until their owning feature passes.
+ */
 export function listRunnableTourChapterIds(): string[] {
-  return TOUR_CHAPTER_DEFINITIONS.map((c) => c.id);
+  return TOUR_CHAPTER_DEFINITIONS.filter((c) => !isChapterGated(c)).map((c) => c.id);
 }
 
 export function listStarterTourChapterIds(): string[] {
   return TOUR_CHAPTER_DEFINITIONS.filter((c) => c.isStarter).map((c) => c.id);
 }
 
-/** Map Help Learn chapter → runnable tour definitions (may be multiple). */
+/** Map Help Learn chapter → tour definitions (may be multiple). */
 export function listTourChaptersForLearningChapter(
   learningChapterId: string
 ): TourChapterDefinition[] {
@@ -198,5 +204,5 @@ export function listTourChaptersForLearningChapter(
 }
 
 export function learningChapterHasRunnableTour(learningChapterId: string): boolean {
-  return listTourChaptersForLearningChapter(learningChapterId).length > 0;
+  return listTourChaptersForLearningChapter(learningChapterId).some((c) => !isChapterGated(c));
 }

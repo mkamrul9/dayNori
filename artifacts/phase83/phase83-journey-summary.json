@@ -1,0 +1,36 @@
+{
+  "phase": "83",
+  "timestamp": "2026-11-05T10:14:20.361Z",
+  "gitRev": "844b35eea56f7965c0d53bc6065a7dafd33b8066",
+  "operatorId": "140e017d-db29-4851-93db-706797475083",
+  "reporterId": "35982a2c-4f9c-4d9f-be06-f9a05d089bc1",
+  "unauthorizedId": "86486c25-f694-48da-a12e-7eec5969de5c",
+  "bugReceipt": {
+    "receiptId": "69121145-5a6e-4d5b-8f47-fc26d8f8990c",
+    "clientId": "22e3d31d-ff1b-473f-8b10-10002f9698b9",
+    "status": "received"
+  },
+  "responseVerification": {
+    "rendered": true,
+    "status": "investigating",
+    "textSnippet": "Developer Response (Verified Support Route)Thank you for reporting this! We confirmed the grid layou"
+  },
+  "evidenceScreenshots": [
+    {
+      "path": "artifacts/phase83/journeys/01-reporter-bug-receipt.png",
+      "sha256": "6b0e1a2d7a9fba83e78991c5e0e9a6d0ef42810b547d9a8706f302eec2fdeda8"
+    },
+    {
+      "path": "artifacts/phase83/journeys/02-operator-triage-dashboard.png",
+      "sha256": "ff2beb1b60787e0046ac30aa83ba220560ab0e3307f47e2ef8ce8270890eb99e"
+    },
+    {
+      "path": "artifacts/phase83/journeys/03-reporter-verified-response.png",
+      "sha256": "a85744243dd40b285deec79dc592245329eb09639a51e9ea52b7a281e86cbae1"
+    },
+    {
+      "path": "artifacts/phase83/journeys/04-operator-gate-denial.png",
+      "sha256": "f815812a42a5913cb5cb1df8bd2ad3b7616279e6d7997958b404892cb09fc493"
+    }
+  ]
+}

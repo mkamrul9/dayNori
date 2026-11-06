@@ -9,6 +9,12 @@ import {
   type DevicePlatform,
   type DeviceTokenType,
 } from '@daynori/contracts';
+import {
+  isTimeInQuietHours,
+  calculateNextQuietHoursEnd,
+  type QuietHoursConfig,
+  type QuietHoursBehavior,
+} from '@daynori/domain';
 import { describeOsVersion, getNativeMobilePlatform } from '../platform/nativePlatform.js';
 
 export type NotificationPermissionStatus =
@@ -37,6 +43,8 @@ export interface ScheduleLocalReminderOptions {
   ruleRevision: number;
   deliveryGeneration?: number;
   privacyLevel?: 'normal' | 'private' | 'confidential' | 'detailed' | 'title_only';
+  quietHoursConfig?: QuietHoursConfig;
+  quietHoursBehavior?: QuietHoursBehavior;
 }
 
 export interface ScheduledReminderResult {
@@ -49,6 +57,8 @@ const SECURE_KEY_INSTALLATION_ID = 'daynori_installation_id';
 const SECURE_KEY_DEVICE_ID = 'daynori_registered_device_id';
 const SECURE_KEY_PUSH_TOKEN = 'daynori_registered_push_token';
 const SECURE_KEY_PUSH_TOKEN_TYPE = 'daynori_registered_push_token_type';
+const SECURE_KEY_PRIVACY_MODE = 'daynori_notification_privacy_mode';
+const SECURE_KEY_PREVIOUSLY_GRANTED = 'daynori_notification_previously_granted';
 
 let isChannelsInitialized = false;
 
@@ -104,6 +114,9 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
 
     if (settings.granted || settings.status === 'granted') {
       status = 'granted';
+      await defaultSecureStorage.setItemAsync(SECURE_KEY_PREVIOUSLY_GRANTED, 'true');
+    } else if ((settings as { status?: string }).status === 'revoked') {
+      status = 'revoked';
     } else if (settings.status === 'denied') {
       status = 'denied';
     } else {
@@ -139,6 +152,9 @@ export async function getNotificationCapabilityAsync(): Promise<NotificationCapa
         : 'Local reminders active. Push fallback is currently unavailable without push credentials.';
     } else if (status === 'channel_disabled') {
       details = 'Reminders channel is disabled in Android system settings.';
+    } else if (status === 'revoked') {
+      details =
+        'Notification permission was revoked in system settings. Organizer features remain fully usable.';
     } else if (status === 'denied') {
       details =
         platform === 'ios'
@@ -189,8 +205,8 @@ export async function requestNotificationPermissionAsync(
     });
 
     const isGranted = response.granted || response.status === 'granted';
-    if (!isGranted) {
-      return getNotificationCapabilityAsync();
+    if (isGranted) {
+      await defaultSecureStorage.setItemAsync(SECURE_KEY_PREVIOUSLY_GRANTED, 'true');
     }
 
     return getNotificationCapabilityAsync();
@@ -358,6 +374,32 @@ export async function deactivateDeviceAsync(apiClient: DaynoriApiClient): Promis
 }
 
 /**
+ * Phase 85: Get user lock-screen notification preview privacy preference.
+ * - 'generic': 'Daynori Reminder' / 'You have a scheduled reminder' (default)
+ * - 'detailed': Shows task/routine title when opted-in.
+ * NOTE: Private journal entries, confidential records, and secret files are strictly excluded from payloads regardless of mode.
+ */
+export async function getNotificationPrivacyModeAsync(): Promise<'generic' | 'detailed'> {
+  try {
+    const val = await defaultSecureStorage.getItemAsync(SECURE_KEY_PRIVACY_MODE);
+    return val === 'detailed' ? 'detailed' : 'generic';
+  } catch {
+    return 'generic';
+  }
+}
+
+/**
+ * Phase 85: Save user lock-screen notification preview privacy preference.
+ */
+export async function setNotificationPrivacyModeAsync(mode: 'generic' | 'detailed'): Promise<void> {
+  try {
+    await defaultSecureStorage.setItemAsync(SECURE_KEY_PRIVACY_MODE, mode);
+  } catch (err) {
+    console.warn('Failed to persist notification privacy mode:', err);
+  }
+}
+
+/**
  * Schedule a local notification on the Android device and acknowledge it with the backend.
  * Default applies generic privacy redaction for lock-screen safety unless detailed is explicitly selected.
  */
@@ -367,7 +409,26 @@ export async function scheduleLocalReminderAsync(
 ): Promise<ScheduledReminderResult> {
   await setupNotificationChannelsAsync();
 
-  const targetDate = new Date(options.scheduledAt);
+  let targetInstant = options.scheduledAt;
+
+  // Evaluate quiet hours behavior if quiet hours configuration is provided and enabled
+  if (options.quietHoursConfig && options.quietHoursConfig.enabled) {
+    if (isTimeInQuietHours(targetInstant, options.quietHoursConfig)) {
+      const behavior = options.quietHoursBehavior ?? 'allow';
+      if (behavior === 'drop') {
+        return {
+          nativeNotificationId: null,
+          scheduled: false,
+          error: 'Dropped by quiet hours policy',
+        };
+      }
+      if (behavior === 'defer') {
+        targetInstant = calculateNextQuietHoursEnd(targetInstant, options.quietHoursConfig);
+      }
+    }
+  }
+
+  const targetDate = new Date(targetInstant);
   const now = new Date();
 
   // If scheduled in the past or immediately due, skip scheduling
@@ -379,17 +440,31 @@ export async function scheduleLocalReminderAsync(
     };
   }
 
+  const storedPrivacy = await getNotificationPrivacyModeAsync();
+  const effectivePrivacy = options.privacyLevel ?? storedPrivacy;
+
   // Apply shared generic redaction by default for payload minimization and lock-screen privacy
   let displayTitle = 'Daynori Reminder';
   let displayBody = 'You have a scheduled reminder';
 
-  if (options.privacyLevel === 'detailed') {
+  if (effectivePrivacy === 'detailed') {
     displayTitle = options.title;
     displayBody = options.body ?? '';
-  } else if (options.privacyLevel === 'private' || options.privacyLevel === 'title_only') {
+  } else if (effectivePrivacy === 'private' || effectivePrivacy === 'title_only') {
     displayTitle = options.title;
     displayBody = 'Open Daynori to view details';
-  } else if (options.privacyLevel === 'confidential') {
+  } else if (effectivePrivacy === 'confidential') {
+    displayTitle = 'Daynori Reminder';
+    displayBody = 'You have a scheduled reminder';
+  }
+
+  // Strict invariant: confidential targets, vault items, journal entries, and private notes NEVER leak text
+  if (
+    options.destination === 'journal' ||
+    options.destination === ('vault' as any) ||
+    (options as any).targetType === 'vault' ||
+    options.privacyLevel === 'confidential'
+  ) {
     displayTitle = 'Daynori Reminder';
     displayBody = 'You have a scheduled reminder';
   }
@@ -485,6 +560,68 @@ export async function cancelAllLocalRemindersAsync(): Promise<void> {
     await Notifications.cancelAllScheduledNotificationsAsync();
   } catch (err) {
     console.warn('Failed to cancel all local notifications:', err);
+  }
+}
+
+/**
+ * Phase 85: Deliberate synthetic test-notification action.
+ * Schedules an immediate date-triggered notification proving native display capability.
+ */
+export async function sendLocalTestNotificationAsync(options?: {
+  privacyMode?: 'generic' | 'detailed';
+  title?: string;
+  body?: string;
+}): Promise<boolean> {
+  await setupNotificationChannelsAsync();
+
+  try {
+    const privacy = options?.privacyMode ?? (await getNotificationPrivacyModeAsync());
+    const isDetailed = privacy === 'detailed';
+    const title = isDetailed ? options?.title || 'Daynori Test Reminder' : 'Daynori Reminder';
+    const body = isDetailed
+      ? options?.body || 'Test notification delivery proof - local reminder scheduling is operational.'
+      : 'You have a scheduled reminder';
+
+    const trigger: Notifications.NotificationTriggerInput =
+      Platform.OS === 'android'
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(Date.now() + 1000),
+            channelId: 'reminders',
+          }
+        : {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(Date.now() + 1000),
+          };
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: {
+          type: 'notification',
+          destination: 'plan',
+          test: true,
+          timestamp: Date.now(),
+        },
+        sound: 'default',
+      },
+      trigger,
+    });
+    return true;
+  } catch (err) {
+    console.warn('Failed to send local test notification:', err);
+    return false;
+  }
+}
+
+/**
+ * Phase 85: Opt-out of local notifications and deactivate backend push registration.
+ */
+export async function optOutNotificationsAsync(apiClient?: DaynoriApiClient | null): Promise<void> {
+  await cancelAllLocalRemindersAsync();
+  if (apiClient) {
+    await deactivateDeviceAsync(apiClient);
   }
 }
 

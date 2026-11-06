@@ -182,8 +182,8 @@
         "ref": "help/account-sign-up"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     },
     {
@@ -244,8 +244,8 @@
         "ref": "help/account-sign-in"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       },
       "note": "Core journeys use injected JWT, not real provider login."
     },
@@ -296,8 +296,8 @@
         "ref": "help/account-recovery"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-recovery-safe-demo"
+        "status": "existing",
+        "ref": "tour.recovery-secrets-safe / chapter.account-first-use"
       }
     },
     {
@@ -354,8 +354,8 @@
         "ref": "/help stay signed in"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-session-recovery"
+        "status": "existing",
+        "ref": "tour.recovery-secrets-safe / chapter.account-first-use"
       }
     },
     {
@@ -406,8 +406,8 @@
         "ref": "help/sign-out"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     },
     {
@@ -463,8 +463,8 @@
         "ref": "help/workspace"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     },
     {
@@ -591,8 +591,8 @@
         "ref": "help/account-deletion-safe"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-dangerous-ops-safe-demo"
+        "status": "existing",
+        "ref": "tour.account-deletion-safe / chapter.account-first-use"
       }
     },
     {
@@ -3609,8 +3609,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-search"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -3674,8 +3674,8 @@
         "ref": "help.files-upload"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3739,8 +3739,8 @@
         "ref": "help/files"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3811,8 +3811,8 @@
         "ref": "help/files"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3883,8 +3883,8 @@
         "ref": "help/files"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-files"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -3951,8 +3951,8 @@
         "ref": "help/audio-attachments"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-audio"
+        "status": "existing",
+        "ref": "tour.files-audio / chapter.files-audio"
       }
     },
     {
@@ -4022,8 +4022,8 @@
         "ref": "help.expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses / chapter.expenses"
       }
     },
     {
@@ -4093,8 +4093,8 @@
         "ref": "help/expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses / chapter.expenses"
       }
     },
     {
@@ -4164,8 +4164,8 @@
         "ref": "help/expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses / chapter.expenses"
       }
     },
     {
@@ -4235,8 +4235,8 @@
         "ref": "help/expenses"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-expenses"
+        "status": "existing",
+        "ref": "tour.expenses + tour.trash-recovery / chapter.expenses"
       }
     },
     {
@@ -4305,8 +4305,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4375,8 +4375,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4445,8 +4445,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4515,8 +4515,8 @@
         "ref": "help/custom-sections"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-custom-sections"
+        "status": "existing",
+        "ref": "tour.custom-sections / chapter.custom-sections"
       }
     },
     {
@@ -4579,8 +4579,8 @@
         "ref": "help.save-and-sync"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4643,8 +4643,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4707,8 +4707,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4779,8 +4779,8 @@
         "ref": "help.offline-reopen"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4843,8 +4843,8 @@
         "ref": "/help Offline and updates"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-offline-portability"
+        "status": "existing",
+        "ref": "tour.offline-sync / chapter.offline-sync"
       }
     },
     {
@@ -4906,7 +4906,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -4968,7 +4968,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -5013,14 +5013,14 @@
         "apps/web/src/components/ReminderAgendaView.tsx",
         "apps/mobile/src/notifications/adapter.ts"
       ],
-      "readiness": "unverified",
+      "readiness": "blocked",
       "acceptanceJourney": "Register native device for notifications.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "preview-delivery-off",
+        "date": "2026-11-06",
+        "revision": "59e068b",
+        "environment": "local-windows-native-android-synthetic-device",
+        "platform": "native-android-gated",
         "evidenceLayer": "provider_authenticated"
       },
       "repairPhase": "85",
@@ -5030,7 +5030,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -5092,7 +5092,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-reminders"
+        "ref": "tour.reminders-gated (gated Phase 69) / chapter.optional-gated"
       }
     },
     {
@@ -5102,9 +5102,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5135,8 +5139,8 @@
       "acceptanceJourney": "Set up and unlock vault.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5148,7 +5152,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5158,9 +5162,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5191,8 +5199,8 @@
       "acceptanceJourney": "Lock vault / cross-tab lock.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5204,7 +5212,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5214,9 +5222,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5247,8 +5259,8 @@
       "acceptanceJourney": "Vault recovery enrollment.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5260,7 +5272,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5270,9 +5282,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5304,8 +5320,8 @@
       "acceptanceJourney": "Open synthetic vault harness (dev).",
       "observedResult": "untested",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5317,7 +5333,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-vault-when-enabled"
+        "ref": "tour.vault-gated (gated Phase 60) / chapter.optional-gated"
       }
     },
     {
@@ -5329,9 +5345,15 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "tests/integration/phase87-drive-connection-readiness.test.ts",
+        "tests/integration/phase49-drive-connector.test.ts",
+        "tests/security/phase49-drive-connector.test.ts",
+        "tests/spikes/drive/drive-scope.synthetic.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-005",
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5364,8 +5386,8 @@
       "acceptanceJourney": "Connect Google Drive with approved scope.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "8383e39",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5377,7 +5399,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-drive"
+        "ref": "tour.drive-gated (gated DEF-V2-005) / chapter.optional-gated"
       }
     },
     {
@@ -5389,9 +5411,15 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "tests/integration/phase87-drive-connection-readiness.test.ts",
+        "tests/integration/phase49-drive-connector.test.ts",
+        "tests/security/phase49-drive-connector.test.ts",
+        "tests/spikes/drive/drive-scope.synthetic.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-005",
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5424,8 +5452,8 @@
       "acceptanceJourney": "Select files; sync/status/conflict.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "8383e39",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5437,7 +5465,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-drive"
+        "ref": "tour.drive-gated (gated DEF-V2-005) / chapter.optional-gated"
       }
     },
     {
@@ -5449,9 +5477,15 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "tests/integration/phase87-drive-connection-readiness.test.ts",
+        "tests/integration/phase49-drive-connector.test.ts",
+        "tests/security/phase49-drive-connector.test.ts",
+        "tests/spikes/drive/drive-scope.synthetic.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-005",
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5484,8 +5518,8 @@
       "acceptanceJourney": "Disconnect and handle revoked auth.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "8383e39",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5497,7 +5531,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-drive"
+        "ref": "tour.drive-gated (gated DEF-V2-005) / chapter.optional-gated"
       }
     },
     {
@@ -5545,8 +5579,8 @@
       "acceptanceJourney": "Create room and invite members.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3ac8fc1",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5557,8 +5591,8 @@
         "ref": "help/rooms"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "status": "existing",
+        "ref": "tour.sharing-safe + tour.rooms-gated / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5568,10 +5602,12 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
+        "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts",
         "tests/integration/phase51-rooms-invitations.test.ts",
         "tests/integration/phase53-room-chat.test.ts"
       ],
       "evidenceRefs": [
+        "artifacts/phase88/phase88-ui-evidence.json",
         "artifacts/local/phase65/core-journeys.log"
       ],
       "blockerOrDefect": "DEF-V2-006",
@@ -5607,8 +5643,8 @@
       "acceptanceJourney": "Send/edit/delete chat messages.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3ac8fc1",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5620,7 +5656,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "ref": "tour.rooms-gated (gated DEF-V2-006) / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5630,10 +5666,12 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
+        "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts",
         "tests/integration/phase51-rooms-invitations.test.ts",
         "tests/integration/phase53-room-chat.test.ts"
       ],
       "evidenceRefs": [
+        "artifacts/phase88/phase88-ui-evidence.json",
         "artifacts/local/phase65/core-journeys.log"
       ],
       "blockerOrDefect": "DEF-V2-006",
@@ -5669,8 +5707,8 @@
       "acceptanceJourney": "Block/report/mute and moderation queue.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3ac8fc1",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5681,8 +5719,8 @@
         "ref": "help/rooms"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "status": "existing",
+        "ref": "tour.sharing-safe + tour.rooms-gated / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5692,10 +5730,12 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
+        "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts",
         "tests/integration/phase51-rooms-invitations.test.ts",
         "tests/integration/phase53-room-chat.test.ts"
       ],
       "evidenceRefs": [
+        "artifacts/phase88/phase88-ui-evidence.json",
         "artifacts/local/phase65/core-journeys.log"
       ],
       "blockerOrDefect": "DEF-V2-006",
@@ -5731,8 +5771,8 @@
       "acceptanceJourney": "Leave/remove members; revoke access.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3ac8fc1",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5743,8 +5783,8 @@
         "ref": "help/rooms"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-rooms-synthetic-only"
+        "status": "existing",
+        "ref": "tour.sharing-safe + tour.rooms-gated / chapter.optional-gated"
       },
       "note": "Core validation confirmed GET /v1/rooms → 403 with production gates."
     },
@@ -5754,10 +5794,15 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase57-billing-entitlements.test.ts"
+        "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts",
+        "tests/integration/phase51-rooms-invitations.test.ts",
+        "tests/integration/phase57-billing-entitlements.test.ts",
+        "tests/integration/phase89-billing-sustainable-readiness.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/phase88/phase88-ui-evidence.json",
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase89/phase89-ui-evidence.json"
       ],
       "blockerOrDefect": "DEF-V2-007",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -5790,8 +5835,8 @@
       "acceptanceJourney": "View catalog and entitlement.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "80e6956d963ebed4f7c54a64ce4849c07b99a15f",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5802,8 +5847,8 @@
         "ref": "help/billing"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-billing-no-real-charges"
+        "status": "existing",
+        "ref": "tour.billing-safe + tour.billing-gated / chapter.optional-gated"
       }
     },
     {
@@ -5812,10 +5857,12 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase57-billing-entitlements.test.ts"
+        "tests/integration/phase57-billing-entitlements.test.ts",
+        "tests/integration/phase89-billing-sustainable-readiness.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase89/phase89-ui-evidence.json"
       ],
       "blockerOrDefect": "DEF-V2-007",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -5848,8 +5895,8 @@
       "acceptanceJourney": "Verify purchase / restore (synthetic).",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "80e6956d963ebed4f7c54a64ce4849c07b99a15f",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5860,8 +5907,8 @@
         "ref": "help/billing"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-billing-no-real-charges"
+        "status": "existing",
+        "ref": "tour.billing-safe + tour.billing-gated / chapter.optional-gated"
       }
     },
     {
@@ -5870,10 +5917,12 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase57-billing-entitlements.test.ts"
+        "tests/integration/phase57-billing-entitlements.test.ts",
+        "tests/integration/phase89-billing-sustainable-readiness.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase89/phase89-ui-evidence.json"
       ],
       "blockerOrDefect": "DEF-V2-007",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -5906,8 +5955,8 @@
       "acceptanceJourney": "Downgrade preserves read/export/delete.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "80e6956d963ebed4f7c54a64ce4849c07b99a15f",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -5918,8 +5967,8 @@
         "ref": "help/billing"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-billing-no-real-charges"
+        "status": "existing",
+        "ref": "tour.billing-safe + tour.billing-gated / chapter.optional-gated"
       }
     },
     {
@@ -5980,7 +6029,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6041,7 +6090,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6102,7 +6151,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6163,7 +6212,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6224,7 +6273,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "chapter-assistant"
+        "ref": "tour.assistant-gated (gated DEF-V2-008) / chapter.optional-gated"
       }
     },
     {
@@ -6393,8 +6442,8 @@
         "ref": "help.support-and-feedback"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-feedback"
+        "status": "existing",
+        "ref": "tour.help-return / chapter.help-learning"
       }
     },
     {
@@ -6458,8 +6507,8 @@
         "ref": "help.support-and-feedback"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-feedback"
+        "status": "existing",
+        "ref": "tour.help-return / chapter.help-learning"
       }
     },
     {
@@ -6633,13 +6682,26 @@
     {
       "owner": "unassigned",
       "dependencies": [],
-      "validationNegativeCases": [],
-      "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
-      "existingTests": [],
-      "evidenceRefs": [],
+      "validationNegativeCases": [
+        "Unauthorized user denied access to /developer/triage with 403",
+        "Non-operator cannot view internal notes or cross-workspace reports",
+        "Invalid triage status transition rejected with 400"
+      ],
+      "offlineRetryConflict": "Triage requires server connectivity; reports queued locally on client until connected.",
+      "existingTests": [
+        "tests/unit/phase83-feedback-triage-domain.test.ts",
+        "tests/integration/phase83-feedback-triage.test.ts"
+      ],
+      "evidenceRefs": [
+        "docs/phase-reports/phase-83.md",
+        "tests/integration/phase83-feedback-triage.test.ts",
+        "tests/unit/phase83-feedback-triage-domain.test.ts",
+        "artifacts/phase83/phase83-journey-summary.json",
+        "docs/decisions/0083-developer-feedback-triage-and-verified-support-contact.md"
+      ],
       "blockerOrDefect": null,
-      "authorization": "Workspace member when authenticated; public where route is public.",
-      "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
+      "authorization": "DAYNORI_OPERATOR_USER_IDS allowlist required; unauthenticated/non-operator denied fail-closed.",
+      "personalVisibility": "Operator triage across reports; internal notes confidential; reporter-visible responses only to reporter.",
       "platforms": {
         "web": "supported",
         "installedPwa": "supported",
@@ -6647,27 +6709,32 @@
         "iosNative": "gated"
       },
       "releaseCapability": {
-        "local": "unavailable",
+        "local": "available",
         "hostedPreview": "unavailable"
       },
       "id": "dev.feedback-triage",
       "featureFamily": "developer-and-operations",
       "userBenefit": "Triage user feedback securely.",
-      "description": "Restricted developer triage surface (planned).",
-      "implementationStatus": "planned",
+      "description": "Restricted developer triage surface and verified support contact route.",
+      "implementationStatus": "existing",
       "entryPoints": [
-        "planned operator triage"
+        "/developer/triage",
+        "/support"
       ],
-      "implementationPaths": [],
-      "readiness": "unverified",
-      "acceptanceJourney": "Authorized operator reviews synthetic report; unauthorized denied.",
-      "observedResult": "unavailable",
+      "implementationPaths": [
+        "apps/web/src/app/developer/triage/page.tsx",
+        "apps/api/src/routes/v1/operatorFeedback.ts",
+        "packages/domain/src/feedback/triage.ts"
+      ],
+      "readiness": "verified_local",
+      "acceptanceJourney": "Authorized operator reviews synthetic report, posts note and response; unauthorized denied; reporter views response.",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-05",
+        "revision": "844b35eea56f7965c0d53bc6065a7dafd33b8066",
         "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "not-built",
-        "evidenceLayer": "api_integration"
+        "platform": "web",
+        "evidenceLayer": "browser_ui"
       },
       "repairPhase": "83",
       "helpArticle": {
@@ -6676,7 +6743,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "operator-guide"
+        "ref": "operator-guide-exclude-from-user-tour"
       }
     },
     {
@@ -6734,7 +6801,7 @@
       },
       "tourTreatment": {
         "status": "planned",
-        "ref": "operator-guide"
+        "ref": "operator-guide-exclude-from-user-tour"
       }
     },
     {
@@ -6786,8 +6853,8 @@
         "ref": "/privacy"
       },
       "tourTreatment": {
-        "status": "planned",
-        "ref": "chapter-account-first-use"
+        "status": "existing",
+        "ref": "tour.account-first-use / chapter.account-first-use"
       }
     }
   ],
@@ -6910,11 +6977,13 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
       ],
       "workaround": "Use synthetic harness only for engineering.",
-      "dependency": "Independent vault review + Phase 86.",
-      "nextAction": "Keep vault off; close gates in Phase 86.",
+      "dependency": "Independent qualified security review and physical Android hardware evidence.",
+      "nextAction": "Keep vault off fail-closed pending qualified independent review and physical Android device evidence.",
       "owningPhase": "86"
     },
     {
@@ -6932,18 +7001,22 @@
       "severity": "medium",
       "userImpact": "Drive connector cannot be claimed ready without live OAuth.",
       "expected": "Connect approved scope; sync; disconnect with revoked-token handling.",
-      "observed": "Local/integration tests exist; no live Google provider run in Phase 65.",
+      "observed": "Phase 87 scope boundary and storage models verified across 46 tests in 4 suites; production provider fails closed pending owner Google Cloud OAuth credentials and live interactive consent.",
       "reproduction": [
         "Open Drive panel",
         "No live OAuth client configured for this inventory"
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json",
+        "artifacts/phase87/manual-ui-evidence.json",
+        "docs/engineering/google-drive-oauth-configuration-guide.md",
+        "tests/integration/phase87-drive-connection-readiness.test.ts"
       ],
       "workaround": null,
-      "dependency": "Google OAuth credentials and Phase 87.",
-      "nextAction": "Phase 87 with authorized test project.",
+      "dependency": "Owner Google Cloud OAuth credentials and live interactive consent.",
+      "nextAction": "Owner configuration of Google Cloud OAuth project credentials per docs/engineering/google-drive-oauth-configuration-guide.md and interactive consent verification.",
       "owningPhase": "87"
     },
     {
@@ -6969,11 +7042,18 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase88/phase88-ui-evidence.json",
+        "artifacts/phase88/evidence-summary.json",
+        "artifacts/phase88/manual-ui-evidence.json",
+        "artifacts/phase88/findings-register.json",
+        "docs/policy/google-play-ugc-review-2026-11-06.md",
+        "docs/engineering/moderation-operations-package.md",
+        "docs/phase-reports/phase-88.md",
         "artifacts/local/phase65/core-journeys.log"
       ],
       "workaround": null,
-      "dependency": "Moderation owner + Phase 88.",
-      "nextAction": "Phase 88 with synthetic invited participants only until staffed.",
+      "dependency": "Contracted 24/7 human moderation operations + legal counsel + Gate C physical device validation.",
+      "nextAction": "Staff designated 24/7 human moderation team and execute physical Android TalkBack accessibility validation prior to commercial collaboration enablement.",
       "owningPhase": "88"
     },
     {
@@ -6997,11 +7077,20 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase89/phase89-ui-evidence.json",
+        "artifacts/phase89/evidence-summary.json",
+        "artifacts/phase89/manual-ui-evidence.json",
+        "artifacts/phase89/findings-register.json",
+        "artifacts/phase89/sandbox-test-matrix.json",
+        "docs/engineering/sustainable-cost-and-pricing-model.md",
+        "docs/engineering/billing-operations-and-reconciliation-guide.md",
+        "docs/policy/google-play-billing-policy-review-2026-11-06.md",
+        "docs/phase-reports/phase-89.md",
         "artifacts/local/phase65/core-journeys.log"
       ],
       "workaround": "Synthetic local billing tests only.",
-      "dependency": "Owner billing decision + Phase 89.",
-      "nextAction": "Phase 89.",
+      "dependency": "Google Payments merchant registration + Google Cloud Pub/Sub RTDN setup + owner commercial pricing approval + physical device sandbox purchase verification.",
+      "nextAction": "Register Google Payments merchant profile, configure Play Console subscription products, link Cloud Pub/Sub RTDN, and verify sandbox purchase lifecycle on physical Android device before production commercial release.",
       "owningPhase": "89"
     },
     {
@@ -7044,22 +7133,25 @@
         "web",
         "android"
       ],
-      "severity": "high",
+      "severity": "low",
       "userImpact": "Users cannot reliably reach a monitored human or track submissions.",
       "expected": "Durable intake, receipt, triage, verified contact route.",
-      "observed": "Phase 82 completed durable intake and server receipts; Phase 83 owns operator triage and verified monitored contact destinations.",
+      "observed": "Phase 82 completed durable intake and server receipts; Phase 83 completed restricted developer triage at /developer/triage and verified in-app operator response delivery on /support.",
       "reproduction": [
         "Open /support"
       ],
-      "environment": "product-copy",
+      "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "docs/phase-reports/phase-83.md",
+        "artifacts/phase83/phase83-journey-summary.json",
         "apps/web/src/app/support/page.tsx",
-        "docs/roadmap/v2/help-and-feedback.md"
+        "apps/web/src/app/developer/triage/page.tsx",
+        "docs/decisions/0083-developer-feedback-triage-and-verified-support-contact.md"
       ],
-      "workaround": null,
-      "dependency": "Owner contact destination + Phases 82–83.",
-      "nextAction": "Phase 83 implements restricted developer triage and verified operator contact destinations.",
-      "owningPhase": "82"
+      "workaround": "In-app support contact with server receipts and operator triage at /developer/triage.",
+      "dependency": "Resolved in Phase 83 for local and in-app routes. External commercial SLA / unstaffed physical phone promises remain unmade.",
+      "nextAction": "Resolved in Phase 83 via in-app verified developer contact route and restricted triage dashboard.",
+      "owningPhase": "83"
     },
     {
       "id": "DEF-V2-010",

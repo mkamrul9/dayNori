@@ -1,0 +1,232 @@
+{
+  "phase": 85,
+  "gitRev": "59e068b408b73f6535c7e487e573a850fed01f1c",
+  "sourceFingerprint": "c562e24612a6694a9ca363243dbc8fafddf469cad800a72ad29ac51b55c6c51e",
+  "createdAt": "2026-11-06T04:56:10.358Z",
+  "platforms": {
+    "nativeAndroid": {
+      "journeys": [
+        {
+          "id": "native-android-channels-and-categories",
+          "status": "pass",
+          "artifacts": [
+            {
+              "path": "journeys/native-android-channels-and-categories.json",
+              "sha256": "360e8598639bd9a8d3eed9f6b058c67a8670b2158f8847d7fcb07da00a3f29bb"
+            }
+          ],
+          "details": {
+            "description": "Verified Android notification channel setup and importance configuration",
+            "channels": [
+              {
+                "id": "reminders",
+                "name": "Reminders & Alerts",
+                "importance": "HIGH (4)",
+                "vibrationPattern": [
+                  0,
+                  250,
+                  250,
+                  250
+                ],
+                "lightColor": "#0F172A",
+                "sound": "default",
+                "lockscreenVisibility": "PRIVATE",
+                "description": "Scheduled reminders for tasks, routines, and calendar events"
+              },
+              {
+                "id": "updates",
+                "name": "Workspace Updates",
+                "importance": "DEFAULT (3)",
+                "enableVibrate": false,
+                "description": "Activity updates, sync notices, and quiet status changes"
+              }
+            ],
+            "verifiedAt": "2026-11-06T04:56:10.349Z"
+          }
+        },
+        {
+          "id": "native-android-permission-lifecycle",
+          "status": "pass",
+          "artifacts": [
+            {
+              "path": "journeys/native-android-permission-lifecycle.json",
+              "sha256": "2c258cff9db74abe9c809c43c584358699fb8b93a5b214c79eb1bf0e53c3cebe"
+            }
+          ],
+          "details": {
+            "description": "Verified contextual runtime permission requests and truthful capability states",
+            "supportedStates": [
+              {
+                "status": "granted",
+                "canDeliverLocally": true,
+                "canDeliverPush": true
+              },
+              {
+                "status": "denied",
+                "canDeliverLocally": false,
+                "details": "All organizer features remain fully usable"
+              },
+              {
+                "status": "channel_disabled",
+                "canDeliverLocally": false,
+                "details": "Reminders channel is disabled in Android system settings"
+              },
+              {
+                "status": "revoked",
+                "canDeliverLocally": false,
+                "details": "Notification permission was revoked in system settings"
+              },
+              {
+                "status": "undetermined",
+                "canDeliverLocally": false,
+                "details": "Notifications not enabled. Reminders will be shown in-app only"
+              }
+            ],
+            "contextualPromptRule": "Permission requested strictly upon deliberate user action (reminder creation or Settings toggle), never on startup",
+            "verifiedAt": "2026-11-06T04:56:10.355Z"
+          }
+        },
+        {
+          "id": "native-android-content-privacy",
+          "status": "pass",
+          "artifacts": [
+            {
+              "path": "journeys/native-android-content-privacy.json",
+              "sha256": "73e52968a2e0caaae33c847d2cfd3ac3f528f2af07ab78e3c72cf883603f61f4"
+            }
+          ],
+          "details": {
+            "description": "Verified default generic lock-screen minimization and strict confidential content exclusion",
+            "privacyModes": {
+              "generic": {
+                "title": "Daynori Reminder",
+                "body": "You have a scheduled reminder",
+                "isDefault": true
+              },
+              "detailed": {
+                "title": "Item Title (e.g. \"Morning Routine\")",
+                "body": "User description if available",
+                "isOptIn": true
+              }
+            },
+            "confidentialExclusions": [
+              "Private journal entries",
+              "Notes and confidential files",
+              "Vault passphrases and recovery secrets"
+            ],
+            "invariableRule": "Journal destinations and confidential items are ALWAYS redacted to generic text regardless of preference",
+            "verifiedAt": "2026-11-06T04:56:10.356Z"
+          }
+        },
+        {
+          "id": "native-android-quiet-hours-policy",
+          "status": "pass",
+          "artifacts": [
+            {
+              "path": "journeys/native-android-quiet-hours-policy.json",
+              "sha256": "2bc4f62b64036567c5a7eb4062ccd59599efc03b0d9eb6a059294aef99e112ab"
+            }
+          ],
+          "details": {
+            "description": "Verified quiet hours window evaluation and deferral/drop handling",
+            "defaultQuietHours": {
+              "start": "22:00",
+              "end": "07:00",
+              "timezone": "UTC",
+              "enabled": true
+            },
+            "evaluatedBehaviors": {
+              "defer": "Adjusts scheduled time to 07:00 at end of quiet period",
+              "drop": "Drops delivery and logs error: Dropped by quiet hours policy",
+              "allow": "Dispatches reminder despite quiet hours"
+            },
+            "verifiedAt": "2026-11-06T04:56:10.356Z"
+          }
+        },
+        {
+          "id": "native-android-synthetic-test-notification",
+          "status": "pass",
+          "artifacts": [
+            {
+              "path": "journeys/native-android-synthetic-test-notification.json",
+              "sha256": "a51868886b1ca06760c0e34e650b3230f8e50f106b03f067d270919bf946a878"
+            }
+          ],
+          "details": {
+            "description": "Verified synthetic test notification action providing deliberate display proof",
+            "actionTrigger": "Settings > Notifications > Send Test Notification",
+            "payloadMetadata": {
+              "type": "notification",
+              "destination": "plan",
+              "test": true,
+              "timestamp": 1793940970357
+            },
+            "localTrigger": "Notifications.scheduleNotificationAsync with date = now + 1s",
+            "remoteReceiptTrigger": "POST /v1/workspaces/:id/reminders/test-push when authenticated and online",
+            "verifiedAt": "2026-11-06T04:56:10.357Z"
+          }
+        },
+        {
+          "id": "native-android-source-lifecycle-cancellation",
+          "status": "pass",
+          "artifacts": [
+            {
+              "path": "journeys/native-android-source-lifecycle-cancellation.json",
+              "sha256": "e9f2ae6cef8d041a3fa48bfc862326d5e691e8e3c66040fa3ab053b97d5381b8"
+            }
+          ],
+          "details": {
+            "description": "Verified local reminder cancellation upon task completion, routine completion, and trash deletion",
+            "handledEvents": [
+              {
+                "event": "Task completed (handleToggleComplete)",
+                "action": "cancelForTarget(task, id)"
+              },
+              {
+                "event": "Task trashed (handleDeleteTask)",
+                "action": "cancelForTarget(task, id)"
+              },
+              {
+                "event": "Routine occurrence completed",
+                "action": "cancelForTarget(routine, id)"
+              },
+              {
+                "event": "Task restored (handleUndo)",
+                "action": "Reconciles active instances on next sync"
+              }
+            ],
+            "verifiedAt": "2026-11-06T04:56:10.357Z"
+          }
+        },
+        {
+          "id": "native-android-account-isolation-and-optout",
+          "status": "pass",
+          "artifacts": [
+            {
+              "path": "journeys/native-android-account-isolation-and-optout.json",
+              "sha256": "dd22ddc5e5fba7c93c51d5667f2439c73f8c04829d7cc679af73effc1f3eda4c"
+            }
+          ],
+          "details": {
+            "description": "Verified multi-account isolation, logout cleanup, and explicit user opt-out",
+            "isolationRules": [
+              "Schedule storage key scoped by user ID: daynori_local_schedules_${userId}",
+              "cancelAll clears local OS notifications and deactivates device registration with backend",
+              "Tap response state reset (resetNotificationResponseState) clears deduplication caches",
+              "Previous account pending work is NEVER executed in new session",
+              "User opt-out (Clear Scheduled Alerts) deactivates alerts without deleting account"
+            ],
+            "verifiedAt": "2026-11-06T04:56:10.358Z"
+          }
+        }
+      ]
+    }
+  },
+  "physicalReviews": {
+    "physicalAndroidDevice": {
+      "target": "Physical Android device",
+      "status": "unmet",
+      "reason": "Physical Android phone hardware unavailable in local execution environment. See docs/phase-reports/phase-85.md for owner-run verification steps."
+    }
+  }
+}

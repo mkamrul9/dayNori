@@ -1086,14 +1086,22 @@ export const AppModals: React.FC = () => {
                 themeMode={themeMode}
               />
             </TourTarget>
-            {!isCorePreview && (
+            <TourTarget id="create.type.file">
               <ListRow
                 title="Upload File"
                 subtitle="Upload PDFs, images, or documents to workspace folders"
                 onClick={() => navigateTo('/library?create=file')}
                 themeMode={themeMode}
               />
-            )}
+            </TourTarget>
+            <TourTarget id="create.type.expense">
+              <ListRow
+                title="New Expense"
+                subtitle="Track payments, exact amounts, and receipts"
+                onClick={() => navigateTo('/expenses?create=1')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
             <TourTarget id="create.type.journal">
               <ListRow
                 title="New Journal Entry"

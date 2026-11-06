@@ -1,0 +1,80 @@
+{
+  "phase": 87,
+  "generatedAt": "2026-11-06T07:30:00.000Z",
+  "gitRev": "8383e393414623872fa3693001e723754f15cdf7",
+  "schedulingDecision": {
+    "authorization": "OWNER SCHEDULING AUTHORIZATION",
+    "rationale": "Authorized Phase 87 implementation and supported-scope verification before final acceptance of Phases 75 and 81; Phase 87 status blocked pending owner Google Cloud OAuth project configuration and live consent.",
+    "recordedInAdr": "docs/decisions/0087-google-drive-connection-and-scope-readiness.md"
+  },
+  "automatedSuites": [
+    {
+      "suite": "tests/integration/phase87-drive-connection-readiness.test.ts",
+      "tests": 22,
+      "passed": 22,
+      "description": "Scope boundary enforcement, OAuth single-use state & isolation, AES-256-GCM token crypto with AAD binding, ephemeral Picker token security, disconnect & generation fencing, byte transfer & malware quarantine, upload idempotency, and fail-closed production gates"
+    },
+    {
+      "suite": "tests/integration/phase49-drive-connector.test.ts",
+      "tests": 8,
+      "passed": 8,
+      "description": "Cross-tenant isolation, real synthetic byte import through worker dispatch, offline cache client acknowledgment, disconnect during transfer, and quarantine rejection"
+    },
+    {
+      "suite": "tests/security/phase49-drive-connector.test.ts",
+      "tests": 10,
+      "passed": 10,
+      "description": "Narrow drive.file scope lookalike rejection, disconnect generation fencing, vault exclusion, selected-object support, and token crypto key versions"
+    },
+    {
+      "suite": "tests/spikes/drive/drive-scope.synthetic.test.ts",
+      "tests": 6,
+      "passed": 6,
+      "description": "Synthetic scope spike matrix, folder-child unverified separation, and config inspection"
+    }
+  ],
+  "scopeMatrix": {
+    "requestedScope": "https://www.googleapis.com/auth/drive.file",
+    "grantedScopeAllowed": "https://www.googleapis.com/auth/drive.file openid email",
+    "rejectedScopes": [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive.metadata",
+      "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
+      "https://www.googleapis.com/auth/drive.appdata"
+    ],
+    "folderChildRule": "Folder selection does NOT authorize unpicked pre-existing or external child files. Broad scopes rejected."
+  },
+  "uiSurfaces": {
+    "web": {
+      "component": "apps/web/src/components/DriveConnectionsPanel.tsx",
+      "features": [
+        "Narrow drive.file scope notice and vault exclusion disclaimer",
+        "Copy versus reference explanatory card (imported_copy, link_reference, upload_to_drive)",
+        "Connection status badge and reconnection flow for revoked state",
+        "Fake harness authorization input for development fixtures",
+        "Linked and imported files list with linkMode and availability badges",
+        "Unlink file button preserving remote Drive originals",
+        "Safe disconnect button with local retention disclaimer"
+      ]
+    },
+    "mobile": {
+      "component": "apps/mobile/src/views/DriveConnectionsSheet.tsx",
+      "features": [
+        "Narrow drive.file scope notice and vault exclusion disclaimer",
+        "Supported modes guidance (Reference vs Imported Copy vs Vault Exclusion)",
+        "Custom Tabs system browser launch (never embedded WebView)",
+        "Connection status badge and reconnection button",
+        "Fake harness support for local development",
+        "File inventory with linkMode and availability badges",
+        "File unlinking and safe disconnect controls"
+      ]
+    }
+  },
+  "liveGoogleOAuthStatus": {
+    "status": "unmet_config",
+    "defect": "DEF-V2-005",
+    "reason": "Owner Google Cloud project OAuth credentials and live interactive consent are unconfigured. Fake provider strictly rejected in production runtimes under fail-closed gates."
+  }
+}

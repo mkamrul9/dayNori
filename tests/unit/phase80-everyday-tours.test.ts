@@ -35,7 +35,7 @@ describe('Phase 80 everyday tour catalog', () => {
     expect(ids).toContain('tour.folders-search');
     expect(ids).toContain('tour.help-return');
     expect(listStarterTourChapterIds()).toEqual(['tour.task-create-save']);
-    expect(ids.some((id) => id.includes('vault') || id.includes('files'))).toBe(false);
+    expect(ids.some((id) => id.includes('vault') || id.includes('reminders'))).toBe(false);
     expect(TOUR_CHAPTER_DEFINITIONS.length).toBeGreaterThanOrEqual(10);
   });
 

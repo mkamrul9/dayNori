@@ -1,0 +1,82 @@
+[
+  {
+    "id": "RM-001",
+    "severity": "high",
+    "title": "Actioned report disposition content_removed must soft-delete message and emit deleted event",
+    "affectedContract": "apps/api/src/modules/safety/service.ts & app.room_messages",
+    "reproduction": "Updating a UGC report status to 'actioned' with disposition 'content_removed' only changed the report row in app.ugc_reports. The offending message remained live and visible in app.room_messages and was still returned to room participants.",
+    "proposedRemediation": "In updateReportStatus, when status is 'actioned', disposition is 'content_removed', target_type is 'message', and message_id + room_id are present: soft-delete the message (set deleted_at = now(), body = ''), acquire lock on app.room_chat_state, increment next_server_order, and emit 'room_message.deleted' event into app.room_chat_events.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-001",
+    "disposition": "Remediated in Phase 88"
+  },
+  {
+    "id": "RM-002",
+    "severity": "high",
+    "title": "Web operator moderation triage dashboard for review and enforcement",
+    "affectedContract": "apps/web/src/app/developer/moderation/page.tsx",
+    "reproduction": "While moderation API endpoints existed, platform operators had no web UI dashboard to inspect incoming reports, filter by category/status, examine frozen evidence snapshots, or execute disposition actions.",
+    "proposedRemediation": "Create accessible developer surface at /developer/moderation protected by OperatorGate with category/status/targetType filters, report list, frozen evidence drawer, mandatory operator reason input, and disposition execution controls.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-002",
+    "disposition": "Remediated in Phase 88"
+  },
+  {
+    "id": "RM-003",
+    "severity": "medium",
+    "title": "Room member lifecycle management controls in web and mobile UI",
+    "affectedContract": "apps/web/src/components/RoomsPanel.tsx & apps/mobile/src/views/RoomsSheet.tsx",
+    "reproduction": "API endpoints for updateRoomMemberRole, removeRoomMember, and transferRoomOwnership existed, but room owners had no accessible controls in web RoomsPanel or mobile RoomsSheet to manage member roles or remove members.",
+    "proposedRemediation": "Add member lists with roles to web and mobile rooms panels; provide accessible promote/demote toggle, member removal, and ownership transfer controls with confirmation prompts.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-003",
+    "disposition": "Remediated in Phase 88"
+  },
+  {
+    "id": "RM-004",
+    "severity": "medium",
+    "title": "Explicit personal item to room copy controls with vault and journal exclusion",
+    "affectedContract": "apps/web/src/components/RoomsPanel.tsx & apps/mobile/src/views/RoomsSheet.tsx",
+    "reproduction": "Users had no UI mechanism to share personal notes or tasks into a shared room workspace, nor feedback confirming UUID isolation and vault/journal exclusion.",
+    "proposedRemediation": "Add 'Share personal item to room' section with item UUID input, preview button (calling previewCopyPersonalItemToRoom), blocked reason display for vault/journal, and copy execution (calling copyPersonalItemToRoom) confirming new UUID and original preservation.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-004",
+    "disposition": "Remediated in Phase 88"
+  },
+  {
+    "id": "RM-005",
+    "severity": "medium",
+    "title": "Access revocation epoch rotation and client room cache purge",
+    "affectedContract": "apps/api/src/modules/rooms/service.ts & apps/mobile/src/views/RoomsSheet.tsx",
+    "reproduction": "When a member is removed from a room, verify that their access epoch rotates immediately, subsequent sync or chat requests receive 403 MEMBERSHIP_REVOKED, polling terminates, and local room caches are purged without touching personal workspaces.",
+    "proposedRemediation": "Verify rotateWorkspaceAccessEpoch occurs on member removal. Verify client detects MEMBERSHIP_REVOKED, clears displayed room content and chat cache, and rejects unsent queued mutations.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-005",
+    "disposition": "Remediated in Phase 88"
+  },
+  {
+    "id": "RM-006",
+    "severity": "low",
+    "title": "Strict functional boundaries between Mute, Block, and Leave/Remove",
+    "affectedContract": "packages/contracts/src/api/safety.ts & apps/api/src/modules/safety/service.ts",
+    "reproduction": "Potential confusion regarding whether muting hides messages, whether blocking removes members from shared rooms, or whether leaving purges personal workspaces.",
+    "proposedRemediation": "Codify strict boundaries: Mute suppresses notifications/unread counters only; Block prevents mutual invitations and hides messages for blocker only (retains room membership); Leave/Remove terminates room access and purges local room copy while keeping personal workspace intact.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-006",
+    "disposition": "Remediated in Phase 88"
+  },
+  {
+    "id": "RM-007",
+    "severity": "high",
+    "title": "Multi-instance realtime clustering limitation",
+    "affectedContract": "apps/api/src/modules/chat/service.ts & docs/decisions/0088-rooms-chat-and-moderation-readiness.md",
+    "reproduction": "The in-process event bus and polling gap recovery are functional for single-node developer/test instances. Multi-instance cluster fan-out is unapproved.",
+    "proposedRemediation": "Document in-process scope boundaries. Maintain fail-closed production check so that rooms are not enabled on multi-server production infrastructure without an approved realtime message bus.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-007",
+    "disposition": "Gated limitation in Phase 88 (Retained in DEF-V2-006)"
+  },
+  {
+    "id": "RM-008",
+    "severity": "high",
+    "title": "Staffed 24/7 human moderation operations and legal dispatch limitation",
+    "affectedContract": "docs/policy/google-play-ugc-review-2026-11-06.md & docs/engineering/moderation-operations-package.md",
+    "reproduction": "Google Play UGC policy requires robust, effective, and ongoing moderation with prompt action on reports. An AI assistant or automated script cannot fulfill the designated legal human moderation role.",
+    "proposedRemediation": "Publish concrete operations package (SOP, severity SLAs, CSAM escalation, appeals). Retain DEF-V2-006 and fail-closed gate isRoomsLocallyEnabled() = false in production builds until human staffing and legal contracts are executed.",
+    "regressionTest": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts > Finding RM-008",
+    "disposition": "Release gate limitation (DEF-V2-006 active)"
+  }
+]

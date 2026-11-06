@@ -1,0 +1,39 @@
+{
+  "phase": 88,
+  "title": "Rooms, chat, and staffed moderation readiness manual UI and live provider evidence",
+  "status": "blocked",
+  "verificationDate": "2026-11-06",
+  "reason": "Staffed 24/7 human moderation operations, physical Android TalkBack accessibility evidence, and production realtime cluster remain unconfigured; production collaboration fails closed under DEF-V2-006.",
+  "unmetGates": [
+    {
+      "gate": "staffed_human_moderation_operations",
+      "status": "unmet",
+      "requiredBy": "docs/roadmap/phases/88-rooms-chat-and-staffed-moderation-readiness.md & Google Play UGC Policy",
+      "description": "Designated, contracted human moderation team providing 24/7 coverage with documented SLAs (< 1hr CSAM / imminent harm, < 24hr harassment), NCMEC CyberTipline reporting integration, and verified legal counsel of record. Agent or AI self-review is disallowed."
+    },
+    {
+      "gate": "physical_device_accessibility_validation",
+      "status": "unmet",
+      "requiredBy": "docs/engineering/release-gates.md (Gate C)",
+      "description": "Physical Android device validation with TalkBack screen reader and touch navigation evidence verifying rooms sheet, chat input, member management, and reporting controls."
+    },
+    {
+      "gate": "multi_instance_realtime_clustering",
+      "status": "unmet",
+      "requiredBy": "docs/decisions/0088-rooms-chat-and-moderation-readiness.md",
+      "description": "Multi-instance production message broker and fan-out cluster. Local in-process event bus and polling recovery are bounded to single-node preview runtimes."
+    }
+  ],
+  "ownerVerificationSteps": [
+    "1. Run automated test suites: pnpm vitest run tests/integration/phase88-rooms-chat-moderation-readiness.test.ts tests/integration/phase51-rooms-invitations.test.ts tests/integration/phase51-rooms-repair.test.ts tests/integration/phase52-room-content-sync.test.ts tests/integration/phase53-room-chat.test.ts tests/integration/phase53-room-chat-repair.test.ts tests/integration/phase54-collaboration-safety.test.ts tests/security/phase51-rooms-domain.test.ts tests/security/phase52-room-revocation-domain.test.ts (all 72 tests must pass).",
+    "2. In Web UI, sign in as a platform operator and navigate to Developer tools -> Moderation triage (/developer/moderation). Verify that OperatorGate grants access and unauthenticated users receive 403 Forbidden.",
+    "3. Verify Moderation Triage UI: filter by status, category, target type; inspect the immutable frozen evidence snapshot for reported messages; input an operator reason; execute disposition actions.",
+    "4. Test RM-001 content removal: Select a message report, choose disposition 'content_removed', and click 'Apply Action'. Verify that the report status becomes 'actioned', the message is soft-deleted in app.room_messages (body cleared, deleted_at set), and a 'room_message.deleted' event is published to the room chat stream.",
+    "5. In Web UI (Settings -> Shared rooms): Create a room, generate an invite token, accept it in a second session, and verify owner controls: promote editor to viewer, demote viewer to editor, remove member, and transfer ownership.",
+    "6. In Web UI: Under 'Share personal item to room', enter a personal note UUID, click 'Preview', verify title/kind/destination display, and click 'Confirm copy to room'. Verify destination item receives a new UUID and personal original remains intact. Attempt to copy a vault or journal UUID and verify copy is blocked with explicit explanation.",
+    "7. In Mobile UI (RoomsSheet): Verify room list, member list display with role badges, promote/demote button, member removal, and personal item copy section.",
+    "8. Verify access revocation: When a member is removed from a room, verify that subsequent sync or chat requests receive 403 MEMBERSHIP_REVOKED, polling ceases, and local room caches are purged without affecting personal data.",
+    "9. Verify Mute vs. Block: Verify that muting a room suppresses unread badges and notifications only. Verify that blocking a user hides their messages from the blocker and blocks mutual room invites without removing them from existing shared rooms.",
+    "10. Verify production gate fail-closed: Confirm that isRoomsLocallyEnabled() returns false when NODE_ENV === 'production', and retain DEF-V2-006 in docs/roadmap/v2/function-register.json until human staffing and legal counsel are contracted."
+  ]
+}

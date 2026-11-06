@@ -1,0 +1,98 @@
+{
+  "phase": 86,
+  "generatedAt": "2026-11-06T05:38:00.000Z",
+  "gitRev": "3d365818c600bf9d490a603ea59811b189fe6366",
+  "sourceFingerprint": "887a0de91e48fba10bbda93222851cfab9f906f3e1a0ad19a7702f23ea73d097",
+  "schedulingDecision": {
+    "authorization": "OWNER SCHEDULING AUTHORIZATION",
+    "rationale": "Authorized Phase 86 review, independent implementation work, and bounded remediation before final acceptance of Phases 75 and 81; Phase 86 status blocked pending independent review and physical Android hardware.",
+    "recordedInAdr": "docs/decisions/0086-vault-review-recovery-and-release-gate-closure.md"
+  },
+  "securitySuites": [
+    {
+      "suite": "tests/security/phase86-vault-review-recovery.test.ts",
+      "tests": 23,
+      "passed": 23,
+      "description": "Findings register VR-001 through VR-008 regression tests, leakage prevention, and fail-closed gates"
+    },
+    {
+      "suite": "tests/security/phase44-vault-crypto.test.ts",
+      "tests": 30,
+      "passed": 30,
+      "description": "Argon2id bounds, AES-256-GCM AEAD envelope exchange, recovery secret wrap/unwrap, and KDF concurrency"
+    },
+    {
+      "suite": "tests/security/phase45-vault-prep.test.ts",
+      "tests": 22,
+      "passed": 22,
+      "description": "Encrypted item models, checkpoint replay/freshness verification, and transfer-model safety"
+    },
+    {
+      "suite": "tests/security/phase46-vault-lifecycle.test.ts",
+      "tests": 23,
+      "passed": 23,
+      "description": "Vault session state machine, unlock attempt limits, cooldown timing, and enrollment"
+    },
+    {
+      "suite": "tests/security/phase47-web-vault.test.ts",
+      "tests": 13,
+      "passed": 13,
+      "description": "Web vault harness browser contracts, cross-tab lock coordination, and presentation masking"
+    }
+  ],
+  "findingsRegisterSummary": {
+    "registerPath": "artifacts/phase86/findings-register.json",
+    "total": 8,
+    "remediated": [
+      {
+        "id": "VR-001",
+        "title": "Stale or interrupted unlock operation recovery (30s timeout reset)"
+      },
+      {
+        "id": "VR-002",
+        "title": "Cooldown counter reset on elapsed cooldown window"
+      },
+      {
+        "id": "VR-003",
+        "title": "Mobile push notification privacy exclusion for vault destinations"
+      },
+      {
+        "id": "VR-004",
+        "title": "Biometric invalidation fallback guidance message"
+      },
+      {
+        "id": "VR-005",
+        "title": "Cross-tab lock synchronization on backgrounding"
+      },
+      {
+        "id": "VR-006",
+        "title": "Strict recovery secret canonicalization & error differentiation"
+      }
+    ],
+    "gated": [
+      {
+        "id": "VR-007",
+        "title": "Large attachment streaming format unfinalized (libsodium secretstream proposal only)"
+      },
+      {
+        "id": "VR-008",
+        "title": "Independent qualified external audit and physical Android device evidence unmet"
+      }
+    ]
+  },
+  "leakageAndPrivacyVerification": {
+    "serverStorageAndSync": "Verified: Zero vault plaintext stored on server; sync payloads contain only ciphertext envelopes with canonical AAD",
+    "searchIndexes": "Verified: SearchItemTypeSchema strictly limits indexed types to task, routine, journal, project, note; vault items explicitly excluded",
+    "browserCacheStorage": "Verified: Service worker public/sw.js explicitly bypasses Cache Storage for all vault endpoints (/api/v1/vault/* and /vault/*)",
+    "mobileNotifications": "Verified: scheduleLocalReminderAsync unconditionally redacts title/body for destination: 'vault' and targetType: 'vault'",
+    "aiAssistantContext": "Verified: AI assistant tools, system prompts, and context builders filter vault records out of assistant ingestion",
+    "diagnosticsAndLogs": "Verified: Redaction filters prevent passphrase, VRK, DEK, and recovery secret disclosure in application logs"
+  },
+  "releaseGateStatus": {
+    "productionVaultStatus": "disabled",
+    "externalSecurityReview": "unmet",
+    "physicalAndroidHardware": "unmet",
+    "retainedDefect": "DEF-V2-004",
+    "overallReadiness": "blocked"
+  }
+}

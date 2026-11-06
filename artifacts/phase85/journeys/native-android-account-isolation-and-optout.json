@@ -1,0 +1,11 @@
+{
+  "description": "Verified multi-account isolation, logout cleanup, and explicit user opt-out",
+  "isolationRules": [
+    "Schedule storage key scoped by user ID: daynori_local_schedules_${userId}",
+    "cancelAll clears local OS notifications and deactivates device registration with backend",
+    "Tap response state reset (resetNotificationResponseState) clears deduplication caches",
+    "Previous account pending work is NEVER executed in new session",
+    "User opt-out (Clear Scheduled Alerts) deactivates alerts without deleting account"
+  ],
+  "verifiedAt": "2026-11-06T04:56:10.358Z"
+}

@@ -52,6 +52,7 @@ import {
   type RoutineOccurrenceTransition,
   type Weekday,
 } from '@daynori/domain';
+import { defaultScheduleCoordinator } from '../notifications/coordinator.js';
 
 function formatRoutineSchedule(
   routine: Pick<RoutineRecord, 'frequency' | 'weekdays' | 'scheduledTime'>
@@ -850,6 +851,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
     };
     const ok = await persistOccurrenceChange(occ, 'completeOccurrence');
     if (ok) {
+      void defaultScheduleCoordinator.cancelForTarget('routine', routine.id);
       setRoutineOccurrences((prev) => {
         const idx = prev.findIndex((o) => o.id === occ.id);
         if (idx >= 0) {
@@ -1123,6 +1125,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
 
       if (isCompleting) {
+        void defaultScheduleCoordinator.cancelForTarget('task', task.id);
         setUndoToast({
           taskId: task.id,
           taskTitle: task.title,
@@ -1391,6 +1394,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
     const ok = await persistTaskChange('delete', 'trashTask', trashed, { deletedAt: nowIso });
     if (ok) {
+      void defaultScheduleCoordinator.cancelForTarget('task', editingTask.id);
       setTasks((prev) =>
         prev.filter((t) => t.id !== editingTask.id && t.parentId !== editingTask.id)
       );

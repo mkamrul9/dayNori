@@ -3,7 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import { Button, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
-import type { Room, RoomInvitation } from '@daynori/contracts';
+import type {
+  CopyPersonalItemToRoomPreviewResponse,
+  Room,
+  RoomInvitation,
+} from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
 import { RoomContentPanel } from './RoomContentPanel';
 import { RoomChatPanel } from './RoomChatPanel';
@@ -43,6 +47,10 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
   const [busy, setBusy] = useState(false);
   const [showContent, setShowContent] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [personalItemId, setPersonalItemId] = useState('');
+  const [copyPreview, setCopyPreview] = useState<
+    CopyPersonalItemToRoomPreviewResponse['data'] | null
+  >(null);
 
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
 
@@ -175,6 +183,126 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
       setFeedback({
         severity: 'danger',
         message: err instanceof Error ? err.message : 'Archive failed',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onUpdateMemberRole = async (userId: string, newRole: 'editor' | 'viewer') => {
+    if (!selectedId) return;
+    setBusy(true);
+    try {
+      await client.updateRoomMemberRole(selectedId, userId, { role: newRole });
+      setFeedback({
+        severity: 'success',
+        message: `Updated member role to ${newRole}.`,
+      });
+      await refresh();
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Role update failed',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRemoveMember = async (userId: string) => {
+    if (!selectedId) return;
+    if (
+      !window.confirm(
+        `Remove member ${userId.slice(0, 8)}… from room? Their cached room content will be purged on next sync.`
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await client.removeRoomMember(selectedId, userId);
+      setFeedback({
+        severity: 'info',
+        message: `Removed member ${userId.slice(0, 8)}… from room.`,
+      });
+      await refresh();
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Remove member failed',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onTransferOwnership = async (userId: string) => {
+    if (!selectedId) return;
+    if (
+      !window.confirm(
+        `Transfer room ownership to ${userId.slice(0, 8)}…? You will become an editor.`
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await client.transferRoomOwnership(selectedId, { newOwnerUserId: userId });
+      setFeedback({
+        severity: 'success',
+        message: `Transferred room ownership to ${userId.slice(0, 8)}….`,
+      });
+      await refresh();
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Transfer ownership failed',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPreviewCopy = async () => {
+    if (!selectedId || !personalWorkspaceId || !personalItemId.trim()) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const res = await client.previewCopyPersonalItemToRoom({
+        sourceWorkspaceId: personalWorkspaceId,
+        sourceItemId: personalItemId.trim(),
+        destinationRoomId: selectedId,
+      });
+      setCopyPreview(res.data);
+    } catch (err) {
+      setCopyPreview(null);
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Copy preview failed',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onExecuteCopy = async () => {
+    if (!selectedId || !personalWorkspaceId || !personalItemId.trim()) return;
+    setBusy(true);
+    try {
+      const res = await client.copyPersonalItemToRoom({
+        sourceWorkspaceId: personalWorkspaceId,
+        sourceItemId: personalItemId.trim(),
+        destinationRoomId: selectedId,
+      });
+      setFeedback({
+        severity: 'success',
+        message: `Copied “${copyPreview?.sourceTitle || 'item'}” to room (ID: ${res.data.destinationItemId.slice(0, 8)}…). Personal original preserved.`,
+      });
+      setPersonalItemId('');
+      setCopyPreview(null);
+      await refresh();
+    } catch (err) {
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Copy to room failed',
       });
     } finally {
       setBusy(false);
@@ -374,17 +502,69 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
             ) : null}
 
             <h3 style={{ fontSize: 14, marginTop: spacing.md }}>Members</h3>
-            <ul>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {members.map((m) => (
-                <li key={m.userId} style={{ color: palette.text.secondary }}>
-                  {m.userId.slice(0, 8)}… — {m.role}
+                <li
+                  key={m.userId}
+                  style={{
+                    color: palette.text.primary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: `${spacing.xs}px 0`,
+                    borderBottom: `1px solid ${palette.border.subtle}`,
+                  }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600 }}>{m.userId.slice(0, 8)}…</span>{' '}
+                    <span style={{ fontSize: 12, color: palette.text.secondary }}>({m.role})</span>
+                  </div>
+                  {selected.actorRole === 'owner' && m.role !== 'owner' ? (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <Button
+                        type="button"
+                        variant="subtle"
+                        size="compact"
+                        themeMode={themeMode}
+                        disabled={busy}
+                        onClick={() =>
+                          void onUpdateMemberRole(
+                            m.userId,
+                            m.role === 'editor' ? 'viewer' : 'editor'
+                          )
+                        }
+                      >
+                        {m.role === 'editor' ? 'Demote to viewer' : 'Promote to editor'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="subtle"
+                        size="compact"
+                        themeMode={themeMode}
+                        disabled={busy}
+                        onClick={() => void onRemoveMember(m.userId)}
+                      >
+                        Remove
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="subtle"
+                        size="compact"
+                        themeMode={themeMode}
+                        disabled={busy}
+                        onClick={() => void onTransferOwnership(m.userId)}
+                      >
+                        Make owner
+                      </Button>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
 
             {invites.length > 0 ? (
               <>
-                <h3 style={{ fontSize: 14 }}>Pending invitations</h3>
+                <h3 style={{ fontSize: 14, marginTop: spacing.md }}>Pending invitations</h3>
                 <ul>
                   {invites
                     .filter((i) => i.status === 'pending')
@@ -409,6 +589,111 @@ export function RoomsPanel({ csrfToken, themeMode, personalWorkspaceId }: RoomsP
                     ))}
                 </ul>
               </>
+            ) : null}
+
+            {personalWorkspaceId && selected.status === 'active' ? (
+              <div
+                style={{
+                  marginTop: spacing.lg,
+                  padding: spacing.md,
+                  border: `1px solid ${palette.border.subtle}`,
+                  borderRadius: radii.card,
+                  background: palette.surfaceRaised,
+                }}
+              >
+                <h4 style={{ margin: '0 0 6px 0', fontSize: 14, color: palette.text.primary }}>
+                  Share personal item to room
+                </h4>
+                <p style={{ margin: '0 0 10px 0', fontSize: 12, color: palette.text.secondary }}>
+                  Explicit copy only. Items copied to a room receive a new UUID in the room
+                  workspace. Your personal original remains untouched. Vault items and journal
+                  entries are strictly excluded from room sharing.
+                </p>
+                <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
+                  <input
+                    placeholder="Personal item UUID..."
+                    value={personalItemId}
+                    onChange={(e) => {
+                      setPersonalItemId(e.target.value);
+                      setCopyPreview(null);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      borderRadius: radii.sm,
+                      border: `1px solid ${palette.border.subtle}`,
+                      background: palette.surface,
+                      color: palette.text.primary,
+                      fontSize: 13,
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="compact"
+                    themeMode={themeMode}
+                    disabled={busy || !personalItemId.trim()}
+                    onClick={() => void onPreviewCopy()}
+                  >
+                    Preview
+                  </Button>
+                </div>
+
+                {copyPreview ? (
+                  <div
+                    style={{
+                      marginTop: spacing.sm,
+                      padding: spacing.sm,
+                      borderRadius: radii.sm,
+                      background: palette.surface,
+                      border: `1px solid ${
+                        copyPreview.blocked ? palette.status.danger : palette.border.subtle
+                      }`,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>
+                      {copyPreview.sourceTitle} ({copyPreview.sourceKind})
+                    </div>
+                    <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 2 }}>
+                      Destination: {copyPreview.destinationRoomName}
+                    </div>
+                    {copyPreview.blocked ? (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: palette.status.danger,
+                          marginTop: 4,
+                          fontWeight: 500,
+                        }}
+                      >
+                        Cannot copy: {copyPreview.blockReason}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: spacing.sm }}>
+                        <p
+                          style={{
+                            fontSize: 12,
+                            color: palette.text.secondary,
+                            margin: '0 0 8px 0',
+                          }}
+                        >
+                          {copyPreview.ownershipExplanation}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="compact"
+                          themeMode={themeMode}
+                          disabled={busy}
+                          onClick={() => void onExecuteCopy()}
+                        >
+                          Confirm copy to room
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}

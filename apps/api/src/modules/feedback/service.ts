@@ -2,14 +2,22 @@ import type { PoolClient } from 'pg';
 import {
   CONFIGURED_DELIVERY_QUEUED_NOTICE,
   isExternalDeliveryConfigured,
+  isValidFeedbackStatusTransition,
   sanitizeDiagnostics,
+  sanitizeTriageAuditDetails,
   UNCONFIGURED_DELIVERY_NOTICE,
   type FeedbackAttachmentRef,
   type FeedbackDiagnostics,
   type FeedbackFrequency,
+  type FeedbackInternalNote,
+  type FeedbackPriority,
   type FeedbackReportReceipt,
   type FeedbackReportType,
+  type FeedbackReportUpdate,
   type FeedbackSeverity,
+  type FeedbackTriageAuditRecord,
+  type FeedbackTriageItem,
+  type FeedbackTriageQuery,
 } from '@daynori/domain';
 import { NotFoundError } from '../../plugins/errorHandler.js';
 
@@ -101,6 +109,16 @@ function rowToReceipt(row: Record<string, unknown>, isReplay = false): FeedbackR
     diagnostics: diag,
     attachments: (row['attachments'] as FeedbackAttachmentRef[]) || [],
     status: String(row['status'] || 'received') as FeedbackReportReceipt['status'],
+    priority: (row['priority'] ? String(row['priority']) : 'medium') as FeedbackPriority,
+    duplicateOfId: row['duplicate_of_id'] ? String(row['duplicate_of_id']) : null,
+    acknowledgedAt: row['acknowledged_at']
+      ? new Date(String(row['acknowledged_at'])).toISOString()
+      : null,
+    resolvedAt: row['resolved_at'] ? new Date(String(row['resolved_at'])).toISOString() : null,
+    responseText: row['response_text'] ? String(row['response_text']) : null,
+    respondedAt: row['responded_at']
+      ? new Date(String(row['responded_at'])).toISOString()
+      : null,
     deliveryStatus,
     deliveryNotice,
     createdAt: new Date(String(row['created_at'])).toISOString(),
@@ -308,4 +326,434 @@ export async function getFeedbackReport(
     throw new NotFoundError('Report not found');
   }
   return rowToReceipt(res.rows[0]);
+}
+
+function rowToTriageItem(
+  row: Record<string, unknown>,
+  internalNotesCount = 0
+): FeedbackTriageItem {
+  const receipt = rowToReceipt(row);
+  return {
+    ...receipt,
+    assignedTo: row['assigned_to'] ? String(row['assigned_to']) : null,
+    internalNotesCount,
+  };
+}
+
+export async function listTriageReports(
+  client: PoolClient,
+  query: FeedbackTriageQuery
+): Promise<{
+  data: FeedbackTriageItem[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}> {
+  const page = Math.max(1, query.page || 1);
+  const pageSize = Math.min(50, Math.max(1, query.pageSize || 20));
+  const offset = (page - 1) * pageSize;
+
+  const conditions: string[] = ['1=1'];
+  const values: unknown[] = [];
+  let paramIdx = 1;
+
+  if (query.status) {
+    conditions.push(`status = $${paramIdx++}`);
+    values.push(query.status);
+  }
+  if (query.category) {
+    conditions.push(`category = $${paramIdx++}`);
+    values.push(query.category);
+  }
+  if (query.reportType) {
+    conditions.push(`report_type = $${paramIdx++}`);
+    values.push(query.reportType);
+  }
+  if (query.priority) {
+    conditions.push(`priority = $${paramIdx++}`);
+    values.push(query.priority);
+  }
+  if (query.search && query.search.trim()) {
+    conditions.push(`(summary ILIKE $${paramIdx} OR description ILIKE $${paramIdx})`);
+    values.push(`%${query.search.trim()}%`);
+    paramIdx++;
+  }
+  if (query.createdAfter) {
+    conditions.push(`created_at >= $${paramIdx++}`);
+    values.push(query.createdAfter);
+  }
+  if (query.createdBefore) {
+    conditions.push(`created_at <= $${paramIdx++}`);
+    values.push(query.createdBefore);
+  }
+
+  const whereClause = conditions.join(' AND ');
+
+  const countRes = await client.query<{ total: string }>(
+    `SELECT count(*) AS total FROM app.feedback_reports WHERE ${whereClause}`,
+    values
+  );
+  const total = parseInt(countRes.rows[0]?.total || '0', 10);
+  const totalPages = Math.ceil(total / pageSize) || 1;
+
+  const dataValues = [...values, pageSize, offset];
+  const dataRes = await client.query<Record<string, unknown>>(
+    `
+    SELECT * FROM app.feedback_reports
+    WHERE ${whereClause}
+    ORDER BY created_at DESC
+    LIMIT $${paramIdx++} OFFSET $${paramIdx++}
+    `,
+    dataValues
+  );
+
+  const reportIds = dataRes.rows.map((r) => String(r['id']));
+  const notesCountMap = new Map<string, number>();
+
+  if (reportIds.length > 0) {
+    const notesRes = await client.query<{ report_id: string; count: string }>(
+      `
+      SELECT report_id, count(*) AS count
+      FROM app.feedback_internal_notes
+      WHERE report_id = ANY($1)
+      GROUP BY report_id
+      `,
+      [reportIds]
+    );
+    for (const n of notesRes.rows) {
+      notesCountMap.set(n.report_id, parseInt(n.count, 10));
+    }
+  }
+
+  const data = dataRes.rows.map((row) => {
+    const id = String(row['id']);
+    return rowToTriageItem(row, notesCountMap.get(id) || 0);
+  });
+
+  return {
+    data,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages,
+    },
+  };
+}
+
+export async function getTriageReport(
+  client: PoolClient,
+  reportId: string
+): Promise<FeedbackTriageItem> {
+  const res = await client.query<Record<string, unknown>>(
+    `SELECT * FROM app.feedback_reports WHERE id = $1`,
+    [reportId]
+  );
+  if (res.rowCount === 0 || !res.rows[0]) {
+    throw new NotFoundError('Report not found');
+  }
+
+  const notesRes = await client.query<{ count: string }>(
+    `SELECT count(*) AS count FROM app.feedback_internal_notes WHERE report_id = $1`,
+    [reportId]
+  );
+  const internalNotesCount = parseInt(notesRes.rows[0]?.count || '0', 10);
+
+  return rowToTriageItem(res.rows[0], internalNotesCount);
+}
+
+export async function updateTriageReport(
+  client: PoolClient,
+  reportId: string,
+  actorId: string,
+  update: FeedbackReportUpdate
+): Promise<FeedbackTriageItem> {
+  const existingRes = await client.query<Record<string, unknown>>(
+    `SELECT * FROM app.feedback_reports WHERE id = $1 FOR UPDATE`,
+    [reportId]
+  );
+  if (existingRes.rowCount === 0 || !existingRes.rows[0]) {
+    throw new NotFoundError('Report not found');
+  }
+  const current = existingRes.rows[0];
+  const currentStatus = String(current['status']) as FeedbackReportReceipt['status'];
+  const currentPriority = String(current['priority'] || 'medium') as FeedbackPriority;
+
+  const auditEvents: Array<{ action: string; details: Record<string, unknown> }> = [];
+
+  // 1. Status transition check
+  let nextStatus = currentStatus;
+  let acknowledgedAt = current['acknowledged_at']
+    ? new Date(String(current['acknowledged_at'])).toISOString()
+    : null;
+  let resolvedAt = current['resolved_at']
+    ? new Date(String(current['resolved_at'])).toISOString()
+    : null;
+
+  if (update.status && update.status !== currentStatus) {
+    if (!isValidFeedbackStatusTransition(currentStatus, update.status)) {
+      throw new FeedbackServiceError(
+        `Invalid status transition from "${currentStatus}" to "${update.status}"`,
+        400,
+        'INVALID_STATUS_TRANSITION'
+      );
+    }
+    nextStatus = update.status;
+    auditEvents.push({
+      action: 'status_change',
+      details: { oldStatus: currentStatus, newStatus: nextStatus },
+    });
+
+    if (
+      (nextStatus === 'acknowledged' ||
+        nextStatus === 'investigating' ||
+        nextStatus === 'resolved') &&
+      !acknowledgedAt
+    ) {
+      acknowledgedAt = new Date().toISOString();
+    }
+    if (nextStatus === 'resolved' || nextStatus === 'closed') {
+      resolvedAt = resolvedAt || new Date().toISOString();
+    } else if (nextStatus === 'investigating') {
+      resolvedAt = null; // Reopened
+    }
+  }
+
+  // 2. Priority check
+  let nextPriority = currentPriority;
+  if (update.priority && update.priority !== currentPriority) {
+    nextPriority = update.priority;
+    auditEvents.push({
+      action: 'priority_change',
+      details: { oldPriority: currentPriority, newPriority: nextPriority },
+    });
+  }
+
+  // 3. Duplicate check
+  let nextDuplicateOfId = (current['duplicate_of_id'] as string | null) || null;
+  if (update.duplicateOfId !== undefined) {
+    if (update.duplicateOfId) {
+      if (update.duplicateOfId === reportId) {
+        throw new FeedbackServiceError(
+          'A report cannot be marked as a duplicate of itself',
+          400,
+          'INVALID_DUPLICATE_ID'
+        );
+      }
+      const dupCheck = await client.query(
+        `SELECT 1 FROM app.feedback_reports WHERE id = $1`,
+        [update.duplicateOfId]
+      );
+      if (dupCheck.rowCount === 0) {
+        throw new FeedbackServiceError(
+          'Target duplicate report does not exist',
+          400,
+          'DUPLICATE_NOT_FOUND'
+        );
+      }
+    }
+    nextDuplicateOfId = update.duplicateOfId;
+    auditEvents.push({
+      action: 'duplicate_linked',
+      details: { duplicateOfId: nextDuplicateOfId },
+    });
+  }
+
+  // 4. Assignment
+  let nextAssignedTo = (current['assigned_to'] as string | null) || null;
+  if (update.assignedTo !== undefined) {
+    nextAssignedTo = update.assignedTo;
+    auditEvents.push({
+      action: 'assigned',
+      details: { assignedTo: nextAssignedTo },
+    });
+  }
+
+  // 5. Response text
+  let responseText = (current['response_text'] as string | null) || null;
+  let respondedAt = current['responded_at']
+    ? new Date(String(current['responded_at'])).toISOString()
+    : null;
+  let respondedBy = (current['responded_by'] as string | null) || null;
+
+  if (update.responseText !== undefined && update.responseText.trim()) {
+    responseText = update.responseText.trim();
+    respondedAt = new Date().toISOString();
+    respondedBy = actorId;
+    auditEvents.push({
+      action: 'response_sent',
+      details: { responseTextLength: responseText.length },
+    });
+  }
+
+  // Update report
+  const updateRes = await client.query<Record<string, unknown>>(
+    `
+    UPDATE app.feedback_reports
+    SET status = $1,
+        priority = $2,
+        duplicate_of_id = $3,
+        assigned_to = $4,
+        acknowledged_at = $5,
+        resolved_at = $6,
+        response_text = $7,
+        responded_at = $8,
+        responded_by = $9,
+        updated_at = now()
+    WHERE id = $10
+    RETURNING *
+    `,
+    [
+      nextStatus,
+      nextPriority,
+      nextDuplicateOfId,
+      nextAssignedTo,
+      acknowledgedAt,
+      resolvedAt,
+      responseText,
+      respondedAt,
+      respondedBy,
+      reportId,
+    ]
+  );
+
+  // Insert audit trail
+  for (const event of auditEvents) {
+    const sanitized = sanitizeTriageAuditDetails(event.details);
+    await client.query(
+      `
+      INSERT INTO app.feedback_triage_audit (report_id, actor_id, action, details)
+      VALUES ($1, $2, $3, $4::jsonb)
+      `,
+      [reportId, actorId, event.action, JSON.stringify(sanitized)]
+    );
+  }
+
+  const updatedRow = updateRes.rows[0]!;
+  const notesRes = await client.query<{ count: string }>(
+    `SELECT count(*) AS count FROM app.feedback_internal_notes WHERE report_id = $1`,
+    [reportId]
+  );
+  const internalNotesCount = parseInt(notesRes.rows[0]?.count || '0', 10);
+
+  return rowToTriageItem(updatedRow, internalNotesCount);
+}
+
+export async function addInternalNote(
+  client: PoolClient,
+  reportId: string,
+  authorId: string,
+  noteText: string
+): Promise<FeedbackInternalNote> {
+  const trimmed = noteText.trim();
+  if (!trimmed) {
+    throw new FeedbackServiceError('Note cannot be empty', 400, 'EMPTY_NOTE');
+  }
+
+  // Verify report exists
+  const reportRes = await client.query<{ id: string }>(
+    `SELECT id FROM app.feedback_reports WHERE id = $1`,
+    [reportId]
+  );
+  if (reportRes.rowCount === 0) {
+    throw new NotFoundError('Report not found');
+  }
+
+  const insertRes = await client.query<Record<string, unknown>>(
+    `
+    INSERT INTO app.feedback_internal_notes (report_id, author_id, note)
+    VALUES ($1, $2, $3)
+    RETURNING *
+    `,
+    [reportId, authorId, trimmed]
+  );
+
+  const row = insertRes.rows[0]!;
+
+  // Audit note creation
+  const auditDetails = sanitizeTriageAuditDetails({ noteLength: trimmed.length });
+  await client.query(
+    `
+    INSERT INTO app.feedback_triage_audit (report_id, actor_id, action, details)
+    VALUES ($1, $2, 'note_added', $3::jsonb)
+    `,
+    [reportId, authorId, JSON.stringify(auditDetails)]
+  );
+
+  return {
+    id: String(row['id']),
+    reportId: String(row['report_id']),
+    authorId: String(row['author_id']),
+    note: String(row['note']),
+    createdAt: new Date(String(row['created_at'])).toISOString(),
+  };
+}
+
+export async function listInternalNotes(
+  client: PoolClient,
+  reportId: string
+): Promise<FeedbackInternalNote[]> {
+  const res = await client.query<Record<string, unknown>>(
+    `
+    SELECT * FROM app.feedback_internal_notes
+    WHERE report_id = $1
+    ORDER BY created_at ASC
+    `,
+    [reportId]
+  );
+
+  return res.rows.map((row) => ({
+    id: String(row['id']),
+    reportId: String(row['report_id']),
+    authorId: String(row['author_id']),
+    note: String(row['note']),
+    createdAt: new Date(String(row['created_at'])).toISOString(),
+  }));
+}
+
+export async function listTriageAudit(
+  client: PoolClient,
+  reportId: string
+): Promise<FeedbackTriageAuditRecord[]> {
+  const res = await client.query<Record<string, unknown>>(
+    `
+    SELECT * FROM app.feedback_triage_audit
+    WHERE report_id = $1
+    ORDER BY created_at DESC
+    `,
+    [reportId]
+  );
+
+  return res.rows.map((row) => ({
+    id: String(row['id']),
+    reportId: String(row['report_id']),
+    actorId: String(row['actor_id']),
+    action: String(row['action']),
+    details: (row['details'] as Record<string, unknown>) || {},
+    createdAt: new Date(String(row['created_at'])).toISOString(),
+  }));
+}
+
+export async function purgeExpiredReports(
+  client: PoolClient,
+  retentionDays = 90
+): Promise<{ purgedCount: number; cutoffDate: string }> {
+  if (retentionDays < 1 || retentionDays > 365) {
+    throw new FeedbackServiceError(
+      'Retention days must be between 1 and 365',
+      400,
+      'INVALID_RETENTION_DAYS'
+    );
+  }
+
+  const res = await client.query<{ purge_expired_feedback_reports: number }>(
+    `SELECT app.purge_expired_feedback_reports($1) AS purge_expired_feedback_reports`,
+    [retentionDays]
+  );
+
+  const purgedCount = res.rows[0]?.purge_expired_feedback_reports ?? 0;
+  const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+
+  return {
+    purgedCount,
+    cutoffDate,
+  };
 }

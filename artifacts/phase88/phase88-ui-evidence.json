@@ -1,0 +1,171 @@
+{
+  "phase": 88,
+  "generatedAt": "2026-11-06T08:30:00.000Z",
+  "gitRev": "3ac8fc1dc1dfbbca005eb43f78b20b51f1673cd4",
+  "schedulingDecision": {
+    "authorization": "OWNER SCHEDULING AUTHORIZATION",
+    "rationale": "Authorized Phase 88 implementation and independent verification before final acceptance of Phases 75 and 81; Phase 88 status blocked under DEF-V2-006 pending contracted human 24/7 moderation staffing, legal counsel, and physical device accessibility evidence.",
+    "recordedInAdr": "docs/decisions/0088-rooms-chat-and-moderation-readiness.md"
+  },
+  "automatedSuites": [
+    {
+      "suite": "tests/integration/phase88-rooms-chat-moderation-readiness.test.ts",
+      "tests": 10,
+      "passed": 10,
+      "description": "Two-participant lifecycle, member role transitions, ownership transfer invariant, explicit personal item copy with vault/journal rejection, chat ordering & idempotent replay, attachments, mute vs block vs leave/remove, UGC reporting with frozen evidence, web operator moderation triage, and RM-001 content takedown enforcement"
+    },
+    {
+      "suite": "tests/integration/phase51-rooms-invitations.test.ts",
+      "tests": 5,
+      "passed": 5,
+      "description": "Room creation, single-use invitation tokens, actor role assignment, and leave semantics"
+    },
+    {
+      "suite": "tests/integration/phase51-rooms-repair.test.ts",
+      "tests": 14,
+      "passed": 14,
+      "description": "Cross-workspace isolation, member list paging, invitation expiration and revocation, and actor permissions"
+    },
+    {
+      "suite": "tests/integration/phase52-room-content-sync.test.ts",
+      "tests": 11,
+      "passed": 11,
+      "description": "Shared room notes and tasks sync, role-based mutation gates, and conflict resolution"
+    },
+    {
+      "suite": "tests/integration/phase53-room-chat.test.ts",
+      "tests": 10,
+      "passed": 10,
+      "description": "Chat persistence, monotonic server orders, clientMessageId deduplication, and read state tracking"
+    },
+    {
+      "suite": "tests/integration/phase53-room-chat-repair.test.ts",
+      "tests": 9,
+      "passed": 9,
+      "description": "Chat edit revisions, soft-deletion semantics, unread message count calculations, and mute state"
+    },
+    {
+      "suite": "tests/integration/phase54-collaboration-safety.test.ts",
+      "tests": 7,
+      "passed": 7,
+      "description": "Mandatory UGC terms acceptance, in-app report creation, block user semantics, and platform operator authorization"
+    },
+    {
+      "suite": "tests/security/phase51-rooms-domain.test.ts",
+      "tests": 3,
+      "passed": 3,
+      "description": "Cross-workspace security boundary validation and token entropy checks"
+    },
+    {
+      "suite": "tests/security/phase52-room-revocation-domain.test.ts",
+      "tests": 3,
+      "passed": 3,
+      "description": "Access epoch rotation on member removal, cached data invalidation, and queue rejection"
+    }
+  ],
+  "totalTests": 72,
+  "passedTests": 72,
+  "uiSurfaces": {
+    "web": {
+      "moderationDashboard": {
+        "component": "apps/web/src/app/developer/moderation/page.tsx",
+        "route": "/developer/moderation",
+        "gate": "OperatorGate (title: Moderation triage)",
+        "features": [
+          "Status filter (all, received, triaged, actioned, dismissed, duplicate)",
+          "Category filter (harassment, hate, sexual_content, spam, scam, violence, illegal, other)",
+          "Target type filter (all, message, user)",
+          "Free-text search by explanation, report ID, room ID, reporter ID",
+          "Reports list with color-coded severity badges and relative timestamps",
+          "Report detail drawer displaying report metadata, reporter ID, reported user ID, room/message IDs",
+          "Immutable frozen evidence snapshot viewer",
+          "Operator action form with mandatory reason text input (max 500 characters)",
+          "Disposition selector (content_removed, user_warned, user_restricted, no_violation, escalated, other)",
+          "One-click action buttons: Apply Action, Mark Triaged, Dismiss (No Violation), Mark Duplicate",
+          "Audit trail confirmation and inline feedback messages"
+        ]
+      },
+      "roomsPanel": {
+        "component": "apps/web/src/components/RoomsPanel.tsx",
+        "features": [
+          "Room creation and listing with active status and role indicators",
+          "Single-use invitation token generation and revocation",
+          "Invitation accept input for manual token exchange",
+          "Room member list with roles (owner, editor, viewer)",
+          "Owner controls: promote viewer to editor, demote editor to viewer",
+          "Owner controls: remove member with confirmation dialog",
+          "Owner controls: transfer room ownership with confirmation dialog",
+          "Share personal item to room with UUID input, preview, and confirmation",
+          "Explanatory notices: personal workspace isolation, vault/journal exclusion",
+          "Room content viewer and room chat launcher",
+          "Leave room and archive room buttons"
+        ]
+      }
+    },
+    "mobile": {
+      "roomsSheet": {
+        "component": "apps/mobile/src/views/RoomsSheet.tsx",
+        "features": [
+          "Room creation and list display with status and role badges",
+          "Single-use invitation token generation and copy alert",
+          "Invitation token acceptance text input",
+          "Room member list displaying truncated user IDs and roles",
+          "Owner controls: promote/demote member role toggle button",
+          "Owner controls: remove member with confirmation alert",
+          "Share personal item to room section with item UUID input, preview, and copy",
+          "Room content viewer with access revocation detection",
+          "Room chat stream with optimistic local drafts and server ordering",
+          "Chat mute toggle button",
+          "In-app message report and block user buttons"
+        ]
+      }
+    }
+  },
+  "scenariosVerified": [
+    {
+      "name": "Two-Participant Journey",
+      "actors": ["Alice (Owner)", "Bob (Member)"],
+      "flow": "Alice creates room 'Project Alpha', generates invite token. Bob accepts token and joins as 'editor'. Both verify personal workspaces remain completely isolated."
+    },
+    {
+      "name": "Member Lifecycle & Role Transitions",
+      "actors": ["Alice (Owner)", "Bob (Member)"],
+      "flow": "Alice demotes Bob to 'viewer'. Bob attempts to send chat message or create room note; server returns 403 FORBIDDEN. Alice promotes Bob back to 'editor'; Bob successfully creates room note."
+    },
+    {
+      "name": "Ownership Transfer Invariant",
+      "actors": ["Alice (Owner)", "Bob (Editor)"],
+      "flow": "Alice transfers ownership to Bob. Bob becomes room 'owner'; Alice becomes 'editor'. Exactly one owner invariant is maintained throughout."
+    },
+    {
+      "name": "Explicit Personal-to-Room Item Copy",
+      "actors": ["Alice"],
+      "flow": "Alice previews copy of personal note to room. System confirms source title, kind, and ownership transfer explanation. Alice confirms copy; destination note receives new UUID in room; personal original is untouched. Alice attempts to copy vault item or journal entry; system strictly blocks copy."
+    },
+    {
+      "name": "Chat Server Order & Idempotent Deduplication",
+      "actors": ["Alice", "Bob"],
+      "flow": "Alice and Bob exchange messages. Monotonic serverOrder sequences are assigned under state lock. Submitting duplicate clientMessageId returns original message idempotently without creating a second record."
+    },
+    {
+      "name": "Mute vs. Block vs. Leave/Remove",
+      "actors": ["Alice", "Bob"],
+      "flow": "Alice mutes room: notifications and unread badges suppressed, message history remains visible. Alice blocks Bob: Bob's messages are hidden for Alice only and future invitations between them are blocked, while Bob remains a member of the room. Alice removes Bob: access epoch rotates, Bob receives 403 MEMBERSHIP_REVOKED, Bob's client halts polling and purges local room cache."
+    },
+    {
+      "name": "UGC Report & Frozen Evidence",
+      "actors": ["Alice (Reporter)", "Bob (Reported)"],
+      "flow": "Alice reports abusive message from Bob with category 'harassment'. Server creates report receipt with immutable evidenceSnapshot containing pre-edit message body, sender ID, room ID, and timestamp. Reporter identity is kept strictly confidential."
+    },
+    {
+      "name": "Web Operator Moderation Triage & RM-001 Enforcement",
+      "actors": ["Operator"],
+      "flow": "Platform operator opens /developer/moderation. Filters for 'harassment' reports. Opens report detail drawer, reviews frozen evidence, inputs reason 'Violates acceptable use policy', selects disposition 'content_removed', and applies action. System soft-deletes message (deleted_at set, body cleared) and publishes 'room_message.deleted' event. Connected clients remove the message immediately."
+    },
+    {
+      "name": "Production Gate Fail-Closed",
+      "actors": ["System"],
+      "flow": "System verifies that in production runtime (NODE_ENV=production), isRoomsLocallyEnabled() returns false, blocking room endpoints and chat streams until human staffing is complete."
+    }
+  ]
+}

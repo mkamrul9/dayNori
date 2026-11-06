@@ -1,5 +1,6 @@
 import type { DaynoriApiClient } from '@daynori/api-client';
 import type { ReminderInstance } from '@daynori/contracts';
+import type { QuietHoursConfig, QuietHoursBehavior } from '@daynori/domain';
 import { defaultSecureStorage } from '../auth/secureStorage.js';
 import {
   scheduleLocalReminderAsync,
@@ -26,6 +27,11 @@ export class ReminderScheduleCoordinator {
   private workspaceId: string | null = null;
   private memorySchedules = new Map<string, LocalScheduledReminder>();
   private isInitialized = false;
+  private quietHoursConfig?: QuietHoursConfig;
+
+  setQuietHoursConfig(config?: QuietHoursConfig): void {
+    this.quietHoursConfig = config;
+  }
 
   private getStorageKey(): string {
     return `daynori_local_schedules_${this.userId || 'anon'}`;
@@ -125,7 +131,10 @@ export class ReminderScheduleCoordinator {
           itemId: inst.targetId,
           ruleRevision: inst.ruleRevision,
           deliveryGeneration: inst.deliveryGeneration,
-          privacyLevel: 'normal', // Default generic redaction applied by adapter
+          privacyLevel: (inst.targetType as string) === 'journal' ? 'confidential' : 'normal',
+          quietHoursConfig: this.quietHoursConfig,
+          quietHoursBehavior: (inst as unknown as { quietHoursBehavior?: QuietHoursBehavior })
+            .quietHoursBehavior ?? 'allow',
         });
 
         if (scheduleResult.scheduled && scheduleResult.nativeNotificationId) {

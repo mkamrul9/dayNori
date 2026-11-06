@@ -1,10 +1,10 @@
-# Vault security review packet (Phase 44)
+# Vault security review packet (Phase 86)
 
 **Purpose:** Materials for an independent qualified cryptography / application-security reviewer.  
 **Not a substitute for that review.** An AI agent review, Node simulation, successful build, or feature flag does **not** satisfy the vault release gate.
 
-**Prototype location:** `tests/security/vault/` (isolated; not wired into apps).  
-**Decision record:** [ADR 0043](../decisions/0043-vault-cryptography-and-recovery-proof.md).  
+**Prototype and Harness location:** `tests/security/vault/` (isolated; dev/operator harness only).
+**Decision records:** [ADR 0043](../decisions/0043-vault-cryptography-and-recovery-proof.md), [ADR 0044](../decisions/0044-android-vault-unlock-lifecycle-provisional.md), [ADR 0045](../decisions/0045-browser-vault-lifecycle-provisional.md), [ADR 0086](../decisions/0086-vault-review-recovery-and-release-gate-closure.md).
 **Architecture:** [security-and-vault.md](../architecture/security-and-vault.md), [vault-attachment-encryption-evaluation.md](../architecture/vault-attachment-encryption-evaluation.md).  
 **Release gates:** [release-gates.md](release-gates.md) — Vault section.
 
@@ -14,11 +14,12 @@
 
 | Item | Value |
 |---|---|
+| Phase 86 baseline HEAD | `3d365818c600bf9d490a603ea59811b189fe6366` |
 | Phase 44 repair base | `0bf8200` (`fix(vault): harden empty payloads, harnesses, and KDF scheduling`) |
 | Phase 45 prep base | `cfb7adf` (`docs(vault): strengthen encrypted records preparation models`) |
-| Working-tree repairs (this session) | Transfer-model safety invariants; JVM fixture parsing; Android `:android-app` target — commit IDs recorded at session end |
-| Node | Record from `node -v` in phase report (wanted `^24.21.0`) |
-| pnpm | Record from `pnpm -v` in phase report |
+| Phase 86 review and remediation | Findings register VR-001 through VR-008 in `artifacts/phase86/findings-register.json` |
+| Node | `v24.11.1` (engine target `^24.21.0`) |
+| pnpm | `9.15.5` |
 | JDK | Temurin 17.0.20.1 |
 | Gradle wrapper | 8.10.2 |
 | Kotlin | 1.9.25 |
@@ -75,7 +76,7 @@ Exclusions: rooted devices, cold-boot, actively compromised unlocked runtimes.
 2. **Passphrase KEK** — Argon2id(passphrase) wraps VRK (`wrap:vrk_under_passphrase`).
 3. **Recovery KEK** — Argon2id(recovery secret) wraps VRK (`wrap:vrk_under_recovery`).
 4. **DEK** — per-item 256-bit key wrapped under VRK (`wrap:dek_under_vrk`).
-5. **Device wraps (future)** — OS-bound keys; Phase 46. Revocation does **not** erase keys already obtained by an attacker.
+5. **Device wraps** — OS-bound keys (Android Keystore / Web session memory). Revocation does **not** erase keys already obtained by an attacker.
 
 Account password reset ≠ vault reset. Loss of passphrase **and** recovery secret ⇒ permanent content loss.
 
@@ -87,7 +88,7 @@ Account password reset ≠ vault reset. Loss of passphrase **and** recovery secr
 |---|---|---|
 | Publish new recovery envelope for **same** VRK | New secret unwraps new envelope | Invalidate attacker-held old envelope + old secret |
 | Rotate VRK + re-wrap/re-encrypt all DEKs/content | Changes root of trust | Instantly erase plaintext already exfiltrated |
-| Revoke device enrollment (future) | Stops new unwraps for that device wrap | Erase keys previously loaded in memory or backups |
+| Revoke device enrollment | Stops new unwraps for that device wrap | Erase keys previously loaded in memory or backups |
 | Checksum on recovery secret | Detects typos | Authenticate recovery packages |
 
 Regression test: `documents that rewrapping the same VRK does NOT invalidate a saved old recovery envelope`.
@@ -140,15 +141,18 @@ Web vault unlock holds keys in JS memory. Compromised origin script, malicious e
 
 | Evidence lane | Status | Record |
 |---|---|---|
-| Vitest prototype suite | Runnable | `pnpm vitest run tests/security/phase44-vault-crypto.test.ts` |
-| Node↔Node AEAD interop | Wire-format only | Phase 44 suite |
+| Vitest Phase 86 review suite | **PASS** (23 tests) | `tests/security/phase86-vault-review-recovery.test.ts` |
+| Vitest Phase 44 crypto suite | **PASS** (30 tests) | `tests/security/phase44-vault-crypto.test.ts` |
+| Vitest Phase 45 prep suite | **PASS** (22 tests) | `tests/security/phase45-vault-prep.test.ts` |
+| Vitest Phase 46 lifecycle suite | **PASS** (23 tests) | `tests/security/phase46-vault-lifecycle.test.ts` |
+| Vitest Phase 47 web vault suite | **PASS** (13 tests) | `tests/security/phase47-web-vault.test.ts` |
+| Total automated vault security tests | **PASS (111/111 tests)** | Verified across all 5 test files in Node v24 |
 | **Browser** (Edge/Chromium headless) | **PASS** 2026-10-19 | `harnesses/evidence/browser-harness-2026-10-19.md` — McGrew Case 13, Unicode/binary/empty + tamper, 32-byte key policy |
 | **Desktop JVM** candidate | **PASS** 2026-10-19 (post-repair) | `harnesses/evidence/android-jvm-harness-2026-10-19.md` — fixture parse, Node↔JVM envelope exchange both directions, Argon2id expected bytes |
 | **Android emulator instrumentation** | Record actual result in evidence file; **APKs buildable** via `:android-app` | Must not be counted as physical-device clearance |
-| **Physical Android device** | **Missing — still required for Phase 44 gate** | Procedure in `android-candidate/README.md` |
-| KDF latency Node/JVM | Distributions with explicit non-claims | Not GPU/ASIC proof |
-| Independent qualified review | **Missing — blocks gate** | This packet is the handoff, not the approval |
-| Hardware-backed / biometric Keystore unlock | **Missing** (Phase 46 application unlock screens out of scope here; isolated Keystore AES smoke only) | Instrumentation includes optional Keystore smoke ≠ unlock UX |
+| **Physical Android device** | **Missing — still required for vault release gate** | Procedure in `android-candidate/README.md` |
+| Independent qualified review | **Missing — blocks release gate** | This packet is the handoff, not the approval |
+| Hardware-backed / biometric Keystore unlock | **Missing physical device evidence** (isolated Keystore AES smoke in test harness ≠ production UX) | Requires physical Android 14+ hardware evaluation |
 | Attachment streaming format decision | Proposed; **pending review** | Evaluation doc |
 
 **Gate wording (reconciled):** An emulator PASS does **not** satisfy the physical Android device gate. Physical-device installation, API/ABI/library recording, and harness PASS on hardware remain required unless the owner and an appropriate qualified reviewer explicitly change the gate.
@@ -164,8 +168,7 @@ Web vault unlock holds keys in JS memory. Compromised origin script, malicious e
 | Emulator may be unavailable/incomplete in a given environment | Separate emulator evidence file if run; never substitutes for physical-device row |
 | Attachment format only proposed | Reviewer accept/reject of secretstream proposal (or alternate) with pinned versions |
 | Fresh-device reduced assurance | Reviewer acceptance of checkpoint design + residual risk statement |
-| Phase 37–38 still blocked | External release/beta prerequisites (orthogonal but blocks marketing/production enablement) |
-| Phase 45 production implementation | Requires Phase 44 gate clearance + Phase 24/34 provisional scope verification |
+| Production vault enablement | Requires external qualified review and physical Android hardware evidence (retains DEF-V2-004) |
 
 ---
 
@@ -179,6 +182,7 @@ Web vault unlock holds keys in JS memory. Compromised origin script, malicious e
 4. Attachment streaming proposal (proposed secretstream; not adopted).
 5. Freshness/checkpoint design and fresh-device reduced assurance.
 6. Phase 45 transfer-model safety invariants (test-only) for ordinary→vault cleanup gates — preparation only.
+7. Findings register VR-001 through VR-008 remediations in `artifacts/phase86/findings-register.json`.
 
 **Device procedure (owner/operator):** follow `tests/security/vault/harnesses/android-candidate/README.md` physical-device section; deposit evidence under `harnesses/evidence/`.
 
@@ -189,11 +193,11 @@ Web vault unlock holds keys in JS memory. Compromised origin script, malicious e
 3. Attachment format accept/reject decision.
 4. Explicit acceptance of fresh-device residual risk / checkpoint design.
 
-Until then: Phase 44 remains **blocked**; Phase 45 remains **blocked/prepared**; vault stays disabled; no production vault migrations/routes/unlock UI.
+Until then: Production vault remains **disabled fail-closed**; release gate remains **blocked** under DEF-V2-004.
 
 ---
 
-## 12. What would unblock Phase 44 for production implementation authorization
+## 12. What would unblock the vault release gate for production enablement
 
 1. Written report from an independent qualified reviewer covering this packet, with findings disposition.
 2. Recorded browser harness results (engine + versions) — currently present for Edge headless 2026-10-19.
@@ -201,4 +205,21 @@ Until then: Phase 44 remains **blocked**; Phase 45 remains **blocked/prepared**;
 4. Explicit decision on attachment streaming format.
 5. Accepted freshness/checkpoint design for rollback resistance (including fresh-device limits).
 
-Until then: Phase 44 remains **blocked**; Phase 45 may only prepare documentation and disconnected synthetic fixtures.
+Until then: Vault release gate remains **blocked**; vault stays disabled; no production vault migrations/routes/unlock UI.
+
+---
+
+## 13. Phase 86 Audit Findings and Remediations Register
+
+The bounded findings register established in Phase 86 is tracked in `artifacts/phase86/findings-register.json`:
+
+| ID | Severity | Title | Affected Contract | Status & Remediation |
+|---|---|---|---|---|
+| **VR-001** | High | Stale/interrupted unlock operation recovery | `packages/domain/src/vaultLifecycle.ts` | **Remediated**: Tracked `unlockStartedAt` on session snapshot. In `admitUnlockAttempt`, if `session.state === 'unlock_pending'` and elapsed time exceeds `UNLOCK_OPERATION_TIMEOUT_MS` (30s), a new attempt supersedes the hung operation. |
+| **VR-002** | Medium | Cooldown counter reset on elapsed cooldown window | `packages/domain/src/vaultLifecycle.ts` | **Remediated**: In `reduceVaultSession` for `case 'unlock_started'`, when `cooldownUntil` is in the past, `failedAttempts` is reset to 0 and `cooldownUntil` is cleared to null. |
+| **VR-003** | High | Mobile push notification privacy exclusion for vault destinations | `apps/mobile/src/notifications/adapter.ts` | **Remediated**: Added explicit `options.destination === 'vault'` and `options.targetType === 'vault'` checks alongside journal to unconditionally force generic title and body regardless of user preference. |
+| **VR-004** | Medium | Biometric invalidation fallback guidance message | `packages/domain/src/vaultSessionController.ts` | **Remediated**: Biometric failure response returns explicit user-facing copy: `"Biometric enrollment changed; device key invalidated. Use passphrase."` |
+| **VR-005** | Medium | Cross-tab lock synchronization on backgrounding | `apps/web/src/vault/crossTabLock.ts` | **Remediated**: When visibility transitions to hidden, `lock_signal` with reason `'background'` is broadcast across `BroadcastChannel`, synchronizing immediate lock without transmitting keys. |
+| **VR-006** | Low | Strict recovery secret canonicalization & error differentiation | `tests/security/vault/vault-crypto.ts` | **Remediated**: Differentiated typo/checksum validation failures from formatting, odd-length, and non-hex encoding errors. |
+| **VR-007** | High | Large attachment streaming format unfinalized | `docs/architecture/vault-attachment-encryption-evaluation.md` | **Gated**: Single-envelope AES-256-GCM retained for objects ≤ 16 MiB; libsodium secretstream chunking remains proposed-only pending independent review. Production encrypted attachments remain gated. |
+| **VR-008** | High | Independent qualified external audit and physical Android device evidence unmet | `docs/engineering/release-gates.md` | **Gated**: Production vault unlock remains disabled fail-closed. Phase 86 recorded as blocked; DEF-V2-004 retained. |

@@ -548,6 +548,21 @@ export async function updateReportStatus(
     );
     const row = res.rows[0];
     if (!row) throw new NotFoundError('Report not found');
+
+    // RM-001: When a message report is actioned with content_removed, soft-delete the message and emit deleted event.
+    if (
+      input.status === 'actioned' &&
+      input.disposition === 'content_removed' &&
+      row.target_type === 'message' &&
+      row.message_id &&
+      row.room_id
+    ) {
+      await client.query(
+        `SELECT app.moderation_takedown_room_message($1, $2)`,
+        [row.room_id, row.message_id]
+      );
+    }
+
     return mapModerationReport(row);
   } catch (err) {
     if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof SafetyServiceError) {

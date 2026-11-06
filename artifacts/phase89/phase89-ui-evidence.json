@@ -1,0 +1,64 @@
+{
+  "phase": "89",
+  "generatedAt": "2026-11-06T19:10:00Z",
+  "journeys": [
+    {
+      "journeyId": "journey-billing-01",
+      "platform": "web-desktop",
+      "viewport": "1440x900",
+      "description": "Desktop web user views billing panel, verifies free tier defaults, executes synthetic purchase, observes quota increase, and tests restore.",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Load billing panel at /developer",
+          "observed": "Free tier default active (100 MB max, 50k AI tokens). Synthetic catalog banner visible."
+        },
+        {
+          "step": 2,
+          "action": "Click 'Verify synthetic purchase'",
+          "observed": "Instant success feedback: 'Verified (fake). Plan plus_synthetic.' Storage meter updates to 5 GB."
+        },
+        {
+          "step": 3,
+          "action": "Click 'Restore purchases'",
+          "observed": "Info feedback: 'Restore completed: 0 restored, 0 skipped cross-account. Current plan: plus_synthetic (active).'"
+        },
+        {
+          "step": 4,
+          "action": "Inspect Google Play management section",
+          "observed": "Link to play.google.com/store/account/subscriptions clearly displayed with cancellation instructions."
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "journeyId": "journey-billing-02",
+      "platform": "mobile-android",
+      "viewport": "390x844 (dp)",
+      "description": "Android mobile user opens BillingSheet from Settings, inspects storage breakdown, verifies downgrade guarantees, and triggers restore.",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Open Settings -> Plan & billing",
+          "observed": "BillingSheet bottom sheet renders with plan title, status chip, storage breakdown, and downgrade guarantee."
+        },
+        {
+          "step": 2,
+          "action": "Tap 'Verify synthetic purchase'",
+          "observed": "Status message updates: 'Verified (fake). Plan plus_synthetic. Synthetic test fixture — no real charge.'"
+        },
+        {
+          "step": 3,
+          "action": "Tap 'Restore purchases'",
+          "observed": "Status message updates: 'Restore completed: 0 restored, 0 skipped cross-account. Current plan: plus_synthetic (active).'"
+        },
+        {
+          "step": 4,
+          "action": "Tap 'Manage in Google Play'",
+          "observed": "Invokes Linking.openURL with https://play.google.com/store/account/subscriptions."
+        }
+      ],
+      "status": "passed"
+    }
+  ]
+}

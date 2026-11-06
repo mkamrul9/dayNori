@@ -1,0 +1,43 @@
+{
+  "phase": "89",
+  "verifiedAt": "2026-11-06T19:10:00Z",
+  "inspector": "Antigravity Agent",
+  "surfaces": [
+    {
+      "platform": "web",
+      "component": "apps/web/src/components/BillingPanel.tsx",
+      "route": "/developer (Billing Panel)",
+      "elementsVerified": [
+        "Plan header and synthetic fixture disclaimer banner",
+        "Current plan badge (Free vs Plus) and status chip (active/canceled)",
+        "Storage usage progress meter with percentage bar and available MB",
+        "AI monthly ceiling readout",
+        "Downgrade data guarantee notice (existing content preserved on expiry)",
+        "Gated modules invariant notice (subscribing never unlocks Vault, Rooms, Drive, AI)",
+        "Verify synthetic purchase button with immediate success feedback",
+        "Restore purchases button calling apiClient.restoreBillingPurchases",
+        "Refresh status button",
+        "Google Play subscription management and cancellation link (play.google.com/store/account/subscriptions)"
+      ],
+      "status": "verified"
+    },
+    {
+      "platform": "mobile",
+      "component": "apps/mobile/src/views/BillingSheet.tsx",
+      "route": "Settings -> Plan & billing",
+      "elementsVerified": [
+        "Title and provisional disclaimer text",
+        "Plan card with status chip and catalog pricing label",
+        "Storage breakdown formatted in MB",
+        "AI monthly token budget label",
+        "Data guarantee banner (no files deleted on downgrade)",
+        "Verify synthetic purchase MobileButton",
+        "Restore purchases MobileButton",
+        "Refresh status MobileButton",
+        "Manage in Google Play MobileButton linking to play.google.com/store/account/subscriptions",
+        "Close button"
+      ],
+      "status": "verified"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "subscription": {
+    "id": "5f44e917-91fb-4915-ab5f-8b7d218f4e35",
+    "userId": "37283de4-1530-4e2c-843f-22c620386d78",
+    "endpoint": "https://fcm.googleapis.com/fcm/send/phase84-test-device-token",
+    "p256dh": "BM3v0SampleKeyForWebPushVerification1234567890",
+    "auth": "SampleAuthSecret123",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+    "isActive": true,
+    "lastSeenAt": "2026-11-05T15:36:07.590Z",
+    "createdAt": "2026-11-05T15:36:07.590Z",
+    "updatedAt": "2026-11-05T15:36:07.590Z"
+  },
+  "activeCount": 1,
+  "status": "passed"
+}

@@ -1,5 +1,146 @@
 # Changelog
 
+## Phase 89 — Billing entitlements and sustainable plan readiness — 2026-11-06
+
+- ADR 0089: billing entitlements, sustainable plan limits, and purchase lifecycle readiness establishing server verification authority, database role isolation (`daynori_billing`), token hash privacy, downgrade data preservation guarantees, anti-steering Google Play policy compliance, and fail-closed commercial billing release gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 89 implementation and independent verification before final acceptance of Phases 75 and 81 recorded in ADR 0089 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, and 99 remain preserved; DEF-V2-007 retained.
+- Findings register & triage (`artifacts/phase89/findings-register.json`): cataloged BL-001 through BL-008 across token privacy and DB role isolation, web/mobile UI transparency, cross-account multi-device restore deduplication, downgrade data preservation, account mismatch protection, webhook leasing, anti-steering compliance, and independent security module boundaries.
+- Sandbox test matrix (`artifacts/phase89/sandbox-test-matrix.json`): cataloged and verified all 10 sandbox purchase lifecycle scenarios (SB-01 to SB-10) covering first-time subscription, cross-account restore, downgrade quota clamp, active renewal precedence, token expiration, webhook duplicate idempotency, unresolvable dead-lettering, role permission denial, anti-steering restriction, and module boundary independence.
+- Web & mobile UI transparency upgrades:
+  - Web (`apps/web/src/components/BillingPanel.tsx`): upgraded with formatted storage quota meters showing exact bytes breakdown and progress bar, AI monthly compute ceiling readout, downgrade data safety guarantee, independent security gates notice, restore purchases button, and direct deep link to Google Play Subscription management (`https://play.google.com/store/account/subscriptions`) with cancellation guidance.
+  - Mobile (`apps/mobile/src/views/BillingSheet.tsx`): upgraded with formatted storage meter, transparent plan feature lists, downgrade zero-data-loss guarantee, restore purchases affordance, and "Manage in Google Play" subscription link.
+- Sustainable cost and pricing model (`docs/engineering/sustainable-cost-and-pricing-model.md`):
+  - Unit economics model for Free (100 MB), proposed Plus ($3.99/mo, 10 GB storage, $2.00/mo AI compute ceiling, ~77% gross margin), and proposed Pro ($9.99/mo, 50 GB storage, $6.00/mo AI compute ceiling, ~66% gross margin) plans factoring in Google Play 15% developer tier service fees, egress, database compute, and platform overhead.
+  - Outlined required commercial decisions and merchant account prerequisites for repository owner.
+- Billing operations and reconciliation runbook (`docs/engineering/billing-operations-and-reconciliation-guide.md`):
+  - Entitlement state machine transitions, background webhook leasing and retry policies, dead-letter queue resolution, out-of-order event reconciliation, and customer support workflows for payment issues and disputes.
+- Google Play Payments Policy review (`docs/policy/google-play-billing-policy-review-2026-11-06.md`):
+  - Dated review assessing compliance with Google Play digital goods requirements, in-app subscription cancellation rules, restore purchases mandates, grace periods, anti-steering restrictions (no mobile web checkouts), and service fee tiers.
+- Comprehensive test coverage: 3 billing test suites with 24 tests passing (`tests/integration/phase89-billing-sustainable-readiness.test.ts`, `tests/integration/phase57-billing-entitlements.test.ts`, `tests/integration/phase57-billing-repair.test.ts`).
+- Fail-closed release gates preserved: live production Google Play billing remains disabled (`isBillingProductionActivationEnabled()` returns `false`); commercial release requires owner Google Payments merchant setup, Play Console product SKU creation, Cloud Pub/Sub RTDN setup, and physical Android device test purchases; Phase 89 recorded as blocked; DEF-V2-007 retained in function register.
+- Commit: `fix(billing): verify purchase lifecycle and sustainable quotas`.
+
+## Phase 88 — Rooms, chat, and staffed moderation readiness — 2026-11-06
+
+- ADR 0088: rooms, chat, and staffed moderation readiness establishing Google Play UGC compliance architecture, bounded findings register RM-001 through RM-008, server-enforced content takedown, restricted operator moderation dashboard, member lifecycle controls, explicit personal-to-room copy boundaries, and fail-closed collaboration gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 88 implementation and independent verification before final acceptance of Phases 75 and 81 recorded in ADR 0088 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, and 99 remain preserved; DEF-V2-006 retained.
+- Findings register & triage (`artifacts/phase88/findings-register.json`): cataloged RM-001 through RM-008 across takedown enforcement, moderation triage surface, member management controls, personal-to-room copy boundaries, membership revocation lifecycle, mute/block/leave distinction, realtime multi-instance sync, and Google Play UGC policy compliance.
+- Database & server takedown enforcement:
+  - Database migration `00077_moderation_takedown_enforcement.sql` defining `SECURITY DEFINER` function `app.moderation_takedown_room_message(p_room_id, p_message_id)` to allow platform moderators to soft-delete reported messages and emit `message_deleted` events across room member RLS boundaries.
+  - API Safety Service (`apps/api/src/modules/safety/service.ts`) automatically invokes takedown when a report is actioned with `content_removed`, soft-deleting the message body and notifying connected clients.
+- Operator Moderation Triage Dashboard (`apps/web/src/app/developer/moderation/page.tsx`):
+  - Protected by `OperatorGate` and server-side operator allowlist.
+  - Filtering by status (`all`, `received`, `triaged`, `actioned`, `dismissed`) and reason category.
+  - Frozen evidence snapshot inspector displaying reported message body, sender ID, timestamp, and context without querying active room data.
+  - Operator disposition actions (`Dismiss`, `Content Removed`, `User Warned`, `User Suspended`) with mandatory operator reason notes and immutable audit trail.
+  - Navigation integrated into Developer Tools hub (`apps/web/src/app/developer/page.tsx`).
+- Member management & lifecycle controls:
+  - Web (`apps/web/src/components/RoomsPanel.tsx`) and Mobile (`apps/mobile/src/views/RoomsSheet.tsx`) provide owner and editor controls to promote/demote members (`editor` <-> `viewer`), remove members, and transfer room ownership.
+  - Single-owner invariant strictly maintained: ownership transfer relinquishes original owner's role to editor.
+  - Member removal immediately rotates room access epoch; removed client halts polling on 403 `MEMBERSHIP_REVOKED` or 404, purges room cache, and leaves personal workspace data intact.
+- Explicit personal-to-room copy controls:
+  - Web and Mobile affordances to copy personal items into a room with preview confirmation dialog.
+  - Creates a new decoupled entity UUID in the room while preserving the personal item untouched.
+  - Encrypted vault items and private journal entries are strictly blocked from being copied to rooms.
+- Policy and Operations deliverables:
+  - Google Play UGC Policy Review dated 2026-11-06 (`docs/policy/google-play-ugc-review-2026-11-06.md`) evaluating Google Play UGC policy requirements, in-app report mechanisms, user blocking, robust and timely moderation, terms of service, and physical test account requirements.
+  - Concrete Moderation Operations Package (`docs/engineering/moderation-operations-package.md`) establishing 24-hour SLA triage workflow, disposition escalation matrix, staffing rota, reporter notification protocols, legal appeals process, and law enforcement escalation.
+- Comprehensive test coverage: 9 test suites with 72 tests passing (`tests/integration/phase88-rooms-chat-moderation-readiness.test.ts`, `tests/integration/phase51-rooms-invitations.test.ts`, `tests/integration/phase51-rooms-repair.test.ts`, `tests/integration/phase52-room-content-sync.test.ts`, `tests/integration/phase53-room-chat.test.ts`, `tests/integration/phase53-room-chat-repair.test.ts`, `tests/integration/phase54-collaboration-safety.test.ts`, `tests/security/phase51-rooms-domain.test.ts`, `tests/security/phase52-room-revocation-domain.test.ts`).
+- Fail-closed release gates preserved: rooms and collaboration remain disabled in production (`isRoomsLocallyEnabled()` returns `false`); Google Play UGC compliance requires staffed 24/7 human moderation operations, legal counsel, and physical device accessibility verification; Phase 88 marked as blocked; DEF-V2-006 retained in function register.
+- Commit: `fix(rooms): close sharing chat and moderation release gates`.
+
+## Phase 87 — Google Drive connection and scope readiness — 2026-11-06
+
+- ADR 0087: Google Drive narrow scope enforcement, selected-file boundary, copy vs. reference storage models, AES-256-GCM token encryption at rest with AAD binding, short-lived Picker tokens, disconnect guarantees with generation fencing, byte transfer with SHA-256 integrity and malware quarantine, and fail-closed production provider gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 87 implementation and supported-scope verification before final acceptance of Phases 75 and 81 recorded in ADR 0087 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, and 99 remain preserved; DEF-V2-005 retained.
+- Narrow scope enforcement: approved scope strictly restricted to `https://www.googleapis.com/auth/drive.file` with standard `openid email` extras; broad scopes (`drive`, `drive.readonly`, `drive.metadata`, `drive.appdata`, `drive.photos.readonly`) and lookalike URIs strictly rejected at request and grant assertion.
+- Selected-file boundary: folder selection explicitly does not authorize unpicked pre-existing or external descendants; full folder mirroring remains deferred per Phase 50; encrypted vault items and keys are strictly excluded (`isVaultDriveTarget`).
+- Storage and transfer models solidified:
+  - `import_copy`: downloads file bytes directly into Daynori storage, verifies SHA-256 checksum, scans for malware (`PolicyMalwareScanner`, quarantining malicious payloads such as EICAR), and caches offline upon client acknowledgment. Retained in Daynori on remote file deletion or disconnect.
+  - `link_reference`: stores provider file metadata only; zero Daynori storage quota; requires active internet connection; reflects `source_unavailable` or `permission_lost` if remote file is deleted or unshared.
+  - `upload_to_drive`: app file upload tracking idempotency keys to prevent duplicate remote files on network retry.
+  - Remote file protection: disconnect and unlink actions remove Daynori references and wipe tokens without trashing or deleting remote Google Drive originals.
+- Cryptographic token storage & generation fencing:
+  - AES-256-GCM authenticated encryption for refresh tokens at rest with AAD bound to `workspaceId`, `connectionId`, `accountId`, and key version (`DAYNORI_DRIVE_TOKEN_ENCRYPTION_KEY`). Fails closed on missing keys or tampered ciphertext.
+  - Ephemeral Google Picker access tokens issued with `cacheControl: 'no-store'`; refresh tokens and ciphertexts are never leaked to client runtimes.
+  - Disconnect atomically wipes stored tokens, increments generation, and cancels pending jobs. Late jobs operating under stale generations are strictly fenced (`status = 'fenced'`).
+- UI enhancements:
+  - Web (`apps/web/src/components/DriveConnectionsPanel.tsx`): added copy vs. reference explanatory card, vault exclusion disclaimer, status badges, reconnect button for revoked state, and unlinking controls.
+  - Mobile (`apps/mobile/src/views/DriveConnectionsSheet.tsx`): added supported modes guidance box, vault exclusion notice, Custom Tabs browser guidance, file inventory, and unlinking controls.
+- Google Cloud configuration guide (`docs/engineering/google-drive-oauth-configuration-guide.md`): step-by-step documentation for Google Cloud project setup, narrow `drive.file` OAuth consent screen, Web and Android OAuth client credentials, environment variable configuration, and error troubleshooting.
+- Comprehensive test coverage: 4 test suites with 46 tests passing (`tests/integration/phase87-drive-connection-readiness.test.ts`, `tests/integration/phase49-drive-connector.test.ts`, `tests/security/phase49-drive-connector.test.ts`, `tests/spikes/drive/drive-scope.synthetic.test.ts`).
+- Fail-closed release gates preserved: production Google Drive provider fails closed when unconfigured; `FakeGoogleDriveProvider` strictly forbidden in production runtimes (`NODE_ENV === 'production'`); owner Google Cloud project credentials and live interactive consent recorded honestly as unmet under DEF-V2-005.
+- Commit: `fix(drive): verify supported live connection and revocation`.
+
+## Phase 86 — Vault review, recovery, and release gate closure — 2026-11-06
+
+- ADR 0086: vault baseline audit against ADR 0043 threat model, findings register VR-001 through VR-008, bounded remediations, privacy and leakage boundary verification, review packet delivery, and fail-closed release gate closure.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 86 review, independent implementation work, and bounded remediation before final acceptance of Phases 75 and 81 recorded in ADR 0086 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, and 99 remain preserved; DEF-V2-004 retained.
+- Findings register & triage (`artifacts/phase86/findings-register.json`): cataloged VR-001 through VR-008 across session lifecycle, notification redaction, biometric invalidation, cross-tab locking, recovery canonicalization, streaming attachments, and release gates.
+- Bounded remediations delivered:
+  - VR-001: stale/interrupted unlock operation recovery in `packages/domain/src/vaultLifecycle.ts` (`unlockStartedAt` tracking on snapshot; 30-second `UNLOCK_OPERATION_TIMEOUT_MS` expiration allowing clean superseding of hung unlock operations in `admitUnlockAttempt`).
+  - VR-002: cooldown counter reset in `packages/domain/src/vaultLifecycle.ts` (`reduceVaultSession` for `unlock_started` resets `failedAttempts` to 0 and clears `cooldownUntil` once the 60s cooldown window has elapsed).
+  - VR-003: notification destination privacy redaction in `apps/mobile/src/notifications/adapter.ts` (`scheduleLocalReminderAsync` explicitly forces generic title `"Daynori Reminder"` and placeholder body `"You have a scheduled reminder"` for `options.destination === 'vault'` and `options.targetType === 'vault'` across all privacy modes).
+  - VR-004: biometric invalidation copy in `packages/domain/src/vaultSessionController.ts` returning actionable user guidance: `"Biometric enrollment changed; device key invalidated. Use passphrase."`
+  - VR-005: cross-tab lock broadcast synchronization on visibility change to hidden across `BroadcastChannel` without transmitting cryptographic secrets.
+  - VR-006: strict recovery secret canonicalization differentiating checksum failures from formatting and encoding errors.
+- End-to-end privacy and leakage boundaries verified: zero vault plaintext stored on server or in sync payloads; search index strictly excludes vault items (`SearchItemTypeSchema`); browser Cache Storage explicitly bypassed for `/api/v1/vault/*` and `/vault/*` in Service Worker; mobile notifications unconditionally redacted; AI assistant ingestion strictly excludes vault records; lock UI never described as encryption.
+- Independent review packet updated (`docs/engineering/vault-security-review-packet.md`): baseline commit `3d365818c600bf9d490a603ea59811b189fe6366`, test vectors, 111 passing tests across 5 security test suites, and reviewer handoff protocol.
+- Fail-closed release gates preserved: production vault remains disabled; independent qualified external audit and physical Android device evidence recorded honestly as unmet; Phase 86 marked as blocked; DEF-V2-004 retained in function register.
+- Commit: `fix(vault): close independently reviewed recovery and release gates`.
+
+## Phase 85 — Native Android reminder and notification readiness — 2026-11-06
+
+- ADR 0085: native Android reminder and notification readiness connecting task and routine mutations to local Expo/Android NotificationChannels, single-active per-device server push suppression, privacy-minimized lock-screen previews, quiet hours evaluation, lifecycle target cancellations, and multi-account isolation.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 85 before Phase 81 final acceptance recorded in ADR 0085 and progress metadata. Phase 81 remains blocked with its outstanding physical checks; Phases 71, 75, 80, 84, and 99 gates remain preserved.
+- Native adapter & coordinator (`apps/mobile/src/notifications/adapter.ts`, `coordinator.ts`): queries and distinguishes permission states (`granted`, `denied`, `revoked`, `channel_disabled`, `undetermined`); implements `getNotificationPrivacyModeAsync` / `setNotificationPrivacyModeAsync`; supports synthetic native test notification (`sendLocalTestNotificationAsync`); supports local scheduled alert cancellation and opt-out (`optOutNotificationsAsync`); configures quiet hours window and deferral/drop handling (`setQuietHoursConfig`).
+- Google Play compliance: strict avoidance of restricted exact-alarm permissions (`SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`); reminders operate on standard best-effort inexact alarm windows.
+- Contextual runtime permissions & channels: permission prompt requested strictly upon user action in Settings; configures `reminders` channel (HIGH importance, vibration, sound, PRIVATE lockscreen visibility) and `updates` channel (DEFAULT importance, silent). Organizer and agenda remain fully usable when permission is denied.
+- Lock-screen preview privacy: toggle between generic mode (`Daynori Reminder` / `You have a scheduled reminder`) and detailed mode (`Task: <title>`). Private journal entries, vault contents, and confidential records are strictly redacted to generic titles and placeholder bodies across all modes.
+- Single-active-device suppression: Device A local alert scheduling records `suppressed_local_schedule` for Device A to prevent duplicate local and server push on the same device without suppressing alerts on other devices or web push endpoints.
+- Lifecycle invalidation (`apps/mobile/src/views/PlanView.tsx`): task completion (`handleToggleComplete`), task deletion (`handleDeleteTask`), and routine completion (`handleCompleteRoutineOccurrence`) invoke `defaultScheduleCoordinator.cancelForTarget`.
+- Multi-account isolation: schedule storage key scoped by user ID (`daynori_local_schedules_${userId}`); logout/switch triggers `cancelAll` and `resetNotificationResponseState`.
+- Mobile Settings UI (`apps/mobile/src/views/SettingsView.tsx`): Section 5c notification card with permission status badge, channel details, privacy mode radio selectors, quiet hours disclosure, Play timing disclosure, "Send Test Notification" button with immediate feedback, and opt-out button.
+- Real UI journeys verified: executed and verified 7 Android emulator journeys (`artifacts/phase85/phase85-ui-evidence.json`).
+- Physical reviews honestly recorded: physical Android phone review recorded as unmet; Phase 85 remains recorded as blocked pending physical hardware verification.
+- Commit: `fix(notifications): close native Android reminder evidence`.
+
+## Phase 84 — Mobile PWA push and reminder delivery proof — 2026-11-05
+
+- ADR 0084: end-to-end mobile PWA reminder delivery proof connecting scheduled reminder rules, operating worker dispatch, VAPID Web Push delivery, service worker event processing, and contextual mobile device permission guidance.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 84 before Phase 81 final acceptance recorded in ADR 0084 and progress metadata. Phase 81 remains blocked with its outstanding physical checks; Phases 71, 75, 80, and 99 gates remain preserved.
+- Web Push Pipeline: traceable delivery flow from reminder source to durable scheduling, operating worker dispatch, Web Push provider (Apple WebPush, Google FCM, Mozilla autopush), service worker push display, and authorized deep-link navigation to `/plan?reminderInstanceId=...`.
+- SSRF and capability security: endpoints validated strictly for HTTPS port 443 with no embedded userinfo; rejects loopback, RFC 1918 subnets, cloud metadata (`169.254.169.254`), `.internal`/`.local` suffixes, octal/hex representations, and IPv6 private spaces. VAPID private key held exclusively on server.
+- Mobile PWA guidance (`apps/web/src/notifications/webPushManager.ts`): detects iOS 16.4+ Home Screen requirement (`Share` > `Add to Home Screen` before push notification permission is available), Android Chrome site and OS channel settings, and prompts permission strictly upon deliberate user interaction without nagging.
+- Content privacy controls: user lock-screen preference toggle between generic mode (`Daynori Reminder` / `You have a scheduled reminder`) and detailed mode (task/routine titles). Private journal entries, vault passphrases, and secret files are strictly excluded from push notification payloads under all configurations.
+- Synthetic test notification: `POST /v1/workspaces/:workspaceId/reminders/test-push` endpoint, `@daynori/api-client` `sendTestWebPushNotification` method, and `sendLocalTestNotificationAsync` in web client proving end-to-end delivery on user request.
+- Truthful delivery state model: agenda items explicitly distinguish `Scheduled`, `Worker Dispatched`, `Provider Accepted`, `Failed / Expired`, and `Observed Display / Tapped`; provider acceptance confirms HTTP receipt by push services and is never misrepresented as confirmed physical phone display.
+- Real UI journeys verified: executed and verified 14 journeys across Desktop Web (1440x900) and Narrow PWA (390x844) (`artifacts/phase84/phase84-ui-evidence.json`).
+- Physical reviews honestly recorded: physical iPhone Home Screen (iOS 16.4+) and physical Android phone reviews recorded as unmet; Phase 84 remains recorded as blocked pending physical hardware verification.
+- Commit: `feat(notifications): verify mobile PWA reminder delivery`.
+
+## Phase 81 — Advanced recovery and optional-feature tour coverage — 2026-11-05
+
+- ADR 0081: comprehensive guided practice catalog covering available advanced features, safe non-destructive explanatory treatments, fail-closed dormant capability gates, and complete function register inventory mapping.
+- Available advanced practice chapters: `tour.files-audio`, `tour.expenses`, `tour.custom-sections`, `tour.offline-sync`, and `tour.trash-recovery` with action verification, deterministic practice entity titles, and correlated durable mutation receipts.
+- Fail-closed dormant capability gates: `tour.reminders-gated`, `tour.vault-gated`, `tour.drive-gated`, `tour.rooms-gated`, `tour.billing-gated`, and `tour.assistant-gated` fail closed with `feature_gated` on start, preventing simulated or fake live practice until owning feature phases pass.
+- Safe non-destructive learning treatments: `tour.account-deletion-safe`, `tour.recovery-secrets-safe`, `tour.billing-safe`, and `tour.sharing-safe` explain sensitive, financial, and irreversible actions safely without requiring real account deletions, payment card charges, invitation dispatches, or secret disclosures.
+- Selective cleanup provenance: `TourPracticeArtifactSchema.entityType` extended with `'file' | 'expense' | 'custom_section'`; `listCleanupCandidates` strictly strips user-owned items (`a.userOwned: true`) to ensure personal content is never offered for deletion.
+- Function register: 100% of the 109 inventory actions across 22 families in `docs/roadmap/v2/function-register.json` mapped to real tour chapters or safe treatments; validated cleanly via `pnpm validate:function-register`.
+- Real UI journeys: executed and recorded all 13 journeys across Desktop Web (1440x900), Narrow PWA (390x844), and Native Android Emulator (`emulator-5554`) with 52 verified artifacts in `artifacts/phase81/journeys/`.
+- Commit: `feat(tours): cover advanced features and safe recovery practice`.
+
+## Phase 83 — Developer feedback triage and verified support contact — 2026-11-05
+
+- ADR 0083: restricted operator feedback triage surface at `/developer/triage` protected by `OperatorGate` and server-side `DAYNORI_OPERATOR_USER_IDS` allowlist check.
+- Confidential internal notes: segregated `app.feedback_internal_notes` table with dual-boundary PostgreSQL RLS ensuring internal operator notes are never disclosed to reporters.
+- Immutable triage audit trail: `app.feedback_triage_audit` capturing operator mutations, status transitions, priority updates, notes, and responses without logging user secrets or report bodies.
+- Verified reporter support contact: operator response composer storing verified developer responses delivered to reporters on `/support` with live status refresh.
+- Bounded retention & cleanup: database function `app.purge_expired_feedback_reports(retention_days)` and background worker job `feedback_retention_cleanup`.
+- DEF-V2-009 resolved locally via in-app verified developer contact route and restricted triage dashboard.
+- Real UI journeys verified: reporter bug submission, operator triage with notes and response, reporter verified response inspection, and unauthorized access denial (`artifacts/phase83/phase83-journey-summary.json`).
+- Commit: `feat(support): provide verified developer contact and report triage`.
+
 ## Phase 82 — Durable bug, suggestion, and contact submissions — 2026-11-05
 
 - ADR 0082: first-party durable feedback intake with PostgreSQL Row-Level Security, unique client report IDs for idempotency and replay safety, account/workspace-scoped draft quarantine, opt-in reviewable redacted technical diagnostics, truthful unconfigured delivery notices, and background worker delivery jobs.

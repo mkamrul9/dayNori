@@ -5,15 +5,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
-import {
-  MobileButton
-} from '@daynori/ui-mobile';
-import type { DriveConnection,
-  DriveLinkedFile
-} from '@daynori/contracts';
+import { MobileButton } from '@daynori/ui-mobile';
+import type { DriveConnection, DriveLinkedFile, DriveLinkMode } from '@daynori/contracts';
 import type { DaynoriApiClient } from '@daynori/api-client';
 
 export interface DriveConnectionsSheetProps {
@@ -27,7 +23,8 @@ export interface DriveConnectionsSheetProps {
 }
 
 /**
- * Android connections UI for Phase 49 provisional Drive connector.
+ * Android connections UI for Phase 87 Drive connector.
+ * Selected/app-created files under narrow drive.file scope.
  * Production Google uses Custom Tabs + server-brokered HTTPS redirect (not desktop custom schemes).
  */
 export function DriveConnectionsSheet({
@@ -45,6 +42,7 @@ export function DriveConnectionsSheet({
   const [pending, setPending] = useState<{ intentId: string; state: string } | null>(null);
   const [harnessCode, setHarnessCode] = useState('fake-ok');
   const [busy, setBusy] = useState(false);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const status = await apiClient.getDriveConnection(workspaceId);
@@ -67,8 +65,6 @@ export function DriveConnectionsSheet({
     setBusy(true);
     setMessage(null);
     try {
-      // Drive OAuth return surface is web/android in contracts; production Drive remains gated off.
-      // iOS uses the same provisional connect path when locally enabled for engineering harnesses.
       const started = await apiClient.startDriveConnect(workspaceId, {
         platform: 'android',
         returnPath: '/settings',
@@ -103,7 +99,7 @@ export function DriveConnectionsSheet({
         code: harnessCode,
       });
       setPending(null);
-      setMessage('Fake Drive fixture connected.');
+      setMessage('Fake Drive fixture connected (labeled).');
       await refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Complete failed');
@@ -125,6 +121,49 @@ export function DriveConnectionsSheet({
     }
   };
 
+  const selectFile = async (mode: DriveLinkMode) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      if (connection?.isDevelopmentFixture) {
+        await apiClient.selectDriveFile(workspaceId, {
+          providerFileId: `fake-harness-${mode === 'import_copy' ? 'import' : 'selected'}-file`,
+          displayName: mode === 'import_copy' ? 'Harness imported file' : 'Harness selected file',
+          mimeType: 'text/plain',
+          linkMode: mode,
+          isShortcut: false,
+          isSharedDrive: false,
+        });
+        setMessage(
+          mode === 'import_copy'
+            ? 'Import job queued for fake harness file.'
+            : 'Linked fake harness reference.'
+        );
+      } else {
+        const token = await apiClient.getDrivePickerToken(workspaceId);
+        setMessage(`Picker access token issued (expires ${token.data.expiresAt}). Select file in Google Picker.`);
+      }
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'File selection failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlink = async (linkedFileId: string, name: string) => {
+    setUnlinkingId(linkedFileId);
+    try {
+      await apiClient.unlinkDriveFile(workspaceId, linkedFileId);
+      setMessage(`Unlinked "${name}". Remote Drive original was not deleted.`);
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Unlink failed');
+    } finally {
+      setUnlinkingId(null);
+    }
+  };
+
   return (
     <ScrollView testID={testID} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
@@ -141,49 +180,97 @@ export function DriveConnectionsSheet({
         </MobileButton>
       </View>
 
-      <Text style={{ color: palette.text.secondary, marginBottom: spacing.md }}>
-        Selected/app-created files only (drive.file). Vault excluded. Disconnect keeps imported
-        copies and does not trash remote originals.
+      <Text style={{ color: palette.text.secondary, marginBottom: spacing.sm, fontSize: 13, lineHeight: 18 }}>
+        Selected/app-created files only under narrow drive.file scope. Vault content is strictly
+        excluded. Disconnect removes stored tokens and cancels pending jobs; imported copies remain
+        in Daynori and remote originals in Google Drive are never deleted.
       </Text>
+
+      {/* Copy vs Reference Explanatory Box */}
+      <View
+        style={{
+          padding: spacing.sm,
+          borderRadius: radii.sm,
+          backgroundColor: palette.surface,
+          borderWidth: 1,
+          borderColor: palette.border.subtle,
+          marginBottom: spacing.sm,
+        }}
+      >
+        <Text style={{ fontWeight: '600', color: palette.text.primary, fontSize: 12, marginBottom: 4 }}>
+          Supported Modes:
+        </Text>
+        <Text style={{ color: palette.text.secondary, fontSize: 11, marginBottom: 2 }}>
+          • Reference: Keeps file in Drive. Online access; becomes unavailable if deleted in Drive.
+        </Text>
+        <Text style={{ color: palette.text.secondary, fontSize: 11, marginBottom: 2 }}>
+          • Imported Copy: Saved locally in Daynori. Available offline; preserved if Drive original deleted.
+        </Text>
+        <Text style={{ color: palette.text.secondary, fontSize: 11 }}>
+          • Vault Exclusion: Encrypted vault files cannot be shared with Drive.
+        </Text>
+      </View>
 
       {connection?.isDevelopmentFixture ? (
         <Text
-          style={{ color: palette.status.warning, fontWeight: '700', marginBottom: spacing.sm }}
+          style={{ color: palette.status.warning, fontWeight: '700', marginBottom: spacing.sm, fontSize: 12 }}
         >
-          Development fixture — not a real Google account.
+          Development fixture provider — not a real Google account.
         </Text>
       ) : null}
 
       {message ? (
         <Text
           accessibilityLiveRegion="polite"
-          style={{ color: palette.text.primary, marginBottom: spacing.sm }}
+          style={{ color: palette.text.primary, marginBottom: spacing.sm, fontSize: 13 }}
         >
           {message}
         </Text>
       ) : null}
 
-      <Text style={{ color: palette.text.primary }}>Status: {connection?.status ?? '…'}</Text>
-      {connection?.providerAccountEmail ? (
-        <Text style={{ color: palette.text.primary }}>
-          Identity: {connection.providerAccountEmail}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: 6 }}>
+        <Text style={{ color: palette.text.primary, fontSize: 13 }}>
+          Status: <Text style={{ fontWeight: '700' }}>{connection?.status ?? '…'}</Text>
         </Text>
-      ) : null}
+        {connection?.providerAccountEmail ? (
+          <Text style={{ color: palette.text.secondary, fontSize: 12 }}>
+            ({connection.providerAccountEmail})
+          </Text>
+        ) : null}
+      </View>
 
       <View style={styles.actions}>
         {connection?.status !== 'connected' ? (
           <MobileButton themeMode={themeMode} onPress={() => void connect()} disabled={busy}>
-            Connect Drive
+            {connection?.status === 'revoked' ? 'Reconnect Drive' : 'Connect Drive'}
           </MobileButton>
         ) : (
-          <MobileButton
-            variant="subtle"
-            themeMode={themeMode}
-            onPress={() => void disconnect()}
-            disabled={busy}
-          >
-            Disconnect
-          </MobileButton>
+          <>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => void selectFile('link_reference')}
+              disabled={busy}
+            >
+              Link Reference
+            </MobileButton>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => void selectFile('import_copy')}
+              disabled={busy}
+            >
+              Import Copy
+            </MobileButton>
+            <MobileButton
+              variant="subtle"
+              themeMode={themeMode}
+              onPress={() => void disconnect()}
+              disabled={busy}
+            >
+              Disconnect
+            </MobileButton>
+          </>
         )}
         {pending ? (
           <Pressable
@@ -194,7 +281,7 @@ export function DriveConnectionsSheet({
             accessibilityRole="button"
             accessibilityLabel="Cancel Drive consent"
           >
-            <Text style={{ color: palette.text.secondary }}>Cancel consent</Text>
+            <Text style={{ color: palette.text.secondary, fontSize: 13, marginTop: 4 }}>Cancel consent</Text>
           </Pressable>
         ) : null}
       </View>
@@ -217,11 +304,54 @@ export function DriveConnectionsSheet({
         </View>
       ) : null}
 
-      {files.map((f) => (
-        <Text key={f.id} style={{ color: palette.text.secondary, marginTop: spacing.sm }}>
-          {f.displayName} ({f.availability})
-        </Text>
-      ))}
+      {/* Linked Files Section */}
+      {files.length > 0 ? (
+        <View style={{ marginTop: spacing.base }}>
+          <Text style={{ fontWeight: '700', color: palette.text.primary, marginBottom: spacing.xs, fontSize: 14 }}>
+            Linked & Imported Files ({files.length})
+          </Text>
+          {files.map((f) => (
+            <View
+              key={f.id}
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: spacing.xs,
+                borderBottomWidth: 1,
+                borderBottomColor: palette.border.subtle,
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                <Text style={{ color: palette.text.primary, fontWeight: '600', fontSize: 13 }}>
+                  {f.displayName}
+                </Text>
+                <Text
+                  style={{
+                    color:
+                      f.availability === 'permission_lost' || f.availability === 'source_unavailable'
+                        ? palette.status.danger
+                        : palette.text.secondary,
+                    fontSize: 11,
+                  }}
+                >
+                  {f.linkMode} · {f.availability}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => void unlink(f.id, f.displayName)}
+                disabled={busy || unlinkingId === f.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Unlink ${f.displayName}`}
+              >
+                <Text style={{ color: palette.status.danger, fontSize: 12, fontWeight: '600' }}>
+                  {unlinkingId === f.id ? '…' : 'Unlink'}
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }

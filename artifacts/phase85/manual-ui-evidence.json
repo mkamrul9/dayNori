@@ -1,0 +1,18 @@
+{
+  "phase": 85,
+  "title": "Native Android Reminder and Notification Readiness Manual UI Evidence",
+  "status": "blocked",
+  "verificationDate": "2026-11-06",
+  "ownerTestSteps": [
+    "1. Install artifacts/release/app-debug-x86_64.apk or built APK onto Android test device: adb install -r <apk>",
+    "2. Open Daynori and navigate to Settings > Notifications & Reminders.",
+    "3. Verify truthful permission status indicates \"Undetermined\" or \"Enabled\".",
+    "4. Tap \"Enable Reminder Notifications\" to trigger contextual permission dialog; grant permission.",
+    "5. Toggle Lock-Screen Preview Privacy between \"Privacy-minimized\" and \"Detailed\".",
+    "6. Tap \"Send Test Notification\" and observe immediate notification alert in Android notification shade.",
+    "7. Tap the notification in the shade and verify it opens Daynori to the Plan view.",
+    "8. Create a task with a reminder due in 2 minutes; lock device screen and verify alert arrives with PRIVATE lock-screen visibility.",
+    "9. Complete the task in app; verify any pending reminder alert is cancelled immediately.",
+    "10. In Android OS Settings > Apps > Daynori > Notifications, revoke permission; reopen Daynori Settings and verify status shows \"Revoked\"."
+  ]
+}
