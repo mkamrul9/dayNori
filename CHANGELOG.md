@@ -1,5 +1,21 @@
 # Changelog
 
+## Phase 85 — Native Android reminder and notification readiness — 2026-11-06
+
+- ADR 0085: native Android reminder and notification readiness connecting task and routine mutations to local Expo/Android NotificationChannels, single-active per-device server push suppression, privacy-minimized lock-screen previews, quiet hours evaluation, lifecycle target cancellations, and multi-account isolation.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 85 before Phase 81 final acceptance recorded in ADR 0085 and progress metadata. Phase 81 remains blocked with its outstanding physical checks; Phases 71, 75, 80, 84, and 99 gates remain preserved.
+- Native adapter & coordinator (`apps/mobile/src/notifications/adapter.ts`, `coordinator.ts`): queries and distinguishes permission states (`granted`, `denied`, `revoked`, `channel_disabled`, `undetermined`); implements `getNotificationPrivacyModeAsync` / `setNotificationPrivacyModeAsync`; supports synthetic native test notification (`sendLocalTestNotificationAsync`); supports local scheduled alert cancellation and opt-out (`optOutNotificationsAsync`); configures quiet hours window and deferral/drop handling (`setQuietHoursConfig`).
+- Google Play compliance: strict avoidance of restricted exact-alarm permissions (`SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`); reminders operate on standard best-effort inexact alarm windows.
+- Contextual runtime permissions & channels: permission prompt requested strictly upon user action in Settings; configures `reminders` channel (HIGH importance, vibration, sound, PRIVATE lockscreen visibility) and `updates` channel (DEFAULT importance, silent). Organizer and agenda remain fully usable when permission is denied.
+- Lock-screen preview privacy: toggle between generic mode (`Daynori Reminder` / `You have a scheduled reminder`) and detailed mode (`Task: <title>`). Private journal entries, vault contents, and confidential records are strictly redacted to generic titles and placeholder bodies across all modes.
+- Single-active-device suppression: Device A local alert scheduling records `suppressed_local_schedule` for Device A to prevent duplicate local and server push on the same device without suppressing alerts on other devices or web push endpoints.
+- Lifecycle invalidation (`apps/mobile/src/views/PlanView.tsx`): task completion (`handleToggleComplete`), task deletion (`handleDeleteTask`), and routine completion (`handleCompleteRoutineOccurrence`) invoke `defaultScheduleCoordinator.cancelForTarget`.
+- Multi-account isolation: schedule storage key scoped by user ID (`daynori_local_schedules_${userId}`); logout/switch triggers `cancelAll` and `resetNotificationResponseState`.
+- Mobile Settings UI (`apps/mobile/src/views/SettingsView.tsx`): Section 5c notification card with permission status badge, channel details, privacy mode radio selectors, quiet hours disclosure, Play timing disclosure, "Send Test Notification" button with immediate feedback, and opt-out button.
+- Real UI journeys verified: executed and verified 7 Android emulator journeys (`artifacts/phase85/phase85-ui-evidence.json`).
+- Physical reviews honestly recorded: physical Android phone review recorded as unmet; Phase 85 remains recorded as blocked pending physical hardware verification.
+- Commit: `fix(notifications): close native Android reminder evidence`.
+
 ## Phase 84 — Mobile PWA push and reminder delivery proof — 2026-11-05
 
 - ADR 0084: end-to-end mobile PWA reminder delivery proof connecting scheduled reminder rules, operating worker dispatch, VAPID Web Push delivery, service worker event processing, and contextual mobile device permission guidance.

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-05",
+  "updatedAt": "2026-11-06",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 84 implemented before Phase 81 final acceptance under ADR 0084 (Mobile PWA push and reminder delivery proof). Phase 81 remains recorded as blocked with its outstanding physical reviews. Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, and Phase 99 prototype review retain their recorded states. Phase 85 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 85 implemented before Phase 81 final acceptance under ADR 0085 (Native Android reminder and notification readiness). Phase 81 remains recorded as blocked with its outstanding physical reviews. Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 84 physical devices, and Phase 99 prototype review retain their recorded states. Phase 86 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -494,7 +494,9 @@
     },
     {
       "id": "85",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-85.md",
+      "reason": "Native Android notification adapter, contextual runtime permission lifecycle, NotificationChannels ('reminders' HIGH/PRIVATE, 'updates' DEFAULT/Silent), lock-screen preview privacy toggle with strict journal/confidential redaction, Google Play policy compliance (no SCHEDULE_EXACT_ALARM), quiet hours defer/drop logic, synthetic test notification, single-active-device suppression ('suppressed_local_schedule'), lifecycle target cancellation on completion/deletion, multi-account isolation, and emulator UI journeys verified. Completion blocked pending genuine physical Android hardware review. See docs/phase-reports/phase-85.md."
     },
     {
       "id": "86",

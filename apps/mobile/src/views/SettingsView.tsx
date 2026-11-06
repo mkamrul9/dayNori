@@ -3,7 +3,6 @@ import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from
 import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
 import { Icon, IconText, MobileButton, MobileCard } from '@daynori/ui-mobile';
 import type { NotificationCapabilityState } from '../notifications/adapter.js';
-import { isCorePreview } from '../config/runtime.js';
 import {
   getMobileSettingsGroup,
   type MobileSettingsGroupId,
@@ -37,6 +36,10 @@ export interface SettingsViewProps {
   timeZone?: string;
   notificationCapability?: NotificationCapabilityState | null;
   onRequestNotificationPermission?: () => Promise<void>;
+  privacyMode?: 'generic' | 'detailed';
+  onChangePrivacyMode?: (mode: 'generic' | 'detailed') => void;
+  onSendTestNotification?: () => Promise<boolean>;
+  onOptOutNotifications?: () => Promise<void>;
   onOpenSyncDiagnostics?: () => void;
   onOpenRecoveryExport?: () => void;
   onOpenPortability?: () => void;
@@ -83,6 +86,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   timeZone = 'UTC',
   notificationCapability = null,
   onRequestNotificationPermission,
+  privacyMode = 'generic',
+  onChangePrivacyMode,
+  onSendTestNotification,
+  onOptOutNotifications,
   onOpenSyncDiagnostics,
   onOpenRecoveryExport,
   onOpenPortability,
@@ -101,6 +108,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const groupMeta = getMobileSettingsGroup(group);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
   const [showDevReview, setShowDevReview] = useState(devReviewMode && isOperator);
+  const [testNotificationFeedback, setTestNotificationFeedback] = useState<string | null>(null);
+  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -488,7 +497,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </View>
       ) : null}
 
-      {/* Section 5c: Android Notifications & Local Reminders (Phase 28) */}
+      {/* Section 5c: Android Notifications & Local Reminders (Phase 28 & Phase 85) */}
       {show('notifications') ? (
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: palette.text.primary }]}>
@@ -523,6 +532,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <>
                   <Icon name="warning" /> Channel Disabled in Android System Settings
                 </>
+              ) : notificationCapability?.status === 'revoked' ? (
+                <>
+                  <Icon name="x" /> Revoked in OS Settings (Reminders shown in-app only)
+                </>
               ) : notificationCapability?.status === 'denied' ? (
                 <>
                   <Icon name="x" /> Denied (Organizer functions remain fully usable)
@@ -544,10 +557,79 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
               ]}
             >
-              {isCorePreview
-                ? 'Reminder delivery is unavailable in this free testing preview.'
-                : (notificationCapability?.details ??
-                  'Local reminders schedule directly on Android. Server push serves as secondary fallback when online.')}
+              {notificationCapability?.details ??
+                'Local reminders schedule directly on Android. Server push serves as secondary fallback when online.'}
+            </Text>
+          </View>
+
+          {/* Notification Channels & Categories (Phase 85) */}
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Notification Channels & Categories:
+            </Text>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
+              ]}
+            >
+              • <Text style={{ fontWeight: '600' }}>Reminders & Alerts (reminders)</Text>: High importance, vibration, sound, private lock-screen visibility.
+              {'\n'}• <Text style={{ fontWeight: '600' }}>Workspace Updates (updates)</Text>: Default importance, silent.
+            </Text>
+          </View>
+
+          {/* Notification Preview Privacy (Phase 85) */}
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Lock-Screen Preview Privacy:
+            </Text>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginTop: 2, marginBottom: 6, lineHeight: 18 },
+              ]}
+            >
+              Choose preview detail for system notifications. Journal entries, notes, and private files are strictly excluded from payloads under all configurations.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: spacing.base, marginTop: 4 }}>
+              <Pressable
+                testID="privacy-mode-generic"
+                onPress={() => onChangePrivacyMode?.('generic')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: privacyMode === 'generic' }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <Icon name={privacyMode === 'generic' ? 'check' : 'circle'} />
+                <Text style={{ color: palette.text.primary, fontSize: 13 }}>
+                  Privacy-minimized ('Daynori Reminder')
+                </Text>
+              </Pressable>
+              <Pressable
+                testID="privacy-mode-detailed"
+                onPress={() => onChangePrivacyMode?.('detailed')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: privacyMode === 'detailed' }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <Icon name={privacyMode === 'detailed' ? 'check' : 'circle'} />
+                <Text style={{ color: palette.text.primary, fontSize: 13 }}>
+                  Detailed (shows item title)
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[styles.settingLabel, { color: palette.text.primary, fontSize: 13 }]}>
+              Quiet Hours Policy:
+            </Text>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
+              ]}
+            >
+              Default quiet hours window (22:00 – 07:00). Reminder alerts are deferred or suppressed during quiet periods based on rule configuration.
             </Text>
           </View>
 
@@ -561,26 +643,81 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 { color: palette.text.secondary, marginTop: 2, lineHeight: 18 },
               ]}
             >
-              Standard best-effort delivery. Daynori does not claim medical or exact-alarm
-              reliability, complying with Google Play policies for organizer applications.
+              Standard best-effort delivery. Daynori does not request restricted exact-alarm permissions (SCHEDULE_EXACT_ALARM), complying with Google Play organizer policies.
             </Text>
           </View>
 
-          {!isCorePreview &&
-            notificationCapability?.status !== 'granted' &&
-            onRequestNotificationPermission && (
-              <View style={{ marginTop: spacing.xs }}>
-                <MobileButton
-                  testID="btn-request-notification-permission"
-                  variant="primary"
-                  themeMode={themeMode}
-                  onPress={() => void onRequestNotificationPermission()}
-                  accessibilityLabel="Enable notifications for reminder alerts"
-                >
-                  <Icon name="bell" /> Enable Reminder Notifications
-                </MobileButton>
-              </View>
+          {/* Test Notification Feedback */}
+          {testNotificationFeedback && (
+            <View
+              testID="mobile-test-notification-feedback"
+              style={{
+                marginBottom: spacing.sm,
+                padding: spacing.xs,
+                borderRadius: radii.sm,
+                backgroundColor: palette.action.primary + '18',
+              }}
+            >
+              <Text style={{ color: palette.text.primary, fontSize: 12 }}>
+                {testNotificationFeedback}
+              </Text>
+            </View>
+          )}
+
+          {/* Actions */}
+          <View style={{ marginTop: spacing.xs, gap: spacing.xs }}>
+            {notificationCapability?.status !== 'granted' && onRequestNotificationPermission && (
+              <MobileButton
+                testID="btn-request-notification-permission"
+                variant="primary"
+                themeMode={themeMode}
+                onPress={() => void onRequestNotificationPermission()}
+                accessibilityLabel="Enable notifications for reminder alerts"
+              >
+                <Icon name="bell" /> Enable Reminder Notifications
+              </MobileButton>
             )}
+
+            {onSendTestNotification && (
+              <MobileButton
+                testID="btn-send-test-notification"
+                variant="secondary"
+                themeMode={themeMode}
+                disabled={isSendingTestNotification}
+                onPress={async () => {
+                  setIsSendingTestNotification(true);
+                  setTestNotificationFeedback(null);
+                  try {
+                    const ok = await onSendTestNotification();
+                    setTestNotificationFeedback(
+                      ok
+                        ? 'Test notification dispatched! Check device notification shade.'
+                        : 'Test notification triggered. Check notification shade.'
+                    );
+                  } catch {
+                    setTestNotificationFeedback('Test notification could not be delivered.');
+                  } finally {
+                    setIsSendingTestNotification(false);
+                  }
+                }}
+                accessibilityLabel="Send synthetic test notification"
+              >
+                <Icon name="bell" /> Send Test Notification
+              </MobileButton>
+            )}
+
+            {onOptOutNotifications && notificationCapability?.status === 'granted' && (
+              <MobileButton
+                testID="btn-opt-out-notifications"
+                variant="danger"
+                themeMode={themeMode}
+                onPress={() => void onOptOutNotifications()}
+                accessibilityLabel="Clear scheduled local alerts and deactivate push registration"
+              >
+                <Icon name="x" /> Clear Scheduled Alerts & Opt Out
+              </MobileButton>
+            )}
+          </View>
         </MobileCard>
       </View>
       ) : null}

@@ -101,6 +101,10 @@ import {
   deactivateDeviceAsync,
   setupPushTokenRotationListener,
   resetNotificationResponseState,
+  getNotificationPrivacyModeAsync,
+  setNotificationPrivacyModeAsync,
+  sendLocalTestNotificationAsync,
+  optOutNotificationsAsync,
   type NotificationCapabilityState,
 } from './src/notifications/adapter.js';
 import { defaultScheduleCoordinator } from './src/notifications/coordinator.js';
@@ -186,6 +190,8 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [notificationCapability, setNotificationCapability] =
     useState<NotificationCapabilityState | null>(null);
+  const [notificationPrivacyMode, setNotificationPrivacyMode] =
+    useState<'generic' | 'detailed'>('generic');
 
   // Production encrypted repository and sync engine state
   const [repository, setRepository] = useState<SqliteLocalRepository | null>(null);
@@ -802,10 +808,11 @@ export default function App() {
       handleDeepLink(event.url);
     });
 
-    // 5. Initialize Notification Lifecycle & Channels (Phase 28)
+    // 5. Initialize Notification Lifecycle & Channels (Phase 28 & Phase 85)
     setupForegroundNotificationHandler();
     void setupNotificationChannelsAsync();
     void getNotificationCapabilityAsync().then(setNotificationCapability);
+    void getNotificationPrivacyModeAsync().then(setNotificationPrivacyMode);
 
     const cleanupNotifications = initNotificationResponseListener(async (payload) => {
       // 1. Authenticated workspace and account check
@@ -1211,6 +1218,31 @@ export default function App() {
                   if (apiClient && cap.status === 'granted') {
                     void registerDeviceAsync(apiClient);
                   }
+                }}
+                privacyMode={notificationPrivacyMode}
+                onChangePrivacyMode={async (mode) => {
+                  setNotificationPrivacyMode(mode);
+                  await setNotificationPrivacyModeAsync(mode);
+                }}
+                onSendTestNotification={async () => {
+                  const ok = await sendLocalTestNotificationAsync({
+                    privacyMode: notificationPrivacyMode,
+                  });
+                  if (apiClient && userNamespace?.workspaceId && isOnline) {
+                    try {
+                      await apiClient.sendTestWebPushNotification(userNamespace.workspaceId, {
+                        privacyMode: notificationPrivacyMode,
+                      });
+                    } catch {
+                      // Backend test dispatch is optional fallback
+                    }
+                  }
+                  return ok;
+                }}
+                onOptOutNotifications={async () => {
+                  await optOutNotificationsAsync(apiClient);
+                  const cap = await getNotificationCapabilityAsync();
+                  setNotificationCapability(cap);
                 }}
                 onOpenAllFeatures={() => setActiveModal('all-features')}
                 onOpenGallery={isOperator ? () => setActiveModal('gallery') : undefined}

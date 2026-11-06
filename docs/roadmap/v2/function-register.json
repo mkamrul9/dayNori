@@ -5013,14 +5013,14 @@
         "apps/web/src/components/ReminderAgendaView.tsx",
         "apps/mobile/src/notifications/adapter.ts"
       ],
-      "readiness": "unverified",
+      "readiness": "blocked",
       "acceptanceJourney": "Register native device for notifications.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
-        "environment": "local-windows-daynori_test-synthetic-jwt",
-        "platform": "preview-delivery-off",
+        "date": "2026-11-06",
+        "revision": "59e068b",
+        "environment": "local-windows-native-android-synthetic-device",
+        "platform": "native-android-gated",
         "evidenceLayer": "provider_authenticated"
       },
       "repairPhase": "85",

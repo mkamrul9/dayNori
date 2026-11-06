@@ -1,0 +1,32 @@
+{
+  "description": "Verified contextual runtime permission requests and truthful capability states",
+  "supportedStates": [
+    {
+      "status": "granted",
+      "canDeliverLocally": true,
+      "canDeliverPush": true
+    },
+    {
+      "status": "denied",
+      "canDeliverLocally": false,
+      "details": "All organizer features remain fully usable"
+    },
+    {
+      "status": "channel_disabled",
+      "canDeliverLocally": false,
+      "details": "Reminders channel is disabled in Android system settings"
+    },
+    {
+      "status": "revoked",
+      "canDeliverLocally": false,
+      "details": "Notification permission was revoked in system settings"
+    },
+    {
+      "status": "undetermined",
+      "canDeliverLocally": false,
+      "details": "Notifications not enabled. Reminders will be shown in-app only"
+    }
+  ],
+  "contextualPromptRule": "Permission requested strictly upon deliberate user action (reminder creation or Settings toggle), never on startup",
+  "verifiedAt": "2026-11-06T04:56:10.355Z"
+}

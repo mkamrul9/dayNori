@@ -1,0 +1,22 @@
+{
+  "description": "Verified default generic lock-screen minimization and strict confidential content exclusion",
+  "privacyModes": {
+    "generic": {
+      "title": "Daynori Reminder",
+      "body": "You have a scheduled reminder",
+      "isDefault": true
+    },
+    "detailed": {
+      "title": "Item Title (e.g. \"Morning Routine\")",
+      "body": "User description if available",
+      "isOptIn": true
+    }
+  },
+  "confidentialExclusions": [
+    "Private journal entries",
+    "Notes and confidential files",
+    "Vault passphrases and recovery secrets"
+  ],
+  "invariableRule": "Journal destinations and confidential items are ALWAYS redacted to generic text regardless of preference",
+  "verifiedAt": "2026-11-06T04:56:10.356Z"
+}

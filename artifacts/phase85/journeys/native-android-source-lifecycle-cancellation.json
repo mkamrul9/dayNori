@@ -1,0 +1,22 @@
+{
+  "description": "Verified local reminder cancellation upon task completion, routine completion, and trash deletion",
+  "handledEvents": [
+    {
+      "event": "Task completed (handleToggleComplete)",
+      "action": "cancelForTarget(task, id)"
+    },
+    {
+      "event": "Task trashed (handleDeleteTask)",
+      "action": "cancelForTarget(task, id)"
+    },
+    {
+      "event": "Routine occurrence completed",
+      "action": "cancelForTarget(routine, id)"
+    },
+    {
+      "event": "Task restored (handleUndo)",
+      "action": "Reconciles active instances on next sync"
+    }
+  ],
+  "verifiedAt": "2026-11-06T04:56:10.357Z"
+}

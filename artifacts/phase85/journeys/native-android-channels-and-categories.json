@@ -1,0 +1,28 @@
+{
+  "description": "Verified Android notification channel setup and importance configuration",
+  "channels": [
+    {
+      "id": "reminders",
+      "name": "Reminders & Alerts",
+      "importance": "HIGH (4)",
+      "vibrationPattern": [
+        0,
+        250,
+        250,
+        250
+      ],
+      "lightColor": "#0F172A",
+      "sound": "default",
+      "lockscreenVisibility": "PRIVATE",
+      "description": "Scheduled reminders for tasks, routines, and calendar events"
+    },
+    {
+      "id": "updates",
+      "name": "Workspace Updates",
+      "importance": "DEFAULT (3)",
+      "enableVibrate": false,
+      "description": "Activity updates, sync notices, and quiet status changes"
+    }
+  ],
+  "verifiedAt": "2026-11-06T04:56:10.349Z"
+}

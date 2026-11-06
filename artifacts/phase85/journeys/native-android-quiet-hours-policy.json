@@ -1,0 +1,15 @@
+{
+  "description": "Verified quiet hours window evaluation and deferral/drop handling",
+  "defaultQuietHours": {
+    "start": "22:00",
+    "end": "07:00",
+    "timezone": "UTC",
+    "enabled": true
+  },
+  "evaluatedBehaviors": {
+    "defer": "Adjusts scheduled time to 07:00 at end of quiet period",
+    "drop": "Drops delivery and logs error: Dropped by quiet hours policy",
+    "allow": "Dispatches reminder despite quiet hours"
+  },
+  "verifiedAt": "2026-11-06T04:56:10.356Z"
+}
