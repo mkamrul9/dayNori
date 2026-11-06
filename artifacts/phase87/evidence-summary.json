@@ -1,0 +1,38 @@
+{
+  "phase": 87,
+  "title": "Google Drive connection and scope readiness",
+  "verificationDate": "2026-11-06",
+  "totalTestSuites": 4,
+  "totalTests": 46,
+  "passedTests": 46,
+  "scopeEnforcement": {
+    "approvedScope": "https://www.googleapis.com/auth/drive.file",
+    "forbiddenScopes": [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive.metadata",
+      "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
+      "https://www.googleapis.com/auth/drive.appdata"
+    ],
+    "folderDescentPolicy": "Selected folder does NOT authorize unpicked pre-existing or future children. Only app-created or explicitly picked files are accessible."
+  },
+  "storageAndTransferModes": {
+    "import_copy": "Verified. Downloads file bytes into app storage, verifies checksum, scans for malware, durable offline cache upon client ack. Preserved on remote file deletion or disconnect.",
+    "link_reference": "Verified. Stores provider file reference only. Does not consume app storage. Reflects permission_lost or source_unavailable if removed in Drive.",
+    "upload_to_drive": "Verified. App file upload with idempotency tracking to prevent duplicates.",
+    "vault_exclusion": "Verified. Encrypted vault files and secrets are strictly excluded from Drive connector."
+  },
+  "cryptoAndFencing": {
+    "tokenEncryption": "AES-256-GCM sealed at rest with AAD bound to workspaceId, connectionId, accountId, and key version. Fails closed on key absence or tampering.",
+    "disconnect": "Stored tokens wiped immediately, pending jobs cancelled, generation incremented, remote originals in Google Drive untouched, imported copies retained in app.",
+    "generationFencing": "Late jobs or token refreshes with stale generation are strictly fenced (status=fenced) and cannot resurrect disconnected state."
+  },
+  "liveGoogleOAuthStatus": "unmet_config",
+  "liveGoogleOAuthReason": "Owner Google Cloud project OAuth credentials (DAYNORI_DRIVE_OAUTH_CLIENT_ID / SECRET) and live interactive consent are unconfigured. Fake provider strictly rejected in production runtimes under fail-closed gates.",
+  "driveReleaseReadiness": "blocked",
+  "defectTracking": "DEF-V2-005",
+  "evidenceFile": "artifacts/phase87/phase87-ui-evidence.json",
+  "manualUiEvidence": "artifacts/phase87/manual-ui-evidence.json",
+  "configurationGuide": "docs/engineering/google-drive-oauth-configuration-guide.md"
+}

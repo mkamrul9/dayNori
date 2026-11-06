@@ -16,6 +16,7 @@ export const DriveLinkModeSchema = z.enum([
   'upload_to_drive',
   'download_offline',
 ]);
+export type DriveLinkMode = z.infer<typeof DriveLinkModeSchema>;
 
 export const DriveProviderKindSchema = z.enum(['unconfigured', 'fake', 'google_production']);
 

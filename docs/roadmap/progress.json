@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-06",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 86 implemented before final acceptance of Phases 75 and 81 under ADR 0086 (Vault review, recovery, and release gate closure). Phase 86 status recorded as blocked due to unmet independent external security review and physical Android hardware evidence (DEF-V2-004 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, and Phase 99 prototype review retain their recorded states. Phase 87 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 87 implemented and supported-scope verified before final acceptance of Phases 75 and 81 under ADR 0087 (Google Drive connection and scope readiness). Phase 87 status recorded as blocked due to unmet owner Google Cloud OAuth credentials and live interactive consent (DEF-V2-005 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, and Phase 99 prototype review retain their recorded states. Phase 88 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -506,7 +506,9 @@
     },
     {
       "id": "87",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-87.md",
+      "reason": "Google Drive narrow drive.file scope boundary strictly enforced; folder descent bounded without authorizing unpicked descendants; vault content strictly excluded; storage and transfer models solidified (import_copy with SHA-256 integrity and malware quarantine, link_reference, and upload_to_drive with idempotency); AES-256-GCM token encryption at rest with AAD binding verified; ephemeral Picker tokens protected (no-store); disconnect wipes tokens, cancels pending jobs, preserves imported copies, and fences late jobs; configuration guide prepared under docs/engineering/google-drive-oauth-configuration-guide.md; 46 tests passing across 4 test suites; production Google provider fails closed pending owner Google Cloud project OAuth credentials and live interactive consent (DEF-V2-005 retained). See docs/phase-reports/phase-87.md."
     },
     {
       "id": "88",

@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 87 — Google Drive connection and scope readiness — 2026-11-06
+
+- ADR 0087: Google Drive narrow scope enforcement, selected-file boundary, copy vs. reference storage models, AES-256-GCM token encryption at rest with AAD binding, short-lived Picker tokens, disconnect guarantees with generation fencing, byte transfer with SHA-256 integrity and malware quarantine, and fail-closed production provider gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 87 implementation and supported-scope verification before final acceptance of Phases 75 and 81 recorded in ADR 0087 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, and 99 remain preserved; DEF-V2-005 retained.
+- Narrow scope enforcement: approved scope strictly restricted to `https://www.googleapis.com/auth/drive.file` with standard `openid email` extras; broad scopes (`drive`, `drive.readonly`, `drive.metadata`, `drive.appdata`, `drive.photos.readonly`) and lookalike URIs strictly rejected at request and grant assertion.
+- Selected-file boundary: folder selection explicitly does not authorize unpicked pre-existing or external descendants; full folder mirroring remains deferred per Phase 50; encrypted vault items and keys are strictly excluded (`isVaultDriveTarget`).
+- Storage and transfer models solidified:
+  - `import_copy`: downloads file bytes directly into Daynori storage, verifies SHA-256 checksum, scans for malware (`PolicyMalwareScanner`, quarantining malicious payloads such as EICAR), and caches offline upon client acknowledgment. Retained in Daynori on remote file deletion or disconnect.
+  - `link_reference`: stores provider file metadata only; zero Daynori storage quota; requires active internet connection; reflects `source_unavailable` or `permission_lost` if remote file is deleted or unshared.
+  - `upload_to_drive`: app file upload tracking idempotency keys to prevent duplicate remote files on network retry.
+  - Remote file protection: disconnect and unlink actions remove Daynori references and wipe tokens without trashing or deleting remote Google Drive originals.
+- Cryptographic token storage & generation fencing:
+  - AES-256-GCM authenticated encryption for refresh tokens at rest with AAD bound to `workspaceId`, `connectionId`, `accountId`, and key version (`DAYNORI_DRIVE_TOKEN_ENCRYPTION_KEY`). Fails closed on missing keys or tampered ciphertext.
+  - Ephemeral Google Picker access tokens issued with `cacheControl: 'no-store'`; refresh tokens and ciphertexts are never leaked to client runtimes.
+  - Disconnect atomically wipes stored tokens, increments generation, and cancels pending jobs. Late jobs operating under stale generations are strictly fenced (`status = 'fenced'`).
+- UI enhancements:
+  - Web (`apps/web/src/components/DriveConnectionsPanel.tsx`): added copy vs. reference explanatory card, vault exclusion disclaimer, status badges, reconnect button for revoked state, and unlinking controls.
+  - Mobile (`apps/mobile/src/views/DriveConnectionsSheet.tsx`): added supported modes guidance box, vault exclusion notice, Custom Tabs browser guidance, file inventory, and unlinking controls.
+- Google Cloud configuration guide (`docs/engineering/google-drive-oauth-configuration-guide.md`): step-by-step documentation for Google Cloud project setup, narrow `drive.file` OAuth consent screen, Web and Android OAuth client credentials, environment variable configuration, and error troubleshooting.
+- Comprehensive test coverage: 4 test suites with 46 tests passing (`tests/integration/phase87-drive-connection-readiness.test.ts`, `tests/integration/phase49-drive-connector.test.ts`, `tests/security/phase49-drive-connector.test.ts`, `tests/spikes/drive/drive-scope.synthetic.test.ts`).
+- Fail-closed release gates preserved: production Google Drive provider fails closed when unconfigured; `FakeGoogleDriveProvider` strictly forbidden in production runtimes (`NODE_ENV === 'production'`); owner Google Cloud project credentials and live interactive consent recorded honestly as unmet under DEF-V2-005.
+- Commit: `fix(drive): verify supported live connection and revocation`.
+
 ## Phase 86 — Vault review, recovery, and release gate closure — 2026-11-06
 
 - ADR 0086: vault baseline audit against ADR 0043 threat model, findings register VR-001 through VR-008, bounded remediations, privacy and leakage boundary verification, review packet delivery, and fail-closed release gate closure.

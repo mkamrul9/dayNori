@@ -5345,9 +5345,15 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "tests/integration/phase87-drive-connection-readiness.test.ts",
+        "tests/integration/phase49-drive-connector.test.ts",
+        "tests/security/phase49-drive-connector.test.ts",
+        "tests/spikes/drive/drive-scope.synthetic.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-005",
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5380,8 +5386,8 @@
       "acceptanceJourney": "Connect Google Drive with approved scope.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "8383e39",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5405,9 +5411,15 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "tests/integration/phase87-drive-connection-readiness.test.ts",
+        "tests/integration/phase49-drive-connector.test.ts",
+        "tests/security/phase49-drive-connector.test.ts",
+        "tests/spikes/drive/drive-scope.synthetic.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-005",
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5440,8 +5452,8 @@
       "acceptanceJourney": "Select files; sync/status/conflict.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "8383e39",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -5465,9 +5477,15 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "tests/integration/phase87-drive-connection-readiness.test.ts",
+        "tests/integration/phase49-drive-connector.test.ts",
+        "tests/security/phase49-drive-connector.test.ts",
+        "tests/spikes/drive/drive-scope.synthetic.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-005",
       "authorization": "Workspace member when authenticated; public where route is public.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5500,8 +5518,8 @@
       "acceptanceJourney": "Disconnect and handle revoked auth.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "8383e39",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "no-live-google",
         "evidenceLayer": "provider_authenticated"
@@ -6968,18 +6986,22 @@
       "severity": "medium",
       "userImpact": "Drive connector cannot be claimed ready without live OAuth.",
       "expected": "Connect approved scope; sync; disconnect with revoked-token handling.",
-      "observed": "Local/integration tests exist; no live Google provider run in Phase 65.",
+      "observed": "Phase 87 scope boundary and storage models verified across 46 tests in 4 suites; production provider fails closed pending owner Google Cloud OAuth credentials and live interactive consent.",
       "reproduction": [
         "Open Drive panel",
         "No live OAuth client configured for this inventory"
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
-        "tests/integration/phase49-drive-connector.test.ts"
+        "artifacts/phase87/phase87-ui-evidence.json",
+        "artifacts/phase87/evidence-summary.json",
+        "artifacts/phase87/manual-ui-evidence.json",
+        "docs/engineering/google-drive-oauth-configuration-guide.md",
+        "tests/integration/phase87-drive-connection-readiness.test.ts"
       ],
       "workaround": null,
-      "dependency": "Google OAuth credentials and Phase 87.",
-      "nextAction": "Phase 87 with authorized test project.",
+      "dependency": "Owner Google Cloud OAuth credentials and live interactive consent.",
+      "nextAction": "Owner configuration of Google Cloud OAuth project credentials per docs/engineering/google-drive-oauth-configuration-guide.md and interactive consent verification.",
       "owningPhase": "87"
     },
     {
