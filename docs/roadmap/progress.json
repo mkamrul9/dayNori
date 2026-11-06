@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-06",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 85 implemented before Phase 81 final acceptance under ADR 0085 (Native Android reminder and notification readiness). Phase 81 remains recorded as blocked with its outstanding physical reviews. Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 84 physical devices, and Phase 99 prototype review retain their recorded states. Phase 86 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 86 implemented before final acceptance of Phases 75 and 81 under ADR 0086 (Vault review, recovery, and release gate closure). Phase 86 status recorded as blocked due to unmet independent external security review and physical Android hardware evidence (DEF-V2-004 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, and Phase 99 prototype review retain their recorded states. Phase 87 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -500,7 +500,9 @@
     },
     {
       "id": "86",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-86.md",
+      "reason": "Vault security baseline audited against ADR 0043 threat model; findings register VR-001 through VR-008 established; bounded remediations delivered for unlock timeout recovery (VR-001), cooldown counter reset (VR-002), notification destination redaction (VR-003), biometric invalidation guidance (VR-004), cross-tab lock broadcast (VR-005), and recovery secret canonicalization (VR-006); leakage and privacy boundaries verified (zero server/sync/search/cache/log/assistant leakage); review packet prepared under docs/engineering/vault-security-review-packet.md; production vault remains disabled fail-closed pending qualified independent external security audit and physical Android hardware evidence (DEF-V2-004 retained). See docs/phase-reports/phase-86.md."
     },
     {
       "id": "87",

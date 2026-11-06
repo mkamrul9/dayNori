@@ -1,0 +1,82 @@
+[
+  {
+    "id": "VR-001",
+    "severity": "high",
+    "title": "Stale or interrupted unlock operation recovery",
+    "affectedContract": "packages/domain/src/vaultLifecycle.ts & vaultSessionController.ts",
+    "reproduction": "An unlock operation begins via unlock_started, but the async provider is interrupted, hangs, or the UI closes without calling cancelUnlock. Subsequent beginUnlock calls are permanently rejected as already_pending.",
+    "proposedRemediation": "Track unlockStartedAt on the session snapshot. In admitUnlockAttempt, if state is unlock_pending and Date.parse(at) - Date.parse(unlockStartedAt) > UNLOCK_OPERATION_TIMEOUT_MS (30s), allow a new attempt to supersede the stale pending operation and reset state cleanly.",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-001",
+    "disposition": "Remediated in Phase 86"
+  },
+  {
+    "id": "VR-002",
+    "severity": "medium",
+    "title": "Cooldown counter reset on elapsed cooldown window",
+    "affectedContract": "packages/domain/src/vaultLifecycle.ts",
+    "reproduction": "After 5 failed passphrase attempts, cooldownUntil is set for 60s. After waiting 60s, a subsequent attempt with a single typo immediately re-triggered another 60s cooldown because failedAttempts remained at 5.",
+    "proposedRemediation": "In unlock_started, if cooldownUntil is in the past, reset failedAttempts to 0 and clear cooldownUntil to null for the new attempt cycle.",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-002",
+    "disposition": "Remediated in Phase 86"
+  },
+  {
+    "id": "VR-003",
+    "severity": "high",
+    "title": "Mobile push notification privacy exclusion for vault destinations",
+    "affectedContract": "apps/mobile/src/notifications/adapter.ts",
+    "reproduction": "A local reminder scheduled with destination: 'vault' or targetType: 'vault' would expose title/details if privacyLevel was accidentally omitted.",
+    "proposedRemediation": "Explicitly check options.destination === 'vault' and targetType === 'vault' alongside journal in scheduleLocalReminderAsync, unconditionally forcing generic title and placeholder body regardless of user mode.",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-003",
+    "disposition": "Remediated in Phase 86"
+  },
+  {
+    "id": "VR-004",
+    "severity": "medium",
+    "title": "Biometric invalidation fallback guidance message",
+    "affectedContract": "packages/domain/src/vaultSessionController.ts",
+    "reproduction": "Biometric enrollment change invalidates Keystore key. Controller locks, but user was not given explicit actionable copy that biometrics cannot be retried and primary passphrase/recovery key is required.",
+    "proposedRemediation": "Ensure biometric_invalidated failure responses return explicit guidance: 'Biometric enrollment changed; device key invalidated. Use passphrase.'",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-004",
+    "disposition": "Remediated in Phase 86"
+  },
+  {
+    "id": "VR-005",
+    "severity": "medium",
+    "title": "Cross-tab lock synchronization on backgrounding",
+    "affectedContract": "apps/web/src/vault/crossTabLock.ts & VaultHarnessClient.tsx",
+    "reproduction": "When one tab transitions to hidden, background lock occurred locally, but if other tabs remained visible, they were not immediately locked via broadcast signal unless explicit lock was requested.",
+    "proposedRemediation": "Broadcast lock_signal with reason 'background' across BroadcastChannel when visibility transitions to hidden, ensuring all open tabs lock immediately without transmitting secrets.",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-005",
+    "disposition": "Remediated in Phase 86"
+  },
+  {
+    "id": "VR-006",
+    "severity": "low",
+    "title": "Strict recovery secret canonicalization & error differentiation",
+    "affectedContract": "tests/security/vault/vault-crypto.ts",
+    "reproduction": "verifyAndDecodeRecoverySecret returned generic error messages on corrupted checksum vs formatting errors.",
+    "proposedRemediation": "Differentiate transcription checksum failure ('Recovery secret checksum validation failed') from formatting errors (odd length, non-hex characters, invalid length).",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-006",
+    "disposition": "Remediated in Phase 86"
+  },
+  {
+    "id": "VR-007",
+    "severity": "high",
+    "title": "Large attachment streaming format unfinalized",
+    "affectedContract": "docs/architecture/vault-attachment-encryption-evaluation.md",
+    "reproduction": "Large file encryption requires chunked streaming AEAD. Homegrown protocols are prohibited; proposed libsodium secretstream has not undergone external audit.",
+    "proposedRemediation": "Keep single-envelope AES-256-GCM for <= 16 MiB objects; keep streaming format proposed-only pending independent review. Keep production attachment encryption gated.",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-007",
+    "disposition": "Documented gate limitation; production attachments remain gated."
+  },
+  {
+    "id": "VR-008",
+    "severity": "high",
+    "title": "Independent qualified external audit and physical Android device evidence unmet",
+    "affectedContract": "docs/engineering/release-gates.md",
+    "reproduction": "No independent external security auditor has reviewed the vault implementation packet, and physical Android phone hardware evidence is uncollected in local runner.",
+    "proposedRemediation": "Prepare complete review packet (docs/engineering/vault-security-review-packet.md), retain fail-closed gate, truthfully record Phase 86 status as blocked with DEF-V2-004 retained.",
+    "regressionTest": "tests/security/phase86-vault-review-recovery.test.ts > Finding VR-008",
+    "disposition": "Documented release gate; blocks production vault enablement."
+  }
+]

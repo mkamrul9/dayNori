@@ -458,8 +458,13 @@ export async function scheduleLocalReminderAsync(
     displayBody = 'You have a scheduled reminder';
   }
 
-  // Strict invariant: confidential targets, journal entries, and private notes NEVER leak text
-  if (options.destination === 'journal' || options.privacyLevel === 'confidential') {
+  // Strict invariant: confidential targets, vault items, journal entries, and private notes NEVER leak text
+  if (
+    options.destination === 'journal' ||
+    options.destination === ('vault' as any) ||
+    (options as any).targetType === 'vault' ||
+    options.privacyLevel === 'confidential'
+  ) {
     displayTitle = 'Daynori Reminder';
     displayBody = 'You have a scheduled reminder';
   }

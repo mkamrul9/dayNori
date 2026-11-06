@@ -1,5 +1,22 @@
 # Changelog
 
+## Phase 86 — Vault review, recovery, and release gate closure — 2026-11-06
+
+- ADR 0086: vault baseline audit against ADR 0043 threat model, findings register VR-001 through VR-008, bounded remediations, privacy and leakage boundary verification, review packet delivery, and fail-closed release gate closure.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 86 review, independent implementation work, and bounded remediation before final acceptance of Phases 75 and 81 recorded in ADR 0086 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, and 99 remain preserved; DEF-V2-004 retained.
+- Findings register & triage (`artifacts/phase86/findings-register.json`): cataloged VR-001 through VR-008 across session lifecycle, notification redaction, biometric invalidation, cross-tab locking, recovery canonicalization, streaming attachments, and release gates.
+- Bounded remediations delivered:
+  - VR-001: stale/interrupted unlock operation recovery in `packages/domain/src/vaultLifecycle.ts` (`unlockStartedAt` tracking on snapshot; 30-second `UNLOCK_OPERATION_TIMEOUT_MS` expiration allowing clean superseding of hung unlock operations in `admitUnlockAttempt`).
+  - VR-002: cooldown counter reset in `packages/domain/src/vaultLifecycle.ts` (`reduceVaultSession` for `unlock_started` resets `failedAttempts` to 0 and clears `cooldownUntil` once the 60s cooldown window has elapsed).
+  - VR-003: notification destination privacy redaction in `apps/mobile/src/notifications/adapter.ts` (`scheduleLocalReminderAsync` explicitly forces generic title `"Daynori Reminder"` and placeholder body `"You have a scheduled reminder"` for `options.destination === 'vault'` and `options.targetType === 'vault'` across all privacy modes).
+  - VR-004: biometric invalidation copy in `packages/domain/src/vaultSessionController.ts` returning actionable user guidance: `"Biometric enrollment changed; device key invalidated. Use passphrase."`
+  - VR-005: cross-tab lock broadcast synchronization on visibility change to hidden across `BroadcastChannel` without transmitting cryptographic secrets.
+  - VR-006: strict recovery secret canonicalization differentiating checksum failures from formatting and encoding errors.
+- End-to-end privacy and leakage boundaries verified: zero vault plaintext stored on server or in sync payloads; search index strictly excludes vault items (`SearchItemTypeSchema`); browser Cache Storage explicitly bypassed for `/api/v1/vault/*` and `/vault/*` in Service Worker; mobile notifications unconditionally redacted; AI assistant ingestion strictly excludes vault records; lock UI never described as encryption.
+- Independent review packet updated (`docs/engineering/vault-security-review-packet.md`): baseline commit `3d365818c600bf9d490a603ea59811b189fe6366`, test vectors, 111 passing tests across 5 security test suites, and reviewer handoff protocol.
+- Fail-closed release gates preserved: production vault remains disabled; independent qualified external audit and physical Android device evidence recorded honestly as unmet; Phase 86 marked as blocked; DEF-V2-004 retained in function register.
+- Commit: `fix(vault): close independently reviewed recovery and release gates`.
+
 ## Phase 85 — Native Android reminder and notification readiness — 2026-11-06
 
 - ADR 0085: native Android reminder and notification readiness connecting task and routine mutations to local Expo/Android NotificationChannels, single-active per-device server push suppression, privacy-minimized lock-screen previews, quiet hours evaluation, lifecycle target cancellations, and multi-account isolation.

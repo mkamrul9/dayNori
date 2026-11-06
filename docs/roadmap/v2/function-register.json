@@ -5102,9 +5102,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5135,8 +5139,8 @@
       "acceptanceJourney": "Set up and unlock vault.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5158,9 +5162,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5191,8 +5199,8 @@
       "acceptanceJourney": "Lock vault / cross-tab lock.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5214,9 +5222,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5247,8 +5259,8 @@
       "acceptanceJourney": "Vault recovery enrollment.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -5270,9 +5282,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/security/phase44-vault-crypto.test.ts",
-        "tests/security/phase47-web-vault.test.ts"
+        "tests/security/phase47-web-vault.test.ts",
+        "tests/security/phase86-vault-review-recovery.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-004",
       "authorization": "Vault production unlock disabled pending independent review.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -5304,8 +5320,8 @@
       "acceptanceJourney": "Open synthetic vault harness (dev).",
       "observedResult": "untested",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "3d365818c600bf9d490a603ea59811b189fe6366",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "api-local",
         "evidenceLayer": "browser_ui"
@@ -6928,11 +6944,13 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase86/findings-register.json",
+        "artifacts/phase86/evidence-summary.json"
       ],
       "workaround": "Use synthetic harness only for engineering.",
-      "dependency": "Independent vault review + Phase 86.",
-      "nextAction": "Keep vault off; close gates in Phase 86.",
+      "dependency": "Independent qualified security review and physical Android hardware evidence.",
+      "nextAction": "Keep vault off fail-closed pending qualified independent review and physical Android device evidence.",
       "owningPhase": "86"
     },
     {
