@@ -43,6 +43,11 @@ function DeveloperToolsBody() {
               Feedback & support triage
             </Button>
           </Link>
+          <Link href="/developer/moderation" style={{ textDecoration: 'none' }}>
+            <Button variant="secondary" size="compact" themeMode={themeMode}>
+              Moderation triage
+            </Button>
+          </Link>
           <Link href="/dev/vault-harness" style={{ textDecoration: 'none' }}>
             <Button variant="secondary" size="compact" themeMode={themeMode}>
               Synthetic vault harness

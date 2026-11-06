@@ -136,6 +136,8 @@ export const ModerationReportSchema = z
   })
   .strict();
 
+export type ModerationReport = z.infer<typeof ModerationReportSchema>;
+
 export const ModerationReportListResponseSchema = z.object({
   data: z.object({
     reports: z.array(ModerationReportSchema),

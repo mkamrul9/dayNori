@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-06",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 87 implemented and supported-scope verified before final acceptance of Phases 75 and 81 under ADR 0087 (Google Drive connection and scope readiness). Phase 87 status recorded as blocked due to unmet owner Google Cloud OAuth credentials and live interactive consent (DEF-V2-005 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, and Phase 99 prototype review retain their recorded states. Phase 88 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 88 implemented and independent verification delivered before final acceptance of Phases 75 and 81 under ADR 0088 (Rooms, chat, and staffed moderation readiness). Phase 88 status recorded as blocked due to unmet staffed human 24/7 moderation operations, legal counsel, and physical TalkBack device evidence (DEF-V2-006 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, and Phase 99 prototype review retain their recorded states. Phase 89 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -512,7 +512,9 @@
     },
     {
       "id": "88",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-88.md",
+      "reason": "Rooms, chat, and UGC safety readiness verified: actioned content removal enforcement (RM-001) soft-deletes messages and emits room_message.deleted events under migration 00077; web Operator Moderation Triage Dashboard (/developer/moderation) implemented under OperatorGate (RM-002); member lifecycle management controls added to web and mobile (RM-003); explicit personal-to-room item copying with UUID isolation and vault/journal strict blocking added (RM-004); access revocation epoch rotation and cache purge verified on MEMBERSHIP_REVOKED (RM-005); Mute vs Block vs Leave boundaries codified (RM-006); monotonic server order sequences and event replay verified (RM-007); Google Play UGC policy review and concrete Moderation Operations Package delivered; 72 tests passing across 9 test suites; production collaboration fails closed pending contracted 24/7 human moderation operations, legal counsel, and physical Android TalkBack device evidence (DEF-V2-006 retained). See docs/phase-reports/phase-88.md."
     },
     {
       "id": "89",

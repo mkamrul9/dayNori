@@ -54,13 +54,39 @@ export function RoomsSheet({
   const [chatDraft, setChatDraft] = useState('');
   const [chatConnection, setChatConnection] = useState('idle');
   const [chatMuted, setChatMuted] = useState(false);
+  const [members, setMembers] = useState<Array<{ userId: string; role: string }>>([]);
+  const [personalItemId, setPersonalItemId] = useState('');
+  const [copyPreviewText, setCopyPreviewText] = useState<string | null>(null);
 
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
+
+  const loadMembers = useCallback(
+    async (roomId: string) => {
+      try {
+        const res = await apiClient.listRoomMembers(roomId);
+        setMembers(res.data.map((m) => ({ userId: m.userId, role: m.role })));
+      } catch {
+        setMembers([]);
+      }
+    },
+    [apiClient]
+  );
 
   const refresh = useCallback(async () => {
     const listed = await apiClient.listRooms();
     setRooms(listed.data);
-  }, [apiClient]);
+    if (selectedId) {
+      await loadMembers(selectedId);
+    }
+  }, [apiClient, selectedId, loadMembers]);
+
+  useEffect(() => {
+    if (selectedId) {
+      void loadMembers(selectedId);
+    } else {
+      setMembers([]);
+    }
+  }, [selectedId, loadMembers]);
 
   useEffect(() => {
     void refresh().catch((err: unknown) => {
@@ -660,6 +686,196 @@ export function RoomsSheet({
               >
                 Block last other sender
               </MobileButton>
+            </View>
+          ) : null}
+
+          {/* Members list & role management */}
+          <View style={{ marginTop: spacing.md }}>
+            <Text style={{ fontWeight: '600', color: palette.text.primary, marginBottom: 4 }}>
+              Members ({members.length})
+            </Text>
+            {members.map((m) => (
+              <View
+                key={m.userId}
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingVertical: spacing.xs,
+                  borderBottomWidth: 1,
+                  borderColor: palette.border.subtle,
+                }}
+              >
+                <View>
+                  <Text style={{ fontSize: 13, color: palette.text.primary, fontWeight: '500' }}>
+                    {m.userId.slice(0, 8)}… {m.userId === userId ? '(you)' : ''}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: palette.text.secondary }}>{m.role}</Text>
+                </View>
+                {selected.actorRole === 'owner' && m.role !== 'owner' ? (
+                  <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                    <MobileButton
+                      variant="subtle"
+                      themeMode={themeMode}
+                      disabled={busy}
+                      accessibilityLabel={`Change role for ${m.userId.slice(0, 8)}`}
+                      onPress={() => {
+                        void (async () => {
+                          setBusy(true);
+                          try {
+                            const newRole = m.role === 'editor' ? 'viewer' : 'editor';
+                            await apiClient.updateRoomMemberRole(selected.id, m.userId, {
+                              role: newRole,
+                            });
+                            setMessage(`Updated role to ${newRole}`);
+                            await refresh();
+                          } catch (err) {
+                            setMessage(err instanceof Error ? err.message : 'Role change failed');
+                          } finally {
+                            setBusy(false);
+                          }
+                        })();
+                      }}
+                    >
+                      {m.role === 'editor' ? 'Demote' : 'Promote'}
+                    </MobileButton>
+                    <MobileButton
+                      variant="subtle"
+                      themeMode={themeMode}
+                      disabled={busy}
+                      accessibilityLabel={`Remove member ${m.userId.slice(0, 8)}`}
+                      onPress={() => {
+                        Alert.alert('Remove member', 'Remove this member from the room?', [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: () => {
+                              void (async () => {
+                                setBusy(true);
+                                try {
+                                  await apiClient.removeRoomMember(selected.id, m.userId);
+                                  setMessage('Member removed');
+                                  await refresh();
+                                } catch (err) {
+                                  setMessage(err instanceof Error ? err.message : 'Remove failed');
+                                } finally {
+                                  setBusy(false);
+                                }
+                              })();
+                            },
+                          },
+                        ]);
+                      }}
+                    >
+                      Remove
+                    </MobileButton>
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </View>
+
+          {/* Share personal item to room */}
+          {selected.status === 'active' ? (
+            <View
+              style={{
+                marginTop: spacing.md,
+                padding: spacing.sm,
+                borderRadius: radii.sm,
+                borderWidth: 1,
+                borderColor: palette.border.subtle,
+              }}
+            >
+              <Text style={{ fontWeight: '600', color: palette.text.primary, marginBottom: 2 }}>
+                Share personal item to room
+              </Text>
+              <Text style={{ fontSize: 11, color: palette.text.secondary, marginBottom: spacing.xs }}>
+                Explicit copy only. Creates a new item in room. Original preserved. Vault/journal blocked.
+              </Text>
+              <TextInput
+                value={personalItemId}
+                onChangeText={(t) => {
+                  setPersonalItemId(t);
+                  setCopyPreviewText(null);
+                }}
+                placeholder="Personal item UUID..."
+                placeholderTextColor={palette.text.secondary}
+                autoCapitalize="none"
+                style={{
+                  borderWidth: 1,
+                  borderColor: palette.border.subtle,
+                  borderRadius: radii.sm,
+                  padding: spacing.xs,
+                  color: palette.text.primary,
+                  minHeight: 38,
+                  marginBottom: spacing.xs,
+                  fontSize: 12,
+                }}
+              />
+              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                <MobileButton
+                  variant="subtle"
+                  themeMode={themeMode}
+                  disabled={busy || !personalItemId.trim()}
+                  accessibilityLabel="Preview item copy"
+                  onPress={() => {
+                    void (async () => {
+                      setBusy(true);
+                      try {
+                        const prev = await apiClient.previewCopyPersonalItemToRoom({
+                          sourceWorkspaceId: personalWorkspaceId,
+                          sourceItemId: personalItemId.trim(),
+                          destinationRoomId: selected.id,
+                        });
+                        setCopyPreviewText(
+                          prev.data.blocked
+                            ? `Cannot copy: ${prev.data.blockReason}`
+                            : `Ready: ${prev.data.sourceTitle} (${prev.data.sourceKind}) -> ${prev.data.destinationRoomName}`
+                        );
+                      } catch (err) {
+                        setCopyPreviewText(err instanceof Error ? err.message : 'Preview failed');
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Preview
+                </MobileButton>
+                <MobileButton
+                  themeMode={themeMode}
+                  disabled={busy || !personalItemId.trim()}
+                  accessibilityLabel="Confirm copy to room"
+                  onPress={() => {
+                    void (async () => {
+                      setBusy(true);
+                      try {
+                        const res = await apiClient.copyPersonalItemToRoom({
+                          sourceWorkspaceId: personalWorkspaceId,
+                          sourceItemId: personalItemId.trim(),
+                          destinationRoomId: selected.id,
+                        });
+                        setMessage(`Copied to room: ${res.data.destinationItemId.slice(0, 8)}…`);
+                        setPersonalItemId('');
+                        setCopyPreviewText(null);
+                        await refresh();
+                      } catch (err) {
+                        setMessage(err instanceof Error ? err.message : 'Copy failed');
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Copy to room
+                </MobileButton>
+              </View>
+              {copyPreviewText ? (
+                <Text style={{ fontSize: 11, color: palette.text.secondary, marginTop: 4 }}>
+                  {copyPreviewText}
+                </Text>
+              ) : null}
             </View>
           ) : null}
         </View>

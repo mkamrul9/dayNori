@@ -1,5 +1,34 @@
 # Changelog
 
+## Phase 88 — Rooms, chat, and staffed moderation readiness — 2026-11-06
+
+- ADR 0088: rooms, chat, and staffed moderation readiness establishing Google Play UGC compliance architecture, bounded findings register RM-001 through RM-008, server-enforced content takedown, restricted operator moderation dashboard, member lifecycle controls, explicit personal-to-room copy boundaries, and fail-closed collaboration gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 88 implementation and independent verification before final acceptance of Phases 75 and 81 recorded in ADR 0088 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, and 99 remain preserved; DEF-V2-006 retained.
+- Findings register & triage (`artifacts/phase88/findings-register.json`): cataloged RM-001 through RM-008 across takedown enforcement, moderation triage surface, member management controls, personal-to-room copy boundaries, membership revocation lifecycle, mute/block/leave distinction, realtime multi-instance sync, and Google Play UGC policy compliance.
+- Database & server takedown enforcement:
+  - Database migration `00077_moderation_takedown_enforcement.sql` defining `SECURITY DEFINER` function `app.moderation_takedown_room_message(p_room_id, p_message_id)` to allow platform moderators to soft-delete reported messages and emit `message_deleted` events across room member RLS boundaries.
+  - API Safety Service (`apps/api/src/modules/safety/service.ts`) automatically invokes takedown when a report is actioned with `content_removed`, soft-deleting the message body and notifying connected clients.
+- Operator Moderation Triage Dashboard (`apps/web/src/app/developer/moderation/page.tsx`):
+  - Protected by `OperatorGate` and server-side operator allowlist.
+  - Filtering by status (`all`, `received`, `triaged`, `actioned`, `dismissed`) and reason category.
+  - Frozen evidence snapshot inspector displaying reported message body, sender ID, timestamp, and context without querying active room data.
+  - Operator disposition actions (`Dismiss`, `Content Removed`, `User Warned`, `User Suspended`) with mandatory operator reason notes and immutable audit trail.
+  - Navigation integrated into Developer Tools hub (`apps/web/src/app/developer/page.tsx`).
+- Member management & lifecycle controls:
+  - Web (`apps/web/src/components/RoomsPanel.tsx`) and Mobile (`apps/mobile/src/views/RoomsSheet.tsx`) provide owner and editor controls to promote/demote members (`editor` <-> `viewer`), remove members, and transfer room ownership.
+  - Single-owner invariant strictly maintained: ownership transfer relinquishes original owner's role to editor.
+  - Member removal immediately rotates room access epoch; removed client halts polling on 403 `MEMBERSHIP_REVOKED` or 404, purges room cache, and leaves personal workspace data intact.
+- Explicit personal-to-room copy controls:
+  - Web and Mobile affordances to copy personal items into a room with preview confirmation dialog.
+  - Creates a new decoupled entity UUID in the room while preserving the personal item untouched.
+  - Encrypted vault items and private journal entries are strictly blocked from being copied to rooms.
+- Policy and Operations deliverables:
+  - Google Play UGC Policy Review dated 2026-11-06 (`docs/policy/google-play-ugc-review-2026-11-06.md`) evaluating Google Play UGC policy requirements, in-app report mechanisms, user blocking, robust and timely moderation, terms of service, and physical test account requirements.
+  - Concrete Moderation Operations Package (`docs/engineering/moderation-operations-package.md`) establishing 24-hour SLA triage workflow, disposition escalation matrix, staffing rota, reporter notification protocols, legal appeals process, and law enforcement escalation.
+- Comprehensive test coverage: 9 test suites with 72 tests passing (`tests/integration/phase88-rooms-chat-moderation-readiness.test.ts`, `tests/integration/phase51-rooms-invitations.test.ts`, `tests/integration/phase51-rooms-repair.test.ts`, `tests/integration/phase52-room-content-sync.test.ts`, `tests/integration/phase53-room-chat.test.ts`, `tests/integration/phase53-room-chat-repair.test.ts`, `tests/integration/phase54-collaboration-safety.test.ts`, `tests/security/phase51-rooms-domain.test.ts`, `tests/security/phase52-room-revocation-domain.test.ts`).
+- Fail-closed release gates preserved: rooms and collaboration remain disabled in production (`isRoomsLocallyEnabled()` returns `false`); Google Play UGC compliance requires staffed 24/7 human moderation operations, legal counsel, and physical device accessibility verification; Phase 88 marked as blocked; DEF-V2-006 retained in function register.
+- Commit: `fix(rooms): close sharing chat and moderation release gates`.
+
 ## Phase 87 — Google Drive connection and scope readiness — 2026-11-06
 
 - ADR 0087: Google Drive narrow scope enforcement, selected-file boundary, copy vs. reference storage models, AES-256-GCM token encryption at rest with AAD binding, short-lived Picker tokens, disconnect guarantees with generation fencing, byte transfer with SHA-256 integrity and malware quarantine, and fail-closed production provider gates.
