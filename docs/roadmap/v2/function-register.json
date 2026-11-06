@@ -6043,10 +6043,12 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6104,10 +6106,12 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6165,10 +6169,12 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6226,10 +6232,12 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -7120,6 +7128,15 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase91/findings-register.json",
+        "artifacts/phase91/evaluation-dataset-v1.json",
+        "artifacts/phase91/measured-evaluation-results.json",
+        "artifacts/phase91/synthetic-provider-package.json",
+        "artifacts/phase91/manual-ui-evidence.json",
+        "docs/engineering/retrieval-evaluation-and-grounding-guide.md",
+        "docs/decisions/0091-scoped-retrieval-indexing-and-grounding-quality.md",
+        "docs/phase-reports/phase-91.md",
         "artifacts/phase90/evidence-summary.json",
         "artifacts/phase90/findings-register.json",
         "artifacts/phase90/synthetic-test-package.json",

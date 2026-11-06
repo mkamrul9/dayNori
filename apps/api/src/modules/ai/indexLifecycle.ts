@@ -9,7 +9,13 @@ import { enqueueAiIndexSource, invalidateAiIndexSource } from './jobExecutor.js'
 
 export async function onPersonalItemUpsertedForAi(
   client: PoolClient,
-  input: { userId: string; workspaceId: string; itemId: string; kind: string }
+  input: {
+    userId: string;
+    workspaceId: string;
+    itemId: string;
+    kind: string;
+    revision?: number;
+  }
 ): Promise<void> {
   if (!isAiLocallyEnabled(process.env)) return;
   if (!['note', 'task', 'todo', 'journal', 'journal_entry'].includes(input.kind)) return;
@@ -32,6 +38,7 @@ export async function onPersonalItemUpsertedForAi(
     workspaceId: input.workspaceId,
     itemId: input.itemId,
     consentGeneration: Number(row.consent_generation),
+    expectedRevision: input.revision,
   });
 }
 

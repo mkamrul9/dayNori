@@ -143,10 +143,18 @@ export function estimateAiReservationTokens(input: {
 
 export type AiSourceRef = { itemId: string; revision: number };
 
-const SOURCE_REF_RE =
-  /\[source:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#r(\d+)\]/gi;
+export type AuthorizedCitationRecord = {
+  itemId: string;
+  revision: number;
+  kind: string;
+  excerpt: string;
+  deepLink?: string;
+};
 
-/** Parse explicit source/revision markers from model text. */
+const SOURCE_REF_RE =
+  /\[source:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|help:[a-z0-9_.-]+)#(?:r|v)(\d+)\]/gi;
+
+/** Parse explicit source/revision markers from model text (supports UUIDs and versioned Help). */
 export function parseAiSourceReferences(answer: string): AiSourceRef[] {
   const out: AiSourceRef[] = [];
   const seen = new Set<string>();
@@ -163,15 +171,15 @@ export function parseAiSourceReferences(answer: string): AiSourceRef[] {
 
 /**
  * Bind answer references to the authorized context set.
- * Rejects unknown ids, wrong revisions, bare UUIDs without #rN, and unsupported formats.
+ * Rejects unknown ids, wrong revisions, bare UUIDs without #rN/#vN, and unsupported formats.
  */
 export function bindAiCitations(input: {
   answer: string;
-  authorized: Array<{ itemId: string; revision: number; kind: string; excerpt: string }>;
+  authorized: AuthorizedCitationRecord[];
 }): {
   ok: boolean;
   abstainReason: string | null;
-  referenced: Array<{ itemId: string; revision: number; kind: string; excerpt: string }>;
+  referenced: AuthorizedCitationRecord[];
 } {
   if (/^ABSTAIN:/i.test(input.answer.trim())) {
     return { ok: true, abstainReason: 'model_abstain', referenced: [] };
@@ -184,7 +192,7 @@ export function bindAiCitations(input: {
   // Bare UUIDs or #r mismatches are unsupported citation formats.
   const bareUuid = [
     ...input.answer.matchAll(
-      /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?!#r\d+)/gi
+      /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?!#(?:r|v)\d+)/gi
     ),
   ];
   if (bareUuid.length > 0) {
@@ -196,7 +204,7 @@ export function bindAiCitations(input: {
     return { ok: false, abstainReason: 'insufficient_support', referenced: [] };
   }
 
-  const referenced: Array<{ itemId: string; revision: number; kind: string; excerpt: string }> = [];
+  const referenced: AuthorizedCitationRecord[] = [];
   for (const ref of refs) {
     const hit = authorizedKeys.get(`${ref.itemId}#${ref.revision}`);
     if (!hit) {
@@ -205,6 +213,156 @@ export function bindAiCitations(input: {
     referenced.push(hit);
   }
   return { ok: true, abstainReason: null, referenced };
+}
+
+/** Stop words for English retrieval query preprocessing. */
+export const ENGLISH_AI_STOP_WORDS = new Set([
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any',
+  'are', 'as', 'at', 'be', 'because', 'been', 'before', 'being', 'below', 'between',
+  'both', 'but', 'by', 'can', 'could', 'did', 'do', 'does', 'doing', 'down', 'during',
+  'each', 'few', 'for', 'from', 'further', 'had', 'has', 'have', 'having', 'he', 'her',
+  'here', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'i', 'if', 'in', 'into',
+  'is', 'it', 'its', 'itself', 'just', 'me', 'more', 'most', 'my', 'myself', 'no',
+  'nor', 'not', 'now', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'our', 'ours',
+  'ourselves', 'out', 'over', 'own', 'same', 'she', 'should', 'so', 'some', 'such',
+  'than', 'that', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there',
+  'these', 'they', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up',
+  'very', 'was', 'we', 'were', 'what', 'when', 'where', 'which', 'while', 'who',
+  'whom', 'why', 'will', 'with', 'would', 'you', 'your', 'yours', 'yourself',
+  'yourselves', 'tell', 'show', 'give', 'find', 'get', 'list', 'explain',
+]);
+
+/** Stop words for Bangla retrieval query preprocessing. */
+export const BANGLA_AI_STOP_WORDS = new Set([
+  'কী', 'কি', 'কেন', 'কোথায়', 'কোথায়', 'কবে', 'কেমন', 'কে', 'কার', 'কাকে',
+  'ছিল', 'আছে', 'হবে', 'একটি', 'এবং', 'ও', 'এই', 'সেই', 'আমার', 'তোমার',
+  'তার', 'আমাদের', 'তোমাদের', 'তাদের', 'বল', 'বলো', 'দেখাও', 'খুঁজে', 'খুজুন',
+  'দেও', 'দাও', 'করব', 'করবো', 'পারি', 'পারব', 'পারে', 'হচ্ছে', 'হয়েছে',
+  'হয়েছে', 'না', 'হ্যাঁ', 'জন্য', 'থেকে', 'দ্বারা', 'বলা', 'করতে', 'গেলে',
+]);
+
+export function extractInformativeQueryTerms(rawQuery: string): {
+  normalized: string;
+  allTokens: string[];
+  contentTerms: string[];
+} {
+  const normalized = String(rawQuery || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\s_-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return { normalized: '', allTokens: [], contentTerms: [] };
+  }
+
+  const allTokens = normalized.split(' ').filter((t) => t.length > 0);
+  const contentTerms = allTokens.filter((token) => {
+    if (/^\d+$/.test(token) && token.length < 4) return false;
+    if (ENGLISH_AI_STOP_WORDS.has(token)) return false;
+    if (BANGLA_AI_STOP_WORDS.has(token)) return false;
+    return token.length >= 2;
+  });
+
+  return {
+    normalized,
+    allTokens,
+    contentTerms: contentTerms.length > 0 ? contentTerms : allTokens,
+  };
+}
+
+/**
+ * Sentence- and boundary-aware text chunking.
+ * Preserves paragraphs, sentences (including Bengali dori ।), and words whole without mid-word cuts.
+ */
+export function chunkTextSmart(
+  text: string,
+  maxChars = AI_MAX_CHUNK_CHARS,
+  overlapChars = 100
+): string[] {
+  const cleaned = text.normalize('NFKC').replace(/\r\n/g, '\n').trim();
+  if (!cleaned) return [];
+  if (cleaned.length <= maxChars) return [cleaned];
+
+  const sentenceRegex = /[^.!?\n\u0964]+[.!?\n\u0964]+|\S+$/gu;
+  const rawSentences = cleaned.match(sentenceRegex) ?? [cleaned];
+  const sentences = rawSentences.map((s) => s.trim()).filter((s) => s.length > 0);
+
+  const chunks: string[] = [];
+  let currentChunk = '';
+
+  for (const sentence of sentences) {
+    if (!currentChunk) {
+      if (sentence.length > maxChars) {
+        const words = sentence.split(/\s+/);
+        let subChunk = '';
+        for (const w of words) {
+          if ((subChunk + ' ' + w).trim().length > maxChars) {
+            if (subChunk) chunks.push(subChunk.trim());
+            subChunk = w;
+          } else {
+            subChunk = subChunk ? subChunk + ' ' + w : w;
+          }
+        }
+        if (subChunk) currentChunk = subChunk.trim();
+      } else {
+        currentChunk = sentence;
+      }
+    } else if ((currentChunk + ' ' + sentence).length <= maxChars) {
+      currentChunk += ' ' + sentence;
+    } else {
+      chunks.push(currentChunk.trim());
+      const tail = currentChunk.slice(-overlapChars).trim();
+      const tailWords = tail.split(/\s+/).slice(1).join(' ');
+      currentChunk = tailWords ? `${tailWords} ${sentence}` : sentence;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks.slice(0, 40);
+}
+
+export const AI_APPROVED_ATTACHMENT_MIME_TYPES = new Set([
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/json',
+]);
+
+export const AI_MAX_ATTACHMENT_BYTES = 200 * 1024; // 200 KB
+export const AI_MAX_ATTACHMENT_EXTRACT_CHARS = 4000;
+
+export type AttachmentAiEligibility = {
+  eligible: boolean;
+  reason: string | null;
+};
+
+export function checkAttachmentAiEligibility(input: {
+  mimeType: string;
+  byteSize: number;
+  quarantineStatus: string;
+  securityScope?: string | null;
+}): AttachmentAiEligibility {
+  if (input.securityScope === 'vault') {
+    return { eligible: false, reason: 'vault_encrypted' };
+  }
+  if (input.quarantineStatus !== 'clean' && input.quarantineStatus !== 'verified') {
+    return {
+      eligible: false,
+      reason: input.quarantineStatus === 'pending' ? 'unscanned_pending' : 'quarantined',
+    };
+  }
+  if (!AI_APPROVED_ATTACHMENT_MIME_TYPES.has(input.mimeType)) {
+    return { eligible: false, reason: 'unsupported_mime_type' };
+  }
+  if (input.byteSize > AI_MAX_ATTACHMENT_BYTES) {
+    return { eligible: false, reason: 'size_exceeded' };
+  }
+  return { eligible: true, reason: null };
 }
 
 /**

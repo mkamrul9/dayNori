@@ -79,9 +79,14 @@ export class FakeAiProvider implements AiProviderAdapter {
     }
     assertNotAborted(input.signal);
 
-    const cited = [...input.user.matchAll(/\[source:([0-9a-f-]{36})#r(\d+)\]/gi)].map((m) => ({
+    const cited = [
+      ...input.user.matchAll(
+        /\[source:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|help:[a-z0-9_.-]+)#(?:r|v)(\d+)\]/gi
+      ),
+    ].map((m) => ({
       itemId: m[1]!,
       revision: Number(m[2]),
+      marker: m[0],
     }));
     if (cited.length === 0) {
       return {
@@ -92,7 +97,7 @@ export class FakeAiProvider implements AiProviderAdapter {
         mode: 'fake',
       };
     }
-    const lines = cited.map((c) => `[source:${c.itemId}#r${c.revision}]`);
+    const lines = cited.map((c) => c.marker);
     const text = `Based on authorized sources:\n${lines.join('\n')}`;
     return {
       text,

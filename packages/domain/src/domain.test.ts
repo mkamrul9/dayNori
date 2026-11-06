@@ -38,6 +38,9 @@ import {
   bindAiCitations,
   estimateAiReservationTokens,
   parseAiSourceReferences,
+  extractInformativeQueryTerms,
+  chunkTextSmart,
+  checkAttachmentAiEligibility,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2489,6 +2492,146 @@ describe('Domain Rules and Invariants', () => {
       expect(gemini.outputCostMicros).toBe(150);
       expect(gemini.totalCostMicros).toBe(225);
       expect(gemini.totalCostUsd).toBe(0.000225);
+    });
+
+    it('extracts informative query terms for English and Bangla natural questions', () => {
+      const en = extractInformativeQueryTerms('What did I plan for Friday?');
+      expect(en.contentTerms).toContain('plan');
+      expect(en.contentTerms).toContain('friday');
+      expect(en.contentTerms).not.toContain('what');
+      expect(en.contentTerms).not.toContain('did');
+      expect(en.contentTerms).not.toContain('for');
+
+      const bn = extractInformativeQueryTerms('শুক্রবার কী পরিকল্পনা ছিল?');
+      expect(bn.contentTerms).toContain('শুক্রবার');
+      expect(bn.contentTerms).toContain('পরিকল্পনা');
+      expect(bn.contentTerms).not.toContain('কী');
+      expect(bn.contentTerms).not.toContain('ছিল');
+
+      // Empty or stop-words only falls back safely without throwing
+      const empty = extractInformativeQueryTerms('');
+      expect(empty.contentTerms).toEqual([]);
+
+      const allStop = extractInformativeQueryTerms('what is that');
+      expect(allStop.contentTerms.length).toBeGreaterThan(0);
+    });
+
+    it('chunks text with sentence- and boundary-awareness preserving words', () => {
+      const doc = 'First sentence here. Second sentence follows! Third one is longer and detailed.';
+      const chunks = chunkTextSmart(doc, 45, 10);
+      expect(chunks.length).toBeGreaterThan(1);
+      // Ensure no words are cut in half
+      for (const chunk of chunks) {
+        expect(chunk).not.toMatch(/\bse\b|\bsec\b/);
+      }
+
+      // Supports Bangla dori (।)
+      const bnDoc = 'প্রথম বাক্য এখানে। দ্বিতীয় বাক্য চলছে। তৃতীয় বাক্য শেষ।';
+      const bnChunks = chunkTextSmart(bnDoc, 30, 5);
+      expect(bnChunks.length).toBeGreaterThan(1);
+      expect(bnChunks[0]).toContain('প্রথম বাক্য এখানে।');
+    });
+
+    it('parses and binds both personal item and versioned Help citations', () => {
+      const personalUuid = '123e4567-e89b-12d3-a456-426614174000';
+      const answer = `According to [source:${personalUuid}#r2] and [source:help:restore-deleted-note#v1], this is supported.`;
+
+      const refs = parseAiSourceReferences(answer);
+      expect(refs).toHaveLength(2);
+      expect(refs[0]).toEqual({ itemId: personalUuid, revision: 2 });
+      expect(refs[1]).toEqual({ itemId: 'help:restore-deleted-note', revision: 1 });
+
+      const authorized = [
+        {
+          itemId: personalUuid,
+          revision: 2,
+          kind: 'note',
+          excerpt: 'Personal note excerpt',
+          deepLink: `/notes?id=${personalUuid}`,
+        },
+        {
+          itemId: 'help:restore-deleted-note',
+          revision: 1,
+          kind: 'help',
+          excerpt: 'Help article excerpt',
+          deepLink: '/help?article=restore-deleted-note',
+        },
+      ];
+
+      const bound = bindAiCitations({ answer, authorized });
+      expect(bound.ok).toBe(true);
+      expect(bound.referenced).toHaveLength(2);
+      expect(bound.referenced[0]?.deepLink).toBe(`/notes?id=${personalUuid}`);
+      expect(bound.referenced[1]?.deepLink).toBe('/help?article=restore-deleted-note');
+
+      // Rejects bare UUID
+      const bareAnswer = `According to ${personalUuid}, note exists.`;
+      const bareBound = bindAiCitations({ answer: bareAnswer, authorized });
+      expect(bareBound.ok).toBe(false);
+      expect(bareBound.abstainReason).toBe('unsupported_citation_format');
+
+      // Rejects unauthorized source reference
+      const fakeAnswer = `According to [source:999e4567-e89b-12d3-a456-426614174999#r1], secret.`;
+      const fakeBound = bindAiCitations({ answer: fakeAnswer, authorized });
+      expect(fakeBound.ok).toBe(false);
+      expect(fakeBound.abstainReason).toBe('unauthorized_or_stale_citation');
+    });
+
+    it('checks attachment eligibility with strict quarantine, encryption, and MIME filters', () => {
+      // Clean markdown file within size limit -> eligible
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/markdown',
+          byteSize: 1024,
+          quarantineStatus: 'clean',
+        })
+      ).toEqual({ eligible: true, reason: null });
+
+      // Vault encrypted attachment -> unconditionally excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 1024,
+          quarantineStatus: 'clean',
+          securityScope: 'vault',
+        })
+      ).toEqual({ eligible: false, reason: 'vault_encrypted' });
+
+      // Pending scan -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 1024,
+          quarantineStatus: 'pending',
+        })
+      ).toEqual({ eligible: false, reason: 'unscanned_pending' });
+
+      // Quarantined -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 1024,
+          quarantineStatus: 'quarantined',
+        })
+      ).toEqual({ eligible: false, reason: 'quarantined' });
+
+      // Unsupported MIME type (e.g. binary/executable) -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'application/x-executable',
+          byteSize: 1024,
+          quarantineStatus: 'clean',
+        })
+      ).toEqual({ eligible: false, reason: 'unsupported_mime_type' });
+
+      // Size exceeded (>200 KB) -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 300 * 1024,
+          quarantineStatus: 'clean',
+        })
+      ).toEqual({ eligible: false, reason: 'size_exceeded' });
     });
   });
 });

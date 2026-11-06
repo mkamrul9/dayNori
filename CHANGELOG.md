@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 91 — Scoped retrieval, indexing, and grounding quality — 2026-11-06
+
+- ADR 0091: Scoped retrieval, indexing, and grounding quality establishing dual knowledge source partitioning, natural language tsquery normalization, script-preserving multilingual tokenization, boundary-aware smart chunking, background index concurrency fencing, attachment ingestion gates, canonical deep linking, adversarial prompt injection resistance, and fail-closed release gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 91 implementation and independent retrieval evaluation before Phase 90 final acceptance recorded in ADR 0091 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, 90, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase91/findings-register.json`): cataloged RET-001 through RET-008 across natural language tsquery interrogative handling, versioned public Help inclusion, Bengali combining marks preservation, smart sentence/word-boundary chunking, out-of-order background job revision fencing, attachment quarantine and MIME allowlisting, citation schema and canonical deep links, and prompt injection resistance with hallucinated reference rejection.
+- Core domain and API grounding upgrades:
+  - Added `extractInformativeQueryTerms` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) featuring curated English and Bengali stop words, extracting informative content tokens and classifying query intent.
+  - Added `chunkTextSmart` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) preserving paragraphs (`\n\n`), sentence boundaries (Bengali dori `।`, `?`, `!`, `.`), and word boundaries (`\s+`) without mid-word cuts.
+  - Upgraded tokenization regex to `[^\p{L}\p{M}\p{N}\s_-]` to preserve Unicode combining marks and viramas for Bengali conjuncts.
+  - Added `checkAttachmentAiEligibility` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) enforcing clean/verified scan status, standard security scope (unconditionally excluding vault files), byte size limit (<= 200 KB), and plain text MIME allowlist (`text/plain`, `text/markdown`, `text/csv`, `application/json`).
+  - Upgraded `AiCitationSchema` in `@daynori/contracts` (`packages/contracts/src/api/ai.ts`) to support string item IDs (`help:articleId` alongside UUIDs), up to 800-character excerpts, and canonical `deepLink`.
+  - Upgraded `bindAiCitations` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) to validate citations against authorized retrieval records and attach deep navigation URLs (`/help?article=...`, `/notes?id=...`, `/tasks?id=...`).
+  - Added `findRelevantHelpArticles` in `apps/api/src/modules/ai/service.ts` featuring bilingual concept mapping and personal query partitioning, preventing false Help matches on personal or unrelated queries while cleanly grounding instructional how-to questions.
+  - Added concurrency fencing in `apps/api/src/modules/ai/jobExecutor.ts` and `indexLifecycle.ts` with `expectedRevision`, cleanly rejecting stale out-of-order index jobs with `AI_SOURCE_REVISION_SUPERSEDED`.
+  - Multi-token prefix matching (`:*`) with `ts_rank` ordering and fallback ILIKE implemented in `retrieveAuthorizedAnswer`.
+- Evaluation dataset & results (`artifacts/phase91/evaluation-dataset-v1.json`, `artifacts/phase91/measured-evaluation-results.json`):
+  - 16-case synthetic evaluation matrix executed across 11 categories: 100% recall on known-answers, 0 privacy violations, 100% abstention on ungrounded/vault/stale queries, and measured latency P50 = 8.5ms, P95 = 34.0ms.
+- Engineering guide authored (`docs/engineering/retrieval-evaluation-and-grounding-guide.md`):
+  - Documented knowledge partitioning invariants, tokenization and multilingual stop words, sentence-aware smart chunking, attachment safety gates, revision fencing, citation binding grammar, and offline evaluation protocol.
+- Reviewable synthetic provider package (`artifacts/phase91/synthetic-provider-package.json`):
+  - 5-scenario synthetic test package with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating live provider calls.
+- Comprehensive test coverage: 7 test suites with 141 tests passing (`tests/integration/phase91-scoped-retrieval-evaluation.test.ts`, `packages/domain/src/domain.test.ts`, `tests/integration/phase90-ai-consent-privacy-readiness.test.ts`, `tests/integration/phase55-ai-privacy-retrieval.test.ts`, `tests/integration/phase55-ai-repair.test.ts`, `tests/integration/phase56-ai-assistant-actions.test.ts`, `tests/integration/phase56-ai-repair.test.ts`).
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic provider package; Phase 91 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(rag): add evaluated scoped retrieval and source lifecycle`.
+
 ## Phase 90 — AI provider consent, privacy, and operating decisions — 2026-11-06
 
 - ADR 0090: AI provider consent, privacy, operating decisions, and release readiness establishing foundational boundaries for privacy, cost controls, multi-provider evaluation, kill-switch protection, non-recall disclosure invariants, and fail-closed activation gates.

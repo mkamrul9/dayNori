@@ -1,0 +1,79 @@
+{
+  "phase": "91",
+  "title": "Scoped retrieval, indexing, and grounding quality findings register",
+  "generatedAt": "2026-11-06T20:31:00+06:00",
+  "findings": [
+    {
+      "id": "RET-001",
+      "severity": "high",
+      "title": "Natural language question words in plainto_tsquery('simple') caused zero-hit retrieval failure",
+      "category": "retrieval_ranking",
+      "description": "PostgreSQL simple tsvector configuration does not strip English or Bangla grammatical stop words (e.g. 'what', 'did', 'for', 'কী', 'ছিল'). When queries were converted with plainto_tsquery, all tokens were joined with AND (&), causing natural language questions to fail completely against terse note or task records. The ILIKE fallback picked the first word >=3 chars, which was often the interrogative word itself.",
+      "remediation": "Implemented extractInformativeQueryTerms in @daynori/domain with curated English and Bangla stop words. In retrieveAuthorizedAnswer, constructed multi-token tsquery combining AND prefix matching ('term1':* & 'term2':*) with fallback to OR ranking ('term1':* | 'term2':*) ordered by ts_rank, followed by multi-token ILIKE fallback.",
+      "status": "resolved"
+    },
+    {
+      "id": "RET-002",
+      "severity": "high",
+      "title": "Assistant RAG omitted versioned public Help knowledge source",
+      "category": "knowledge_sources",
+      "description": "Assistant retrieval exclusively queried personal workspace chunks in app.ai_index_chunks, completely omitting the versioned public Help catalog. Questions about application features or troubleshooting (e.g. 'How do I restore a deleted note?') falsely abstained or failed.",
+      "remediation": "Implemented dual knowledge source architecture: versioned public Help (HELP_ARTICLES in @daynori/domain) searched via searchHelpArticles with score threshold >= 5, providing citations like [source:help:restore-deleted-note#v1], strictly kept isolated from personal workspace content.",
+      "status": "resolved"
+    },
+    {
+      "id": "RET-003",
+      "severity": "medium",
+      "title": "Unicode combining vowel marks and viramas stripped in Bangla text normalization",
+      "category": "language_multilingual",
+      "description": "Naive Unicode regex [^\\p{L}\\p{N}\\s_-] stripped Unicode Category \\p{M} (combining marks), corrupting Bengali conjuncts and vowel signs (e.g. 'শুক্রবার' corrupted to 'রব').",
+      "remediation": "Updated Unicode regex in extractInformativeQueryTerms and text normalizers to include \\p{M} ([^\\p{L}\\p{M}\\p{N}\\s_-]), perfectly preserving Bengali script, diacritics, and combining characters.",
+      "status": "resolved"
+    },
+    {
+      "id": "RET-004",
+      "severity": "medium",
+      "title": "Fixed character-offset chunking arbitrarily severed words and sentences at boundaries",
+      "category": "chunking",
+      "description": "chunkText sliced cleaned strings strictly every maxChars characters, severing words in half across chunk boundaries and destroying search tokens at chunk edges.",
+      "remediation": "Replaced with chunkTextSmart in @daynori/domain, implementing sentence- and boundary-aware chunking respecting paragraphs, sentences (including Bengali dori ।), word boundaries, and configurable overlap without mid-word cuts.",
+      "status": "resolved"
+    },
+    {
+      "id": "RET-005",
+      "severity": "high",
+      "title": "Out-of-order background index jobs could overwrite newer source revisions",
+      "category": "lifecycle_concurrency",
+      "description": "If an older background index job (revision 1) ran after an item was updated (revision 2), it could reindex chunks with stale revision or delete newer chunks.",
+      "remediation": "Added expectedRevision validation in enqueueAiIndexSource and executeAiBackgroundJob. If current app.items.revision exceeds expectedRevision, the job fails closed and fences cleanly as AI_SOURCE_REVISION_SUPERSEDED.",
+      "status": "resolved"
+    },
+    {
+      "id": "RET-006",
+      "severity": "high",
+      "title": "Attachment extraction lacked scan quarantine, encryption, and MIME allowlist boundaries",
+      "category": "attachments_safety",
+      "description": "Attachments on items could be processed without verifying antivirus quarantine status or could risk reading encrypted vault files or executable payloads.",
+      "remediation": "Implemented checkAttachmentAiEligibility enforcing: verified/clean quarantine status only, unconditional vault exclusion, approved text/markdown MIME allowlist (text/plain, text/markdown, text/csv, application/json), size ceiling (<=200KB), and max 4,000 extracted chars.",
+      "status": "resolved"
+    },
+    {
+      "id": "RET-007",
+      "severity": "medium",
+      "title": "Citation binding lacked canonical deep links and multi-source format support",
+      "category": "citations_grounding",
+      "description": "AiCitationSchema and bindAiCitations only supported 36-char UUIDs without canonical deep links or versioned Help citations.",
+      "remediation": "Updated AiCitationSchema to support string IDs (UUIDs and help:articleId), added canonical deepLink (/notes?id=..., /tasks?id=..., /journal?id=..., /help?article=...), and updated parseAiSourceReferences to parse both personal #rN and Help #vN references.",
+      "status": "resolved"
+    },
+    {
+      "id": "RET-008",
+      "severity": "high",
+      "title": "Prompt injection risks from adversarial document text and fabricated citations",
+      "category": "security_prompt_injection",
+      "description": "Adversarial text in notes could attempt to instruct the model to leak vault secrets, alter consent, or cite fabricated UUIDs.",
+      "remediation": "Enforced treatRetrievedTextAsUntrustedData, updated system prompt to declare document context as inert data, and hardened bindAiCitations to reject fabricated, unauthorized, or mismatched citations with ABSTAIN.",
+      "status": "resolved"
+    }
+  ]
+}

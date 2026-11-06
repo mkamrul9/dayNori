@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-06",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 90 implemented and independent verification delivered before final acceptance of Phase 81 under ADR 0090 (AI provider consent, privacy, and operating decisions). Phase 90 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, and Phase 99 prototype review retain their recorded states. Phase 91 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 91 implemented and independent retrieval evaluation delivered before Phase 90 final acceptance under ADR 0091 (Scoped retrieval, indexing, and grounding quality). Phase 91 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, and Phase 99 prototype review retain their recorded states. Phase 92 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -530,7 +530,9 @@
     },
     {
       "id": "91",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-91.md",
+      "reason": "Scoped retrieval, indexing, and grounding quality verified: natural language interrogatives in FTS repaired (RET-001) via extractInformativeQueryTerms; dual knowledge sources partition verified (RET-002) with public versioned Help vs opted-in personal items; Bengali combining marks preserved (RET-003) via \\p{M} regex; boundary-aware smart chunking verified (RET-004) via chunkTextSmart; background index concurrency fencing verified (RET-005) with expectedRevision rejecting stale updates with AI_SOURCE_REVISION_SUPERSEDED; attachment ingestion security gates verified (RET-006) via checkAttachmentAiEligibility enforcing clean/verified scan status, standard scope, size limits, and plain text MIME allowlist; citation binding upgraded (RET-007) with AiCitationSchema supporting Help articles and canonical deep links; prompt injection treated as inert data with hallucinated citation rejection verified (RET-008); 16-case synthetic evaluation matrix executed with 100% recall on known answers, 0 privacy leaks, and 100% abstention on ungrounded/vault/stale queries; 141 tests passing across 7 test suites; production AI fails closed pending explicit owner approval of live synthetic test and enterprise provider contract (DEF-V2-008 retained). See docs/phase-reports/phase-91.md."
     },
     {
       "id": "92",
