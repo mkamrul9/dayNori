@@ -28,6 +28,7 @@ import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
+import { AssistantPanel } from './AssistantPanel';
 import { ContextualHelpLink } from './ContextualHelpLink';
 import { TourTarget } from '../tours/TourTarget';
 import { useTour } from '../tours/TourContext';
@@ -1489,6 +1490,14 @@ export const AppModals: React.FC = () => {
             duplicateStrategy,
           });
         }}
+      />
+      {/* 12. Phase 92 Assistant Panel (Persistent slide-out drawer) */}
+      <AssistantPanel
+        isOpen={activeModal === 'assistant'}
+        onClose={closeModal}
+        csrfToken={csrfToken}
+        themeMode={themeMode}
+        personalWorkspaceId={workspaceId}
       />
     </>
   );

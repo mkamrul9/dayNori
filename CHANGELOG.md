@@ -1,5 +1,34 @@
 # Changelog
 
+## Phase 92 — Text assistant chat and contextual guidance — 2026-11-06
+
+- ADR 0092: Text assistant chat and contextual guidance establishing Server-Sent Events (SSE) streaming transport, canonical web and mobile citation deep link routes, strict read-only boundary enforcement, client-selected knowledge source controls, contextual starter suggestion catalog, conversation history deletion, markdown output sanitization, persistent desktop side drawer, and keyboard-safe mobile view.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 92 implementation and independent UI/transport verification before Phase 91 final acceptance recorded in ADR 0092 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, 90, 91, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase92/findings-register.json`): cataloged AST-001 through AST-008 across streaming transport, citation deep links, read-only boundary, source selection controls, starter suggestions, history deletion, markdown sanitization, and persistent side drawer layout.
+- Core domain, API, and transport upgrades:
+  - Implemented `POST /v1/ai/assistant/stream` with Server-Sent Events (`text/event-stream`), emitting typed framed events: `start` (turn ID, provider mode, label), `context` (retrieved source count, authorized citations), `chunk` (sequential text tokens), `done` (authoritative answer, tokens reserved/settled), and `error`.
+  - Added `streamAssistantAsk` in `@daynori/api-client` (`packages/api-client/src/client.ts`) for real-time SSE consumption with typed event dispatch and client error propagation.
+  - Repaired citation deep link generation in `apps/api/src/modules/ai/service.ts` to output canonical application routes: `/library?noteId=...`, `/plan?targetId=...&targetType=task`, `/journal?entryId=...`, and `/help?article=...`.
+  - Updated `AiSourceAccessRequestSchema` in `@daynori/contracts` (`packages/contracts/src/api/assistant.ts`) to accept versioned string IDs (`help:articleId` alongside UUIDs), returning `deepLink`.
+  - Updated `resolveAiSourceAccess` in `apps/api/src/modules/ai/assistantService.ts` to verify Help articles against `HELP_ARTICLES` and attach canonical route deep links.
+  - Added `deleteAssistantHistory` in `apps/api/src/modules/ai/assistantService.ts` and `DELETE /v1/ai/assistant/history` supporting both single-turn deletion (`turnId`) and workspace-wide bulk clearing.
+  - Added `deleteAssistantHistory` in `@daynori/api-client` (`packages/api-client/src/client.ts`).
+  - Added `selectedSources` (`help`, `notes`, `tasks`, `journal`) to `AiAskRequestSchema`, `AiAskStreamRequestSchema`, and domain models, enforcing `403 AI_SCOPE_EMPTY` when all sources are deselected.
+  - Implemented `sanitizeAssistantMarkdown` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) stripping executable HTML tags (`<script>`, `<iframe>`, `<a>`, etc.), neutralizing unsafe URL schemes (`javascript:`, `vbscript:`, `data:`, `file:`), and replacing remote tracking images with safe text indicators `[Image: alt]`.
+  - Created `ASSISTANT_STARTER_SUGGESTIONS` catalog in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) across categories `help`, `notes`, `tasks`, `routines`, and `sync`.
+- Web and Mobile UI enhancements:
+  - Rebuilt `AssistantPanel.tsx` (`apps/web/src/components/AssistantPanel.tsx`) as an accessible slide-out desktop side drawer preserving active document/editor context, accessible via header sparkle button (`id="global-assistant-btn"`), dismissible with Escape, featuring knowledge source toggles, starter suggestion pills, progressive streaming token rendering, sanitized markdown display, verified citation navigation, and history deletion.
+  - Rebuilt `AssistantSheet.tsx` (`apps/mobile/src/views/AssistantSheet.tsx`) as a keyboard-safe mobile view with `ScrollView`, source selection chips, starter pills, real streaming text, and history controls.
+  - Wired Assistant drawer into `AppHeader.tsx` (`id="global-assistant-btn"`) and `AppModals.tsx`.
+- Reviewable synthetic provider package (`artifacts/phase92/synthetic-provider-package.json`):
+  - 5-scenario synthetic test package with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating any live provider calls.
+- Manual UI and accessibility evidence (`artifacts/phase92/manual-ui-evidence.json`):
+  - Verified UI-01 through UI-05 covering persistent desktop drawer, streaming rendering, source filtering, mobile sheet keyboard safety, and citation deep link navigation.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase92-assistant-chat-stream-guidance.test.ts` with 7 passing tests covering SSE streaming, source selection, Help deep links, history deletion, markdown sanitization, read-only boundary enforcement, and consent gating.
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic provider package; Phase 92 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(assistant): deliver grounded text chat and contextual help`.
+
 ## Phase 91 — Scoped retrieval, indexing, and grounding quality — 2026-11-06
 
 - ADR 0091: Scoped retrieval, indexing, and grounding quality establishing dual knowledge source partitioning, natural language tsquery normalization, script-preserving multilingual tokenization, boundary-aware smart chunking, background index concurrency fencing, attachment ingestion gates, canonical deep linking, adversarial prompt injection resistance, and fail-closed release gates.

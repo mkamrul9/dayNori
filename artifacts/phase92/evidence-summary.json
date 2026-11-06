@@ -1,0 +1,30 @@
+{
+  "phase": 92,
+  "title": "Text assistant chat and contextual guidance",
+  "evaluatedAt": "2026-11-06T23:55:00+06:00",
+  "status": "blocked",
+  "blockingGate": "DEF-V2-008",
+  "blockingGateDescription": "AI capabilities are fail-closed by default in production. Live model calls and transmission of user content remain blocked until separate explicit owner authorization and formal synthetic evaluation approval.",
+  "findingsCatalogued": 8,
+  "findingsAddressed": 8,
+  "findingsRegister": "artifacts/phase92/findings-register.json",
+  "syntheticPackage": "artifacts/phase92/synthetic-provider-package.json",
+  "manualUiEvidence": "artifacts/phase92/manual-ui-evidence.json",
+  "testExecution": {
+    "testSuite": "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
+    "totalTests": 7,
+    "passed": 7,
+    "failed": 0,
+    "durationMs": 836
+  },
+  "compliance": {
+    "readOnlyEnforced": true,
+    "streamingSseImplemented": true,
+    "canonicalDeepLinksRepaired": true,
+    "helpCitationsSupported": true,
+    "clientSourceControlsSupported": true,
+    "markdownSanitized": true,
+    "historyDeletionSupported": true,
+    "vaultExclusionUnconditional": true
+  }
+}

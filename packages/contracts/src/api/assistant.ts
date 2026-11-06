@@ -9,6 +9,16 @@ export const AiAssistantOperationSchema = z.enum([
 ]);
 export type AiAssistantOperation = z.infer<typeof AiAssistantOperationSchema>;
 
+export const AiSelectedSourcesSchema = z
+  .object({
+    help: z.boolean().optional(),
+    notes: z.boolean().optional(),
+    tasks: z.boolean().optional(),
+    journal: z.boolean().optional(),
+  })
+  .strict();
+export type AiSelectedSources = z.infer<typeof AiSelectedSourcesSchema>;
+
 export const AiAskRequestSchema = z
   .object({
     workspaceId: z.string().uuid(),
@@ -16,6 +26,7 @@ export const AiAskRequestSchema = z
     limit: z.number().int().positive().max(20).optional(),
     /** When true, server may create a pending proposal from a typed heuristic (never executes). */
     allowSuggestProposal: z.boolean().optional(),
+    selectedSources: AiSelectedSourcesSchema.optional(),
   })
   .strict();
 export type AiAskRequest = z.infer<typeof AiAskRequestSchema>;
@@ -145,7 +156,7 @@ export type ClearAiDraftRequest = z.infer<typeof ClearAiDraftRequestSchema>;
 export const AiSourceAccessRequestSchema = z
   .object({
     workspaceId: z.string().uuid(),
-    itemId: z.string().uuid(),
+    itemId: z.string().min(1).max(128),
   })
   .strict();
 export type AiSourceAccessRequest = z.infer<typeof AiSourceAccessRequestSchema>;
@@ -153,12 +164,84 @@ export type AiSourceAccessRequest = z.infer<typeof AiSourceAccessRequestSchema>;
 export const AiSourceAccessResponseSchema = z.object({
   data: z.object({
     accessible: z.boolean(),
-    itemId: z.string().uuid(),
+    itemId: z.string().min(1).max(128),
     kind: z.string().nullable(),
     title: z.string().nullable(),
     revision: z.number().int().positive().nullable(),
     reason: z.string().nullable(),
+    deepLink: z.string().optional(),
   }),
   meta: ResponseMetaSchema,
 });
 export type AiSourceAccessResponse = z.infer<typeof AiSourceAccessResponseSchema>;
+
+export const AiAskStreamRequestSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    question: z.string().min(1).max(2000),
+    limit: z.number().int().positive().max(20).optional(),
+    selectedSources: AiSelectedSourcesSchema.optional(),
+  })
+  .strict();
+export type AiAskStreamRequest = z.infer<typeof AiAskStreamRequestSchema>;
+
+export const AiStreamStartEventSchema = z.object({
+  type: z.literal('start'),
+  turnId: z.string().uuid(),
+  providerMode: z.string(),
+  label: z.string(),
+});
+
+export const AiStreamContextEventSchema = z.object({
+  type: z.literal('context'),
+  retrievedSourceCount: z.number().int().nonnegative(),
+  citations: z.array(AiCitationSchema),
+});
+
+export const AiStreamChunkEventSchema = z.object({
+  type: z.literal('chunk'),
+  text: z.string(),
+});
+
+export const AiStreamDoneEventSchema = z.object({
+  type: z.literal('done'),
+  turnId: z.string().uuid(),
+  answer: z.string(),
+  abstained: z.boolean(),
+  citations: z.array(AiCitationSchema),
+  tokensReserved: z.number().int().nonnegative(),
+  tokensSettled: z.number().int().nonnegative(),
+});
+
+export const AiStreamErrorEventSchema = z.object({
+  type: z.literal('error'),
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+  }),
+});
+
+export const AiStreamEventSchema = z.discriminatedUnion('type', [
+  AiStreamStartEventSchema,
+  AiStreamContextEventSchema,
+  AiStreamChunkEventSchema,
+  AiStreamDoneEventSchema,
+  AiStreamErrorEventSchema,
+]);
+export type AiStreamEvent = z.infer<typeof AiStreamEventSchema>;
+
+export const DeleteAiHistoryRequestSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    turnId: z.string().uuid().optional(),
+  })
+  .strict();
+export type DeleteAiHistoryRequest = z.infer<typeof DeleteAiHistoryRequestSchema>;
+
+export const DeleteAiHistoryResponseSchema = z.object({
+  data: z.object({
+    deletedTurns: z.number().int().nonnegative(),
+  }),
+  meta: ResponseMetaSchema,
+});
+export type DeleteAiHistoryResponse = z.infer<typeof DeleteAiHistoryResponseSchema>;

@@ -41,6 +41,8 @@ import {
   extractInformativeQueryTerms,
   chunkTextSmart,
   checkAttachmentAiEligibility,
+  sanitizeAssistantMarkdown,
+  ASSISTANT_STARTER_SUGGESTIONS,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2632,6 +2634,46 @@ describe('Domain Rules and Invariants', () => {
           quarantineStatus: 'clean',
         })
       ).toEqual({ eligible: false, reason: 'size_exceeded' });
+    });
+
+    it('AST-007: sanitizes assistant markdown, stripping dangerous tags, schemes, and tracking images', () => {
+      const malicious =
+        'Here is the answer:\n' +
+        '<script>alert("pwned")</script>\n' +
+        '<iframe src="http://evil.com"></iframe>\n' +
+        '<a href="javascript:alert(1)">Click me</a>\n' +
+        '[Harmless Link](https://daynori.app)\n' +
+        '[Malicious Link](javascript:stealData())\n' +
+        '![Tracking pixel](https://tracker.com/pixel.png)\n' +
+        '# Valid Heading\n' +
+        '**Bold text** and `code block`\n' +
+        '[source:123e4567-e89b-12d3-a456-426614174000#r1]';
+
+      const clean = sanitizeAssistantMarkdown(malicious);
+      expect(clean).not.toContain('<script>');
+      expect(clean).not.toContain('<iframe>');
+      expect(clean).not.toContain('javascript:');
+      expect(clean).not.toContain('https://tracker.com/pixel.png');
+      expect(clean).toContain('[Harmless Link](https://daynori.app)');
+      expect(clean).toContain('[Malicious Link](#)');
+      expect(clean).toContain('[Image: Tracking pixel]');
+      expect(clean).toContain('# Valid Heading');
+      expect(clean).toContain('**Bold text** and `code block`');
+      expect(clean).toContain('[source:123e4567-e89b-12d3-a456-426614174000#r1]');
+    });
+
+    it('AST-005: provides curated contextual starter suggestions across required categories', () => {
+      expect(ASSISTANT_STARTER_SUGGESTIONS.length).toBeGreaterThanOrEqual(4);
+      const categories = new Set(ASSISTANT_STARTER_SUGGESTIONS.map((s) => s.category));
+      expect(categories.has('help')).toBe(true);
+      expect(categories.has('notes')).toBe(true);
+      expect(categories.has('tasks')).toBe(true);
+      expect(categories.has('sync')).toBe(true);
+      for (const s of ASSISTANT_STARTER_SUGGESTIONS) {
+        expect(s.id).toBeTruthy();
+        expect(s.label).toBeTruthy();
+        expect(s.question).toBeTruthy();
+      }
     });
   });
 });

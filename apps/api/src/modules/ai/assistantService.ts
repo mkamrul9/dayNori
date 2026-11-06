@@ -11,9 +11,11 @@ import {
   UpdateTaskRequestSchema,
   CreateNoteRequestSchema,
   type AiAssistantOperation,
+  type AiCitation,
   type AiProposal,
   type AiProposalReviewSummary,
 } from '@daynori/contracts';
+import { findHelpArticle } from '@daynori/domain';
 import { withUserContext } from '../../db/index.js';
 import { createTask, updateTask, getTask } from '../tasks/service.js';
 import { createNote, getNote } from '../notes/service.js';
@@ -22,6 +24,7 @@ import {
   insertMutationReceipt,
 } from '../sync/repository.js';
 import { AiServiceError, getAiConsentStatus, retrieveAuthorizedAnswer } from './service.js';
+import { resolveAiProvider } from './provider.js';
 
 const PROPOSAL_TTL_MS = 15 * 60 * 1000;
 const HISTORY_LIMIT = 50;
@@ -359,6 +362,7 @@ export async function askAssistant(
     question: string;
     limit?: number;
     allowSuggestProposal?: boolean;
+    selectedSources?: { help?: boolean; notes?: boolean; tasks?: boolean; journal?: boolean };
     signal?: AbortSignal;
   }
 ) {
@@ -379,6 +383,7 @@ export async function askAssistant(
     workspaceId: input.workspaceId,
     query: input.question,
     limit: input.limit,
+    selectedSources: input.selectedSources,
     signal: input.signal,
   });
 
@@ -595,6 +600,31 @@ export async function resolveAiSourceAccess(
       reason: 'AI_CONSENT_REQUIRED',
     };
   }
+
+  if (input.itemId.startsWith('help:')) {
+    const articleId = input.itemId.replace(/^help:/, '');
+    const article = findHelpArticle(articleId);
+    if (!article) {
+      return {
+        accessible: false,
+        itemId: input.itemId,
+        kind: 'help',
+        title: null,
+        revision: null,
+        reason: 'SOURCE_NOT_FOUND',
+      };
+    }
+    return {
+      accessible: true,
+      itemId: input.itemId,
+      kind: 'help',
+      title: article.title.defaultText,
+      revision: article.contentVersion,
+      reason: null,
+      deepLink: `/help?article=${encodeURIComponent(article.id)}`,
+    };
+  }
+
   await assertPersonalEditorAccess(client, input.workspaceId, input.userId);
   const item = await client.query<{
     kind: string;
@@ -657,6 +687,16 @@ export async function resolveAiSourceAccess(
       reason: 'SOURCE_NOT_INDEXED',
     };
   }
+
+  let deepLink: string | undefined = undefined;
+  if (row.kind === 'task' || row.kind === 'todo') {
+    deepLink = `/plan?targetId=${encodeURIComponent(input.itemId)}&targetType=task`;
+  } else if (row.kind === 'journal_entry' || row.kind === 'journal') {
+    deepLink = `/journal?entryId=${encodeURIComponent(input.itemId)}`;
+  } else {
+    deepLink = `/library?noteId=${encodeURIComponent(input.itemId)}`;
+  }
+
   return {
     accessible: true,
     itemId: input.itemId,
@@ -664,7 +704,154 @@ export async function resolveAiSourceAccess(
     title,
     revision: Number(row.revision),
     reason: null,
+    deepLink,
   };
+}
+
+export async function deleteAssistantHistory(
+  client: PoolClient,
+  input: { userId: string; workspaceId: string; turnId?: string }
+): Promise<{ deletedTurns: number }> {
+  const consent = await getAiConsentStatus(client, input.userId);
+  if (!consent.enabled) {
+    throw new AiServiceError('AI consent required', 403, 'AI_CONSENT_REQUIRED');
+  }
+  await assertPersonalEditorAccess(client, input.workspaceId, input.userId);
+
+  let query = `DELETE FROM app.ai_assistant_turns WHERE user_id = $1 AND workspace_id = $2`;
+  const params: unknown[] = [input.userId, input.workspaceId];
+  if (input.turnId) {
+    query += ` AND id = $3`;
+    params.push(input.turnId);
+  }
+  const res = await client.query(query, params);
+  return { deletedTurns: res.rowCount ?? 0 };
+}
+
+export type AssistantStreamCallbacks = {
+  onStart: (event: { turnId: string; providerMode: string; label: string }) => Promise<void> | void;
+  onContext: (event: { retrievedSourceCount: number; citations: AiCitation[] }) => Promise<void> | void;
+  onChunk: (event: { text: string }) => Promise<void> | void;
+  onDone: (event: {
+    turnId: string;
+    answer: string;
+    abstained: boolean;
+    citations: AiCitation[];
+    tokensReserved: number;
+    tokensSettled: number;
+  }) => Promise<void> | void;
+  onError: (event: { code: string; message: string }) => Promise<void> | void;
+};
+
+export async function streamAssistant(
+  pool: Pool,
+  input: {
+    userId: string;
+    workspaceId: string;
+    question: string;
+    limit?: number;
+    selectedSources?: { help?: boolean; notes?: boolean; tasks?: boolean; journal?: boolean };
+    signal?: AbortSignal;
+  },
+  callbacks: AssistantStreamCallbacks
+): Promise<void> {
+  const turnId = crypto.randomUUID();
+  try {
+    const startConsent = await withUserContext(pool, input.userId, (client) =>
+      getAiConsentStatus(client, input.userId)
+    );
+    if (!startConsent.enabled) {
+      throw new AiServiceError('AI consent required', 403, 'AI_CONSENT_REQUIRED');
+    }
+    const requestGeneration = startConsent.consentGeneration;
+
+    if (input.signal?.aborted) {
+      throw new AiServiceError('Ask cancelled', 499, 'AI_ASK_CANCELLED');
+    }
+
+    const providerMode = resolveAiProvider(process.env).mode === 'live' ? 'live' : 'fake';
+    await callbacks.onStart({
+      turnId,
+      providerMode,
+      label: 'provisional-local-fake-or-gated',
+    });
+
+    const retrieved = await retrieveAuthorizedAnswer(pool, {
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+      query: input.question,
+      limit: input.limit,
+      selectedSources: input.selectedSources,
+      signal: input.signal,
+      onContext: async (ctx) => {
+        await callbacks.onContext({
+          retrievedSourceCount: ctx.retrievedSourceCount,
+          citations: ctx.citations,
+        });
+      },
+      onChunk: async (chunk) => {
+        await callbacks.onChunk({ text: chunk });
+      },
+    });
+
+    if (input.signal?.aborted) {
+      throw new AiServiceError(
+        'Ask cancelled after provider work; content already transmitted cannot be recalled',
+        499,
+        'AI_ASK_CANCELLED'
+      );
+    }
+
+    await withUserContext(pool, input.userId, async (client) => {
+      const consent = await getAiConsentStatus(client, input.userId);
+      if (!consent.enabled || consent.consentGeneration !== requestGeneration) {
+        throw new AiServiceError(
+          'Consent changed during ask — result discarded',
+          403,
+          'AI_CONSENT_CHANGED'
+        );
+      }
+      if (input.signal?.aborted) {
+        throw new AiServiceError('Ask cancelled', 499, 'AI_ASK_CANCELLED');
+      }
+
+      await client.query(
+        `INSERT INTO app.ai_assistant_turns (
+           id, user_id, workspace_id, consent_generation, question, answer, abstained,
+           citations, provider_mode
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
+        [
+          turnId,
+          input.userId,
+          input.workspaceId,
+          consent.consentGeneration,
+          input.question,
+          retrieved.answer,
+          retrieved.abstained,
+          JSON.stringify(retrieved.citations),
+          retrieved.providerMode,
+        ]
+      );
+    });
+
+    await callbacks.onDone({
+      turnId,
+      answer: retrieved.answer,
+      abstained: retrieved.abstained,
+      citations: retrieved.citations,
+      tokensReserved: retrieved.tokensReserved,
+      tokensSettled: retrieved.tokensSettled,
+    });
+  } catch (err) {
+    const code =
+      err instanceof AiServiceError
+        ? err.code
+        : err && typeof err === 'object' && 'code' in err
+        ? String((err as { code: string }).code)
+        : 'AI_PROVIDER_ERROR';
+    const message = err instanceof Error ? err.message : String(err);
+    await callbacks.onError({ code, message });
+  }
 }
 
 export async function cancelAiProposal(

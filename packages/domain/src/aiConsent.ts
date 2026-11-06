@@ -372,3 +372,87 @@ export function checkAttachmentAiEligibility(input: {
 export function treatRetrievedTextAsUntrustedData(_text: string): void {
   void _text;
 }
+
+/**
+ * Sanitizes model-generated Assistant output before rendering:
+ * 1. Strips dangerous executable HTML tags.
+ * 2. Neutralizes dangerous URL schemes in markdown links (javascript:, vbscript:, data:, file:).
+ * 3. Neutralizes remote markdown image fetches (![...](https?://...)) to prevent context-leaking tracking pixels.
+ * 4. Preserves headings, lists, bold/italic, blockquotes, code fences, and citation markers.
+ */
+export function sanitizeAssistantMarkdown(rawText: string): string {
+  if (!rawText) return '';
+  let sanitized = rawText;
+
+  // 1. Strip all HTML tags
+  sanitized = sanitized.replace(/<\/?(?:[a-z0-9_-]+)\b[^>]*>/gi, '');
+
+  // 2. Neutralize dangerous URL schemes in markdown links: [text](javascript:...) -> [text](#)
+  sanitized = sanitized.replace(/\[([^\]]+)\]\((.*?)\)/gi, (match, label, url) => {
+    const trimmed = url.trim().toLowerCase();
+    if (
+      trimmed.startsWith('javascript:') ||
+      trimmed.startsWith('vbscript:') ||
+      trimmed.startsWith('data:') ||
+      trimmed.startsWith('file:')
+    ) {
+      return `[${label}](#)`;
+    }
+    return match;
+  });
+
+  // 3. Neutralize remote tracking images: ![alt](http...) -> [Image: alt]
+  sanitized = sanitized.replace(/!\[([^\]]*)\]\((.*?)\)/gi, (_match, alt) => {
+    return `[Image: ${alt || 'illustration'}]`;
+  });
+
+  return sanitized;
+}
+
+export interface AssistantStarterSuggestion {
+  id: string;
+  label: string;
+  question: string;
+  category: 'help' | 'notes' | 'tasks' | 'routines' | 'sync';
+}
+
+export type StarterSuggestion = AssistantStarterSuggestion;
+
+export const ASSISTANT_STARTER_SUGGESTIONS: readonly AssistantStarterSuggestion[] = [
+  {
+    id: 'starter-trash-recovery',
+    label: 'Restore from Trash',
+    question: 'How do I restore a deleted note from trash?',
+    category: 'help',
+  },
+  {
+    id: 'starter-study-notes',
+    label: 'Workspace Notes',
+    question: 'What study notes or reading plans do I have?',
+    category: 'notes',
+  },
+  {
+    id: 'starter-tasks-plan',
+    label: 'Upcoming Tasks',
+    question: 'What tasks or todo items are scheduled?',
+    category: 'tasks',
+  },
+  {
+    id: 'starter-offline-sync',
+    label: 'Offline & Sync',
+    question: 'How does Daynori work offline and resolve sync conflicts?',
+    category: 'sync',
+  },
+  {
+    id: 'starter-routines-habits',
+    label: 'Routines & Habits',
+    question: 'How do I set up and track daily routines or habits?',
+    category: 'routines',
+  },
+  {
+    id: 'starter-vault-security',
+    label: 'Vault Security',
+    question: 'How does the client-encrypted Vault protect secrets?',
+    category: 'help',
+  },
+] as const;

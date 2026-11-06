@@ -6044,11 +6044,13 @@
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
-        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
-        "artifacts/phase91/evidence-summary.json"
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6107,11 +6109,13 @@
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
-        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
-        "artifacts/phase91/evidence-summary.json"
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6170,11 +6174,13 @@
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
-        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
-        "artifacts/phase91/evidence-summary.json"
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6233,11 +6239,13 @@
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
-        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts"
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
-        "artifacts/phase91/evidence-summary.json"
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -7128,6 +7136,13 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase92/evidence-summary.json",
+        "artifacts/phase92/findings-register.json",
+        "artifacts/phase92/synthetic-provider-package.json",
+        "artifacts/phase92/manual-ui-evidence.json",
+        "docs/engineering/assistant-chat-and-guidance-guide.md",
+        "docs/decisions/0092-text-assistant-chat-and-contextual-guidance.md",
+        "docs/phase-reports/phase-92.md",
         "artifacts/phase91/evidence-summary.json",
         "artifacts/phase91/findings-register.json",
         "artifacts/phase91/evaluation-dataset-v1.json",

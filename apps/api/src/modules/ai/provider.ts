@@ -33,6 +33,7 @@ export interface AiProviderAdapter {
   mode: AiProviderMode;
   disclosureVersion: string;
   complete(input: AiCompletionInput): Promise<AiCompletionResult>;
+  stream?(input: AiCompletionInput): AsyncIterable<string>;
 }
 
 export type AiHttpTransport = (
@@ -58,6 +59,62 @@ export class FakeAiProvider implements AiProviderAdapter {
 
   /** Test hook: await this gate before completing (for consent/cancel interleaving). */
   pauseGate: Promise<void> | null = null;
+  /** Test hook: yield deterministic synthetic stream chunks if provided */
+  streamChunksOverride: string[] | null = null;
+
+  async *stream(input: AiCompletionInput): AsyncIterable<string> {
+    assertNotAborted(input.signal);
+    if (this.pauseGate) {
+      await Promise.race([
+        this.pauseGate,
+        new Promise<never>((_, reject) => {
+          input.signal?.addEventListener(
+            'abort',
+            () => {
+              const err = new Error('AI request cancelled');
+              (err as { code?: string }).code = 'AI_CANCELLED';
+              reject(err);
+            },
+            { once: true }
+          );
+        }),
+      ]);
+    }
+    assertNotAborted(input.signal);
+
+    if (this.streamChunksOverride) {
+      for (const chunk of this.streamChunksOverride) {
+        assertNotAborted(input.signal);
+        yield chunk;
+      }
+      return;
+    }
+
+    const cited = [
+      ...input.user.matchAll(
+        /\[source:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|help:[a-z0-9_.-]+)#(?:r|v)(\d+)\]/gi
+      ),
+    ].map((m) => ({
+      itemId: m[1]!,
+      revision: Number(m[2]),
+      marker: m[0],
+    }));
+
+    if (cited.length === 0) {
+      assertNotAborted(input.signal);
+      yield 'ABSTAIN: ';
+      assertNotAborted(input.signal);
+      yield 'insufficient authorized sources';
+      return;
+    }
+
+    assertNotAborted(input.signal);
+    yield 'Based on authorized sources:\n';
+    for (const c of cited) {
+      assertNotAborted(input.signal);
+      yield `${c.marker}\n`;
+    }
+  }
 
   async complete(input: AiCompletionInput): Promise<AiCompletionResult> {
     assertNotAborted(input.signal);
@@ -114,6 +171,11 @@ export class UnavailableAiProvider implements AiProviderAdapter {
   disclosureVersion = CURRENT_AI_PROVIDER_DISCLOSURE_VERSION;
 
   async complete(): Promise<AiCompletionResult> {
+    throw Object.assign(new Error('AI provider unavailable'), { code: 'AI_PROVIDER_UNAVAILABLE' });
+  }
+
+  // eslint-disable-next-line require-yield
+  async *stream(): AsyncIterable<string> {
     throw Object.assign(new Error('AI provider unavailable'), { code: 'AI_PROVIDER_UNAVAILABLE' });
   }
 }

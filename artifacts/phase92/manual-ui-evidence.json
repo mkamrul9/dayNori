@@ -1,0 +1,74 @@
+{
+  "phase": 92,
+  "name": "Phase 92 Manual UI and Accessibility Evidence",
+  "evaluatedAt": "2026-11-06T23:55:00+06:00",
+  "journeys": [
+    {
+      "id": "UI-01",
+      "platform": "web_desktop",
+      "title": "Persistent Desktop Side Drawer Navigation",
+      "steps": [
+        "User clicks header sparkle button (id='global-assistant-btn')",
+        "Side drawer slides in smoothly from right (width min(440px, 100vw)) with backdrop",
+        "Active page route and editor form retain state without losing unsaved changes",
+        "User presses Escape or clicks close button (✕); drawer closes and focus returns to trigger"
+      ],
+      "result": "verified",
+      "notes": "Complementary region labeled 'Daynori Assistant'; Escape key dismiss verified."
+    },
+    {
+      "id": "UI-02",
+      "platform": "web_desktop",
+      "title": "Streaming Text and Markdown Sanitization Rendering",
+      "steps": [
+        "User enters question in textarea and clicks 'Ask'",
+        "Server streams Server-Sent Events (start, context, chunks, done)",
+        "Progressive text rendering displays live tokens as they arrive",
+        "Sanitizer strips any embedded HTML tags, javascript: links, and tracking images",
+        "Final state updates with authoritative citation markers and token settlement stats"
+      ],
+      "result": "verified",
+      "notes": "Tested with hostile HTML and tracking pixel payloads; all rendered safely as plain text/neutralized spans."
+    },
+    {
+      "id": "UI-03",
+      "platform": "web_desktop",
+      "title": "Knowledge Source Checkbox Controls and Starter Suggestions",
+      "steps": [
+        "User selects/unchecks 'Help & Guides', 'Notes', 'Tasks', 'Journal'",
+        "User clicks a starter pill (e.g. 'Restore from Trash')",
+        "Textarea is populated and query runs automatically",
+        "Citations reflect only authorized opted-in source kinds"
+      ],
+      "result": "verified",
+      "notes": "Help-only queries return canonical deep links to /help?article=... without leaking personal notes."
+    },
+    {
+      "id": "UI-04",
+      "platform": "mobile_android_pwa",
+      "title": "Android Assistant Sheet with Keyboard Safety and History Deletion",
+      "steps": [
+        "AssistantSheet mounts inside modal / bottom sheet with ScrollView and keyboardShouldPersistTaps='handled'",
+        "Question input retains focus while keyboard is active",
+        "User can cancel in-flight ask with 'Cancel ask' button",
+        "Recent turns list displays prior turns with 'Clear all' and individual '✕' delete buttons",
+        "Deleting turn purges database record and refreshes list"
+      ],
+      "result": "verified",
+      "notes": "Keyboard-safe layout verified; delete turn and clear all verified against API endpoints."
+    },
+    {
+      "id": "UI-05",
+      "platform": "cross_platform",
+      "title": "Citation Deep Link Navigation",
+      "steps": [
+        "Answer references authorized source citation",
+        "User clicks citation link",
+        "Client verifies source access via POST /v1/ai/assistant/source-access",
+        "Router navigates to canonical route: /library?noteId=..., /plan?targetId=..., /journal?entryId=..., or /help?article=..."
+      ],
+      "result": "verified",
+      "notes": "Canonical routes prevent 404s; nonexistent/vault items display helpful feedback."
+    }
+  ]
+}

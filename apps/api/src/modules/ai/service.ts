@@ -33,7 +33,7 @@ import {
 } from '@daynori/domain';
 import { withUserContext } from '../../db/index.js';
 import { NotFoundError, ValidationError } from '../../plugins/errorHandler.js';
-import { resolveAiProvider, type AiProviderAdapter, type AiProviderMode } from './provider.js';
+import { resolveAiProvider, type AiProviderAdapter, type AiProviderMode, type AiCompletionResult } from './provider.js';
 import { getEffectiveAiMonthlyTokenBudget } from '../billing/service.js';
 
 export class AiServiceError extends Error {
@@ -487,7 +487,10 @@ export async function retrieveAuthorizedAnswer(
     workspaceId: string;
     query: string;
     limit?: number;
+    selectedSources?: { help?: boolean; notes?: boolean; tasks?: boolean; journal?: boolean };
     signal?: AbortSignal;
+    onChunk?: (chunk: string) => Promise<void> | void;
+    onContext?: (prep: { retrievedSourceCount: number; citations: AuthorizedCitationRecord[] }) => Promise<void> | void;
   }
 ) {
   assertAiLocal();
@@ -536,11 +539,17 @@ export async function retrieveAuthorizedAnswer(
     }
 
     const limit = Math.min(input.limit ?? AI_MAX_RETRIEVAL_CHUNKS, AI_MAX_RETRIEVAL_CHUNKS);
+    const searchHelp = input.selectedSources?.help !== false;
+    const includeNotes = consent.contentScope.notes && input.selectedSources?.notes !== false;
+    const includeTasks = consent.contentScope.tasks && input.selectedSources?.tasks !== false;
+    const includeJournal = consent.contentScope.journal && input.selectedSources?.journal !== false;
+
     const kindFilter: string[] = [];
-    if (consent.contentScope.notes) kindFilter.push('note');
-    if (consent.contentScope.tasks) kindFilter.push('task', 'todo');
-    if (consent.contentScope.journal) kindFilter.push('journal', 'journal_entry');
-    if (kindFilter.length === 0) {
+    if (includeNotes) kindFilter.push('note');
+    if (includeTasks) kindFilter.push('task', 'todo');
+    if (includeJournal) kindFilter.push('journal', 'journal_entry');
+
+    if (kindFilter.length === 0 && !searchHelp) {
       throw new AiServiceError('No AI content scope enabled', 403, 'AI_SCOPE_EMPTY');
     }
 
@@ -548,22 +557,24 @@ export async function retrieveAuthorizedAnswer(
     const contextParts: string[] = [];
 
     // Distinct Knowledge Source 1: Versioned public Help catalog (separate from personal chunks)
-    const helpArticles = findRelevantHelpArticles(input.query, 3);
-    for (const article of helpArticles) {
-      const stepsText = article.steps
-        .map((s, idx) => `${idx + 1}. ${s.instruction.defaultText}`)
-        .join(' ');
-      const excerpt = `${article.title.defaultText}: ${article.summary.defaultText} Steps: ${stepsText}`.slice(0, 500);
-      authorized.push({
-        itemId: `help:${article.id}`,
-        revision: article.contentVersion,
-        kind: 'help',
-        excerpt,
-        deepLink: `/help?article=${article.id}`,
-      });
-      contextParts.push(
-        `[source:help:${article.id}#v${article.contentVersion}] (Daynori Help: ${article.title.defaultText}) ${article.summary.defaultText} Steps: ${stepsText}`
-      );
+    if (searchHelp) {
+      const helpArticles = findRelevantHelpArticles(input.query, 3);
+      for (const article of helpArticles) {
+        const stepsText = article.steps
+          .map((s, idx) => `${idx + 1}. ${s.instruction.defaultText}`)
+          .join(' ');
+        const excerpt = `${article.title.defaultText}: ${article.summary.defaultText} Steps: ${stepsText}`.slice(0, 500);
+        authorized.push({
+          itemId: `help:${article.id}`,
+          revision: article.contentVersion,
+          kind: 'help',
+          excerpt,
+          deepLink: `/help?article=${encodeURIComponent(article.id)}`,
+        });
+        contextParts.push(
+          `[source:help:${article.id}#v${article.contentVersion}] (Daynori Help: ${article.title.defaultText}) ${article.summary.defaultText} Steps: ${stepsText}`
+        );
+      }
     }
 
     // Distinct Knowledge Source 2: Explicitly opted-in personal workspace content
@@ -573,7 +584,7 @@ export async function retrieveAuthorizedAnswer(
       .filter((t) => t.length > 0);
 
     let hits: { rows: RetrievedChunk[] } = { rows: [] };
-    if (sanitized.length > 0) {
+    if (kindFilter.length > 0 && sanitized.length > 0) {
       const andQuery = sanitized.map((t) => `'${t}':*`).join(' & ');
       hits = await client.query<RetrievedChunk>(
         `SELECT c.source_item_id, c.source_kind, c.source_revision, c.content_text, c.consent_generation
@@ -625,7 +636,7 @@ export async function retrieveAuthorizedAnswer(
         );
       }
     }
-    if (hits.rows.length === 0) {
+    if (kindFilter.length > 0 && hits.rows.length === 0) {
       const token =
         sanitized[0] ??
         input.query.trim().split(/\s+/).find((t) => t.length >= 3) ??
@@ -658,18 +669,20 @@ export async function retrieveAuthorizedAnswer(
     for (const hit of hits.rows) {
       treatRetrievedTextAsUntrustedData(hit.content_text);
       if (!isAiSourceKindEligible(hit.source_kind, 'standard', consent.contentScope)) continue;
-      const kindRoute =
-        hit.source_kind === 'journal_entry'
-          ? 'journal'
-          : hit.source_kind === 'todo'
-            ? 'tasks'
-            : `${hit.source_kind}s`;
+      let deepLink: string;
+      if (hit.source_kind === 'journal_entry' || hit.source_kind === 'journal') {
+        deepLink = `/journal?entryId=${encodeURIComponent(hit.source_item_id)}`;
+      } else if (hit.source_kind === 'todo' || hit.source_kind === 'task') {
+        deepLink = `/plan?targetId=${encodeURIComponent(hit.source_item_id)}&targetType=task`;
+      } else {
+        deepLink = `/library?noteId=${encodeURIComponent(hit.source_item_id)}`;
+      }
       authorized.push({
         itemId: hit.source_item_id,
         revision: Number(hit.source_revision),
         kind: hit.source_kind,
         excerpt: hit.content_text.slice(0, 500),
-        deepLink: `/${kindRoute}?id=${hit.source_item_id}`,
+        deepLink,
       });
       contextParts.push(
         `[source:${hit.source_item_id}#r${hit.source_revision}] ${hit.content_text.slice(0, 800)}`
@@ -741,13 +754,53 @@ export async function retrieveAuthorizedAnswer(
     if (prep.authorized.length === 0) {
       settledTokens = 50;
       settleStatus = 'settled';
+      if (input.onContext) {
+        await input.onContext({ retrievedSourceCount: 0, citations: [] });
+      }
+      if (input.onChunk) {
+        await input.onChunk('ABSTAIN: insufficient authorized sources');
+      }
     } else {
-      const completion = await provider.complete({
-        system: prep.system,
-        user: prep.userPrompt,
-        maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
-        signal: input.signal,
-      });
+      if (input.onContext) {
+        await input.onContext({
+          retrievedSourceCount: prep.authorized.length,
+          citations: prep.authorized,
+        });
+      }
+      let completion: AiCompletionResult;
+      if (input.onChunk && typeof provider.stream === 'function') {
+        let streamText = '';
+        for await (const chunk of provider.stream({
+          system: prep.system,
+          user: prep.userPrompt,
+          maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+          signal: input.signal,
+        })) {
+          streamText += chunk;
+          await input.onChunk(chunk);
+        }
+        completion = {
+          text: streamText,
+          promptTokensEstimate: estimateAiReservationTokens({
+            systemPrompt: prep.system,
+            userPrompt: prep.userPrompt,
+            maxOutputTokens: 0,
+          }),
+          completionTokensEstimate: Math.max(1, Math.ceil(streamText.length / 4)),
+          usageKnown: false,
+          mode: provider.mode === 'live' ? 'live' : 'fake',
+        };
+      } else {
+        completion = await provider.complete({
+          system: prep.system,
+          user: prep.userPrompt,
+          maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+          signal: input.signal,
+        });
+        if (input.onChunk) {
+          await input.onChunk(completion.text);
+        }
+      }
       settledTokens =
         completion.promptTokensEstimate + completion.completionTokensEstimate;
       settleStatus = completion.usageKnown ? 'settled' : 'unknown_usage';
