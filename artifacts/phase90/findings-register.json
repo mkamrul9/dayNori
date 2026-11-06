@@ -1,0 +1,105 @@
+[
+  {
+    "id": "AI-001",
+    "category": "Operational Control & Safety",
+    "severity": "high",
+    "status": "remediated",
+    "title": "Server-enforced kill switch overriding all environment and test modes",
+    "description": "Operators lacked an immediate server-side kill switch to halt all AI processing in non-production environments without re-deploying or altering NODE_ENV. Fixed in Phase 90: implemented isAiKillSwitchActive in @daynori/domain and assertAiLocal in service.ts. Setting DAYNORI_AI_KILL_SWITCH='true' immediately halts all AI routes with HTTP 503 AI_KILL_SWITCH_ACTIVE and forces provider adapter into unavailable mode.",
+    "affectedFiles": [
+      "packages/domain/src/aiGate.ts",
+      "apps/api/src/modules/ai/service.ts",
+      "apps/api/src/modules/ai/provider.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-001)"
+  },
+  {
+    "id": "AI-002",
+    "category": "Adapter Resilience & Transport Bounds",
+    "severity": "high",
+    "status": "remediated",
+    "title": "Provider error classification, input bounds, and malformed response rejection",
+    "description": "Provider errors previously returned generic 503 AI_PROVIDER_ERROR without distinguishing rate limits, outages, authentication failures, or oversized inputs. Remediated in Phase 90: OpenAiCompatibleProvider bounds input text (<=20,000 chars for user prompt, <=10,000 chars for system prompt, returning 400 AI_PROVIDER_INPUT_TOO_LARGE), classifies HTTP 429 as AI_PROVIDER_RATE_LIMIT (HTTP 429), HTTP 401/403 as AI_PROVIDER_AUTH_ERROR (HTTP 503), and HTTP 500-504 as AI_PROVIDER_OUTAGE (HTTP 503). Responses exceeding 20,000 chars or missing message content are rejected as AI_PROVIDER_MALFORMED.",
+    "affectedFiles": [
+      "apps/api/src/modules/ai/provider.ts",
+      "apps/api/src/modules/ai/service.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-002)"
+  },
+  {
+    "id": "AI-003",
+    "category": "Budget & Quota Durability",
+    "severity": "high",
+    "status": "verified_satisfied",
+    "title": "Concurrency-safe durable per-request budget reservation",
+    "description": "All AI requests atomically reserve budget in app.ai_budget_windows before provider I/O via app.ai_create_reservation using PostgreSQL row-level locks (FOR UPDATE). If the remaining budget is less than requested tokens, the reservation fails closed with HTTP 429 AI_BUDGET_EXHAUSTED. Multiple concurrent requests cannot over-allocate the monthly token budget.",
+    "affectedFiles": [
+      "infra/supabase/migrations/00061_ai_budget_requests_and_fencing.sql",
+      "apps/api/src/modules/ai/service.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-003)"
+  },
+  {
+    "id": "AI-004",
+    "category": "Monetary Accounting & Settlement",
+    "severity": "high",
+    "status": "verified_satisfied",
+    "title": "Idempotent settlement releases reservation once without double-counting",
+    "description": "app.ai_settle_request updates app.ai_budget_windows and app.ai_budget_requests in a single atomic transaction. The initial call releases the reserved tokens and increments spent tokens by actual usage. Duplicate calls with the same requestId return already_settled: true, preserving idempotent replay safety without double-incrementing spent tokens.",
+    "affectedFiles": [
+      "infra/supabase/migrations/00061_ai_budget_requests_and_fencing.sql",
+      "apps/api/src/modules/ai/service.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-004)"
+  },
+  {
+    "id": "AI-005",
+    "category": "Privacy & Consent Lifecycle",
+    "severity": "high",
+    "status": "verified_satisfied",
+    "title": "Post-provider result fencing discards output upon consent withdrawal or disable",
+    "description": "When a user disables AI or withdraws consent while an external provider request is in flight, the post-provider fence in retrieveAuthorizedAnswer inspects live consent and generation. If consent was revoked or generation incremented, the model output is completely discarded and replaced with an ABSTAIN notice with empty citations. Disclosures explicitly inform users that already-transmitted content cannot be recalled externally.",
+    "affectedFiles": [
+      "apps/api/src/modules/ai/service.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-005)"
+  },
+  {
+    "id": "AI-006",
+    "category": "Scope Boundaries & Exclusion",
+    "severity": "high",
+    "status": "verified_satisfied",
+    "title": "Strict journal opt-in requirement and unconditional vault/secrets exclusion",
+    "description": "Journal indexing and retrieval are strictly opt-in (DEFAULT_AI_CONTENT_SCOPE.journal === false). Ordinary journal visibility or global search settings cannot enable journal indexing. Vault items (security_scope: 'vault') are unconditionally excluded from indexing, retrieval, context snippets, and citations regardless of user consent. Shared rooms and chat messages are not accessible to personal AI.",
+    "affectedFiles": [
+      "packages/domain/src/aiConsent.ts",
+      "apps/api/src/modules/ai/service.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-006)"
+  },
+  {
+    "id": "AI-007",
+    "category": "Cancellation Fencing",
+    "severity": "medium",
+    "status": "verified_satisfied",
+    "title": "Cancellation via AbortSignal bounds settlement and throws 499 AI_CANCELLED",
+    "description": "When an HTTP connection is closed or AbortSignal triggers, the provider transport is aborted immediately. The durable reservation is settled with status 'cancelled' and bounded tokens (up to 100 overhead tokens), releasing unused reservation back to the monthly window and throwing 499 AI_CANCELLED.",
+    "affectedFiles": [
+      "apps/api/src/modules/ai/service.ts",
+      "apps/api/src/modules/ai/provider.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-007)"
+  },
+  {
+    "id": "AI-008",
+    "category": "Unit Economics & Rate Calculations",
+    "severity": "medium",
+    "status": "remediated",
+    "title": "Precise monetary accounting in micro-USD across candidate model rates",
+    "description": "Previously, AI budgets were tracked purely as token counts without precise currency conversion. Remediated in Phase 90: added calculateEstimatedAiCost in @daynori/domain mapping prompt and completion token counts to exact micro-USD ($0.000001) and USD amounts for gpt-4o-mini, gpt-4o, claude-3-5-haiku, and gemini-1.5-flash based on official published pricing.",
+    "affectedFiles": [
+      "packages/domain/src/aiConsent.ts"
+    ],
+    "verificationTest": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts (AI-008)"
+  }
+]

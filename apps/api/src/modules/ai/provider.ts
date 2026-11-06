@@ -6,7 +6,11 @@
  * store:false is sent explicitly. It is NOT Zero Data Retention.
  */
 
-import { CURRENT_AI_PROVIDER_DISCLOSURE_VERSION, isAiLiveProviderEnabled } from '@daynori/domain';
+import {
+  CURRENT_AI_PROVIDER_DISCLOSURE_VERSION,
+  isAiLiveProviderEnabled,
+  isAiKillSwitchActive,
+} from '@daynori/domain';
 
 export type AiProviderMode = 'disabled' | 'fake' | 'unavailable' | 'live';
 
@@ -134,6 +138,11 @@ export class OpenAiCompatibleProvider implements AiProviderAdapter {
 
   async complete(input: AiCompletionInput): Promise<AiCompletionResult> {
     assertNotAborted(input.signal);
+    if (input.user.length > 20_000 || input.system.length > 10_000) {
+      throw Object.assign(new Error('AI request input exceeds maximum character limit'), {
+        code: 'AI_PROVIDER_INPUT_TOO_LARGE',
+      });
+    }
     const controller = new AbortController();
     const onAbort = () => controller.abort();
     input.signal?.addEventListener('abort', onAbort, { once: true });
@@ -163,8 +172,16 @@ export class OpenAiCompatibleProvider implements AiProviderAdapter {
         redirect: 'error',
       });
       if (!res.ok) {
+        let code = 'AI_PROVIDER_ERROR';
+        if (res.status === 429) {
+          code = 'AI_PROVIDER_RATE_LIMIT';
+        } else if (res.status === 401 || res.status === 403) {
+          code = 'AI_PROVIDER_AUTH_ERROR';
+        } else if (res.status >= 500) {
+          code = 'AI_PROVIDER_OUTAGE';
+        }
         throw Object.assign(new Error(`Provider HTTP ${res.status}`), {
-          code: 'AI_PROVIDER_ERROR',
+          code,
         });
       }
       const json = (await res.json()) as {
@@ -207,6 +224,9 @@ export function resolveAiProvider(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
   options?: { transport?: AiHttpTransport; fake?: FakeAiProvider }
 ): AiProviderAdapter {
+  if (isAiKillSwitchActive(env)) {
+    return new UnavailableAiProvider();
+  }
   const preferFake =
     (env['DAYNORI_AI_PROVIDER'] ?? 'fake') === 'fake' || env['NODE_ENV'] === 'test';
   if (preferFake || !isAiLiveProviderEnabled(env)) {

@@ -26,6 +26,9 @@ import {
   createFallbackBlockRepresentation,
   APPROVED_SECTION_TEMPLATES,
   isAiLocallyEnabled,
+  isAiKillSwitchActive,
+  calculateEstimatedAiCost,
+  AI_MODEL_RATES,
   isBillingLocallyEnabled,
   isBillingProductionActivationEnabled,
   isAiLiveProviderEnabled,
@@ -2442,6 +2445,50 @@ describe('Domain Rules and Invariants', () => {
         maxOutputTokens: 800,
       });
       expect(n).toBeGreaterThan(800);
+    });
+
+    it('enforces server kill switch overriding all environment and test modes', () => {
+      expect(isAiKillSwitchActive({ DAYNORI_AI_KILL_SWITCH: 'true' })).toBe(true);
+      expect(isAiKillSwitchActive({ DAYNORI_AI_KILL_SWITCH: 'false' })).toBe(false);
+      expect(isAiKillSwitchActive({})).toBe(false);
+
+      // Kill switch forces isAiLocallyEnabled to false even in test or dev mode
+      expect(
+        isAiLocallyEnabled({ NODE_ENV: 'test', DAYNORI_AI_KILL_SWITCH: 'true' })
+      ).toBe(false);
+      expect(
+        isAiLocallyEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_AI_LOCAL_ENABLED: 'true',
+          DAYNORI_AI_KILL_SWITCH: 'true',
+        })
+      ).toBe(false);
+    });
+
+    it('calculates precise monetary costs in micro-USD and USD for candidate models', () => {
+      expect(AI_MODEL_RATES['gpt-4o-mini']!.inputMicrosPerToken).toBe(0.15);
+      const gpt4oMini = calculateEstimatedAiCost(1000, 500, 'gpt-4o-mini');
+      // 1000 prompt tokens * 0.150 micros/tok = 150 micros ($0.000150)
+      // 500 completion tokens * 0.600 micros/tok = 300 micros ($0.000300)
+      // Total: 450 micros = $0.000450
+      expect(gpt4oMini.inputCostMicros).toBe(150);
+      expect(gpt4oMini.outputCostMicros).toBe(300);
+      expect(gpt4oMini.totalCostMicros).toBe(450);
+      expect(gpt4oMini.totalCostUsd).toBe(0.00045);
+
+      const claude = calculateEstimatedAiCost(1000, 500, 'claude-3-5-haiku');
+      // 1000 * 1.0 = 1000 micros; 500 * 5.0 = 2500 micros; Total: 3500 micros = $0.0035
+      expect(claude.inputCostMicros).toBe(1000);
+      expect(claude.outputCostMicros).toBe(2500);
+      expect(claude.totalCostMicros).toBe(3500);
+      expect(claude.totalCostUsd).toBe(0.0035);
+
+      const gemini = calculateEstimatedAiCost(1000, 500, 'gemini-1.5-flash');
+      // 1000 * 0.075 = 75 micros; 500 * 0.30 = 150 micros; Total: 225 micros = $0.000225
+      expect(gemini.inputCostMicros).toBe(75);
+      expect(gemini.outputCostMicros).toBe(150);
+      expect(gemini.totalCostMicros).toBe(225);
+      expect(gemini.totalCostUsd).toBe(0.000225);
     });
   });
 });

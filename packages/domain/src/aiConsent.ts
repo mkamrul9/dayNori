@@ -1,9 +1,75 @@
 /**
  * Phase 55 — Versioned AI consent, eligible source rules, citation binding, budget estimates.
+ * Phase 90 — Precise monetary accounting and provider rate models.
  */
 
 export const CURRENT_AI_CONSENT_VERSION = '2026-10-20.1';
 export const CURRENT_AI_PROVIDER_DISCLOSURE_VERSION = 'openai-api-2026-10-20';
+
+/**
+ * Phase 90: Precise monetary accounting.
+ * Pricing rates per 1,000,000 tokens for official candidate models:
+ * - gpt-4o-mini: $0.150 / 1M input (0.150 micro-USD/token), $0.600 / 1M output (0.600 micro-USD/token)
+ * - gpt-4o: $2.50 / 1M input, $10.00 / 1M output
+ * - claude-3-5-haiku: $1.00 / 1M input, $5.00 / 1M output
+ * - gemini-1.5-flash: $0.075 / 1M input (<=128k), $0.30 / 1M output
+ */
+export type AiModelRate = {
+  inputMicrosPerToken: number;
+  outputMicrosPerToken: number;
+};
+
+export const AI_MODEL_RATES: Record<string, AiModelRate> = {
+  'gpt-4o-mini': {
+    inputMicrosPerToken: 0.15,
+    outputMicrosPerToken: 0.6,
+  },
+  'gpt-4o': {
+    inputMicrosPerToken: 2.5,
+    outputMicrosPerToken: 10.0,
+  },
+  'claude-3-5-haiku': {
+    inputMicrosPerToken: 1.0,
+    outputMicrosPerToken: 5.0,
+  },
+  'gemini-1.5-flash': {
+    inputMicrosPerToken: 0.075,
+    outputMicrosPerToken: 0.3,
+  },
+};
+
+export type AiCostCalculation = {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  inputCostMicros: number;
+  outputCostMicros: number;
+  totalCostMicros: number;
+  totalCostUsd: number;
+};
+
+export function calculateEstimatedAiCost(
+  promptTokens: number,
+  completionTokens: number,
+  model = 'gpt-4o-mini'
+): AiCostCalculation {
+  const rate = AI_MODEL_RATES[model] ?? AI_MODEL_RATES['gpt-4o-mini']!;
+  const inputCostMicros = Math.round(promptTokens * rate.inputMicrosPerToken * 100) / 100;
+  const outputCostMicros = Math.round(completionTokens * rate.outputMicrosPerToken * 100) / 100;
+  const totalCostMicros = Math.round((inputCostMicros + outputCostMicros) * 100) / 100;
+  const totalCostUsd = Math.round(totalCostMicros) / 1_000_000;
+  return {
+    model,
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    inputCostMicros,
+    outputCostMicros,
+    totalCostMicros,
+    totalCostUsd,
+  };
+}
 
 export const AI_DEFAULT_MONTHLY_TOKEN_BUDGET = 50_000;
 export const AI_MAX_RETRIEVAL_CHUNKS = 8;

@@ -1,0 +1,68 @@
+{
+  "phase": "90",
+  "name": "AI provider consent, privacy, and operating decisions",
+  "reviewDate": "2026-11-06",
+  "status": "blocked",
+  "releaseGate": "DEF-V2-008",
+  "reason": "Foundational AI consent, privacy boundaries, server kill switch, error classification, durable budget reservations, idempotent settlement, cancellation fencing, and monetary accounting verified. Live provider calls, production activation, and real user content transmission remain disabled pending explicit owner approval of synthetic test package and corporate enterprise provider contract.",
+  "automatedTestResults": {
+    "totalSuites": 6,
+    "totalTests": 130,
+    "passed": 130,
+    "failed": 0,
+    "suites": [
+      {
+        "file": "tests/integration/phase90-ai-consent-privacy-readiness.test.ts",
+        "passed": 10,
+        "failed": 0
+      },
+      {
+        "file": "tests/integration/phase55-ai-privacy-retrieval.test.ts",
+        "passed": 9,
+        "failed": 0
+      },
+      {
+        "file": "tests/integration/phase55-ai-repair.test.ts",
+        "passed": 7,
+        "failed": 0
+      },
+      {
+        "file": "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "passed": 12,
+        "failed": 0
+      },
+      {
+        "file": "tests/integration/phase56-ai-repair.test.ts",
+        "passed": 6,
+        "failed": 0
+      },
+      {
+        "file": "packages/domain/src/domain.test.ts",
+        "passed": 86,
+        "failed": 0
+      }
+    ]
+  },
+  "findingsCataloged": [
+    "AI-001",
+    "AI-002",
+    "AI-003",
+    "AI-004",
+    "AI-005",
+    "AI-006",
+    "AI-007",
+    "AI-008"
+  ],
+  "liveSyntheticTestPackage": "artifacts/phase90/synthetic-test-package.json",
+  "deliverables": [
+    "artifacts/phase90/findings-register.json",
+    "artifacts/phase90/synthetic-test-package.json",
+    "artifacts/phase90/evidence-summary.json",
+    "artifacts/phase90/manual-ui-evidence.json",
+    "docs/engineering/ai-provider-comparison-and-operating-decisions.md",
+    "docs/engineering/ai-budget-cancellation-and-operations-guide.md",
+    "docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md",
+    "docs/decisions/0090-ai-provider-consent-privacy-and-operating-decisions.md",
+    "docs/phase-reports/phase-90.md"
+  ]
+}

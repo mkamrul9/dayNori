@@ -1,5 +1,29 @@
 # Changelog
 
+## Phase 90 — AI provider consent, privacy, and operating decisions — 2026-11-06
+
+- ADR 0090: AI provider consent, privacy, operating decisions, and release readiness establishing foundational boundaries for privacy, cost controls, multi-provider evaluation, kill-switch protection, non-recall disclosure invariants, and fail-closed activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 90 foundational implementation and independent verification before final acceptance of Phase 81 recorded in ADR 0090 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase90/findings-register.json`): cataloged AI-001 through AI-008 across server kill switch enforcement, provider error classification and bounds, durable budget reservation, idempotent settlement, consent revocation fences with non-recall invariant, journal opt-in and vault exclusion, cancellation via AbortSignal, and micro-USD precision monetary accounting.
+- Core domain and API security hardening:
+  - Added `isAiKillSwitchActive(env)` in `@daynori/domain` (`packages/domain/src/aiGate.ts`), integrating with `isAiLocallyEnabled` to fail closed immediately whenever `DAYNORI_AI_KILL_SWITCH='true'`.
+  - Added micro-USD token cost calculation `calculateEstimatedAiCost` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) with rates for candidate models (`gpt-4o-mini`, `gpt-4o`, `claude-3-5-haiku`, `gemini-1.5-flash`), verified in domain unit tests.
+  - Hardened `apps/api/src/modules/ai/service.ts` to assert the server kill switch, returning HTTP 503 `AI_KILL_SWITCH_ACTIVE`, and map provider errors (`AI_PROVIDER_RATE_LIMIT` [429], `AI_PROVIDER_OUTAGE` [503], `AI_PROVIDER_AUTH_ERROR` [503], `AI_PROVIDER_INPUT_TOO_LARGE` [400]).
+  - Hardened `apps/api/src/modules/ai/provider.ts` to enforce bounded prompts (<=20,000 chars user, <=10,000 chars system), classify upstream status codes, reject malformed responses (>20,000 chars), and route to `UnavailableAiProvider` during kill switch activation.
+- Comparative provider analysis (`docs/engineering/ai-provider-comparison-and-operating-decisions.md`):
+  - In-depth, dated comparative analysis of OpenAI (`gpt-4o-mini`), Anthropic (`claude-3-5-haiku`), and Google Cloud Vertex AI (`gemini-1.5-flash-002`) examining data privacy, retention policies (`store: false` vs Zero Data Retention enterprise agreements), EU data residency guarantees, structured JSON schema reliability, and unit economics.
+  - Selected `gpt-4o-mini` as primary baseline candidate with `gemini-1.5-flash-002` as high-urgency secondary fallback, while specifying requirements for enterprise ZDR contracts and data processing agreements prior to live user deployment.
+- Budget, cancellation, and operations guide (`docs/engineering/ai-budget-cancellation-and-operations-guide.md`):
+  - Documented two-phase reservation and settlement lifecycle, micro-USD budget accounting, concurrency controls, rate limit handling with exponential backoff, prompt size limits, server kill switch operation, and credential rotation procedures.
+- Policy and consent disclosures (`docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md`):
+  - Formulated comprehensive user-facing opt-in disclosures, explicit notification of non-recall for in-flight requests upon cancellation, clear statement of third-party model processor terms, zero-training commitments, and strict exclusion of vault content and encrypted secrets.
+- Reviewable synthetic test package (`artifacts/phase90/synthetic-test-package.json`):
+  - Delivered a 5-scenario live test package strictly isolated to synthetic data with a total budget cap of $0.05 USD, documented for separate owner approval prior to initiating any live provider calls.
+- Comprehensive test coverage: 6 test suites with 130 tests passing (`tests/integration/phase90-ai-consent-privacy-readiness.test.ts`, `tests/integration/phase55-ai-privacy-retrieval.test.ts`, `tests/integration/phase55-ai-repair.test.ts`, `tests/integration/phase56-ai-assistant-actions.test.ts`, `tests/integration/phase56-ai-repair.test.ts`, `packages/domain/src/domain.test.ts`).
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic test package and enterprise agreement; Phase 90 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(ai): verify provider privacy consent and budgets`.
+
+
 ## Phase 89 — Billing entitlements and sustainable plan readiness — 2026-11-06
 
 - ADR 0089: billing entitlements, sustainable plan limits, and purchase lifecycle readiness establishing server verification authority, database role isolation (`daynori_billing`), token hash privacy, downgrade data preservation guarantees, anti-steering Google Play policy compliance, and fail-closed commercial billing release gates.

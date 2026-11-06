@@ -17,6 +17,7 @@ import {
   estimateAiReservationTokens,
   isAiLocallyEnabled,
   isAiLiveProviderEnabled,
+  isAiKillSwitchActive,
   isAiSourceKindEligible,
   isBillingLocallyEnabled,
   treatRetrievedTextAsUntrustedData,
@@ -46,6 +47,13 @@ export function setAiProviderOverrideForTests(provider: AiProviderAdapter | null
 }
 
 function assertAiLocal(): void {
+  if (isAiKillSwitchActive(process.env)) {
+    throw new AiServiceError(
+      'AI services are currently suspended by server kill switch.',
+      503,
+      'AI_KILL_SWITCH_ACTIVE'
+    );
+  }
   if (!isAiLocallyEnabled(process.env)) {
     throw new AiServiceError(
       'AI is disabled outside local/provisional development. Production never enables AI via DAYNORI_AI_LOCAL_ENABLED.',
@@ -647,6 +655,34 @@ export async function retrieveAuthorizedAnswer(
         'AI request cancelled. Already-transmitted content cannot be recalled.',
         499,
         'AI_CANCELLED'
+      );
+    }
+    if (code === 'AI_PROVIDER_RATE_LIMIT') {
+      throw new AiServiceError(
+        'AI provider rate limit reached. Please retry after backoff.',
+        429,
+        'AI_PROVIDER_RATE_LIMIT'
+      );
+    }
+    if (code === 'AI_PROVIDER_OUTAGE') {
+      throw new AiServiceError(
+        'AI provider temporarily unavailable or outage.',
+        503,
+        'AI_PROVIDER_OUTAGE'
+      );
+    }
+    if (code === 'AI_PROVIDER_AUTH_ERROR') {
+      throw new AiServiceError(
+        'AI provider authentication or credential check failed.',
+        503,
+        'AI_PROVIDER_AUTH_ERROR'
+      );
+    }
+    if (code === 'AI_PROVIDER_INPUT_TOO_LARGE') {
+      throw new AiServiceError(
+        'AI request exceeds maximum input length.',
+        400,
+        'AI_PROVIDER_INPUT_TOO_LARGE'
       );
     }
     if (err instanceof AiServiceError) throw err;

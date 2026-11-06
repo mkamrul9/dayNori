@@ -5977,10 +5977,14 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
+        "tests/integration/phase90-ai-consent-privacy-readiness.test.ts",
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts"
       ],
       "evidenceRefs": [
+        "artifacts/phase90/evidence-summary.json",
+        "artifacts/phase90/findings-register.json",
+        "artifacts/phase90/synthetic-test-package.json",
         "artifacts/local/phase65/core-journeys.log"
       ],
       "blockerOrDefect": "DEF-V2-008",
@@ -6016,8 +6020,8 @@
       "acceptanceJourney": "Opt-in/disclosure and disable AI consent.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "0e8568d85075adcc4bca4325179171d63ae59a7d",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -7116,11 +7120,20 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase90/evidence-summary.json",
+        "artifacts/phase90/findings-register.json",
+        "artifacts/phase90/synthetic-test-package.json",
+        "artifacts/phase90/manual-ui-evidence.json",
+        "docs/engineering/ai-provider-comparison-and-operating-decisions.md",
+        "docs/engineering/ai-budget-cancellation-and-operations-guide.md",
+        "docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md",
+        "docs/decisions/0090-ai-provider-consent-privacy-and-operating-decisions.md",
+        "docs/phase-reports/phase-90.md",
         "artifacts/local/phase65/core-journeys.log"
       ],
-      "workaround": null,
-      "dependency": "Provider privacy decision + Phases 90–96.",
-      "nextAction": "Start with Phase 90 when selected.",
+      "workaround": "Synthetic local provider mock only.",
+      "dependency": "Owner approval of live synthetic test package + enterprise provider contract + server credentials.",
+      "nextAction": "Review and approve artifacts/phase90/synthetic-test-package.json before initiating any live provider calls.",
       "owningPhase": "90"
     },
     {

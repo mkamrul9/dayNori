@@ -1,0 +1,29 @@
+{
+  "phase": "90",
+  "reviewDate": "2026-11-06",
+  "surfaces": [
+    {
+      "name": "Web Assistant Panel (Consent & Settings)",
+      "path": "apps/web/src/components/AssistantPanel.tsx",
+      "controls": [
+        "Consent acceptance toggle with version matching",
+        "Journal opt-in checkbox (default unchecked)",
+        "Vault unconditional exclusion badge",
+        "Disable AI with derived index chunk purge option",
+        "Transparent token usage counter and monthly budget indicator"
+      ],
+      "verification": "Code inspection and integration tests verify consent status payload and version requirements."
+    },
+    {
+      "name": "Android Assistant Sheet (Consent & Settings)",
+      "path": "apps/mobile/src/views/AssistantSheet.tsx",
+      "controls": [
+        "Consent acceptance button",
+        "Separate journal opt-in toggle",
+        "Clear cancellation notice: cancellation cannot recall transmitted content",
+        "Kill switch status banner when engaged"
+      ],
+      "verification": "Component inspection confirms compliance with ADR 0052 and ADR 0090 disclosure standards."
+    }
+  ]
+}
