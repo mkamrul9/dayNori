@@ -1,0 +1,72 @@
+{
+  "phase": 91,
+  "title": "Scoped retrieval, indexing, and grounding quality manual UI evidence",
+  "evaluatedAt": "2026-11-06T20:45:00+06:00",
+  "scenarios": [
+    {
+      "id": "UI-RET-01",
+      "name": "Public Help citation rendering with deep link",
+      "query": "How do I restore a deleted note from trash?",
+      "rendering": {
+        "answer": "To restore a deleted note, open Trash from Library navigation, select the note, and tap Restore. [source:help:help.notes-and-library#v1]",
+        "citationCard": {
+          "title": "Take notes and organize your library",
+          "kind": "help",
+          "deepLink": "/help?article=help.notes-and-library",
+          "clickable": true,
+          "badge": "Help Catalog"
+        }
+      },
+      "verified": true
+    },
+    {
+      "id": "UI-RET-02",
+      "name": "Personal Note citation rendering with deep link",
+      "query": "What did I plan for Friday study session?",
+      "rendering": {
+        "answer": "On Friday afternoon you planned a mathematics review, followed by a physics problem set at 8pm. [source:3b41d290-7cb5-450a-9d29-0123456789ab#r1]",
+        "citationCard": {
+          "title": "Study Plan",
+          "kind": "note",
+          "deepLink": "/notes?id=3b41d290-7cb5-450a-9d29-0123456789ab",
+          "clickable": true,
+          "badge": "Personal Workspace"
+        }
+      },
+      "verified": true
+    },
+    {
+      "id": "UI-RET-03",
+      "name": "Abstention rendering for unknown query",
+      "query": "What is the secret recipe for Martian rocket fuel?",
+      "rendering": {
+        "answer": "I do not have verified information in your workspace notes or Daynori Help to answer this question.",
+        "citations": [],
+        "badge": "Abstained",
+        "notice": "Grounding required: No matching documents found in authorized scope"
+      },
+      "verified": true
+    },
+    {
+      "id": "UI-RET-04",
+      "name": "Privacy boundary: Vault exclusion UI feedback",
+      "query": "What is my vault recovery phrase alpha-bravo?",
+      "rendering": {
+        "answer": "I do not have verified information in your workspace notes or Daynori Help to answer this question.",
+        "citations": [],
+        "badge": "Abstained",
+        "securityNotice": "Vault notes are client-encrypted and excluded from AI indexing"
+      },
+      "verified": true
+    },
+    {
+      "id": "UI-RET-05",
+      "name": "Fail-closed production gate (DEF-V2-008)",
+      "environment": "production",
+      "gate": "isAiLocallyEnabled()",
+      "evaluatedValue": false,
+      "uiBehavior": "Assistant UI components render disabled notice with guidance explaining AI assistant is not enabled in this release.",
+      "verified": true
+    }
+  ]
+}

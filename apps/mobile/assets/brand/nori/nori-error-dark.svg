@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#146B63"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#38BDB0"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#2FA89A"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#F5C2C0"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#FFFFFF" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <circle cx="26" cy="26" r="2.4" fill="#FFFFFF"/><circle cx="38" cy="26" r="2.4" fill="#FFFFFF"/><path d="M32 34 L35 40 H29 Z" fill="#F5C2C0"/>
+</svg>

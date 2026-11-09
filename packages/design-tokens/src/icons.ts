@@ -103,6 +103,9 @@ export const iconPaths = {
   tools: [
     'm3 3 6 6m6 6 6 6M7 3 3 7m14 10 4 4M21 3l-4 4h-3V4l4-3a6 6 0 0 0-8 8L3 16a3 3 0 0 0 4 4l8-8a6 6 0 0 0 6-9Z',
   ],
+  nori: [
+    'M12 3 L18 9 L12 21 L6 9 Z M12 3 L16 3 L12 7 Z M6 9 L12 21 L4 15 Z M18 9 L12 21 L20 15 Z M9.5 10.5 A 1 1 0 1 0 9.5 10.51 M14.5 10.5 A 1 1 0 1 0 14.5 10.51',
+  ],
 } as const;
 
 export type IconName = keyof typeof iconPaths;

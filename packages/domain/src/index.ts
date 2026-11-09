@@ -39,4 +39,7 @@ export * from './billingGate.js';
 export * from './billingLifecycle.js';
 export * from './help/index.js';
 export * from './feedback/index.js';
+export * from './organizerProposals.js';
+export * from './audioTranscription.js';
+export * from './noriCompanion.js';
 

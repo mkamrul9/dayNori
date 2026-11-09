@@ -293,9 +293,13 @@ import {
   AiPurgeResponseSchema,
   AiAskResponseSchema,
   AiProposalResponseSchema,
+  BatchConfirmAiProposalsResponseSchema,
   AiAssistantHistoryResponseSchema,
   AiAssistantDraftResponseSchema,
   AiSourceAccessResponseSchema,
+  DeleteAiHistoryResponseSchema,
+  TranscribeAudioResponseSchema,
+  AiStreamEventSchema,
   BillingCatalogResponseSchema,
   BillingEntitlementResponseSchema,
   BillingUsageResponseSchema,
@@ -362,6 +366,9 @@ import {
   type AiAskResponse,
   type CreateAiProposalRequest,
   type ConfirmAiProposalRequest,
+  type UpdateAiProposalRequest,
+  type BatchConfirmAiProposalsRequest,
+  type BatchConfirmAiProposalsResponse,
   type AiProposalResponse,
   type AiAssistantHistoryResponse,
   type AiAssistantDraftResponse,
@@ -369,6 +376,12 @@ import {
   type SaveAiDraftRequest,
   type ClearAiDraftRequest,
   type AiSourceAccessRequest,
+  type DeleteAiHistoryRequest,
+  type DeleteAiHistoryResponse,
+  type TranscribeAudioRequest,
+  type TranscribeAudioResponse,
+  type AiAskStreamRequest,
+  type AiStreamEvent,
   type BillingCatalogResponse,
   type BillingEntitlementResponse,
   type BillingUsageResponse,
@@ -3528,6 +3541,118 @@ export class DaynoriApiClient {
     return AiAssistantHistoryResponseSchema.parse(raw);
   }
 
+  async deleteAssistantHistory(
+    request: DeleteAiHistoryRequest,
+    options?: RequestOptions
+  ): Promise<DeleteAiHistoryResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/assistant/history?workspaceId=${encodeURIComponent(request.workspaceId)}${
+        request.turnId ? `&turnId=${encodeURIComponent(request.turnId)}` : ''
+      }`,
+      { method: 'DELETE' },
+      options
+    );
+    return DeleteAiHistoryResponseSchema.parse(raw);
+  }
+
+  async streamAssistantAsk(
+    request: AiAskStreamRequest,
+    callbacks: {
+      onEvent: (event: AiStreamEvent) => void;
+      onError?: (err: Error) => void;
+    },
+    options?: RequestOptions
+  ): Promise<void> {
+    const url = `${this.baseUrl}/v1/ai/assistant/stream`;
+    const token = await this.resolveToken();
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+      ...((options?.headers as Record<string, string>) || {}),
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await this.fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request),
+      signal: options?.signal,
+    });
+
+    if (!res.ok) {
+      let message = `HTTP ${res.status}`;
+      let errorCode = 'HTTP_ERROR';
+      try {
+        const body = (await res.json()) as { error?: { message?: string; code?: string } };
+        if (body?.error?.message) message = body.error.message;
+        if (body?.error?.code) errorCode = body.error.code;
+      } catch {
+        // ignore non-json
+      }
+      const err = new ApiClientError(message, {
+        code: errorCode,
+        statusCode: res.status,
+      });
+      callbacks.onError?.(err);
+      throw err;
+    }
+
+    if (!res.body) {
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() ?? '';
+
+        for (const block of blocks) {
+          const trimmed = block.trim();
+          if (!trimmed) continue;
+          let dataText = '';
+          for (const line of trimmed.split('\n')) {
+            if (line.startsWith('data:')) {
+              dataText = line.replace(/^data:\s*/, '').trim();
+            }
+          }
+          if (dataText) {
+            try {
+              const parsed = JSON.parse(dataText);
+              const event = AiStreamEventSchema.parse(parsed);
+              callbacks.onEvent(event);
+              if (event.type === 'error') {
+                const err = new ApiClientError(event.error.message, {
+                  code: event.error.code,
+                  statusCode: 500,
+                });
+                callbacks.onError?.(err);
+                throw err;
+              }
+            } catch (err) {
+              if (err instanceof ApiClientError) throw err;
+              // ignore malformed event
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (options?.signal?.aborted) return;
+      const errorObj = err instanceof Error ? err : new Error(String(err));
+      callbacks.onError?.(errorObj);
+      throw errorObj;
+    }
+  }
+
   async saveAssistantDraft(request: SaveAiDraftRequest, options?: RequestOptions): Promise<void> {
     await this.request<unknown>(
       `/v1/ai/assistant/draft`,
@@ -3603,6 +3728,43 @@ export class DaynoriApiClient {
       options
     );
     return AiProposalResponseSchema.parse(raw);
+  }
+
+  async updateAiProposal(
+    proposalId: string,
+    request: UpdateAiProposalRequest,
+    options?: RequestOptions
+  ): Promise<AiProposalResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/proposals/${proposalId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return AiProposalResponseSchema.parse(raw);
+  }
+
+  async batchConfirmAiProposals(
+    request: BatchConfirmAiProposalsRequest,
+    options?: RequestOptions
+  ): Promise<BatchConfirmAiProposalsResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/proposals/batch-confirm`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return BatchConfirmAiProposalsResponseSchema.parse(raw);
+  }
+
+  async transcribeAudio(
+    request: TranscribeAudioRequest,
+    options?: RequestOptions
+  ): Promise<TranscribeAudioResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/assistant/transcribe`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return TranscribeAudioResponseSchema.parse(raw);
   }
 
   // --- Phase 57 Billing (provisional local; production activation gated) ---

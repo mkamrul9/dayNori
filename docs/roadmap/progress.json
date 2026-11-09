@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-10",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 89 implemented and independent verification delivered before final acceptance of Phases 75 and 81 under ADR 0089 (Billing entitlements and sustainable plan readiness). Phase 89 status recorded as blocked due to unmet Google Payments merchant registration, Play Console product catalog configuration, Cloud Pub/Sub RTDN credentials, and physical device test purchases (DEF-V2-007 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, and Phase 99 prototype review retain their recorded states. Phase 90 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 96 implemented and local verification delivered before Phase 92 and 93 final acceptance under ADR 0096 (Nori original companion and assistant launcher). Phase 96 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, Phase 91 grounding/retrieval evaluation, Phase 92 chat guidance, Phase 93 reviewed creation, Phase 94 multi-action tools, Phase 95 voice transcription, and Phase 99 prototype review retain their recorded states. Phase 97 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -524,31 +524,45 @@
     },
     {
       "id": "90",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-90.md",
+      "reason": "AI provider consent, privacy, and operating decisions verified: server kill switch (AI-001) implemented and verified in domain and API; provider error classification, input bounds (<=20k chars), and oversized response rejection (AI-002) verified; durable concurrency-safe budget reservations (AI-003) verified; idempotent settlement (AI-004) verified; post-provider result fencing on consent withdrawal (AI-005) verified with non-recall disclosure; strict journal opt-in and unconditional vault/secrets exclusion (AI-006) verified; cancellation via AbortSignal (AI-007) verified; precise micro-USD monetary accounting (AI-008) verified; provider comparative analysis, operations guide, privacy disclosures, and concrete live synthetic test package delivered; 130 tests passing across 6 test suites; production AI fails closed pending explicit owner approval of live synthetic test and enterprise provider contract (DEF-V2-008 retained). See docs/phase-reports/phase-90.md."
     },
     {
       "id": "91",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-91.md",
+      "reason": "Scoped retrieval, indexing, and grounding quality verified: natural language interrogatives in FTS repaired (RET-001) via extractInformativeQueryTerms; dual knowledge sources partition verified (RET-002) with public versioned Help vs opted-in personal items; Bengali combining marks preserved (RET-003) via \\p{M} regex; boundary-aware smart chunking verified (RET-004) via chunkTextSmart; background index concurrency fencing verified (RET-005) with expectedRevision rejecting stale updates with AI_SOURCE_REVISION_SUPERSEDED; attachment ingestion security gates verified (RET-006) via checkAttachmentAiEligibility enforcing clean/verified scan status, standard scope, size limits, and plain text MIME allowlist; citation binding upgraded (RET-007) with AiCitationSchema supporting Help articles and canonical deep links; prompt injection treated as inert data with hallucinated citation rejection verified (RET-008); 16-case synthetic evaluation matrix executed with 100% recall on known answers, 0 privacy leaks, and 100% abstention on ungrounded/vault/stale queries; 141 tests passing across 7 test suites; production AI fails closed pending explicit owner approval of live synthetic test and enterprise provider contract (DEF-V2-008 retained). See docs/phase-reports/phase-91.md."
     },
     {
       "id": "92",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-92.md",
+      "reason": "Text assistant chat and contextual guidance verified: Server-Sent Events (SSE) streaming transport implemented and verified (AST-001) via POST /v1/ai/assistant/stream; citation deep links repaired to canonical web and mobile routes (AST-002) with Help ID support in AiSourceAccessRequestSchema; strict read-only boundary enforced (AST-003) ensuring model text cannot execute mutations; client-selected knowledge source controls verified (AST-004) with dynamic filtering across Help, Notes, Tasks, and Journal; contextual starter suggestion catalog created (AST-005) via ASSISTANT_STARTER_SUGGESTIONS and interactive UI pills; assistant history management delivered (AST-006) via DELETE /v1/ai/assistant/history with single-turn and workspace-wide clearing; markdown output sanitization verified (AST-007) via sanitizeAssistantMarkdown neutralizing HTML, dangerous schemes, and tracking pixels; persistent desktop side drawer and keyboard-safe mobile sheet verified (AST-008) in AssistantPanel.tsx and AssistantSheet.tsx; all 7 integration tests in phase92-assistant-chat-stream-guidance.test.ts pass; production AI fails closed pending explicit owner approval of live synthetic test and enterprise provider contract (DEF-V2-008 retained). See docs/phase-reports/phase-92.md."
     },
     {
       "id": "93",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-93.md",
+      "reason": "Reviewed note task and journal creation verified: personal note, task, and journal creation delivered under strict proposal/confirm model; proposal editing supported (REV-002) via PATCH /v1/ai/proposals/:proposalId with payload revalidation and cryptographic token rotation; date ambiguity detection implemented (REV-003) via detectJournalDateAmbiguity asking clarifying questions on relative dates without guessing; journal opt-in scope strictly enforced (REV-004) under contentScope.journal; batch confirmation supported (REV-005) via POST /v1/ai/proposals/batch-confirm; durable mutation receipts recorded in app.sync_mutation_receipts under AI_DEVICE_ID; crash-safe idempotent confirmation retry returns existing receipts without duplication; canonical deep links (/library, /plan, /journal) distinguishing local draft vs persisted cloud state; interactive UI review cards delivered (REV-007) in AssistantPanel.tsx and AssistantSheet.tsx; all 11 integration tests in phase93-reviewed-organizer-creation.test.ts pass; production AI fails closed pending explicit owner approval of synthetic test package (DEF-V2-008 retained). See docs/phase-reports/phase-93.md."
     },
     {
       "id": "94",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-94.md",
+      "reason": "Structured organizer tools and multi-action creation verified: 9-operation tool catalog implemented (routines, calendar events, folders, notes, custom sections, expenses, tasks, journals); multi-action ordered proposals supported with planId, stepIndex, and dependsOn under migration 00079; dynamic cross-step reference resolution ($ref:0) verified; safe partial failure with AI_PREREQUISITE_FAILED skipping and crash-safe idempotent retry verified; ambiguity detection implemented for routines, events, and expenses; custom section approved block types (existing_record_view, field_collection) enforced with script/SQL rejection; currency validation and exact decimal minor unit conversion verified; vault scope strictly forbidden (403 AI_VAULT_FORBIDDEN); interactive multi-action review cards and batch confirmation delivered in AssistantPanel.tsx and AssistantSheet.tsx; 12 integration tests in phase94-structured-organizer-tools.test.ts and 99 domain tests pass; production AI fails closed pending explicit owner approval of synthetic test package (DEF-V2-008 retained). See docs/phase-reports/phase-94.md."
     },
     {
       "id": "95",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-95.md",
+      "reason": "Voice capture transcription and reviewed creation verified: transcription provider comparative analysis completed selecting Gemini 1.5 Flash multimodal ($0.00002/s) with MockAudioTranscriptionAdapter for zero-cost local testing; migration 00080 applied with partial unique index on (user_id, workspace_id, client_operation_id); distinct device microphone permission decoupled from external AI transmission consent (403 AI_CONSENT_REQUIRED); 0-day transient retention policy enforced with immediate buffer zeroing and raw audio DB exclusion; zero unreviewed writes verified (transcription produces text only, item attachments decoupled); duration (0.5s–600s) and size (<= 25 MiB) bounds enforced; silence and low confidence (<0.70) uncertainty detected; interactive editable textarea and TextInput review surfaces delivered on web and mobile feeding into Phase 93/94 proposal pipeline; 13 integration tests in phase95-voice-transcription-reviewed-creation.test.ts and 103 domain tests pass; production AI fails closed pending explicit owner approval of synthetic test package (DEF-V2-008 retained). See docs/phase-reports/phase-95.md."
     },
     {
       "id": "96",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-96.md",
+      "reason": "Nori original companion and assistant launcher verified: original Daynori origami vector artwork drafted with zero AI generation and zero stock/clipart imports; multi-scale asset pipeline delivered across 5 sizes (24, 32, 48, 96, 192) in light, dark, and static modes; design token nori line icon added; dual-entry single-session binding connects floating launcher and labeled 'Ask Nori' button to the same assistant controller; truthful 8-state presentation engine implemented (resolveNoriState) derived strictly from factual conditions; strict microphone invariant enforced (listening only during active mic capture); safe 4-corner positioning (calculateNoriSafeCoordinates) avoids bottom navigation (64px offset) and system bars; reduced-motion compliance (0ms durations) and background tab loop suppression verified; 52px/52dp touch targets, keyboard focus restoration, and screen-reader accessibility labels verified; noriCompanion preferences persisted via /v1/users/me/preferences; 21 integration tests in phase96-nori-companion-launcher.test.ts and 107 domain tests pass; production AI fails closed pending explicit owner approval of synthetic test package (DEF-V2-008 retained). See docs/phase-reports/phase-96.md."
     },
     {
       "id": "97",

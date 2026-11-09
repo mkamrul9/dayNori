@@ -1,0 +1,71 @@
+{
+  "phase": 92,
+  "name": "Phase 92 Text Assistant Chat and Contextual Guidance Findings Register",
+  "generatedAt": "2026-11-06T23:50:00+06:00",
+  "findings": [
+    {
+      "id": "AST-001",
+      "category": "transport_streaming",
+      "severity": "high",
+      "title": "Assistant ask was a unary blocking endpoint without real streaming",
+      "description": "POST /v1/ai/assistant/ask waited for full provider response before returning JSON, preventing real-time chunk streaming and fine-grained progressive rendering. Required Server-Sent Events (SSE) text/event-stream with frame-level chunking, Unicode boundary preservation, and disconnect cancellation.",
+      "remediation": "Implemented POST /v1/ai/assistant/stream with SSE protocol, emitting start, context, chunk, done, and error events with deterministic chunked transport fixtures."
+    },
+    {
+      "id": "AST-002",
+      "category": "navigation_citations",
+      "severity": "high",
+      "title": "Citation deep links generated nonexistent routes and source access rejected Help IDs",
+      "description": "Phase 91 generated deepLink paths such as /notes?id=... and /tasks?id=..., but web routes are /library?noteId=..., /plan?targetId=...&targetType=task, and /journal?entryId=..., leading to 404s. Furthermore, AiSourceAccessRequestSchema required a UUID, failing on versioned Help citations (help:...).",
+      "remediation": "Repaired citation deepLink generation to use canonical routes (/library?noteId=..., /plan?targetId=..., /journal?entryId=..., /help?article=...), updated AiSourceAccessRequestSchema to accept string IDs up to 128 chars, and resolved Help article source access against HELP_ARTICLES."
+    },
+    {
+      "id": "AST-003",
+      "category": "scope_boundaries",
+      "severity": "high",
+      "title": "Assistant lacked strict read-only boundary enforcement",
+      "description": "Phase 56 allowSuggestProposal permitted heuristic proposal creation on ask. In Phase 92, the assistant must be strictly read-only question answering and contextual guidance, with no automatic tool calls, organizer writes, or execution permissions.",
+      "remediation": "Enforced read-only scope for Phase 92 chat: disabled autonomous proposal execution, verified that model text cannot confirm actions or bypass authorization, and maintained read-only boundaries ahead of Phase 93."
+    },
+    {
+      "id": "AST-004",
+      "category": "source_controls",
+      "severity": "medium",
+      "title": "Assistant lacked client-selected knowledge source controls",
+      "description": "Users could not select or filter which knowledge sources were queried (e.g. searching only Help documentation without personal notes, or omitting tasks).",
+      "remediation": "Added selectedSources controls to request schemas and service, allowing users to dynamically toggle Help articles, Notes, Tasks, and Journal (subject to explicit user consent)."
+    },
+    {
+      "id": "AST-005",
+      "category": "ux_guidance",
+      "severity": "medium",
+      "title": "Assistant panel displayed empty input without contextual starter suggestions",
+      "description": "New users were presented with an empty textarea and no guidance on what the assistant could answer or how Daynori works.",
+      "remediation": "Implemented contextual starter suggestion pills for Help, notes, tasks, routines, and offline sync that populate the composer or initiate queries with one click."
+    },
+    {
+      "id": "AST-006",
+      "category": "history_privacy",
+      "severity": "medium",
+      "title": "Conversation history lacked deletion and clearing controls",
+      "description": "Users could view prior turns but had no way to delete individual turns or clear their workspace assistant conversation history, risking accumulation of stale queries.",
+      "remediation": "Implemented DELETE /v1/ai/assistant/history with single-turn and workspace-wide bulk clearing, with UI controls for delete and history restart."
+    },
+    {
+      "id": "AST-007",
+      "category": "security_rendering",
+      "severity": "high",
+      "title": "Model output lacked sanitization against HTML injection and tracking images",
+      "description": "Raw markdown rendering could execute embedded HTML, load external tracking pixels leaking user query context, or execute javascript: URL links.",
+      "remediation": "Implemented sanitizeAssistantMarkdown stripping executable tags, unsafe URL schemes, and remote image loading while preserving bounded Markdown and code formatting."
+    },
+    {
+      "id": "AST-008",
+      "category": "ui_layout",
+      "severity": "medium",
+      "title": "Desktop Assistant lacked persistent side panel preserving page/editor context",
+      "description": "AssistantPanel was an inline component on developer page rather than an accessible persistent side drawer preserving the active document/editor, and mobile lacked keyboard-safe composer handling.",
+      "remediation": "Rebuilt AssistantPanel as a persistent desktop side drawer with keyboard-safe composer, reachable controls, and accessible ARIA attributes, preserving the active page/editor."
+    }
+  ]
+}

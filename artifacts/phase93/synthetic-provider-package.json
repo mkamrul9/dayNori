@@ -1,0 +1,71 @@
+{
+  "phase": 93,
+  "packageTitle": "Reviewed Note, Task, and Journal Creation Live Synthetic Test Package",
+  "preparedAt": "2026-11-09T17:35:00+06:00",
+  "status": "pending_owner_approval",
+  "approvalGate": "DEF-V2-008",
+  "budgetLimitMicroUsd": 50000,
+  "budgetLimitUsd": "0.05",
+  "estimatedTokensTotal": 3200,
+  "provider": "google-gemini",
+  "model": "gemini-1.5-flash",
+  "notes": "Prepared for explicit owner authorization prior to any live provider invocation. Uses strictly synthetic dummy data with zero real user or private workspace content. Vault is excluded by architecture.",
+  "syntheticItems": [
+    {
+      "caseId": "SYNTH-P93-01",
+      "operation": "create_personal_note",
+      "userIntent": "Synthetic study session summary",
+      "syntheticInput": "propose note: Algorithms Study Group - Dynamic Programming Memoization Notes",
+      "expectedProposal": {
+        "operation": "create_personal_note",
+        "title": "Algorithms Study Group - Dynamic Programming Memoization Notes",
+        "destination": "Library / Notes"
+      },
+      "estimatedTokens": 450
+    },
+    {
+      "caseId": "SYNTH-P93-02",
+      "operation": "create_personal_task",
+      "userIntent": "Synthetic assignment deadline task",
+      "syntheticInput": "propose task: Submit CS50 Pset 4 Memory Allocation by 2026-11-20",
+      "expectedProposal": {
+        "operation": "create_personal_task",
+        "title": "Submit CS50 Pset 4 Memory Allocation",
+        "destination": "Plan / Tasks"
+      },
+      "estimatedTokens": 450
+    },
+    {
+      "caseId": "SYNTH-P93-03",
+      "operation": "create_personal_journal_entry",
+      "userIntent": "Synthetic reflection with unambiguous date",
+      "syntheticInput": "propose journal: 2026-11-09 Practiced violin for 45 minutes and worked on Bach partita",
+      "expectedProposal": {
+        "operation": "create_personal_journal_entry",
+        "entryDate": "2026-11-09",
+        "destination": "Journal"
+      },
+      "estimatedTokens": 600
+    },
+    {
+      "caseId": "SYNTH-P93-04",
+      "operation": "ambiguous_date_clarification",
+      "userIntent": "Synthetic reflection with ambiguous relative date",
+      "syntheticInput": "propose journal: yesterday had a productive session at the central library",
+      "expectedBehavior": "Abstain from proposal generation; return clarification asking for specific YYYY-MM-DD date",
+      "estimatedTokens": 350
+    },
+    {
+      "caseId": "SYNTH-P93-05",
+      "operation": "bengali_voice_preservation",
+      "userIntent": "Synthetic reflection in Bengali script",
+      "syntheticInput": "propose journal: 2026-11-09 আজকে নতুন একটি বই পড়া শেষ করলাম এবং নোট নিলাম",
+      "expectedProposal": {
+        "operation": "create_personal_journal_entry",
+        "entryDate": "2026-11-09",
+        "destination": "Journal"
+      },
+      "estimatedTokens": 650
+    }
+  ]
+}

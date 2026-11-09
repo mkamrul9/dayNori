@@ -1,0 +1,71 @@
+{
+  "phase": 95,
+  "name": "Phase 95 Voice Capture, Transcription, and Reviewed Creation Findings Register",
+  "generatedAt": "2026-11-09T21:25:00+06:00",
+  "findings": [
+    {
+      "id": "VCE-001",
+      "category": "adapter_selection",
+      "severity": "high",
+      "title": "Comparative transcription adapter analysis for multimodal audio processing",
+      "description": "Voice capture requires high multilingual transcription accuracy (including English, Bangla, and Banglish code-switching), low latency, and cost efficiency. Evaluating Gemini 1.5 Flash multimodal vs OpenAI Whisper-1 vs Deepgram Nova-2 revealed that Gemini 1.5 Flash multimodal offers superior unified context, native Bangla script recognition, and competitive pricing ($0.00002/s = $0.0012/min = 20 micro-USD/sec) compared to Whisper-1 ($0.006/min = 100 micro-USD/sec).",
+      "remediation": "Established AudioTranscriptionAdapter interface in @daynori/domain with MockAudioTranscriptionAdapter for deterministic zero-cost test coverage, and configured Gemini 1.5 Flash as the primary live provider adapter pending owner approval under DEF-V2-008."
+    },
+    {
+      "id": "VCE-002",
+      "category": "privacy_and_consent",
+      "severity": "critical",
+      "title": "Device microphone permission must remain distinct from external audio transmission consent",
+      "description": "Operating system microphone permission grants access to local device hardware buffers only. Users may record voice memos locally without consenting to third-party AI transmission. Conflating hardware mic permission with AI transmission consent would violate GDPR/data sovereignty principles and user autonomy.",
+      "remediation": "Decoupled device microphone permission from external transmission consent. Device recording functions independently. Any network call to /v1/ai/assistant/transcribe strictly requires active AI consent (app.ai_consents.enabled = true) and discloses third-party transmission and 0-day retention in the UI before transmission. Requests without consent fail-close with 403 AI_CONSENT_REQUIRED."
+    },
+    {
+      "id": "VCE-003",
+      "category": "envelope_bounds",
+      "severity": "high",
+      "title": "Audio recordings require strict duration and payload size bounds",
+      "description": "Unbounded audio capture risks mobile memory exhaustion, network timeouts, and excessive provider billing. Empty or micro-recordings (<0.5s) waste budget on noise.",
+      "remediation": "Enforced MAX_AUDIO_RECORDING_SECONDS = 600 (10 minutes), MIN_AUDIO_RECORDING_SECONDS = 0.5, and MAX_AUDIO_RECORDING_BYTES = 25 MiB across contracts, domain validation (validateAudioForTranscription), and UI timer enforcement with auto-stop."
+    },
+    {
+      "id": "VCE-004",
+      "category": "interactive_review",
+      "severity": "high",
+      "title": "Raw speech transcription errors require manual review and editing before organizer proposal generation",
+      "description": "Speech-to-text models frequently mishear named entities, dates, times, and amounts. Automatically piping raw transcription into organizer creation without intermediate user review leads to corrupted organizer items.",
+      "remediation": "Decoupled recording, transcribing, transcript editing, and proposal creation into distinct user steps. Rendered editable textareas on web (data-tour='assistant-transcript-edit') and TextInput on mobile (testID='assistant-transcript-input') allowing the user to refine names, times, and dates before clicking 'Generate Proposal'."
+    },
+    {
+      "id": "VCE-005",
+      "category": "uncertainty_detection",
+      "severity": "medium",
+      "title": "Silent recordings or low-confidence speech require clear uncertainty indicators",
+      "description": "Silent or muffled audio recordings could lead to hallucinations or empty organizer proposals without feedback to the user.",
+      "remediation": "Implemented detectTranscriptionUncertainty in @daynori/domain. Flags silence and transcription confidence scores below 0.70 (uncertainSpeech: true), rendering prominent UI warning banners prompting the user to re-record or verify the transcript text."
+    },
+    {
+      "id": "VCE-006",
+      "category": "data_retention",
+      "severity": "critical",
+      "title": "Raw audio payloads require strict 0-day transient retention and memory purge",
+      "description": "Storing user voice recordings in durable server storage or database tables creates major privacy, security, and storage liability.",
+      "remediation": "Enforced 0-day transient retention policy ('transient_deleted'). The server zeroes and discards the audio buffer (audioBuffer = Buffer.alloc(0)) immediately after transcription adapter execution. The app.ai_transcriptions table stores only metadata (duration, word count, confidence, transcript text) and NEVER stores raw audio binaries."
+    },
+    {
+      "id": "VCE-007",
+      "category": "attachment_decoupling",
+      "severity": "high",
+      "title": "Saving original voice recording as an organizer item attachment must be an explicit separate action",
+      "description": "Transcription for draft creation should not implicitly attach large audio files to organizer items without user consent, which would consume storage quota unexpectedly.",
+      "remediation": "Verified architectural separation: /v1/ai/assistant/transcribe produces text only and writes zero rows to app.item_attachments. Retaining the original audio file as an attachment requires an explicit separate user action through the existing storage attachment pipeline."
+    },
+    {
+      "id": "VCE-008",
+      "category": "idempotency_and_cancellation",
+      "severity": "high",
+      "title": "Network retries require idempotent operation deduplication and client cancellation support",
+      "description": "Unstable mobile connections could cause retries that double-bill transcription credits or duplicate transcription database rows. Slow requests must also support immediate user cancellation.",
+      "remediation": "Enforced clientOperationId partial unique indexing on (user_id, workspace_id, client_operation_id) in app.ai_transcriptions. Repeated requests return cached transcription results without re-calling the provider or debiting budget. Integrated AbortSignal support to fence late results on user cancellation."
+    }
+  ]
+}

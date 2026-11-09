@@ -79,10 +79,11 @@ export type AiRetrieveRequest = z.infer<typeof AiRetrieveRequestSchema>;
 
 export const AiCitationSchema = z
   .object({
-    itemId: z.string().uuid(),
+    itemId: z.string().min(1).max(128),
     revision: z.number().int().positive(),
     kind: z.string(),
-    excerpt: z.string().max(500),
+    excerpt: z.string().max(800),
+    deepLink: z.string().optional(),
   })
   .strict();
 export type AiCitation = z.infer<typeof AiCitationSchema>;

@@ -5977,10 +5977,14 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
+        "tests/integration/phase90-ai-consent-privacy-readiness.test.ts",
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts"
       ],
       "evidenceRefs": [
+        "artifacts/phase90/evidence-summary.json",
+        "artifacts/phase90/findings-register.json",
+        "artifacts/phase90/synthetic-test-package.json",
         "artifacts/local/phase65/core-journeys.log"
       ],
       "blockerOrDefect": "DEF-V2-008",
@@ -6016,8 +6020,8 @@
       "acceptanceJourney": "Opt-in/disclosure and disable AI consent.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-06",
+        "revision": "0e8568d85075adcc4bca4325179171d63ae59a7d",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -6039,10 +6043,14 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6100,10 +6108,16 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
+        "tests/integration/phase93-reviewed-organizer-creation.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/phase93/evidence-summary.json",
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6136,15 +6150,15 @@
       ],
       "readiness": "blocked",
       "acceptanceJourney": "Review/edit/confirm proposals with receipt.",
-      "observedResult": "unavailable",
+      "observedResult": "pass",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-09",
+        "revision": "5699ec9b0593d99e005a2a4fccfe5be3904cc972",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
       },
-      "repairPhase": "93",
+      "repairPhase": "94",
       "helpArticle": {
         "status": "planned",
         "ref": "help/assistant"
@@ -6161,10 +6175,20 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
+        "tests/integration/phase93-reviewed-organizer-creation.test.ts",
+        "tests/integration/phase94-structured-organizer-tools.test.ts",
+        "tests/integration/phase95-voice-transcription-reviewed-creation.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json",
+        "artifacts/phase93/evidence-summary.json",
+        "artifacts/phase94/evidence-summary.json",
+        "artifacts/phase95/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6192,6 +6216,9 @@
       "implementationPaths": [
         "apps/api/src/routes/v1/ai.ts",
         "apps/api/src/routes/v1/assistant.ts",
+        "apps/api/src/modules/ai/transcriptionService.ts",
+        "packages/contracts/src/api/assistant.ts",
+        "packages/domain/src/audioTranscription.ts",
         "apps/web/src/components/AssistantPanel.tsx",
         "apps/mobile/src/views/AssistantSheet.tsx"
       ],
@@ -6199,8 +6226,8 @@
       "acceptanceJourney": "Voice capture/transcription to reviewed draft.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-09",
+        "revision": "a0d3573",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -6222,10 +6249,16 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
+        "tests/integration/phase96-nori-companion-launcher.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase92/evidence-summary.json",
+        "artifacts/phase96/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6244,24 +6277,27 @@
       "featureFamily": "assistant",
       "userBenefit": "Nori companion launcher / hide / reduced motion.",
       "description": "Nori companion launcher / hide / reduced motion.",
-      "implementationStatus": "planned",
+      "implementationStatus": "gated",
       "entryPoints": [
         "AssistantPanel",
         "mobile AssistantSheet",
         "/v1/ai/*"
       ],
       "implementationPaths": [
-        "apps/api/src/routes/v1/ai.ts",
-        "apps/api/src/routes/v1/assistant.ts",
-        "apps/web/src/components/AssistantPanel.tsx",
-        "apps/mobile/src/views/AssistantSheet.tsx"
+        "packages/domain/src/noriCompanion.ts",
+        "packages/contracts/src/api/user.ts",
+        "packages/contracts/src/api/assistant.ts",
+        "apps/web/src/components/NoriCompanionLauncher.tsx",
+        "apps/web/src/components/NoriAvatar.tsx",
+        "apps/mobile/src/views/NoriCompanionLauncher.tsx",
+        "assets/brand/nori/nori-geometry.json"
       ],
       "readiness": "blocked",
       "acceptanceJourney": "Nori companion launcher / hide / reduced motion.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-10",
+        "revision": "a4308e2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -7110,17 +7146,69 @@
       "severity": "medium",
       "userImpact": "Users cannot use live grounded assistant or Nori.",
       "expected": "Consented live provider with citations and confirmed saves.",
-      "observed": "GET /v1/ai/consent → 403 under production; Nori not implemented.",
+      "observed": "GET /v1/ai/consent → 403 under production; live AI capabilities fail-closed.",
       "reproduction": [
         "Core validation production gates"
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase96/evidence-summary.json",
+        "artifacts/phase96/findings-register.json",
+        "artifacts/phase96/manual-ui-evidence.json",
+        "docs/design/nori-companion-and-launcher-guide.md",
+        "docs/decisions/0096-nori-companion-launcher-and-artwork.md",
+        "docs/phase-reports/phase-96.md",
+        "artifacts/phase95/evidence-summary.json",
+        "artifacts/phase95/findings-register.json",
+        "artifacts/phase95/synthetic-provider-package.json",
+        "artifacts/phase95/manual-ui-evidence.json",
+        "docs/engineering/voice-transcription-and-creation-guide.md",
+        "docs/decisions/0095-voice-capture-transcription-and-reviewed-creation.md",
+        "docs/phase-reports/phase-95.md",
+        "artifacts/phase94/evidence-summary.json",
+        "artifacts/phase94/findings-register.json",
+        "artifacts/phase94/synthetic-provider-package.json",
+        "artifacts/phase94/manual-ui-evidence.json",
+        "docs/engineering/structured-organizer-tools-guide.md",
+        "docs/decisions/0094-structured-organizer-tools-and-multi-action-creation.md",
+        "docs/phase-reports/phase-94.md",
+        "artifacts/phase93/evidence-summary.json",
+        "artifacts/phase93/findings-register.json",
+        "artifacts/phase93/synthetic-provider-package.json",
+        "artifacts/phase93/manual-ui-evidence.json",
+        "docs/engineering/reviewed-organizer-creation-guide.md",
+        "docs/decisions/0093-reviewed-note-task-and-journal-creation.md",
+        "docs/phase-reports/phase-93.md",
+        "artifacts/phase92/evidence-summary.json",
+        "artifacts/phase92/findings-register.json",
+        "artifacts/phase92/synthetic-provider-package.json",
+        "artifacts/phase92/manual-ui-evidence.json",
+        "docs/engineering/assistant-chat-and-guidance-guide.md",
+        "docs/decisions/0092-text-assistant-chat-and-contextual-guidance.md",
+        "docs/phase-reports/phase-92.md",
+        "artifacts/phase91/evidence-summary.json",
+        "artifacts/phase91/findings-register.json",
+        "artifacts/phase91/evaluation-dataset-v1.json",
+        "artifacts/phase91/measured-evaluation-results.json",
+        "artifacts/phase91/synthetic-provider-package.json",
+        "artifacts/phase91/manual-ui-evidence.json",
+        "docs/engineering/retrieval-evaluation-and-grounding-guide.md",
+        "docs/decisions/0091-scoped-retrieval-indexing-and-grounding-quality.md",
+        "docs/phase-reports/phase-91.md",
+        "artifacts/phase90/evidence-summary.json",
+        "artifacts/phase90/findings-register.json",
+        "artifacts/phase90/synthetic-test-package.json",
+        "artifacts/phase90/manual-ui-evidence.json",
+        "docs/engineering/ai-provider-comparison-and-operating-decisions.md",
+        "docs/engineering/ai-budget-cancellation-and-operations-guide.md",
+        "docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md",
+        "docs/decisions/0090-ai-provider-consent-privacy-and-operating-decisions.md",
+        "docs/phase-reports/phase-90.md",
         "artifacts/local/phase65/core-journeys.log"
       ],
-      "workaround": null,
-      "dependency": "Provider privacy decision + Phases 90–96.",
-      "nextAction": "Start with Phase 90 when selected.",
+      "workaround": "Synthetic local provider mock only.",
+      "dependency": "Owner approval of live synthetic test package + enterprise provider contract + server credentials.",
+      "nextAction": "Review and approve artifacts/phase90/synthetic-test-package.json before initiating any live provider calls.",
       "owningPhase": "90"
     },
     {

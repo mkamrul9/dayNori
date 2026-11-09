@@ -28,6 +28,8 @@ import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
 import { AuthModal } from './AuthModal';
 import { OnboardingTutorial } from './OnboardingTutorial';
+import { AssistantPanel } from './AssistantPanel';
+import { NoriCompanionLauncher } from './NoriCompanionLauncher';
 import { ContextualHelpLink } from './ContextualHelpLink';
 import { TourTarget } from '../tours/TourTarget';
 import { useTour } from '../tours/TourContext';
@@ -45,7 +47,7 @@ export const AppModals: React.FC = () => {
   const router = useRouter();
   const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
     useShell();
-  const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken } = useAuth();
+  const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken, preferences, savePreferences } = useAuth();
   const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
   const palette = colors[themeMode];
@@ -1487,6 +1489,40 @@ export const AppModals: React.FC = () => {
           return await client.executeWorkspaceImport(workspaceId, {
             previewId,
             duplicateStrategy,
+          });
+        }}
+      />
+      {/* 12. Phase 92 Assistant Panel (Persistent slide-out drawer) */}
+      <AssistantPanel
+        isOpen={activeModal === 'assistant'}
+        onClose={closeModal}
+        csrfToken={csrfToken}
+        themeMode={themeMode}
+        personalWorkspaceId={workspaceId}
+      />
+      {/* 13. Phase 96 Nori Companion Launcher (Optional corner launcher) */}
+      <NoriCompanionLauncher
+        isOpen={activeModal === 'assistant'}
+        onToggleOpen={() => {
+          if (activeModal === 'assistant') {
+            closeModal();
+          } else {
+            openModal('assistant');
+          }
+        }}
+        themeMode={themeMode}
+        preferences={preferences?.noriCompanion}
+        onUpdatePreferences={async (noriPrefs) => {
+          const current = preferences?.noriCompanion || {
+            enabled: true,
+            position: 'bottom-right',
+            reducedMotion: false,
+          };
+          await savePreferences({
+            noriCompanion: {
+              ...current,
+              ...noriPrefs,
+            },
           });
         }}
       />

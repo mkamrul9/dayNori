@@ -77,6 +77,24 @@ export async function executeAiBackgroundJob(
       };
     }
 
+    const rawRev = payload['expectedRevision'];
+    const expectedRevision =
+      rawRev !== undefined && rawRev !== null && rawRev !== '' ? Number(rawRev) : undefined;
+    if (expectedRevision !== undefined && Number.isInteger(expectedRevision)) {
+      const itemCheck = await client.query<{ revision: number; deleted_at: Date | null }>(
+        `SELECT revision, deleted_at FROM app.items WHERE id = $1 AND workspace_id = $2`,
+        [itemId, workspaceId]
+      );
+      const currentRev = itemCheck.rows[0]?.revision;
+      if (currentRev !== undefined && currentRev > expectedRevision) {
+        return {
+          status: 'fenced',
+          errorCode: 'AI_SOURCE_REVISION_SUPERSEDED',
+          details: { expected: expectedRevision, actual: currentRev },
+        };
+      }
+    }
+
     try {
       const indexed = await indexPersonalSource(client, { userId, workspaceId, itemId });
       if (!indexed.indexed) {
@@ -133,6 +151,7 @@ export async function enqueueAiIndexSource(
     workspaceId: string;
     itemId: string;
     consentGeneration: number;
+    expectedRevision?: number;
   }
 ): Promise<string> {
   if (!Number.isInteger(input.consentGeneration) || input.consentGeneration < 1) {
@@ -159,6 +178,7 @@ export async function enqueueAiIndexSource(
         workspaceId: input.workspaceId,
         itemId: input.itemId,
         consentGeneration: input.consentGeneration,
+        expectedRevision: input.expectedRevision,
       }),
     ]
   );

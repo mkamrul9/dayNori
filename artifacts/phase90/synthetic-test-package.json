@@ -1,0 +1,97 @@
+{
+  "testPackageId": "phase90-live-synthetic-test-v1",
+  "reviewDate": "2026-11-06",
+  "purpose": "Bounded live synthetic test package submitted for explicit repository owner authorization prior to executing any real provider HTTP calls.",
+  "authorizationStatus": "pending_owner_approval",
+  "providerConfiguration": {
+    "proposedProvider": "OpenAI API",
+    "proposedModel": "gpt-4o-mini",
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "environment": "staging-sandbox-synthetic-only",
+    "credentialMethod": "Server-side environment variable OPENAI_API_KEY (never committed to Git, client bundles, or logged in request bodies)"
+  },
+  "safetyAndPrivacyInvariants": {
+    "realUserContent": "strictly_prohibited",
+    "vaultRecords": "strictly_prohibited",
+    "journalEntries": "strictly_prohibited",
+    "realPii": "strictly_prohibited",
+    "payloadClassification": "100% synthetic mock documentation and artificial questions"
+  },
+  "budgetAndVolumeCeilings": {
+    "maximumRequests": 5,
+    "maxTokensPerRequest": 500,
+    "maximumTotalTokens": 2500,
+    "proposedHardSpendingLimitUsd": 0.05,
+    "estimatedCostAtPublishedRatesUsd": 0.0015
+  },
+  "syntheticPayloads": [
+    {
+      "testId": "SYNTH-01",
+      "description": "Basic single-note synthetic factual retrieval and citation verification",
+      "syntheticNote": {
+        "title": "Synthetic Plant Care Schedule",
+        "plainText": "The synthetic Monstera plant must be watered every Monday morning with 200ml filtered water. Keep away from direct artificial heat vents."
+      },
+      "syntheticQuery": "When and how much should I water the synthetic Monstera?",
+      "expectedCitation": "Synthetic Plant Care Schedule",
+      "expectedTokens": {
+        "promptEstimate": 150,
+        "completionEstimate": 60
+      }
+    },
+    {
+      "testId": "SYNTH-02",
+      "description": "Multi-item synthesis across two synthetic tasks",
+      "syntheticItems": [
+        {
+          "kind": "task",
+          "title": "Inspect synthetic smoke detector batteries",
+          "details": "Check synthetic test sensor unit B4 on the ceiling."
+        },
+        {
+          "kind": "task",
+          "title": "Replace synthetic HVAC air filter",
+          "details": "Filter size 16x25x1 MERV 11 in basement synthetic utility room."
+        }
+      ],
+      "syntheticQuery": "What maintenance tasks do I have scheduled for sensors and filters?",
+      "expectedCitationCount": 2,
+      "expectedTokens": {
+        "promptEstimate": 220,
+        "completionEstimate": 80
+      }
+    },
+    {
+      "testId": "SYNTH-03",
+      "description": "Abstention on unprovided facts (grounding boundary)",
+      "syntheticQuery": "What is the secret combination to the synthetic office safe?",
+      "expectedOutcome": "ABSTAIN: insufficient authorized sources",
+      "expectedTokens": {
+        "promptEstimate": 100,
+        "completionEstimate": 20
+      }
+    },
+    {
+      "testId": "SYNTH-04",
+      "description": "Mid-request client cancellation handling via AbortSignal",
+      "syntheticQuery": "Provide a comprehensive synthetic summary of test document alpha.",
+      "action": "Trigger client AbortSignal 100ms after request dispatch",
+      "expectedOutcome": "HTTP 499 AI_CANCELLED with partial settlement"
+    },
+    {
+      "testId": "SYNTH-05",
+      "description": "Post-provider consent withdrawal fencing",
+      "syntheticQuery": "Summarize synthetic document beta.",
+      "action": "Withdraw AI consent via POST /v1/ai/consent/disable while request is in flight",
+      "expectedOutcome": "Output discarded, returns ABSTAIN: consent changed"
+    }
+  ],
+  "requiredEvidenceUponExecution": [
+    "Provider HTTP request-id (e.g. x-request-id from response header)",
+    "Exact prompt and completion token counts from provider usage payload",
+    "Total response latency in milliseconds",
+    "Calculated micro-USD and USD costs using calculateEstimatedAiCost",
+    "Verified absence of logged private bodies in server logs"
+  ],
+  "standingBlockerNote": "Until explicit owner approval for this test package is received and credentials are provided, live provider calls remain gated off and DEF-V2-008 remains retained in the function register."
+}

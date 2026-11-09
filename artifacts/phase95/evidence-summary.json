@@ -1,0 +1,37 @@
+{
+  "phase": 95,
+  "title": "Voice capture, transcription, and reviewed creation",
+  "evaluatedAt": "2026-11-09T21:25:00+06:00",
+  "status": "blocked",
+  "blockingGate": "DEF-V2-008",
+  "blockingGateDescription": "AI capabilities remain fail-closed by default in production. Live audio transmission and external provider model calls remain blocked until separate explicit owner authorization and formal synthetic evaluation approval.",
+  "findingsCatalogued": 8,
+  "findingsAddressed": 8,
+  "findingsRegister": "artifacts/phase95/findings-register.json",
+  "syntheticPackage": "artifacts/phase95/synthetic-provider-package.json",
+  "manualUiEvidence": "artifacts/phase95/manual-ui-evidence.json",
+  "testExecution": {
+    "testSuite": "tests/integration/phase95-voice-transcription-reviewed-creation.test.ts",
+    "totalTests": 13,
+    "passed": 13,
+    "failed": 0,
+    "durationMs": 1018
+  },
+  "compliance": {
+    "zeroAutomatedWrites": true,
+    "microphonePermissionDistinctFromAiConsent": true,
+    "preTransmissionDisclosureEnforced": true,
+    "transientAudio0DayRetentionEnforced": true,
+    "rawAudioBufferPurgedImmediately": true,
+    "itemAttachmentDecouplingEnforced": true,
+    "editableTranscriptBeforeProposalCreation": true,
+    "durationBoundsEnforced": true,
+    "byteSizeBoundsEnforced": true,
+    "silenceAndLowConfidenceUncertaintyDetected": true,
+    "idempotentRetryViaClientOpIdEnforced": true,
+    "cancellationViaAbortSignalSupported": true,
+    "killSwitchImmediateHaltVerified": true,
+    "idorTenantFencingEnforced": true,
+    "multilingualMockCoverageVerified": true
+  }
+}

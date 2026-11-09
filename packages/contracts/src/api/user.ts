@@ -203,6 +203,23 @@ export const TourProgressStateSchema = TourProgressSnapshotSchema.extend({
 }).strict();
 export type TourProgressState = z.infer<typeof TourProgressStateSchema>;
 
+export const NoriCompanionPositionSchema = z.enum([
+  'bottom-right',
+  'bottom-left',
+  'top-right',
+  'top-left',
+]);
+export type NoriCompanionPosition = z.infer<typeof NoriCompanionPositionSchema>;
+
+export const NoriCompanionPreferencesSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    position: NoriCompanionPositionSchema.default('bottom-right'),
+    reducedMotion: z.boolean().default(false),
+  })
+  .strict();
+export type NoriCompanionPreferences = z.infer<typeof NoriCompanionPreferencesSchema>;
+
 export const DisplayPreferencesSchema = z
   .object({
     theme: ThemePreferenceSchema.default('system'),
@@ -215,6 +232,7 @@ export const DisplayPreferencesSchema = z
     tourProgress: TourProgressStateSchema.optional(),
     expensesEnabled: z.boolean().default(false),
     featurePersonalization: FeaturePersonalizationSchema.optional(),
+    noriCompanion: NoriCompanionPreferencesSchema.optional(),
   })
   .strict();
 export type DisplayPreferences = z.infer<typeof DisplayPreferencesSchema>;

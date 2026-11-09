@@ -1,5 +1,202 @@
 # Changelog
 
+## Phase 96 — Nori original companion and assistant launcher — 2026-11-10
+
+- ADR 0096: Nori original companion and assistant launcher establishing original Daynori folded-paper origami character artwork with zero generative AI and zero third-party stock/clipart imports, MIT licensing, Nori naming review and conflict screening, dual-entry single-session binding across floating launcher and labeled "Ask Nori" button, truthful 8-state presentation engine (`resolveNoriState`), strict microphone hardware recording invariant (`isListening === true`), safe 4-corner positioning (`calculateNoriSafeCoordinates`) avoiding bottom navigation (64px offset) and system bars, reduced-motion compliance (0ms durations) and background tab loop suppression, accessible focus restoration, and fail-closed AI activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 96 implementation and local verification before final acceptance of Phases 92 and 93 recorded in ADR 0096 and progress metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase96/findings-register.json`): cataloged NOR-001 through NOR-008 across character identity and trademark screening, strict original asset provenance, dual launcher session binding, truthful state derivation engine, microphone privacy invariants, layout and collision avoidance, reduced-motion honoring, and screen-reader accessibility.
+- Core brand assets, pipeline, and tokens:
+  - Brand geometry specification: created `assets/brand/nori/nori-geometry.json` defining origami folded-facet vector coordinates (kite front, shaded wings, warm amber crest, ink accents) and color tokens across light, dark, and static contrast modes.
+  - Asset build pipeline (`scripts/build-nori-assets.mjs`): automated compilation generating scalable SVGs and PNG rasters across 5 scales (24, 32, 48, 96, 192) in `assets/brand/nori/`, `apps/web/public/brand/nori/`, and `apps/mobile/assets/brand/nori/`.
+  - Design tokens (`@daynori/design-tokens`): added `nori` icon to `packages/design-tokens/src/icons.ts` and generated mobile raster icon `packages/ui-mobile/assets/icons/nori.png`, passing `pnpm icons:check`.
+- Core domain, API, and contracts:
+  - Contracts (`@daynori/contracts`): added `NoriCompanionPositionSchema` (`'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'`), `NoriCompanionPreferencesSchema` (`enabled`, `position`, `reducedMotion`), and `NoriCompanionStateSchema` in `packages/contracts/src/api/user.ts` and `assistant.ts`.
+  - Domain logic (`@daynori/domain`): created `packages/domain/src/noriCompanion.ts` implementing `NORI_NAME_METADATA`, `resolveNoriState()` with 8 states and active microphone precedence, `calculateNoriSafeCoordinates()` with collision avoidance insets, `shouldReduceNoriMotion()`, `getNoriMotionDurations()`, and `getNoriStateAccessibilityLabel()`.
+  - Backend API (`apps/api`): wired `noriCompanion` in `mapDisplayPreferences` (`apps/api/src/modules/preferences/featurePersonalization.ts`), allowing round-trip persistence via `PATCH` and `GET /v1/users/me/preferences`.
+- Web and Mobile UI components:
+  - Web avatar (`apps/web/src/components/NoriAvatar.tsx`): rendered vector origami companion with 8 truthful states, supporting light, dark, and static themes.
+  - Web floating launcher (`apps/web/src/components/NoriCompanionLauncher.tsx`): floating corner widget with safe insets, hover greeting, right-click context menu (corner relocation, reduced motion, hide option), keyboard navigation, and focus restoration on panel close.
+  - Web header integration: updated `AppHeader.tsx` labeled button to "Ask Nori" with `<Icon name="nori" />`.
+  - Mobile floating launcher (`apps/mobile/src/views/NoriCompanionLauncher.tsx`): floating corner launcher with 52x52dp touch target (>= 48dp WCAG AA standard), safe coordinates avoiding bottom navigation bar (64dp offset), truthful status colors, and TalkBack accessible descriptions.
+  - Mobile view integration: mounted `NoriCompanionLauncher` in `apps/mobile/App.tsx` and updated `AssistantSheet.tsx` title to "Ask Nori Assistant".
+- Manual UI and accessibility evidence (`artifacts/phase96/manual-ui-evidence.json`):
+  - Verified floating launcher across all 4 screen corners, safe clearance from bottom navigation, reduced-motion behavior, background tab render loop suppression, touch target dimensions, keyboard focus restoration, and screen-reader announcements.
+- Design guide authored (`docs/design/nori-companion-and-launcher-guide.md`):
+  - Comprehensive guide covering character identity, origami geometry specs, palette tokens, state derivation rules, safe placement matrix, accessibility, and asset compilation.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase96-nori-companion-launcher.test.ts` with 21 passing tests covering asset existence, dual-entry session binding, 8-state resolution, mic invariant, offline guidance, hide preference, corner coordinates, reduced motion, background cleanup, touch targets, focus restoration, draft preservation, and preference persistence.
+  - Added AST-019 through AST-022 in `packages/domain/src/domain.test.ts` (all 107 domain unit tests pass).
+- Fail-closed release gates preserved: live production AI activation remains disabled; underlying live model execution remains blocked pending owner approval under DEF-V2-008; Phase 96 recorded as blocked in roadmap metadata.
+- Commit: `feat(companion): add the optional original Nori assistant launcher`.
+
+## Phase 95 — Voice capture, transcription, and reviewed creation — 2026-11-09
+
+- ADR 0095: Voice capture, transcription, and reviewed creation establishing transcription provider comparative analysis selecting Gemini 1.5 Flash multimodal ($0.00002/s) over Whisper-1 ($0.006/min), `MockAudioTranscriptionAdapter` for zero-cost deterministic local verification, strict decoupling of OS microphone permissions from external AI transmission consent (`403 AI_CONSENT_REQUIRED`), pre-transmission disclosure, 0-day transient audio retention policy with immediate memory buffer zeroing and raw audio DB exclusion, item attachment decoupling (zero unreviewed attachment writes), duration (0.5s–600s) and size (<= 25 MiB) bounds, silence and low-confidence (<0.70) uncertainty detection, interactive transcript review and text editing before proposal generation, idempotent retry with stable `clientOperationId`, user cancellation via `AbortSignal`, server kill switch halting (`503 AI_KILL_SWITCH_ACTIVE`), and fail-closed AI activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 95 implementation and local verification before final acceptance of Phases 75, 90, and 93 recorded in ADR 0095 and progress metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase95/findings-register.json`): cataloged VCE-001 through VCE-008 across transcription provider comparative analysis, hardware permission vs transmission consent decoupling, duration/size envelope bounds, interactive transcript review, silence and uncertainty detection, 0-day transient audio retention, item attachment decoupling, and idempotent retry/cancellation.
+- Core domain, API, and contract upgrades:
+  - Database migration: added `infra/supabase/migrations/00080_ai_transcriptions.sql` creating `app.ai_transcriptions` with partial unique index on `(user_id, workspace_id, client_operation_id)`, RLS policies, and transient retention policy tracking (`transient_deleted`).
+  - Contracts (`@daynori/contracts`): added `TranscribeAudioRequestSchema`, `TranscribeAudioResponseDataSchema`, and `TranscribeAudioResponseSchema` in `packages/contracts/src/api/assistant.ts` with recording bounds (`MAX_AUDIO_RECORDING_SECONDS = 600`, `MAX_AUDIO_RECORDING_BYTES = 25 MiB`).
+  - Domain logic (`@daynori/domain`): created `packages/domain/src/audioTranscription.ts` with `validateAudioForTranscription`, `calculateAudioTranscriptionCost`, `detectTranscriptionUncertainty`, and `MockAudioTranscriptionAdapter` supporting English, Bangla, Banglish code-switching, silence detection, and cancellation.
+  - Backend API (`apps/api`):
+    - Added `apps/api/src/modules/ai/transcriptionService.ts` implementing `transcribeAudio` with kill switch check (`503 AI_KILL_SWITCH_ACTIVE`), local mode check (`503 AI_UNAVAILABLE`), user consent check (`403 AI_CONSENT_REQUIRED`), duration/size validation, idempotent retry deduplication, budget reservation, adapter invocation, immediate memory buffer zeroing (`audioBuffer = Buffer.alloc(0)`), durable budget settlement, and metadata insertion.
+    - Added `POST /v1/ai/assistant/transcribe` route in `apps/api/src/routes/v1/assistant.ts`.
+  - API Client (`@daynori/api-client`): added `transcribeAudio` to `DaynoriApiClient` (`packages/api-client/src/client.ts`).
+- Web and Mobile UI enhancements:
+  - Updated `AssistantPanel.tsx` (`apps/web/src/components/AssistantPanel.tsx`): added microphone toggle button (`data-tour="assistant-voice-record"`), recording state banner with red pulsing indicator and live elapsed timer (`MM:SS`), distinct Stop and Cancel buttons, pre-transmission disclosure notice, graceful microphone denial fallback keeping typed text input usable, editable transcript `<textarea>` (`data-tour="assistant-transcript-edit"`), uncertainty warnings, "Generate Proposal" button (`data-tour="assistant-voice-propose"`), and "Use in Question" button.
+  - Updated `AssistantSheet.tsx` (`apps/mobile/src/views/AssistantSheet.tsx`): added 48dp minimum touch target mic button (`testID="assistant-voice-record-btn"`), active recording banner with live timer, stop button (`testID="assistant-voice-stop-btn"`), transcribe button (`testID="assistant-voice-transcribe-btn"`), multiline editable `TextInput` (`testID="assistant-transcript-input"`), uncertainty banner, and proposal generation button (`testID="assistant-voice-propose-btn"`).
+- Reviewable synthetic provider package (`artifacts/phase95/synthetic-provider-package.json`):
+  - 5-scenario synthetic test package (English task, Bangla appointment, Banglish project note, ambient silence, noisy speech) with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating any live provider calls.
+- Manual UI and accessibility evidence (`artifacts/phase95/manual-ui-evidence.json`):
+  - Verified recording lifecycle, live elapsed timer, pre-transmission disclosure, permission denial fallback, editable transcript review, uncertainty alert, and proposal generation.
+- Engineering guide authored (`docs/engineering/voice-transcription-and-creation-guide.md`):
+  - Comprehensive guide covering invariants, decoupled consent boundaries, 0-day transient audio retention lifecycle, transcription adapters, database schema, API contracts, web/mobile UI integration, and release gates.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase95-voice-transcription-reviewed-creation.test.ts` with 13 passing tests covering recording bounds, English/Bangla/Banglish transcription, silence/uncertainty detection, consent boundaries, 0-day retention, attachment decoupling, idempotency, cancellation, kill switch, and IDOR tenant fencing.
+  - Added AST-015 through AST-018 in `packages/domain/src/domain.test.ts` (all 103 unit tests pass).
+  - All 55 assistant regression tests pass across phases 56, 92, 93, 94, and 95.
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider audio transmission remains blocked pending owner approval of synthetic provider package; Phase 95 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(voice): turn reviewed transcripts into organizer drafts`.
+
+## Phase 94 — Structured organizer tools and multi-action creation — 2026-11-09
+
+- ADR 0094: Structured organizer tools and multi-action creation establishing approved 9-tool organizer catalog (tasks, notes, journals, routines, calendar events, folders, custom sections, expenses), multi-action ordered proposals with `planId`, sequential `stepIndex`, and `dependsOn` tracking under migration 00079, dynamic cross-step reference resolution (`$ref:0`), safe partial failure handling (`AI_PREREQUISITE_FAILED`), per-action transactional boundaries, durable mutation receipts under `AI_DEVICE_ID = 'ai-assistant-proposal'`, safe idempotent retry, custom section block allow-listing (rejecting scripts and SQL), exact decimal-to-minor-unit expense conversion with ISO 4217 validation, ambiguity clarification, and fail-closed AI activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 94 implementation and local verification before Phase 93 final acceptance recorded in ADR 0094 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase94/findings-register.json`): cataloged STR-001 through STR-008 across 9-tool catalog expansion, multi-action plan ordering, dynamic reference resolution, safe partial failure, custom section security fencing, exact expense parsing, ambiguity clarification, and unconditional vault exclusion.
+- Core domain, API, and contract upgrades:
+  - Database migration: added `infra/supabase/migrations/00079_ai_proposals_structured_organizer_tools.sql` updating `app.ai_proposals` constraint `ai_proposals_operation_check` to include `'create_personal_routine'`, `'create_personal_calendar_event'`, `'create_personal_folder'`, `'create_personal_custom_section'`, and `'create_personal_expense'`; updated status check constraint to include `'skipped'`; added `plan_id uuid`, `step_index integer NOT NULL DEFAULT 0`, `depends_on jsonb NOT NULL DEFAULT '[]'::jsonb`, and index `idx_ai_proposals_plan_id`.
+  - Contracts (`@daynori/contracts`): updated `AiAssistantOperationSchema` in `packages/contracts/src/api/assistant.ts` with the 5 new operations; expanded `AiProposalReviewSummarySchema` to include `planId`, `stepIndex`, `totalSteps`, `dependsOnStepIndex`, and `effects`; updated `AiProposalSchema` to include status `'skipped'`, `planId`, `stepIndex`, and `dependsOn`; updated `CreateAiProposalRequestSchema` and `BatchConfirmProposalResultItemSchema` (`outcome: 'ok' | 'error' | 'skipped'`).
+  - Domain logic (`@daynori/domain`): updated `packages/domain/src/organizerProposals.ts` with `getOrganizerDeepLink` routing for all 9 operations; added `detectRoutineAmbiguity`, `detectCalendarEventAmbiguity`, `detectExpenseAmbiguity`, `parseExpenseAmountToMinorUnits`, `resolveProposalCrossReferences`, and `checkStepDependencies`.
+  - Backend API (`apps/api`):
+    - Updated `normalizeProposalPayload` in `apps/api/src/modules/ai/assistantService.ts` to support all 9 operations, enforce strict custom section block type allowlist (`existing_record_view`, `field_collection`), enforce ISO 4217 currencies, extract and restore `$ref:` references prior to schema parsing, and reject vault security scope (`403 AI_VAULT_FORBIDDEN`).
+    - Updated `updateAiProposalPayload` to permit editing `'failed'` proposals back to `'pending'` with token rotation, preserving existing payload properties while overriding with client changes.
+    - Updated `confirmAiProposal` to implement routine, calendar event, folder, custom section, and expense creation through underlying domain services while recording durable receipts under `AI_DEVICE_ID = 'ai-assistant-proposal'`.
+    - Updated `batchConfirmAiProposals` to check step dependencies (`checkStepDependencies`), mark skipped dependent steps as `'skipped'` with error code `AI_PREREQUISITE_FAILED`, resolve cross-step references (`resolveProposalCrossReferences`), and enforce per-action transaction boundaries.
+    - Updated `POST /v1/ai/proposals` in `apps/api/src/routes/v1/assistant.ts` to accept `planId`, `stepIndex`, and `dependsOn`.
+- Web and Mobile UI enhancements:
+  - Updated `AssistantPanel.tsx` (`apps/web/src/components/AssistantPanel.tsx`): added multi-action review cards displaying step numbers, destinations, dependencies, and effect badges; quick propose buttons (+ Routine, + Event, + Folder, + Section, + Expense, + Multi-Plan); inline editing for all 9 operations; one-click `Confirm All Reviewed (${count})` batch confirmation; and tour data attributes (`assistant-multi-action-review`, `assistant-batch-confirm`).
+  - Updated `AssistantSheet.tsx` (`apps/mobile/src/views/AssistantSheet.tsx`): added mobile multi-action sequence display in `ScrollView`; quick action chips; per-step edit/cancel controls; batch confirm button; accessible touch targets and status chips.
+- Reviewable synthetic provider package (`artifacts/phase94/synthetic-provider-package.json`):
+  - 7-scenario synthetic test package with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating any live provider calls.
+- Manual UI and accessibility evidence (`artifacts/phase94/manual-ui-evidence.json`):
+  - Verified multi-action sequence display, inline payload editing across all 9 operations, dependency chips, step skip indicators, and batch confirmation execution.
+- Engineering guide authored (`docs/engineering/structured-organizer-tools-guide.md`):
+  - Comprehensive guide covering invariants, 9-tool catalog, multi-action data model, cross-step reference resolution syntax, security bounds, error handling, partial failure skip semantics, idempotent retry, and UI integration.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase94-structured-organizer-tools.test.ts` with 12 passing tests covering routine creation, calendar event creation, folder creation, notes in folders, custom sections with approved blocks, expense logging with minor units, ambiguity detection, dynamic cross-step reference resolution, partial failure & idempotent retry, token rotation, vault exclusion, and IDOR fencing.
+  - All 99 domain unit tests pass in `packages/domain/src/domain.test.ts`. All 11 Phase 93 integration tests pass.
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic provider package; Phase 94 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(assistant): add safe structured and multi-action organizer tools`.
+
+## Phase 93 — Reviewed note, task, and journal creation — 2026-11-09
+
+- ADR 0093: Reviewed note, task, and journal creation establishing untrusted model proposals in `app.ai_proposals`, zero automated mutations without explicit user review, client-side proposal editing with cryptographic token rotation, date ambiguity detection and clarifying questions (preventing calendar drift and hallucinated relative dates in English and Bengali), factual voice preservation, explicit journal consent fencing (`403 AI_JOURNAL_SCOPE_REQUIRED`), atomic batch confirmation, durable mutation receipts in `app.sync_mutation_receipts` under `AI_DEVICE_ID`, canonical deep links, and fail-closed AI activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 93 implementation and local verification before Phase 92 final acceptance recorded in ADR 0093 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, 90, 91, 92, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase93/findings-register.json`): cataloged REV-001 through REV-008 across unreviewed mutation prevention, payload edit token rotation, date ambiguity detection, factual voice preservation, journal consent fencing, batch confirmation semantics, mutation receipt idempotency, and canonical deep linking.
+- Core domain, API, and contract upgrades:
+  - Database migration: added `infra/supabase/migrations/00078_ai_proposals_journal_and_edit.sql` updating `app.ai_proposals` constraint `ai_proposals_operation_check` to include `'create_personal_journal_entry'` and adding `updated_at`.
+  - Contracts (`@daynori/contracts`): updated `AiAssistantOperationSchema` in `packages/contracts/src/api/assistant.ts` with `'create_personal_journal_entry'`; expanded `AiProposalReviewSummarySchema` to include typed `destination`, `date`, `timezone`, and `source`; added `UpdateAiProposalRequestSchema`, `BatchConfirmAiProposalsRequestSchema`, and `BatchConfirmAiProposalsResponseSchema`.
+  - Domain logic (`@daynori/domain`): created `packages/domain/src/organizerProposals.ts` with `detectJournalDateAmbiguity` (flagging relative date phrases in English and Bengali like "yesterday", "last Friday", "গতকাল", "গত শুক্রবার"), `getOrganizerDeepLink` (generating `/library?noteId=...`, `/plan?targetId=...&targetType=task`, `/journal?entryId=...`), and `sanitizeOrganizerText`.
+  - Backend API (`apps/api`):
+    - Added `PATCH /v1/ai/proposals/:proposalId` (`updateAiProposalPayload`) in `apps/api/src/routes/v1/assistant.ts` and `apps/api/src/modules/ai/assistantService.ts`, allowing client edits to proposal payloads before confirmation while atomically rotating the confirmation token and updating `request_hash`.
+    - Added `POST /v1/ai/proposals/batch-confirm` (`batchConfirmAiProposals`) supporting single explicit user confirmations covering multiple reviewed proposals with per-item outcomes.
+    - Updated `confirmAiProposal` to enforce explicit journal consent scope (`contentScope.journal = true`), delegate to canonical `createJournalEntry`, record durable mutation receipts in `app.sync_mutation_receipts` under `AI_DEVICE_ID`, and return canonical deep links.
+    - Updated proposal generation heuristic in `apps/api/src/modules/ai/assistantService.ts` to detect ambiguous dates and return clarifying questions instead of guessing dates or inventing emotional reflections.
+    - Fixed local calendar date formatting in `apps/api/src/modules/tasks/service.ts` to prevent UTC midnight date shift in deadline dates.
+  - API Client (`@daynori/api-client`): added `updateAiProposal` and `batchConfirmAiProposals` to `DaynoriApiClient` (`packages/api-client/src/client.ts`).
+- Web and Mobile UI enhancements:
+  - Updated `AssistantPanel.tsx` (`apps/web/src/components/AssistantPanel.tsx`): added proposal review card displaying destination, date, timezone, and source badges; Local Draft (Unsaved) vs Saved (Cloud Persisted) indicator; inline proposal edit form with live title/body/deadline fields; quick propose action buttons; and tour data attributes (`assistant-proposal-review`, `assistant-confirm-button`, `assistant-open-item`).
+  - Updated `AssistantSheet.tsx` (`apps/mobile/src/views/AssistantSheet.tsx`): added proposal review card, review summary badges, inline edit mode, and navigation to created items via `onOpenSource`.
+- Reviewable synthetic provider package (`artifacts/phase93/synthetic-provider-package.json`):
+  - 5-scenario synthetic test package with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating any live provider calls.
+- Manual UI and accessibility evidence (`artifacts/phase93/manual-ui-evidence.json`):
+  - Verified REV-UI-01 through REV-UI-05 covering review card display, inline payload editing, ambiguous date warning, journal consent fencing error presentation, and batch confirmation execution.
+- Engineering guide authored (`docs/engineering/reviewed-organizer-creation-guide.md`):
+  - Comprehensive guide covering invariants, zero unreviewed mutations, review summary schema, editing & token rotation, date ambiguity & clarifying questions, journal consent fencing, batch confirmation, idempotent sync receipts, and canonical deep linking.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase93-reviewed-organizer-creation.test.ts` with 11 passing tests covering note creation, task creation with typed deadline, journal entry creation, proposal editing with token rotation, relative date ambiguity detection (English & Bengali), journal consent gating, batch confirmation, crash recovery idempotency, IDOR cross-workspace rejection, and vault exclusion.
+  - All 4 assistant integration test suites pass (36 tests total).
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic provider package; Phase 93 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(assistant): create notes tasks and journals through reviewed actions`.
+
+## Phase 92 — Text assistant chat and contextual guidance — 2026-11-06
+
+- ADR 0092: Text assistant chat and contextual guidance establishing Server-Sent Events (SSE) streaming transport, canonical web and mobile citation deep link routes, strict read-only boundary enforcement, client-selected knowledge source controls, contextual starter suggestion catalog, conversation history deletion, markdown output sanitization, persistent desktop side drawer, and keyboard-safe mobile view.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 92 implementation and independent UI/transport verification before Phase 91 final acceptance recorded in ADR 0092 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, 90, 91, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase92/findings-register.json`): cataloged AST-001 through AST-008 across streaming transport, citation deep links, read-only boundary, source selection controls, starter suggestions, history deletion, markdown sanitization, and persistent side drawer layout.
+- Core domain, API, and transport upgrades:
+  - Implemented `POST /v1/ai/assistant/stream` with Server-Sent Events (`text/event-stream`), emitting typed framed events: `start` (turn ID, provider mode, label), `context` (retrieved source count, authorized citations), `chunk` (sequential text tokens), `done` (authoritative answer, tokens reserved/settled), and `error`.
+  - Added `streamAssistantAsk` in `@daynori/api-client` (`packages/api-client/src/client.ts`) for real-time SSE consumption with typed event dispatch and client error propagation.
+  - Repaired citation deep link generation in `apps/api/src/modules/ai/service.ts` to output canonical application routes: `/library?noteId=...`, `/plan?targetId=...&targetType=task`, `/journal?entryId=...`, and `/help?article=...`.
+  - Updated `AiSourceAccessRequestSchema` in `@daynori/contracts` (`packages/contracts/src/api/assistant.ts`) to accept versioned string IDs (`help:articleId` alongside UUIDs), returning `deepLink`.
+  - Updated `resolveAiSourceAccess` in `apps/api/src/modules/ai/assistantService.ts` to verify Help articles against `HELP_ARTICLES` and attach canonical route deep links.
+  - Added `deleteAssistantHistory` in `apps/api/src/modules/ai/assistantService.ts` and `DELETE /v1/ai/assistant/history` supporting both single-turn deletion (`turnId`) and workspace-wide bulk clearing.
+  - Added `deleteAssistantHistory` in `@daynori/api-client` (`packages/api-client/src/client.ts`).
+  - Added `selectedSources` (`help`, `notes`, `tasks`, `journal`) to `AiAskRequestSchema`, `AiAskStreamRequestSchema`, and domain models, enforcing `403 AI_SCOPE_EMPTY` when all sources are deselected.
+  - Implemented `sanitizeAssistantMarkdown` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) stripping executable HTML tags (`<script>`, `<iframe>`, `<a>`, etc.), neutralizing unsafe URL schemes (`javascript:`, `vbscript:`, `data:`, `file:`), and replacing remote tracking images with safe text indicators `[Image: alt]`.
+  - Created `ASSISTANT_STARTER_SUGGESTIONS` catalog in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) across categories `help`, `notes`, `tasks`, `routines`, and `sync`.
+- Web and Mobile UI enhancements:
+  - Rebuilt `AssistantPanel.tsx` (`apps/web/src/components/AssistantPanel.tsx`) as an accessible slide-out desktop side drawer preserving active document/editor context, accessible via header sparkle button (`id="global-assistant-btn"`), dismissible with Escape, featuring knowledge source toggles, starter suggestion pills, progressive streaming token rendering, sanitized markdown display, verified citation navigation, and history deletion.
+  - Rebuilt `AssistantSheet.tsx` (`apps/mobile/src/views/AssistantSheet.tsx`) as a keyboard-safe mobile view with `ScrollView`, source selection chips, starter pills, real streaming text, and history controls.
+  - Wired Assistant drawer into `AppHeader.tsx` (`id="global-assistant-btn"`) and `AppModals.tsx`.
+- Reviewable synthetic provider package (`artifacts/phase92/synthetic-provider-package.json`):
+  - 5-scenario synthetic test package with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating any live provider calls.
+- Manual UI and accessibility evidence (`artifacts/phase92/manual-ui-evidence.json`):
+  - Verified UI-01 through UI-05 covering persistent desktop drawer, streaming rendering, source filtering, mobile sheet keyboard safety, and citation deep link navigation.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase92-assistant-chat-stream-guidance.test.ts` with 7 passing tests covering SSE streaming, source selection, Help deep links, history deletion, markdown sanitization, read-only boundary enforcement, and consent gating.
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic provider package; Phase 92 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(assistant): deliver grounded text chat and contextual help`.
+
+## Phase 91 — Scoped retrieval, indexing, and grounding quality — 2026-11-06
+
+- ADR 0091: Scoped retrieval, indexing, and grounding quality establishing dual knowledge source partitioning, natural language tsquery normalization, script-preserving multilingual tokenization, boundary-aware smart chunking, background index concurrency fencing, attachment ingestion gates, canonical deep linking, adversarial prompt injection resistance, and fail-closed release gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 91 implementation and independent retrieval evaluation before Phase 90 final acceptance recorded in ADR 0091 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, 90, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase91/findings-register.json`): cataloged RET-001 through RET-008 across natural language tsquery interrogative handling, versioned public Help inclusion, Bengali combining marks preservation, smart sentence/word-boundary chunking, out-of-order background job revision fencing, attachment quarantine and MIME allowlisting, citation schema and canonical deep links, and prompt injection resistance with hallucinated reference rejection.
+- Core domain and API grounding upgrades:
+  - Added `extractInformativeQueryTerms` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) featuring curated English and Bengali stop words, extracting informative content tokens and classifying query intent.
+  - Added `chunkTextSmart` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) preserving paragraphs (`\n\n`), sentence boundaries (Bengali dori `।`, `?`, `!`, `.`), and word boundaries (`\s+`) without mid-word cuts.
+  - Upgraded tokenization regex to `[^\p{L}\p{M}\p{N}\s_-]` to preserve Unicode combining marks and viramas for Bengali conjuncts.
+  - Added `checkAttachmentAiEligibility` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) enforcing clean/verified scan status, standard security scope (unconditionally excluding vault files), byte size limit (<= 200 KB), and plain text MIME allowlist (`text/plain`, `text/markdown`, `text/csv`, `application/json`).
+  - Upgraded `AiCitationSchema` in `@daynori/contracts` (`packages/contracts/src/api/ai.ts`) to support string item IDs (`help:articleId` alongside UUIDs), up to 800-character excerpts, and canonical `deepLink`.
+  - Upgraded `bindAiCitations` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) to validate citations against authorized retrieval records and attach deep navigation URLs (`/help?article=...`, `/notes?id=...`, `/tasks?id=...`).
+  - Added `findRelevantHelpArticles` in `apps/api/src/modules/ai/service.ts` featuring bilingual concept mapping and personal query partitioning, preventing false Help matches on personal or unrelated queries while cleanly grounding instructional how-to questions.
+  - Added concurrency fencing in `apps/api/src/modules/ai/jobExecutor.ts` and `indexLifecycle.ts` with `expectedRevision`, cleanly rejecting stale out-of-order index jobs with `AI_SOURCE_REVISION_SUPERSEDED`.
+  - Multi-token prefix matching (`:*`) with `ts_rank` ordering and fallback ILIKE implemented in `retrieveAuthorizedAnswer`.
+- Evaluation dataset & results (`artifacts/phase91/evaluation-dataset-v1.json`, `artifacts/phase91/measured-evaluation-results.json`):
+  - 16-case synthetic evaluation matrix executed across 11 categories: 100% recall on known-answers, 0 privacy violations, 100% abstention on ungrounded/vault/stale queries, and measured latency P50 = 8.5ms, P95 = 34.0ms.
+- Engineering guide authored (`docs/engineering/retrieval-evaluation-and-grounding-guide.md`):
+  - Documented knowledge partitioning invariants, tokenization and multilingual stop words, sentence-aware smart chunking, attachment safety gates, revision fencing, citation binding grammar, and offline evaluation protocol.
+- Reviewable synthetic provider package (`artifacts/phase91/synthetic-provider-package.json`):
+  - 5-scenario synthetic test package with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating live provider calls.
+- Comprehensive test coverage: 7 test suites with 141 tests passing (`tests/integration/phase91-scoped-retrieval-evaluation.test.ts`, `packages/domain/src/domain.test.ts`, `tests/integration/phase90-ai-consent-privacy-readiness.test.ts`, `tests/integration/phase55-ai-privacy-retrieval.test.ts`, `tests/integration/phase55-ai-repair.test.ts`, `tests/integration/phase56-ai-assistant-actions.test.ts`, `tests/integration/phase56-ai-repair.test.ts`).
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic provider package; Phase 91 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(rag): add evaluated scoped retrieval and source lifecycle`.
+
+## Phase 90 — AI provider consent, privacy, and operating decisions — 2026-11-06
+
+- ADR 0090: AI provider consent, privacy, operating decisions, and release readiness establishing foundational boundaries for privacy, cost controls, multi-provider evaluation, kill-switch protection, non-recall disclosure invariants, and fail-closed activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 90 foundational implementation and independent verification before final acceptance of Phase 81 recorded in ADR 0090 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase90/findings-register.json`): cataloged AI-001 through AI-008 across server kill switch enforcement, provider error classification and bounds, durable budget reservation, idempotent settlement, consent revocation fences with non-recall invariant, journal opt-in and vault exclusion, cancellation via AbortSignal, and micro-USD precision monetary accounting.
+- Core domain and API security hardening:
+  - Added `isAiKillSwitchActive(env)` in `@daynori/domain` (`packages/domain/src/aiGate.ts`), integrating with `isAiLocallyEnabled` to fail closed immediately whenever `DAYNORI_AI_KILL_SWITCH='true'`.
+  - Added micro-USD token cost calculation `calculateEstimatedAiCost` in `@daynori/domain` (`packages/domain/src/aiConsent.ts`) with rates for candidate models (`gpt-4o-mini`, `gpt-4o`, `claude-3-5-haiku`, `gemini-1.5-flash`), verified in domain unit tests.
+  - Hardened `apps/api/src/modules/ai/service.ts` to assert the server kill switch, returning HTTP 503 `AI_KILL_SWITCH_ACTIVE`, and map provider errors (`AI_PROVIDER_RATE_LIMIT` [429], `AI_PROVIDER_OUTAGE` [503], `AI_PROVIDER_AUTH_ERROR` [503], `AI_PROVIDER_INPUT_TOO_LARGE` [400]).
+  - Hardened `apps/api/src/modules/ai/provider.ts` to enforce bounded prompts (<=20,000 chars user, <=10,000 chars system), classify upstream status codes, reject malformed responses (>20,000 chars), and route to `UnavailableAiProvider` during kill switch activation.
+- Comparative provider analysis (`docs/engineering/ai-provider-comparison-and-operating-decisions.md`):
+  - In-depth, dated comparative analysis of OpenAI (`gpt-4o-mini`), Anthropic (`claude-3-5-haiku`), and Google Cloud Vertex AI (`gemini-1.5-flash-002`) examining data privacy, retention policies (`store: false` vs Zero Data Retention enterprise agreements), EU data residency guarantees, structured JSON schema reliability, and unit economics.
+  - Selected `gpt-4o-mini` as primary baseline candidate with `gemini-1.5-flash-002` as high-urgency secondary fallback, while specifying requirements for enterprise ZDR contracts and data processing agreements prior to live user deployment.
+- Budget, cancellation, and operations guide (`docs/engineering/ai-budget-cancellation-and-operations-guide.md`):
+  - Documented two-phase reservation and settlement lifecycle, micro-USD budget accounting, concurrency controls, rate limit handling with exponential backoff, prompt size limits, server kill switch operation, and credential rotation procedures.
+- Policy and consent disclosures (`docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md`):
+  - Formulated comprehensive user-facing opt-in disclosures, explicit notification of non-recall for in-flight requests upon cancellation, clear statement of third-party model processor terms, zero-training commitments, and strict exclusion of vault content and encrypted secrets.
+- Reviewable synthetic test package (`artifacts/phase90/synthetic-test-package.json`):
+  - Delivered a 5-scenario live test package strictly isolated to synthetic data with a total budget cap of $0.05 USD, documented for separate owner approval prior to initiating any live provider calls.
+- Comprehensive test coverage: 6 test suites with 130 tests passing (`tests/integration/phase90-ai-consent-privacy-readiness.test.ts`, `tests/integration/phase55-ai-privacy-retrieval.test.ts`, `tests/integration/phase55-ai-repair.test.ts`, `tests/integration/phase56-ai-assistant-actions.test.ts`, `tests/integration/phase56-ai-repair.test.ts`, `packages/domain/src/domain.test.ts`).
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic test package and enterprise agreement; Phase 90 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(ai): verify provider privacy consent and budgets`.
+
+
 ## Phase 89 — Billing entitlements and sustainable plan readiness — 2026-11-06
 
 - ADR 0089: billing entitlements, sustainable plan limits, and purchase lifecycle readiness establishing server verification authority, database role isolation (`daynori_billing`), token hash privacy, downgrade data preservation guarantees, anti-steering Google Play policy compliance, and fail-closed commercial billing release gates.

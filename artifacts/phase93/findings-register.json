@@ -1,0 +1,71 @@
+{
+  "phase": 93,
+  "name": "Phase 93 Reviewed Note, Task, and Journal Creation Findings Register",
+  "generatedAt": "2026-11-09T17:35:00+06:00",
+  "findings": [
+    {
+      "id": "REV-001",
+      "category": "schema_operations",
+      "severity": "high",
+      "title": "AiAssistantOperationSchema and database constraints lacked journal creation operation",
+      "description": "app.ai_proposals CHECK constraint and AiAssistantOperationSchema were restricted to create_personal_task, update_personal_task, and create_personal_note. Proposing a personal journal entry failed schema validation and DB constraint checks.",
+      "remediation": "Added create_personal_journal_entry to AiAssistantOperationSchema, updated normalizeProposalPayload to validate CreateJournalEntryRequestSchema, and created migration 00078_ai_proposals_journal_and_edit.sql to update the check constraint."
+    },
+    {
+      "id": "REV-002",
+      "category": "proposal_lifecycle",
+      "severity": "high",
+      "title": "Proposals were immutable, preventing user editing prior to confirmation",
+      "description": "Clients could only confirm or cancel proposals. If the model proposed a slightly inaccurate title, date, or detail, users had to reject the entire proposal rather than review and edit the draft.",
+      "remediation": "Implemented PATCH /v1/ai/proposals/:proposalId with updateAiProposalPayload. Revalidates payload, recomputes request_hash, rotates confirmation_token to prevent approving unreviewed edits, and updates the review summary."
+    },
+    {
+      "id": "REV-003",
+      "category": "date_ambiguity_and_voice",
+      "severity": "high",
+      "title": "Relative journal dates risked model hallucination of event dates and synthetic feelings",
+      "description": "Phrases like 'yesterday', 'last Friday', 'গতকাল', or unanchored journal requests risked models inventing dates, times, or fabricated emotions not present in user input.",
+      "remediation": "Implemented detectJournalDateAmbiguity and sanitizeOrganizerText in @daynori/domain. Flags ambiguous relative references in English and Bengali, prompts the user for clarification (YYYY-MM-DD), and suppresses proposal creation until date is unambiguous."
+    },
+    {
+      "id": "REV-004",
+      "category": "consent_scope_isolation",
+      "severity": "high",
+      "title": "Journal proposals lacked explicit contentScope.journal opt-in fencing",
+      "description": "Users who enabled AI with contentScope: { notes: true, tasks: true, journal: false } could potentially have journal proposals generated or executed, violating the separate journal consent boundary established in Phase 55 and Phase 90.",
+      "remediation": "Enforced consent.contentScope.journal check during createAiProposal, updateAiProposalPayload, and confirmAiProposal, rejecting with 403 AI_JOURNAL_SCOPE_REQUIRED if journal consent is disabled."
+    },
+    {
+      "id": "REV-005",
+      "category": "batch_confirmation",
+      "severity": "medium",
+      "title": "Batch confirmation was unsupported, requiring multiple roundtrips for grouped actions",
+      "description": "When multiple proposals were generated (e.g. creating a task and a related note), users had to confirm them one by one rather than reviewing and confirming the batch together.",
+      "remediation": "Implemented POST /v1/ai/proposals/batch-confirm and batchConfirmAiProposals in assistantService and DaynoriApiClient, enabling single-action batch confirmation with per-proposal outcomes and durable mutation receipts."
+    },
+    {
+      "id": "REV-006",
+      "category": "timezone_date_mapping",
+      "severity": "medium",
+      "title": "Task deadline date was shifted across UTC boundaries by toISOString() on Date objects",
+      "description": "In apps/api/src/modules/tasks/service.ts, mapRowToTask converted pg driver Date objects via new Date(r.deadline_date).toISOString().slice(0, 10). In negative UTC offset zones, local midnight shifted to previous calendar dates.",
+      "remediation": "Replaced toISOString conversion with getFullYear(), getMonth() + 1, and getDate() formatting, aligning with the robust implementation in journal/service.ts."
+    },
+    {
+      "id": "REV-007",
+      "category": "ui_draft_vs_cloud_state",
+      "severity": "medium",
+      "title": "UI lacked visual distinction between unsaved proposals and persisted cloud items",
+      "description": "Clients could confuse untrusted model proposals with actual persisted organizer records, risking false confidence in unsaved data.",
+      "remediation": "Added explicit 'Local Draft (Unsaved)' vs 'Saved (Cloud Persisted)' status badges, review summary metadata (destination, date, timezone), and direct 'Open Created Item' deep links in both web AssistantPanel and mobile AssistantSheet."
+    },
+    {
+      "id": "REV-008",
+      "category": "security_and_durability",
+      "severity": "high",
+      "title": "Idempotency retry, IDOR, expiry, and vault fencing verification needed expansion",
+      "description": "Proposals must strictly enforce personal workspace isolation, prevent cross-tenant token replay, reject vault securityScope, and safely return original mutation receipts on duplicate confirm calls.",
+      "remediation": "Added comprehensive integration test coverage across P93-01 through P93-11 in tests/integration/phase93-reviewed-organizer-creation.test.ts, verifying idempotency, crash-safe retry, IDOR rejection, and vault exclusion."
+    }
+  ]
+}

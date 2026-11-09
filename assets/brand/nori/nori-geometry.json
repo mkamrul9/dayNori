@@ -1,0 +1,116 @@
+{
+  "name": "Nori",
+  "fullName": "Daynori Assistant Companion (Nori)",
+  "concept": "Folded-paper origami companion character with teal faceted planes, warm amber crest, and ink features",
+  "author": "Daynori Core Team",
+  "license": "MIT",
+  "provenance": "Original vector geometry drafted specifically for Daynori. Zero AI image generation, zero third-party vector/clipart imports.",
+  "viewBox": "0 0 64 64",
+  "palette": {
+    "light": {
+      "front": "#146B63",
+      "leftWing": "#0E524C",
+      "rightWing": "#1D7F76",
+      "foldCrest": "#D9A441",
+      "ink": "#172C2C",
+      "paper": "#F7F5EF",
+      "white": "#FFFFFF",
+      "accentWarm": "#D9A441",
+      "alert": "#B3261E",
+      "muted": "#526363"
+    },
+    "dark": {
+      "front": "#2FA89A",
+      "leftWing": "#146B63",
+      "rightWing": "#38BDB0",
+      "foldCrest": "#E5B55A",
+      "ink": "#FFFFFF",
+      "paper": "#172C2C",
+      "white": "#FFFFFF",
+      "accentWarm": "#E5B55A",
+      "alert": "#F5C2C0",
+      "muted": "#8A9B9B"
+    },
+    "static": {
+      "front": "#146B63",
+      "leftWing": "#0E524C",
+      "rightWing": "#146B63",
+      "foldCrest": "#172C2C",
+      "ink": "#172C2C",
+      "paper": "#FFFFFF",
+      "white": "#FFFFFF",
+      "accentWarm": "#172C2C",
+      "alert": "#B3261E",
+      "muted": "#526363"
+    }
+  },
+  "geometry": {
+    "body": {
+      "front": "M32 8 L48 24 L32 56 L16 24 Z",
+      "leftWing": "M16 24 L32 56 L10 38 Z",
+      "rightWing": "M48 24 L32 56 L54 38 Z",
+      "crest": "M32 8 L44 8 L32 20 Z",
+      "shadow": "M24 38 L32 56 L40 38 Z"
+    },
+    "states": {
+      "idle": {
+        "eyes": [
+          { "type": "circle", "cx": 26, "cy": 26, "r": 2.4 },
+          { "type": "circle", "cx": 38, "cy": 26, "r": 2.4 }
+        ],
+        "glints": [
+          { "type": "circle", "cx": 25.2, "cy": 25.2, "r": 0.8 },
+          { "type": "circle", "cx": 37.2, "cy": 25.2, "r": 0.8 }
+        ]
+      },
+      "greeting": {
+        "eyes": [
+          { "type": "path", "d": "M23 27 Q26 23.5 29 27", "strokeWidth": 2.2 },
+          { "type": "path", "d": "M35 27 Q38 23.5 41 27", "strokeWidth": 2.2 }
+        ],
+        "crease": { "type": "path", "d": "M29 33 Q32 36 35 33", "strokeWidth": 1.6 }
+      },
+      "listening": {
+        "eyes": [
+          { "type": "circle", "cx": 26, "cy": 25, "r": 2.4 },
+          { "type": "circle", "cx": 38, "cy": 25, "r": 2.4 }
+        ],
+        "perkedCrest": "M32 4 L48 4 L32 20 Z",
+        "wave": { "type": "path", "d": "M24 44 Q32 48 40 44", "strokeWidth": 2 }
+      },
+      "thinking": {
+        "eyes": [
+          { "type": "circle", "cx": 26, "cy": 24, "r": 2.4 },
+          { "type": "circle", "cx": 38, "cy": 24, "r": 2.4 }
+        ],
+        "sparkle": "M46 10 L48 6 L50 10 L54 12 L50 14 L48 18 L46 14 L42 12 Z"
+      },
+      "success": {
+        "eyes": [
+          { "type": "path", "d": "M23 26 Q26 22.5 29 26", "strokeWidth": 2.2 },
+          { "type": "path", "d": "M35 26 Q38 22.5 41 26", "strokeWidth": 2.2 }
+        ],
+        "check": "M27 34 L30 37 L37 30"
+      },
+      "error": {
+        "eyes": [
+          { "type": "circle", "cx": 26, "cy": 26, "r": 2.4 },
+          { "type": "circle", "cx": 38, "cy": 26, "r": 2.4 }
+        ],
+        "warning": "M32 34 L35 40 H29 Z"
+      },
+      "offline": {
+        "eyes": [
+          { "type": "path", "d": "M23 26 H29", "strokeWidth": 2.2 },
+          { "type": "path", "d": "M35 26 H41", "strokeWidth": 2.2 }
+        ]
+      },
+      "sleeping": {
+        "eyes": [
+          { "type": "path", "d": "M23 28 Q26 30 29 28", "strokeWidth": 2.2 },
+          { "type": "path", "d": "M35 28 Q38 30 41 28", "strokeWidth": 2.2 }
+        ]
+      }
+    }
+  }
+}

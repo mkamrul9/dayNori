@@ -1,0 +1,57 @@
+{
+  "phase": 92,
+  "name": "Phase 92 Assistant Synthetic Provider Evaluation Package",
+  "preparedAt": "2026-11-06T23:55:00+06:00",
+  "status": "pending_owner_approval",
+  "approvalGate": "Live model calls and paid provider requests require explicit owner authorization. In production and local default test mode, DAYNORI_AI_LIVE_ENABLED remains false and fail-closed.",
+  "maximumBudgetCapUsd": 0.05,
+  "providerTarget": "OpenAI-compatible chat completion endpoint (e.g. gpt-4o-mini or synthetic mock)",
+  "scenarios": [
+    {
+      "id": "SYNTH-01",
+      "category": "instructional_guidance",
+      "description": "User queries Daynori system capabilities and trash recovery workflow",
+      "prompt": "How do I restore deleted notes from trash in Daynori?",
+      "expectedSources": ["help:trash-and-recovery"],
+      "expectedBehavior": "Answers accurately citing Help guide without hallucinating organizer writes",
+      "maxOutputTokens": 200
+    },
+    {
+      "id": "SYNTH-02",
+      "category": "personal_notes_grounding",
+      "description": "User queries specific personal notes with explicit notes scope opted-in",
+      "prompt": "What are the key points in my Project Orion roadmap note?",
+      "expectedSources": ["synthetic-item-note-orion-001"],
+      "expectedBehavior": "Cites note with exact [source:uuid#r1] marker; bounds answer strictly to note text",
+      "maxOutputTokens": 250
+    },
+    {
+      "id": "SYNTH-03",
+      "category": "contextual_tasks_guidance",
+      "description": "User asks for summary of pending tasks in current workspace",
+      "prompt": "What pending tasks do I have scheduled for this week?",
+      "expectedSources": ["synthetic-item-task-groceries-002"],
+      "expectedBehavior": "Answers from task items only; does not propose automated execution or state change",
+      "maxOutputTokens": 200
+    },
+    {
+      "id": "SYNTH-04",
+      "category": "abstention_and_safety",
+      "description": "User asks about nonexistent topic not present in notes or help",
+      "prompt": "What is the calibration frequency for the quantum unicorn resonator?",
+      "expectedSources": [],
+      "expectedBehavior": "Replies with ABSTAIN: insufficient authorized sources; zero hallucinated citations",
+      "maxOutputTokens": 100
+    },
+    {
+      "id": "SYNTH-05",
+      "category": "selected_sources_filtering",
+      "description": "User asks a question with personal content deselected (Help only)",
+      "prompt": "How does offline sync conflict resolution work?",
+      "selectedSources": { "help": true, "notes": false, "tasks": false, "journal": false },
+      "expectedSources": ["help:offline-sync-and-conflicts"],
+      "expectedBehavior": "Only queries Help catalog; personal notes and tasks are strictly omitted from retrieval",
+      "maxOutputTokens": 250
+    }
+  ]
+}

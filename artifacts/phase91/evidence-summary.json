@@ -1,0 +1,106 @@
+{
+  "phase": 91,
+  "title": "Scoped retrieval, indexing, and grounding quality",
+  "evaluatedAt": "2026-11-06T20:45:00+06:00",
+  "status": "blocked",
+  "blockingDefect": "DEF-V2-008",
+  "blockingDefectTitle": "AI assistant provider activation and paid model calls remain disabled in production pending explicit owner authorization",
+  "ownerSchedulingAuthorization": {
+    "granted": true,
+    "scope": "Phase 91 implementation and independent retrieval evaluation before Phase 90 final acceptance",
+    "adr": "docs/decisions/0091-scoped-retrieval-indexing-and-grounding-quality.md",
+    "constraints": [
+      "No live model/embedding calls permitted without separate explicit owner approval",
+      "No transmission of real user content",
+      "Production AI activation remains disabled and fail-closed",
+      "No paid infrastructure"
+    ]
+  },
+  "findings": [
+    {
+      "id": "RET-001",
+      "title": "Natural language interrogatives broke simple tsquery",
+      "status": "repaired",
+      "fix": "Curated English & Bangla AI stop-words with extractInformativeQueryTerms and multi-token ranking"
+    },
+    {
+      "id": "RET-002",
+      "title": "Assistant RAG omitted versioned public Help catalog",
+      "status": "repaired",
+      "fix": "Dual knowledge sources partition: versioned public Help vs personal workspace items"
+    },
+    {
+      "id": "RET-003",
+      "title": "Regex character class stripped Bengali combining marks",
+      "status": "repaired",
+      "fix": "Added Unicode \\p{M} category to tokenization regex preserving Bengali conjuncts"
+    },
+    {
+      "id": "RET-004",
+      "title": "Fixed-character slicing split words and sentences mid-word",
+      "status": "repaired",
+      "fix": "Implemented chunkTextSmart with paragraph, sentence, and Bengali dori boundaries"
+    },
+    {
+      "id": "RET-005",
+      "title": "Concurrent background index jobs risked overwriting newer revisions",
+      "status": "repaired",
+      "fix": "Revision-aware queue fencing rejecting jobs with expectedRevision < item.revision"
+    },
+    {
+      "id": "RET-006",
+      "title": "Attachment indexing lacked quarantine, encryption, and MIME bounds",
+      "status": "repaired",
+      "fix": "checkAttachmentAiEligibility enforcing clean/verified quarantine, standard scope, size limits, and plain text MIME allowlist"
+    },
+    {
+      "id": "RET-007",
+      "title": "Citation binding lacked Help article support and canonical deep links",
+      "status": "repaired",
+      "fix": "Updated AiCitationSchema and bindAiCitations with canonical deep links for both personal items and Help articles"
+    },
+    {
+      "id": "RET-008",
+      "title": "Adversarial documents could inject prompt directives or fake citations",
+      "status": "repaired",
+      "fix": "Retrieved document text treated as untrusted data; citation binder rejects unretrieved UUIDs"
+    }
+  ],
+  "testExecution": [
+    {
+      "command": "pnpm vitest run tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
+      "passed": 7,
+      "failed": 0,
+      "status": "passed"
+    },
+    {
+      "command": "pnpm vitest run packages/domain/src/domain.test.ts",
+      "passed": 90,
+      "failed": 0,
+      "status": "passed"
+    },
+    {
+      "command": "pnpm vitest run tests/integration/phase90-ai-consent-privacy-readiness.test.ts tests/integration/phase55-ai-privacy-retrieval.test.ts tests/integration/phase55-ai-repair.test.ts tests/integration/phase56-ai-assistant-actions.test.ts tests/integration/phase56-ai-repair.test.ts",
+      "passed": 44,
+      "failed": 0,
+      "status": "passed"
+    }
+  ],
+  "evaluationMetrics": {
+    "totalQueriesEvaluated": 16,
+    "recallAt1": 1.0,
+    "mrr": 1.0,
+    "privacyViolations": 0,
+    "abstentionAccuracy": 1.0,
+    "latencyP50Ms": 8.5,
+    "latencyP95Ms": 34.0
+  },
+  "artifacts": [
+    "artifacts/phase91/findings-register.json",
+    "artifacts/phase91/evaluation-dataset-v1.json",
+    "artifacts/phase91/measured-evaluation-results.json",
+    "artifacts/phase91/synthetic-provider-package.json",
+    "artifacts/phase91/manual-ui-evidence.json",
+    "artifacts/phase91/evidence-summary.json"
+  ]
+}

@@ -170,6 +170,25 @@ export const AppHeader: React.FC = () => {
         </button>
         </TourTarget>
 
+        <TourTarget id="shell.assistant">
+        <button
+          type="button"
+          id="global-assistant-btn"
+          data-testid="global-assistant-btn"
+          aria-label="Ask Nori assistant"
+          onClick={() => openModal('assistant')}
+          style={buttonStyle}
+          className="hide-below-380"
+        >
+          <span aria-hidden="true">
+            <Icon name="nori" />
+          </span>
+          <span className="desktop-only" style={{ marginLeft: '4px' }}>
+            Ask Nori
+          </span>
+        </button>
+        </TourTarget>
+
         <TourTarget id="shell.create">
         <button
           type="button"

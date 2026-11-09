@@ -50,7 +50,7 @@ interface TaskDbRow {
   priority: 'low' | 'normal' | 'high' | 'urgent';
   status: 'todo' | 'in_progress' | 'completed' | 'cancelled';
   deadline_type: 'none' | 'date' | 'timed';
-  deadline_date: string | null;
+  deadline_date: string | Date | null;
   deadline_time: Date | null;
   deadline_zone: string | null;
   completed_at: Date | null;
@@ -64,10 +64,13 @@ interface TaskDbRow {
 function mapRowToTask(r: TaskDbRow): Task {
   let deadline: TaskDeadline = { type: 'none' };
   if (r.deadline_type === 'date' && r.deadline_date) {
+    const d = r.deadline_date;
     const dStr =
-      typeof r.deadline_date === 'string'
-        ? r.deadline_date.slice(0, 10)
-        : new Date(r.deadline_date).toISOString().slice(0, 10);
+      typeof d === 'string'
+        ? d.slice(0, 10)
+        : d instanceof Date
+        ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        : new Date(d).toISOString().slice(0, 10);
     deadline = {
       type: 'date',
       date: dStr,

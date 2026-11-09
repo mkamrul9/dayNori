@@ -26,6 +26,9 @@ import {
   createFallbackBlockRepresentation,
   APPROVED_SECTION_TEMPLATES,
   isAiLocallyEnabled,
+  isAiKillSwitchActive,
+  calculateEstimatedAiCost,
+  AI_MODEL_RATES,
   isBillingLocallyEnabled,
   isBillingProductionActivationEnabled,
   isAiLiveProviderEnabled,
@@ -35,6 +38,29 @@ import {
   bindAiCitations,
   estimateAiReservationTokens,
   parseAiSourceReferences,
+  extractInformativeQueryTerms,
+  chunkTextSmart,
+  checkAttachmentAiEligibility,
+  sanitizeAssistantMarkdown,
+  ASSISTANT_STARTER_SUGGESTIONS,
+  detectJournalDateAmbiguity,
+  detectRoutineAmbiguity,
+  detectCalendarEventAmbiguity,
+  detectExpenseAmbiguity,
+  getOrganizerDeepLink,
+  sanitizeOrganizerText,
+  resolveProposalCrossReferences,
+  checkStepDependencies,
+  validateAudioForTranscription,
+  calculateAudioTranscriptionCost,
+  detectTranscriptionUncertainty,
+  MockAudioTranscriptionAdapter,
+  resolveNoriState,
+  calculateNoriSafeCoordinates,
+  shouldReduceNoriMotion,
+  getNoriMotionDurations,
+  NORI_NAME_METADATA,
+  getNoriStateAccessibilityLabel,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2442,6 +2468,575 @@ describe('Domain Rules and Invariants', () => {
         maxOutputTokens: 800,
       });
       expect(n).toBeGreaterThan(800);
+    });
+
+    it('enforces server kill switch overriding all environment and test modes', () => {
+      expect(isAiKillSwitchActive({ DAYNORI_AI_KILL_SWITCH: 'true' })).toBe(true);
+      expect(isAiKillSwitchActive({ DAYNORI_AI_KILL_SWITCH: 'false' })).toBe(false);
+      expect(isAiKillSwitchActive({})).toBe(false);
+
+      // Kill switch forces isAiLocallyEnabled to false even in test or dev mode
+      expect(
+        isAiLocallyEnabled({ NODE_ENV: 'test', DAYNORI_AI_KILL_SWITCH: 'true' })
+      ).toBe(false);
+      expect(
+        isAiLocallyEnabled({
+          NODE_ENV: 'development',
+          DAYNORI_AI_LOCAL_ENABLED: 'true',
+          DAYNORI_AI_KILL_SWITCH: 'true',
+        })
+      ).toBe(false);
+    });
+
+    it('calculates precise monetary costs in micro-USD and USD for candidate models', () => {
+      expect(AI_MODEL_RATES['gpt-4o-mini']!.inputMicrosPerToken).toBe(0.15);
+      const gpt4oMini = calculateEstimatedAiCost(1000, 500, 'gpt-4o-mini');
+      // 1000 prompt tokens * 0.150 micros/tok = 150 micros ($0.000150)
+      // 500 completion tokens * 0.600 micros/tok = 300 micros ($0.000300)
+      // Total: 450 micros = $0.000450
+      expect(gpt4oMini.inputCostMicros).toBe(150);
+      expect(gpt4oMini.outputCostMicros).toBe(300);
+      expect(gpt4oMini.totalCostMicros).toBe(450);
+      expect(gpt4oMini.totalCostUsd).toBe(0.00045);
+
+      const claude = calculateEstimatedAiCost(1000, 500, 'claude-3-5-haiku');
+      // 1000 * 1.0 = 1000 micros; 500 * 5.0 = 2500 micros; Total: 3500 micros = $0.0035
+      expect(claude.inputCostMicros).toBe(1000);
+      expect(claude.outputCostMicros).toBe(2500);
+      expect(claude.totalCostMicros).toBe(3500);
+      expect(claude.totalCostUsd).toBe(0.0035);
+
+      const gemini = calculateEstimatedAiCost(1000, 500, 'gemini-1.5-flash');
+      // 1000 * 0.075 = 75 micros; 500 * 0.30 = 150 micros; Total: 225 micros = $0.000225
+      expect(gemini.inputCostMicros).toBe(75);
+      expect(gemini.outputCostMicros).toBe(150);
+      expect(gemini.totalCostMicros).toBe(225);
+      expect(gemini.totalCostUsd).toBe(0.000225);
+    });
+
+    it('extracts informative query terms for English and Bangla natural questions', () => {
+      const en = extractInformativeQueryTerms('What did I plan for Friday?');
+      expect(en.contentTerms).toContain('plan');
+      expect(en.contentTerms).toContain('friday');
+      expect(en.contentTerms).not.toContain('what');
+      expect(en.contentTerms).not.toContain('did');
+      expect(en.contentTerms).not.toContain('for');
+
+      const bn = extractInformativeQueryTerms('শুক্রবার কী পরিকল্পনা ছিল?');
+      expect(bn.contentTerms).toContain('শুক্রবার');
+      expect(bn.contentTerms).toContain('পরিকল্পনা');
+      expect(bn.contentTerms).not.toContain('কী');
+      expect(bn.contentTerms).not.toContain('ছিল');
+
+      // Empty or stop-words only falls back safely without throwing
+      const empty = extractInformativeQueryTerms('');
+      expect(empty.contentTerms).toEqual([]);
+
+      const allStop = extractInformativeQueryTerms('what is that');
+      expect(allStop.contentTerms.length).toBeGreaterThan(0);
+    });
+
+    it('chunks text with sentence- and boundary-awareness preserving words', () => {
+      const doc = 'First sentence here. Second sentence follows! Third one is longer and detailed.';
+      const chunks = chunkTextSmart(doc, 45, 10);
+      expect(chunks.length).toBeGreaterThan(1);
+      // Ensure no words are cut in half
+      for (const chunk of chunks) {
+        expect(chunk).not.toMatch(/\bse\b|\bsec\b/);
+      }
+
+      // Supports Bangla dori (।)
+      const bnDoc = 'প্রথম বাক্য এখানে। দ্বিতীয় বাক্য চলছে। তৃতীয় বাক্য শেষ।';
+      const bnChunks = chunkTextSmart(bnDoc, 30, 5);
+      expect(bnChunks.length).toBeGreaterThan(1);
+      expect(bnChunks[0]).toContain('প্রথম বাক্য এখানে।');
+    });
+
+    it('parses and binds both personal item and versioned Help citations', () => {
+      const personalUuid = '123e4567-e89b-12d3-a456-426614174000';
+      const answer = `According to [source:${personalUuid}#r2] and [source:help:restore-deleted-note#v1], this is supported.`;
+
+      const refs = parseAiSourceReferences(answer);
+      expect(refs).toHaveLength(2);
+      expect(refs[0]).toEqual({ itemId: personalUuid, revision: 2 });
+      expect(refs[1]).toEqual({ itemId: 'help:restore-deleted-note', revision: 1 });
+
+      const authorized = [
+        {
+          itemId: personalUuid,
+          revision: 2,
+          kind: 'note',
+          excerpt: 'Personal note excerpt',
+          deepLink: `/notes?id=${personalUuid}`,
+        },
+        {
+          itemId: 'help:restore-deleted-note',
+          revision: 1,
+          kind: 'help',
+          excerpt: 'Help article excerpt',
+          deepLink: '/help?article=restore-deleted-note',
+        },
+      ];
+
+      const bound = bindAiCitations({ answer, authorized });
+      expect(bound.ok).toBe(true);
+      expect(bound.referenced).toHaveLength(2);
+      expect(bound.referenced[0]?.deepLink).toBe(`/notes?id=${personalUuid}`);
+      expect(bound.referenced[1]?.deepLink).toBe('/help?article=restore-deleted-note');
+
+      // Rejects bare UUID
+      const bareAnswer = `According to ${personalUuid}, note exists.`;
+      const bareBound = bindAiCitations({ answer: bareAnswer, authorized });
+      expect(bareBound.ok).toBe(false);
+      expect(bareBound.abstainReason).toBe('unsupported_citation_format');
+
+      // Rejects unauthorized source reference
+      const fakeAnswer = `According to [source:999e4567-e89b-12d3-a456-426614174999#r1], secret.`;
+      const fakeBound = bindAiCitations({ answer: fakeAnswer, authorized });
+      expect(fakeBound.ok).toBe(false);
+      expect(fakeBound.abstainReason).toBe('unauthorized_or_stale_citation');
+    });
+
+    it('checks attachment eligibility with strict quarantine, encryption, and MIME filters', () => {
+      // Clean markdown file within size limit -> eligible
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/markdown',
+          byteSize: 1024,
+          quarantineStatus: 'clean',
+        })
+      ).toEqual({ eligible: true, reason: null });
+
+      // Vault encrypted attachment -> unconditionally excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 1024,
+          quarantineStatus: 'clean',
+          securityScope: 'vault',
+        })
+      ).toEqual({ eligible: false, reason: 'vault_encrypted' });
+
+      // Pending scan -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 1024,
+          quarantineStatus: 'pending',
+        })
+      ).toEqual({ eligible: false, reason: 'unscanned_pending' });
+
+      // Quarantined -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 1024,
+          quarantineStatus: 'quarantined',
+        })
+      ).toEqual({ eligible: false, reason: 'quarantined' });
+
+      // Unsupported MIME type (e.g. binary/executable) -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'application/x-executable',
+          byteSize: 1024,
+          quarantineStatus: 'clean',
+        })
+      ).toEqual({ eligible: false, reason: 'unsupported_mime_type' });
+
+      // Size exceeded (>200 KB) -> excluded
+      expect(
+        checkAttachmentAiEligibility({
+          mimeType: 'text/plain',
+          byteSize: 300 * 1024,
+          quarantineStatus: 'clean',
+        })
+      ).toEqual({ eligible: false, reason: 'size_exceeded' });
+    });
+
+    it('AST-007: sanitizes assistant markdown, stripping dangerous tags, schemes, and tracking images', () => {
+      const malicious =
+        'Here is the answer:\n' +
+        '<script>alert("pwned")</script>\n' +
+        '<iframe src="http://evil.com"></iframe>\n' +
+        '<a href="javascript:alert(1)">Click me</a>\n' +
+        '[Harmless Link](https://daynori.app)\n' +
+        '[Malicious Link](javascript:stealData())\n' +
+        '![Tracking pixel](https://tracker.com/pixel.png)\n' +
+        '# Valid Heading\n' +
+        '**Bold text** and `code block`\n' +
+        '[source:123e4567-e89b-12d3-a456-426614174000#r1]';
+
+      const clean = sanitizeAssistantMarkdown(malicious);
+      expect(clean).not.toContain('<script>');
+      expect(clean).not.toContain('<iframe>');
+      expect(clean).not.toContain('javascript:');
+      expect(clean).not.toContain('https://tracker.com/pixel.png');
+      expect(clean).toContain('[Harmless Link](https://daynori.app)');
+      expect(clean).toContain('[Malicious Link](#)');
+      expect(clean).toContain('[Image: Tracking pixel]');
+      expect(clean).toContain('# Valid Heading');
+      expect(clean).toContain('**Bold text** and `code block`');
+      expect(clean).toContain('[source:123e4567-e89b-12d3-a456-426614174000#r1]');
+    });
+
+    it('AST-005: provides curated contextual starter suggestions across required categories', () => {
+      expect(ASSISTANT_STARTER_SUGGESTIONS.length).toBeGreaterThanOrEqual(4);
+      const categories = new Set(ASSISTANT_STARTER_SUGGESTIONS.map((s) => s.category));
+      expect(categories.has('help')).toBe(true);
+      expect(categories.has('notes')).toBe(true);
+      expect(categories.has('tasks')).toBe(true);
+      expect(categories.has('sync')).toBe(true);
+      for (const s of ASSISTANT_STARTER_SUGGESTIONS) {
+        expect(s.id).toBeTruthy();
+        expect(s.label).toBeTruthy();
+        expect(s.question).toBeTruthy();
+      }
+    });
+
+    it('AST-008: detects ambiguous journal dates and requests clarification instead of guessing', () => {
+      // Relative ambiguous in English
+      const engAmbiguous = detectJournalDateAmbiguity('Write a journal entry for yesterday about our team lunch');
+      expect(engAmbiguous.isAmbiguous).toBe(true);
+      expect(engAmbiguous.clarificationQuestion).toContain('Which date should this journal entry be recorded for');
+
+      const lastFriAmbiguous = detectJournalDateAmbiguity('Journal: last Friday went to the lake');
+      expect(lastFriAmbiguous.isAmbiguous).toBe(true);
+
+      // Relative ambiguous in Bengali
+      const bnAmbiguous = detectJournalDateAmbiguity('গতকাল ভ্রমণের স্মৃতি নিয়ে একটি জার্নাল লিখুন');
+      expect(bnAmbiguous.isAmbiguous).toBe(true);
+      expect(bnAmbiguous.clarificationQuestion).toContain('কোন তারিখের জন্য সংরক্ষণ করতে চান');
+
+      // Unambiguous explicit ISO date
+      const isoClear = detectJournalDateAmbiguity('Record reflection for 2026-11-09 about project milestone');
+      expect(isoClear.isAmbiguous).toBe(false);
+      expect(isoClear.inferredDate).toBe('2026-11-09');
+
+      // Today with reference date
+      const todayClear = detectJournalDateAmbiguity('Write a journal entry for today', '2026-11-09');
+      expect(todayClear.isAmbiguous).toBe(false);
+      expect(todayClear.inferredDate).toBe('2026-11-09');
+    });
+
+    it('AST-009: constructs canonical deep links for tasks, journals, and notes', () => {
+      expect(getOrganizerDeepLink('task', 'task-123')).toBe('/plan?targetId=task-123&targetType=task');
+      expect(getOrganizerDeepLink('todo', 'task-456')).toBe('/plan?targetId=task-456&targetType=task');
+      expect(getOrganizerDeepLink('journal_entry', 'entry-789')).toBe('/journal?entryId=entry-789');
+      expect(getOrganizerDeepLink('journal', 'entry-abc')).toBe('/journal?entryId=entry-abc');
+      expect(getOrganizerDeepLink('note', 'note-xyz')).toBe('/library?noteId=note-xyz');
+    });
+
+    it('AST-010: sanitizes organizer text while strictly preserving user voice and facts', () => {
+      const input = '  Met with Alex at 3pm. Discussed Q4 roadmap. \x00\x08 ';
+      const sanitized = sanitizeOrganizerText(input);
+      expect(sanitized).toBe('Met with Alex at 3pm. Discussed Q4 roadmap.');
+    });
+
+    it('AST-011: detects ambiguity in routine recurrence, event scheduling, and expense money', () => {
+      // Ambiguous routine (no recurrence specified)
+      const ambiguousRoutine = detectRoutineAmbiguity('Create a study routine at 8pm');
+      expect(ambiguousRoutine.isAmbiguous).toBe(true);
+      expect(ambiguousRoutine.clarificationQuestion).toContain('recurrence');
+
+      // Clear routine
+      const clearRoutine = detectRoutineAmbiguity('Study routine every weekday at 8pm');
+      expect(clearRoutine.isAmbiguous).toBe(false);
+
+      // Ambiguous calendar event (no date)
+      const ambiguousEvent = detectCalendarEventAmbiguity('Team sync meeting');
+      expect(ambiguousEvent.isAmbiguous).toBe(true);
+      expect(ambiguousEvent.clarificationQuestion).toContain('date or time');
+
+      // Clear calendar event
+      const clearEvent = detectCalendarEventAmbiguity('Project retrospective on 2026-11-20');
+      expect(clearEvent.isAmbiguous).toBe(false);
+
+      // Ambiguous expense (no currency)
+      const noCurrencyExpense = detectExpenseAmbiguity('Lunch with team for 45');
+      expect(noCurrencyExpense.isAmbiguous).toBe(true);
+      expect(noCurrencyExpense.clarificationQuestion).toContain('currency');
+
+      // Ambiguous expense (no amount)
+      const noAmountExpense = detectExpenseAmbiguity('Taxi fare in USD');
+      expect(noAmountExpense.isAmbiguous).toBe(true);
+      expect(noAmountExpense.clarificationQuestion).toContain('amount');
+
+      // Clear expense
+      const clearExpense = detectExpenseAmbiguity('Office supplies 120.50 USD');
+      expect(clearExpense.isAmbiguous).toBe(false);
+    });
+
+    it('AST-012: constructs canonical deep links for routines, events, folders, sections, and expenses', () => {
+      expect(getOrganizerDeepLink('routine', 'rt-101')).toBe('/plan?targetId=rt-101&targetType=routine');
+      expect(getOrganizerDeepLink('calendar_event', 'ev-202')).toBe('/plan/calendar?eventId=ev-202');
+      expect(getOrganizerDeepLink('event', 'ev-202')).toBe('/plan/calendar?eventId=ev-202');
+      expect(getOrganizerDeepLink('folder', 'fld-303')).toBe('/library?folderId=fld-303');
+      expect(getOrganizerDeepLink('custom_section', 'sec-404')).toBe('/custom-sections?sectionId=sec-404');
+      expect(getOrganizerDeepLink('section', 'sec-404')).toBe('/custom-sections?sectionId=sec-404');
+      expect(getOrganizerDeepLink('expense', 'exp-505')).toBe('/expenses?expenseId=exp-505');
+    });
+
+    it('AST-013: resolves cross-references in multi-action plan payloads', () => {
+      const createdItemMap = new Map<string, { id: string; kind?: string }>([
+        ['0', { id: 'folder-uuid-1', kind: 'folder' }],
+        ['step_1', { id: 'note-uuid-2', kind: 'note' }],
+        ['proposal-3', { id: 'task-uuid-3', kind: 'task' }],
+      ]);
+
+      const payload = {
+        title: 'Design Doc',
+        folderId: '$ref:0',
+        references: ['$ref:step_1', '$ref:proposal-3'],
+        nested: {
+          targetId: '$ref:0',
+          plain: 'regular-value',
+        },
+      };
+
+      const resolved = resolveProposalCrossReferences(payload, createdItemMap);
+      expect(resolved.folderId).toBe('folder-uuid-1');
+      expect(resolved.references).toEqual(['note-uuid-2', 'task-uuid-3']);
+      expect((resolved.nested as Record<string, unknown>).targetId).toBe('folder-uuid-1');
+      expect((resolved.nested as Record<string, unknown>).plain).toBe('regular-value');
+    });
+
+    it('AST-014: validates multi-action step dependencies and detects missing prerequisites', () => {
+      const completed = new Set(['step-0', 'step-1']);
+
+      // All deps met
+      const valid = checkStepDependencies(['step-0', 'step-1'], completed);
+      expect(valid.satisfied).toBe(true);
+
+      // Missing dep
+      const invalid = checkStepDependencies(['step-0', 'step-2'], completed);
+      expect(invalid.satisfied).toBe(false);
+      expect(invalid.missingPrerequisite).toBe('step-2');
+
+      // No deps
+      const empty = checkStepDependencies([], completed);
+      expect(empty.satisfied).toBe(true);
+    });
+
+    it('AST-015: validates audio parameters for transcription bounds and formats', () => {
+      // Valid audio
+      const valid = validateAudioForTranscription({
+        durationSeconds: 15,
+        byteSize: 120000,
+        mimeType: 'audio/webm',
+      });
+      expect(valid.valid).toBe(true);
+
+      // Duration too short (< 0.5s)
+      const tooShort = validateAudioForTranscription({
+        durationSeconds: 0.2,
+        mimeType: 'audio/webm',
+      });
+      expect(tooShort.valid).toBe(false);
+      expect(tooShort.code).toBe('AUDIO_DURATION_OUT_OF_BOUNDS');
+
+      // Duration too long (> 600s)
+      const tooLong = validateAudioForTranscription({
+        durationSeconds: 605,
+        mimeType: 'audio/webm',
+      });
+      expect(tooLong.valid).toBe(false);
+      expect(tooLong.code).toBe('AUDIO_DURATION_OUT_OF_BOUNDS');
+
+      // Size too large (> 25 MiB)
+      const tooLarge = validateAudioForTranscription({
+        durationSeconds: 100,
+        byteSize: 26 * 1024 * 1024,
+        mimeType: 'audio/webm',
+      });
+      expect(tooLarge.valid).toBe(false);
+      expect(tooLarge.code).toBe('AUDIO_SIZE_EXCEEDED');
+
+      // Unsupported MIME type
+      const unsupported = validateAudioForTranscription({
+        durationSeconds: 5,
+        byteSize: 50000,
+        mimeType: 'video/mp4',
+      });
+      expect(unsupported.valid).toBe(false);
+      expect(unsupported.code).toBe('UNSUPPORTED_AUDIO_MIME');
+    });
+
+    it('AST-016: calculates precise audio transcription costs in micro-USD', () => {
+      // Gemini 1.5 Flash multimodal ($0.00002 / sec = 20 micro-USD / sec)
+      const geminiCost10s = calculateAudioTranscriptionCost(10, 'gemini');
+      expect(geminiCost10s).toBe(200); // 10 * 20
+
+      const geminiCost60s = calculateAudioTranscriptionCost(60, 'gemini');
+      expect(geminiCost60s).toBe(1200); // 60 * 20 = 1200 micro-USD ($0.0012)
+
+      // Whisper ($0.006 / min = 100 micro-USD / sec)
+      const whisperCost60s = calculateAudioTranscriptionCost(60, 'whisper');
+      expect(whisperCost60s).toBe(6000); // 60 * 100 = 6000 micro-USD ($0.006)
+    });
+
+    it('AST-017: detects silence, empty speech, and low-confidence uncertainty', () => {
+      // Empty / silence
+      const empty = detectTranscriptionUncertainty('', 0.95);
+      expect(empty.uncertain).toBe(true);
+      expect(empty.reason).toBe('silence');
+      expect(empty.promptMessage).toContain('No clear speech');
+
+      // Low confidence (< 0.70)
+      const lowConf = detectTranscriptionUncertainty('meeting with team', 0.55);
+      expect(lowConf.uncertain).toBe(true);
+      expect(lowConf.reason).toBe('low_confidence');
+      expect(lowConf.promptMessage).toContain('low');
+
+      // Clear confident speech
+      const clear = detectTranscriptionUncertainty('Submit assignment tomorrow', 0.96);
+      expect(clear.uncertain).toBe(false);
+    });
+
+    it('AST-018: MockAudioTranscriptionAdapter transcribes English, Bangla, and Banglish code-switching', async () => {
+      const adapter = new MockAudioTranscriptionAdapter();
+
+      // 1. English default
+      const enRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('synthetic audio buffer with speech samples'),
+        mimeType: 'audio/webm',
+        durationSeconds: 5,
+        languageHint: 'en',
+      });
+      expect(enRes.transcript).toContain('Submit CS50 memory allocation');
+      expect(enRes.detectedLanguage).toBe('en');
+      expect(enRes.confidence).toBeGreaterThan(0.9);
+      expect(enRes.uncertainSpeech).toBe(false);
+      expect(enRes.audioCleanedUp).toBe(true);
+
+      // 2. Bangla synthetic
+      const bnRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('synthetic audio buffer with bangla speech'),
+        mimeType: 'audio/webm',
+        durationSeconds: 4,
+        languageHint: 'bn',
+      });
+      expect(bnRes.transcript).toContain('ডাক্তারের সাথে অ্যাপয়েন্টমেন্ট');
+      expect(bnRes.detectedLanguage).toBe('bn');
+      expect(bnRes.uncertainSpeech).toBe(false);
+
+      // 3. Banglish (code-switched) synthetic
+      const csRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('synthetic audio buffer with code-switch banglish'),
+        mimeType: 'audio/webm',
+        durationSeconds: 6,
+        languageHint: 'bn-en',
+      });
+      expect(csRes.transcript).toContain('Friday-তে project report submit');
+      expect(csRes.detectedLanguage).toBe('bn-en');
+
+      // 4. Silence detection
+      const silenceRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('silence silence silence silence'),
+        mimeType: 'audio/webm',
+        durationSeconds: 3,
+      });
+      expect(silenceRes.transcript).toBe('');
+      expect(silenceRes.uncertainSpeech).toBe(true);
+
+      // 5. AbortSignal cancellation
+      const ac = new AbortController();
+      ac.abort();
+      await expect(
+        adapter.transcribe({
+          audioBuffer: Buffer.from('some audio'),
+          mimeType: 'audio/webm',
+          durationSeconds: 2,
+          signal: ac.signal,
+        })
+      ).rejects.toThrow('aborted');
+    });
+
+    it('AST-019: resolves Nori presentation states truthfully from application conditions', () => {
+      // 1. Idle default
+      expect(resolveNoriState({})).toBe('idle');
+
+      // 2. Greeting on hover or focus or open drawer
+      expect(resolveNoriState({ isHoveredOrFocused: true })).toBe('greeting');
+      expect(resolveNoriState({ isAssistantOpen: true })).toBe('greeting');
+
+      // 3. Listening ONLY during explicit active voice recording
+      expect(resolveNoriState({ isAssistantOpen: true, isListening: true })).toBe('listening');
+      expect(resolveNoriState({ isAssistantOpen: true, isListening: false })).toBe('greeting');
+
+      // 4. Thinking during in-flight stream/request
+      expect(resolveNoriState({ isThinking: true })).toBe('thinking');
+
+      // 5. Success on acknowledged proposal/action
+      expect(resolveNoriState({ isSuccess: true })).toBe('success');
+
+      // 6. Error on failure
+      expect(resolveNoriState({ isError: true })).toBe('error');
+
+      // 7. Offline when disconnected
+      expect(resolveNoriState({ isOffline: true })).toBe('offline');
+
+      // 8. Sleeping during quiet hours
+      expect(resolveNoriState({ isQuietHours: true })).toBe('sleeping');
+    });
+
+    it('AST-020: calculates safe positioning coordinates for all 4 corners avoiding navigation collisions', () => {
+      const insets = {
+        top: 24,
+        bottom: 16,
+        left: 0,
+        right: 0,
+        bottomNavHeight: 56,
+        bannerHeight: 40,
+      };
+
+      const br = calculateNoriSafeCoordinates('bottom-right', insets);
+      expect(br.bottom).toBe(88); // 16 bottom + 56 nav + 16 pad
+      expect(br.right).toBe(16);
+
+      const bl = calculateNoriSafeCoordinates('bottom-left', insets);
+      expect(bl.bottom).toBe(88);
+      expect(bl.left).toBe(16);
+
+      const tr = calculateNoriSafeCoordinates('top-right', insets);
+      expect(tr.top).toBe(80); // 24 top + 40 banner + 16 pad
+      expect(tr.right).toBe(16);
+
+      const tl = calculateNoriSafeCoordinates('top-left', insets);
+      expect(tl.top).toBe(80);
+      expect(tl.left).toBe(16);
+    });
+
+    it('AST-021: enforces reduced-motion suppression and transition duration guarantees', () => {
+      // Should reduce motion when pref is set OR system prefers reduced motion
+      expect(shouldReduceNoriMotion({ reducedMotion: true }, false)).toBe(true);
+      expect(shouldReduceNoriMotion({ reducedMotion: false }, true)).toBe(true);
+      expect(shouldReduceNoriMotion({ reducedMotion: false }, false)).toBe(false);
+
+      // Duration is 0ms when reduced motion is true
+      const reduced = getNoriMotionDurations(true);
+      expect(reduced.transitionMs).toBe(0);
+      expect(reduced.pulseMs).toBe(0);
+      expect(reduced.allowAnimation).toBe(false);
+
+      const normal = getNoriMotionDurations(false);
+      expect(normal.transitionMs).toBeGreaterThan(0);
+      expect(normal.pulseMs).toBeGreaterThan(0);
+      expect(normal.allowAnimation).toBe(true);
+    });
+
+    it('AST-022: verifies Nori asset provenance, metadata record, and naming review documentation', () => {
+      expect(NORI_NAME_METADATA.name).toBe('Nori');
+      expect(NORI_NAME_METADATA.palette.tealPrimary).toBe('#146B63');
+      expect(NORI_NAME_METADATA.palette.warmAccent).toBe('#D9A441');
+      expect(NORI_NAME_METADATA.author).toBe('Daynori Core Team');
+      expect(NORI_NAME_METADATA.license).toBe('MIT');
+      expect(NORI_NAME_METADATA.generationMethod).toContain('Zero AI image generation');
+      expect(NORI_NAME_METADATA.namingReviewStatus).toContain('Screened for application conflicts');
+
+      expect(getNoriStateAccessibilityLabel('idle')).toContain('ready to help');
+      expect(getNoriStateAccessibilityLabel('listening')).toContain('listening to microphone');
+      expect(getNoriStateAccessibilityLabel('offline')).toContain('offline; manual creation remains available');
     });
   });
 });

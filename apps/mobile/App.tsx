@@ -25,7 +25,7 @@ import {
   type MobileExportActionResult,
   type MobileTab,
 } from '@daynori/ui-mobile';
-import { parseDeepLinkUrl, type DeepLinkPayload } from '@daynori/contracts';
+import { parseDeepLinkUrl, type DeepLinkPayload, type NoriCompanionPreferences } from '@daynori/contracts';
 
 import { defaultAuthAdapter } from './src/auth/authAdapter';
 import { MobileKeyManager } from './src/data/keyManager.js';
@@ -80,6 +80,7 @@ import { VaultHarnessView } from './src/vault/VaultHarnessView';
 import { DriveConnectionsSheet } from './src/views/DriveConnectionsSheet';
 import { RoomsSheet } from './src/views/RoomsSheet';
 import { AssistantSheet } from './src/views/AssistantSheet';
+import { NoriCompanionLauncher } from './src/views/NoriCompanionLauncher';
 import { BillingSheet } from './src/views/BillingSheet';
 import {
   generateUuid,
@@ -241,6 +242,11 @@ export default function App() {
     getDefaultFeaturePersonalization()
   );
   const [journalPreviewHidden, setJournalPreviewHidden] = useState(true);
+  const [noriCompanionPreferences, setNoriCompanionPreferences] = useState<NoriCompanionPreferences>({
+    enabled: true,
+    position: 'bottom-right',
+    reducedMotion: false,
+  });
   const mobileRelease: FeatureReleaseContext = {
     platform: 'android',
     corePreview: isCorePreview,
@@ -374,8 +380,12 @@ export default function App() {
               featurePersonalization?: unknown;
               homeLayout?: { moduleShortcuts?: unknown };
               journalPreviewHidden?: boolean;
+              noriCompanion?: NoriCompanionPreferences;
             }
           | undefined;
+        if (prefs?.noriCompanion) {
+          setNoriCompanionPreferences(prefs.noriCompanion);
+        }
         setJournalPreviewHidden(
           prefs?.journalPreviewHidden !== undefined ? Boolean(prefs.journalPreviewHidden) : true
         );
@@ -1060,6 +1070,17 @@ export default function App() {
           themeMode={themeMode}
           visibleTabs={visiblePrimaryTabs}
         />
+
+        {/* Phase 96 Nori companion launcher — floating corner launcher */}
+        {isOperator && apiClient && userNamespace?.workspaceId && activeModal === 'none' ? (
+          <NoriCompanionLauncher
+            themeMode={themeMode}
+            isOpen={false}
+            isOffline={!isOnline}
+            preferences={noriCompanionPreferences}
+            onPress={() => setActiveModal('assistant')}
+          />
+        ) : null}
 
         {/* Search Sheet */}
         <SearchSheet

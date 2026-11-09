@@ -6,7 +6,11 @@
  * store:false is sent explicitly. It is NOT Zero Data Retention.
  */
 
-import { CURRENT_AI_PROVIDER_DISCLOSURE_VERSION, isAiLiveProviderEnabled } from '@daynori/domain';
+import {
+  CURRENT_AI_PROVIDER_DISCLOSURE_VERSION,
+  isAiLiveProviderEnabled,
+  isAiKillSwitchActive,
+} from '@daynori/domain';
 
 export type AiProviderMode = 'disabled' | 'fake' | 'unavailable' | 'live';
 
@@ -29,6 +33,7 @@ export interface AiProviderAdapter {
   mode: AiProviderMode;
   disclosureVersion: string;
   complete(input: AiCompletionInput): Promise<AiCompletionResult>;
+  stream?(input: AiCompletionInput): AsyncIterable<string>;
 }
 
 export type AiHttpTransport = (
@@ -54,6 +59,62 @@ export class FakeAiProvider implements AiProviderAdapter {
 
   /** Test hook: await this gate before completing (for consent/cancel interleaving). */
   pauseGate: Promise<void> | null = null;
+  /** Test hook: yield deterministic synthetic stream chunks if provided */
+  streamChunksOverride: string[] | null = null;
+
+  async *stream(input: AiCompletionInput): AsyncIterable<string> {
+    assertNotAborted(input.signal);
+    if (this.pauseGate) {
+      await Promise.race([
+        this.pauseGate,
+        new Promise<never>((_, reject) => {
+          input.signal?.addEventListener(
+            'abort',
+            () => {
+              const err = new Error('AI request cancelled');
+              (err as { code?: string }).code = 'AI_CANCELLED';
+              reject(err);
+            },
+            { once: true }
+          );
+        }),
+      ]);
+    }
+    assertNotAborted(input.signal);
+
+    if (this.streamChunksOverride) {
+      for (const chunk of this.streamChunksOverride) {
+        assertNotAborted(input.signal);
+        yield chunk;
+      }
+      return;
+    }
+
+    const cited = [
+      ...input.user.matchAll(
+        /\[source:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|help:[a-z0-9_.-]+)#(?:r|v)(\d+)\]/gi
+      ),
+    ].map((m) => ({
+      itemId: m[1]!,
+      revision: Number(m[2]),
+      marker: m[0],
+    }));
+
+    if (cited.length === 0) {
+      assertNotAborted(input.signal);
+      yield 'ABSTAIN: ';
+      assertNotAborted(input.signal);
+      yield 'insufficient authorized sources';
+      return;
+    }
+
+    assertNotAborted(input.signal);
+    yield 'Based on authorized sources:\n';
+    for (const c of cited) {
+      assertNotAborted(input.signal);
+      yield `${c.marker}\n`;
+    }
+  }
 
   async complete(input: AiCompletionInput): Promise<AiCompletionResult> {
     assertNotAborted(input.signal);
@@ -75,9 +136,14 @@ export class FakeAiProvider implements AiProviderAdapter {
     }
     assertNotAborted(input.signal);
 
-    const cited = [...input.user.matchAll(/\[source:([0-9a-f-]{36})#r(\d+)\]/gi)].map((m) => ({
+    const cited = [
+      ...input.user.matchAll(
+        /\[source:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|help:[a-z0-9_.-]+)#(?:r|v)(\d+)\]/gi
+      ),
+    ].map((m) => ({
       itemId: m[1]!,
       revision: Number(m[2]),
+      marker: m[0],
     }));
     if (cited.length === 0) {
       return {
@@ -88,7 +154,7 @@ export class FakeAiProvider implements AiProviderAdapter {
         mode: 'fake',
       };
     }
-    const lines = cited.map((c) => `[source:${c.itemId}#r${c.revision}]`);
+    const lines = cited.map((c) => c.marker);
     const text = `Based on authorized sources:\n${lines.join('\n')}`;
     return {
       text,
@@ -105,6 +171,11 @@ export class UnavailableAiProvider implements AiProviderAdapter {
   disclosureVersion = CURRENT_AI_PROVIDER_DISCLOSURE_VERSION;
 
   async complete(): Promise<AiCompletionResult> {
+    throw Object.assign(new Error('AI provider unavailable'), { code: 'AI_PROVIDER_UNAVAILABLE' });
+  }
+
+  // eslint-disable-next-line require-yield
+  async *stream(): AsyncIterable<string> {
     throw Object.assign(new Error('AI provider unavailable'), { code: 'AI_PROVIDER_UNAVAILABLE' });
   }
 }
@@ -134,6 +205,11 @@ export class OpenAiCompatibleProvider implements AiProviderAdapter {
 
   async complete(input: AiCompletionInput): Promise<AiCompletionResult> {
     assertNotAborted(input.signal);
+    if (input.user.length > 20_000 || input.system.length > 10_000) {
+      throw Object.assign(new Error('AI request input exceeds maximum character limit'), {
+        code: 'AI_PROVIDER_INPUT_TOO_LARGE',
+      });
+    }
     const controller = new AbortController();
     const onAbort = () => controller.abort();
     input.signal?.addEventListener('abort', onAbort, { once: true });
@@ -163,8 +239,16 @@ export class OpenAiCompatibleProvider implements AiProviderAdapter {
         redirect: 'error',
       });
       if (!res.ok) {
+        let code = 'AI_PROVIDER_ERROR';
+        if (res.status === 429) {
+          code = 'AI_PROVIDER_RATE_LIMIT';
+        } else if (res.status === 401 || res.status === 403) {
+          code = 'AI_PROVIDER_AUTH_ERROR';
+        } else if (res.status >= 500) {
+          code = 'AI_PROVIDER_OUTAGE';
+        }
         throw Object.assign(new Error(`Provider HTTP ${res.status}`), {
-          code: 'AI_PROVIDER_ERROR',
+          code,
         });
       }
       const json = (await res.json()) as {
@@ -207,6 +291,9 @@ export function resolveAiProvider(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
   options?: { transport?: AiHttpTransport; fake?: FakeAiProvider }
 ): AiProviderAdapter {
+  if (isAiKillSwitchActive(env)) {
+    return new UnavailableAiProvider();
+  }
   const preferFake =
     (env['DAYNORI_AI_PROVIDER'] ?? 'fake') === 'fake' || env['NODE_ENV'] === 'test';
   if (preferFake || !isAiLiveProviderEnabled(env)) {
