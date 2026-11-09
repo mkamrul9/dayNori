@@ -1,0 +1,59 @@
+{
+  "phase": 94,
+  "name": "Phase 94 Structured Organizer Tools and Multi-Action Creation Manual UI Evidence",
+  "evaluatedAt": "2026-11-09T19:50:00+06:00",
+  "components": [
+    {
+      "component": "apps/web/src/components/AssistantPanel.tsx",
+      "platform": "web",
+      "surfaces": [
+        {
+          "surfaceId": "assistant-multi-action-review",
+          "ariaLabel": "Multi-action organizer proposal review",
+          "testedInteractions": [
+            "Renders multi-action proposal cards grouped by planId in sequential step order (Step 1, Step 2, etc.)",
+            "Displays destination, dependencies ('Depends on Step N'), effects, and status badges ('Local Draft', 'Saved', 'Skipped', 'Failed')",
+            "Provides quick propose action buttons (+ Routine, + Event, + Folder, + Section, + Expense, + Multi-Plan)",
+            "Allows inline editing for all 9 operations: routine title/recurrence, calendar event startAt/title, folder name, custom section title, and expense amount/currency",
+            "Revalidates edited payload via client.updateAiProposal, rotating confirmation_token to ensure approval of reviewed changes only",
+            "Batch confirms multi-action plan via client.batchConfirmAiProposals via 'Confirm All Reviewed' button",
+            "Displays step outcomes with green 'Saved' chips and red/amber 'Skipped' chips when prerequisites fail",
+            "Provides direct 'Open Created Item' deep link buttons to /routines, /calendar, /library, /ledger, and /sections"
+          ],
+          "tourTargets": [
+            "assistant-multi-action-review",
+            "assistant-batch-confirm"
+          ],
+          "accessibilityAttributes": {
+            "ariaLive": "polite",
+            "keyboardNavigation": "All proposal cards, input fields, step actions, and batch confirmation buttons accessible via keyboard Tab and Enter",
+            "contrast": "Conforms to WCAG AA on light and dark themes using tokens"
+          }
+        }
+      ]
+    },
+    {
+      "component": "apps/mobile/src/views/AssistantSheet.tsx",
+      "platform": "android-mobile",
+      "surfaces": [
+        {
+          "surfaceId": "assistant-sheet-multi-action-card",
+          "testID": "assistant-multi-action-card",
+          "testedInteractions": [
+            "Renders multi-action sequence display inside ScrollView with step index badges (e.g. 'Step 1 of 2')",
+            "Displays dependency indicators and status chips ('Local Draft', 'Saved', 'Skipped', 'Failed')",
+            "Provides Quick Propose chips (+ Routine, + Event, + Folder, + Section, + Expense, + Plan) for rapid scenario testing",
+            "Renders editable TextInput fields for titles, recurrence, timestamps, amounts, and currencies in edit mode",
+            "Executes batch confirmation via 'Confirm All Reviewed' button with per-item feedback",
+            "Provides direct deep link buttons on saved proposals navigating to specific organizer sections via onOpenSource"
+          ],
+          "accessibilityAttributes": {
+            "accessibilityLiveRegion": "polite",
+            "touchTargetMin": "Meets 48dp minimum for all mobile action buttons and quick chips",
+            "screenReaderLabels": "Full accessibilityLabel coverage on all multi-action step controls"
+          }
+        }
+      ]
+    }
+  ]
+}

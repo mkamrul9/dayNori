@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-09",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 93 implemented and local verification delivered before Phase 92 final acceptance under ADR 0093 (Reviewed note, task, and journal creation). Phase 93 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, Phase 91 grounding/retrieval evaluation, Phase 92 chat guidance, and Phase 99 prototype review retain their recorded states. Phase 94 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 94 implemented and local verification delivered before Phase 93 final acceptance under ADR 0094 (Structured organizer tools and multi-action creation). Phase 94 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, Phase 91 grounding/retrieval evaluation, Phase 92 chat guidance, Phase 93 reviewed creation, and Phase 99 prototype review retain their recorded states. Phase 95 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -548,7 +548,9 @@
     },
     {
       "id": "94",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-94.md",
+      "reason": "Structured organizer tools and multi-action creation verified: 9-operation tool catalog implemented (routines, calendar events, folders, notes, custom sections, expenses, tasks, journals); multi-action ordered proposals supported with planId, stepIndex, and dependsOn under migration 00079; dynamic cross-step reference resolution ($ref:0) verified; safe partial failure with AI_PREREQUISITE_FAILED skipping and crash-safe idempotent retry verified; ambiguity detection implemented for routines, events, and expenses; custom section approved block types (existing_record_view, field_collection) enforced with script/SQL rejection; currency validation and exact decimal minor unit conversion verified; vault scope strictly forbidden (403 AI_VAULT_FORBIDDEN); interactive multi-action review cards and batch confirmation delivered in AssistantPanel.tsx and AssistantSheet.tsx; 12 integration tests in phase94-structured-organizer-tools.test.ts and 99 domain tests pass; production AI fails closed pending explicit owner approval of synthetic test package (DEF-V2-008 retained). See docs/phase-reports/phase-94.md."
     },
     {
       "id": "95",

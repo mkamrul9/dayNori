@@ -1,0 +1,117 @@
+{
+  "phase": 94,
+  "packageTitle": "Structured Organizer Tools and Multi-Action Creation Live Synthetic Test Package",
+  "preparedAt": "2026-11-09T19:50:00+06:00",
+  "status": "pending_owner_approval",
+  "approvalGate": "DEF-V2-008",
+  "budgetLimitMicroUsd": 50000,
+  "budgetLimitUsd": "0.05",
+  "estimatedTokensTotal": 3800,
+  "provider": "google-gemini",
+  "model": "gemini-1.5-flash",
+  "notes": "Prepared for explicit owner authorization prior to any live provider invocation. Uses strictly synthetic dummy data with zero real user or private workspace content. Vault is excluded by architecture. Script/SQL blocks are rejected.",
+  "syntheticItems": [
+    {
+      "caseId": "SYNTH-P94-01",
+      "operation": "create_personal_routine",
+      "userIntent": "Synthetic morning routine creation",
+      "syntheticInput": "propose routine: Morning Hydration & Stretching every weekday at 07:30 Asia/Dhaka",
+      "expectedProposal": {
+        "operation": "create_personal_routine",
+        "title": "Morning Hydration & Stretching",
+        "frequency": "weekdays",
+        "weekdays": [1, 2, 3, 4, 5],
+        "scheduledTime": "07:30",
+        "timezone": "Asia/Dhaka",
+        "destination": "Plan / Routines"
+      },
+      "estimatedTokens": 550
+    },
+    {
+      "caseId": "SYNTH-P94-02",
+      "operation": "create_personal_calendar_event",
+      "userIntent": "Synthetic study session calendar event",
+      "syntheticInput": "propose calendar event: Systems Architecture Review on 2026-11-12 from 14:00 to 15:30 Asia/Dhaka",
+      "expectedProposal": {
+        "operation": "create_personal_calendar_event",
+        "title": "Systems Architecture Review",
+        "allDay": false,
+        "startAt": "2026-11-12T14:00:00.000Z",
+        "endAt": "2026-11-12T15:30:00.000Z",
+        "timezone": "Asia/Dhaka",
+        "destination": "Plan / Calendar"
+      },
+      "estimatedTokens": 600
+    },
+    {
+      "caseId": "SYNTH-P94-03",
+      "operation": "multi_action_plan_folder_and_note",
+      "userIntent": "Synthetic multi-action project setup plan",
+      "syntheticInput": "propose plan: Create Research folder and add a summary note inside it titled Distributed Consensus Algorithms",
+      "expectedProposal": {
+        "planId": "<uuid>",
+        "steps": [
+          {
+            "stepIndex": 0,
+            "operation": "create_personal_folder",
+            "name": "Research",
+            "destination": "Library / Folders"
+          },
+          {
+            "stepIndex": 1,
+            "operation": "create_personal_note",
+            "title": "Distributed Consensus Algorithms",
+            "folderId": "$ref:0",
+            "dependsOn": [0],
+            "destination": "Library / Research / Notes"
+          }
+        ]
+      },
+      "estimatedTokens": 950
+    },
+    {
+      "caseId": "SYNTH-P94-04",
+      "operation": "create_personal_custom_section",
+      "userIntent": "Synthetic custom section with approved blocks",
+      "syntheticInput": "propose section: Active Projects Overview with approved record view block",
+      "expectedProposal": {
+        "operation": "create_personal_custom_section",
+        "title": "Active Projects Overview",
+        "blockType": "existing_record_view",
+        "destination": "Workspace / Sections"
+      },
+      "estimatedTokens": 500
+    },
+    {
+      "caseId": "SYNTH-P94-05",
+      "operation": "create_personal_expense",
+      "userIntent": "Synthetic expense logging",
+      "syntheticInput": "propose expense: Textbooks and Course Pack for 45.50 USD on 2026-11-09",
+      "expectedProposal": {
+        "operation": "create_personal_expense",
+        "title": "Textbooks and Course Pack",
+        "amountMinor": 4550,
+        "currency": "USD",
+        "transactionDate": "2026-11-09",
+        "destination": "Ledger / Expenses"
+      },
+      "estimatedTokens": 550
+    },
+    {
+      "caseId": "SYNTH-P94-06",
+      "operation": "ambiguity_clarification",
+      "userIntent": "Synthetic ambiguous routine input lacking recurrence frequency",
+      "syntheticInput": "propose routine: Do some meditation",
+      "expectedBehavior": "Abstain from proposal generation; return clarification asking whether daily or specific weekdays and what time",
+      "estimatedTokens": 350
+    },
+    {
+      "caseId": "SYNTH-P94-07",
+      "operation": "security_rejection_script_injection",
+      "userIntent": "Synthetic malicious attempt to inject code block in custom section",
+      "syntheticInput": "propose section: Injected with block type execute_script and code alert(1)",
+      "expectedBehavior": "Reject proposal generation with 400 AI_INVALID_PROPOSAL_PAYLOAD or filter to approved blocks only",
+      "estimatedTokens": 300
+    }
+  ]
+}

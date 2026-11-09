@@ -50,7 +50,7 @@ interface TaskDbRow {
   priority: 'low' | 'normal' | 'high' | 'urgent';
   status: 'todo' | 'in_progress' | 'completed' | 'cancelled';
   deadline_type: 'none' | 'date' | 'timed';
-  deadline_date: string | null;
+  deadline_date: string | Date | null;
   deadline_time: Date | null;
   deadline_zone: string | null;
   completed_at: Date | null;

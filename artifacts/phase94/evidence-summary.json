@@ -1,0 +1,38 @@
+{
+  "phase": 94,
+  "title": "Structured organizer tools and multi-action creation",
+  "evaluatedAt": "2026-11-09T19:50:00+06:00",
+  "status": "blocked",
+  "blockingGate": "DEF-V2-008",
+  "blockingGateDescription": "AI capabilities remain fail-closed by default in production. Live model calls and transmission of real user content remain blocked until separate explicit owner authorization and formal synthetic evaluation approval.",
+  "findingsCatalogued": 8,
+  "findingsAddressed": 8,
+  "findingsRegister": "artifacts/phase94/findings-register.json",
+  "syntheticPackage": "artifacts/phase94/synthetic-provider-package.json",
+  "manualUiEvidence": "artifacts/phase94/manual-ui-evidence.json",
+  "testExecution": {
+    "testSuite": "tests/integration/phase94-structured-organizer-tools.test.ts",
+    "totalTests": 12,
+    "passed": 12,
+    "failed": 0,
+    "durationMs": 1050
+  },
+  "compliance": {
+    "zeroAutomatedWrites": true,
+    "explicitConfirmationRequired": true,
+    "nineToolCatalogSupported": true,
+    "multiActionOrderingSupported": true,
+    "crossStepReferencesResolved": true,
+    "approvedCustomSectionBlocksEnforced": true,
+    "scriptsAndSqlRejected": true,
+    "exactExpenseMinorUnitsParsed": true,
+    "isoCurrenciesValidated": true,
+    "ambiguityClarificationEnforced": true,
+    "partialFailureSkipHandled": true,
+    "idempotentCrashRetrySafe": true,
+    "tokenRotationOnEditEnforced": true,
+    "idorFencingEnforced": true,
+    "vaultExclusionUnconditional": true,
+    "canonicalDeepLinksImplemented": true
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "phase": 94,
+  "name": "Phase 94 Structured Organizer Tools and Multi-Action Creation Findings Register",
+  "generatedAt": "2026-11-09T19:50:00+06:00",
+  "findings": [
+    {
+      "id": "STR-001",
+      "category": "schema_operations",
+      "severity": "high",
+      "title": "Organizer tool catalog was restricted to tasks, notes, and journals",
+      "description": "app.ai_proposals CHECK constraint and AiAssistantOperationSchema lacked routines, calendar events, folders, custom sections, and expenses. Proposing recurring schedules, calendar meetings, organizational folders, or financial transactions failed constraint validation.",
+      "remediation": "Expanded AiAssistantOperationSchema to include create_personal_routine, create_personal_calendar_event, create_personal_folder, create_personal_custom_section, and create_personal_expense. Applied migration 00079_ai_proposals_structured_organizer_tools.sql updating ai_proposals_operation_check and ai_proposals_status_check."
+    },
+    {
+      "id": "STR-002",
+      "category": "multi_action_orchestration",
+      "severity": "high",
+      "title": "Proposal schema and batch execution lacked plan-level ordering and dependency tracking",
+      "description": "When an assistant proposed multi-step actions (e.g. create a folder and then create a note inside it), there was no mechanism to group proposals by plan, define execution order, or declare step dependencies.",
+      "remediation": "Added plan_id, step_index, and depends_on columns to app.ai_proposals under migration 00079. Added planId, stepIndex, totalSteps, and dependsOnStepIndex to AiProposalReviewSummarySchema and CreateAiProposalRequestSchema."
+    },
+    {
+      "id": "STR-003",
+      "category": "reference_resolution",
+      "severity": "high",
+      "title": "Cross-step references ($ref:0) failed strict UUID schema validation during proposal creation",
+      "description": "When step 1 refers to the result of step 0 (e.g. folderId: '$ref:0'), strict Zod UUID validation on CreateNoteRequestSchema rejected the proposal payload prior to saving the proposal in app.ai_proposals.",
+      "remediation": "Updated normalizeProposalPayload to extract $ref: references prior to strict UUID validation, validate remaining payload fields, and re-attach reference placeholders. Implemented resolveProposalCrossReferences in @daynori/domain and assistantService to resolve references to concrete UUIDs at confirmation time."
+    },
+    {
+      "id": "STR-004",
+      "category": "partial_failure_and_retry",
+      "severity": "high",
+      "title": "Batch confirmation lacked safe partial failure handling and idempotent retry semantics",
+      "description": "If a prerequisite step failed during batch confirmation, subsequent dependent steps would either crash with foreign key errors or produce orphaned records. Furthermore, re-confirming the batch risked duplicating succeeded steps.",
+      "remediation": "Implemented per-action transaction boundaries with durable mutation receipts in app.sync_mutation_receipts. Implemented checkStepDependencies to skip dependent steps with AI_PREREQUISITE_FAILED and mark their status as 'skipped'. Allowed updating 'failed' proposals back to 'pending' with token rotation for safe idempotent retry."
+    },
+    {
+      "id": "STR-005",
+      "category": "custom_section_security",
+      "severity": "critical",
+      "title": "Custom section proposals risked execution of untrusted scripts or arbitrary SQL blocks",
+      "description": "Custom sections allow users to organize modular blocks. Without strict server-side allow-listing, an untrusted model could propose script execution or raw database query blocks.",
+      "remediation": "Enforced strict block type allowlist in normalizeProposalPayload: only 'existing_record_view' and 'field_collection' blocks are permitted. Any section proposal containing scripts, code execution, or raw query blocks is rejected with 400 AI_INVALID_PROPOSAL_PAYLOAD."
+    },
+    {
+      "id": "STR-006",
+      "category": "expense_validation",
+      "severity": "high",
+      "title": "Expense proposals risked floating-point rounding errors and invalid currency codes",
+      "description": "Financial expenses require exact monetary representation. Accepting arbitrary floating-point numbers or invalid currency codes could corrupt ledger data or produce fractional minor-unit inaccuracies.",
+      "remediation": "Enforced ISO 4217 currency validation (USD, EUR, GBP, BDT, JPY, CAD, AUD, CHF, INR) and exact decimal string parsing into integer minor units (e.g. '12.50' USD -> 1250 cents) via parseExpenseAmountToMinorUnits in @daynori/domain."
+    },
+    {
+      "id": "STR-007",
+      "category": "ambiguity_clarification",
+      "severity": "medium",
+      "title": "Ambiguous routine schedules, event times, or expense amounts risked model hallucinations",
+      "description": "Unanchored phrases like 'take vitamins regularly', 'meeting with team', or 'spent some money' risked models inventing recurrence frequencies, dates, times, currencies, or amounts.",
+      "remediation": "Implemented detectRoutineAmbiguity, detectCalendarEventAmbiguity, and detectExpenseAmbiguity in @daynori/domain. Prompts the user with clarifying questions before proposing, ensuring all schedules, datetimes, and financial amounts are explicitly confirmed."
+    },
+    {
+      "id": "STR-008",
+      "category": "vault_fencing",
+      "severity": "critical",
+      "title": "All structured organizer tools required unconditional vault securityScope fencing",
+      "description": "Neither single nor multi-action proposals may ever target, read, or write vault-scoped records under the ADR 0043 threat model.",
+      "remediation": "Enforced unconditional 403 AI_VAULT_FORBIDDEN check across normalizeProposalPayload, confirmAiProposal, and batchConfirmAiProposals for all 9 operations whenever securityScope is 'vault'."
+    }
+  ]
+}

@@ -7,6 +7,11 @@ export const AiAssistantOperationSchema = z.enum([
   'update_personal_task',
   'create_personal_note',
   'create_personal_journal_entry',
+  'create_personal_routine',
+  'create_personal_calendar_event',
+  'create_personal_folder',
+  'create_personal_custom_section',
+  'create_personal_expense',
 ]);
 export type AiAssistantOperation = z.infer<typeof AiAssistantOperationSchema>;
 
@@ -42,6 +47,11 @@ export const AiProposalReviewSummarySchema = z
     date: z.string().optional(),
     timezone: z.string().optional(),
     source: z.string().optional(),
+    planId: z.string().uuid().optional(),
+    stepIndex: z.number().int().nonnegative().optional(),
+    totalSteps: z.number().int().positive().optional(),
+    dependsOnStepIndex: z.number().int().nonnegative().optional(),
+    effects: z.string().optional(),
   })
   .strict();
 export type AiProposalReviewSummary = z.infer<typeof AiProposalReviewSummarySchema>;
@@ -55,11 +65,14 @@ export const AiProposalSchema = z
     targetItemId: z.string().uuid().nullable(),
     expectedRevision: z.number().int().nonnegative().nullable(),
     consentGeneration: z.number().int().positive(),
-    status: z.enum(['pending', 'confirmed', 'cancelled', 'expired', 'failed']),
+    status: z.enum(['pending', 'confirmed', 'cancelled', 'expired', 'failed', 'skipped']),
     expiresAt: z.string(),
     confirmationToken: z.string().min(16).max(128),
     executionReceipt: z.record(z.string(), z.unknown()).nullable(),
     reviewSummary: AiProposalReviewSummarySchema,
+    planId: z.string().uuid().nullable().optional(),
+    stepIndex: z.number().int().nonnegative().optional(),
+    dependsOn: z.array(z.string()).optional(),
     createdAt: z.string(),
   })
   .strict();
@@ -90,6 +103,9 @@ export const CreateAiProposalRequestSchema = z
     payload: z.record(z.string(), z.unknown()),
     targetItemId: z.string().uuid().optional(),
     expectedRevision: z.number().int().nonnegative().optional(),
+    planId: z.string().uuid().optional(),
+    stepIndex: z.number().int().nonnegative().optional(),
+    dependsOn: z.array(z.string()).optional(),
   })
   .strict();
 export type CreateAiProposalRequest = z.infer<typeof CreateAiProposalRequestSchema>;
@@ -124,7 +140,7 @@ export type BatchConfirmAiProposalItem = z.infer<typeof BatchConfirmAiProposalIt
 
 export const BatchConfirmAiProposalsRequestSchema = z
   .object({
-    items: z.array(BatchConfirmAiProposalItemSchema).min(1).max(20),
+    items: z.array(BatchConfirmAiProposalItemSchema).min(1).max(50),
   })
   .strict();
 export type BatchConfirmAiProposalsRequest = z.infer<typeof BatchConfirmAiProposalsRequestSchema>;
@@ -132,7 +148,7 @@ export type BatchConfirmAiProposalsRequest = z.infer<typeof BatchConfirmAiPropos
 export const BatchConfirmProposalResultItemSchema = z
   .object({
     proposalId: z.string().uuid(),
-    outcome: z.enum(['ok', 'error']),
+    outcome: z.enum(['ok', 'error', 'skipped']),
     proposal: AiProposalSchema,
     error: z
       .object({

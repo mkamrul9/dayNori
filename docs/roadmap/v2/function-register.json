@@ -6153,12 +6153,12 @@
       "observedResult": "pass",
       "evidenceMeta": {
         "date": "2026-11-09",
-        "revision": "680e628924745569e172396bec655de40c28fcaa",
+        "revision": "5699ec9b0593d99e005a2a4fccfe5be3904cc972",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
       },
-      "repairPhase": "93",
+      "repairPhase": "94",
       "helpArticle": {
         "status": "planned",
         "ref": "help/assistant"
@@ -6177,12 +6177,16 @@
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
         "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
-        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
+        "tests/integration/phase93-reviewed-organizer-creation.test.ts",
+        "tests/integration/phase94-structured-organizer-tools.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
         "artifacts/phase91/evidence-summary.json",
-        "artifacts/phase92/evidence-summary.json"
+        "artifacts/phase92/evidence-summary.json",
+        "artifacts/phase93/evidence-summary.json",
+        "artifacts/phase94/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -7138,6 +7142,13 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase94/evidence-summary.json",
+        "artifacts/phase94/findings-register.json",
+        "artifacts/phase94/synthetic-provider-package.json",
+        "artifacts/phase94/manual-ui-evidence.json",
+        "docs/engineering/structured-organizer-tools-guide.md",
+        "docs/decisions/0094-structured-organizer-tools-and-multi-action-creation.md",
+        "docs/phase-reports/phase-94.md",
         "artifacts/phase93/evidence-summary.json",
         "artifacts/phase93/findings-register.json",
         "artifacts/phase93/synthetic-provider-package.json",

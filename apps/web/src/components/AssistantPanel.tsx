@@ -66,11 +66,13 @@ export function AssistantPanel({
     Array<{ id: string; question: string; answer: string; abstained: boolean; createdAt: string }>
   >([]);
 
-  const [proposal, setProposal] = useState<AiProposal | null>(null);
-  const [isEditingProposal, setIsEditingProposal] = useState(false);
+  const [proposals, setProposals] = useState<AiProposal[]>([]);
+  const [editingProposalId, setEditingProposalId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editDate, setEditDate] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editCurrency, setEditCurrency] = useState('USD');
   const [proposalBusy, setProposalBusy] = useState(false);
 
   const askAbortRef = useRef<AbortController | null>(null);
@@ -310,94 +312,245 @@ export function AssistantPanel({
     }
   }, [client, personalWorkspaceId]);
 
-  const startEditProposal = useCallback(() => {
-    if (!proposal) return;
-    const p = proposal.payload as Record<string, unknown>;
-    setEditTitle(String(p['title'] ?? ''));
-    setEditContent(String(p['plainText'] ?? p['details'] ?? ''));
-    setEditDate(String(p['entryDate'] ?? p['dueDate'] ?? ''));
-    setIsEditingProposal(true);
-  }, [proposal]);
+  const startEditProposal = useCallback((p: AiProposal) => {
+    const payload = p.payload as Record<string, unknown>;
+    setEditTitle(String(payload['title'] ?? payload['name'] ?? ''));
+    setEditContent(String(payload['plainText'] ?? payload['details'] ?? ''));
+    setEditDate(String(payload['entryDate'] ?? payload['dueDate'] ?? payload['startDate'] ?? payload['transactionDate'] ?? ''));
+    setEditAmount(String(payload['amount'] ?? ''));
+    setEditCurrency(String(payload['currency'] ?? 'USD'));
+    setEditingProposalId(p.id);
+  }, []);
 
   const saveEditedProposal = useCallback(async () => {
-    if (!proposal || !personalWorkspaceId) return;
+    const target = proposals.find((p) => p.id === editingProposalId);
+    if (!target || !personalWorkspaceId) return;
     setProposalBusy(true);
     try {
-      const p = proposal.payload as Record<string, unknown>;
-      const updatedPayload: Record<string, unknown> = {
-        ...p,
-        title: editTitle.trim(),
-      };
-      if (proposal.operation === 'create_personal_journal_entry') {
+      const p = target.payload as Record<string, unknown>;
+      const updatedPayload: Record<string, unknown> = { ...p };
+      if (editTitle) {
+        if (target.operation === 'create_personal_folder' || target.operation === 'create_personal_custom_section') {
+          updatedPayload['name'] = editTitle.trim();
+        } else {
+          updatedPayload['title'] = editTitle.trim();
+        }
+      }
+      if (target.operation === 'create_personal_journal_entry') {
         if (editDate) updatedPayload['entryDate'] = editDate.trim();
         updatedPayload['plainText'] = editContent;
-      } else if (proposal.operation === 'create_personal_note') {
+      } else if (target.operation === 'create_personal_note') {
         updatedPayload['plainText'] = editContent;
-      } else if (proposal.operation === 'create_personal_task' || proposal.operation === 'update_personal_task') {
+      } else if (target.operation === 'create_personal_task' || target.operation === 'update_personal_task') {
         if (editDate) updatedPayload['dueDate'] = editDate.trim();
         updatedPayload['details'] = editContent;
+      } else if (target.operation === 'create_personal_calendar_event') {
+        if (editDate) {
+          updatedPayload['startDate'] = editDate.trim();
+          updatedPayload['endDate'] = editDate.trim();
+        }
+        if (editContent) updatedPayload['details'] = editContent;
+      } else if (target.operation === 'create_personal_expense') {
+        if (editAmount) updatedPayload['amount'] = editAmount.trim();
+        if (editCurrency) updatedPayload['currency'] = editCurrency.trim().toUpperCase();
+        if (editDate) updatedPayload['transactionDate'] = editDate.trim();
       }
 
-      const res = await client.updateAiProposal(proposal.id, { payload: updatedPayload });
-      setProposal(res.data);
-      setIsEditingProposal(false);
+      const res = await client.updateAiProposal(target.id, { payload: updatedPayload });
+      setProposals((prev) => prev.map((item) => (item.id === target.id ? res.data : item)));
+      setEditingProposalId(null);
       setFeedback({ severity: 'success', message: 'Proposal updated. Review and confirm to execute.' });
     } catch (err) {
       setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Failed to update proposal' });
     } finally {
       setProposalBusy(false);
     }
-  }, [proposal, personalWorkspaceId, editTitle, editContent, editDate, client]);
+  }, [proposals, editingProposalId, personalWorkspaceId, editTitle, editContent, editDate, editAmount, editCurrency, client]);
 
-  const confirmProposal = useCallback(async () => {
-    if (!proposal || !personalWorkspaceId) return;
+  const confirmProposal = useCallback(
+    async (proposalId: string) => {
+      const target = proposals.find((p) => p.id === proposalId);
+      if (!target || !personalWorkspaceId) return;
+      setProposalBusy(true);
+      try {
+        const res = await client.confirmAiProposal(target.id, { confirmationToken: target.confirmationToken });
+        setProposals((prev) => prev.map((item) => (item.id === target.id ? res.data : item)));
+        setFeedback({ severity: 'success', message: 'Action confirmed and saved! Cloud mutation receipt created.' });
+      } catch (err) {
+        setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Confirmation failed' });
+      } finally {
+        setProposalBusy(false);
+      }
+    },
+    [proposals, personalWorkspaceId, client]
+  );
+
+  const batchConfirmPlan = useCallback(async () => {
+    const pending = proposals.filter((p) => p.status === 'pending');
+    if (pending.length === 0 || !personalWorkspaceId) return;
     setProposalBusy(true);
     try {
-      const res = await client.confirmAiProposal(proposal.id, { confirmationToken: proposal.confirmationToken });
-      setProposal(res.data);
-      setFeedback({ severity: 'success', message: 'Action confirmed and saved! Cloud mutation receipt created.' });
+      const res = await client.batchConfirmAiProposals({
+        items: pending.map((p) => ({ proposalId: p.id, confirmationToken: p.confirmationToken })),
+      });
+      setProposals((prev) =>
+        prev.map((item) => {
+          const match = res.data.results.find((r) => r.proposalId === item.id);
+          return match ? match.proposal : item;
+        })
+      );
+      const hasErrors = res.data.results.some((r) => r.outcome !== 'ok');
+      setFeedback({
+        severity: hasErrors ? 'warning' : 'success',
+        message: hasErrors
+          ? 'Batch confirmation finished with partial outcomes. Review step results below.'
+          : 'All reviewed actions confirmed and executed successfully!',
+      });
     } catch (err) {
-      setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Confirmation failed' });
+      setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Batch confirmation failed' });
     } finally {
       setProposalBusy(false);
     }
-  }, [proposal, personalWorkspaceId, client]);
+  }, [proposals, personalWorkspaceId, client]);
 
-  const cancelProposal = useCallback(async () => {
-    if (!proposal || !personalWorkspaceId) return;
-    setProposalBusy(true);
-    try {
-      const res = await client.cancelAiProposal(proposal.id);
-      setProposal(res.data);
-      setIsEditingProposal(false);
-      setFeedback({ severity: 'info', message: 'Proposal cancelled. No items were created or modified.' });
-    } catch (err) {
-      setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Failed to cancel proposal' });
-    } finally {
-      setProposalBusy(false);
-    }
-  }, [proposal, personalWorkspaceId, client]);
+  const cancelProposal = useCallback(
+    async (proposalId: string) => {
+      const target = proposals.find((p) => p.id === proposalId);
+      if (!target || !personalWorkspaceId) return;
+      setProposalBusy(true);
+      try {
+        const res = await client.cancelAiProposal(target.id);
+        setProposals((prev) => prev.map((item) => (item.id === target.id ? res.data : item)));
+        if (editingProposalId === target.id) setEditingProposalId(null);
+        setFeedback({ severity: 'info', message: 'Proposal cancelled. No items were created or modified.' });
+      } catch (err) {
+        setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Failed to cancel proposal' });
+      } finally {
+        setProposalBusy(false);
+      }
+    },
+    [proposals, editingProposalId, personalWorkspaceId, client]
+  );
 
-  const openCreatedItem = useCallback(() => {
-    if (!proposal || !proposal.executionReceipt) return;
-    const r = proposal.executionReceipt as Record<string, unknown>;
-    const deepLink =
-      typeof r['deepLink'] === 'string'
-        ? r['deepLink']
-        : getOrganizerDeepLink(String(r['kind'] ?? 'note'), String(r['id']));
-    router.push(deepLink);
-  }, [proposal, router]);
+  const openCreatedItem = useCallback(
+    (target: AiProposal) => {
+      if (!target.executionReceipt) return;
+      const r = target.executionReceipt as Record<string, unknown>;
+      const deepLink =
+        typeof r['deepLink'] === 'string'
+          ? r['deepLink']
+          : getOrganizerDeepLink(String(r['kind'] ?? 'note'), String(r['id']));
+      router.push(deepLink);
+    },
+    [router]
+  );
 
   const createProposalQuick = useCallback(
-    async (op: 'note' | 'task' | 'journal') => {
+    async (op: 'note' | 'task' | 'journal' | 'routine' | 'event' | 'folder' | 'section' | 'expense' | 'plan') => {
       if (!personalWorkspaceId) return;
       setProposalBusy(true);
       setFeedback(null);
       try {
         const today = new Date().toISOString().slice(0, 10);
-        let res;
-        if (op === 'task') {
-          res = await client.createAiProposal({
+        if (op === 'plan') {
+          const planId = crypto.randomUUID();
+          const p1 = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_folder',
+            payload: { name: question.trim() || 'New Project' },
+            planId,
+            stepIndex: 0,
+            dependsOn: [],
+          });
+          const p2 = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_note',
+            payload: {
+              title: `${question.trim() || 'Project'} Overview`,
+              plainText: 'Overview document inside project folder',
+              folderId: '$ref:0',
+            },
+            planId,
+            stepIndex: 1,
+            dependsOn: ['0'],
+          });
+          setProposals([p1.data, p2.data]);
+          setFeedback({
+            severity: 'info',
+            message: 'Review multi-action plan below. Actions will be executed in order.',
+          });
+        } else if (op === 'routine') {
+          const res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_routine',
+            payload: {
+              title: question.trim() || 'Daily routine',
+              frequency: 'daily',
+              timezone: 'UTC',
+            },
+          });
+          setProposals([res.data]);
+        } else if (op === 'event') {
+          const res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_calendar_event',
+            payload: {
+              title: question.trim() || 'Scheduled event',
+              allDay: true,
+              startDate: today,
+              endDate: today,
+              timezone: 'UTC',
+            },
+          });
+          setProposals([res.data]);
+        } else if (op === 'folder') {
+          const res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_folder',
+            payload: {
+              name: question.trim() || 'New Folder',
+            },
+          });
+          setProposals([res.data]);
+        } else if (op === 'section') {
+          const res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_custom_section',
+            payload: {
+              name: question.trim() || 'Custom Dashboard',
+              initialSchema: {
+                version: 1,
+                blocks: [
+                  {
+                    id: 'block-view-1',
+                    type: 'existing_record_view',
+                    title: 'Tasks',
+                    targetKind: 'tasks',
+                    filter: {},
+                    displayMode: 'list',
+                    limit: 20,
+                    sortBy: 'updated_at',
+                    sortDirection: 'desc',
+                  },
+                ],
+              },
+            },
+          });
+          setProposals([res.data]);
+        } else if (op === 'expense') {
+          const res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_expense',
+            payload: {
+              amount: '25.00',
+              currency: 'USD',
+              transactionDate: today,
+              kind: 'expense',
+            },
+          });
+          setProposals([res.data]);
+        } else if (op === 'task') {
+          const res = await client.createAiProposal({
             workspaceId: personalWorkspaceId,
             operation: 'create_personal_task',
             payload: {
@@ -407,8 +560,9 @@ export function AssistantPanel({
               status: 'todo',
             },
           });
+          setProposals([res.data]);
         } else if (op === 'note') {
-          res = await client.createAiProposal({
+          const res = await client.createAiProposal({
             workspaceId: personalWorkspaceId,
             operation: 'create_personal_note',
             payload: {
@@ -416,8 +570,9 @@ export function AssistantPanel({
               plainText: 'Draft note created from reviewed assistant proposal',
             },
           });
-        } else {
-          res = await client.createAiProposal({
+          setProposals([res.data]);
+        } else if (op === 'journal') {
+          const res = await client.createAiProposal({
             workspaceId: personalWorkspaceId,
             operation: 'create_personal_journal_entry',
             payload: {
@@ -429,13 +584,9 @@ export function AssistantPanel({
               timezone: 'UTC',
             },
           });
+          setProposals([res.data]);
         }
-        setProposal(res.data);
-        setIsEditingProposal(false);
-        setFeedback({
-          severity: 'info',
-          message: 'Review proposal below. No data is saved until you confirm.',
-        });
+        setEditingProposalId(null);
       } catch (err) {
         setFeedback({
           severity: 'danger',
@@ -737,6 +888,103 @@ export function AssistantPanel({
         </button>
         <button
           type="button"
+          onClick={() => void createProposalQuick('routine')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Routine
+        </button>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('event')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Event
+        </button>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('folder')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Folder
+        </button>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('section')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Section
+        </button>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('expense')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Expense
+        </button>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('plan')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          + Multi-Plan
+        </button>
+        <button
+          type="button"
           onClick={() => void createProposalQuick('journal')}
           disabled={proposalBusy || !personalWorkspaceId}
           style={{
@@ -753,254 +1001,337 @@ export function AssistantPanel({
         </button>
       </div>
 
-      {/* Proposal Review Card (Phase 93 Reviewed note, task, and journal creation) */}
-      {proposal ? (
+      {/* Proposal Review Cards / Multi-Action Review (Phase 94) */}
+      {proposals.length > 0 ? (
         <div
-          data-tour="assistant-proposal-review"
+          data-tour={proposals.length > 1 ? 'assistant-multi-action-review' : 'assistant-proposal-review'}
           data-testid="assistant-proposal-card"
           style={{
             marginTop: `${spacing.sm}px`,
             marginBottom: `${spacing.sm}px`,
-            padding: `${spacing.sm}px`,
-            backgroundColor: palette.surface,
-            border: `1px solid ${
-              proposal.status === 'confirmed'
-                ? '#2e7d32'
-                : proposal.status === 'cancelled'
-                ? '#d32f2f'
-                : palette.border.subtle
-            }`,
-            borderRadius: `${radii.sm}px`,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: `${spacing.sm}px`,
           }}
           aria-live="polite"
         >
-          {/* Header & Status Badge */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: `${spacing.xs}px`,
-            }}
-          >
-            <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: palette.text.primary }}>
-              {proposal.reviewSummary.headline}
-            </h4>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                padding: '2px 6px',
-                borderRadius: '4px',
-                backgroundColor:
-                  proposal.status === 'confirmed'
-                    ? '#e8f5e9'
-                    : proposal.status === 'cancelled'
-                    ? '#ffebee'
-                    : '#fff8e1',
-                color:
-                  proposal.status === 'confirmed'
-                    ? '#2e7d32'
-                    : proposal.status === 'cancelled'
-                    ? '#c62828'
-                    : '#f57f17',
-              }}
-            >
-              {proposal.status === 'confirmed'
-                ? 'Saved (Cloud Persisted)'
-                : proposal.status === 'cancelled'
-                ? 'Cancelled'
-                : 'Local Draft (Unsaved)'}
-            </span>
-          </div>
-
-          {/* Target Metadata & Destination */}
-          <div style={{ fontSize: '12px', color: palette.text.secondary, marginBottom: `${spacing.xs}px` }}>
-            {proposal.reviewSummary.destination ? (
-              <span>Destination: <strong>{proposal.reviewSummary.destination}</strong> </span>
-            ) : null}
-            {proposal.reviewSummary.date ? (
-              <span>• Date: <strong>{proposal.reviewSummary.date}</strong> </span>
-            ) : null}
-            {proposal.reviewSummary.timezone ? (
-              <span>({proposal.reviewSummary.timezone}) </span>
-            ) : null}
-          </div>
-
-          {/* Form Content / Edit Mode */}
-          {isEditingProposal && proposal.status === 'pending' ? (
-            <div style={{ marginTop: `${spacing.xs}px`, marginBottom: `${spacing.xs}px` }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
-                Title
-              </label>
-              <input
-                type="text"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
+          {proposals.map((item) => {
+            const isEditing = editingProposalId === item.id;
+            return (
+              <div
+                key={item.id}
                 style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '4px 8px',
-                  marginBottom: '6px',
+                  padding: `${spacing.sm}px`,
+                  backgroundColor: palette.surface,
+                  border: `1px solid ${
+                    item.status === 'confirmed'
+                      ? '#2e7d32'
+                      : item.status === 'cancelled' || item.status === 'failed'
+                      ? '#d32f2f'
+                      : item.status === 'skipped'
+                      ? '#ed6c02'
+                      : palette.border.subtle
+                  }`,
                   borderRadius: `${radii.sm}px`,
-                  border: `1px solid ${palette.border.subtle}`,
-                  fontSize: '12px',
-                  backgroundColor: palette.surfaceRaised,
-                  color: palette.text.primary,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                 }}
-              />
-
-              {(proposal.operation === 'create_personal_journal_entry' ||
-                proposal.operation === 'create_personal_task' ||
-                proposal.operation === 'update_personal_task') && (
-                <>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
-                    Date (YYYY-MM-DD)
-                  </label>
-                  <input
-                    type="text"
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    placeholder="YYYY-MM-DD"
+              >
+                {/* Header & Status Badge */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: `${spacing.xs}px`,
+                  }}
+                >
+                  <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: palette.text.primary }}>
+                    {item.planId ? `Step ${(item.stepIndex ?? 0) + 1} of ${item.reviewSummary.totalSteps ?? proposals.length}: ` : ''}
+                    {item.reviewSummary.headline}
+                  </h4>
+                  <span
                     style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      padding: '4px 8px',
-                      marginBottom: '6px',
-                      borderRadius: `${radii.sm}px`,
-                      border: `1px solid ${palette.border.subtle}`,
-                      fontSize: '12px',
-                      backgroundColor: palette.surfaceRaised,
-                      color: palette.text.primary,
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      backgroundColor:
+                        item.status === 'confirmed'
+                          ? '#e8f5e9'
+                          : item.status === 'cancelled' || item.status === 'failed'
+                          ? '#ffebee'
+                          : item.status === 'skipped'
+                          ? '#fff3e0'
+                          : '#fff8e1',
+                      color:
+                        item.status === 'confirmed'
+                          ? '#2e7d32'
+                          : item.status === 'cancelled' || item.status === 'failed'
+                          ? '#c62828'
+                          : item.status === 'skipped'
+                          ? '#e65100'
+                          : '#f57f17',
                     }}
-                  />
-                </>
-              )}
+                  >
+                    {item.status === 'confirmed'
+                      ? 'Saved (Cloud Persisted)'
+                      : item.status === 'cancelled'
+                      ? 'Cancelled'
+                      : item.status === 'failed'
+                      ? 'Failed'
+                      : item.status === 'skipped'
+                      ? 'Skipped (Prerequisite Incomplete)'
+                      : 'Local Draft (Unsaved)'}
+                  </span>
+                </div>
 
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
-                Content / Details
-              </label>
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={3}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '4px 8px',
-                  marginBottom: '6px',
-                  borderRadius: `${radii.sm}px`,
-                  border: `1px solid ${palette.border.subtle}`,
-                  fontSize: '12px',
-                  backgroundColor: palette.surfaceRaised,
-                  color: palette.text.primary,
-                  fontFamily: 'inherit',
-                  resize: 'vertical',
-                }}
-              />
+                {/* Target Metadata & Destination & Dependencies */}
+                <div style={{ fontSize: '12px', color: palette.text.secondary, marginBottom: `${spacing.xs}px` }}>
+                  {item.reviewSummary.destination ? (
+                    <span>Destination: <strong>{item.reviewSummary.destination}</strong> </span>
+                  ) : null}
+                  {item.reviewSummary.date ? (
+                    <span>• Date: <strong>{item.reviewSummary.date}</strong> </span>
+                  ) : null}
+                  {item.reviewSummary.timezone ? (
+                    <span>({item.reviewSummary.timezone}) </span>
+                  ) : null}
+                  {item.dependsOn && item.dependsOn.length > 0 ? (
+                    <span style={{ color: palette.action.primary, fontWeight: 500 }}>
+                      • Depends on: Step {item.dependsOn.join(', ')}{' '}
+                    </span>
+                  ) : null}
+                  {item.reviewSummary.effects ? (
+                    <span style={{ display: 'block', marginTop: '2px', fontStyle: 'italic' }}>
+                      Effects: {item.reviewSummary.effects}
+                    </span>
+                  ) : null}
+                </div>
 
-              <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
-                <Button
-                  variant="primary"
-                  size="compact"
-                  themeMode={themeMode}
-                  disabled={proposalBusy}
-                  onClick={() => void saveEditedProposal()}
-                >
-                  Save Changes
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  themeMode={themeMode}
-                  disabled={proposalBusy}
-                  onClick={() => setIsEditingProposal(false)}
-                >
-                  Cancel Edit
-                </Button>
+                {/* Edit Form or Summary Content */}
+                {isEditing && item.status === 'pending' ? (
+                  <div style={{ marginTop: `${spacing.xs}px`, marginBottom: `${spacing.xs}px` }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
+                      Title / Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '4px 8px',
+                        marginBottom: '6px',
+                        borderRadius: `${radii.sm}px`,
+                        border: `1px solid ${palette.border.subtle}`,
+                        fontSize: '12px',
+                        backgroundColor: palette.surfaceRaised,
+                        color: palette.text.primary,
+                      }}
+                    />
+                    {item.operation === 'create_personal_expense' ? (
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
+                            Amount
+                          </label>
+                          <input
+                            type="text"
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value)}
+                            style={{
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              padding: '4px 8px',
+                              borderRadius: `${radii.sm}px`,
+                              border: `1px solid ${palette.border.subtle}`,
+                              fontSize: '12px',
+                              backgroundColor: palette.surfaceRaised,
+                              color: palette.text.primary,
+                            }}
+                          />
+                        </div>
+                        <div style={{ width: '80px' }}>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
+                            Currency
+                          </label>
+                          <input
+                            type="text"
+                            value={editCurrency}
+                            onChange={(e) => setEditCurrency(e.target.value)}
+                            style={{
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              padding: '4px 8px',
+                              borderRadius: `${radii.sm}px`,
+                              border: `1px solid ${palette.border.subtle}`,
+                              fontSize: '12px',
+                              backgroundColor: palette.surfaceRaised,
+                              color: palette.text.primary,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {item.operation !== 'create_personal_folder' &&
+                    item.operation !== 'create_personal_custom_section' &&
+                    item.operation !== 'create_personal_expense' ? (
+                      <>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
+                          Content / Details
+                        </label>
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows={2}
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            padding: '4px 8px',
+                            marginBottom: '6px',
+                            borderRadius: `${radii.sm}px`,
+                            border: `1px solid ${palette.border.subtle}`,
+                            fontSize: '12px',
+                            backgroundColor: palette.surfaceRaised,
+                            color: palette.text.primary,
+                            fontFamily: 'inherit',
+                          }}
+                        />
+                      </>
+                    ) : null}
+
+                    <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                      <Button
+                        variant="primary"
+                        size="compact"
+                        themeMode={themeMode}
+                        disabled={proposalBusy}
+                        onClick={() => void saveEditedProposal()}
+                      >
+                        Save Changes
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="compact"
+                        themeMode={themeMode}
+                        disabled={proposalBusy}
+                        onClick={() => setEditingProposalId(null)}
+                      >
+                        Cancel Edit
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      padding: '6px 8px',
+                      backgroundColor: palette.surfaceRaised,
+                      borderRadius: `${radii.sm}px`,
+                      marginBottom: `${spacing.xs}px`,
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {item.reviewSummary.after}
+                  </div>
+                )}
+
+                {/* Per-Card Actions */}
+                {item.status === 'pending' && !isEditing ? (
+                  <div style={{ display: 'flex', gap: `${spacing.xs}px`, marginTop: `${spacing.xs}px` }}>
+                    <Button
+                      variant="primary"
+                      size="compact"
+                      themeMode={themeMode}
+                      data-tour="assistant-confirm-button"
+                      disabled={proposalBusy}
+                      onClick={() => void confirmProposal(item.id)}
+                    >
+                      {proposalBusy ? 'Confirming...' : 'Confirm Step'}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="compact"
+                      themeMode={themeMode}
+                      disabled={proposalBusy}
+                      onClick={() => startEditProposal(item)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="compact"
+                      themeMode={themeMode}
+                      disabled={proposalBusy}
+                      onClick={() => void cancelProposal(item.id)}
+                    >
+                      Cancel Step
+                    </Button>
+                  </div>
+                ) : null}
+
+                {/* Confirmed Receipt & Deep Link */}
+                {item.status === 'confirmed' && item.executionReceipt ? (
+                  <div style={{ marginTop: `${spacing.xs}px` }}>
+                    <div style={{ fontSize: '11px', color: palette.text.secondary, marginBottom: '6px' }}>
+                      Receipt: {String((item.executionReceipt as Record<string, unknown>)['operationId'] ?? item.id).slice(0, 8)}…
+                      • Rev: r{String((item.executionReceipt as Record<string, unknown>)['revision'] ?? 1)}
+                    </div>
+                    <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                      <Button
+                        variant="primary"
+                        size="compact"
+                        themeMode={themeMode}
+                        data-tour="assistant-open-item"
+                        onClick={() => openCreatedItem(item)}
+                      >
+                        Open Created Item
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="compact"
+                        themeMode={themeMode}
+                        onClick={() => setProposals((prev) => prev.filter((p) => p.id !== item.id))}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                fontSize: '12px',
-                padding: '6px 8px',
-                backgroundColor: palette.surfaceRaised,
-                borderRadius: `${radii.sm}px`,
-                marginBottom: `${spacing.xs}px`,
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {proposal.reviewSummary.after}
-            </div>
-          )}
+            );
+          })}
 
-          {/* Action Buttons & Receipts */}
-          {proposal.status === 'pending' && !isEditingProposal ? (
-            <div style={{ display: 'flex', gap: `${spacing.xs}px`, marginTop: `${spacing.xs}px` }}>
+          {/* Batch Confirm Button (for Multi-Action Plans with multiple pending proposals) */}
+          {proposals.filter((p) => p.status === 'pending').length > 1 ? (
+            <div style={{ marginTop: `${spacing.xs}px`, display: 'flex', gap: `${spacing.xs}px` }}>
               <Button
                 variant="primary"
                 size="compact"
                 themeMode={themeMode}
-                data-tour="assistant-confirm-button"
+                data-tour="assistant-batch-confirm"
                 disabled={proposalBusy}
-                onClick={() => void confirmProposal()}
+                onClick={() => void batchConfirmPlan()}
               >
-                {proposalBusy ? 'Confirming...' : 'Confirm & Save'}
+                {proposalBusy
+                  ? 'Confirming...'
+                  : `Confirm All Reviewed (${proposals.filter((p) => p.status === 'pending').length})`}
               </Button>
               <Button
                 variant="secondary"
                 size="compact"
                 themeMode={themeMode}
                 disabled={proposalBusy}
-                onClick={startEditProposal}
+                onClick={() => setProposals([])}
               >
-                Edit
+                Dismiss All
               </Button>
-              <Button
-                variant="secondary"
-                size="compact"
-                themeMode={themeMode}
-                disabled={proposalBusy}
-                onClick={() => void cancelProposal()}
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : null}
-
-          {/* Confirmed Receipt & Deep Link */}
-          {proposal.status === 'confirmed' && proposal.executionReceipt ? (
-            <div style={{ marginTop: `${spacing.xs}px` }}>
-              <div style={{ fontSize: '11px', color: palette.text.secondary, marginBottom: '6px' }}>
-                Receipt: {String((proposal.executionReceipt as Record<string, unknown>)['operationId'] ?? proposal.id).slice(0, 8)}…
-                • Rev: r{String((proposal.executionReceipt as Record<string, unknown>)['revision'] ?? 1)}
-              </div>
-              <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
-                <Button
-                  variant="primary"
-                  size="compact"
-                  themeMode={themeMode}
-                  data-tour="assistant-open-item"
-                  onClick={openCreatedItem}
-                >
-                  Open Created Item
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  themeMode={themeMode}
-                  onClick={() => setProposal(null)}
-                >
-                  Dismiss
-                </Button>
-              </div>
             </div>
           ) : null}
         </div>
       ) : null}
-
       {/* Streaming or Final Output */}
       {sanitizedDisplay ? (
         <div

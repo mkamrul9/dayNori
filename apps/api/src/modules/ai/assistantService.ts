@@ -11,7 +11,17 @@ import {
   UpdateTaskRequestSchema,
   CreateNoteRequestSchema,
   CreateJournalEntryRequestSchema,
+  CreateRoutineRequestSchema,
+  CreateCalendarEventRequestSchema,
+  CreateFolderRequestSchema,
+  CreateCustomSectionRequestSchema,
+  CreateExpenseBodySchema,
   type CreateJournalEntryRequest,
+  type CreateRoutineRequest,
+  type CreateCalendarEventRequest,
+  type CreateFolderRequest,
+  type CreateCustomSectionRequest,
+  type CreateExpenseBody,
   type AiAssistantOperation,
   type AiCitation,
   type AiProposal,
@@ -20,13 +30,26 @@ import {
 import {
   findHelpArticle,
   detectJournalDateAmbiguity,
+  detectRoutineAmbiguity,
+  detectCalendarEventAmbiguity,
+  detectExpenseAmbiguity,
   getOrganizerDeepLink,
   sanitizeOrganizerText,
+  resolveProposalCrossReferences,
+  checkStepDependencies,
+  getCurrencyInfo,
+  parseDecimalToMinorUnits,
+  isValidIanaTimezone,
 } from '@daynori/domain';
 import { withUserContext, withTenantContext } from '../../db/index.js';
 import { createTask, updateTask, getTask } from '../tasks/service.js';
 import { createNote, getNote } from '../notes/service.js';
 import { createJournalEntry } from '../journal/service.js';
+import { createRoutine } from '../routines/service.js';
+import { createCalendarEvent } from '../calendar/service.js';
+import { createFolder } from '../organization/service.js';
+import { createCustomSection } from '../custom-sections/service.js';
+import { createExpenseRecord } from '../expenses/service.js';
 import {
   getMutationReceipt,
   insertMutationReceipt,
@@ -58,6 +81,9 @@ type ProposalRow = {
   operation_id: string;
   request_hash: string;
   review_summary: Record<string, unknown> | null;
+  plan_id?: string | null;
+  step_index?: number;
+  depends_on?: unknown;
 };
 
 function hashRequest(parts: unknown): string {
@@ -80,6 +106,12 @@ function mapReviewSummary(raw: Record<string, unknown> | null | undefined): AiPr
       date: typeof raw['date'] === 'string' ? raw['date'] : undefined,
       timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : undefined,
       source: typeof raw['source'] === 'string' ? raw['source'] : undefined,
+      planId: typeof raw['planId'] === 'string' ? raw['planId'] : undefined,
+      stepIndex: typeof raw['stepIndex'] === 'number' ? raw['stepIndex'] : undefined,
+      totalSteps: typeof raw['totalSteps'] === 'number' ? raw['totalSteps'] : undefined,
+      dependsOnStepIndex:
+        typeof raw['dependsOnStepIndex'] === 'number' ? raw['dependsOnStepIndex'] : undefined,
+      effects: typeof raw['effects'] === 'string' ? raw['effects'] : undefined,
     };
   }
   return {
@@ -104,6 +136,9 @@ function mapProposal(row: ProposalRow): AiProposal {
     confirmationToken: row.confirmation_token,
     executionReceipt: row.execution_receipt,
     reviewSummary: mapReviewSummary(row.review_summary),
+    planId: row.plan_id ?? null,
+    stepIndex: row.step_index !== undefined ? Number(row.step_index) : 0,
+    dependsOn: Array.isArray(row.depends_on) ? (row.depends_on as string[]) : [],
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -118,12 +153,18 @@ function normalizeProposalPayload(
       raw['deadline'] = { type: 'date', date: raw['dueDate'] };
       delete raw['dueDate'];
     }
+    const isRef = typeof raw['folderId'] === 'string' && raw['folderId'].startsWith('$ref:');
+    const folderId = isRef ? undefined : raw['folderId'];
     const parsed = CreateTaskRequestSchema.parse({
       ...raw,
+      folderId,
       id: typeof raw['id'] === 'string' ? raw['id'] : crypto.randomUUID(),
     }) as unknown as Record<string, unknown>;
     if (parsed['securityScope'] === 'vault') {
       throw new AiServiceError('Vault targets are forbidden', 403, 'AI_VAULT_FORBIDDEN');
+    }
+    if (isRef) {
+      parsed['folderId'] = raw['folderId'];
     }
     return parsed;
   }
@@ -136,12 +177,19 @@ function normalizeProposalPayload(
     return UpdateTaskRequestSchema.parse(raw) as unknown as Record<string, unknown>;
   }
   if (operation === 'create_personal_note') {
+    const raw = { ...payload };
+    const isRef = typeof raw['folderId'] === 'string' && raw['folderId'].startsWith('$ref:');
+    const folderId = isRef ? undefined : raw['folderId'];
     const parsed = CreateNoteRequestSchema.parse({
-      ...payload,
-      id: typeof payload['id'] === 'string' ? payload['id'] : crypto.randomUUID(),
+      ...raw,
+      folderId,
+      id: typeof raw['id'] === 'string' ? raw['id'] : crypto.randomUUID(),
     }) as unknown as Record<string, unknown>;
     if (parsed['securityScope'] === 'vault') {
       throw new AiServiceError('Vault targets are forbidden', 403, 'AI_VAULT_FORBIDDEN');
+    }
+    if (isRef) {
+      parsed['folderId'] = raw['folderId'];
     }
     return parsed;
   }
@@ -152,6 +200,85 @@ function normalizeProposalPayload(
     }) as unknown as Record<string, unknown>;
     if (parsed['securityScope'] === 'vault') {
       throw new AiServiceError('Vault targets are forbidden', 403, 'AI_VAULT_FORBIDDEN');
+    }
+    return parsed;
+  }
+  if (operation === 'create_personal_routine') {
+    const raw = { ...payload };
+    const isRef = typeof raw['folderId'] === 'string' && raw['folderId'].startsWith('$ref:');
+    const folderId = isRef ? undefined : raw['folderId'];
+    const parsed = CreateRoutineRequestSchema.parse({
+      ...raw,
+      folderId,
+      id: typeof raw['id'] === 'string' ? raw['id'] : crypto.randomUUID(),
+      timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : 'UTC',
+    }) as unknown as Record<string, unknown>;
+    if (!isValidIanaTimezone(String(parsed['timezone']))) {
+      throw new AiServiceError(`Invalid timezone: ${parsed['timezone']}`, 400, 'AI_INVALID_TIMEZONE');
+    }
+    if (isRef) {
+      parsed['folderId'] = raw['folderId'];
+    }
+    return parsed;
+  }
+  if (operation === 'create_personal_calendar_event') {
+    const raw = { ...payload };
+    const parsed = CreateCalendarEventRequestSchema.parse({
+      ...raw,
+      id: typeof raw['id'] === 'string' ? raw['id'] : crypto.randomUUID(),
+      timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : 'UTC',
+    }) as unknown as Record<string, unknown>;
+    if (!isValidIanaTimezone(String(parsed['timezone']))) {
+      throw new AiServiceError(`Invalid timezone: ${parsed['timezone']}`, 400, 'AI_INVALID_TIMEZONE');
+    }
+    return parsed;
+  }
+  if (operation === 'create_personal_folder') {
+    const raw = { ...payload };
+    const isRef = typeof raw['parentId'] === 'string' && raw['parentId'].startsWith('$ref:');
+    const parentId = isRef ? undefined : raw['parentId'];
+    const parsed = CreateFolderRequestSchema.parse({
+      ...raw,
+      parentId,
+      id: typeof raw['id'] === 'string' ? raw['id'] : crypto.randomUUID(),
+      securityScope: raw['securityScope'] ?? 'standard',
+    }) as unknown as Record<string, unknown>;
+    if (parsed['securityScope'] === 'vault') {
+      throw new AiServiceError('Vault targets are forbidden', 403, 'AI_VAULT_FORBIDDEN');
+    }
+    if (isRef) {
+      parsed['parentId'] = raw['parentId'];
+    }
+    return parsed;
+  }
+  if (operation === 'create_personal_custom_section') {
+    const raw = { ...payload };
+    const parsed = CreateCustomSectionRequestSchema.parse(raw) as unknown as Record<string, unknown>;
+    // Enforce approved blocks only
+    const initialSchema = parsed['initialSchema'] as
+      | { blocks?: Array<{ type: string; title?: string }> }
+      | undefined;
+    if (initialSchema?.blocks) {
+      for (const block of initialSchema.blocks) {
+        if (block.type !== 'existing_record_view' && block.type !== 'field_collection') {
+          throw new AiServiceError(`Unapproved block type: ${block.type}`, 400, 'AI_UNAPPROVED_BLOCK_TYPE');
+        }
+      }
+    }
+    return parsed;
+  }
+  if (operation === 'create_personal_expense') {
+    const raw = { ...payload };
+    const parsed = CreateExpenseBodySchema.parse(raw) as unknown as Record<string, unknown>;
+    try {
+      const currencyInfo = getCurrencyInfo(String(parsed['currency']));
+      parseDecimalToMinorUnits(String(parsed['amount']), currencyInfo.code);
+    } catch (err: unknown) {
+      throw new AiServiceError(
+        `Invalid currency or amount: ${err instanceof Error ? err.message : String(err)}`,
+        400,
+        'AI_INVALID_MONEY'
+      );
     }
     return parsed;
   }
@@ -221,8 +348,24 @@ async function validateUpdateTarget(
 function buildReviewSummary(
   operation: AiAssistantOperation,
   payload: Record<string, unknown>,
-  target: { title?: string; beforeLabel?: string } | null
+  target: { title?: string; beforeLabel?: string } | null,
+  planMeta?: {
+    planId?: string;
+    stepIndex?: number;
+    totalSteps?: number;
+    dependsOnStepIndex?: number;
+    effects?: string;
+  }
 ): AiProposalReviewSummary {
+  const base = {
+    source: 'Assistant proposal',
+    planId: planMeta?.planId,
+    stepIndex: planMeta?.stepIndex,
+    totalSteps: planMeta?.totalSteps,
+    dependsOnStepIndex: planMeta?.dependsOnStepIndex,
+    effects: planMeta?.effects,
+  };
+
   if (operation === 'create_personal_task') {
     const title = String(payload['title'] ?? 'Untitled task');
     const deadline = payload['deadline'] as
@@ -236,6 +379,7 @@ function buildReviewSummary(
         : undefined;
     const tzStr = deadline?.type === 'timed' ? deadline.timezone : undefined;
     return {
+      ...base,
       headline: 'Create a personal task',
       targetLabel: 'New task',
       before: null,
@@ -243,18 +387,18 @@ function buildReviewSummary(
       destination: 'Plan / Tasks',
       date: dateStr,
       timezone: tzStr,
-      source: 'Assistant proposal',
     };
   }
   if (operation === 'create_personal_note') {
     const title = String(payload['title'] ?? 'Untitled note');
+    const dest = payload['folderId'] ? 'Library / Folders' : 'Library / Notes';
     return {
+      ...base,
       headline: 'Create a personal note',
       targetLabel: 'New note',
       before: null,
-      after: `Create note “${title}”.`,
-      destination: 'Library / Notes',
-      source: 'Assistant proposal',
+      after: `Create note “${title}”${payload['folderId'] ? ` in folder ${payload['folderId']}` : ''}.`,
+      destination: dest,
     };
   }
   if (operation === 'create_personal_journal_entry') {
@@ -262,6 +406,7 @@ function buildReviewSummary(
     const entryDate = String(payload['entryDate'] ?? 'today');
     const timezone = String(payload['timezone'] ?? 'UTC');
     return {
+      ...base,
       headline: 'Create a personal journal entry',
       targetLabel: title ? `Journal: “${title}”` : `Journal entry (${entryDate})`,
       before: null,
@@ -269,11 +414,80 @@ function buildReviewSummary(
       destination: 'Journal',
       date: entryDate,
       timezone,
-      source: 'Assistant proposal',
+    };
+  }
+  if (operation === 'create_personal_routine') {
+    const title = String(payload['title'] ?? 'Untitled routine');
+    const frequency = String(payload['frequency'] ?? 'daily');
+    const scheduledTime = payload['scheduledTime'] ? String(payload['scheduledTime']) : undefined;
+    const timezone = String(payload['timezone'] ?? 'UTC');
+    return {
+      ...base,
+      headline: 'Create a routine',
+      targetLabel: `Routine: “${title}”`,
+      before: null,
+      after: `Create routine “${title}” recurring ${frequency}${scheduledTime ? ` at ${scheduledTime}` : ''} (${timezone}).`,
+      destination: 'Plan / Routines',
+      timezone,
+    };
+  }
+  if (operation === 'create_personal_calendar_event') {
+    const title = String(payload['title'] ?? 'Untitled event');
+    const allDay = Boolean(payload['allDay']);
+    const dateStr = allDay ? String(payload['startDate'] ?? 'today') : undefined;
+    const timezone = String(payload['timezone'] ?? 'UTC');
+    return {
+      ...base,
+      headline: 'Create calendar event',
+      targetLabel: `Event: “${title}”`,
+      before: null,
+      after: `Create calendar event “${title}” (${allDay ? `all-day on ${dateStr}` : `timed in ${timezone}`}).`,
+      destination: 'Plan / Calendar',
+      date: dateStr,
+      timezone,
+    };
+  }
+  if (operation === 'create_personal_folder') {
+    const name = String(payload['name'] ?? 'Untitled folder');
+    return {
+      ...base,
+      headline: 'Create a folder',
+      targetLabel: `Folder: “${name}”`,
+      before: null,
+      after: `Create folder “${name}” in Library.`,
+      destination: 'Library / Folders',
+    };
+  }
+  if (operation === 'create_personal_custom_section') {
+    const name = String(payload['name'] ?? 'Untitled section');
+    const schema = payload['initialSchema'] as { blocks?: unknown[] } | undefined;
+    const blockCount = schema?.blocks?.length ?? 1;
+    return {
+      ...base,
+      headline: 'Create a custom section',
+      targetLabel: `Section: “${name}”`,
+      before: null,
+      after: `Create custom section “${name}” with ${blockCount} approved block(s).`,
+      destination: 'Custom Sections',
+    };
+  }
+  if (operation === 'create_personal_expense') {
+    const amount = String(payload['amount'] ?? '0.00');
+    const currency = String(payload['currency'] ?? 'USD');
+    const dateStr = String(payload['transactionDate'] ?? 'today');
+    return {
+      ...base,
+      headline: 'Record an expense',
+      targetLabel: `Expense: ${amount} ${currency}`,
+      before: null,
+      after: `Record expense of ${amount} ${currency} on ${dateStr}.`,
+      destination: 'Expenses',
+      date: dateStr,
     };
   }
   const title = String(payload['title'] ?? target?.title ?? 'task');
   return {
+    ...base,
     headline: 'Update a personal task',
     targetLabel: target?.beforeLabel ?? 'Existing task',
     before: target?.beforeLabel ?? null,
@@ -281,7 +495,6 @@ function buildReviewSummary(
       payload['status'] !== undefined ? `, status ${String(payload['status'])}` : ''
     }.`,
     destination: 'Plan / Tasks',
-    source: 'Assistant proposal',
   };
 }
 
@@ -314,7 +527,7 @@ async function itemExists(
   client: PoolClient,
   workspaceId: string,
   itemId: string,
-  kind: string
+  kind?: string
 ): Promise<boolean> {
   const res = await client.query(
     `SELECT 1 FROM app.items
@@ -333,6 +546,9 @@ export async function createAiProposal(
     payload: Record<string, unknown>;
     targetItemId?: string;
     expectedRevision?: number;
+    planId?: string;
+    stepIndex?: number;
+    dependsOn?: string[];
   }
 ): Promise<AiProposal> {
   const consent = await getAiConsentStatus(client, input.userId);
@@ -341,12 +557,19 @@ export async function createAiProposal(
   }
   await assertPersonalEditorAccess(client, input.workspaceId, input.userId);
 
-  if (
-    input.operation !== 'create_personal_task' &&
-    input.operation !== 'update_personal_task' &&
-    input.operation !== 'create_personal_note' &&
-    input.operation !== 'create_personal_journal_entry'
-  ) {
+  const allowedOps = new Set<AiAssistantOperation>([
+    'create_personal_task',
+    'update_personal_task',
+    'create_personal_note',
+    'create_personal_journal_entry',
+    'create_personal_routine',
+    'create_personal_calendar_event',
+    'create_personal_folder',
+    'create_personal_custom_section',
+    'create_personal_expense',
+  ]);
+
+  if (!allowedOps.has(input.operation)) {
     throw new AiServiceError('Unsupported AI operation', 400, 'AI_OPERATION_UNSUPPORTED');
   }
 
@@ -398,8 +621,17 @@ export async function createAiProposal(
     targetItemId: input.targetItemId ?? null,
     expectedRevision,
     workspaceId: input.workspaceId,
+    planId: input.planId ?? null,
+    stepIndex: input.stepIndex ?? 0,
   });
-  const reviewSummary = buildReviewSummary(input.operation, normalized, targetMeta);
+  const reviewSummary = buildReviewSummary(input.operation, normalized, targetMeta, {
+    planId: input.planId,
+    stepIndex: input.stepIndex,
+    dependsOnStepIndex:
+      input.dependsOn && input.dependsOn.length > 0 && !isNaN(Number(input.dependsOn[0]))
+        ? Number(input.dependsOn[0])
+        : undefined,
+  });
   const token = crypto.randomBytes(24).toString('base64url');
   const expires = new Date(Date.now() + PROPOSAL_TTL_MS);
 
@@ -407,8 +639,8 @@ export async function createAiProposal(
     `INSERT INTO app.ai_proposals (
        user_id, workspace_id, operation, payload, target_item_id, expected_revision,
        consent_generation, confirmation_token, status, expires_at,
-       operation_id, request_hash, review_summary
-     ) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,'pending',$9,$10,$11,$12::jsonb)
+       operation_id, request_hash, review_summary, plan_id, step_index, depends_on
+     ) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,'pending',$9,$10,$11,$12::jsonb,$13,$14,$15::jsonb)
      RETURNING *`,
     [
       input.userId,
@@ -423,6 +655,9 @@ export async function createAiProposal(
       operationId,
       requestHash,
       JSON.stringify(reviewSummary),
+      input.planId ?? null,
+      input.stepIndex ?? 0,
+      JSON.stringify(input.dependsOn ?? []),
     ]
   );
   return mapProposal(res.rows[0]!);
@@ -508,6 +743,11 @@ export async function askAssistant(
       const taskMatch = /^propose\s+task:\s*(.+)$/i.exec(trimmedQ);
       const noteMatch = /^propose\s+note:\s*(.+)$/i.exec(trimmedQ);
       const journalMatch = /^propose\s+journal:\s*(.+)$/i.exec(trimmedQ);
+      const routineMatch = /^(?:propose\s+routine|create\s+routine):\s*(.+)$/i.exec(trimmedQ);
+      const eventMatch = /^(?:propose\s+event|create\s+event|calendar\s+event):\s*(.+)$/i.exec(trimmedQ);
+      const folderMatch = /^(?:propose\s+folder|create\s+folder):\s*(.+)$/i.exec(trimmedQ);
+      const sectionMatch = /^(?:propose\s+section|create\s+section):\s*(.+)$/i.exec(trimmedQ);
+      const expenseMatch = /^(?:propose\s+expense|record\s+expense|track\s+expense):\s*(.+)$/i.exec(trimmedQ);
 
       if (taskMatch) {
         suggestedProposal = await createAiProposal(client, {
@@ -545,6 +785,96 @@ export async function askAssistant(
               entryDate: dateCheck.inferredDate,
               plainText: sanitizeOrganizerText(journalContent),
               timezone: 'UTC',
+            },
+          });
+        }
+      } else if (routineMatch) {
+        const routineContent = routineMatch[1]!;
+        const ambiguityCheck = detectRoutineAmbiguity(routineContent);
+        if (ambiguityCheck.isAmbiguous) {
+          finalAnswer = `${retrieved.answer}\n\n${ambiguityCheck.clarificationQuestion}`;
+        } else {
+          suggestedProposal = await createAiProposal(client, {
+            userId: input.userId,
+            workspaceId: input.workspaceId,
+            operation: 'create_personal_routine',
+            payload: {
+              title: routineContent.slice(0, 200),
+              frequency: 'daily',
+              timezone: 'UTC',
+            },
+          });
+        }
+      } else if (eventMatch) {
+        const eventContent = eventMatch[1]!;
+        const ambiguityCheck = detectCalendarEventAmbiguity(eventContent);
+        if (ambiguityCheck.isAmbiguous) {
+          finalAnswer = `${retrieved.answer}\n\n${ambiguityCheck.clarificationQuestion}`;
+        } else {
+          suggestedProposal = await createAiProposal(client, {
+            userId: input.userId,
+            workspaceId: input.workspaceId,
+            operation: 'create_personal_calendar_event',
+            payload: {
+              title: eventContent.slice(0, 200),
+              allDay: true,
+              startDate: new Date().toISOString().slice(0, 10),
+              endDate: new Date().toISOString().slice(0, 10),
+              timezone: 'UTC',
+            },
+          });
+        }
+      } else if (folderMatch) {
+        suggestedProposal = await createAiProposal(client, {
+          userId: input.userId,
+          workspaceId: input.workspaceId,
+          operation: 'create_personal_folder',
+          payload: {
+            name: folderMatch[1]!.slice(0, 200),
+          },
+        });
+      } else if (sectionMatch) {
+        suggestedProposal = await createAiProposal(client, {
+          userId: input.userId,
+          workspaceId: input.workspaceId,
+          operation: 'create_personal_custom_section',
+          payload: {
+            name: sectionMatch[1]!.slice(0, 100),
+            initialSchema: {
+              version: 1,
+              blocks: [
+                {
+                  id: 'block-view-1',
+                  type: 'existing_record_view',
+                  title: 'Tasks',
+                  targetKind: 'tasks',
+                  filter: {},
+                  displayMode: 'list',
+                  limit: 20,
+                  sortBy: 'updated_at',
+                  sortDirection: 'desc',
+                },
+              ],
+            },
+          },
+        });
+      } else if (expenseMatch) {
+        const expenseContent = expenseMatch[1]!;
+        const ambiguityCheck = detectExpenseAmbiguity(expenseContent);
+        if (ambiguityCheck.isAmbiguous) {
+          finalAnswer = `${retrieved.answer}\n\n${ambiguityCheck.clarificationQuestion}`;
+        } else {
+          const amountMatch = /\b(\d+(?:\.\d{1,2})?)\b/.exec(expenseContent);
+          const currMatch = /\b(USD|EUR|BDT|GBP|CAD|AUD|JPY)\b/i.exec(expenseContent);
+          suggestedProposal = await createAiProposal(client, {
+            userId: input.userId,
+            workspaceId: input.workspaceId,
+            operation: 'create_personal_expense',
+            payload: {
+              amount: amountMatch ? amountMatch[1] : '10.00',
+              currency: currMatch ? currMatch[1]!.toUpperCase() : 'USD',
+              transactionDate: new Date().toISOString().slice(0, 10),
+              kind: 'expense',
             },
           });
         }
@@ -979,7 +1309,7 @@ export async function updateAiProposalPayload(
     throw new AiServiceError('Proposal not found', 404, 'AI_PROPOSAL_NOT_FOUND');
   }
 
-  if (row.status !== 'pending') {
+  if (row.status !== 'pending' && row.status !== 'failed') {
     throw new AiServiceError(`Proposal is ${row.status}`, 409, 'AI_PROPOSAL_NOT_PENDING');
   }
 
@@ -1014,8 +1344,9 @@ export async function updateAiProposalPayload(
 
   const currentPayload = row.payload as Record<string, unknown>;
   const mergedPayload = {
+    ...currentPayload,
     ...input.payload,
-    id: currentPayload['id'] ?? input.payload['id'] ?? crypto.randomUUID(),
+    id: input.payload['id'] ?? currentPayload['id'] ?? crypto.randomUUID(),
   };
 
   const normalized = normalizeProposalPayload(row.operation as AiAssistantOperation, mergedPayload);
@@ -1035,9 +1366,18 @@ export async function updateAiProposalPayload(
     targetItemId: row.target_item_id,
     expectedRevision: row.expected_revision === null ? null : Number(row.expected_revision),
     workspaceId: row.workspace_id,
+    planId: row.plan_id ?? null,
+    stepIndex: row.step_index !== undefined ? Number(row.step_index) : 0,
   });
 
-  const reviewSummary = buildReviewSummary(row.operation as AiAssistantOperation, normalized, targetMeta);
+  const existingSummary = mapReviewSummary(row.review_summary);
+  const reviewSummary = buildReviewSummary(row.operation as AiAssistantOperation, normalized, targetMeta, {
+    planId: row.plan_id ?? undefined,
+    stepIndex: row.step_index !== undefined ? Number(row.step_index) : undefined,
+    totalSteps: existingSummary.totalSteps,
+    dependsOnStepIndex: existingSummary.dependsOnStepIndex,
+    effects: existingSummary.effects,
+  });
   const newToken = crypto.randomBytes(24).toString('base64url');
 
   const res = await client.query<ProposalRow>(
@@ -1046,8 +1386,10 @@ export async function updateAiProposalPayload(
          request_hash = $3,
          review_summary = $4::jsonb,
          confirmation_token = $5,
+         status = 'pending',
+         execution_receipt = null,
          updated_at = now()
-     WHERE id = $1 AND user_id = $6 AND status = 'pending'
+     WHERE id = $1 AND user_id = $6 AND status IN ('pending', 'failed')
      RETURNING *`,
     [
       input.proposalId,
@@ -1092,7 +1434,12 @@ export async function cancelAiProposal(
 
 export async function confirmAiProposal(
   client: PoolClient,
-  input: { userId: string; proposalId: string; confirmationToken: string }
+  input: {
+    userId: string;
+    proposalId: string;
+    confirmationToken: string;
+    overridePayload?: Record<string, unknown>;
+  }
 ): Promise<ConfirmAiProposalResult> {
   const locked = await client.query<ProposalRow>(
     `SELECT * FROM app.ai_proposals WHERE id = $1 AND user_id = $2 FOR UPDATE`,
@@ -1189,28 +1536,47 @@ export async function confirmAiProposal(
     row.workspace_id,
   ]);
 
-  // Stored payload is authoritative; confirm body cannot substitute arguments.
+  // Stored payload is authoritative; overridePayload is only used for resolved batch references.
+  const rawPayload = (input.overridePayload ?? row.payload) as Record<string, unknown>;
   const payload = normalizeProposalPayload(
     row.operation as AiAssistantOperation,
-    row.payload as Record<string, unknown>
+    rawPayload
   );
   const requestHash = String(row.request_hash);
 
-  let receipt: Record<string, unknown>;
+  let receipt: Record<string, unknown> = {};
   await client.query('SAVEPOINT ai_proposal_exec');
   try {
     if (
       row.operation === 'create_personal_task' ||
       row.operation === 'create_personal_note' ||
-      row.operation === 'create_personal_journal_entry'
+      row.operation === 'create_personal_journal_entry' ||
+      row.operation === 'create_personal_routine' ||
+      row.operation === 'create_personal_calendar_event' ||
+      row.operation === 'create_personal_folder' ||
+      row.operation === 'create_personal_custom_section' ||
+      row.operation === 'create_personal_expense'
     ) {
       const kind =
         row.operation === 'create_personal_task'
           ? 'task'
           : row.operation === 'create_personal_journal_entry'
             ? 'journal_entry'
-            : 'note';
-      const createId = String((payload as { id: string }).id);
+            : row.operation === 'create_personal_routine'
+              ? 'routine'
+              : row.operation === 'create_personal_calendar_event'
+                ? 'calendar_event'
+                : row.operation === 'create_personal_folder'
+                  ? 'folder'
+                  : row.operation === 'create_personal_custom_section'
+                    ? 'custom_section'
+                    : row.operation === 'create_personal_expense'
+                      ? 'expense_item'
+                      : 'note';
+      const createId =
+        typeof (payload as { id?: unknown }).id === 'string'
+          ? (payload as { id: string }).id
+          : null;
       const fromOp = await loadProposalReceiptFromOperation(
         client,
         input.userId,
@@ -1219,7 +1585,10 @@ export async function confirmAiProposal(
       );
       if (fromOp) {
         receipt = fromOp;
-      } else if (await itemExists(client, row.workspace_id, createId, kind)) {
+      } else if (
+        createId &&
+        (await itemExists(client, row.workspace_id, createId, kind === 'expense_item' ? undefined : kind))
+      ) {
         throw new AiServiceError(
           'Create id already exists and is not bound to this proposal',
           409,
@@ -1291,7 +1660,7 @@ export async function confirmAiProposal(
           appliedChangeSeq: created.seq,
           resultPayload: { kind: 'note', id: created.id, revision: created.revision, deepLink },
         });
-      } else {
+      } else if (row.operation === 'create_personal_journal_entry') {
         const created = await createJournalEntry(
           client,
           row.workspace_id,
@@ -1328,6 +1697,174 @@ export async function confirmAiProposal(
             revision: created.serverRevision,
             deepLink,
           },
+        });
+      } else if (row.operation === 'create_personal_routine') {
+        const created = await createRoutine(
+          client,
+          row.workspace_id,
+          input.userId,
+          payload as CreateRoutineRequest,
+          row.operation_id
+        );
+        const deepLink = getOrganizerDeepLink('routine', created.id);
+        receipt = {
+          kind: 'routine',
+          id: created.id,
+          revision: created.revision,
+          seq: created.seq,
+          operationId: row.operation_id,
+          deepLink,
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: row.workspace_id,
+          actorUserId: input.userId,
+          deviceId: AI_DEVICE_ID,
+          operationId: row.operation_id,
+          command: 'aiConfirmCreateRoutine',
+          entityType: 'item',
+          entityId: created.id,
+          schemaVersion: 1,
+          baseRevision: 0,
+          canonicalPayloadHash: requestHash,
+          status: 'accepted',
+          acceptedRevision: created.revision,
+          appliedChangeSeq: created.seq,
+          resultPayload: { kind: 'routine', id: created.id, revision: created.revision, deepLink },
+        });
+      } else if (row.operation === 'create_personal_calendar_event') {
+        const created = await createCalendarEvent(
+          client,
+          row.workspace_id,
+          input.userId,
+          payload as CreateCalendarEventRequest,
+          row.operation_id
+        );
+        const deepLink = getOrganizerDeepLink('calendar_event', created.id);
+        const seq = (created as unknown as { seq?: number }).seq ?? 0;
+        receipt = {
+          kind: 'calendar_event',
+          id: created.id,
+          revision: created.revision,
+          seq,
+          operationId: row.operation_id,
+          deepLink,
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: row.workspace_id,
+          actorUserId: input.userId,
+          deviceId: AI_DEVICE_ID,
+          operationId: row.operation_id,
+          command: 'aiConfirmCreateCalendarEvent',
+          entityType: 'item',
+          entityId: created.id,
+          schemaVersion: 1,
+          baseRevision: 0,
+          canonicalPayloadHash: requestHash,
+          status: 'accepted',
+          acceptedRevision: created.revision,
+          appliedChangeSeq: seq,
+          resultPayload: { kind: 'calendar_event', id: created.id, revision: created.revision, deepLink },
+        });
+      } else if (row.operation === 'create_personal_folder') {
+        const created = await createFolder(
+          client,
+          row.workspace_id,
+          input.userId,
+          payload as CreateFolderRequest,
+          row.operation_id
+        );
+        const deepLink = getOrganizerDeepLink('folder', created.id);
+        const createdSeq = (created as unknown as { seq?: number }).seq ?? 0;
+        receipt = {
+          kind: 'folder',
+          id: created.id,
+          revision: created.revision,
+          seq: createdSeq,
+          operationId: row.operation_id,
+          deepLink,
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: row.workspace_id,
+          actorUserId: input.userId,
+          deviceId: AI_DEVICE_ID,
+          operationId: row.operation_id,
+          command: 'aiConfirmCreateFolder',
+          entityType: 'item',
+          entityId: created.id,
+          schemaVersion: 1,
+          baseRevision: 0,
+          canonicalPayloadHash: requestHash,
+          status: 'accepted',
+          acceptedRevision: created.revision,
+          appliedChangeSeq: createdSeq,
+          resultPayload: { kind: 'folder', id: created.id, revision: created.revision, deepLink },
+        });
+      } else if (row.operation === 'create_personal_custom_section') {
+        const created = await createCustomSection(
+          client,
+          row.workspace_id,
+          input.userId,
+          payload as CreateCustomSectionRequest,
+          row.operation_id
+        );
+        const deepLink = getOrganizerDeepLink('custom_section', created.id);
+        const seq = (created as unknown as { seq?: number }).seq ?? 0;
+        receipt = {
+          kind: 'custom_section',
+          id: created.id,
+          revision: created.revision,
+          seq,
+          operationId: row.operation_id,
+          deepLink,
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: row.workspace_id,
+          actorUserId: input.userId,
+          deviceId: AI_DEVICE_ID,
+          operationId: row.operation_id,
+          command: 'aiConfirmCreateCustomSection',
+          entityType: 'item',
+          entityId: created.id,
+          schemaVersion: 1,
+          baseRevision: 0,
+          canonicalPayloadHash: requestHash,
+          status: 'accepted',
+          acceptedRevision: created.revision,
+          appliedChangeSeq: seq,
+          resultPayload: { kind: 'custom_section', id: created.id, revision: created.revision, deepLink },
+        });
+      } else if (row.operation === 'create_personal_expense') {
+        const created = await createExpenseRecord(
+          client,
+          row.workspace_id,
+          input.userId,
+          payload as CreateExpenseBody & { id?: string },
+          row.operation_id
+        );
+        const deepLink = getOrganizerDeepLink('expense', created.id);
+        receipt = {
+          kind: 'expense',
+          id: created.id,
+          revision: created.revision,
+          seq: created.seq,
+          operationId: row.operation_id,
+          deepLink,
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: row.workspace_id,
+          actorUserId: input.userId,
+          deviceId: AI_DEVICE_ID,
+          operationId: row.operation_id,
+          command: 'aiConfirmCreateExpense',
+          entityType: 'item',
+          entityId: created.id,
+          schemaVersion: 1,
+          baseRevision: 0,
+          canonicalPayloadHash: requestHash,
+          status: 'accepted',
+          acceptedRevision: created.revision,
+          appliedChangeSeq: created.seq,
+          resultPayload: { kind: 'expense', id: created.id, revision: created.revision, deepLink },
         });
       }
     } else if (row.operation === 'update_personal_task') {
@@ -1421,39 +1958,116 @@ export async function batchConfirmAiProposals(
 ): Promise<
   Array<{
     proposalId: string;
-    outcome: 'ok' | 'error';
+    outcome: 'ok' | 'error' | 'skipped';
     proposal: AiProposal;
     error: { code: string; message: string } | null;
   }>
 > {
   const results: Array<{
     proposalId: string;
-    outcome: 'ok' | 'error';
+    outcome: 'ok' | 'error' | 'skipped';
     proposal: AiProposal;
     error: { code: string; message: string } | null;
   }> = [];
 
-  for (const item of input.items) {
-    try {
-      const workspaceId = await withUserContext(pool, input.userId, async (client) => {
-        const res = await client.query<{ workspace_id: string }>(
-          `SELECT workspace_id FROM app.ai_proposals WHERE id = $1 AND user_id = $2`,
-          [item.proposalId, input.userId]
-        );
-        if (!res.rows[0]) {
-          throw new AiServiceError('Proposal not found', 404, 'AI_PROPOSAL_NOT_FOUND');
-        }
-        return res.rows[0].workspace_id;
+  const proposalRows = await withUserContext(pool, input.userId, async (client) => {
+    const res = await client.query<ProposalRow>(
+      `SELECT * FROM app.ai_proposals WHERE user_id = $1 AND id = ANY($2)`,
+      [input.userId, input.items.map((it) => it.proposalId)]
+    );
+    return res.rows;
+  });
+
+  const rowMap = new Map<string, ProposalRow>(proposalRows.map((r) => [r.id, r]));
+  const createdItemMap = new Map<string, { id: string; kind?: string }>();
+  const completedStepIds = new Set<string>();
+
+  for (let index = 0; index < input.items.length; index++) {
+    const item = input.items[index]!;
+    const row = rowMap.get(item.proposalId);
+
+    if (!row) {
+      results.push({
+        proposalId: item.proposalId,
+        outcome: 'error',
+        proposal: {
+          id: item.proposalId,
+          workspaceId: '00000000-0000-0000-0000-000000000000',
+          operation: 'create_personal_task',
+          payload: {},
+          targetItemId: null,
+          expectedRevision: null,
+          consentGeneration: 1,
+          status: 'failed',
+          expiresAt: new Date().toISOString(),
+          confirmationToken: item.confirmationToken,
+          executionReceipt: null,
+          reviewSummary: {
+            headline: 'Proposal not found',
+            targetLabel: 'Item',
+            before: null,
+            after: 'Proposal not found',
+          },
+          planId: null,
+          stepIndex: index,
+          dependsOn: [],
+          createdAt: new Date().toISOString(),
+        },
+        error: { code: 'AI_PROPOSAL_NOT_FOUND', message: 'Proposal not found' },
       });
+      continue;
+    }
+
+    const stepIndex = row.step_index !== undefined ? Number(row.step_index) : index;
+    const dependsOn = Array.isArray(row.depends_on) ? (row.depends_on as string[]) : [];
+
+    const depCheck = checkStepDependencies(dependsOn, completedStepIds);
+    if (!depCheck.satisfied) {
+      const skippedProposal = await withTenantContext(
+        pool,
+        { userId: input.userId, workspaceId: row.workspace_id },
+        async (client) => {
+          const res = await client.query<ProposalRow>(
+            `UPDATE app.ai_proposals
+             SET status = 'skipped', execution_receipt = $2::jsonb
+             WHERE id = $1 AND status = 'pending'
+             RETURNING *`,
+            [
+              item.proposalId,
+              JSON.stringify({
+                code: 'AI_PREREQUISITE_FAILED',
+                message: `Prerequisite step ${depCheck.missingPrerequisite} failed or incomplete; skipping dependent step`,
+              }),
+            ]
+          );
+          return res.rows[0] ? mapProposal(res.rows[0]) : mapProposal({ ...row, status: 'skipped' });
+        }
+      );
+      results.push({
+        proposalId: item.proposalId,
+        outcome: 'skipped',
+        proposal: skippedProposal,
+        error: {
+          code: 'AI_PREREQUISITE_FAILED',
+          message: `Prerequisite step ${depCheck.missingPrerequisite} failed or incomplete; skipping dependent step`,
+        },
+      });
+      continue;
+    }
+
+    try {
+      const rawPayload = row.payload as Record<string, unknown>;
+      const resolvedPayload = resolveProposalCrossReferences(rawPayload, createdItemMap);
 
       const res = await withTenantContext(
         pool,
-        { userId: input.userId, workspaceId },
+        { userId: input.userId, workspaceId: row.workspace_id },
         (client) =>
           confirmAiProposal(client, {
             userId: input.userId,
             proposalId: item.proposalId,
             confirmationToken: item.confirmationToken,
+            overridePayload: resolvedPayload,
           })
       );
 
@@ -1468,6 +2082,26 @@ export async function batchConfirmAiProposals(
           },
         });
       } else {
+        const receipt = res.proposal.executionReceipt as Record<string, unknown> | null;
+        const createdId =
+          (typeof receipt?.['id'] === 'string' ? receipt['id'] : null) ??
+          (typeof (res.proposal.payload as Record<string, unknown>)?.['id'] === 'string'
+            ? ((res.proposal.payload as Record<string, unknown>)['id'] as string)
+            : null);
+
+        const kind =
+          (typeof receipt?.['kind'] === 'string' ? receipt['kind'] : undefined) ??
+          res.proposal.operation.replace('create_personal_', '');
+
+        if (createdId) {
+          createdItemMap.set(String(stepIndex), { id: createdId, kind });
+          createdItemMap.set(`step_${stepIndex}`, { id: createdId, kind });
+          createdItemMap.set(item.proposalId, { id: createdId, kind });
+        }
+        completedStepIds.add(String(stepIndex));
+        completedStepIds.add(`step_${stepIndex}`);
+        completedStepIds.add(item.proposalId);
+
         results.push({
           proposalId: item.proposalId,
           outcome: 'ok',
@@ -1476,47 +2110,12 @@ export async function batchConfirmAiProposals(
         });
       }
     } catch (err) {
-      let fallbackProposal: AiProposal | null = null;
-      try {
-        const check = await withUserContext(pool, input.userId, async (client) => {
-          const r = await client.query<ProposalRow>(
-            `SELECT * FROM app.ai_proposals WHERE id = $1 AND user_id = $2`,
-            [item.proposalId, input.userId]
-          );
-          return r.rows[0] ? mapProposal(r.rows[0]) : null;
-        });
-        fallbackProposal = check;
-      } catch {
-        // ignore
-      }
-
       const code = err instanceof AiServiceError ? err.code : 'AI_EXECUTION_FAILED';
       const message = err instanceof Error ? err.message : String(err);
-
       results.push({
         proposalId: item.proposalId,
         outcome: 'error',
-        proposal:
-          fallbackProposal ?? {
-            id: item.proposalId,
-            workspaceId: '00000000-0000-0000-0000-000000000000',
-            operation: 'create_personal_task',
-            payload: {},
-            targetItemId: null,
-            expectedRevision: null,
-            consentGeneration: 1,
-            status: 'failed',
-            expiresAt: new Date().toISOString(),
-            confirmationToken: item.confirmationToken,
-            executionReceipt: null,
-            reviewSummary: {
-              headline: 'Failed proposal',
-              targetLabel: 'Item',
-              before: null,
-              after: message,
-            },
-            createdAt: new Date().toISOString(),
-          },
+        proposal: mapProposal(row),
         error: { code, message },
       });
     }

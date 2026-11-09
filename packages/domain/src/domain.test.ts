@@ -44,8 +44,13 @@ import {
   sanitizeAssistantMarkdown,
   ASSISTANT_STARTER_SUGGESTIONS,
   detectJournalDateAmbiguity,
+  detectRoutineAmbiguity,
+  detectCalendarEventAmbiguity,
+  detectExpenseAmbiguity,
   getOrganizerDeepLink,
   sanitizeOrganizerText,
+  resolveProposalCrossReferences,
+  checkStepDependencies,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2716,6 +2721,91 @@ describe('Domain Rules and Invariants', () => {
       const input = '  Met with Alex at 3pm. Discussed Q4 roadmap. \x00\x08 ';
       const sanitized = sanitizeOrganizerText(input);
       expect(sanitized).toBe('Met with Alex at 3pm. Discussed Q4 roadmap.');
+    });
+
+    it('AST-011: detects ambiguity in routine recurrence, event scheduling, and expense money', () => {
+      // Ambiguous routine (no recurrence specified)
+      const ambiguousRoutine = detectRoutineAmbiguity('Create a study routine at 8pm');
+      expect(ambiguousRoutine.isAmbiguous).toBe(true);
+      expect(ambiguousRoutine.clarificationQuestion).toContain('recurrence');
+
+      // Clear routine
+      const clearRoutine = detectRoutineAmbiguity('Study routine every weekday at 8pm');
+      expect(clearRoutine.isAmbiguous).toBe(false);
+
+      // Ambiguous calendar event (no date)
+      const ambiguousEvent = detectCalendarEventAmbiguity('Team sync meeting');
+      expect(ambiguousEvent.isAmbiguous).toBe(true);
+      expect(ambiguousEvent.clarificationQuestion).toContain('date or time');
+
+      // Clear calendar event
+      const clearEvent = detectCalendarEventAmbiguity('Project retrospective on 2026-11-20');
+      expect(clearEvent.isAmbiguous).toBe(false);
+
+      // Ambiguous expense (no currency)
+      const noCurrencyExpense = detectExpenseAmbiguity('Lunch with team for 45');
+      expect(noCurrencyExpense.isAmbiguous).toBe(true);
+      expect(noCurrencyExpense.clarificationQuestion).toContain('currency');
+
+      // Ambiguous expense (no amount)
+      const noAmountExpense = detectExpenseAmbiguity('Taxi fare in USD');
+      expect(noAmountExpense.isAmbiguous).toBe(true);
+      expect(noAmountExpense.clarificationQuestion).toContain('amount');
+
+      // Clear expense
+      const clearExpense = detectExpenseAmbiguity('Office supplies 120.50 USD');
+      expect(clearExpense.isAmbiguous).toBe(false);
+    });
+
+    it('AST-012: constructs canonical deep links for routines, events, folders, sections, and expenses', () => {
+      expect(getOrganizerDeepLink('routine', 'rt-101')).toBe('/plan?targetId=rt-101&targetType=routine');
+      expect(getOrganizerDeepLink('calendar_event', 'ev-202')).toBe('/plan/calendar?eventId=ev-202');
+      expect(getOrganizerDeepLink('event', 'ev-202')).toBe('/plan/calendar?eventId=ev-202');
+      expect(getOrganizerDeepLink('folder', 'fld-303')).toBe('/library?folderId=fld-303');
+      expect(getOrganizerDeepLink('custom_section', 'sec-404')).toBe('/custom-sections?sectionId=sec-404');
+      expect(getOrganizerDeepLink('section', 'sec-404')).toBe('/custom-sections?sectionId=sec-404');
+      expect(getOrganizerDeepLink('expense', 'exp-505')).toBe('/expenses?expenseId=exp-505');
+    });
+
+    it('AST-013: resolves cross-references in multi-action plan payloads', () => {
+      const createdItemMap = new Map<string, { id: string; kind?: string }>([
+        ['0', { id: 'folder-uuid-1', kind: 'folder' }],
+        ['step_1', { id: 'note-uuid-2', kind: 'note' }],
+        ['proposal-3', { id: 'task-uuid-3', kind: 'task' }],
+      ]);
+
+      const payload = {
+        title: 'Design Doc',
+        folderId: '$ref:0',
+        references: ['$ref:step_1', '$ref:proposal-3'],
+        nested: {
+          targetId: '$ref:0',
+          plain: 'regular-value',
+        },
+      };
+
+      const resolved = resolveProposalCrossReferences(payload, createdItemMap);
+      expect(resolved.folderId).toBe('folder-uuid-1');
+      expect(resolved.references).toEqual(['note-uuid-2', 'task-uuid-3']);
+      expect((resolved.nested as Record<string, unknown>).targetId).toBe('folder-uuid-1');
+      expect((resolved.nested as Record<string, unknown>).plain).toBe('regular-value');
+    });
+
+    it('AST-014: validates multi-action step dependencies and detects missing prerequisites', () => {
+      const completed = new Set(['step-0', 'step-1']);
+
+      // All deps met
+      const valid = checkStepDependencies(['step-0', 'step-1'], completed);
+      expect(valid.satisfied).toBe(true);
+
+      // Missing dep
+      const invalid = checkStepDependencies(['step-0', 'step-2'], completed);
+      expect(invalid.satisfied).toBe(false);
+      expect(invalid.missingPrerequisite).toBe('step-2');
+
+      // No deps
+      const empty = checkStepDependencies([], completed);
+      expect(empty.satisfied).toBe(true);
     });
   });
 });

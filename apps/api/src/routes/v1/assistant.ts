@@ -298,6 +298,9 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
           payload: body.payload,
           targetItemId: body.targetItemId,
           expectedRevision: body.expectedRevision,
+          planId: body.planId,
+          stepIndex: body.stepIndex,
+          dependsOn: body.dependsOn,
         })
       );
       return reply.status(201).send(
