@@ -14,6 +14,7 @@ import {
   type StarterSuggestion,
 } from '@daynori/domain';
 import { createWebApiClient } from '../data/webApiClient';
+import { NoriAvatar } from './NoriAvatar';
 
 export interface AssistantPanelProps {
   csrfToken: string | null;
@@ -783,10 +784,20 @@ export function AssistantPanel({
               gap: `${spacing.xs}px`,
             }}
           >
-            <span aria-hidden="true">
-              <Icon name="sparkle" />
+            <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <NoriAvatar
+                size={24}
+                state={
+                  voicePhase === 'recording'
+                    ? 'listening'
+                    : busy || voicePhase === 'transcribing'
+                    ? 'thinking'
+                    : 'greeting'
+                }
+                themeMode={themeMode}
+              />
             </span>
-            Daynori Assistant
+            Ask Nori Assistant
           </h2>
           <p style={{ margin: 0, fontSize: '13px', color: palette.text.secondary }}>
             Grounded text chat and contextual help. Strictly read-only guidance.

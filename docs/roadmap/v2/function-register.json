@@ -6251,12 +6251,14 @@
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
         "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
-        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
+        "tests/integration/phase96-nori-companion-launcher.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
         "artifacts/phase91/evidence-summary.json",
-        "artifacts/phase92/evidence-summary.json"
+        "artifacts/phase92/evidence-summary.json",
+        "artifacts/phase96/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6275,24 +6277,27 @@
       "featureFamily": "assistant",
       "userBenefit": "Nori companion launcher / hide / reduced motion.",
       "description": "Nori companion launcher / hide / reduced motion.",
-      "implementationStatus": "planned",
+      "implementationStatus": "gated",
       "entryPoints": [
         "AssistantPanel",
         "mobile AssistantSheet",
         "/v1/ai/*"
       ],
       "implementationPaths": [
-        "apps/api/src/routes/v1/ai.ts",
-        "apps/api/src/routes/v1/assistant.ts",
-        "apps/web/src/components/AssistantPanel.tsx",
-        "apps/mobile/src/views/AssistantSheet.tsx"
+        "packages/domain/src/noriCompanion.ts",
+        "packages/contracts/src/api/user.ts",
+        "packages/contracts/src/api/assistant.ts",
+        "apps/web/src/components/NoriCompanionLauncher.tsx",
+        "apps/web/src/components/NoriAvatar.tsx",
+        "apps/mobile/src/views/NoriCompanionLauncher.tsx",
+        "assets/brand/nori/nori-geometry.json"
       ],
       "readiness": "blocked",
       "acceptanceJourney": "Nori companion launcher / hide / reduced motion.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-10",
+        "revision": "a4308e2",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"
@@ -7141,12 +7146,25 @@
       "severity": "medium",
       "userImpact": "Users cannot use live grounded assistant or Nori.",
       "expected": "Consented live provider with citations and confirmed saves.",
-      "observed": "GET /v1/ai/consent → 403 under production; Nori not implemented.",
+      "observed": "GET /v1/ai/consent → 403 under production; live AI capabilities fail-closed.",
       "reproduction": [
         "Core validation production gates"
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
+        "artifacts/phase96/evidence-summary.json",
+        "artifacts/phase96/findings-register.json",
+        "artifacts/phase96/manual-ui-evidence.json",
+        "docs/design/nori-companion-and-launcher-guide.md",
+        "docs/decisions/0096-nori-companion-launcher-and-artwork.md",
+        "docs/phase-reports/phase-96.md",
+        "artifacts/phase95/evidence-summary.json",
+        "artifacts/phase95/findings-register.json",
+        "artifacts/phase95/synthetic-provider-package.json",
+        "artifacts/phase95/manual-ui-evidence.json",
+        "docs/engineering/voice-transcription-and-creation-guide.md",
+        "docs/decisions/0095-voice-capture-transcription-and-reviewed-creation.md",
+        "docs/phase-reports/phase-95.md",
         "artifacts/phase94/evidence-summary.json",
         "artifacts/phase94/findings-register.json",
         "artifacts/phase94/synthetic-provider-package.json",

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-09",
+  "updatedAt": "2026-11-10",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 94 implemented and local verification delivered before Phase 93 final acceptance under ADR 0094 (Structured organizer tools and multi-action creation). Phase 94 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, Phase 91 grounding/retrieval evaluation, Phase 92 chat guidance, Phase 93 reviewed creation, and Phase 99 prototype review retain their recorded states. Phase 95 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 96 implemented and local verification delivered before Phase 92 and 93 final acceptance under ADR 0096 (Nori original companion and assistant launcher). Phase 96 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, Phase 91 grounding/retrieval evaluation, Phase 92 chat guidance, Phase 93 reviewed creation, Phase 94 multi-action tools, Phase 95 voice transcription, and Phase 99 prototype review retain their recorded states. Phase 97 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -560,7 +560,9 @@
     },
     {
       "id": "96",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-96.md",
+      "reason": "Nori original companion and assistant launcher verified: original Daynori origami vector artwork drafted with zero AI generation and zero stock/clipart imports; multi-scale asset pipeline delivered across 5 sizes (24, 32, 48, 96, 192) in light, dark, and static modes; design token nori line icon added; dual-entry single-session binding connects floating launcher and labeled 'Ask Nori' button to the same assistant controller; truthful 8-state presentation engine implemented (resolveNoriState) derived strictly from factual conditions; strict microphone invariant enforced (listening only during active mic capture); safe 4-corner positioning (calculateNoriSafeCoordinates) avoids bottom navigation (64px offset) and system bars; reduced-motion compliance (0ms durations) and background tab loop suppression verified; 52px/52dp touch targets, keyboard focus restoration, and screen-reader accessibility labels verified; noriCompanion preferences persisted via /v1/users/me/preferences; 21 integration tests in phase96-nori-companion-launcher.test.ts and 107 domain tests pass; production AI fails closed pending explicit owner approval of synthetic test package (DEF-V2-008 retained). See docs/phase-reports/phase-96.md."
     },
     {
       "id": "97",

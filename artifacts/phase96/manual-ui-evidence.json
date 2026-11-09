@@ -1,0 +1,68 @@
+{
+  "phase": 96,
+  "name": "Phase 96 Nori Original Companion and Assistant Launcher Manual UI Evidence",
+  "evaluatedAt": "2026-11-10T00:15:00+06:00",
+  "components": [
+    {
+      "component": "apps/web/src/components/NoriCompanionLauncher.tsx",
+      "platform": "web-desktop-and-narrow",
+      "surfaces": [
+        {
+          "surfaceId": "nori-companion-launcher-floating-widget",
+          "ariaLabel": "Nori personal assistant companion launcher",
+          "testedInteractions": [
+            "Floating launcher button renders in configured screen corner (bottom-right default) with safe insets offsetting bottom nav and banners",
+            "Displays original folded-paper origami character with 8 distinct expression states (idle, greeting, listening, thinking, success, error, offline, sleeping)",
+            "Hovering or keyboard focusing triggers gentle greeting fold without sound or recording activation",
+            "Left-clicking launcher triggers assistant dialog opening, switching character expression to greeting/listening",
+            "Right-clicking launcher triggers accessible context settings menu allowing instant corner relocation (bottom-right, bottom-left, top-right, top-left), reduced motion toggle, and hide companion option",
+            "Selecting 'Hide Nori' hides the floating widget immediately while keeping the labeled 'Ask Nori' header button accessible",
+            "Respects system prefers-reduced-motion media query and user in-app preference by eliminating floating and breathing animations (0ms durations)",
+            "Halts animation render loop when browser tab is hidden or minimized via document.visibilityState",
+            "Restores keyboard focus back to the companion launcher button when the assistant dialog is closed via Escape or Close button",
+            "Meets WCAG AA touch target minimum with 52px diameter button (> 48dp minimum)"
+          ],
+          "accessibilityAttributes": {
+            "role": "button",
+            "ariaLabel": "Derives truthful announcement per state (e.g., 'Nori: Assistant is listening')",
+            "ariaHasPopup": "dialog",
+            "ariaExpanded": "Dynamically reflects assistant open/closed state",
+            "keyboardNavigation": "Fully focusable via Tab, activatable via Enter and Space, dismissible context menu via Escape"
+          }
+        },
+        {
+          "surfaceId": "app-header-labeled-ask-nori-button",
+          "ariaLabel": "Ask Nori labeled header button",
+          "testedInteractions": [
+            "Header displays labeled 'Ask Nori' button with inline folded-paper nori icon",
+            "Clicking button opens the same unified assistant session controller as the floating companion",
+            "Allows users who choose to hide the floating companion to retain uninterrupted access to assistant capabilities"
+          ]
+        }
+      ]
+    },
+    {
+      "component": "apps/mobile/src/views/NoriCompanionLauncher.tsx",
+      "platform": "android-mobile",
+      "surfaces": [
+        {
+          "surfaceId": "mobile-nori-companion-launcher",
+          "testID": "nori-companion-launcher",
+          "testedInteractions": [
+            "Floating companion button renders in safe corner above bottom navigation bar (64dp height + 16dp margin = 80dp bottom offset)",
+            "Enforces 52x52dp touch target satisfying Android minimum 48dp accessibility guideline",
+            "Truthfully adapts border and background colors according to connection state (e.g. muted slate when offline, amber when listening, danger when error)",
+            "Tapping launcher opens AssistantSheet modal smoothly",
+            "Hides automatically when user preferences specify noriCompanion.enabled: false",
+            "Adapts positioning safely to avoid obscuring bottom tabs across portrait and landscape orientations"
+          ],
+          "accessibilityAttributes": {
+            "accessibilityRole": "button",
+            "accessibilityLabel": "TalkBack announcement dynamically generated based on current Nori state",
+            "accessibilityHint": "Opens Ask Nori daily assistant"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,34 @@
 # Changelog
 
+## Phase 96 — Nori original companion and assistant launcher — 2026-11-10
+
+- ADR 0096: Nori original companion and assistant launcher establishing original Daynori folded-paper origami character artwork with zero generative AI and zero third-party stock/clipart imports, MIT licensing, Nori naming review and conflict screening, dual-entry single-session binding across floating launcher and labeled "Ask Nori" button, truthful 8-state presentation engine (`resolveNoriState`), strict microphone hardware recording invariant (`isListening === true`), safe 4-corner positioning (`calculateNoriSafeCoordinates`) avoiding bottom navigation (64px offset) and system bars, reduced-motion compliance (0ms durations) and background tab loop suppression, accessible focus restoration, and fail-closed AI activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 96 implementation and local verification before final acceptance of Phases 92 and 93 recorded in ADR 0096 and progress metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase96/findings-register.json`): cataloged NOR-001 through NOR-008 across character identity and trademark screening, strict original asset provenance, dual launcher session binding, truthful state derivation engine, microphone privacy invariants, layout and collision avoidance, reduced-motion honoring, and screen-reader accessibility.
+- Core brand assets, pipeline, and tokens:
+  - Brand geometry specification: created `assets/brand/nori/nori-geometry.json` defining origami folded-facet vector coordinates (kite front, shaded wings, warm amber crest, ink accents) and color tokens across light, dark, and static contrast modes.
+  - Asset build pipeline (`scripts/build-nori-assets.mjs`): automated compilation generating scalable SVGs and PNG rasters across 5 scales (24, 32, 48, 96, 192) in `assets/brand/nori/`, `apps/web/public/brand/nori/`, and `apps/mobile/assets/brand/nori/`.
+  - Design tokens (`@daynori/design-tokens`): added `nori` icon to `packages/design-tokens/src/icons.ts` and generated mobile raster icon `packages/ui-mobile/assets/icons/nori.png`, passing `pnpm icons:check`.
+- Core domain, API, and contracts:
+  - Contracts (`@daynori/contracts`): added `NoriCompanionPositionSchema` (`'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'`), `NoriCompanionPreferencesSchema` (`enabled`, `position`, `reducedMotion`), and `NoriCompanionStateSchema` in `packages/contracts/src/api/user.ts` and `assistant.ts`.
+  - Domain logic (`@daynori/domain`): created `packages/domain/src/noriCompanion.ts` implementing `NORI_NAME_METADATA`, `resolveNoriState()` with 8 states and active microphone precedence, `calculateNoriSafeCoordinates()` with collision avoidance insets, `shouldReduceNoriMotion()`, `getNoriMotionDurations()`, and `getNoriStateAccessibilityLabel()`.
+  - Backend API (`apps/api`): wired `noriCompanion` in `mapDisplayPreferences` (`apps/api/src/modules/preferences/featurePersonalization.ts`), allowing round-trip persistence via `PATCH` and `GET /v1/users/me/preferences`.
+- Web and Mobile UI components:
+  - Web avatar (`apps/web/src/components/NoriAvatar.tsx`): rendered vector origami companion with 8 truthful states, supporting light, dark, and static themes.
+  - Web floating launcher (`apps/web/src/components/NoriCompanionLauncher.tsx`): floating corner widget with safe insets, hover greeting, right-click context menu (corner relocation, reduced motion, hide option), keyboard navigation, and focus restoration on panel close.
+  - Web header integration: updated `AppHeader.tsx` labeled button to "Ask Nori" with `<Icon name="nori" />`.
+  - Mobile floating launcher (`apps/mobile/src/views/NoriCompanionLauncher.tsx`): floating corner launcher with 52x52dp touch target (>= 48dp WCAG AA standard), safe coordinates avoiding bottom navigation bar (64dp offset), truthful status colors, and TalkBack accessible descriptions.
+  - Mobile view integration: mounted `NoriCompanionLauncher` in `apps/mobile/App.tsx` and updated `AssistantSheet.tsx` title to "Ask Nori Assistant".
+- Manual UI and accessibility evidence (`artifacts/phase96/manual-ui-evidence.json`):
+  - Verified floating launcher across all 4 screen corners, safe clearance from bottom navigation, reduced-motion behavior, background tab render loop suppression, touch target dimensions, keyboard focus restoration, and screen-reader announcements.
+- Design guide authored (`docs/design/nori-companion-and-launcher-guide.md`):
+  - Comprehensive guide covering character identity, origami geometry specs, palette tokens, state derivation rules, safe placement matrix, accessibility, and asset compilation.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase96-nori-companion-launcher.test.ts` with 21 passing tests covering asset existence, dual-entry session binding, 8-state resolution, mic invariant, offline guidance, hide preference, corner coordinates, reduced motion, background cleanup, touch targets, focus restoration, draft preservation, and preference persistence.
+  - Added AST-019 through AST-022 in `packages/domain/src/domain.test.ts` (all 107 domain unit tests pass).
+- Fail-closed release gates preserved: live production AI activation remains disabled; underlying live model execution remains blocked pending owner approval under DEF-V2-008; Phase 96 recorded as blocked in roadmap metadata.
+- Commit: `feat(companion): add the optional original Nori assistant launcher`.
+
 ## Phase 95 — Voice capture, transcription, and reviewed creation — 2026-11-09
 
 - ADR 0095: Voice capture, transcription, and reviewed creation establishing transcription provider comparative analysis selecting Gemini 1.5 Flash multimodal ($0.00002/s) over Whisper-1 ($0.006/min), `MockAudioTranscriptionAdapter` for zero-cost deterministic local verification, strict decoupling of OS microphone permissions from external AI transmission consent (`403 AI_CONSENT_REQUIRED`), pre-transmission disclosure, 0-day transient audio retention policy with immediate memory buffer zeroing and raw audio DB exclusion, item attachment decoupling (zero unreviewed attachment writes), duration (0.5s–600s) and size (<= 25 MiB) bounds, silence and low-confidence (<0.70) uncertainty detection, interactive transcript review and text editing before proposal generation, idempotent retry with stable `clientOperationId`, user cancellation via `AbortSignal`, server kill switch halting (`503 AI_KILL_SWITCH_ACTIVE`), and fail-closed AI activation gates.

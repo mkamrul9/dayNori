@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { AuthSession, SignInResponse, SignUpResponse } from '@daynori/contracts';
+import type { AuthSession, NoriCompanionPreferences, SignInResponse, SignUpResponse } from '@daynori/contracts';
 import { createWebApiClient } from '../data/webApiClient';
 import { OfflineFileCache } from '../data/offlineFileCache.js';
 import { getTrustedDeviceConsent, IndexedDbLocalRepository } from '../data/indexedDbRepository';
@@ -38,6 +38,7 @@ export interface UserPreferencesState {
   suppressBodySnippets: boolean;
   quietHours?: QuietHoursState;
   featurePersonalization?: FeaturePersonalizationState;
+  noriCompanion?: NoriCompanionPreferences;
   revision: number;
 }
 
@@ -110,6 +111,7 @@ function mapProfileToPreferences(prof: {
     suppressBodySnippets?: boolean;
     quietHours?: QuietHoursState;
     featurePersonalization?: FeaturePersonalizationState;
+    noriCompanion?: NoriCompanionPreferences;
   };
 }): UserPreferencesState {
   const fp = prof.preferences?.featurePersonalization;
@@ -146,6 +148,13 @@ function mapProfileToPreferences(prof: {
           pinnedFeatureIds: Array.isArray(fp.pinnedFeatureIds)
             ? fp.pinnedFeatureIds.map(String)
             : [],
+        }
+      : undefined,
+    noriCompanion: prof.preferences?.noriCompanion
+      ? {
+          enabled: prof.preferences.noriCompanion.enabled !== false,
+          position: prof.preferences.noriCompanion.position || 'bottom-right',
+          reducedMotion: Boolean(prof.preferences.noriCompanion.reducedMotion),
         }
       : undefined,
     revision: prof.revision,
@@ -251,6 +260,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (updates.quietHours !== undefined) prefsPatch.quietHours = updates.quietHours;
         if (updates.featurePersonalization !== undefined)
           prefsPatch.featurePersonalization = updates.featurePersonalization;
+        if (updates.noriCompanion !== undefined)
+          prefsPatch.noriCompanion = updates.noriCompanion;
 
         const payload: Record<string, unknown> = {
           ...(updates.timeZone ? { timeZone: updates.timeZone } : {}),

@@ -174,16 +174,17 @@ export const AppHeader: React.FC = () => {
         <button
           type="button"
           id="global-assistant-btn"
-          aria-label="Ask Daynori Assistant"
+          data-testid="global-assistant-btn"
+          aria-label="Ask Nori assistant"
           onClick={() => openModal('assistant')}
           style={buttonStyle}
           className="hide-below-380"
         >
           <span aria-hidden="true">
-            <Icon name="sparkle" />
+            <Icon name="nori" />
           </span>
           <span className="desktop-only" style={{ marginLeft: '4px' }}>
-            Assistant
+            Ask Nori
           </span>
         </button>
         </TourTarget>

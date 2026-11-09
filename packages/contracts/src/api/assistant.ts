@@ -346,3 +346,15 @@ export const TranscribeAudioResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type TranscribeAudioResponse = z.infer<typeof TranscribeAudioResponseSchema>;
+
+export const NoriCompanionStateSchema = z.enum([
+  'idle',
+  'greeting',
+  'listening',
+  'thinking',
+  'success',
+  'error',
+  'offline',
+  'sleeping',
+]);
+export type NoriCompanionState = z.infer<typeof NoriCompanionStateSchema>;

@@ -631,7 +631,7 @@ export function AssistantSheet({
       accessibilityLabel="Assistant provisional local"
     >
       <Text style={[styles.title, { color: palette.text.primary }]}>
-        Daynori Assistant
+        Ask Nori Assistant
       </Text>
       <Text style={[styles.body, { color: palette.text.secondary }]}>
         Personal-workspace answers with verified source links. Fake/gated provider — not evaluated live

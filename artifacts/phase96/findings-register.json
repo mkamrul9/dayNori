@@ -1,0 +1,71 @@
+{
+  "phase": 96,
+  "name": "Phase 96 Nori Original Companion and Assistant Launcher Findings Register",
+  "generatedAt": "2026-11-10T00:15:00+06:00",
+  "findings": [
+    {
+      "id": "NOR-001",
+      "category": "character_identity_and_trademark",
+      "severity": "high",
+      "title": "Nori naming review, distinctiveness, and product category screening",
+      "description": "'Nori' is the natural diminutive and root of Daynori (Day + Nori), symbolizing lightness, beginnings, and origami paper folds. A category screen across productivity, note-taking, and assistant apps revealed no conflicting characters or registered marks in the mobile personal organizer category. Formal commercial trademark registration remains pending public commercial launch.",
+      "remediation": "Established NORI_NAME_METADATA in @daynori/domain documenting name origin, character concept, screen boundaries, and provisional status. Reconciled all product naming to reference 'Nori' / 'Ask Nori Assistant' consistently."
+    },
+    {
+      "id": "NOR-002",
+      "category": "asset_provenance_and_licensing",
+      "severity": "critical",
+      "title": "Strict original provenance: zero AI generation and zero third-party stock/clipart imports",
+      "description": "To maintain intellectual property integrity, licensing purity, and brand trust, the assistant companion character must not rely on generative AI image tools (e.g. Midjourney, DALL-E) or third-party stock vector illustrations with restrictive or ambiguous licenses.",
+      "remediation": "Drafted original mathematical vector coordinates in assets/brand/nori/nori-geometry.json with origami faceted planes (teal front body, shaded wings, warm amber crest, and ink accents). Implemented automated asset pipeline scripts/build-nori-assets.mjs generating pristine SVGs and PNGs across 24, 32, 48, 96, 192 sizes under the project's MIT license."
+    },
+    {
+      "id": "NOR-003",
+      "category": "session_architecture",
+      "severity": "high",
+      "title": "Dual launcher entry points must bind to a single assistant session",
+      "description": "Users can access the assistant through either the floating Nori companion launcher or the labeled 'Ask Nori' button in the application header/settings. Disconnecting these pathways would lead to fragmented conversation history, lost drafts, and cognitive dissonance.",
+      "remediation": "Connected both the floating companion launcher and the labeled 'Ask Nori' header button to the identical assistant session controller (useAssistantChat / AssistantPanel on web, AssistantSheet on mobile). In-flight streaming, message history, and uncommitted drafts remain strictly synchronized regardless of entry mechanism."
+    },
+    {
+      "id": "NOR-004",
+      "category": "truthful_state_engine",
+      "severity": "high",
+      "title": "Companion expressions must truthfully represent actual application and connection state",
+      "description": "Displaying misleading animations or cheerful gestures while the application is offline, disconnected, or encountering failures damages user trust and obfuscates actionable errors.",
+      "remediation": "Implemented resolveNoriState in @daynori/domain deriving 8 mutually-exclusive states (idle, greeting, listening, thinking, success, error, offline, sleeping) strictly from verified application telemetry. Precedence rules guarantee that offline or error states immediately override decorative animations, surfacing reachable Help and retry paths."
+    },
+    {
+      "id": "NOR-005",
+      "category": "privacy_and_audio_invariants",
+      "severity": "critical",
+      "title": "Strict microphone capture invariant: displaying or hovering launcher never records audio",
+      "description": "Floating assistant companions risk creating user apprehension regarding unprompted background eavesdropping. The companion must never activate recording hardware simply by being rendered, clicked, hovered, or focused.",
+      "remediation": "Enforced strict audio recording fencing in resolveNoriState and UI components. The 'listening' state is strictly guarded by isListening === true (active, user-initiated microphone hardware session). Merely opening, hovering, or focusing the launcher triggers only the quiet 'greeting' state without accessing audio hardware."
+    },
+    {
+      "id": "NOR-006",
+      "category": "layout_and_collision_avoidance",
+      "severity": "high",
+      "title": "Floating launcher must avoid colliding with primary navigation, banners, and action controls",
+      "description": "Floating action buttons frequently obscure essential bottom navigation tabs, Floating Action Buttons (FABs), notification banners, editor formatting toolbars, Save buttons, and virtual soft keyboards.",
+      "remediation": "Implemented calculateNoriSafeCoordinates in @daynori/domain with support for 4 configurable corners (bottom-right, bottom-left, top-right, top-left). Safe insets automatically offset coordinates by bottomNavHeight (64px) + safe area padding. Added user positioning preferences persisted via /v1/users/me/preferences."
+    },
+    {
+      "id": "NOR-007",
+      "category": "accessibility_and_reduced_motion",
+      "severity": "high",
+      "title": "Mandatory reduced-motion honoring and background resource conservation",
+      "description": "Continuous ambient floating and breathing animations induce vestibular distress for users sensitive to motion and consume unnecessary battery and GPU cycles when running in hidden tabs.",
+      "remediation": "Implemented shouldReduceNoriMotion and getNoriMotionDurations in @daynori/domain. When system prefers-reduced-motion is detected or user preference noriCompanion.reducedMotion is true, all animation durations are clamped to 0ms (allowAnimation: false) and presentation shifts to static origami vector rendering. VisibilityChange listeners halt animation loops when tabs are backgrounded."
+    },
+    {
+      "id": "NOR-008",
+      "category": "keyboard_and_screen_reader_accessibility",
+      "severity": "high",
+      "title": "Accessible keyboard navigation, minimum touch targets, and focus restoration",
+      "description": "Floating elements must be fully discoverable by screen readers and operable without mouse gestures, with predictable focus management upon modal opening and closure.",
+      "remediation": "Provided distinct screen-reader announcements via getNoriStateAccessibilityLabel for all 8 states. Enforced minimum 48dp touch targets on web (52px) and mobile (52dp). Added focus restoration logic on web that automatically refocuses the launcher trigger button when the assistant dialog is closed."
+    }
+  ]
+}

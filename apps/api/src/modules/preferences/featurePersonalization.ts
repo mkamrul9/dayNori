@@ -5,6 +5,7 @@ import {
 } from '@daynori/domain';
 import type {
   DisplayPreferences,
+  NoriCompanionPreferences,
   QuietHoursPreference,
   OnboardingState,
   ThemePreference,
@@ -43,6 +44,7 @@ export function mapDisplayPreferences(
     onboarding: (prefs?.['onboarding'] as OnboardingState | undefined) || undefined,
     tourProgress: (prefs?.['tourProgress'] as TourProgressState | undefined) || undefined,
     featurePersonalization: resolveFeaturePersonalization(prefs ?? undefined),
+    noriCompanion: (prefs?.['noriCompanion'] as NoriCompanionPreferences | undefined) || undefined,
   };
 }
 

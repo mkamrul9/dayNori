@@ -55,6 +55,12 @@ import {
   calculateAudioTranscriptionCost,
   detectTranscriptionUncertainty,
   MockAudioTranscriptionAdapter,
+  resolveNoriState,
+  calculateNoriSafeCoordinates,
+  shouldReduceNoriMotion,
+  getNoriMotionDurations,
+  NORI_NAME_METADATA,
+  getNoriStateAccessibilityLabel,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2944,6 +2950,93 @@ describe('Domain Rules and Invariants', () => {
           signal: ac.signal,
         })
       ).rejects.toThrow('aborted');
+    });
+
+    it('AST-019: resolves Nori presentation states truthfully from application conditions', () => {
+      // 1. Idle default
+      expect(resolveNoriState({})).toBe('idle');
+
+      // 2. Greeting on hover or focus or open drawer
+      expect(resolveNoriState({ isHoveredOrFocused: true })).toBe('greeting');
+      expect(resolveNoriState({ isAssistantOpen: true })).toBe('greeting');
+
+      // 3. Listening ONLY during explicit active voice recording
+      expect(resolveNoriState({ isAssistantOpen: true, isListening: true })).toBe('listening');
+      expect(resolveNoriState({ isAssistantOpen: true, isListening: false })).toBe('greeting');
+
+      // 4. Thinking during in-flight stream/request
+      expect(resolveNoriState({ isThinking: true })).toBe('thinking');
+
+      // 5. Success on acknowledged proposal/action
+      expect(resolveNoriState({ isSuccess: true })).toBe('success');
+
+      // 6. Error on failure
+      expect(resolveNoriState({ isError: true })).toBe('error');
+
+      // 7. Offline when disconnected
+      expect(resolveNoriState({ isOffline: true })).toBe('offline');
+
+      // 8. Sleeping during quiet hours
+      expect(resolveNoriState({ isQuietHours: true })).toBe('sleeping');
+    });
+
+    it('AST-020: calculates safe positioning coordinates for all 4 corners avoiding navigation collisions', () => {
+      const insets = {
+        top: 24,
+        bottom: 16,
+        left: 0,
+        right: 0,
+        bottomNavHeight: 56,
+        bannerHeight: 40,
+      };
+
+      const br = calculateNoriSafeCoordinates('bottom-right', insets);
+      expect(br.bottom).toBe(88); // 16 bottom + 56 nav + 16 pad
+      expect(br.right).toBe(16);
+
+      const bl = calculateNoriSafeCoordinates('bottom-left', insets);
+      expect(bl.bottom).toBe(88);
+      expect(bl.left).toBe(16);
+
+      const tr = calculateNoriSafeCoordinates('top-right', insets);
+      expect(tr.top).toBe(80); // 24 top + 40 banner + 16 pad
+      expect(tr.right).toBe(16);
+
+      const tl = calculateNoriSafeCoordinates('top-left', insets);
+      expect(tl.top).toBe(80);
+      expect(tl.left).toBe(16);
+    });
+
+    it('AST-021: enforces reduced-motion suppression and transition duration guarantees', () => {
+      // Should reduce motion when pref is set OR system prefers reduced motion
+      expect(shouldReduceNoriMotion({ reducedMotion: true }, false)).toBe(true);
+      expect(shouldReduceNoriMotion({ reducedMotion: false }, true)).toBe(true);
+      expect(shouldReduceNoriMotion({ reducedMotion: false }, false)).toBe(false);
+
+      // Duration is 0ms when reduced motion is true
+      const reduced = getNoriMotionDurations(true);
+      expect(reduced.transitionMs).toBe(0);
+      expect(reduced.pulseMs).toBe(0);
+      expect(reduced.allowAnimation).toBe(false);
+
+      const normal = getNoriMotionDurations(false);
+      expect(normal.transitionMs).toBeGreaterThan(0);
+      expect(normal.pulseMs).toBeGreaterThan(0);
+      expect(normal.allowAnimation).toBe(true);
+    });
+
+    it('AST-022: verifies Nori asset provenance, metadata record, and naming review documentation', () => {
+      expect(NORI_NAME_METADATA.name).toBe('Nori');
+      expect(NORI_NAME_METADATA.palette.tealPrimary).toBe('#146B63');
+      expect(NORI_NAME_METADATA.palette.warmAccent).toBe('#D9A441');
+      expect(NORI_NAME_METADATA.author).toBe('Daynori Core Team');
+      expect(NORI_NAME_METADATA.license).toBe('MIT');
+      expect(NORI_NAME_METADATA.generationMethod).toContain('Zero AI image generation');
+      expect(NORI_NAME_METADATA.namingReviewStatus).toContain('Screened for application conflicts');
+
+      expect(getNoriStateAccessibilityLabel('idle')).toContain('ready to help');
+      expect(getNoriStateAccessibilityLabel('listening')).toContain('listening to microphone');
+      expect(getNoriStateAccessibilityLabel('offline')).toContain('offline; manual creation remains available');
     });
   });
 });

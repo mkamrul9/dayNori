@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 280" fill="#F7F5EF">
+  <rect width="540" height="280" fill="#F7F5EF"/>
+  <text x="24" y="36" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="640" fill="#172C2C">Daynori Assistant Companion (Nori) — State Showcase</text>
+  <text x="24" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#526363">Original folded-paper character: teal body, ink features, and warm amber crest</text>
+  <g transform="translate(32 80)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#0E524C"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#1D7F76"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#146B63"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#D9A441"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <circle cx="26" cy="26" r="2.4" fill="#172C2C"/><circle cx="38" cy="26" r="2.4" fill="#172C2C"/><circle cx="25.2" cy="25.2" r="0.8" fill="#FFFFFF"/><circle cx="37.2" cy="25.2" r="0.8" fill="#FFFFFF"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">idle</text>
+      </g><g transform="translate(160 80)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#0E524C"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#1D7F76"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#146B63"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#D9A441"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <path d="M23 27 Q26 23.5 29 27" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M35 27 Q38 23.5 41 27" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M29 33 Q32 36 35 33" stroke="#172C2C" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">greeting</text>
+      </g><g transform="translate(288 80)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#0E524C"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#1D7F76"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#146B63"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 4 L48 4 L32 20 Z" fill="#D9A441"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <circle cx="26" cy="25" r="2.4" fill="#172C2C"/><circle cx="38" cy="25" r="2.4" fill="#172C2C"/><path d="M24 44 Q32 48 40 44" stroke="#D9A441" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">listening</text>
+      </g><g transform="translate(416 80)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#0E524C"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#1D7F76"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#146B63"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#D9A441"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <circle cx="26" cy="24" r="2.4" fill="#172C2C"/><circle cx="38" cy="24" r="2.4" fill="#172C2C"/><path d="M46 10 L48 6 L50 10 L54 12 L50 14 L48 18 L46 14 L42 12 Z" fill="#D9A441"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">thinking</text>
+      </g><g transform="translate(32 176)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#0E524C"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#1D7F76"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#146B63"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#D9A441"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <path d="M23 26 Q26 22.5 29 26" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M35 26 Q38 22.5 41 26" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M27 34 L30 37 L37 30" stroke="#F7F5EF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">success</text>
+      </g><g transform="translate(160 176)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#0E524C"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#1D7F76"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#146B63"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#B3261E"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <circle cx="26" cy="26" r="2.4" fill="#172C2C"/><circle cx="38" cy="26" r="2.4" fill="#172C2C"/><path d="M32 34 L35 40 H29 Z" fill="#B3261E"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">error</text>
+      </g><g transform="translate(288 176)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#3D4D4D"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#4A5C5C"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#526363"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#526363"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <path d="M23 26 H29" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M35 26 H41" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">offline</text>
+      </g><g transform="translate(416 176)">
+        <rect x="0" y="0" width="80" height="80" rx="12" fill="#FFFFFF" stroke="#D9DFDC" stroke-width="1"/>
+        <g transform="translate(8 8) scale(1)">
+
+  <!-- Left Wing -->
+  <path d="M16 24 L32 56 L10 38 Z" fill="#0E524C"/>
+  <!-- Right Wing -->
+  <path d="M48 24 L32 56 L54 38 Z" fill="#1D7F76"/>
+  <!-- Front Body Plane -->
+  <path d="M32 8 L48 24 L32 56 L16 24 Z" fill="#146B63"/>
+  <!-- Folded Crest Accent -->
+  <path d="M32 8 L44 8 L32 20 Z" fill="#D9A441"/>
+  <!-- Shadow Crease -->
+  <path d="M24 38 L32 56 L40 38 Z" fill="#172C2C" fill-opacity="0.12"/>
+  <!-- State Features -->
+  <path d="M23 28 Q26 30 29 28" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M35 28 Q38 30 41 28" stroke="#172C2C" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+        </g>
+        <text x="40" y="74" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="500" fill="#172C2C">sleeping</text>
+      </g>
+</svg>
