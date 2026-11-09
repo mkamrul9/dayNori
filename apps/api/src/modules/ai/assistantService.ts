@@ -10,15 +10,23 @@ import {
   CreateTaskRequestSchema,
   UpdateTaskRequestSchema,
   CreateNoteRequestSchema,
+  CreateJournalEntryRequestSchema,
+  type CreateJournalEntryRequest,
   type AiAssistantOperation,
   type AiCitation,
   type AiProposal,
   type AiProposalReviewSummary,
 } from '@daynori/contracts';
-import { findHelpArticle } from '@daynori/domain';
-import { withUserContext } from '../../db/index.js';
+import {
+  findHelpArticle,
+  detectJournalDateAmbiguity,
+  getOrganizerDeepLink,
+  sanitizeOrganizerText,
+} from '@daynori/domain';
+import { withUserContext, withTenantContext } from '../../db/index.js';
 import { createTask, updateTask, getTask } from '../tasks/service.js';
 import { createNote, getNote } from '../notes/service.js';
+import { createJournalEntry } from '../journal/service.js';
 import {
   getMutationReceipt,
   insertMutationReceipt,
@@ -68,6 +76,10 @@ function mapReviewSummary(raw: Record<string, unknown> | null | undefined): AiPr
       targetLabel: raw['targetLabel'],
       before: typeof raw['before'] === 'string' ? raw['before'] : null,
       after: raw['after'],
+      destination: typeof raw['destination'] === 'string' ? raw['destination'] : undefined,
+      date: typeof raw['date'] === 'string' ? raw['date'] : undefined,
+      timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : undefined,
+      source: typeof raw['source'] === 'string' ? raw['source'] : undefined,
     };
   }
   return {
@@ -101,7 +113,30 @@ function normalizeProposalPayload(
   payload: Record<string, unknown>
 ): Record<string, unknown> {
   if (operation === 'create_personal_task') {
+    const raw = { ...payload };
+    if (typeof raw['dueDate'] === 'string' && !raw['deadline']) {
+      raw['deadline'] = { type: 'date', date: raw['dueDate'] };
+      delete raw['dueDate'];
+    }
     const parsed = CreateTaskRequestSchema.parse({
+      ...raw,
+      id: typeof raw['id'] === 'string' ? raw['id'] : crypto.randomUUID(),
+    }) as unknown as Record<string, unknown>;
+    if (parsed['securityScope'] === 'vault') {
+      throw new AiServiceError('Vault targets are forbidden', 403, 'AI_VAULT_FORBIDDEN');
+    }
+    return parsed;
+  }
+  if (operation === 'update_personal_task') {
+    const raw = { ...payload };
+    if (typeof raw['dueDate'] === 'string' && !raw['deadline']) {
+      raw['deadline'] = { type: 'date', date: raw['dueDate'] };
+      delete raw['dueDate'];
+    }
+    return UpdateTaskRequestSchema.parse(raw) as unknown as Record<string, unknown>;
+  }
+  if (operation === 'create_personal_note') {
+    const parsed = CreateNoteRequestSchema.parse({
       ...payload,
       id: typeof payload['id'] === 'string' ? payload['id'] : crypto.randomUUID(),
     }) as unknown as Record<string, unknown>;
@@ -110,11 +145,8 @@ function normalizeProposalPayload(
     }
     return parsed;
   }
-  if (operation === 'update_personal_task') {
-    return UpdateTaskRequestSchema.parse(payload) as unknown as Record<string, unknown>;
-  }
-  if (operation === 'create_personal_note') {
-    const parsed = CreateNoteRequestSchema.parse({
+  if (operation === 'create_personal_journal_entry') {
+    const parsed = CreateJournalEntryRequestSchema.parse({
       ...payload,
       id: typeof payload['id'] === 'string' ? payload['id'] : crypto.randomUUID(),
     }) as unknown as Record<string, unknown>;
@@ -193,11 +225,25 @@ function buildReviewSummary(
 ): AiProposalReviewSummary {
   if (operation === 'create_personal_task') {
     const title = String(payload['title'] ?? 'Untitled task');
+    const deadline = payload['deadline'] as
+      | { type: string; date?: string; timestamp?: string; timezone?: string }
+      | undefined;
+    const dateStr =
+      deadline?.type === 'date'
+        ? deadline.date
+        : deadline?.type === 'timed'
+        ? deadline.timestamp
+        : undefined;
+    const tzStr = deadline?.type === 'timed' ? deadline.timezone : undefined;
     return {
       headline: 'Create a personal task',
       targetLabel: 'New task',
       before: null,
       after: `Create task “${title}” with status ${String(payload['status'] ?? 'todo')}.`,
+      destination: 'Plan / Tasks',
+      date: dateStr,
+      timezone: tzStr,
+      source: 'Assistant proposal',
     };
   }
   if (operation === 'create_personal_note') {
@@ -207,6 +253,23 @@ function buildReviewSummary(
       targetLabel: 'New note',
       before: null,
       after: `Create note “${title}”.`,
+      destination: 'Library / Notes',
+      source: 'Assistant proposal',
+    };
+  }
+  if (operation === 'create_personal_journal_entry') {
+    const title = payload['title'] ? String(payload['title']) : null;
+    const entryDate = String(payload['entryDate'] ?? 'today');
+    const timezone = String(payload['timezone'] ?? 'UTC');
+    return {
+      headline: 'Create a personal journal entry',
+      targetLabel: title ? `Journal: “${title}”` : `Journal entry (${entryDate})`,
+      before: null,
+      after: `Create journal entry for ${entryDate}${title ? ` titled “${title}”` : ''} in timezone ${timezone}.`,
+      destination: 'Journal',
+      date: entryDate,
+      timezone,
+      source: 'Assistant proposal',
     };
   }
   const title = String(payload['title'] ?? target?.title ?? 'task');
@@ -217,6 +280,8 @@ function buildReviewSummary(
     after: `Update to title “${title}”${
       payload['status'] !== undefined ? `, status ${String(payload['status'])}` : ''
     }.`,
+    destination: 'Plan / Tasks',
+    source: 'Assistant proposal',
   };
 }
 
@@ -279,9 +344,18 @@ export async function createAiProposal(
   if (
     input.operation !== 'create_personal_task' &&
     input.operation !== 'update_personal_task' &&
-    input.operation !== 'create_personal_note'
+    input.operation !== 'create_personal_note' &&
+    input.operation !== 'create_personal_journal_entry'
   ) {
     throw new AiServiceError('Unsupported AI operation', 400, 'AI_OPERATION_UNSUPPORTED');
+  }
+
+  if (input.operation === 'create_personal_journal_entry' && !consent.contentScope.journal) {
+    throw new AiServiceError(
+      'Journal content scope required for journal proposals',
+      403,
+      'AI_JOURNAL_SCOPE_REQUIRED'
+    );
   }
 
   const normalized = normalizeProposalPayload(input.operation, input.payload);
@@ -428,24 +502,58 @@ export async function askAssistant(
     );
 
     let suggestedProposal: AiProposal | null = null;
-    const proposeMatch = /^propose\s+task:\s*(.+)$/i.exec(input.question.trim());
-    if (input.allowSuggestProposal && proposeMatch) {
-      suggestedProposal = await createAiProposal(client, {
-        userId: input.userId,
-        workspaceId: input.workspaceId,
-        operation: 'create_personal_task',
-        payload: {
-          title: proposeMatch[1]!.slice(0, 200),
-          details: `Suggested from assistant turn ${turn.rows[0]!.id}`,
-          priority: 'normal',
-          status: 'todo',
-        },
-      });
+    let finalAnswer = retrieved.answer;
+    if (input.allowSuggestProposal) {
+      const trimmedQ = input.question.trim();
+      const taskMatch = /^propose\s+task:\s*(.+)$/i.exec(trimmedQ);
+      const noteMatch = /^propose\s+note:\s*(.+)$/i.exec(trimmedQ);
+      const journalMatch = /^propose\s+journal:\s*(.+)$/i.exec(trimmedQ);
+
+      if (taskMatch) {
+        suggestedProposal = await createAiProposal(client, {
+          userId: input.userId,
+          workspaceId: input.workspaceId,
+          operation: 'create_personal_task',
+          payload: {
+            title: taskMatch[1]!.slice(0, 200),
+            details: `Suggested from assistant turn ${turn.rows[0]!.id}`,
+            priority: 'normal',
+            status: 'todo',
+          },
+        });
+      } else if (noteMatch) {
+        suggestedProposal = await createAiProposal(client, {
+          userId: input.userId,
+          workspaceId: input.workspaceId,
+          operation: 'create_personal_note',
+          payload: {
+            title: noteMatch[1]!.slice(0, 200),
+            plainText: `Note draft from assistant turn ${turn.rows[0]!.id}`,
+          },
+        });
+      } else if (journalMatch) {
+        const journalContent = journalMatch[1]!;
+        const dateCheck = detectJournalDateAmbiguity(journalContent);
+        if (dateCheck.isAmbiguous) {
+          finalAnswer = `${retrieved.answer}\n\n${dateCheck.clarificationQuestion}`;
+        } else if (dateCheck.inferredDate && consent.contentScope.journal) {
+          suggestedProposal = await createAiProposal(client, {
+            userId: input.userId,
+            workspaceId: input.workspaceId,
+            operation: 'create_personal_journal_entry',
+            payload: {
+              entryDate: dateCheck.inferredDate,
+              plainText: sanitizeOrganizerText(journalContent),
+              timezone: 'UTC',
+            },
+          });
+        }
+      }
     }
 
     return {
       turnId: turn.rows[0]!.id,
-      answer: retrieved.answer,
+      answer: finalAnswer,
       abstained: retrieved.abstained,
       citations: retrieved.citations,
       retrievedSourceCount: retrieved.retrievedSourceCount,
@@ -854,6 +962,110 @@ export async function streamAssistant(
   }
 }
 
+export async function updateAiProposalPayload(
+  client: PoolClient,
+  input: {
+    userId: string;
+    proposalId: string;
+    payload: Record<string, unknown>;
+  }
+): Promise<AiProposal> {
+  const locked = await client.query<ProposalRow>(
+    `SELECT * FROM app.ai_proposals WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+    [input.proposalId, input.userId]
+  );
+  const row = locked.rows[0];
+  if (!row) {
+    throw new AiServiceError('Proposal not found', 404, 'AI_PROPOSAL_NOT_FOUND');
+  }
+
+  if (row.status !== 'pending') {
+    throw new AiServiceError(`Proposal is ${row.status}`, 409, 'AI_PROPOSAL_NOT_PENDING');
+  }
+
+  if (new Date(row.expires_at).getTime() <= Date.now()) {
+    await client.query<ProposalRow>(
+      `UPDATE app.ai_proposals SET status = 'expired' WHERE id = $1 AND status = 'pending'`,
+      [input.proposalId]
+    );
+    throw new AiServiceError('Proposal expired', 409, 'AI_PROPOSAL_EXPIRED');
+  }
+
+  const consent = await getAiConsentStatus(client, input.userId);
+  if (!consent.enabled || consent.consentGeneration !== Number(row.consent_generation)) {
+    await client.query<ProposalRow>(
+      `UPDATE app.ai_proposals
+       SET status = 'cancelled', cancelled_at = now()
+       WHERE id = $1 AND status = 'pending'`,
+      [input.proposalId]
+    );
+    throw new AiServiceError('Consent changed — proposal invalidated', 403, 'AI_CONSENT_CHANGED');
+  }
+
+  await assertPersonalEditorAccess(client, row.workspace_id, input.userId);
+
+  if (row.operation === 'create_personal_journal_entry' && !consent.contentScope.journal) {
+    throw new AiServiceError(
+      'Journal content scope required for journal proposals',
+      403,
+      'AI_JOURNAL_SCOPE_REQUIRED'
+    );
+  }
+
+  const currentPayload = row.payload as Record<string, unknown>;
+  const mergedPayload = {
+    ...input.payload,
+    id: currentPayload['id'] ?? input.payload['id'] ?? crypto.randomUUID(),
+  };
+
+  const normalized = normalizeProposalPayload(row.operation as AiAssistantOperation, mergedPayload);
+
+  let targetMeta: { title?: string; beforeLabel?: string } | null = null;
+  if (row.operation === 'update_personal_task' && row.target_item_id && row.expected_revision !== null) {
+    targetMeta = await validateUpdateTarget(client, {
+      workspaceId: row.workspace_id,
+      targetItemId: row.target_item_id,
+      expectedRevision: Number(row.expected_revision),
+    });
+  }
+
+  const requestHash = hashRequest({
+    operation: row.operation,
+    payload: normalized,
+    targetItemId: row.target_item_id,
+    expectedRevision: row.expected_revision === null ? null : Number(row.expected_revision),
+    workspaceId: row.workspace_id,
+  });
+
+  const reviewSummary = buildReviewSummary(row.operation as AiAssistantOperation, normalized, targetMeta);
+  const newToken = crypto.randomBytes(24).toString('base64url');
+
+  const res = await client.query<ProposalRow>(
+    `UPDATE app.ai_proposals
+     SET payload = $2::jsonb,
+         request_hash = $3,
+         review_summary = $4::jsonb,
+         confirmation_token = $5,
+         updated_at = now()
+     WHERE id = $1 AND user_id = $6 AND status = 'pending'
+     RETURNING *`,
+    [
+      input.proposalId,
+      JSON.stringify(normalized),
+      requestHash,
+      JSON.stringify(reviewSummary),
+      newToken,
+      input.userId,
+    ]
+  );
+
+  if (res.rows.length === 0) {
+    throw new AiServiceError('Proposal update failed', 409, 'AI_PROPOSAL_NOT_PENDING');
+  }
+
+  return mapProposal(res.rows[0]!);
+}
+
 export async function cancelAiProposal(
   client: PoolClient,
   input: { userId: string; proposalId: string }
@@ -936,6 +1148,24 @@ export async function confirmAiProposal(
     };
   }
 
+  if (row.operation === 'create_personal_journal_entry' && !consent.contentScope.journal) {
+    const cancelled = await client.query<ProposalRow>(
+      `UPDATE app.ai_proposals
+       SET status = 'cancelled', cancelled_at = now()
+       WHERE id = $1 AND status = 'pending' RETURNING *`,
+      [input.proposalId]
+    );
+    return {
+      outcome: 'error',
+      proposal: mapProposal(cancelled.rows[0] ?? { ...row, status: 'cancelled' }),
+      error: new AiServiceError(
+        'Journal content scope required for journal proposals',
+        403,
+        'AI_JOURNAL_SCOPE_REQUIRED'
+      ),
+    };
+  }
+
   try {
     await assertPersonalEditorAccess(client, row.workspace_id, input.userId);
   } catch (err) {
@@ -969,8 +1199,17 @@ export async function confirmAiProposal(
   let receipt: Record<string, unknown>;
   await client.query('SAVEPOINT ai_proposal_exec');
   try {
-    if (row.operation === 'create_personal_task' || row.operation === 'create_personal_note') {
-      const kind = row.operation === 'create_personal_task' ? 'task' : 'note';
+    if (
+      row.operation === 'create_personal_task' ||
+      row.operation === 'create_personal_note' ||
+      row.operation === 'create_personal_journal_entry'
+    ) {
+      const kind =
+        row.operation === 'create_personal_task'
+          ? 'task'
+          : row.operation === 'create_personal_journal_entry'
+            ? 'journal_entry'
+            : 'note';
       const createId = String((payload as { id: string }).id);
       const fromOp = await loadProposalReceiptFromOperation(
         client,
@@ -994,12 +1233,14 @@ export async function confirmAiProposal(
           payload as never,
           row.operation_id
         );
+        const deepLink = getOrganizerDeepLink('task', created.id);
         receipt = {
           kind: 'task',
           id: created.id,
           revision: created.revision,
           seq: created.seq,
           operationId: row.operation_id,
+          deepLink,
         };
         await insertMutationReceipt(client, {
           workspaceId: row.workspace_id,
@@ -1015,9 +1256,9 @@ export async function confirmAiProposal(
           status: 'accepted',
           acceptedRevision: created.revision,
           appliedChangeSeq: created.seq,
-          resultPayload: { kind: 'task', id: created.id, revision: created.revision },
+          resultPayload: { kind: 'task', id: created.id, revision: created.revision, deepLink },
         });
-      } else {
+      } else if (row.operation === 'create_personal_note') {
         const created = await createNote(
           client,
           row.workspace_id,
@@ -1025,12 +1266,14 @@ export async function confirmAiProposal(
           payload as never,
           row.operation_id
         );
+        const deepLink = getOrganizerDeepLink('note', created.id);
         receipt = {
           kind: 'note',
           id: created.id,
           revision: created.revision,
           seq: created.seq,
           operationId: row.operation_id,
+          deepLink,
         };
         await insertMutationReceipt(client, {
           workspaceId: row.workspace_id,
@@ -1046,7 +1289,45 @@ export async function confirmAiProposal(
           status: 'accepted',
           acceptedRevision: created.revision,
           appliedChangeSeq: created.seq,
-          resultPayload: { kind: 'note', id: created.id, revision: created.revision },
+          resultPayload: { kind: 'note', id: created.id, revision: created.revision, deepLink },
+        });
+      } else {
+        const created = await createJournalEntry(
+          client,
+          row.workspace_id,
+          input.userId,
+          payload as CreateJournalEntryRequest,
+          row.operation_id
+        );
+        const deepLink = getOrganizerDeepLink('journal_entry', created.id);
+        receipt = {
+          kind: 'journal_entry',
+          id: created.id,
+          revision: created.serverRevision,
+          seq: created.seq,
+          operationId: row.operation_id,
+          deepLink,
+        };
+        await insertMutationReceipt(client, {
+          workspaceId: row.workspace_id,
+          actorUserId: input.userId,
+          deviceId: AI_DEVICE_ID,
+          operationId: row.operation_id,
+          command: 'aiConfirmCreateJournalEntry',
+          entityType: 'item',
+          entityId: created.id,
+          schemaVersion: 1,
+          baseRevision: 0,
+          canonicalPayloadHash: requestHash,
+          status: 'accepted',
+          acceptedRevision: created.serverRevision,
+          appliedChangeSeq: created.seq,
+          resultPayload: {
+            kind: 'journal_entry',
+            id: created.id,
+            revision: created.serverRevision,
+            deepLink,
+          },
         });
       }
     } else if (row.operation === 'update_personal_task') {
@@ -1080,6 +1361,7 @@ export async function confirmAiProposal(
         revision: updated.revision,
         seq: updated.seq,
         operationId: row.operation_id,
+        deepLink: getOrganizerDeepLink('task', updated.id),
       };
     } else {
       throw new AiServiceError('Unsupported AI operation', 400, 'AI_OPERATION_UNSUPPORTED');
@@ -1128,6 +1410,119 @@ export async function confirmAiProposal(
     return { outcome: 'ok', proposal: mapProposal(again.rows[0]!) };
   }
   return { outcome: 'ok', proposal: mapProposal(done.rows[0]!) };
+}
+
+export async function batchConfirmAiProposals(
+  pool: Pool,
+  input: {
+    userId: string;
+    items: Array<{ proposalId: string; confirmationToken: string }>;
+  }
+): Promise<
+  Array<{
+    proposalId: string;
+    outcome: 'ok' | 'error';
+    proposal: AiProposal;
+    error: { code: string; message: string } | null;
+  }>
+> {
+  const results: Array<{
+    proposalId: string;
+    outcome: 'ok' | 'error';
+    proposal: AiProposal;
+    error: { code: string; message: string } | null;
+  }> = [];
+
+  for (const item of input.items) {
+    try {
+      const workspaceId = await withUserContext(pool, input.userId, async (client) => {
+        const res = await client.query<{ workspace_id: string }>(
+          `SELECT workspace_id FROM app.ai_proposals WHERE id = $1 AND user_id = $2`,
+          [item.proposalId, input.userId]
+        );
+        if (!res.rows[0]) {
+          throw new AiServiceError('Proposal not found', 404, 'AI_PROPOSAL_NOT_FOUND');
+        }
+        return res.rows[0].workspace_id;
+      });
+
+      const res = await withTenantContext(
+        pool,
+        { userId: input.userId, workspaceId },
+        (client) =>
+          confirmAiProposal(client, {
+            userId: input.userId,
+            proposalId: item.proposalId,
+            confirmationToken: item.confirmationToken,
+          })
+      );
+
+      if (res.outcome === 'error') {
+        results.push({
+          proposalId: item.proposalId,
+          outcome: 'error',
+          proposal: res.proposal,
+          error: {
+            code: res.error.code,
+            message: res.error.message,
+          },
+        });
+      } else {
+        results.push({
+          proposalId: item.proposalId,
+          outcome: 'ok',
+          proposal: res.proposal,
+          error: null,
+        });
+      }
+    } catch (err) {
+      let fallbackProposal: AiProposal | null = null;
+      try {
+        const check = await withUserContext(pool, input.userId, async (client) => {
+          const r = await client.query<ProposalRow>(
+            `SELECT * FROM app.ai_proposals WHERE id = $1 AND user_id = $2`,
+            [item.proposalId, input.userId]
+          );
+          return r.rows[0] ? mapProposal(r.rows[0]) : null;
+        });
+        fallbackProposal = check;
+      } catch {
+        // ignore
+      }
+
+      const code = err instanceof AiServiceError ? err.code : 'AI_EXECUTION_FAILED';
+      const message = err instanceof Error ? err.message : String(err);
+
+      results.push({
+        proposalId: item.proposalId,
+        outcome: 'error',
+        proposal:
+          fallbackProposal ?? {
+            id: item.proposalId,
+            workspaceId: '00000000-0000-0000-0000-000000000000',
+            operation: 'create_personal_task',
+            payload: {},
+            targetItemId: null,
+            expectedRevision: null,
+            consentGeneration: 1,
+            status: 'failed',
+            expiresAt: new Date().toISOString(),
+            confirmationToken: item.confirmationToken,
+            executionReceipt: null,
+            reviewSummary: {
+              headline: 'Failed proposal',
+              targetLabel: 'Item',
+              before: null,
+              after: message,
+            },
+            createdAt: new Date().toISOString(),
+          },
+        error: { code, message },
+      });
+    }
+  }
+
+  return results;
 }
 
 export async function cleanupExpiredAssistantData(

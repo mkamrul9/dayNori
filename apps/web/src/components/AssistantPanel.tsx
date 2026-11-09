@@ -4,9 +4,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation';
 import { colors, radii, spacing, touchTargets, typography, type ThemeMode } from '@daynori/design-tokens';
 import { Button, Feedback, Icon, type FeedbackSeverity } from '@daynori/ui-web';
-import type { AiCitation, AiSelectedSources } from '@daynori/contracts';
+import type { AiCitation, AiSelectedSources, AiProposal } from '@daynori/contracts';
 import {
   ASSISTANT_STARTER_SUGGESTIONS,
+  getOrganizerDeepLink,
   sanitizeAssistantMarkdown,
   type StarterSuggestion,
 } from '@daynori/domain';
@@ -64,6 +65,13 @@ export function AssistantPanel({
   const [history, setHistory] = useState<
     Array<{ id: string; question: string; answer: string; abstained: boolean; createdAt: string }>
   >([]);
+
+  const [proposal, setProposal] = useState<AiProposal | null>(null);
+  const [isEditingProposal, setIsEditingProposal] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [proposalBusy, setProposalBusy] = useState(false);
 
   const askAbortRef = useRef<AbortController | null>(null);
 
@@ -302,6 +310,144 @@ export function AssistantPanel({
     }
   }, [client, personalWorkspaceId]);
 
+  const startEditProposal = useCallback(() => {
+    if (!proposal) return;
+    const p = proposal.payload as Record<string, unknown>;
+    setEditTitle(String(p['title'] ?? ''));
+    setEditContent(String(p['plainText'] ?? p['details'] ?? ''));
+    setEditDate(String(p['entryDate'] ?? p['dueDate'] ?? ''));
+    setIsEditingProposal(true);
+  }, [proposal]);
+
+  const saveEditedProposal = useCallback(async () => {
+    if (!proposal || !personalWorkspaceId) return;
+    setProposalBusy(true);
+    try {
+      const p = proposal.payload as Record<string, unknown>;
+      const updatedPayload: Record<string, unknown> = {
+        ...p,
+        title: editTitle.trim(),
+      };
+      if (proposal.operation === 'create_personal_journal_entry') {
+        if (editDate) updatedPayload['entryDate'] = editDate.trim();
+        updatedPayload['plainText'] = editContent;
+      } else if (proposal.operation === 'create_personal_note') {
+        updatedPayload['plainText'] = editContent;
+      } else if (proposal.operation === 'create_personal_task' || proposal.operation === 'update_personal_task') {
+        if (editDate) updatedPayload['dueDate'] = editDate.trim();
+        updatedPayload['details'] = editContent;
+      }
+
+      const res = await client.updateAiProposal(proposal.id, { payload: updatedPayload });
+      setProposal(res.data);
+      setIsEditingProposal(false);
+      setFeedback({ severity: 'success', message: 'Proposal updated. Review and confirm to execute.' });
+    } catch (err) {
+      setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Failed to update proposal' });
+    } finally {
+      setProposalBusy(false);
+    }
+  }, [proposal, personalWorkspaceId, editTitle, editContent, editDate, client]);
+
+  const confirmProposal = useCallback(async () => {
+    if (!proposal || !personalWorkspaceId) return;
+    setProposalBusy(true);
+    try {
+      const res = await client.confirmAiProposal(proposal.id, { confirmationToken: proposal.confirmationToken });
+      setProposal(res.data);
+      setFeedback({ severity: 'success', message: 'Action confirmed and saved! Cloud mutation receipt created.' });
+    } catch (err) {
+      setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Confirmation failed' });
+    } finally {
+      setProposalBusy(false);
+    }
+  }, [proposal, personalWorkspaceId, client]);
+
+  const cancelProposal = useCallback(async () => {
+    if (!proposal || !personalWorkspaceId) return;
+    setProposalBusy(true);
+    try {
+      const res = await client.cancelAiProposal(proposal.id);
+      setProposal(res.data);
+      setIsEditingProposal(false);
+      setFeedback({ severity: 'info', message: 'Proposal cancelled. No items were created or modified.' });
+    } catch (err) {
+      setFeedback({ severity: 'danger', message: err instanceof Error ? err.message : 'Failed to cancel proposal' });
+    } finally {
+      setProposalBusy(false);
+    }
+  }, [proposal, personalWorkspaceId, client]);
+
+  const openCreatedItem = useCallback(() => {
+    if (!proposal || !proposal.executionReceipt) return;
+    const r = proposal.executionReceipt as Record<string, unknown>;
+    const deepLink =
+      typeof r['deepLink'] === 'string'
+        ? r['deepLink']
+        : getOrganizerDeepLink(String(r['kind'] ?? 'note'), String(r['id']));
+    router.push(deepLink);
+  }, [proposal, router]);
+
+  const createProposalQuick = useCallback(
+    async (op: 'note' | 'task' | 'journal') => {
+      if (!personalWorkspaceId) return;
+      setProposalBusy(true);
+      setFeedback(null);
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        let res;
+        if (op === 'task') {
+          res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_task',
+            payload: {
+              title: question.trim() || 'New task',
+              details: 'Created from reviewed assistant proposal',
+              priority: 'normal',
+              status: 'todo',
+            },
+          });
+        } else if (op === 'note') {
+          res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_note',
+            payload: {
+              title: question.trim() || 'New note',
+              plainText: 'Draft note created from reviewed assistant proposal',
+            },
+          });
+        } else {
+          res = await client.createAiProposal({
+            workspaceId: personalWorkspaceId,
+            operation: 'create_personal_journal_entry',
+            payload: {
+              entryDate: today,
+              title: question.trim() || null,
+              plainText: question.trim()
+                ? `Journal entry: ${question.trim()}`
+                : 'Today’s thoughts and reflections.',
+              timezone: 'UTC',
+            },
+          });
+        }
+        setProposal(res.data);
+        setIsEditingProposal(false);
+        setFeedback({
+          severity: 'info',
+          message: 'Review proposal below. No data is saved until you confirm.',
+        });
+      } catch (err) {
+        setFeedback({
+          severity: 'danger',
+          message: err instanceof Error ? err.message : 'Could not create proposal',
+        });
+      } finally {
+        setProposalBusy(false);
+      }
+    },
+    [personalWorkspaceId, question, client]
+  );
+
   const sanitizedDisplay = useMemo(() => {
     const raw = streamingText || answer || '';
     return sanitizeAssistantMarkdown(raw);
@@ -539,6 +685,321 @@ export function AssistantPanel({
           </Button>
         ) : null}
       </div>
+
+      {/* Organizer Quick Proposals (Phase 93 Reviewed Creation) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: `${spacing.xs}px`,
+          flexWrap: 'wrap',
+          marginBottom: `${spacing.sm}px`,
+          padding: '4px 8px',
+          backgroundColor: palette.surfaceRaised,
+          borderRadius: `${radii.sm}px`,
+        }}
+        aria-label="Organizer proposals"
+      >
+        <span style={{ fontSize: '11px', color: palette.text.secondary, fontWeight: 600 }}>
+          Propose Action:
+        </span>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('note')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Propose Note
+        </button>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('task')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Propose Task
+        </button>
+        <button
+          type="button"
+          onClick={() => void createProposalQuick('journal')}
+          disabled={proposalBusy || !personalWorkspaceId}
+          style={{
+            fontSize: '11px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${palette.border.subtle}`,
+            backgroundColor: palette.surface,
+            color: palette.text.primary,
+            cursor: 'pointer',
+          }}
+        >
+          + Propose Journal
+        </button>
+      </div>
+
+      {/* Proposal Review Card (Phase 93 Reviewed note, task, and journal creation) */}
+      {proposal ? (
+        <div
+          data-tour="assistant-proposal-review"
+          data-testid="assistant-proposal-card"
+          style={{
+            marginTop: `${spacing.sm}px`,
+            marginBottom: `${spacing.sm}px`,
+            padding: `${spacing.sm}px`,
+            backgroundColor: palette.surface,
+            border: `1px solid ${
+              proposal.status === 'confirmed'
+                ? '#2e7d32'
+                : proposal.status === 'cancelled'
+                ? '#d32f2f'
+                : palette.border.subtle
+            }`,
+            borderRadius: `${radii.sm}px`,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          }}
+          aria-live="polite"
+        >
+          {/* Header & Status Badge */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: `${spacing.xs}px`,
+            }}
+          >
+            <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: palette.text.primary }}>
+              {proposal.reviewSummary.headline}
+            </h4>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '2px 6px',
+                borderRadius: '4px',
+                backgroundColor:
+                  proposal.status === 'confirmed'
+                    ? '#e8f5e9'
+                    : proposal.status === 'cancelled'
+                    ? '#ffebee'
+                    : '#fff8e1',
+                color:
+                  proposal.status === 'confirmed'
+                    ? '#2e7d32'
+                    : proposal.status === 'cancelled'
+                    ? '#c62828'
+                    : '#f57f17',
+              }}
+            >
+              {proposal.status === 'confirmed'
+                ? 'Saved (Cloud Persisted)'
+                : proposal.status === 'cancelled'
+                ? 'Cancelled'
+                : 'Local Draft (Unsaved)'}
+            </span>
+          </div>
+
+          {/* Target Metadata & Destination */}
+          <div style={{ fontSize: '12px', color: palette.text.secondary, marginBottom: `${spacing.xs}px` }}>
+            {proposal.reviewSummary.destination ? (
+              <span>Destination: <strong>{proposal.reviewSummary.destination}</strong> </span>
+            ) : null}
+            {proposal.reviewSummary.date ? (
+              <span>• Date: <strong>{proposal.reviewSummary.date}</strong> </span>
+            ) : null}
+            {proposal.reviewSummary.timezone ? (
+              <span>({proposal.reviewSummary.timezone}) </span>
+            ) : null}
+          </div>
+
+          {/* Form Content / Edit Mode */}
+          {isEditingProposal && proposal.status === 'pending' ? (
+            <div style={{ marginTop: `${spacing.xs}px`, marginBottom: `${spacing.xs}px` }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
+                Title
+              </label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '4px 8px',
+                  marginBottom: '6px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  fontSize: '12px',
+                  backgroundColor: palette.surfaceRaised,
+                  color: palette.text.primary,
+                }}
+              />
+
+              {(proposal.operation === 'create_personal_journal_entry' ||
+                proposal.operation === 'create_personal_task' ||
+                proposal.operation === 'update_personal_task') && (
+                <>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
+                    Date (YYYY-MM-DD)
+                  </label>
+                  <input
+                    type="text"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    placeholder="YYYY-MM-DD"
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '4px 8px',
+                      marginBottom: '6px',
+                      borderRadius: `${radii.sm}px`,
+                      border: `1px solid ${palette.border.subtle}`,
+                      fontSize: '12px',
+                      backgroundColor: palette.surfaceRaised,
+                      color: palette.text.primary,
+                    }}
+                  />
+                </>
+              )}
+
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '2px' }}>
+                Content / Details
+              </label>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={3}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '4px 8px',
+                  marginBottom: '6px',
+                  borderRadius: `${radii.sm}px`,
+                  border: `1px solid ${palette.border.subtle}`,
+                  fontSize: '12px',
+                  backgroundColor: palette.surfaceRaised,
+                  color: palette.text.primary,
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                <Button
+                  variant="primary"
+                  size="compact"
+                  themeMode={themeMode}
+                  disabled={proposalBusy}
+                  onClick={() => void saveEditedProposal()}
+                >
+                  Save Changes
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  themeMode={themeMode}
+                  disabled={proposalBusy}
+                  onClick={() => setIsEditingProposal(false)}
+                >
+                  Cancel Edit
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                fontSize: '12px',
+                padding: '6px 8px',
+                backgroundColor: palette.surfaceRaised,
+                borderRadius: `${radii.sm}px`,
+                marginBottom: `${spacing.xs}px`,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {proposal.reviewSummary.after}
+            </div>
+          )}
+
+          {/* Action Buttons & Receipts */}
+          {proposal.status === 'pending' && !isEditingProposal ? (
+            <div style={{ display: 'flex', gap: `${spacing.xs}px`, marginTop: `${spacing.xs}px` }}>
+              <Button
+                variant="primary"
+                size="compact"
+                themeMode={themeMode}
+                data-tour="assistant-confirm-button"
+                disabled={proposalBusy}
+                onClick={() => void confirmProposal()}
+              >
+                {proposalBusy ? 'Confirming...' : 'Confirm & Save'}
+              </Button>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                disabled={proposalBusy}
+                onClick={startEditProposal}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                disabled={proposalBusy}
+                onClick={() => void cancelProposal()}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : null}
+
+          {/* Confirmed Receipt & Deep Link */}
+          {proposal.status === 'confirmed' && proposal.executionReceipt ? (
+            <div style={{ marginTop: `${spacing.xs}px` }}>
+              <div style={{ fontSize: '11px', color: palette.text.secondary, marginBottom: '6px' }}>
+                Receipt: {String((proposal.executionReceipt as Record<string, unknown>)['operationId'] ?? proposal.id).slice(0, 8)}…
+                • Rev: r{String((proposal.executionReceipt as Record<string, unknown>)['revision'] ?? 1)}
+              </div>
+              <div style={{ display: 'flex', gap: `${spacing.xs}px` }}>
+                <Button
+                  variant="primary"
+                  size="compact"
+                  themeMode={themeMode}
+                  data-tour="assistant-open-item"
+                  onClick={openCreatedItem}
+                >
+                  Open Created Item
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  themeMode={themeMode}
+                  onClick={() => setProposal(null)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Streaming or Final Output */}
       {sanitizedDisplay ? (

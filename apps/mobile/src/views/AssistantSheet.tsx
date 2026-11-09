@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { MobileButton, Icon } from '@daynori/ui-mobile';
-import type { AiCitation, AiSelectedSources } from '@daynori/contracts';
+import type { AiCitation, AiSelectedSources, AiProposal } from '@daynori/contracts';
 import {
   ASSISTANT_STARTER_SUGGESTIONS,
   sanitizeAssistantMarkdown,
@@ -64,6 +64,13 @@ export function AssistantSheet({
   const [history, setHistory] = useState<
     Array<{ id: string; question: string; answer: string; abstained: boolean }>
   >([]);
+
+  const [proposal, setProposal] = useState<AiProposal | null>(null);
+  const [isEditingProposal, setIsEditingProposal] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [proposalBusy, setProposalBusy] = useState(false);
 
   const askAbortRef = useRef<AbortController | null>(null);
 
@@ -241,6 +248,135 @@ export function AssistantSheet({
     }
   }, [apiClient, workspaceId]);
 
+  const startEditProposal = useCallback(() => {
+    if (!proposal) return;
+    const p = proposal.payload as Record<string, unknown>;
+    setEditTitle(String(p['title'] ?? ''));
+    setEditContent(String(p['plainText'] ?? p['details'] ?? ''));
+    setEditDate(String(p['entryDate'] ?? p['dueDate'] ?? ''));
+    setIsEditingProposal(true);
+  }, [proposal]);
+
+  const saveEditedProposal = useCallback(async () => {
+    if (!proposal) return;
+    setProposalBusy(true);
+    try {
+      const p = proposal.payload as Record<string, unknown>;
+      const updatedPayload: Record<string, unknown> = {
+        ...p,
+        title: editTitle.trim(),
+      };
+      if (proposal.operation === 'create_personal_journal_entry') {
+        if (editDate) updatedPayload['entryDate'] = editDate.trim();
+        updatedPayload['plainText'] = editContent;
+      } else if (proposal.operation === 'create_personal_note') {
+        updatedPayload['plainText'] = editContent;
+      } else if (proposal.operation === 'create_personal_task' || proposal.operation === 'update_personal_task') {
+        if (editDate) updatedPayload['dueDate'] = editDate.trim();
+        updatedPayload['details'] = editContent;
+      }
+
+      const res = await apiClient.updateAiProposal(proposal.id, { payload: updatedPayload });
+      setProposal(res.data);
+      setIsEditingProposal(false);
+      setMessage('Proposal updated. Review and confirm to execute.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Failed to update proposal');
+    } finally {
+      setProposalBusy(false);
+    }
+  }, [proposal, editTitle, editContent, editDate, apiClient]);
+
+  const confirmProposal = useCallback(async () => {
+    if (!proposal) return;
+    setProposalBusy(true);
+    try {
+      const res = await apiClient.confirmAiProposal(proposal.id, { confirmationToken: proposal.confirmationToken });
+      setProposal(res.data);
+      setMessage('Action confirmed and saved! Cloud mutation receipt created.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Confirmation failed');
+    } finally {
+      setProposalBusy(false);
+    }
+  }, [proposal, apiClient]);
+
+  const cancelProposal = useCallback(async () => {
+    if (!proposal) return;
+    setProposalBusy(true);
+    try {
+      const res = await apiClient.cancelAiProposal(proposal.id);
+      setProposal(res.data);
+      setIsEditingProposal(false);
+      setMessage('Proposal cancelled. No items were created or modified.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Failed to cancel proposal');
+    } finally {
+      setProposalBusy(false);
+    }
+  }, [proposal, apiClient]);
+
+  const openCreatedItem = useCallback(() => {
+    if (!proposal || !proposal.executionReceipt) return;
+    const r = proposal.executionReceipt as Record<string, unknown>;
+    const kind = String(r['kind'] ?? 'note');
+    const id = String(r['id']);
+    onOpenSource?.(kind, id);
+  }, [proposal, onOpenSource]);
+
+  const createProposalQuick = useCallback(
+    async (op: 'note' | 'task' | 'journal') => {
+      setProposalBusy(true);
+      setMessage(null);
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        let res;
+        if (op === 'task') {
+          res = await apiClient.createAiProposal({
+            workspaceId,
+            operation: 'create_personal_task',
+            payload: {
+              title: question.trim() || 'New task',
+              details: 'Created from reviewed assistant proposal',
+              priority: 'normal',
+              status: 'todo',
+            },
+          });
+        } else if (op === 'note') {
+          res = await apiClient.createAiProposal({
+            workspaceId,
+            operation: 'create_personal_note',
+            payload: {
+              title: question.trim() || 'New note',
+              plainText: 'Draft note created from reviewed assistant proposal',
+            },
+          });
+        } else {
+          res = await apiClient.createAiProposal({
+            workspaceId,
+            operation: 'create_personal_journal_entry',
+            payload: {
+              entryDate: today,
+              title: question.trim() || null,
+              plainText: question.trim()
+                ? `Journal entry: ${question.trim()}`
+                : 'Today’s thoughts and reflections.',
+              timezone: 'UTC',
+            },
+          });
+        }
+        setProposal(res.data);
+        setIsEditingProposal(false);
+        setMessage('Review proposal below. No data is saved until you confirm.');
+      } catch (err) {
+        setMessage(err instanceof Error ? err.message : 'Could not create proposal');
+      } finally {
+        setProposalBusy(false);
+      }
+    },
+    [workspaceId, question, apiClient]
+  );
+
   const sanitizedDisplay = useMemo(() => {
     const raw = streamingText || answer || '';
     return sanitizeAssistantMarkdown(raw);
@@ -391,6 +527,213 @@ export function AssistantSheet({
       >
         Close
       </MobileButton>
+
+      {/* Organizer Quick Proposals (Phase 93 Reviewed Creation) */}
+      <View style={{ marginVertical: spacing.xs, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        <TouchableOpacity
+          disabled={proposalBusy}
+          onPress={() => void createProposalQuick('note')}
+          style={[styles.chip, { backgroundColor: palette.surfaceRaised }]}
+        >
+          <Text style={{ fontSize: 11, color: palette.text.primary }}>+ Note</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          disabled={proposalBusy}
+          onPress={() => void createProposalQuick('task')}
+          style={[styles.chip, { backgroundColor: palette.surfaceRaised }]}
+        >
+          <Text style={{ fontSize: 11, color: palette.text.primary }}>+ Task</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          disabled={proposalBusy}
+          onPress={() => void createProposalQuick('journal')}
+          style={[styles.chip, { backgroundColor: palette.surfaceRaised }]}
+        >
+          <Text style={{ fontSize: 11, color: palette.text.primary }}>+ Journal</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Proposal Review Card */}
+      {proposal ? (
+        <View
+          testID="assistant-proposal-card"
+          style={[
+            styles.answerBox,
+            {
+              backgroundColor: palette.surface,
+              borderColor:
+                proposal.status === 'confirmed'
+                  ? '#2e7d32'
+                  : proposal.status === 'cancelled'
+                  ? '#d32f2f'
+                  : palette.border.subtle,
+            },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text.primary, flex: 1 }}>
+              {proposal.reviewSummary.headline}
+            </Text>
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: '600',
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderRadius: 4,
+                backgroundColor:
+                  proposal.status === 'confirmed'
+                    ? '#e8f5e9'
+                    : proposal.status === 'cancelled'
+                    ? '#ffebee'
+                    : '#fff8e1',
+                color:
+                  proposal.status === 'confirmed'
+                    ? '#2e7d32'
+                    : proposal.status === 'cancelled'
+                    ? '#c62828'
+                    : '#f57f17',
+              }}
+            >
+              {proposal.status === 'confirmed'
+                ? 'Saved (Cloud Persisted)'
+                : proposal.status === 'cancelled'
+                ? 'Cancelled'
+                : 'Local Draft (Unsaved)'}
+            </Text>
+          </View>
+
+          <Text style={{ fontSize: 11, color: palette.text.secondary, marginBottom: 4 }}>
+            {proposal.reviewSummary.destination ? `Destination: ${proposal.reviewSummary.destination} ` : ''}
+            {proposal.reviewSummary.date ? `• Date: ${proposal.reviewSummary.date} ` : ''}
+            {proposal.reviewSummary.timezone ? `(${proposal.reviewSummary.timezone})` : ''}
+          </Text>
+
+          {isEditingProposal && proposal.status === 'pending' ? (
+            <View style={{ marginVertical: 4 }}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: palette.text.primary, marginBottom: 2 }}>
+                Title
+              </Text>
+              <TextInput
+                value={editTitle}
+                onChangeText={setEditTitle}
+                style={[styles.input, { backgroundColor: palette.surfaceRaised, color: palette.text.primary, height: 36, marginBottom: 4 }]}
+              />
+
+              {(proposal.operation === 'create_personal_journal_entry' ||
+                proposal.operation === 'create_personal_task' ||
+                proposal.operation === 'update_personal_task') && (
+                <>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: palette.text.primary, marginBottom: 2 }}>
+                    Date (YYYY-MM-DD)
+                  </Text>
+                  <TextInput
+                    value={editDate}
+                    onChangeText={setEditDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={palette.text.secondary}
+                    style={[styles.input, { backgroundColor: palette.surfaceRaised, color: palette.text.primary, height: 36, marginBottom: 4 }]}
+                  />
+                </>
+              )}
+
+              <Text style={{ fontSize: 11, fontWeight: '600', color: palette.text.primary, marginBottom: 2 }}>
+                Content / Details
+              </Text>
+              <TextInput
+                value={editContent}
+                onChangeText={setEditContent}
+                multiline
+                style={[styles.input, { backgroundColor: palette.surfaceRaised, color: palette.text.primary, height: 60, marginBottom: 4 }]}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <MobileButton
+                  variant="primary"
+                  themeMode={themeMode}
+                  disabled={proposalBusy}
+                  onPress={() => void saveEditedProposal()}
+                  accessibilityLabel="Save proposal changes"
+                >
+                  Save Changes
+                </MobileButton>
+                <MobileButton
+                  variant="secondary"
+                  themeMode={themeMode}
+                  disabled={proposalBusy}
+                  onPress={() => setIsEditingProposal(false)}
+                  accessibilityLabel="Cancel editing proposal"
+                >
+                  Cancel Edit
+                </MobileButton>
+              </View>
+            </View>
+          ) : (
+            <Text style={{ fontSize: 12, color: palette.text.primary, marginVertical: 4 }}>
+              {proposal.reviewSummary.after}
+            </Text>
+          )}
+
+          {proposal.status === 'pending' && !isEditingProposal ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              <MobileButton
+                variant="primary"
+                themeMode={themeMode}
+                disabled={proposalBusy}
+                onPress={() => void confirmProposal()}
+                accessibilityLabel="Confirm and save proposal"
+              >
+                {proposalBusy ? 'Confirming...' : 'Confirm & Save'}
+              </MobileButton>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                disabled={proposalBusy}
+                onPress={startEditProposal}
+                accessibilityLabel="Edit proposal"
+              >
+                Edit
+              </MobileButton>
+              <MobileButton
+                variant="secondary"
+                themeMode={themeMode}
+                disabled={proposalBusy}
+                onPress={() => void cancelProposal()}
+                accessibilityLabel="Cancel proposal"
+              >
+                Cancel
+              </MobileButton>
+            </View>
+          ) : null}
+
+          {proposal.status === 'confirmed' && proposal.executionReceipt ? (
+            <View style={{ marginTop: 6 }}>
+              <Text style={{ fontSize: 11, color: palette.text.secondary, marginBottom: 4 }}>
+                Receipt: {String((proposal.executionReceipt as Record<string, unknown>)['operationId'] ?? proposal.id).slice(0, 8)}…
+                • Rev: r{String((proposal.executionReceipt as Record<string, unknown>)['revision'] ?? 1)}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <MobileButton
+                  variant="primary"
+                  themeMode={themeMode}
+                  onPress={openCreatedItem}
+                  accessibilityLabel="Open created item"
+                >
+                  Open Created Item
+                </MobileButton>
+                <MobileButton
+                  variant="secondary"
+                  themeMode={themeMode}
+                  onPress={() => setProposal(null)}
+                  accessibilityLabel="Dismiss proposal card"
+                >
+                  Dismiss
+                </MobileButton>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {sanitizedDisplay ? (
         <View

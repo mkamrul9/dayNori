@@ -43,6 +43,9 @@ import {
   checkAttachmentAiEligibility,
   sanitizeAssistantMarkdown,
   ASSISTANT_STARTER_SUGGESTIONS,
+  detectJournalDateAmbiguity,
+  getOrganizerDeepLink,
+  sanitizeOrganizerText,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2674,6 +2677,45 @@ describe('Domain Rules and Invariants', () => {
         expect(s.label).toBeTruthy();
         expect(s.question).toBeTruthy();
       }
+    });
+
+    it('AST-008: detects ambiguous journal dates and requests clarification instead of guessing', () => {
+      // Relative ambiguous in English
+      const engAmbiguous = detectJournalDateAmbiguity('Write a journal entry for yesterday about our team lunch');
+      expect(engAmbiguous.isAmbiguous).toBe(true);
+      expect(engAmbiguous.clarificationQuestion).toContain('Which date should this journal entry be recorded for');
+
+      const lastFriAmbiguous = detectJournalDateAmbiguity('Journal: last Friday went to the lake');
+      expect(lastFriAmbiguous.isAmbiguous).toBe(true);
+
+      // Relative ambiguous in Bengali
+      const bnAmbiguous = detectJournalDateAmbiguity('গতকাল ভ্রমণের স্মৃতি নিয়ে একটি জার্নাল লিখুন');
+      expect(bnAmbiguous.isAmbiguous).toBe(true);
+      expect(bnAmbiguous.clarificationQuestion).toContain('কোন তারিখের জন্য সংরক্ষণ করতে চান');
+
+      // Unambiguous explicit ISO date
+      const isoClear = detectJournalDateAmbiguity('Record reflection for 2026-11-09 about project milestone');
+      expect(isoClear.isAmbiguous).toBe(false);
+      expect(isoClear.inferredDate).toBe('2026-11-09');
+
+      // Today with reference date
+      const todayClear = detectJournalDateAmbiguity('Write a journal entry for today', '2026-11-09');
+      expect(todayClear.isAmbiguous).toBe(false);
+      expect(todayClear.inferredDate).toBe('2026-11-09');
+    });
+
+    it('AST-009: constructs canonical deep links for tasks, journals, and notes', () => {
+      expect(getOrganizerDeepLink('task', 'task-123')).toBe('/plan?targetId=task-123&targetType=task');
+      expect(getOrganizerDeepLink('todo', 'task-456')).toBe('/plan?targetId=task-456&targetType=task');
+      expect(getOrganizerDeepLink('journal_entry', 'entry-789')).toBe('/journal?entryId=entry-789');
+      expect(getOrganizerDeepLink('journal', 'entry-abc')).toBe('/journal?entryId=entry-abc');
+      expect(getOrganizerDeepLink('note', 'note-xyz')).toBe('/library?noteId=note-xyz');
+    });
+
+    it('AST-010: sanitizes organizer text while strictly preserving user voice and facts', () => {
+      const input = '  Met with Alex at 3pm. Discussed Q4 roadmap. \x00\x08 ';
+      const sanitized = sanitizeOrganizerText(input);
+      expect(sanitized).toBe('Met with Alex at 3pm. Discussed Q4 roadmap.');
     });
   });
 });

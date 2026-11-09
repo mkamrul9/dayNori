@@ -1,0 +1,58 @@
+{
+  "phase": 93,
+  "name": "Phase 93 Reviewed Note, Task, and Journal Creation Manual UI Evidence",
+  "evaluatedAt": "2026-11-09T17:35:00+06:00",
+  "components": [
+    {
+      "component": "apps/web/src/components/AssistantPanel.tsx",
+      "platform": "web",
+      "surfaces": [
+        {
+          "surfaceId": "assistant-proposal-card",
+          "ariaLabel": "Organizer proposal review card",
+          "testedInteractions": [
+            "Renders typed proposal card with headline, destination, date, and timezone metadata",
+            "Displays 'Local Draft (Unsaved)' amber badge for pending proposals",
+            "Allows clicking 'Edit' to enter inline form edit mode for title, date, and details",
+            "Saves edited payload via client.updateAiProposal, rotating token and updating review summary",
+            "Cancels proposal via client.cancelAiProposal without writing any database records",
+            "Confirms proposal via client.confirmAiProposal, displaying 'Saved (Cloud Persisted)' green badge",
+            "Renders 'Open Created Item' button that navigates directly to /library, /plan, or /journal via canonical deep links"
+          ],
+          "tourTargets": [
+            "assistant-proposal-review",
+            "assistant-confirm-button",
+            "assistant-open-item"
+          ],
+          "accessibilityAttributes": {
+            "ariaLive": "polite",
+            "keyboardNavigation": "All edit fields, confirm, edit, cancel, and open buttons accessible via Tab and Enter",
+            "contrast": "Conforms to WCAG AA on light and dark themes using tokens"
+          }
+        }
+      ]
+    },
+    {
+      "component": "apps/mobile/src/views/AssistantSheet.tsx",
+      "platform": "android-mobile",
+      "surfaces": [
+        {
+          "surfaceId": "assistant-sheet-proposal-card",
+          "testID": "assistant-proposal-card",
+          "testedInteractions": [
+            "Renders mobile-friendly proposal card inside ScrollView with handled keyboard taps",
+            "Displays 'Local Draft (Unsaved)' vs 'Saved (Cloud Persisted)' status chip",
+            "Provides Quick Propose buttons (+ Note, + Task, + Journal) for immediate review creation",
+            "Renders editable TextInput fields for title, date, and content in edit mode",
+            "Executes confirm and calls onOpenSource to navigate to created note, task, or journal"
+          ],
+          "accessibilityAttributes": {
+            "accessibilityLiveRegion": "polite",
+            "touchTargetMin": "Meets 48dp minimum for all mobile buttons and quick chips",
+            "screenReaderLabels": "Full accessibilityLabel coverage on all action controls"
+          }
+        }
+      ]
+    }
+  ]
+}

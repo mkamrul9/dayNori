@@ -1,5 +1,36 @@
 # Changelog
 
+## Phase 93 — Reviewed note, task, and journal creation — 2026-11-09
+
+- ADR 0093: Reviewed note, task, and journal creation establishing untrusted model proposals in `app.ai_proposals`, zero automated mutations without explicit user review, client-side proposal editing with cryptographic token rotation, date ambiguity detection and clarifying questions (preventing calendar drift and hallucinated relative dates in English and Bengali), factual voice preservation, explicit journal consent fencing (`403 AI_JOURNAL_SCOPE_REQUIRED`), atomic batch confirmation, durable mutation receipts in `app.sync_mutation_receipts` under `AI_DEVICE_ID`, canonical deep links, and fail-closed AI activation gates.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 93 implementation and local verification before Phase 92 final acceptance recorded in ADR 0093 and progress metadata. Outstanding checks for Phases 71, 75, 80, 81, 84, 85, 86, 87, 88, 89, 90, 91, 92, and 99 remain preserved; DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase93/findings-register.json`): cataloged REV-001 through REV-008 across unreviewed mutation prevention, payload edit token rotation, date ambiguity detection, factual voice preservation, journal consent fencing, batch confirmation semantics, mutation receipt idempotency, and canonical deep linking.
+- Core domain, API, and contract upgrades:
+  - Database migration: added `infra/supabase/migrations/00078_ai_proposals_journal_and_edit.sql` updating `app.ai_proposals` constraint `ai_proposals_operation_check` to include `'create_personal_journal_entry'` and adding `updated_at`.
+  - Contracts (`@daynori/contracts`): updated `AiAssistantOperationSchema` in `packages/contracts/src/api/assistant.ts` with `'create_personal_journal_entry'`; expanded `AiProposalReviewSummarySchema` to include typed `destination`, `date`, `timezone`, and `source`; added `UpdateAiProposalRequestSchema`, `BatchConfirmAiProposalsRequestSchema`, and `BatchConfirmAiProposalsResponseSchema`.
+  - Domain logic (`@daynori/domain`): created `packages/domain/src/organizerProposals.ts` with `detectJournalDateAmbiguity` (flagging relative date phrases in English and Bengali like "yesterday", "last Friday", "গতকাল", "গত শুক্রবার"), `getOrganizerDeepLink` (generating `/library?noteId=...`, `/plan?targetId=...&targetType=task`, `/journal?entryId=...`), and `sanitizeOrganizerText`.
+  - Backend API (`apps/api`):
+    - Added `PATCH /v1/ai/proposals/:proposalId` (`updateAiProposalPayload`) in `apps/api/src/routes/v1/assistant.ts` and `apps/api/src/modules/ai/assistantService.ts`, allowing client edits to proposal payloads before confirmation while atomically rotating the confirmation token and updating `request_hash`.
+    - Added `POST /v1/ai/proposals/batch-confirm` (`batchConfirmAiProposals`) supporting single explicit user confirmations covering multiple reviewed proposals with per-item outcomes.
+    - Updated `confirmAiProposal` to enforce explicit journal consent scope (`contentScope.journal = true`), delegate to canonical `createJournalEntry`, record durable mutation receipts in `app.sync_mutation_receipts` under `AI_DEVICE_ID`, and return canonical deep links.
+    - Updated proposal generation heuristic in `apps/api/src/modules/ai/assistantService.ts` to detect ambiguous dates and return clarifying questions instead of guessing dates or inventing emotional reflections.
+    - Fixed local calendar date formatting in `apps/api/src/modules/tasks/service.ts` to prevent UTC midnight date shift in deadline dates.
+  - API Client (`@daynori/api-client`): added `updateAiProposal` and `batchConfirmAiProposals` to `DaynoriApiClient` (`packages/api-client/src/client.ts`).
+- Web and Mobile UI enhancements:
+  - Updated `AssistantPanel.tsx` (`apps/web/src/components/AssistantPanel.tsx`): added proposal review card displaying destination, date, timezone, and source badges; Local Draft (Unsaved) vs Saved (Cloud Persisted) indicator; inline proposal edit form with live title/body/deadline fields; quick propose action buttons; and tour data attributes (`assistant-proposal-review`, `assistant-confirm-button`, `assistant-open-item`).
+  - Updated `AssistantSheet.tsx` (`apps/mobile/src/views/AssistantSheet.tsx`): added proposal review card, review summary badges, inline edit mode, and navigation to created items via `onOpenSource`.
+- Reviewable synthetic provider package (`artifacts/phase93/synthetic-provider-package.json`):
+  - 5-scenario synthetic test package with max budget cap of $0.05 USD staged for explicit owner approval prior to initiating any live provider calls.
+- Manual UI and accessibility evidence (`artifacts/phase93/manual-ui-evidence.json`):
+  - Verified REV-UI-01 through REV-UI-05 covering review card display, inline payload editing, ambiguous date warning, journal consent fencing error presentation, and batch confirmation execution.
+- Engineering guide authored (`docs/engineering/reviewed-organizer-creation-guide.md`):
+  - Comprehensive guide covering invariants, zero unreviewed mutations, review summary schema, editing & token rotation, date ambiguity & clarifying questions, journal consent fencing, batch confirmation, idempotent sync receipts, and canonical deep linking.
+- Comprehensive test coverage:
+  - Authored `tests/integration/phase93-reviewed-organizer-creation.test.ts` with 11 passing tests covering note creation, task creation with typed deadline, journal entry creation, proposal editing with token rotation, relative date ambiguity detection (English & Bengali), journal consent gating, batch confirmation, crash recovery idempotency, IDOR cross-workspace rejection, and vault exclusion.
+  - All 4 assistant integration test suites pass (36 tests total).
+- Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic provider package; Phase 93 recorded as blocked; DEF-V2-008 retained in function register.
+- Commit: `feat(assistant): create notes tasks and journals through reviewed actions`.
+
 ## Phase 92 — Text assistant chat and contextual guidance — 2026-11-06
 
 - ADR 0092: Text assistant chat and contextual guidance establishing Server-Sent Events (SSE) streaming transport, canonical web and mobile citation deep link routes, strict read-only boundary enforcement, client-selected knowledge source controls, contextual starter suggestion catalog, conversation history deletion, markdown output sanitization, persistent desktop side drawer, and keyboard-safe mobile view.

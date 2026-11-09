@@ -293,6 +293,7 @@ import {
   AiPurgeResponseSchema,
   AiAskResponseSchema,
   AiProposalResponseSchema,
+  BatchConfirmAiProposalsResponseSchema,
   AiAssistantHistoryResponseSchema,
   AiAssistantDraftResponseSchema,
   AiSourceAccessResponseSchema,
@@ -364,6 +365,9 @@ import {
   type AiAskResponse,
   type CreateAiProposalRequest,
   type ConfirmAiProposalRequest,
+  type UpdateAiProposalRequest,
+  type BatchConfirmAiProposalsRequest,
+  type BatchConfirmAiProposalsResponse,
   type AiProposalResponse,
   type AiAssistantHistoryResponse,
   type AiAssistantDraftResponse,
@@ -3721,6 +3725,31 @@ export class DaynoriApiClient {
       options
     );
     return AiProposalResponseSchema.parse(raw);
+  }
+
+  async updateAiProposal(
+    proposalId: string,
+    request: UpdateAiProposalRequest,
+    options?: RequestOptions
+  ): Promise<AiProposalResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/proposals/${proposalId}`,
+      { method: 'PATCH', body: JSON.stringify(request) },
+      options
+    );
+    return AiProposalResponseSchema.parse(raw);
+  }
+
+  async batchConfirmAiProposals(
+    request: BatchConfirmAiProposalsRequest,
+    options?: RequestOptions
+  ): Promise<BatchConfirmAiProposalsResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/proposals/batch-confirm`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return BatchConfirmAiProposalsResponseSchema.parse(raw);
   }
 
   // --- Phase 57 Billing (provisional local; production activation gated) ---

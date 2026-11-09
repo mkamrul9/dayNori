@@ -13,6 +13,9 @@ import {
   ClearAiDraftRequestSchema,
   ConfirmAiProposalRequestSchema,
   CreateAiProposalRequestSchema,
+  UpdateAiProposalRequestSchema,
+  BatchConfirmAiProposalsRequestSchema,
+  BatchConfirmAiProposalsResponseSchema,
   DeleteAiHistoryRequestSchema,
   DeleteAiHistoryResponseSchema,
   SaveAiDraftRequestSchema,
@@ -22,6 +25,7 @@ import { NotFoundError, ValidationError, validateResponse } from '../../plugins/
 import { AiServiceError, getAiConsentStatus } from '../../modules/ai/service.js';
 import {
   askAssistant,
+  batchConfirmAiProposals,
   cancelAiProposal,
   clearAssistantDraft,
   confirmAiProposal,
@@ -32,6 +36,7 @@ import {
   resolveAiSourceAccess,
   saveAssistantDraft,
   streamAssistant,
+  updateAiProposalPayload,
 } from '../../modules/ai/assistantService.js';
 
 function meta(requestId: string) {
@@ -339,6 +344,47 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
       return reply.send(
         validateResponse(AiProposalResponseSchema, {
           data: result.proposal,
+          meta: meta(request.id),
+        })
+      );
+    } catch (err) {
+      return sendAiError(err, reply);
+    }
+  });
+
+  app.patch('/v1/ai/proposals/:proposalId', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const proposalId = (request.params as { proposalId: string }).proposalId;
+    const body = UpdateAiProposalRequestSchema.parse(request.body);
+    try {
+      const data = await withUserContext(pool, actor.userId, (client) =>
+        updateAiProposalPayload(client, {
+          userId: actor.userId,
+          proposalId,
+          payload: body.payload,
+        })
+      );
+      return reply.send(
+        validateResponse(AiProposalResponseSchema, { data, meta: meta(request.id) })
+      );
+    } catch (err) {
+      return sendAiError(err, reply);
+    }
+  });
+
+  app.post('/v1/ai/proposals/batch-confirm', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const body = BatchConfirmAiProposalsRequestSchema.parse(request.body);
+    try {
+      const results = await batchConfirmAiProposals(pool, {
+        userId: actor.userId,
+        items: body.items,
+      });
+      return reply.send(
+        validateResponse(BatchConfirmAiProposalsResponseSchema, {
+          data: { results },
           meta: meta(request.id),
         })
       );

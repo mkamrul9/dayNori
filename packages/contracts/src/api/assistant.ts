@@ -6,6 +6,7 @@ export const AiAssistantOperationSchema = z.enum([
   'create_personal_task',
   'update_personal_task',
   'create_personal_note',
+  'create_personal_journal_entry',
 ]);
 export type AiAssistantOperation = z.infer<typeof AiAssistantOperationSchema>;
 
@@ -37,6 +38,10 @@ export const AiProposalReviewSummarySchema = z
     targetLabel: z.string(),
     before: z.string().nullable(),
     after: z.string(),
+    destination: z.string().optional(),
+    date: z.string().optional(),
+    timezone: z.string().optional(),
+    source: z.string().optional(),
   })
   .strict();
 export type AiProposalReviewSummary = z.infer<typeof AiProposalReviewSummarySchema>;
@@ -101,6 +106,51 @@ export const ConfirmAiProposalRequestSchema = z
   })
   .strict();
 export type ConfirmAiProposalRequest = z.infer<typeof ConfirmAiProposalRequestSchema>;
+
+export const UpdateAiProposalRequestSchema = z
+  .object({
+    payload: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+export type UpdateAiProposalRequest = z.infer<typeof UpdateAiProposalRequestSchema>;
+
+export const BatchConfirmAiProposalItemSchema = z
+  .object({
+    proposalId: z.string().uuid(),
+    confirmationToken: z.string().min(16).max(128),
+  })
+  .strict();
+export type BatchConfirmAiProposalItem = z.infer<typeof BatchConfirmAiProposalItemSchema>;
+
+export const BatchConfirmAiProposalsRequestSchema = z
+  .object({
+    items: z.array(BatchConfirmAiProposalItemSchema).min(1).max(20),
+  })
+  .strict();
+export type BatchConfirmAiProposalsRequest = z.infer<typeof BatchConfirmAiProposalsRequestSchema>;
+
+export const BatchConfirmProposalResultItemSchema = z
+  .object({
+    proposalId: z.string().uuid(),
+    outcome: z.enum(['ok', 'error']),
+    proposal: AiProposalSchema,
+    error: z
+      .object({
+        code: z.string(),
+        message: z.string(),
+      })
+      .nullable(),
+  })
+  .strict();
+export type BatchConfirmProposalResultItem = z.infer<typeof BatchConfirmProposalResultItemSchema>;
+
+export const BatchConfirmAiProposalsResponseSchema = z.object({
+  data: z.object({
+    results: z.array(BatchConfirmProposalResultItemSchema),
+  }),
+  meta: ResponseMetaSchema,
+});
+export type BatchConfirmAiProposalsResponse = z.infer<typeof BatchConfirmAiProposalsResponseSchema>;
 
 export const AiAssistantTurnSchema = z
   .object({
