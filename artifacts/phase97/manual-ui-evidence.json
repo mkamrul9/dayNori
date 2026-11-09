@@ -1,0 +1,57 @@
+{
+  "phase": 97,
+  "title": "Version 2 Security, Privacy, and Recovery UI Audit",
+  "evaluatedAt": "2026-11-10T00:46:00+06:00",
+  "surfacesAudited": [
+    {
+      "surface": "Assistant Chat & Streaming UI",
+      "component": "apps/web/src/components/NoriAssistantPanel.tsx",
+      "securityControls": [
+        "Rendered markdown runs through sanitizeAssistantMarkdown to strip <script>, <iframe>, <object>, and javascript: URIs.",
+        "External links enforce target='_blank' and rel='noopener noreferrer' to prevent window.opener tabnabbing.",
+        "Tracking pixels (1x1 images) and external unverified image URLs are blocked; only relative workspace assets render."
+      ],
+      "verificationResult": "Passed"
+    },
+    {
+      "surface": "Operator Triage Dashboard",
+      "component": "apps/web/src/app/developer/triage/page.tsx",
+      "securityControls": [
+        "Direct navigation by unauthenticated or non-operator users returns HTTP 401/403 and renders an access-denied shield.",
+        "No tenant data, feedback attachments, or personal journal snippets are prefetched or rendered until operator role is cryptographically established.",
+        "Feedback report actions log operator user ID and timestamp to audit log."
+      ],
+      "verificationResult": "Passed"
+    },
+    {
+      "surface": "Support Diagnostic Export Modal",
+      "component": "apps/web/src/app/support/page.tsx",
+      "securityControls": [
+        "Diagnostic payload preview inspects all JSON fields before export.",
+        "Authorization tokens, passwords, encryption keys, and personal journal bodies are strictly masked to '[REDACTED]'.",
+        "Clear disclosure provided to user before clipboard copy or file download."
+      ],
+      "verificationResult": "Passed"
+    },
+    {
+      "surface": "Account & Workspace Erasure Dialogs",
+      "component": "apps/web/src/app/settings/account/page.tsx & workspaces/settings",
+      "securityControls": [
+        "Two-factor confirmation required for account and workspace deletion.",
+        "Explicit banner explains the 30-day grace period, permanent purge, and deletion suppression tombstone ledger.",
+        "Reassures user that restored backups cannot resurrect erased workspaces due to pre-access suppression ledger barrier."
+      ],
+      "verificationResult": "Passed"
+    },
+    {
+      "surface": "Google Drive Connection & Disconnection UI",
+      "component": "apps/web/src/components/drive/DriveConnector.tsx",
+      "securityControls": [
+        "Clear boundary explanation: local disconnect removes stored OAuth tokens and cancels background sync jobs.",
+        "Informs user that imported local copies remain in Daynori unless explicitly deleted, and remote Google Drive files are never modified or trashed.",
+        "Cross-workspace token leakage strictly forbidden."
+      ],
+      "verificationResult": "Passed"
+    }
+  ]
+}

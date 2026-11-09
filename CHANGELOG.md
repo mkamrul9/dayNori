@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 97 — Version 2 security, privacy, and recovery audit — 2026-11-10
+
+- ADR 0097: Version 2 security, privacy, and recovery audit establishing comprehensive audit of completed V2 attack surface across developer/support roles, feedback attachments, AI assistant streaming, voice capture, search boundaries, local boot, and push notification sanitization; bounded remediations for SEC-001 (operator feedback unauthenticated 401 challenge) and SEC-002 (workspace storage quota cross-tenant 404 IDOR fencing); live synthetic disaster recovery rehearsal with disposable databases, byte-exact checksum verification, and pre-access deletion suppression ledger barrier; JWKS dual-key secret rotation with zero-downtime fallback; and formal submission package for independent vault review.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 97 local audit, bounded remediation, and synthetic recovery drills before final acceptance of blocked prerequisites recorded in ADR 0097 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004 and DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase97/findings-register.json`): cataloged SEC-001 through SEC-009 covering operator triage authentication challenges, workspace quota IDOR fencing, session revocation blacklisting, malware quarantine fail-closed enforcement, assistant markdown sanitization, AI consent versioning and 0-day transient audio retention, diagnostic and push telemetry leakage redaction, Google Drive and room membership access fencing, and outstanding independent external vault review gates.
+- Bounded remediations:
+  - SEC-001 (Operator feedback triage unauthenticated challenge): updated `assertOperator` in `apps/api/src/routes/v1/operatorFeedback.ts` to throw `AuthError('Authentication required')` when `request.actor` is absent, uniformly returning HTTP 401 rather than validation error HTTP 400.
+  - SEC-002 (Workspace storage quota cross-tenant IDOR fencing): updated `GET /v1/workspaces/:workspaceId/files/quota` in `apps/api/src/routes/v1/files.ts` to assert `app.workspace_memberships` inside `withTenantContext`, returning clean HTTP 404 `NotFoundError` instead of leaking unhandled PostgreSQL RLS 500 exceptions on cross-tenant access.
+- Disaster recovery & deletion suppression drill (`artifacts/phase97/recovery-drill-evidence.json`):
+  - Executed automated disaster recovery drill via `scripts/disaster-recovery-drill.mjs` against disposable databases (`daynori_dr_src_*` and `daynori_dr_dst_*`) with ambient database protection guards.
+  - Verified byte-exact binary restore matching SHA-256 checksums, post-restore tenant RLS isolation under `daynori_runtime`, and pre-access deletion suppression ledger barrier ensuring erased accounts and workspaces remain suppressed. Total drill RTO: 5.13s (backup: 1.14s, restore: 1.88s).
+  - Verified idempotent tombstone insertion into `app.deletion_suppression_ledger` upon replayed invocations.
+  - Verified missing binary storage object produces visible failure rather than serving empty or corrupt content.
+- Secret & credential rotation:
+  - Verified `JwtVerifier` supporting dual-key JWKS allows smooth key rotation: new tokens are accepted, retired key tokens are rejected, and fallback verifier ensures zero downtime during rotation interruptions.
+- Independent vault review package (`docs/engineering/vault-independent-review-package.md`):
+  - Authored comprehensive review package specifying baseline revision `848adc4`, cryptographic primitives (Argon2id RFC 9106, AES-256-GCM NIST SP 800-38D), key hierarchy (VRK, DEK, Passphrase KEK, Recovery KEK), test harnesses, and open release gates.
+  - Preserved release gates `DEF-V2-004` (independent external review) and `DEF-V2-008` (physical Android ARM64 hardware verification); Phase 97 honestly recorded as `blocked` in roadmap metadata.
+- Automated security test coverage:
+  - Authored `tests/security/phase97-v2-security-privacy-recovery.test.ts` covering 12 end-to-end security, privacy, and recovery test scenarios (SEC-01 through SEC-08, REC-01 through REC-06), all passing in 5.91s.
+- Fail-closed release gates preserved: live production AI activation remains disabled; external cryptography review and physical Android hardware evidence remain unmet; Phase 97 recorded as blocked in roadmap metadata.
+- Commit: `fix(security): close Version 2 privacy and recovery findings`.
+
 ## Phase 96 — Nori original companion and assistant launcher — 2026-11-10
 
 - ADR 0096: Nori original companion and assistant launcher establishing original Daynori folded-paper origami character artwork with zero generative AI and zero third-party stock/clipart imports, MIT licensing, Nori naming review and conflict screening, dual-entry single-session binding across floating launcher and labeled "Ask Nori" button, truthful 8-state presentation engine (`resolveNoriState`), strict microphone hardware recording invariant (`isListening === true`), safe 4-corner positioning (`calculateNoriSafeCoordinates`) avoiding bottom navigation (64px offset) and system bars, reduced-motion compliance (0ms durations) and background tab loop suppression, accessible focus restoration, and fail-closed AI activation gates.

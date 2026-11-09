@@ -1,0 +1,46 @@
+{
+  "phase": 97,
+  "title": "Version 2 security, privacy, and recovery audit",
+  "evaluatedAt": "2026-11-10T00:45:00+06:00",
+  "status": "blocked",
+  "blockingGates": [
+    {
+      "gate": "DEF-V2-004",
+      "description": "Independent external security audit of vault cryptographic implementation, key rotation, and zero-knowledge guarantees remains unmet."
+    },
+    {
+      "gate": "DEF-V2-008",
+      "description": "Physical Android ARM64 hardware Keystore / StrongBox biometric and tamper-resistance verification remains unmet; live AI model provider authorization pending."
+    }
+  ],
+  "findingsCatalogued": 9,
+  "findingsRemediated": 2,
+  "findingsAuditedAndVerified": 6,
+  "findingsGatedOrDeferred": 1,
+  "findingsRegister": "artifacts/phase97/findings-register.json",
+  "manualUiEvidence": "artifacts/phase97/manual-ui-evidence.json",
+  "recoveryDrillEvidence": "artifacts/phase97/recovery-drill-evidence.json",
+  "testExecution": {
+    "testSuite": "tests/security/phase97-v2-security-privacy-recovery.test.ts",
+    "totalTests": 12,
+    "passed": 12,
+    "failed": 0,
+    "durationMs": 5913
+  },
+  "compliance": {
+    "tenantIsolationEnforced": true,
+    "operatorTriageIsolationEnforced": true,
+    "sessionRevocationEnforced": true,
+    "malwareQuarantineFencingEnforced": true,
+    "assistantMarkdownSanitized": true,
+    "aiConsentAnd0DayAudioRetentionEnforced": true,
+    "diagnosticAndPushLeakageRedacted": true,
+    "roomAndDriveRevocationEnforced": true,
+    "disasterRecoveryByteExactRestore": true,
+    "preAccessDeletionSuppressionLedgerBarrier": true,
+    "interruptedPurgeIdempotency": true,
+    "incompleteRestoreVisibleFailure": true,
+    "dualKeySecretRotationZeroDowntime": true,
+    "noTotalSecurityClaimed": true
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "phase": 97,
+  "title": "Disaster Recovery & Deletion Suppression Restoration Drill Evidence",
+  "evaluatedAt": "2026-11-10T00:45:48+06:00",
+  "drillType": "Isolated Synthetic Dual-Layer Backup & Restore with Pre-Access Suppression Ledger Barrier",
+  "environment": {
+    "disposableSourcePattern": "daynori_dr_src_[a-f0-9]+",
+    "disposableTargetPattern": "daynori_dr_dst_[a-f0-9]+",
+    "ambientDatabaseProtection": "Explicit refusal guard against daynori_dev, daynori_test, daynori_beta, daynori_prod",
+    "objectStorageNamespace": "Isolated temp folder with byte-exact checksum verification"
+  },
+  "metrics": {
+    "totalDurationMs": 5128,
+    "backupDurationMs": 1142,
+    "restoreDurationMs": 1876,
+    "rtoSecondsObserved": 5.13,
+    "rpoSecondsObserved": 0.0,
+    "dataIntegrityLoss": 0
+  },
+  "assertionsVerified": [
+    {
+      "assertion": "Byte-exact survivor file restore",
+      "result": "Passed (SHA-256 matches exactly)"
+    },
+    {
+      "assertion": "Pre-access deletion suppression ledger barrier",
+      "result": "Passed (Tombstoned account, workspace, and blobs stay deleted after restore)"
+    },
+    {
+      "assertion": "Post-restore tenant RLS isolation under daynori_runtime",
+      "result": "Passed (Survivor user cannot access deleted workspace or other tenants)"
+    },
+    {
+      "assertion": "Idempotent suppression tombstone recording",
+      "result": "Passed (Replayed tombstone insertion updates without duplicate key error)"
+    },
+    {
+      "assertion": "Incomplete restore / missing binary object visible failure",
+      "result": "Passed (Fails closed visibly instead of serving corrupt or empty content)"
+    },
+    {
+      "assertion": "Zero data leaks",
+      "result": "Passed (0 leaks across database records, binary storage, and pending jobs)"
+    }
+  ],
+  "limitations": [
+    "Executed on local PostgreSQL instance using dedicated disposable source and target databases; continuous multi-region WAL archiving and live replication remain proposed production architecture.",
+    "Object storage snapshot used local filesystem directory replication; S3 cross-region bucket replication requires production cloud credentials."
+  ]
+}

@@ -1,0 +1,92 @@
+[
+  {
+    "id": "SEC-001",
+    "severity": "medium",
+    "title": "Operator feedback triage endpoints returned HTTP 400 instead of HTTP 401 on unauthenticated access",
+    "affectedContract": "apps/api/src/routes/v1/operatorFeedback.ts",
+    "reproduction": "Calling GET /v1/operator/feedback/reports or POST /v1/operator/feedback/reports/:reportId/status without an Authorization header resulted in a ValidationError mapping to HTTP 400 Bad Request instead of an AuthError mapping to HTTP 401 Unauthorized.",
+    "proposedRemediation": "In assertOperator(request), throw AuthError('Authentication required') when request.actor is absent, ensuring uniform 401 challenge across all operator surfaces.",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-02",
+    "disposition": "Remediated in Phase 97"
+  },
+  {
+    "id": "SEC-002",
+    "severity": "medium",
+    "title": "Workspace storage quota endpoint leaked unhandled PostgreSQL RLS 500 error on cross-tenant access",
+    "affectedContract": "apps/api/src/routes/v1/files.ts",
+    "reproduction": "User B requesting GET /v1/workspaces/:workspaceAId/files/quota caused quotaService to execute INSERT INTO app.workspace_storage_usage without prior membership assertion, triggering a PostgreSQL RLS violation and returning HTTP 500 instead of HTTP 404.",
+    "proposedRemediation": "Check app.workspace_memberships inside withTenantContext before calling getStorageUsage, throwing NotFoundError('Workspace not found or access denied') to provide consistent IDOR non-existence proof.",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-01",
+    "disposition": "Remediated in Phase 97"
+  },
+  {
+    "id": "SEC-003",
+    "severity": "high",
+    "title": "Session revocation and token blacklisting verification across V2 endpoints",
+    "affectedContract": "apps/api/src/auth/jwtVerifier.ts & app.revoked_tokens",
+    "reproduction": "Tokens from terminated sessions or revoked accounts could theoretically be honored until expiration (1h) if revocation checks were not evaluated on every request.",
+    "proposedRemediation": "JwtVerifier queries app.revoked_tokens with SHA-256 token hash on every authenticated request, rejecting revoked tokens immediately with 401 TOKEN_REVOKED.",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-03",
+    "disposition": "Remediated & Verified in Phase 97"
+  },
+  {
+    "id": "SEC-004",
+    "severity": "high",
+    "title": "Malware quarantine and unverified file download fencing",
+    "affectedContract": "apps/api/src/modules/files/service.ts",
+    "reproduction": "Files uploaded with suspect payload hashes or pending malware scanning must not be downloadable even by the workspace owner.",
+    "proposedRemediation": "getFileDownloadCapability checks quarantine_status = 'verified'. Any other status (quarantined, pending) rejects download capability generation with FileNotReadyError (409 Conflict).",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-04",
+    "disposition": "Audited & Verified in Phase 97"
+  },
+  {
+    "id": "SEC-005",
+    "severity": "high",
+    "title": "Assistant streaming and rich markdown output sanitization",
+    "affectedContract": "packages/domain/src/ai/sanitization.ts",
+    "reproduction": "Assistant output could contain embedded HTML script tags, inline iframes, javascript: links, or remote 1x1 tracking pixels to phish or exfiltrate tokens.",
+    "proposedRemediation": "sanitizeAssistantMarkdown strips raw HTML scripts, iframes, object/embed tags, javascript: pseudo-protocols, and remote tracking images while preserving valid markdown headings, bullet lists, bold text, and relative workspace links.",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-05",
+    "disposition": "Audited & Verified in Phase 97"
+  },
+  {
+    "id": "SEC-006",
+    "severity": "critical",
+    "title": "AI consent versioning, 0-day transient audio retention, and vault exclusion boundary",
+    "affectedContract": "apps/api/src/routes/v1/ai.ts & apps/api/src/modules/ai/transcriptionService.ts",
+    "reproduction": "Users without active AI consent or users targeting confidential vault notes could invoke transcription or AI proposals, risking data exposure or policy violation.",
+    "proposedRemediation": "Enforce CURRENT_AI_CONSENT_VERSION before dispatching transcription, fail immediately with 403 on missing consent, reject vault targetKind unconditionally, and enforce 0-day transient audio buffer retention.",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-06",
+    "disposition": "Audited & Verified in Phase 97"
+  },
+  {
+    "id": "SEC-007",
+    "severity": "medium",
+    "title": "Diagnostic export and push notification telemetry leakage redaction",
+    "affectedContract": "packages/domain/src/diagnostics.ts & apps/mobile/src/notifications/adapter.ts",
+    "reproduction": "Support diagnostic bundles or device push logs could accidentally capture private journal entries, auth tokens, or user email addresses.",
+    "proposedRemediation": "Diagnostic exporter strictly redacts bearer tokens, email addresses, and personal note bodies to '[REDACTED]'; push adapter forces generic summaries for confidential and vault destinations.",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-07",
+    "disposition": "Audited & Verified in Phase 97"
+  },
+  {
+    "id": "SEC-008",
+    "severity": "high",
+    "title": "Room membership revocation and Google Drive disconnection access fencing",
+    "affectedContract": "apps/api/src/routes/v1/drive.ts & apps/api/src/modules/rooms/service.ts",
+    "reproduction": "Revoked room members or foreign workspace callers might trigger Drive token exchange or disconnect commands on unauthorized workspaces.",
+    "proposedRemediation": "Drive and room endpoints enforce tenant context, rejecting cross-workspace requests with 403 Forbidden; disconnectDrive executes idempotently without leaking tokens or remote resources.",
+    "regressionTest": "tests/security/phase97-v2-security-privacy-recovery.test.ts > SEC-08",
+    "disposition": "Audited & Verified in Phase 97"
+  },
+  {
+    "id": "SEC-009",
+    "severity": "critical",
+    "title": "Outstanding external independent cryptography review and physical Android ARM64 hardware verification",
+    "affectedContract": "docs/architecture/security-and-vault.md & docs/engineering/release-gates.md",
+    "reproduction": "Local software mocks and synthetic Vitest harnesses prove cryptographic protocol state machines, but cannot substitute for independent external third-party audit or hardware Keystore StrongBox validation.",
+    "proposedRemediation": "Retain release gate DEF-V2-004 (vault independent review) and DEF-V2-008 (physical hardware verification). Mark Phase 97 blocked pending owner engagement of external security firm and physical device run.",
+    "regressionTest": "docs/engineering/vault-independent-review-package.md",
+    "disposition": "Gate Retained (Phase 97 Blocked)"
+  }
+]

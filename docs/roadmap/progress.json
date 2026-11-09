@@ -3,7 +3,7 @@
   "updatedAt": "2026-11-10",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 96 implemented and local verification delivered before Phase 92 and 93 final acceptance under ADR 0096 (Nori original companion and assistant launcher). Phase 96 status recorded as blocked due to unmet owner live synthetic test approval and enterprise provider contract (DEF-V2-008 retained). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, Phase 91 grounding/retrieval evaluation, Phase 92 chat guidance, Phase 93 reviewed creation, Phase 94 multi-action tools, Phase 95 voice transcription, and Phase 99 prototype review retain their recorded states. Phase 97 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 97 implemented and local audit, bounded remediation, and synthetic recovery drills delivered before final acceptance of blocked prerequisites under ADR 0097 (Version 2 security, privacy, and recovery audit). Phase 97 status recorded as blocked due to unmet independent external cryptography audit (DEF-V2-004) and physical Android ARM64 hardware testing (DEF-V2-008). Outstanding checks for Phase 71 TalkBack, Phase 75 attachments, Phase 80 physical/spoken reviews, Phase 81 advanced chapters, Phase 84 physical push, Phase 85 physical notifications, Phase 86 independent vault review/hardware, Phase 87 live Google OAuth, Phase 88 staffed moderation, Phase 89 commercial billing, Phase 90 provider operating decisions, Phase 91 grounding/retrieval evaluation, Phase 92 chat guidance, Phase 93 reviewed creation, Phase 94 multi-action tools, Phase 95 voice transcription, Phase 96 companion launcher, and Phase 99 prototype review retain their recorded states. Phase 98 eligible when selected by the owner. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 99 carries deferred Phase 67 five-participant prototype journey review before V2 release.",
   "phases": [
     {
@@ -566,7 +566,9 @@
     },
     {
       "id": "97",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-97.md",
+      "reason": "Version 2 security, privacy, and recovery audit delivered: comprehensive audit of completed V2 attack surface (tenant isolation/IDOR, operator triage authorization, session revocation, malware quarantine, assistant markdown sanitization, AI/voice consent boundaries, diagnostic and notification telemetry redaction, Drive and room access fencing); bounded remediations applied for SEC-001 (operator feedback unauthenticated 401 challenge) and SEC-002 (workspace storage quota cross-tenant 404 IDOR fencing); live synthetic disaster recovery drill executed against disposable databases with pre-access deletion suppression ledger barrier and byte-exact checksum verification; JWKS dual-key secret rotation with zero-downtime fallback verified; vault independent review package authored in docs/engineering/vault-independent-review-package.md; all 12 tests in tests/security/phase97-v2-security-privacy-recovery.test.ts pass; status recorded as blocked pending accredited external cryptography audit (DEF-V2-004) and physical Android ARM64 hardware testing (DEF-V2-008). See docs/phase-reports/phase-97.md."
     },
     {
       "id": "98",
