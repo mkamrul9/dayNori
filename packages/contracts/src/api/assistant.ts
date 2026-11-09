@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ResponseMetaSchema } from './common.js';
+import { MAX_AUDIO_RECORDING_SECONDS, MAX_AUDIO_RECORDING_BYTES } from './audio.js';
 import { AiCitationSchema } from './ai.js';
 
 export const AiAssistantOperationSchema = z.enum([
@@ -311,3 +312,37 @@ export const DeleteAiHistoryResponseSchema = z.object({
   meta: ResponseMetaSchema,
 });
 export type DeleteAiHistoryResponse = z.infer<typeof DeleteAiHistoryResponseSchema>;
+
+export const TranscribeAudioRequestSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    audioBase64: z.string().min(1),
+    mimeType: z.string().min(1).max(100),
+    durationSeconds: z.number().min(0.5).max(MAX_AUDIO_RECORDING_SECONDS),
+    byteSize: z.number().int().positive().max(MAX_AUDIO_RECORDING_BYTES).optional(),
+    languageHint: z.string().max(20).optional(),
+    clientOperationId: z.string().uuid().optional(),
+  })
+  .strict();
+export type TranscribeAudioRequest = z.infer<typeof TranscribeAudioRequestSchema>;
+
+export const TranscribeAudioResponseDataSchema = z.object({
+  transcriptionId: z.string().uuid(),
+  transcript: z.string(),
+  detectedLanguage: z.string(),
+  confidence: z.number().min(0).max(1),
+  durationSeconds: z.number(),
+  byteSize: z.number(),
+  wordsCount: z.number().int().nonnegative(),
+  costMicroUsd: z.number().int().nonnegative(),
+  retentionPolicy: z.enum(['transient_deleted', 'transient_purged']),
+  uncertainSpeech: z.boolean().default(false),
+  provisionalNotice: z.string().optional(),
+});
+export type TranscribeAudioResponseData = z.infer<typeof TranscribeAudioResponseDataSchema>;
+
+export const TranscribeAudioResponseSchema = z.object({
+  data: TranscribeAudioResponseDataSchema,
+  meta: ResponseMetaSchema,
+});
+export type TranscribeAudioResponse = z.infer<typeof TranscribeAudioResponseSchema>;

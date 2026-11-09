@@ -7,6 +7,8 @@ import { Button, Feedback, Icon, type FeedbackSeverity } from '@daynori/ui-web';
 import type { AiCitation, AiSelectedSources, AiProposal } from '@daynori/contracts';
 import {
   ASSISTANT_STARTER_SUGGESTIONS,
+  formatAudioDuration,
+  formatByteSize,
   getOrganizerDeepLink,
   sanitizeAssistantMarkdown,
   type StarterSuggestion,
@@ -74,6 +76,21 @@ export function AssistantPanel({
   const [editAmount, setEditAmount] = useState('');
   const [editCurrency, setEditCurrency] = useState('USD');
   const [proposalBusy, setProposalBusy] = useState(false);
+
+  // Phase 95 Voice capture & transcription states
+  const [voicePhase, setVoicePhase] = useState<'idle' | 'recording' | 'stopped' | 'transcribing' | 'reviewing'>('idle');
+  const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
+  const [recordedAudioBase64, setRecordedAudioBase64] = useState<string | null>(null);
+  const [recordedMimeType, setRecordedMimeType] = useState('audio/webm');
+  const [transcriptText, setTranscriptText] = useState('');
+  const [transcriptUncertainty, setTranscriptUncertainty] = useState<{ uncertain: boolean; message?: string } | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const askAbortRef = useRef<AbortController | null>(null);
 
@@ -241,6 +258,133 @@ export function AssistantPanel({
     },
     [client, personalWorkspaceId, question, selectedSources, refreshHistory]
   );
+
+  const stopVoiceRecording = useCallback(() => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+    }
+    setVoicePhase('stopped');
+  }, []);
+
+  const cancelVoiceRecording = useCallback(() => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setRecordedAudioBlob(null);
+    setRecordedAudioBase64(null);
+    setVoicePhase('idle');
+    setVoiceElapsedSeconds(0);
+    setTranscriptText('');
+    setTranscriptUncertainty(null);
+    setVoiceNotice(null);
+  }, []);
+
+  const startVoiceRecording = useCallback(async () => {
+    setVoiceNotice(null);
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setFeedback({
+        severity: 'danger',
+        message: 'Audio recording is not supported in this browser. You can type in the box below.',
+      });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+      const mime =
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : 'audio/webm';
+      setRecordedMimeType(mime.split(';')[0]!);
+
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      recorder.onstop = () => {
+        const fullBlob = new Blob(audioChunksRef.current, { type: mime.split(';')[0]! });
+        setRecordedAudioBlob(fullBlob);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          const base64 = res.split(',')[1] || '';
+          setRecordedAudioBase64(base64);
+        };
+        reader.readAsDataURL(fullBlob);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(250);
+      setVoicePhase('recording');
+      setVoiceElapsedSeconds(0);
+
+      if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = setInterval(() => {
+        setVoiceElapsedSeconds((prev) => {
+          if (prev >= 599) {
+            stopVoiceRecording();
+            return 600;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch {
+      setFeedback({
+        severity: 'danger',
+        message: 'Microphone permission denied. You can continue typing your question below.',
+      });
+    }
+  }, [stopVoiceRecording]);
+
+  const transcribeVoiceAudio = useCallback(async () => {
+    if (!personalWorkspaceId || !recordedAudioBase64) return;
+    setVoicePhase('transcribing');
+    try {
+      const res = await client.transcribeAudio({
+        workspaceId: personalWorkspaceId,
+        audioBase64: recordedAudioBase64,
+        mimeType: recordedMimeType,
+        durationSeconds: Math.max(1, voiceElapsedSeconds),
+      });
+      setTranscriptText(res.data.transcript);
+      setTranscriptUncertainty({
+        uncertain: res.data.uncertainSpeech,
+        message: res.data.uncertainSpeech
+          ? 'Uncertain speech or silence detected. Please review and edit the transcript text before creating organizer items.'
+          : undefined,
+      });
+      setVoicePhase('reviewing');
+      setVoiceNotice('Audio processed under 0-day transient retention policy. Original audio discarded from server.');
+    } catch (err) {
+      setVoicePhase('stopped');
+      setFeedback({
+        severity: 'danger',
+        message: err instanceof Error ? err.message : 'Transcription failed',
+      });
+    }
+  }, [client, personalWorkspaceId, recordedAudioBase64, recordedMimeType, voiceElapsedSeconds]);
 
   const cancelAsk = useCallback(() => {
     askAbortRef.current?.abort();
@@ -778,6 +922,165 @@ export function AssistantPanel({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Voice Capture & Transcription (Phase 95) */}
+      <div
+        style={{
+          marginBottom: `${spacing.sm}px`,
+          padding: `${spacing.sm}px`,
+          backgroundColor: palette.surfaceRaised,
+          borderRadius: `${radii.sm}px`,
+          border: `1px solid ${palette.border.subtle}`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: `${spacing.xs}px` }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: palette.text.primary, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Icon name="microphone" size={14} color={voicePhase === 'recording' ? palette.status.danger : palette.text.primary} />
+            Voice Assistant
+          </span>
+          {voicePhase === 'idle' ? (
+            <Button
+              variant="secondary"
+              size="compact"
+              themeMode={themeMode}
+              onClick={() => void startVoiceRecording()}
+              data-tour="assistant-voice-record"
+            >
+              Record Voice
+            </Button>
+          ) : null}
+        </div>
+
+        {voicePhase === 'recording' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: palette.status.danger,
+                }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: palette.status.danger }} aria-live="polite">
+                Recording: {formatAudioDuration(voiceElapsedSeconds)} / 10:00
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: `${spacing.sm}px` }}>
+              <Button variant="primary" size="compact" themeMode={themeMode} onClick={stopVoiceRecording}>
+                Stop Recording
+              </Button>
+              <Button variant="secondary" size="compact" themeMode={themeMode} onClick={cancelVoiceRecording}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {voicePhase === 'stopped' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '12px', color: palette.text.secondary }}>
+              Recorded: {formatAudioDuration(voiceElapsedSeconds)} ({recordedMimeType}
+              {recordedAudioBlob ? `, ${formatByteSize(recordedAudioBlob.size)}` : ''})
+            </div>
+            <div style={{ fontSize: '11px', color: palette.text.secondary, fontStyle: 'italic' }}>
+              Microphone permission only captured audio locally. Transcribing will transmit audio to the secure transcription provider under the 0-day retention policy.
+            </div>
+            <div style={{ display: 'flex', gap: `${spacing.sm}px` }}>
+              <Button
+                variant="primary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={() => void transcribeVoiceAudio()}
+                data-tour="assistant-voice-transcribe"
+              >
+                Transcribe Voice
+              </Button>
+              <Button variant="secondary" size="compact" themeMode={themeMode} onClick={cancelVoiceRecording}>
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {voicePhase === 'transcribing' && (
+          <div style={{ fontSize: '12px', color: palette.text.primary, padding: '4px 0' }}>
+            Transcribing audio with secure transcription provider...
+          </div>
+        )}
+
+        {voicePhase === 'reviewing' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: palette.text.secondary }}>
+              Review & Correct Transcript:
+            </span>
+            {transcriptUncertainty?.uncertain && (
+              <div style={{ fontSize: '11px', color: palette.status.warning, padding: '2px 0' }}>
+                {transcriptUncertainty.message}
+              </div>
+            )}
+            <textarea
+              id="assistant-transcript-edit"
+              data-tour="assistant-transcript-edit"
+              value={transcriptText}
+              onChange={(e) => setTranscriptText(e.target.value)}
+              rows={2}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: `${spacing.xs}px`,
+                fontSize: '12px',
+                borderRadius: `${radii.sm}px`,
+                border: `1px solid ${palette.border.subtle}`,
+                backgroundColor: palette.surface,
+                color: palette.text.primary,
+              }}
+            />
+            {voiceNotice && (
+              <div style={{ fontSize: '10px', color: palette.text.secondary }}>
+                {voiceNotice}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: `${spacing.xs}px`, flexWrap: 'wrap' }}>
+              <Button
+                variant="primary"
+                size="compact"
+                themeMode={themeMode}
+                disabled={!transcriptText.trim()}
+                onClick={() => {
+                  setQuestion(transcriptText.trim());
+                  void ask(transcriptText.trim());
+                  cancelVoiceRecording();
+                }}
+                data-tour="assistant-voice-propose"
+              >
+                Generate Proposal
+              </Button>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                disabled={!transcriptText.trim()}
+                onClick={() => {
+                  setQuestion(transcriptText.trim());
+                  cancelVoiceRecording();
+                }}
+              >
+                Use in Question
+              </Button>
+              <Button
+                variant="secondary"
+                size="compact"
+                themeMode={themeMode}
+                onClick={cancelVoiceRecording}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input area */}

@@ -1,0 +1,73 @@
+{
+  "phase": 95,
+  "packageTitle": "Voice Capture, Transcription, and Reviewed Creation Live Synthetic Test Package",
+  "preparedAt": "2026-11-09T21:25:00+06:00",
+  "status": "pending_owner_approval",
+  "approvalGate": "DEF-V2-008",
+  "budgetLimitMicroUsd": 50000,
+  "budgetLimitUsd": "0.05",
+  "estimatedDurationSecondsTotal": 75,
+  "estimatedCostMicroUsd": 1500,
+  "provider": "google-gemini",
+  "model": "gemini-1.5-flash",
+  "notes": "Prepared for explicit owner authorization prior to any live provider audio transmission. Uses strictly synthetic test audio samples containing zero real user voice or private workspace records. Enforces 0-day transient audio retention where raw audio buffers are purged immediately upon transcription completion.",
+  "syntheticAudioScenarios": [
+    {
+      "scenarioId": "SYNTH-VCE-01",
+      "language": "en",
+      "durationSeconds": 6,
+      "mimeType": "audio/webm",
+      "syntheticSpeechText": "Create a task to review the quarterly roadmap tomorrow morning",
+      "expectedTranscription": "Create a task to review the quarterly roadmap tomorrow morning",
+      "expectedConfidence": 0.96,
+      "expectedOperation": "create_personal_task",
+      "costMicroUsd": 120
+    },
+    {
+      "scenarioId": "SYNTH-VCE-02",
+      "language": "bn",
+      "durationSeconds": 8,
+      "mimeType": "audio/webm",
+      "syntheticSpeechText": "আগামীকাল বিকেল চারটায় ডাক্তারের সাথে অ্যাপয়েন্টমেন্ট আছে",
+      "expectedTranscription": "আগামীকাল বিকেল চারটায় ডাক্তারের সাথে অ্যাপয়েন্টমেন্ট আছে",
+      "expectedConfidence": 0.94,
+      "expectedOperation": "create_personal_calendar_event",
+      "costMicroUsd": 160
+    },
+    {
+      "scenarioId": "SYNTH-VCE-03",
+      "language": "bn-EN (code-switching)",
+      "durationSeconds": 10,
+      "mimeType": "audio/webm",
+      "syntheticSpeechText": "Project review er meeting notes add koro for architecture update",
+      "expectedTranscription": "Project review er meeting notes add koro for architecture update",
+      "expectedConfidence": 0.91,
+      "expectedOperation": "create_personal_note",
+      "costMicroUsd": 200
+    },
+    {
+      "scenarioId": "SYNTH-VCE-04",
+      "language": "none (ambient silence)",
+      "durationSeconds": 5,
+      "mimeType": "audio/webm",
+      "syntheticSpeechText": "[Ambient noise floor without speech]",
+      "expectedTranscription": "[Silence detected]",
+      "expectedConfidence": 0.0,
+      "expectedUncertainty": true,
+      "expectedOperation": null,
+      "costMicroUsd": 100
+    },
+    {
+      "scenarioId": "SYNTH-VCE-05",
+      "language": "en",
+      "durationSeconds": 7,
+      "mimeType": "audio/webm",
+      "syntheticSpeechText": "noisy background mumble speech fix... maybe login...",
+      "expectedTranscription": "noisy background mumble speech fix... maybe login...",
+      "expectedConfidence": 0.55,
+      "expectedUncertainty": true,
+      "expectedOperation": null,
+      "costMicroUsd": 140
+    }
+  ]
+}

@@ -554,7 +554,9 @@
     },
     {
       "id": "95",
-      "status": "planned"
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-95.md",
+      "reason": "Voice capture transcription and reviewed creation verified: transcription provider comparative analysis completed selecting Gemini 1.5 Flash multimodal ($0.00002/s) with MockAudioTranscriptionAdapter for zero-cost local testing; migration 00080 applied with partial unique index on (user_id, workspace_id, client_operation_id); distinct device microphone permission decoupled from external AI transmission consent (403 AI_CONSENT_REQUIRED); 0-day transient retention policy enforced with immediate buffer zeroing and raw audio DB exclusion; zero unreviewed writes verified (transcription produces text only, item attachments decoupled); duration (0.5s–600s) and size (<= 25 MiB) bounds enforced; silence and low confidence (<0.70) uncertainty detected; interactive editable textarea and TextInput review surfaces delivered on web and mobile feeding into Phase 93/94 proposal pipeline; 13 integration tests in phase95-voice-transcription-reviewed-creation.test.ts and 103 domain tests pass; production AI fails closed pending explicit owner approval of synthetic test package (DEF-V2-008 retained). See docs/phase-reports/phase-95.md."
     },
     {
       "id": "96",

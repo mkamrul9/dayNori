@@ -298,6 +298,7 @@ import {
   AiAssistantDraftResponseSchema,
   AiSourceAccessResponseSchema,
   DeleteAiHistoryResponseSchema,
+  TranscribeAudioResponseSchema,
   AiStreamEventSchema,
   BillingCatalogResponseSchema,
   BillingEntitlementResponseSchema,
@@ -377,6 +378,8 @@ import {
   type AiSourceAccessRequest,
   type DeleteAiHistoryRequest,
   type DeleteAiHistoryResponse,
+  type TranscribeAudioRequest,
+  type TranscribeAudioResponse,
   type AiAskStreamRequest,
   type AiStreamEvent,
   type BillingCatalogResponse,
@@ -3750,6 +3753,18 @@ export class DaynoriApiClient {
       options
     );
     return BatchConfirmAiProposalsResponseSchema.parse(raw);
+  }
+
+  async transcribeAudio(
+    request: TranscribeAudioRequest,
+    options?: RequestOptions
+  ): Promise<TranscribeAudioResponse> {
+    const raw = await this.request<unknown>(
+      `/v1/ai/assistant/transcribe`,
+      { method: 'POST', body: JSON.stringify(request) },
+      options
+    );
+    return TranscribeAudioResponseSchema.parse(raw);
   }
 
   // --- Phase 57 Billing (provisional local; production activation gated) ---

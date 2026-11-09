@@ -19,6 +19,8 @@ import {
   DeleteAiHistoryRequestSchema,
   DeleteAiHistoryResponseSchema,
   SaveAiDraftRequestSchema,
+  TranscribeAudioRequestSchema,
+  TranscribeAudioResponseSchema,
 } from '@daynori/contracts';
 import { withTenantContext, withUserContext } from '../../db/index.js';
 import { NotFoundError, ValidationError, validateResponse } from '../../plugins/errorHandler.js';
@@ -38,6 +40,7 @@ import {
   streamAssistant,
   updateAiProposalPayload,
 } from '../../modules/ai/assistantService.js';
+import { transcribeAudio } from '../../modules/ai/transcriptionService.js';
 
 function meta(requestId: string) {
   return { requestId, serverTime: new Date().toISOString() };
@@ -406,6 +409,34 @@ export function registerAssistantRoutes(app: FastifyInstance, pool: Pool): void 
       );
       return reply.send(
         validateResponse(AiProposalResponseSchema, { data, meta: meta(request.id) })
+      );
+    } catch (err) {
+      return sendAiError(err, reply);
+    }
+  });
+
+  app.post('/v1/ai/assistant/transcribe', async (request, reply) => {
+    const actor = request.actor;
+    if (!actor) return reply.status(401).send({ error: { message: 'Authentication required' } });
+    const body = TranscribeAudioRequestSchema.parse(request.body);
+    const ac = new AbortController();
+    request.raw.on('close', () => {
+      if (!request.raw.complete) ac.abort();
+    });
+    try {
+      const data = await transcribeAudio(pool, {
+        userId: actor.userId,
+        workspaceId: body.workspaceId,
+        audioBase64: body.audioBase64,
+        mimeType: body.mimeType,
+        durationSeconds: body.durationSeconds,
+        byteSize: body.byteSize,
+        languageHint: body.languageHint,
+        clientOperationId: body.clientOperationId,
+        signal: ac.signal,
+      });
+      return reply.send(
+        validateResponse(TranscribeAudioResponseSchema, { data, meta: meta(request.id) })
       );
     } catch (err) {
       return sendAiError(err, reply);

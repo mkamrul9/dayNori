@@ -1,0 +1,68 @@
+{
+  "phase": 95,
+  "name": "Phase 95 Voice Capture, Transcription, and Reviewed Creation Manual UI Evidence",
+  "evaluatedAt": "2026-11-09T21:25:00+06:00",
+  "components": [
+    {
+      "component": "apps/web/src/components/AssistantPanel.tsx",
+      "platform": "web",
+      "surfaces": [
+        {
+          "surfaceId": "assistant-voice-capture-section",
+          "ariaLabel": "Voice capture and reviewed draft creation controls",
+          "testedInteractions": [
+            "Renders mic toggle button in input bar ('data-tour=\"assistant-voice-record\"') alongside typed prompt field",
+            "Starts recording on user click with visible red pulse indicator and live elapsed timer in MM:SS format",
+            "Limits capture duration to 600s with automatic stop at boundary",
+            "Provides accessible Stop Recording and Cancel Recording buttons",
+            "Discloses external transmission step and 0-day transient retention policy notice before transcribing",
+            "Provides Transcribe Audio button ('data-tour=\"assistant-voice-transcribe\"') and Discard button",
+            "Handles microphone permission denial gracefully, displaying setup instructions while keeping typed text input fully usable",
+            "Displays editable textarea ('data-tour=\"assistant-transcript-edit\"') allowing user to review and correct names, dates, times, and amounts",
+            "Displays amber warning banner when silence or low-confidence (<0.70) speech uncertainty is detected",
+            "Provides 'Generate Proposal' button ('data-tour=\"assistant-voice-propose\"') to feed reviewed transcript into existing reviewed proposal workflow",
+            "Provides 'Use in Question' button to transfer edited text into main assistant prompt input",
+            "Enforces zero unreviewed mutations: transcription alone NEVER writes organizer records to the database"
+          ],
+          "tourTargets": [
+            "assistant-voice-record",
+            "assistant-voice-transcribe",
+            "assistant-transcript-edit",
+            "assistant-voice-propose"
+          ],
+          "accessibilityAttributes": {
+            "ariaLive": "polite",
+            "elapsedTimerLabel": "Accessible live recording duration announcement",
+            "keyboardNavigation": "All voice controls, textarea, and action buttons navigable and executable via Tab, Space, and Enter",
+            "contrast": "Conforms to WCAG AA on light and dark themes using semantic design tokens"
+          }
+        }
+      ]
+    },
+    {
+      "component": "apps/mobile/src/views/AssistantSheet.tsx",
+      "platform": "android-mobile",
+      "surfaces": [
+        {
+          "surfaceId": "assistant-sheet-voice-controls",
+          "testID": "assistant-voice-record-btn",
+          "testedInteractions": [
+            "Renders mic button in mobile action bar with 48dp minimum touch target",
+            "Shows active recording banner with pulse indicator, live timer, and Stop button ('assistant-voice-stop-btn')",
+            "Shows stopped preview bar with audio duration, Transcribe button ('assistant-voice-transcribe-btn'), and Discard button",
+            "Renders editable TextInput ('assistant-transcript-input') with multiline support for post-transcription editing",
+            "Displays uncertainty banner when audio is flagged with low confidence or silence",
+            "Renders 'Generate Proposal' button ('assistant-voice-propose-btn') to initiate reviewed proposal card flow",
+            "Provides 'Use in Chat' button to transfer transcript into chat message input",
+            "Keeps text messaging fully accessible when microphone permission is denied or recording is inactive"
+          ],
+          "accessibilityAttributes": {
+            "accessibilityLiveRegion": "polite",
+            "touchTargetMin": "Meets 48dp minimum for all mobile voice action buttons",
+            "screenReaderLabels": "Full accessibilityLabel coverage on record, stop, cancel, transcribe, and proposal buttons"
+          }
+        }
+      ]
+    }
+  ]
+}

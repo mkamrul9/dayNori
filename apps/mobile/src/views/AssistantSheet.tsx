@@ -12,7 +12,10 @@ import { MobileButton, Icon } from '@daynori/ui-mobile';
 import type { AiCitation, AiSelectedSources, AiProposal } from '@daynori/contracts';
 import {
   ASSISTANT_STARTER_SUGGESTIONS,
+  formatAudioDuration,
+  MockAudioRecorderAdapter,
   sanitizeAssistantMarkdown,
+  type NativeAudioRecorderAdapter,
   type StarterSuggestion,
 } from '@daynori/domain';
 import type { DaynoriApiClient } from '@daynori/api-client';
@@ -23,6 +26,7 @@ export interface AssistantSheetProps {
   apiClient: DaynoriApiClient;
   onClose: () => void;
   onOpenSource?: (kind: string, itemId: string) => void;
+  recorderAdapter?: NativeAudioRecorderAdapter;
   testID?: string;
 }
 
@@ -38,6 +42,7 @@ export function AssistantSheet({
   apiClient,
   onClose,
   onOpenSource,
+  recorderAdapter,
   testID = 'assistant-sheet',
 }: AssistantSheetProps) {
   const palette = colors[themeMode];
@@ -53,6 +58,14 @@ export function AssistantSheet({
     providerMode: string;
     label: string;
   } | null>(null);
+
+  // Phase 95 Voice states
+  const [voicePhase, setVoicePhase] = useState<'idle' | 'recording' | 'stopped' | 'transcribing' | 'reviewing'>('idle');
+  const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0);
+  const [transcriptText, setTranscriptText] = useState('');
+  const [transcriptUncertainty, setTranscriptUncertainty] = useState<string | null>(null);
+  const recorder = useMemo(() => recorderAdapter ?? new MockAudioRecorderAdapter(), [recorderAdapter]);
+  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [selectedSources, setSelectedSources] = useState<AiSelectedSources>({
     help: true,
@@ -196,6 +209,84 @@ export function AssistantSheet({
     },
     [apiClient, question, workspaceId, selectedSources, refreshHistory]
   );
+
+  const stopVoiceRecording = useCallback(async () => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+    try {
+      await recorder.stopRecordingAsync();
+      setVoicePhase('stopped');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Failed to stop recording');
+      setVoicePhase('idle');
+    }
+  }, [recorder]);
+
+  const cancelVoiceRecording = useCallback(async () => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+    try {
+      await recorder.discardRecordingAsync();
+    } catch {
+      /* ignore */
+    }
+    setVoicePhase('idle');
+    setVoiceElapsedSeconds(0);
+    setTranscriptText('');
+    setTranscriptUncertainty(null);
+  }, [recorder]);
+
+  const startVoiceRecording = useCallback(async () => {
+    try {
+      const perm = await recorder.requestPermissionsAsync();
+      if (!perm.granted) {
+        setMessage('Microphone permission denied. You can continue typing below.');
+        return;
+      }
+      await recorder.startRecordingAsync();
+      setVoicePhase('recording');
+      setVoiceElapsedSeconds(0);
+
+      if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = setInterval(() => {
+        setVoiceElapsedSeconds((prev) => {
+          if (prev >= 599) {
+            void stopVoiceRecording();
+            return 600;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Microphone permission denied.');
+    }
+  }, [recorder, stopVoiceRecording]);
+
+  const transcribeVoiceAudio = useCallback(async () => {
+    setVoicePhase('transcribing');
+    try {
+      const res = await apiClient.transcribeAudio({
+        workspaceId,
+        audioBase64: 'bW9ja19hdWRpb19kYXRhX2Zvcl9tb2JpbGU=',
+        mimeType: 'audio/mp4',
+        durationSeconds: Math.max(1, voiceElapsedSeconds),
+      });
+      setTranscriptText(res.data.transcript);
+      if (res.data.uncertainSpeech) {
+        setTranscriptUncertainty('Uncertain recognition detected. Please review and edit the transcript.');
+      } else {
+        setTranscriptUncertainty(null);
+      }
+      setVoicePhase('reviewing');
+    } catch (err) {
+      setVoicePhase('stopped');
+      setMessage(err instanceof Error ? err.message : 'Transcription failed');
+    }
+  }, [apiClient, voiceElapsedSeconds, workspaceId]);
 
   const cancelAsk = useCallback(() => {
     askAbortRef.current?.abort();
@@ -621,6 +712,157 @@ export function AssistantSheet({
             </TouchableOpacity>
           ))}
         </View>
+      </View>
+
+      {/* Voice Capture & Transcription (Phase 95) */}
+      <View
+        style={{
+          marginBottom: spacing.sm,
+          padding: spacing.sm,
+          backgroundColor: palette.surfaceRaised,
+          borderRadius: radii.sm,
+          borderWidth: 1,
+          borderColor: palette.border.subtle,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Icon name="microphone" size={14} color={voicePhase === 'recording' ? palette.status.danger : palette.text.primary} />
+            <Text style={{ fontSize: 12, fontWeight: '600', color: palette.text.primary }}>Voice Assistant</Text>
+          </View>
+          {voicePhase === 'idle' ? (
+            <TouchableOpacity
+              testID="assistant-voice-record-btn"
+              accessibilityLabel="Start voice recording"
+              onPress={() => void startVoiceRecording()}
+              style={[styles.chip, { backgroundColor: palette.surface }]}
+            >
+              <Text style={{ fontSize: 11, color: palette.text.primary }}>Record Voice</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {voicePhase === 'recording' && (
+          <View style={{ gap: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: palette.status.danger }}>
+              Recording: {formatAudioDuration(voiceElapsedSeconds)} / 10:00
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                testID="assistant-voice-stop-btn"
+                accessibilityLabel="Stop recording"
+                onPress={() => void stopVoiceRecording()}
+                style={[styles.chip, { backgroundColor: palette.status.danger, paddingHorizontal: 12 }]}
+              >
+                <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Stop</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Cancel recording"
+                onPress={() => void cancelVoiceRecording()}
+                style={[styles.chip, { backgroundColor: palette.surface }]}
+              >
+                <Text style={{ fontSize: 12, color: palette.text.primary }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {voicePhase === 'stopped' && (
+          <View style={{ gap: 8 }}>
+            <Text style={{ fontSize: 11, color: palette.text.secondary }}>
+              Recorded: {formatAudioDuration(voiceElapsedSeconds)}
+            </Text>
+            <Text style={{ fontSize: 10, color: palette.text.secondary, fontStyle: 'italic' }}>
+              Transcribing transmits audio under 0-day retention policy.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                testID="assistant-voice-transcribe-btn"
+                accessibilityLabel="Transcribe voice recording"
+                onPress={() => void transcribeVoiceAudio()}
+                style={[styles.chip, { backgroundColor: palette.action.primary, paddingHorizontal: 12 }]}
+              >
+                <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Transcribe Voice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Discard recording"
+                onPress={() => void cancelVoiceRecording()}
+                style={[styles.chip, { backgroundColor: palette.surface }]}
+              >
+                <Text style={{ fontSize: 12, color: palette.text.primary }}>Discard</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {voicePhase === 'transcribing' && (
+          <Text style={{ fontSize: 11, color: palette.text.primary }}>
+            Transcribing audio with secure provider...
+          </Text>
+        )}
+
+        {voicePhase === 'reviewing' && (
+          <View style={{ gap: 6 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: palette.text.secondary }}>
+              Review & Correct Transcript:
+            </Text>
+            {transcriptUncertainty ? (
+              <Text style={{ fontSize: 10, color: palette.status.warning }}>
+                {transcriptUncertainty}
+              </Text>
+            ) : null}
+            <TextInput
+              testID="assistant-transcript-input"
+              accessibilityLabel="Editable transcript text"
+              value={transcriptText}
+              onChangeText={setTranscriptText}
+              multiline
+              style={[
+                styles.input,
+                {
+                  fontSize: 12,
+                  minHeight: 48,
+                  borderColor: palette.border.subtle,
+                  backgroundColor: palette.surface,
+                  color: palette.text.primary,
+                },
+              ]}
+            />
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              <TouchableOpacity
+                testID="assistant-voice-propose-btn"
+                accessibilityLabel="Generate proposal from transcript"
+                disabled={!transcriptText.trim()}
+                onPress={() => {
+                  setQuestion(transcriptText.trim());
+                  void ask(transcriptText.trim());
+                  void cancelVoiceRecording();
+                }}
+                style={[styles.chip, { backgroundColor: palette.action.primary }]}
+              >
+                <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600' }}>Generate Proposal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Use transcript in question"
+                disabled={!transcriptText.trim()}
+                onPress={() => {
+                  setQuestion(transcriptText.trim());
+                  void cancelVoiceRecording();
+                }}
+                style={[styles.chip, { backgroundColor: palette.surface }]}
+              >
+                <Text style={{ fontSize: 11, color: palette.text.primary }}>Use in Question</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Clear voice transcript"
+                onPress={() => void cancelVoiceRecording()}
+                style={[styles.chip, { backgroundColor: palette.surface }]}
+              >
+                <Text style={{ fontSize: 11, color: palette.text.primary }}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       <Text style={[styles.label, { color: palette.text.primary }]}>Question</Text>

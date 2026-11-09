@@ -6179,14 +6179,16 @@
         "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
         "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
         "tests/integration/phase93-reviewed-organizer-creation.test.ts",
-        "tests/integration/phase94-structured-organizer-tools.test.ts"
+        "tests/integration/phase94-structured-organizer-tools.test.ts",
+        "tests/integration/phase95-voice-transcription-reviewed-creation.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
         "artifacts/phase91/evidence-summary.json",
         "artifacts/phase92/evidence-summary.json",
         "artifacts/phase93/evidence-summary.json",
-        "artifacts/phase94/evidence-summary.json"
+        "artifacts/phase94/evidence-summary.json",
+        "artifacts/phase95/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6214,6 +6216,9 @@
       "implementationPaths": [
         "apps/api/src/routes/v1/ai.ts",
         "apps/api/src/routes/v1/assistant.ts",
+        "apps/api/src/modules/ai/transcriptionService.ts",
+        "packages/contracts/src/api/assistant.ts",
+        "packages/domain/src/audioTranscription.ts",
         "apps/web/src/components/AssistantPanel.tsx",
         "apps/mobile/src/views/AssistantSheet.tsx"
       ],
@@ -6221,8 +6226,8 @@
       "acceptanceJourney": "Voice capture/transcription to reviewed draft.",
       "observedResult": "unavailable",
       "evidenceMeta": {
-        "date": "2026-10-25",
-        "revision": "de6fab2",
+        "date": "2026-11-09",
+        "revision": "a0d3573",
         "environment": "local-windows-daynori_test-synthetic-jwt",
         "platform": "production-gate-403",
         "evidenceLayer": "api_integration"

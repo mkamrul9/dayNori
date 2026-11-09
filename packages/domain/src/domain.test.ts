@@ -51,6 +51,10 @@ import {
   sanitizeOrganizerText,
   resolveProposalCrossReferences,
   checkStepDependencies,
+  validateAudioForTranscription,
+  calculateAudioTranscriptionCost,
+  detectTranscriptionUncertainty,
+  MockAudioTranscriptionAdapter,
 } from './index.js';
 
 describe('Domain Rules and Invariants', () => {
@@ -2806,6 +2810,140 @@ describe('Domain Rules and Invariants', () => {
       // No deps
       const empty = checkStepDependencies([], completed);
       expect(empty.satisfied).toBe(true);
+    });
+
+    it('AST-015: validates audio parameters for transcription bounds and formats', () => {
+      // Valid audio
+      const valid = validateAudioForTranscription({
+        durationSeconds: 15,
+        byteSize: 120000,
+        mimeType: 'audio/webm',
+      });
+      expect(valid.valid).toBe(true);
+
+      // Duration too short (< 0.5s)
+      const tooShort = validateAudioForTranscription({
+        durationSeconds: 0.2,
+        mimeType: 'audio/webm',
+      });
+      expect(tooShort.valid).toBe(false);
+      expect(tooShort.code).toBe('AUDIO_DURATION_OUT_OF_BOUNDS');
+
+      // Duration too long (> 600s)
+      const tooLong = validateAudioForTranscription({
+        durationSeconds: 605,
+        mimeType: 'audio/webm',
+      });
+      expect(tooLong.valid).toBe(false);
+      expect(tooLong.code).toBe('AUDIO_DURATION_OUT_OF_BOUNDS');
+
+      // Size too large (> 25 MiB)
+      const tooLarge = validateAudioForTranscription({
+        durationSeconds: 100,
+        byteSize: 26 * 1024 * 1024,
+        mimeType: 'audio/webm',
+      });
+      expect(tooLarge.valid).toBe(false);
+      expect(tooLarge.code).toBe('AUDIO_SIZE_EXCEEDED');
+
+      // Unsupported MIME type
+      const unsupported = validateAudioForTranscription({
+        durationSeconds: 5,
+        byteSize: 50000,
+        mimeType: 'video/mp4',
+      });
+      expect(unsupported.valid).toBe(false);
+      expect(unsupported.code).toBe('UNSUPPORTED_AUDIO_MIME');
+    });
+
+    it('AST-016: calculates precise audio transcription costs in micro-USD', () => {
+      // Gemini 1.5 Flash multimodal ($0.00002 / sec = 20 micro-USD / sec)
+      const geminiCost10s = calculateAudioTranscriptionCost(10, 'gemini');
+      expect(geminiCost10s).toBe(200); // 10 * 20
+
+      const geminiCost60s = calculateAudioTranscriptionCost(60, 'gemini');
+      expect(geminiCost60s).toBe(1200); // 60 * 20 = 1200 micro-USD ($0.0012)
+
+      // Whisper ($0.006 / min = 100 micro-USD / sec)
+      const whisperCost60s = calculateAudioTranscriptionCost(60, 'whisper');
+      expect(whisperCost60s).toBe(6000); // 60 * 100 = 6000 micro-USD ($0.006)
+    });
+
+    it('AST-017: detects silence, empty speech, and low-confidence uncertainty', () => {
+      // Empty / silence
+      const empty = detectTranscriptionUncertainty('', 0.95);
+      expect(empty.uncertain).toBe(true);
+      expect(empty.reason).toBe('silence');
+      expect(empty.promptMessage).toContain('No clear speech');
+
+      // Low confidence (< 0.70)
+      const lowConf = detectTranscriptionUncertainty('meeting with team', 0.55);
+      expect(lowConf.uncertain).toBe(true);
+      expect(lowConf.reason).toBe('low_confidence');
+      expect(lowConf.promptMessage).toContain('low');
+
+      // Clear confident speech
+      const clear = detectTranscriptionUncertainty('Submit assignment tomorrow', 0.96);
+      expect(clear.uncertain).toBe(false);
+    });
+
+    it('AST-018: MockAudioTranscriptionAdapter transcribes English, Bangla, and Banglish code-switching', async () => {
+      const adapter = new MockAudioTranscriptionAdapter();
+
+      // 1. English default
+      const enRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('synthetic audio buffer with speech samples'),
+        mimeType: 'audio/webm',
+        durationSeconds: 5,
+        languageHint: 'en',
+      });
+      expect(enRes.transcript).toContain('Submit CS50 memory allocation');
+      expect(enRes.detectedLanguage).toBe('en');
+      expect(enRes.confidence).toBeGreaterThan(0.9);
+      expect(enRes.uncertainSpeech).toBe(false);
+      expect(enRes.audioCleanedUp).toBe(true);
+
+      // 2. Bangla synthetic
+      const bnRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('synthetic audio buffer with bangla speech'),
+        mimeType: 'audio/webm',
+        durationSeconds: 4,
+        languageHint: 'bn',
+      });
+      expect(bnRes.transcript).toContain('ডাক্তারের সাথে অ্যাপয়েন্টমেন্ট');
+      expect(bnRes.detectedLanguage).toBe('bn');
+      expect(bnRes.uncertainSpeech).toBe(false);
+
+      // 3. Banglish (code-switched) synthetic
+      const csRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('synthetic audio buffer with code-switch banglish'),
+        mimeType: 'audio/webm',
+        durationSeconds: 6,
+        languageHint: 'bn-en',
+      });
+      expect(csRes.transcript).toContain('Friday-তে project report submit');
+      expect(csRes.detectedLanguage).toBe('bn-en');
+
+      // 4. Silence detection
+      const silenceRes = await adapter.transcribe({
+        audioBuffer: Buffer.from('silence silence silence silence'),
+        mimeType: 'audio/webm',
+        durationSeconds: 3,
+      });
+      expect(silenceRes.transcript).toBe('');
+      expect(silenceRes.uncertainSpeech).toBe(true);
+
+      // 5. AbortSignal cancellation
+      const ac = new AbortController();
+      ac.abort();
+      await expect(
+        adapter.transcribe({
+          audioBuffer: Buffer.from('some audio'),
+          mimeType: 'audio/webm',
+          durationSeconds: 2,
+          signal: ac.signal,
+        })
+      ).rejects.toThrow('aborted');
     });
   });
 });
