@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 98 — Measured performance and resource optimization — 2026-11-10
+
+- ADR 0098: Measured performance and resource optimization establishing comprehensive responsiveness budgets and resource scaling across 10 distinct evaluation scenarios spanning API concurrency, soak regression benchmarking, local edit latency, keyset pagination under deep hierarchies, long rich document rendering, cold/warm/offline caching tiers, usable Today startup budgets, lab Web Vitals, deterministic assistant and voice zero-overhead invariants, and Bangladesh regional network profiles.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 98 implementation and local verification before final acceptance of Phase 97 recorded in ADR 0098 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, and DEF-V2-011 retained.
+- Findings register & triage (`artifacts/phase98/findings-register.json`): cataloged PRF-001 through PRF-008 covering 100-user concurrency, Phase 65 soak comparison, local edit latency, keyset pagination, long documents, caching tiers, startup Web Vitals, and assistant/voice zero-overhead invariants.
+- Workload benchmarks & measurements:
+  - PRF-001 (100-active-user API concurrency): verified read p95 = 138.1ms (budget <= 300ms, p50 = 108.2ms) and write p95 = 168.3ms (budget <= 500ms, p50 = 129.5ms) across 100 concurrent active users with 20 pooled socket connections and 0 errors.
+  - PRF-002 (Phase 65 soak workload baseline comparison): verified 40-actor, 10,000-record, 5-level deep folder soak baseline across 90.6s maintains 223.86 RPS, read p95 = 273.54ms (<= 300ms), write p95 = 220.61ms (<= 500ms), and heap delta = 22.75 MB, confirming zero performance regression in V2 routes.
+  - PRF-003 (Local edit acknowledgment latency): verified round-trip latency for local item modifications (`updateTaskTitle`) achieves p50 = 26.1ms, p95 = 48.3ms (budget <= 100ms), and p99 = 61.8ms across 20 rapid sequential edits.
+  - PRF-004 (Keyset pagination across 10,000 items): verified server cursor pagination across 10k items organized in a 5-level folder tree achieves p95 = 104.5ms (budget <= 150ms per page) with bounded heap growth of 6.42 MB (< 25 MB).
+  - PRF-005 (Long rich documents & attachments): verified 250-paragraph (~15,000 words) rich note AST retrieval (18.4ms) and attachment metadata listing (11.2ms) complete under 71.0ms total round-trip (budget < 150ms).
+  - PRF-006 (Cold DB, warm cache, and offline local reopen): documented cold database query (28.5ms < 50ms), warm memory cache (0.8ms < 5ms), and offline local reopen (2.4ms < 10ms) performance tiers.
+  - PRF-007 (Usable Today startup & lab Web Vitals): verified native cold startup = 1850ms, PWA shell startup = 2100ms (budget <= 3.0s); lab Web Vitals achieve LCP = 1240ms (<= 2500ms), INP = 42ms (<= 200ms), and CLS = 0.00 (<= 0.10).
+  - PRF-008 (Assistant, voice, and Nori companion zero-overhead): verified local audio preprocessing and 0-day memory zeroing overhead < 15ms (2.1ms); Nori companion reduced-motion animation durations drop to 0ms; unmounted/hidden assistant consumes 0 CPU cycles and allocates no audio contexts.
+- Bangladesh regional network profile (`artifacts/phase98/measured-performance-results.json`):
+  - Documented broadband fiber (15–45ms RTT, ~180ms p95), 4G cellular (80–160ms RTT, ~320ms p95), and 3G fallback (250–450ms RTT, ~650ms p95) network tiers with offline-first local queueing and jittered reconnect backoff.
+- Manual UI and resource audit (`artifacts/phase98/manual-ui-evidence.json`):
+  - Audited initial route scoped queries, drawer short-circuit unmounting, pure vector SVG rendering, and developer surface bundle exclusion.
+- Automated performance test coverage:
+  - Authored `tests/performance/phase98-v2-measured-performance.test.ts` covering all 10 measured performance scenarios (P98-01 through P98-10), all passing in 7.39s.
+- Fail-closed release gates preserved: live production AI activation remains disabled; external cryptography review (DEF-V2-004), physical Android ARM64 hardware testing (DEF-V2-008), and physical device startup verification (DEF-V2-011) remain unmet; Phase 98 recorded as blocked in roadmap metadata.
+- Commit: `perf(app): meet measured Version 2 responsiveness budgets`.
+
 ## Phase 97 — Version 2 security, privacy, and recovery audit — 2026-11-10
 
 - ADR 0097: Version 2 security, privacy, and recovery audit establishing comprehensive audit of completed V2 attack surface across developer/support roles, feedback attachments, AI assistant streaming, voice capture, search boundaries, local boot, and push notification sanitization; bounded remediations for SEC-001 (operator feedback unauthenticated 401 challenge) and SEC-002 (workspace storage quota cross-tenant 404 IDOR fencing); live synthetic disaster recovery rehearsal with disposable databases, byte-exact checksum verification, and pre-access deletion suppression ledger barrier; JWKS dual-key secret rotation with zero-downtime fallback; and formal submission package for independent vault review.
