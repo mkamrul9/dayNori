@@ -1,0 +1,51 @@
+{
+  "phase": "102",
+  "status": "blocked",
+  "evaluatedAt": "2026-11-10T13:00:00.000Z",
+  "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
+  "rehearsalVerdict": "LAUNCH_PREPARATION_REHEARSAL_PASS",
+  "publicationAuthorized": false,
+  "blockingGates": [
+    {
+      "gate": "OWNER-SIGNING-KEYS",
+      "description": "Production Android release keystore and signing credentials (DAYNORI_RELEASE_STORE_*) are not present in workspace; release builds fail closed via withReleaseSigningGuard."
+    },
+    {
+      "gate": "OWNER-RELEASE-AUTH",
+      "description": "Explicit owner authorization required for candidate publication, target Play track/store selection, live cloud deployment, and infrastructure spending."
+    },
+    {
+      "gate": "DEF-V2-013",
+      "description": "Live consenting human participant usability evaluation (deferred Phase 67 obligation: >= 5 representative consenting people, with >= 4 capturing/reopening an item and finding Help unassisted) remains open pending live human sessions."
+    },
+    {
+      "gate": "DEF-V2-011",
+      "description": "Physical Android ARM64 hardware startup verification and physical TalkBack screen-reader latency profiling remain unmet."
+    },
+    {
+      "gate": "DEF-V2-004",
+      "description": "Independent qualified security review of vault cryptographic implementation, key rotation, and zero-knowledge guarantees remains unmet."
+    },
+    {
+      "gate": "DEF-V2-008",
+      "description": "Physical Android ARM64 hardware Keystore / StrongBox biometric verification remains unmet; live AI model provider authorization pending."
+    },
+    {
+      "gate": "DEF-V2-001",
+      "description": "Real third-party identity provider integration (Supabase/Google OAuth) and production session token rotation unverified in production."
+    },
+    {
+      "gate": "DEF-V2-006",
+      "description": "Staffed moderation operational ownership and human review triage queue unassigned for rooms collaboration."
+    }
+  ],
+  "verifiedLocalChecks": [
+    "pnpm release:preflight --allow-partial-local (0 failures, 20 passes, 13 blocked, releaseEligible=false)",
+    "node scripts/mobile-android-release-path.mjs inspect (PASS: guard=present, targetSdk=36, compileSdk=36, versionCode=1)",
+    "node scripts/mobile-android-release-path.mjs exercise-gradle (PASS: :app:tasks passed, :app:assembleRelease failed closed without credentials)",
+    "node scripts/phase60-web-production-smoke.mjs (PASS: 18 public route, CSP, and gating checks passed)",
+    "tests/e2e/phase102-v2-publication-rehearsal.test.ts (PASS: 6 publication rehearsals passed)",
+    "pnpm validate:function-register (PASS: 109 actions, 13 defects, 22 families)",
+    "pnpm validate:planning (PASS: 104 phases, 22 requirements, 459 markdown files)"
+  ]
+}

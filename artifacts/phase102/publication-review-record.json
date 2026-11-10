@@ -1,0 +1,181 @@
+{
+  "phase": "102",
+  "recordType": "AUTHORIZED_PUBLICATION_REVIEW_RECORD",
+  "evaluatedAt": "2026-11-10T13:00:00.000Z",
+  "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
+  "candidateLabel": "2.0.0-rc1",
+  "operationalStatus": "ENGINEERING_PREPARATION_ONLY_PUBLICATION_BLOCKED",
+  "releaseScope": {
+    "recommendedEnvelope": "BOUNDED_PERSONAL_BETA",
+    "verifiedActionsCount": 78,
+    "unverifiedActionsCount": 10,
+    "blockedActionsCount": 21,
+    "totalActionsCount": 109,
+    "gatedModules": [
+      {
+        "module": "vault",
+        "gate": "DEF-V2-004",
+        "reason": "Independent cryptographic security audit pending"
+      },
+      {
+        "module": "rooms",
+        "gate": "DEF-V2-006",
+        "reason": "Staffed moderation operational ownership pending"
+      },
+      {
+        "module": "ai_assistant_live",
+        "gate": "DEF-V2-008",
+        "reason": "Live LLM provider authorization pending"
+      },
+      {
+        "module": "in_app_billing",
+        "gate": "DEF-V2-007",
+        "reason": "Google Play merchant registration pending"
+      },
+      {
+        "module": "google_drive",
+        "gate": "DEF-V2-005",
+        "reason": "Google Cloud OAuth consent verification pending"
+      },
+      {
+        "module": "native_push",
+        "gate": "DEF-V2-002",
+        "reason": "FCM/APNs provider credentials unconfigured"
+      }
+    ]
+  },
+  "candidateArtifacts": {
+    "webPwa": {
+      "toolchain": {
+        "node": "v24.11.1",
+        "next": "15.5.27",
+        "react": "19.0.0"
+      },
+      "hashes": {
+        "manifestJson": "417faac1d52033c4a2dddb9c2cf1d5ba596da3515438c82361cfd31ef0e854fa",
+        "serviceWorkerJs": "6e2431306ebf19f29bf5b273b4329241b712c6a26cfb1ef957ec521a0a525da4",
+        "offlineShellHtml": "1b0bf5f68b6a9354fb889e40632a6da7089faea8f51a700ee054d55f41284d72",
+        "offlineShellJs": "69649cda2524d77579c354fe385759efca823c921312384a6b22ebc2a2dc34df",
+        "icon192": "eab6433abbca70b7392ead34a499c1d901bc48fe4e849bFFF9ee43b66d6eee64",
+        "icon512": "dc0ebf905510c9cae68046262c198a76d11fa010bcab53e3c1745bb8467b377e",
+        "iconMaskable512": "69d0b2d8a9438f3262692ba76aa64a9e547d5d4aab718d6450b6395f5f868835"
+      },
+      "readiness": "READY_FOR_PROVISIONED_HOSTING"
+    },
+    "android": {
+      "applicationId": "com.daynori.app",
+      "versionCode": 1,
+      "versionName": "0.1.0",
+      "targetSdk": 36,
+      "compileSdk": 36,
+      "signingGuardActive": true,
+      "signingStatus": "BLOCKED_ON_OWNER_KEYS",
+      "debugTestArtifact": {
+        "path": "artifacts/release/app-debug-arm64.apk",
+        "sha256": "0379f71cb48c953c5020cb393ba49084507d1f37afa06066622eb351c800a5b7",
+        "label": "LOCAL_TEST_ONLY_NOT_DISTRIBUTABLE"
+      },
+      "readiness": "NOT_READY_FOR_RELEASE_PACKAGING"
+    }
+  },
+  "deploymentParameters": {
+    "web": {
+      "stagingDomain": "[UNDECIDED / PENDING OWNER APPROVAL]",
+      "productionDomain": "[UNDECIDED / PENDING OWNER APPROVAL]",
+      "proposedHost": "[UNDECIDED / PENDING OWNER APPROVAL]",
+      "rollbackTarget": "Instant DNS/worker cutover to preview or maintenance shell"
+    },
+    "android": {
+      "targetTrack": "[UNDECIDED / PENDING OWNER APPROVAL]",
+      "stagedRolloutPercentage": 0,
+      "stagedRolloutNote": "Google Play staged rollout is restricted to updates only; first release must use testing tracks or 100% initial release",
+      "rollbackTarget": "Forward-fix release (versionCode N+1) or server-side kill switches"
+    }
+  },
+  "operationalRoles": {
+    "releaseEngineer": "[UNDECIDED / UNASSIGNED]",
+    "securityLead": "[UNDECIDED / UNASSIGNED]",
+    "moderationOfficer": "[UNDECIDED / UNASSIGNED]",
+    "supportOperator": "[UNDECIDED / UNASSIGNED]",
+    "aiLead": "[UNDECIDED / UNASSIGNED]"
+  },
+  "barrierRegister": [
+    {
+      "gate": "OWNER-SIGNING-KEYS",
+      "status": "BLOCKED",
+      "missingEvidence": "Production release keystore and credentials (DAYNORI_RELEASE_STORE_*)",
+      "responsibleRole": "Release Engineer / Owner",
+      "nextAction": "Provision secure release keystore outside Git"
+    },
+    {
+      "gate": "OWNER-RELEASE-AUTH",
+      "status": "BLOCKED",
+      "missingEvidence": "Owner launch approval of exact candidate and destinations",
+      "responsibleRole": "Project Owner",
+      "nextAction": "Review publication record and grant explicit authorization"
+    },
+    {
+      "gate": "DEF-V2-013",
+      "status": "BLOCKED",
+      "missingEvidence": "Live consenting human usability sessions (>= 5 users, >= 4 unassisted)",
+      "responsibleRole": "UX Researcher / Owner",
+      "nextAction": "Execute 5-participant research protocol"
+    },
+    {
+      "gate": "DEF-V2-011",
+      "status": "BLOCKED",
+      "missingEvidence": "Physical Android ARM64 device startup and TalkBack latency profiling",
+      "responsibleRole": "QA / Accessibility Lead",
+      "nextAction": "Run manual test checklist on physical Android device"
+    },
+    {
+      "gate": "DEF-V2-004",
+      "status": "BLOCKED",
+      "missingEvidence": "Independent qualified security review of vault cryptography",
+      "responsibleRole": "Security Lead",
+      "nextAction": "Commission external cryptographic review"
+    },
+    {
+      "gate": "DEF-V2-008",
+      "status": "BLOCKED",
+      "missingEvidence": "Live LLM provider authorization and biometric Keystore verification",
+      "responsibleRole": "AI Lead",
+      "nextAction": "Authorize synthetic LLM provider evaluation"
+    },
+    {
+      "gate": "DEF-V2-001",
+      "status": "OPEN",
+      "missingEvidence": "Production Supabase / Google OAuth identity provider configuration",
+      "responsibleRole": "Operations Lead",
+      "nextAction": "Provision production Supabase project"
+    },
+    {
+      "gate": "DEF-V2-002",
+      "status": "OPEN",
+      "missingEvidence": "Native FCM/APNs push notification provider credentials",
+      "responsibleRole": "Mobile Lead",
+      "nextAction": "Configure Firebase Cloud Messaging credentials"
+    },
+    {
+      "gate": "DEF-V2-005",
+      "status": "OPEN",
+      "missingEvidence": "Google Cloud OAuth consent screen verification for Drive sync",
+      "responsibleRole": "Product Lead",
+      "nextAction": "Submit OAuth verification request to Google"
+    },
+    {
+      "gate": "DEF-V2-006",
+      "status": "OPEN",
+      "missingEvidence": "Staffed moderation operational ownership for rooms/chat",
+      "responsibleRole": "Moderation Officer",
+      "nextAction": "Staff moderation queue before rooms launch"
+    },
+    {
+      "gate": "DEF-V2-007",
+      "status": "OPEN",
+      "missingEvidence": "Google Play merchant account registration and billing setup",
+      "responsibleRole": "Financial Officer",
+      "nextAction": "Complete Play Console merchant registration"
+    }
+  ]
+}

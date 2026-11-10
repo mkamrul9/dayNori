@@ -1,0 +1,90 @@
+{
+  "phase": "102",
+  "title": "Authorized Version 2 Publication & Live Verification Rehearsals",
+  "executedAt": "2026-11-10T07:15:19.981Z",
+  "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
+  "environment": {
+    "node": "v24.11.1",
+    "platform": "win32",
+    "database": "daynori_test (PostgreSQL isolated)",
+    "mode": "production fail-closed simulation"
+  },
+  "rehearsals": [
+    {
+      "id": "PUB-REHEARSAL-01",
+      "name": "Synthetic account login, session validation, workspace bootstrap, and tenant isolation",
+      "status": "PASS",
+      "checks": [
+        "Unauthenticated request fails closed with 401",
+        "Synthetic user provisions personal workspace",
+        "Multi-tenant cross-workspace access is forbidden (404/403)"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-02",
+      "name": "Scoped core organizer durable save, cold reopen integrity, and offline outbox sync",
+      "status": "PASS",
+      "checks": [
+        "Durable save of personal note, task, and routine",
+        "Fresh client instance cold reopen retains byte-exact data integrity",
+        "Offline mutation outbox serializes and replays sequentially",
+        "Optimistic concurrency control via baseRevision rejects stale edits with 409"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-03",
+      "name": "Customer support receipt, feedback ingestion, and operator triage pipeline",
+      "status": "PASS",
+      "checks": [
+        "Feedback bug report created via /v1/workspaces/:id/feedback/reports with receipt",
+        "Non-operator user barred from operator triage endpoints (403)",
+        "Platform operator accesses triage queue, adds internal note, and updates status to triaged"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-04",
+      "name": "Privacy, consent lifecycle, and account deletion tombstone suppression",
+      "status": "PASS",
+      "checks": [
+        "Issue cryptographically signed reauthentication proof bound to session",
+        "Account deletion request generates confirmationToken",
+        "Account deletion confirmation executes full purge",
+        "Active user items count drops to 0 (no accidental snapshot resurrection)"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-05",
+      "name": "Production fail-closed kill switches and forward-fix rollback principle",
+      "status": "PASS",
+      "checks": [
+        "Production environment fails closed for Vault (/v1/vault/status -> 403)",
+        "Production environment fails closed for Rooms (/v1/rooms -> 403)",
+        "Production environment fails closed for Billing (/v1/billing/catalog -> 403)",
+        "Production environment fails closed for AI Assistant (/v1/ai/consent -> 403)",
+        "Feature personalization dynamically collapses navigation shell (4 to 3 tabs)",
+        "Database schema evolution confirmed strictly additive (forward-fix)"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-06",
+      "name": "Synthetic reviewer access isolation and policy reviewer experience",
+      "status": "PASS",
+      "checks": [
+        "Reviewer provisions sandbox and exercises approved core features",
+        "Reviewer submits feedback/accessibility audit report",
+        "Reviewer strictly barred from operator endpoints (403) and cross-tenant data (404/403)"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-07",
+      "name": "Publication review record reconciliation and barrier register verification",
+      "status": "PASS",
+      "checks": [
+        "docs/release/v2-authorized-publication-record.md contains all required sections",
+        "Every undecided field explicitly marked with [UNDECIDED]",
+        "artifacts/phase102/publication-review-record.json covers all 109 actions and 6 open blocker gates"
+      ]
+    }
+  ],
+  "verdict": "ALL_7_PUBLICATION_REHEARSALS_PASSED"
+}

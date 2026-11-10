@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 102 — Authorized Version 2 publication and live verification — 2026-11-10
+
+- ADR 0102: Authorized Version 2 publication and live verification establishing the canonical Owner Publication Review Record (`docs/release/v2-authorized-publication-record.md` & `artifacts/phase102/publication-review-record.json`), independent surface readiness classification (Web ready for provisioned hosting; Android blocked on release signing keys and physical TalkBack), 7 disposable publication and rollback rehearsals (`tests/e2e/phase102-v2-publication-rehearsal.test.ts`), and explicit publication hold pending owner authorization.
+- Owner scheduling authorization: explicit limited scheduling decision authorizing Phase 102 local launch preparation and read-only evidence reconciliation before Phase 101 final acceptance recorded in ADR 0102 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, DEF-V2-011, DEF-V2-013, and OWNER-SIGNING-KEYS retained.
+- Owner publication review record assembly:
+  - Formally separated Bounded Personal Beta (78 verified actions enabled: notes, tasks, routines, calendar, guided tours, local files) from Full V2 (109 actions; vault, rooms, live AI streaming, in-app billing remain gated).
+  - Recorded candidate revision `5b5c4f8cbb8002a77f87b114174bd5db81867af7` (label `2.0.0-rc1`) with exact SHA-256 asset hashes for web PWA manifest, service worker, offline shell, and brand icons.
+  - Accurately labeled Android local test artifact (`artifacts/release/app-debug-arm64.apk`, SHA-256 `0379f71c...`) as non-distributable.
+  - Flagged every undecided parameter explicitly with `[UNDECIDED / PENDING OWNER APPROVAL]` or `[UNDECIDED / UNASSIGNED]`.
+- Independent surface readiness:
+  - Web / PWA: READY FOR PROVISIONED HOSTING (32 routes built, 18 smoke checks passed, CSP Level 3, standalone offline shell; production domain and hosting compute unapproved).
+  - Android Client: NOT READY FOR RELEASE PACKAGING (prebuild and tasks verified, signing guard active; release keystore blocked `OWNER-SIGNING-KEYS`, physical TalkBack blocked `DEF-V2-011`).
+- Disposable publication rehearsals (`tests/e2e/phase102-v2-publication-rehearsal.test.ts` & `artifacts/phase102/publication-rehearsal-results.json`):
+  - PUB-REHEARSAL-01 (Authentication & tenant isolation): verified unauthenticated requests fail closed with 401; authenticated synthetic users provision sandboxed workspaces; cross-workspace access is forbidden (404/403).
+  - PUB-REHEARSAL-02 (Durable save, cold reopen, and outbox sync): verified personal note, task, and routine survive cold client instance restart byte-exact; offline mutation outbox serializes and replays sequentially; stale edit rejected with 409 conflict.
+  - PUB-REHEARSAL-03 (Customer support feedback & operator triage): verified bug report submission via `/v1/workspaces/:id/feedback/reports` (201); non-operator users forbidden from triage (403); platform operator views triage queue, adds internal note, and updates status to `triaged`.
+  - PUB-REHEARSAL-04 (Privacy lifecycle & account deletion): verified signed reauthentication proof bound to session; deletion request generates confirmationToken; deletion confirmation purges user records leaving 0 accessible rows (tombstone suppression preventing snapshot resurrection).
+  - PUB-REHEARSAL-05 (Emergency kill switches & forward-fix rollback): verified production fail-closed boundaries (Vault 403, Rooms 403, Billing 403, AI 403); navigation shell adapts dynamically; database schema evolution confirmed strictly additive.
+  - PUB-REHEARSAL-06 (Synthetic reviewer access): verified policy reviewer account (`reviewer@daynori.test`) can exercise core organizer tools and submit feedback; strictly barred from operator routes and cross-tenant data.
+  - PUB-REHEARSAL-07 (Review record reconciliation): verified publication record documents all required sections, flags undecided fields, and matches canonical function register actions.
+- Publication hold:
+  - Identified exact owner approval checklist (candidate artifact, bounded beta scope, web destination, Android Play track, operating budget, release keystore, permitted live checks).
+  - Status recorded as `blocked` in `docs/roadmap/progress.json`.
+- Commit: `docs(release): prepare Phase 102 publication record and operational rehearsals`.
+
 ## Phase 101 — Version 2 release candidate and operational preparation — 2026-11-10
 
 - ADR 0101: Version 2 release candidate and operational preparation establishing reproducible web/PWA candidate builds, authoritative Android release path inspection via `withReleaseSigningGuard`, 5 operational rehearsals in `tests/e2e/phase101-v2-operations-rehearsal.test.ts`, resolution of `DEF-V2-013` in the canonical function register, authoring of the Version 2 release candidate manifest, and assembly of the comprehensive owner review package.
