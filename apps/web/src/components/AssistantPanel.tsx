@@ -439,7 +439,7 @@ export function AssistantPanel({
         await client.deleteAssistantHistory({ workspaceId: personalWorkspaceId, turnId });
         setHistory((prev) => prev.filter((h) => h.id !== turnId));
         setFeedback({ severity: 'success', message: 'Turn deleted from assistant history.' });
-      } catch (err) {
+      } catch {
         setFeedback({ severity: 'danger', message: 'Failed to delete turn' });
       }
     },
@@ -452,7 +452,7 @@ export function AssistantPanel({
       await client.deleteAssistantHistory({ workspaceId: personalWorkspaceId });
       setHistory([]);
       setFeedback({ severity: 'success', message: 'Assistant history cleared.' });
-    } catch (err) {
+    } catch {
       setFeedback({ severity: 'danger', message: 'Failed to clear history' });
     }
   }, [client, personalWorkspaceId]);

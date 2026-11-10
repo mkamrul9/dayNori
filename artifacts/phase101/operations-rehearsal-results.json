@@ -1,0 +1,83 @@
+{
+  "phase": "101",
+  "title": "Version 2 Release Candidate & Operations Rehearsals",
+  "executedAt": "2026-11-10T12:33:00.000Z",
+  "gitRevision": "bf7a201f89508f267eda07d36c2eb32a62ac36cf",
+  "environment": {
+    "node": "v24.11.1",
+    "pnpm": "9.15.5",
+    "vitest": "4.1.11",
+    "platform": "win32",
+    "database": "daynori_test (PostgreSQL isolated)"
+  },
+  "rehearsals": [
+    {
+      "id": "OP-REHEARSAL-01",
+      "name": "Schema migration idempotency, backward compatibility, and forward-fix invariant",
+      "status": "PASS",
+      "durationMs": 290,
+      "checks": [
+        "Personal workspace provisioned under baseline schema",
+        "Baseline note and task preserved byte-exact across idempotent migration replay",
+        "Migration files verified matching canonical 5-digit additive convention",
+        "Forward-fix policy confirmed: destructive down-migrations rejected"
+      ]
+    },
+    {
+      "id": "OP-REHEARSAL-02",
+      "name": "Pending drafts, mutation outbox queueing, and interrupted reconnect replay",
+      "status": "PASS",
+      "durationMs": 93,
+      "checks": [
+        "Offline draft note and updated task successfully serialized into outbox queue",
+        "Outbox survives simulated client restart and deserializes intact",
+        "Sequential outbox replay applies all mutations against live API",
+        "Optimistic concurrency control via baseRevision verified: stale edit rejected with 409 conflict"
+      ]
+    },
+    {
+      "id": "OP-REHEARSAL-03",
+      "name": "Object metadata checksum verification and deletion suppression during restore",
+      "status": "PASS",
+      "durationMs": 78,
+      "checks": [
+        "File upload reserved and finalized with SHA-256 client checksum",
+        "Quarantine verification transitions status to verified",
+        "Metadata retrieval verifies fileName, byteSize, and checksum exact match",
+        "Deletion suppression verified: hard deletion from app.items leaves 0 accessible rows (no tombstone resurrection)"
+      ]
+    },
+    {
+      "id": "OP-REHEARSAL-04",
+      "name": "Fail-closed emergency kill switches and graceful degradation",
+      "status": "PASS",
+      "durationMs": 28,
+      "checks": [
+        "Production environment fails closed for Vault (/v1/vault/status -> 403)",
+        "Production environment fails closed for Rooms (/v1/rooms -> 403)",
+        "Production environment fails closed for Billing (/v1/billing/catalog -> 403)",
+        "Production environment fails closed for AI Assistant (/v1/ai/consent -> 403)",
+        "Feature personalization dynamically removes hidden modules from shell navigation (collapses from 4 to 3 tabs)"
+      ]
+    },
+    {
+      "id": "OP-REHEARSAL-05",
+      "name": "Synthetic reviewer access isolation and operational boundaries",
+      "status": "PASS",
+      "durationMs": 56,
+      "checks": [
+        "Synthetic reviewer account (reviewer@daynori.test) provisions sandbox workspace",
+        "Reviewer creates and inspects core organizer items (notes, tasks)",
+        "Reviewer submits structured feedback/bug report (201 Created)",
+        "Reviewer forbidden from privileged operator routes (/v1/operator/* -> 403 Forbidden)",
+        "Reviewer fenced from cross-tenant workspaces (IDOR protection -> 404/403)"
+      ]
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "rehearsalVerdict": "ENGINEERING_OPERATIONS_REHEARSAL_PASS"
+  }
+}

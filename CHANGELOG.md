@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 101 — Version 2 release candidate and operational preparation — 2026-11-10
+
+- ADR 0101: Version 2 release candidate and operational preparation establishing reproducible web/PWA candidate builds, authoritative Android release path inspection via `withReleaseSigningGuard`, 5 operational rehearsals in `tests/e2e/phase101-v2-operations-rehearsal.test.ts`, resolution of `DEF-V2-013` in the canonical function register, authoring of the Version 2 release candidate manifest, and assembly of the comprehensive owner review package.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 101 local builds, artifact inspection, operational rehearsals, and release-package preparation before Phase 100 final acceptance recorded in ADR 0101 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, DEF-V2-011, DEF-V2-013, and OWNER-SIGNING-KEYS retained.
+- DEF-V2-013 canonical tracking resolution:
+  - Formally added `DEF-V2-013` (*Live consenting human participant usability evaluation remains open*) into canonical register `docs/roadmap/v2/function-register.json`.
+  - Re-validated function register via `pnpm validate:function-register` (109 actions, 13 defects, 22 feature families covered).
+- Web / PWA production candidate build & smoke verification:
+  - Built Next.js 15.5.27 production build (`apps/web/.next`); generated 32 static and dynamic routes.
+  - Inspected artifact hashes: `manifest.json` (`417FAAC1...`), `sw.js` (`6E243130...`), `offline-shell.html` (`1B0BF5F6...`), `offline-shell.js` (`69649CDA...`), brand icons.
+  - Executed `node scripts/phase60-web-production-smoke.mjs`: all 18 checks passed (`/privacy`, `/terms`, `/support`, `/account-deletion`, CSP nonce, absence of authenticated cookies on public legal pages, dev vault harness labeling).
+- Android release path & signing guard inspection:
+  - Inspected generated Android tree: targetSdk 36, compileSdk 36, minSdk 24, applicationId `com.daynori.app`, versionCode 1.
+  - Executed `node scripts/mobile-android-release-path.mjs prebuild-disposable`: clean disposable Expo prebuild verified.
+  - Executed `node scripts/mobile-android-release-path.mjs exercise-gradle`: verified `:app:tasks` succeeds without release credentials, and `:app:assembleRelease` fails closed with explicit error message; release signing recorded as blocked (`OWNER-SIGNING-KEYS`); debug test artifacts (`app-debug-arm64.apk`, `app-debug-x86_64.apk`) accurately labeled.
+- Operational & disaster recovery rehearsals (`tests/e2e/phase101-v2-operations-rehearsal.test.ts` & `artifacts/phase101/operations-rehearsal-results.json`):
+  - OP-REHEARSAL-01 (Migration idempotency & forward-fix invariant): verified additive migration files and non-destructive schema upgrades; zero baseline data loss.
+  - OP-REHEARSAL-02 (Mutation outbox & offline replay): verified offline drafts serialize to local storage, survive process restarts, and replay sequentially with optimistic concurrency (`baseRevision`).
+  - OP-REHEARSAL-03 (Object metadata checksum & deletion suppression): verified file uploads with SHA-256 checksums, quarantine verification, and hard deletion from `app.items` leaving 0 rows (tombstone preservation preventing accidental resurrection upon restore).
+  - OP-REHEARSAL-04 (Emergency kill switches & graceful degradation): verified production fail-closed boundaries (Vault 403, Rooms 403, Billing 403, AI Assistant 403); feature personalization dynamically collapses shell tabs.
+  - OP-REHEARSAL-05 (Synthetic reviewer access isolation): verified synthetic reviewer credentials (`reviewer@daynori.test`) can exercise core organizer features and submit bug reports (201), but are strictly forbidden from operator routes (403) and cross-tenant data.
+- Candidate manifest & owner review package:
+  - Authored `docs/release/v2-release-candidate-manifest.md` and `artifacts/phase101/candidate-manifest.json` classifying all 109 actions (78 enabled, 10 unverified, 21 gated).
+  - Authored `docs/release/v2-owner-review-package.md` incorporating policy reviews (Google Play, Apple, Web browsers checked 2026-11-10), rollout/rollback destinations, operating cost estimates (\$5–\$40/mo low tier; \$90–\$215/mo medium tier), unassigned operational roles, reviewer credentials, draft release notes, and pre-publication checklist.
+- Commit: `docs(release): prepare Version 2 release candidate and operational rehearsals`.
+
 ## Phase 100 — Full Version 2 beta and readiness reconciliation — 2026-11-10
 
 - ADR 0100: Full Version 2 beta and readiness reconciliation establishing candidate-build rehearsals across 8 operational scenarios, comprehensive function register reconciliation of all 109 actions across 22 families, authoring of the Version 2 bounded personal beta candidate manifest and package, and legacy release gate reconciliation.

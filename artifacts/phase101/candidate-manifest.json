@@ -1,0 +1,129 @@
+{
+  "manifestVersion": "2.0.0-rc1",
+  "label": "version-2-release-candidate-preparation",
+  "createdAt": "2026-11-10",
+  "gitRevision": "bf7a201f89508f267eda07d36c2eb32a62ac36cf",
+  "notAnApprovalToLaunch": true,
+  "releaseEligible": false,
+  "identity": {
+    "brand": "Daynori",
+    "applicationId": "com.daynori.app",
+    "bundleIdentifier": "com.daynori.app",
+    "urlScheme": "daynori",
+    "intentFilterHost": "app.daynori.com"
+  },
+  "versions": {
+    "monorepo": "0.1.0",
+    "web": "0.1.0",
+    "mobile": "0.1.0",
+    "api": "0.1.0",
+    "worker": "0.1.0",
+    "androidVersionCode": 1,
+    "androidVersionName": "0.1.0"
+  },
+  "artifacts": {
+    "web": {
+      "type": "Next.js 15 PWA",
+      "pwaManifestSha256": "417FAAC1BD5C0D083657A7A69C645A2387C797E1AC60500F462D9DB3D280CF40",
+      "serviceWorkerSha256": "6E243130BED7D29E51C330A378380805F87539798692ABE5C4F8127BB1F70CB3",
+      "offlineShellSha256": "1B0BF5F65C8D7330D0560FE41ACC73A6A9806E9B7AFF5CB60DAACFC0FBD009CC",
+      "offlineShellScriptSha256": "69649CDAB12D593DC7A9FED5607ABA0A22B9E5336E855D6117A9FD0CE0462E4F",
+      "icon192Sha256": "EAB6433ABBCA70B7392EAD34A499C1D901BC48FE4E849BFFF9EE43B66D6EEE64",
+      "icon512Sha256": "DC0EBF905510C9CAE68046262C198A76D11FA010BCAB53E3C1745BB8467B377E",
+      "iconMaskable512Sha256": "69D0B2D8A9438F3262692BA76AA64A9E547D5D4AAB718D6450B6395F5F868835",
+      "buildStatus": "built_locally_verified"
+    },
+    "android": {
+      "type": "Android Application",
+      "targetSdk": 36,
+      "compileSdk": 36,
+      "minSdk": 24,
+      "releaseSigningGuard": "verified_fail_closed",
+      "releaseSigningStatus": "blocked_pending_owner_keystore",
+      "localTestArtifacts": [
+        {
+          "path": "artifacts/release/app-debug-arm64.apk",
+          "sha256": "0379F71CB48C953C5020CB393BA49084507D1F37AFA06066622EB351C800A5B7",
+          "signing": "Android Debug (local-test only — not release-eligible)",
+          "abi": "arm64-v8a",
+          "sizeBytes": 56991982
+        },
+        {
+          "path": "artifacts/release/app-debug-x86_64.apk",
+          "sha256": "E1F3EDAB678107EB0E5069F1A892D9ACC6297DE55DE2577C6E7D06C96A7B2CE9",
+          "signing": "Android Debug (local-test only — not release-eligible)",
+          "abi": "x86_64",
+          "sizeBytes": 57305926
+        },
+        {
+          "path": "artifacts/release/app-embedded-x86_64.apk",
+          "sha256": "D898E4A5A7D523A72DA2D742FDE000E8F8A80B7091C6C8963B2FB3064FBDBFBF",
+          "signing": "Android Debug (local-test only — not release-eligible)",
+          "abi": "x86_64",
+          "sizeBytes": 55701704
+        }
+      ]
+    }
+  },
+  "featureScope": {
+    "totalFunctionRegisterActions": 109,
+    "enabledActionsCount": 78,
+    "unverifiedActionsCount": 10,
+    "blockedActionsCount": 21,
+    "releaseReadyActionsCount": 0,
+    "enabledFamilies": [
+      "account (welcome, provision, preferences, deletion)",
+      "nav (tabs, directory, personalization, themes, scale)",
+      "tasks (create, edit, complete, reopen, trash, filters, subtasks)",
+      "routines (create, edit, occurrences, skip, undo, history, independent-dates)",
+      "calendar (feed, events, canonical links)",
+      "notes (create, edit, formatting, trash, long-content)",
+      "journal (entries, edit, backdate, privacy snippets, trash)",
+      "library (folders, mixed browse, saved views, trash)",
+      "search (global workspace scoped)",
+      "files (upload reservations, finalization, download, attachments, delete)",
+      "audio (record and attach)",
+      "expenses (create, edit, reports, export, trash)",
+      "sections (custom templates, records CRUD, accessible reorder, trash)",
+      "sync (push, pull, conflict review, offline outbox)",
+      "portability (export, import)",
+      "offline (cold reopen, offline outbox queue)",
+      "feedback (reports submit, bug/suggestion triage)",
+      "help (search how-tos)",
+      "tours (10 everyday chapters, 5 advanced chapters, 4 safe explanatory chapters)"
+    ],
+    "unverifiedActions": [
+      { "id": "account.sign-up", "reason": "Real third-party IdP provider integration pending DEF-V2-001" },
+      { "id": "account.sign-in", "reason": "Real third-party IdP provider integration pending DEF-V2-001" },
+      { "id": "account.recover-password", "reason": "Real mail transport / recovery pending DEF-V2-001" },
+      { "id": "account.sign-out", "reason": "Real session invalidation on hosted IdP pending DEF-V2-001" },
+      { "id": "search.offline-coverage", "reason": "Offline full-text indexing index durability across cold boot" },
+      { "id": "offline.pending-queue", "reason": "Extended multi-day offline queue drain durability" },
+      { "id": "reminders.create-rule", "reason": "Reminders rule local scheduler evaluation" },
+      { "id": "reminders.web-push-subscribe", "reason": "Web push subscription against live VAPID provider" },
+      { "id": "help.replay-beginner-guide", "reason": "Beginner guide tutorial full action coverage (DEF-V2-012)" },
+      { "id": "account.privacy-terms", "reason": "Public legal entity and hosted terms URL deployment" }
+    ],
+    "gatedActions": [
+      { "family": "reminders", "count": 2, "gate": "DEF-V2-002", "reason": "Device registration and deep link delivery blocked pending native push provider" },
+      { "family": "vault", "count": 4, "gate": "DEF-V2-004", "reason": "Zero-knowledge crypto, unlocking, and recovery blocked pending external audit" },
+      { "family": "drive", "count": 3, "gate": "DEF-V2-005", "reason": "Google Drive OAuth sync blocked pending owner production credentials" },
+      { "family": "rooms", "count": 4, "gate": "DEF-V2-006", "reason": "Rooms messaging blocked pending assigned staffed moderation officer" },
+      { "family": "billing", "count": 3, "gate": "DEF-V2-007", "reason": "In-app purchases blocked pending owner merchant registration" },
+      { "family": "assistant", "count": 5, "gate": "DEF-V2-008", "reason": "AI assistant streaming/tools blocked pending live provider authorization" }
+    ]
+  },
+  "openReleaseGates": [
+    "DEF-V2-001 (Real-provider authentication)",
+    "DEF-V2-002 (Push notification device delivery)",
+    "DEF-V2-004 (Independent external vault security audit)",
+    "DEF-V2-005 (Google Drive production OAuth verification)",
+    "DEF-V2-006 (Staffed moderation operational ownership)",
+    "DEF-V2-007 (Play Console / Web commercial merchant activation)",
+    "DEF-V2-008 (Live AI model provider explicit authorization)",
+    "DEF-V2-011 (Physical Android device TalkBack latency profiling)",
+    "DEF-V2-013 (Live consenting human participant usability evaluation: >= 5 people, >= 4 unassisted)",
+    "OWNER-SIGNING-KEYS (Production release signing keystore and credentials)",
+    "OWNER-RELEASE-AUTH (Owner explicit publication authorization and destination selection)"
+  ]
+}
