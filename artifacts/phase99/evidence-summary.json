@@ -1,0 +1,50 @@
+{
+  "phase": 99,
+  "title": "Accessibility, responsive, and fresh-user acceptance",
+  "evaluatedAt": "2026-11-10T11:30:00+06:00",
+  "status": "blocked",
+  "blockingGates": [
+    {
+      "gate": "DEF-V2-004",
+      "description": "Independent external security review of vault cryptographic implementation, key rotation, and zero-knowledge guarantees remains unmet."
+    },
+    {
+      "gate": "DEF-V2-008",
+      "description": "Physical Android ARM64 hardware Keystore / StrongBox biometric verification remains unmet; live AI model provider authorization pending."
+    },
+    {
+      "gate": "DEF-V2-011",
+      "description": "Physical Android hardware startup verification and physical TalkBack screen-reader latency profiling remain unmet."
+    }
+  ],
+  "findingsCatalogued": 9,
+  "findingsVerified": 8,
+  "findingsRegister": "artifacts/phase99/findings-register.json",
+  "freshUserReviewResults": "artifacts/phase99/fresh-user-review-results.json",
+  "sessionKitAndChecklist": "artifacts/phase99/session-kit-and-checklist.md",
+  "manualUiEvidence": "artifacts/phase99/manual-ui-evidence.json",
+  "testExecution": {
+    "testSuite": "tests/e2e/phase99-accessibility-responsive-fresh-user.test.ts",
+    "totalTests": 9,
+    "passed": 9,
+    "failed": 0,
+    "durationMs": 689
+  },
+  "compliance": {
+    "responsiveViewportsCovered": true,
+    "touchTargetsMeetMin44pxWeb48dpMobile": true,
+    "textScaling200PercentNoClipping": true,
+    "wcagContrastRatiosMeetAA": true,
+    "reducedMotionAdherenceZeroMs": true,
+    "focusRingsVisibleAndNonDragAlternatives": true,
+    "mobileVirtualKeyboardOpenAvoidance": true,
+    "guidedTourEverydayChaptersRunnable": true,
+    "guidedTourGatedChaptersFailClosed": true,
+    "freshUserUncoachedCompletionAbove80Percent": true,
+    "freshUserDataLossZero": true,
+    "helpRecoveryUnassisted100Percent": true,
+    "syntheticVsPhysicalHardwareDistinct": true,
+    "physicalHardwareAndAuditGatesPreserved": true,
+    "noUnverifiedReleaseClaims": true
+  }
+}

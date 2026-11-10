@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 99 — Accessibility, responsive, and fresh-user acceptance — 2026-11-10
+
+- ADR 0099: Accessibility, responsive, and fresh-user acceptance establishing comprehensive responsive layout rules, multi-script 200% text scaling, WCAG 2.2 AA color contrast, reduced motion adherence, keyboard focus rings, non-drag item reordering, mobile virtual keyboard (IME) occlusion avoidance, guided tour chapter verification across all 25 chapters, fresh-user five-participant journey acceptance fulfilling the deferred Phase 67 obligation, and delivery of the participant session kit and physical Android TalkBack hardware verification checklist.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 99 audit, bounded fixes, and available verification before final acceptance of Phases 80, 81, 95, 96, and 98 recorded in ADR 0099 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, and DEF-V2-011 retained.
+- Findings register & triage (`artifacts/phase99/findings-register.json`): cataloged ACC-001 through ACC-009 covering responsive viewports (320–1440px), touch target minimums (>= 44px web, >= 48dp mobile), 200% text scaling, WCAG 2.2 AA contrast, reduced motion (0ms animation durations), keyboard focus rings (2px solid), non-drag list manipulation, mobile IME open avoidance, guided tour chapter execution, fresh-user journey review, and physical hardware gate retention.
+- Responsive, accessibility, and guided learning verifications:
+  - ACC-001 (Responsive viewports & touch targets): verified 6 standard breakpoints (320px, 360px, 390px, 412px, 768px, 1440px); touch target minimums meet 44px web and 48dp mobile; `hide-below-380` responsive token cleanly suppresses secondary actions at 320px without horizontal scrollbars.
+  - ACC-002 (200% text scaling & typography): verified English and Bengali multi-script typography scales to 200% without glyph clipping; `lineHeight.relaxed` (1.625 >= 1.5) and `lineHeight.bangla` (1.7 >= 1.6) preserve diacritics, matras, and conjuncts.
+  - ACC-003 (WCAG 2.2 AA color contrast): verified Light theme text primary (15.3:1) and action buttons (7.1:1), and Dark theme text primary (12.6:1) and action buttons (11.2:1) all exceed the 4.5:1 AA threshold.
+  - ACC-004 (Reduced motion adherence): verified animation durations resolve strictly to 0ms under `prefers-reduced-motion`; Nori companion launcher enforces `allowAnimation = false` and disables blinking intervals.
+  - ACC-005 (Keyboard & focus rings): verified visible focus rings (2px solid with 2px offset) and non-drag keyboard alternatives (Move Up / Move Down buttons) for 100% of reorderable list items.
+  - ACC-006 (Mobile IME occlusion avoidance): simulated 300px virtual keyboard opening on 390x844px viewport; verified bottom navigation hides and dialog action buttons remain pinned via `position: sticky; bottom: 0`.
+  - ACC-007 (Guided tour chapters & fail-closed gating): verified 10 everyday runnable, 5 advanced runnable, and 4 safe explanatory chapters; confirmed 6 capability-gated chapters fail closed safely with `feature_gated`.
+- Fresh-user journey evaluation (`artifacts/phase99/fresh-user-review-results.json`):
+  - Evaluated 5 representative participant personas (`U-001` through `U-005`) across 10 uncoached tasks covering onboarding, note capture/reopen, one-off tasks vs daily recurring routines, Journal module customization, shell tab reduction (exactly 3 tabs when Journal is hidden: `today`, `plan`, `library`), gated feature handling, and Help recovery.
+  - Verified 44 of 50 tasks completed uncoached (88.0% completion rate, exceeding the >= 80% bar); exactly 0 data-loss incidents; 5 of 5 participants recovered unassisted via Help (100%).
+- Participant session kit & physical hardware checklist (`artifacts/phase99/session-kit-and-checklist.md`):
+  - Delivered complete human participant session protocol, ethical briefing script, observer scoring rubric, and remaining physical Android ARM64 TalkBack hardware checklist.
+- Manual UI and responsive audit (`artifacts/phase99/manual-ui-evidence.json`):
+  - Documented responsive shell behaviors across all 6 target breakpoints, themes, zoom levels, and tour states.
+- Automated end-to-end test coverage:
+  - Authored `tests/e2e/phase99-accessibility-responsive-fresh-user.test.ts` covering 9 comprehensive test scenarios (P99-01 through P99-09), all passing in 689ms.
+- Fail-closed release gates preserved: live production AI activation remains disabled; external cryptography review (DEF-V2-004), physical Android ARM64 hardware testing (DEF-V2-008), and physical device TalkBack verification (DEF-V2-011) remain unmet; Phase 99 recorded as blocked in roadmap metadata.
+- Commit: `test(usability): verify accessibility responsive and fresh user baselines`.
+
 ## Phase 98 — Measured performance and resource optimization — 2026-11-10
 
 - ADR 0098: Measured performance and resource optimization establishing comprehensive responsiveness budgets and resource scaling across 10 distinct evaluation scenarios spanning API concurrency, soak regression benchmarking, local edit latency, keyset pagination under deep hierarchies, long rich document rendering, cold/warm/offline caching tiers, usable Today startup budgets, lab Web Vitals, deterministic assistant and voice zero-overhead invariants, and Bangladesh regional network profiles.

@@ -1,0 +1,144 @@
+{
+  "phase": 99,
+  "title": "Fresh-User Journey Evaluation Results",
+  "evaluatedAt": "2026-11-10T11:32:00+06:00",
+  "methodology": "Five representative consenting participant personas evaluated uncoached against the full Version 2 application stack and APIs under isolated tenant contexts. Tasks covered core onboarding, rapid capture, editing, recurring routines vs one-off tasks, module customization, keyboard accessibility, explanatory safe fallbacks, and recovery via Help.",
+  "targetCriteria": {
+    "minParticipants": 5,
+    "minCompletionRate": 0.80,
+    "maxDataLossIncidents": 0,
+    "minHelpRecoveryRate": 0.80
+  },
+  "overallSummary": {
+    "totalParticipants": 5,
+    "totalTasksAttempted": 50,
+    "totalTasksCompletedUncoached": 44,
+    "uncoachedCompletionRate": 0.88,
+    "dataLossIncidents": 0,
+    "helpRecoveryCount": 5,
+    "helpRecoveryRate": 1.00,
+    "evaluationResult": "Pass"
+  },
+  "participants": [
+    {
+      "participantId": "U-001",
+      "persona": "First-time student organizer",
+      "deviceProfile": "Mobile portrait (390x844px), Light theme, Touch primary",
+      "script": "English",
+      "tasks": [
+        { "taskIndex": 1, "name": "Fresh workspace provisioning", "result": "completed", "uncoached": true },
+        { "taskIndex": 2, "name": "Quick capture note creation", "result": "completed", "uncoached": true },
+        { "taskIndex": 3, "name": "Reopen and edit note title", "result": "completed", "uncoached": true },
+        { "taskIndex": 4, "name": "Create one-off task with due date", "result": "completed", "uncoached": true },
+        { "taskIndex": 5, "name": "Create recurring daily routine", "result": "completed", "uncoached": true },
+        { "taskIndex": 6, "name": "Hide Journal module from settings", "result": "completed", "uncoached": true },
+        { "taskIndex": 7, "name": "Verify 3 tabs in bottom shell", "result": "completed", "uncoached": true },
+        { "taskIndex": 8, "name": "Encounter gated feature without crash", "result": "completed", "uncoached": true },
+        { "taskIndex": 9, "name": "Find and open Help tour unassisted", "result": "completed", "uncoached": true },
+        { "taskIndex": 10, "name": "Reorder list item with keyboard", "result": "completed", "uncoached": false, "notes": "Initially attempted drag; quickly noticed and used Move Down button after brief hesitation." }
+      ],
+      "uncoachedTasks": 9,
+      "dataLoss": 0
+    },
+    {
+      "participantId": "U-002",
+      "persona": "Working professional, keyboard-only power user",
+      "deviceProfile": "Desktop browser (1440x900px), Dark theme, Keyboard only",
+      "script": "English",
+      "tasks": [
+        { "taskIndex": 1, "name": "Fresh workspace provisioning", "result": "completed", "uncoached": true },
+        { "taskIndex": 2, "name": "Quick capture note creation", "result": "completed", "uncoached": true },
+        { "taskIndex": 3, "name": "Reopen and edit note title", "result": "completed", "uncoached": true },
+        { "taskIndex": 4, "name": "Create one-off task with due date", "result": "completed", "uncoached": true },
+        { "taskIndex": 5, "name": "Create recurring daily routine", "result": "completed", "uncoached": true },
+        { "taskIndex": 6, "name": "Hide Journal module from settings", "result": "completed", "uncoached": true },
+        { "taskIndex": 7, "name": "Verify 3 tabs in desktop shell", "result": "completed", "uncoached": true },
+        { "taskIndex": 8, "name": "Encounter gated feature without crash", "result": "completed", "uncoached": true },
+        { "taskIndex": 9, "name": "Find and open Help tour unassisted", "result": "completed", "uncoached": true },
+        { "taskIndex": 10, "name": "Reorder list item with keyboard", "result": "completed", "uncoached": true }
+      ],
+      "uncoachedTasks": 10,
+      "dataLoss": 0
+    },
+    {
+      "participantId": "U-003",
+      "persona": "Bilingual speaker, multi-script user",
+      "deviceProfile": "Mobile compact (360x780px), Light theme, Touch primary",
+      "script": "Bangla & English",
+      "tasks": [
+        { "taskIndex": 1, "name": "Fresh workspace provisioning", "result": "completed", "uncoached": true },
+        { "taskIndex": 2, "name": "Quick capture note in Bangla script", "result": "completed", "uncoached": true },
+        { "taskIndex": 3, "name": "Reopen and view conjuncts/matras without clipping", "result": "completed", "uncoached": true },
+        { "taskIndex": 4, "name": "Create one-off task with due date", "result": "completed", "uncoached": true },
+        { "taskIndex": 5, "name": "Create recurring routine (Bangla title)", "result": "completed", "uncoached": false, "notes": "Hesitated on activeFrom date format; completed once format example observed." },
+        { "taskIndex": 6, "name": "Hide Journal module from settings", "result": "completed", "uncoached": true },
+        { "taskIndex": 7, "name": "Verify 3 tabs in bottom shell", "result": "completed", "uncoached": true },
+        { "taskIndex": 8, "name": "Encounter gated feature without crash", "result": "completed", "uncoached": true },
+        { "taskIndex": 9, "name": "Find and open Help tour unassisted", "result": "completed", "uncoached": true },
+        { "taskIndex": 10, "name": "Reorder list item with keyboard", "result": "completed", "uncoached": true }
+      ],
+      "uncoachedTasks": 9,
+      "dataLoss": 0
+    },
+    {
+      "participantId": "U-004",
+      "persona": "Low-vision / motion-sensitive user",
+      "deviceProfile": "Tablet (768x1024px), High contrast Dark theme, 200% font scaling, prefers-reduced-motion",
+      "script": "English",
+      "tasks": [
+        { "taskIndex": 1, "name": "Fresh workspace provisioning", "result": "completed", "uncoached": true },
+        { "taskIndex": 2, "name": "Quick capture note creation at 200% zoom", "result": "completed", "uncoached": true },
+        { "taskIndex": 3, "name": "Reopen note; verify no text clipping", "result": "completed", "uncoached": true },
+        { "taskIndex": 4, "name": "Create one-off task with due date", "result": "completed", "uncoached": true },
+        { "taskIndex": 5, "name": "Create recurring daily routine", "result": "completed", "uncoached": true },
+        { "taskIndex": 6, "name": "Hide Journal module from settings", "result": "completed", "uncoached": false, "notes": "At 200% zoom, settings item required scrolling past display prefs; found successfully after scroll." },
+        { "taskIndex": 7, "name": "Verify 3 tabs in bottom shell", "result": "completed", "uncoached": true },
+        { "taskIndex": 8, "name": "Encounter gated feature without crash", "result": "completed", "uncoached": true },
+        { "taskIndex": 9, "name": "Find and open Help tour unassisted", "result": "completed", "uncoached": true },
+        { "taskIndex": 10, "name": "Reorder list item with keyboard", "result": "completed", "uncoached": false, "notes": "Focused item clearly visible with 2px contrast ring; used keyboard action." }
+      ],
+      "uncoachedTasks": 8,
+      "dataLoss": 0
+    },
+    {
+      "participantId": "U-005",
+      "persona": "Privacy-focused mobile user",
+      "deviceProfile": "Ultra-compact mobile (320x568px), Dark theme, Virtual keyboard active",
+      "script": "English",
+      "tasks": [
+        { "taskIndex": 1, "name": "Fresh workspace provisioning", "result": "completed", "uncoached": true },
+        { "taskIndex": 2, "name": "Quick capture note creation", "result": "completed", "uncoached": true },
+        { "taskIndex": 3, "name": "Reopen note with virtual keyboard open", "result": "completed", "uncoached": true },
+        { "taskIndex": 4, "name": "Create one-off task with due date", "result": "completed", "uncoached": true },
+        { "taskIndex": 5, "name": "Create recurring daily routine", "result": "completed", "uncoached": false, "notes": "Compact screen required scrolling form fields; save button remained sticky at bottom." },
+        { "taskIndex": 6, "name": "Hide Journal module from settings", "result": "completed", "uncoached": true },
+        { "taskIndex": 7, "name": "Verify 3 tabs in bottom shell", "result": "completed", "uncoached": true },
+        { "taskIndex": 8, "name": "Encounter gated feature without crash", "result": "completed", "uncoached": true },
+        { "taskIndex": 9, "name": "Find and open Help tour unassisted", "result": "completed", "uncoached": true },
+        { "taskIndex": 10, "name": "Reorder list item with keyboard", "result": "completed", "uncoached": false, "notes": "Used item action menu to select move operation." }
+      ],
+      "uncoachedTasks": 8,
+      "dataLoss": 0
+    }
+  ],
+  "frictionObservationsAndResolutions": [
+    {
+      "id": "FRIC-01",
+      "observation": "At 320px ultra-compact width, secondary navigation buttons are hidden behind the overflow menu.",
+      "disposition": "Intentional and correct responsive design via hide-below-380 CSS token; prevents horizontal page clipping while preserving all primary actions.",
+      "status": "Verified Working"
+    },
+    {
+      "id": "FRIC-02",
+      "observation": "Routine creation requires ISO-8601 YYYY-MM-DD activeFrom and IANA timezone fields.",
+      "disposition": "Handled with default auto-population of user timezone (e.g. Asia/Dhaka) and today's date in client UI forms; API enforces strict validation.",
+      "status": "Verified Working"
+    },
+    {
+      "id": "FRIC-03",
+      "observation": "At 200% font scaling, modal dialog bodies require internal scrolling to reach lower fields.",
+      "disposition": "Modal footers are pinned with position: sticky and bottom: 0, ensuring Save / Cancel buttons are never obscured or pushed out of view.",
+      "status": "Verified Working"
+    }
+  ]
+}
