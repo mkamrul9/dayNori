@@ -547,13 +547,16 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
     const recordMd = fs.readFileSync(recordMdPath, 'utf8');
 
     // Verify critical sections exist
-    expect(recordMd).toContain('Proposed Release Scope: Bounded Personal Beta vs Full V2');
+    expect(recordMd).toContain('Executive Proposal: Bounded Web/PWA Beta as Smallest Viable Release');
     expect(recordMd).toContain('Candidate Revision and Verified Artifact Hashes');
+    expect(recordMd).toContain('Distributable Web Release Artifact (Deployable Archive)');
+    expect(recordMd).toContain('Individual Web / PWA Production Asset Hashes');
     expect(recordMd).toContain('Surface Readiness Evaluated Independently');
     expect(recordMd).toContain('Destinations, Rollout Limits, and Rollback Procedures');
     expect(recordMd).toContain('Operational Roles & Incident Ownership');
-    expect(recordMd).toContain('Comprehensive Gate-by-Gate Barrier Register');
-    expect(recordMd).toContain('What the Owner Would Be Approving');
+    expect(recordMd).toContain('Comprehensive Gate-by-Gate Barrier Register (Grouped by Track)');
+    expect(recordMd).toContain('Proposed Phase 103 Post-Release Review Window Handoff');
+    expect(recordMd).toContain('Exact Decision Package for Project Owner Approval');
 
     // Verify undecided fields are explicitly flagged
     expect(recordMd).toContain('[UNDECIDED / PENDING OWNER APPROVAL]');
@@ -569,13 +572,23 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
 
     expect(recordJson.phase).toBe('102');
     expect(recordJson.operationalStatus).toBe('ENGINEERING_PREPARATION_ONLY_PUBLICATION_BLOCKED');
-    expect(recordJson.releaseScope.recommendedEnvelope).toBe('BOUNDED_PERSONAL_BETA');
-    expect(recordJson.releaseScope.verifiedActionsCount).toBe(78);
-    expect(recordJson.releaseScope.unverifiedActionsCount).toBe(10);
-    expect(recordJson.releaseScope.blockedActionsCount).toBe(21);
-    expect(recordJson.releaseScope.totalActionsCount).toBe(109);
+    expect(recordJson.releaseProposal.recommendedScope).toBe('BOUNDED_WEB_PWA_BETA');
+    expect(recordJson.releaseProposal.scopes.boundedWebPwaBeta.verifiedActionsCount).toBe(78);
+    expect(recordJson.releaseProposal.scopes.boundedWebPwaBeta.gatedActionsCount).toBe(31);
+    expect(recordJson.releaseProposal.scopes.fullV2.totalActionsCount).toBe(109);
 
-    // Verify barrier register in JSON covers all critical gates
+    // Verify distributable web archive hash vs individual assets
+    expect(recordJson.candidateArtifacts.webPwa.distributableArchive.path).toBe(
+      'artifacts/release/daynori-web-v2.0.0-rc1.tar.gz'
+    );
+    expect(recordJson.candidateArtifacts.webPwa.distributableArchive.sha256).toBe(
+      '663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c'
+    );
+    expect(recordJson.candidateArtifacts.webPwa.individualAssetHashes.manifestJson).toBe(
+      '417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40'
+    );
+
+    // Verify barrier register in JSON covers all critical gates with scopes
     const gates = recordJson.barrierRegister.map((b: any) => b.gate);
     expect(gates).toContain('OWNER-SIGNING-KEYS');
     expect(gates).toContain('OWNER-RELEASE-AUTH');
@@ -583,6 +596,11 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
     expect(gates).toContain('DEF-V2-011');
     expect(gates).toContain('DEF-V2-004');
     expect(gates).toContain('DEF-V2-008');
+
+    // Verify Phase 103 review window handoff
+    expect(recordJson.phase103Handoff.status).toBe('PLANNED');
+    expect(recordJson.phase103Handoff.proposedReviewWindowDays).toBe(14);
+    expect(recordJson.phase103Handoff.observationsStatus).toBe('PENDING_APPROVED_RELEASE_EXECUTION');
 
     // Write machine-readable rehearsal results file
     const rehearsalResults = {

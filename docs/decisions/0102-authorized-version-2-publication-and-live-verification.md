@@ -1,9 +1,9 @@
 # ADR-0102: Authorized Version 2 Publication and Live Verification
 
-- Status: accepted (local launch preparation and evidence reconciliation only; publication blocked).
+- Status: accepted (local launch preparation, smallest viable release proposal, and evidence reconciliation only; publication blocked).
 - Date: 2026-11-10.
 - Owner/reviewer: Antigravity agent (owner-authorized Phase 102 with explicit scheduling decision).
-- Related: [Phase 102](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md), [Phase 101](../roadmap/phases/101-version-2-release-candidate-and-operational-preparation.md), [Phase 100](../roadmap/phases/100-full-version-2-beta-and-readiness-reconciliation.md), [Phase 60](../roadmap/phases/60-public-android-and-web-release.md), [ADR 0057](0057-public-release-preflight-and-first-publication.md), [ADR 0074](0074-standing-phase71-scheduling-and-push.md), [ADR 0101](0101-version-2-release-candidate-and-operational-preparation.md), [release-gates.md](../engineering/release-gates.md), [v2-authorized-publication-record.md](../release/v2-authorized-publication-record.md), [v2-owner-review-package.md](../release/v2-owner-review-package.md).
+- Related: [Phase 102](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md), [Phase 103](../roadmap/phases/103-first-version-2-review-and-bounded-follow-up-plan.md), [Phase 101](../roadmap/phases/101-version-2-release-candidate-and-operational-preparation.md), [Phase 100](../roadmap/phases/100-full-version-2-beta-and-readiness-reconciliation.md), [Phase 60](../roadmap/phases/60-public-android-and-web-release.md), [ADR 0057](0057-public-release-preflight-and-first-publication.md), [ADR 0074](0074-standing-phase71-scheduling-and-push.md), [ADR 0101](0101-version-2-release-candidate-and-operational-preparation.md), [release-gates.md](../engineering/release-gates.md), [v2-authorized-publication-record.md](../release/v2-authorized-publication-record.md), [v2-bounded-beta-manifest.md](../release/v2-bounded-beta-manifest.md).
 - Supersedes/superseded by: none. Preserves all outstanding prerequisite, security, hardware, and release gates.
 
 ---
@@ -13,61 +13,68 @@
 The project owner explicitly authorized Phase 102 local launch preparation and read-only evidence reconciliation before Phase 101's final acceptance:
 > "OWNER SCHEDULING AUTHORIZATION: I authorize local launch preparation and read-only evidence reconciliation before Phase 101 acceptance. Record this limited scheduling decision in the Phase 102 report and roadmap progress. Preserve Phase 101’s blocked status, all dependencies, and all release gates. This prompt grants preparation only. Publication, store submission, beta invitations, production changes, spending, and live provider calls require my separate approval of the exact candidate and destinations."
 
+Furthermore, in this continuation, the owner requested:
+> "1. Prepare one owner decision for the smallest viable release. Evaluate a bounded web/PWA beta separately from any Android release and from full V2. Treat the web-only beta as a proposal. Identify which open gates apply to that exact scope and keep all other gates open for their respective scopes. Distinguish the release artifact hash from hashes of individual PWA assets. Keep Android signing and physical device checks visible on their own track... 3. Propose the Phase 103 handoff. Attach a proposed post-release review window with an owner, end date, and privacy-preserving measures for reliability, support, crashes, latency, tour friction, and operating cost. Leave actual observations pending until the approved release runs. Keep Phase 103 planned..."
+
 ---
 
 ## Decision
 
-1. **Owner Publication Review Record Assembly**:
-   - Authored the canonical Version 2 Authorized Publication Record (`docs/release/v2-authorized-publication-record.md`) and companion machine-readable register (`artifacts/phase102/publication-review-record.json`).
-   - Clearly separated the proposed **Bounded Personal Beta** (78 verified core actions: notes, tasks, routines, calendar, guided tours, local files) from **Full Version 2** (includes gated modules: vault, rooms, live AI streaming, in-app billing).
-   - Documented exact candidate revision (`5b5c4f8cbb8002a77f87b114174bd5db81867af7`, candidate label `2.0.0-rc1`) and SHA-256 artifact hashes for web PWA assets (manifest, service worker, offline shell, brand icons) and Android debug test artifacts.
-   - Flagged every undecided parameter as `[UNDECIDED / PENDING OWNER APPROVAL]`:
-     - Web deployment destination (`preview.daynori.com` -> `app.daynori.com` on Cloudflare Pages / Vercel Pro).
-     - Android Play Store distribution track (Internal Testing Track vs Closed Testing Track).
-     - Staged rollout limits (first release cannot use percentage rollouts; restricted to invited cohorts).
-     - Rollback destinations (client forward-fix code $N+1$; server additive schema; instant DNS/worker rollback; runtime feature kill switches).
-     - Named operational roles (Release Engineer, Security & Vault Lead, Moderation Officer, Support Triage Operator, AI Operations Lead).
+1. **Smallest Viable Release Proposal (Bounded Web/PWA Beta)**:
+   - Evaluated a **Bounded Web/PWA Beta** decoupled from the Android native release track and from Full Version 2.
+   - Submitted this web beta as a concrete proposal for immediate owner decision:
+     - **Enabled Scope (78 actions)**: Personal Notes (AST, revisions), Everyday Tasks (priorities, deadlines, keyboard reorder), Daily Routines (timezone-aware scheduling, occurrences), Agenda Calendar, Guided Tours (19 chapters), Offline-First Storage Outbox Sync, Local Attachments, In-App Support Feedback.
+     - **Gated Scope (31 actions fail-closed)**: Vault (403), Shared Rooms (403), Live AI Streaming (403), In-App Billing (403), Native Push (unconfigured), Drive Sync (gated).
+     - **Applicable Gates for Web Beta**: Only 3 gates apply to this exact scope:
+       1. `OWNER-RELEASE-AUTH` (Owner launch approval of candidate revision and target domain).
+       2. `DEF-V2-001` (Production Supabase / Google OAuth identity provider configuration for web domain).
+       3. `DEF-V2-013` (Live consenting human usability sessions with $\ge 5$ participants — to be executed on the invited web beta cohort).
+     - **Cohort & Budget**: 20 to 50 invited consenting beta testers; operating budget envelope of \$5–\$40/month low tier.
 
-2. **Independent Surface Readiness Classification**:
-   - **Web / PWA Readiness**: **READY FOR PROVISIONED HOSTING**
-     - Production build verified (Next.js 15.5.27, 32 routes).
-     - Production smoke verified (`scripts/phase60-web-production-smoke.mjs`, 18/18 checks passed).
-     - PWA offline shell, service worker caching, legal endpoints, CSP nonces verified.
-     - Production domain and hosting compute line items remain unapproved.
-   - **Android Client Readiness**: **NOT READY FOR RELEASE PACKAGING**
-     - Gradle prebuild and release path verified (`withReleaseSigningGuard`).
-     - Release task `:app:assembleRelease` fails closed without credentials.
-     - Blocked on production release keystore (`OWNER-SIGNING-KEYS`) and physical ARM64 TalkBack verification (`DEF-V2-011`).
+2. **Decoupled Architecture & Independent Android Track**:
+   - The native Android release track is maintained independently:
+     - Blocked gates: `OWNER-SIGNING-KEYS` (keystore & credentials) and `DEF-V2-011` (physical ARM64 TalkBack screen-reader latency profiling).
+     - Does **not** block the web beta from launching once approved, while remaining visible and tracked so it does not drop off the radar.
+   - Full Version 2 gates (`DEF-V2-004`, `DEF-V2-006`, `DEF-V2-008`, `DEF-V2-007`, `DEF-V2-002`, `DEF-V2-005`) remain open for their respective scopes.
 
-3. **Gate-by-Gate Barrier Register Reconciliation**:
-   - Tracked all 11 release and defect gates (`OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, `DEF-V2-013`, `DEF-V2-011`, `DEF-V2-004`, `DEF-V2-008`, `DEF-V2-001`, `DEF-V2-002`, `DEF-V2-005`, `DEF-V2-006`, `DEF-V2-007`).
-   - For every gate, established its current status, exact missing evidence, accountable role, and next concrete action.
-   - Reaffirmed that signing credentials and secrets must be provisioned securely outside of Git, logs, and public reports.
+3. **Distributable Release Artifact Hash vs Individual Asset Hashes**:
+   - **Distributable Release Artifact**: Packaged complete deployable web application bundle into `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`). Ignored from git via `.gitignore` to avoid large binary commits while recording immutable digests in release records.
+   - **Individual PWA Asset Hashes**: Recorded exact SHA-256 digests for individual client files (`manifest.json`: `417faac1...`, `sw.js`: `6e243130...`, `offline-shell.html`: `1b0bf5f6...`, `offline-shell.js`: `69649cda...`, brand icons).
 
-4. **Disposable Launch & Rollback Rehearsals (`tests/e2e/phase102-v2-publication-rehearsal.test.ts`)**:
-   - Rehearsed 6 end-to-end launch verification scenarios in an isolated test environment (all passed):
-     - `PUB-REHEARSAL-01`: Synthetic account login, session validation, and multi-tenant isolation.
-     - `PUB-REHEARSAL-02`: Scoped core organizer durable save, cold session reopen, and offline outbox sync with optimistic concurrency conflict detection (`baseRevision`).
-     - `PUB-REHEARSAL-03`: Customer support feedback ingestion (`POST /v1/workspaces/:workspaceId/feedback/reports`), receipt generation, operator triage access, internal note creation, and status progression to `triaged`.
-     - `PUB-REHEARSAL-04`: Privacy lifecycle, cryptographic reauthentication proof verification, account deletion request/confirm, and tombstone suppression (0 accessible rows; no accidental resurrection).
-     - `PUB-REHEARSAL-05`: Production fail-closed kill switches (Vault 403, Rooms 403, Billing 403, AI 403), forward-fix schema property (additive migrations), and dynamic UI navigation collapse.
-     - `PUB-REHEARSAL-06`: Synthetic reviewer access isolation (`reviewer@daynori.test`): access to core features permitted; operator endpoints and restricted modules strictly forbidden (403).
+4. **Rollback Procedures, Triggers, and Permitted Synthetic Probes**:
+   - **Rollback Target**: Instant DNS cutover back to preview domain or static maintenance fallback shell (`offline-shell.html`). Additive database schema enables instant stateless rollbacks without down-migrations.
+   - **Rollback Triggers**:
+     1. Sustained p95 mutation latency $>500$ms for 5 consecutive minutes.
+     2. 5xx server error rate $>1\%$ over any 5-minute rolling window.
+     3. Unhandled exception causing data corruption or lost mutations.
+     4. Breach of multi-tenant data isolation.
+   - **Permitted Synthetic Probes**: Health endpoints (`/health`, `/v1/status`), CSP nonce header checks, and single synthetic probe account note create, outbox replay, and soft delete. Real user data strictly prohibited.
 
-5. **Publication Hold Pending Explicit Owner Authorization**:
-   - Phase 102 status recorded as **`blocked`** in `docs/roadmap/progress.json`.
-   - Identified exactly what the owner must approve before any publication:
-     - Exact candidate artifact and hashes (`2.0.0-rc1` at `5b5c4f8`).
-     - Web deployment destination and hosting provider.
-     - Android distribution track (Internal vs Closed testing).
-     - Rollout limits and participant invite list.
-     - Permitted live synthetic checks.
-   - If authorized in a subsequent turn, execution must follow the approved rollout strictly, verify served builds independently, monitor agreed stop signals, and follow forward-fix rollback procedures if triggered.
+5. **Phase 103 Post-Release Review Window Handoff**:
+   - Attached a proposed **14-calendar-day review window** ($T+0$ to $T+14$) with designated Review Lead (Project Owner / unassigned) and end date (Launch Day $+14$ days).
+   - Specified privacy-preserving evaluation dimensions:
+     - Reliability & uptime: aggregate HTTP 2xx/4xx/5xx ratios; zero content parsing.
+     - Support triage: ingested feedback receipts via `/v1/operator/feedback/reports` with category tallies.
+     - Crash telemetry: anonymized stack signatures and synthetic crash hashes without PII.
+     - Latency: server-side p50/p95/p99 request timings on core organizer endpoints.
+     - Tour friction: Everyday guided tour chapter completion counts without user tracking.
+     - Operating cost: edge compute and database resource bills compared to budget envelope.
+   - Actual review observations remain strictly **pending** until the approved release runs.
+   - Phase 103 status remains **`planned`** in `docs/roadmap/progress.json`; no autonomous monitoring or follow-up code is implemented.
+
+6. **Publication Hold Pending Explicit Owner Authorization**:
+   - Phase 102 status remains **`blocked`** in `docs/roadmap/progress.json`.
+   - Assembled the complete 9-item Owner Decision Package in `docs/release/v2-authorized-publication-record.md`.
+   - No publication, store upload, tester invitation, deployment, or spending has occurred or is permitted without explicit subsequent owner approval.
 
 ---
 
 ## Consequences
 
-- Full operational preparation, review records, and rehearsal verification are complete and reproducible.
+- Full operational preparation, smallest viable release proposal, review records, and rehearsal verification are complete and reproducible.
+- Bounded Web/PWA Beta is cleanly decoupled from Android native requirements and high-risk gated modules.
+- Distributable web bundle hash is clearly distinguished from individual PWA asset hashes.
+- Phase 103 handoff framework is established with a 14-day privacy-preserving review window.
 - No store upload, beta invitation, production deployment, DNS change, live provider call, or cloud expense has occurred.
 - Phase 102 remains blocked until the owner reviews the publication record and explicitly authorizes release destinations.
-- Phase 103 remains unstarted.
+- Phase 103 remains planned and unstarted.

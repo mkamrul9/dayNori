@@ -1,12 +1,12 @@
 {
   "phase": "102",
   "recordType": "AUTHORIZED_PUBLICATION_REVIEW_RECORD",
-  "evaluatedAt": "2026-11-10T13:00:00.000Z",
+  "evaluatedAt": "2026-11-10T14:00:00.000Z",
   "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
   "candidateLabel": "2.0.0-rc1",
   "operationalStatus": "ENGINEERING_PREPARATION_ONLY_PUBLICATION_BLOCKED",
   "releaseScope": {
-    "recommendedEnvelope": "BOUNDED_PERSONAL_BETA",
+    "recommendedEnvelope": "BOUNDED_WEB_PWA_BETA",
     "verifiedActionsCount": 78,
     "unverifiedActionsCount": 10,
     "blockedActionsCount": 21,
@@ -44,19 +44,65 @@
       }
     ]
   },
+  "releaseProposal": {
+    "recommendedScope": "BOUNDED_WEB_PWA_BETA",
+    "rationale": "Smallest viable release delivering 78 verified core actions decoupled from Android signing keys and physical TalkBack dependencies, while keeping high-risk modules fail-closed.",
+    "scopes": {
+      "boundedWebPwaBeta": {
+        "status": "PROPOSED_FOR_IMMEDIATE_OWNER_DECISION",
+        "verifiedActionsCount": 78,
+        "gatedActionsCount": 31,
+        "applicableGates": [
+          "OWNER-RELEASE-AUTH",
+          "DEF-V2-001",
+          "DEF-V2-013"
+        ],
+        "cohortSize": "20 to 50 invited consenting beta testers",
+        "monthlyBudget": "$5-$40/month low tier"
+      },
+      "androidTrack": {
+        "status": "INDEPENDENT_HARDWARE_TRACK",
+        "targetTrack": "Google Play Internal Testing Track",
+        "applicableGates": [
+          "OWNER-SIGNING-KEYS",
+          "DEF-V2-011"
+        ],
+        "signingStatus": "BLOCKED_ON_OWNER_KEYS"
+      },
+      "fullV2": {
+        "status": "FUTURE_PUBLIC_SCOPE",
+        "totalActionsCount": 109,
+        "applicableGates": [
+          "DEF-V2-004",
+          "DEF-V2-006",
+          "DEF-V2-008",
+          "DEF-V2-007",
+          "DEF-V2-005",
+          "DEF-V2-002"
+        ]
+      }
+    }
+  },
   "candidateArtifacts": {
     "webPwa": {
       "toolchain": {
         "node": "v24.11.1",
         "next": "15.5.27",
-        "react": "19.0.0"
+        "react": "19.0.0",
+        "buildId": "82QG95zkVDUHchcNCcupu"
       },
-      "hashes": {
-        "manifestJson": "417faac1d52033c4a2dddb9c2cf1d5ba596da3515438c82361cfd31ef0e854fa",
-        "serviceWorkerJs": "6e2431306ebf19f29bf5b273b4329241b712c6a26cfb1ef957ec521a0a525da4",
-        "offlineShellHtml": "1b0bf5f68b6a9354fb889e40632a6da7089faea8f51a700ee054d55f41284d72",
-        "offlineShellJs": "69649cda2524d77579c354fe385759efca823c921312384a6b22ebc2a2dc34df",
-        "icon192": "eab6433abbca70b7392ead34a499c1d901bc48fe4e849bFFF9ee43b66d6eee64",
+      "distributableArchive": {
+        "path": "artifacts/release/daynori-web-v2.0.0-rc1.tar.gz",
+        "sha256": "663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c",
+        "sizeBytes": 1823845,
+        "description": "Complete production build output (.next, public, package definitions) for static/edge deployment"
+      },
+      "individualAssetHashes": {
+        "manifestJson": "417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40",
+        "serviceWorkerJs": "6e243130bed7d29e51c330a378380805f87539798692abe5c4f8127bb1f70cb3",
+        "offlineShellHtml": "1b0bf5f65c8d7330d0560fe41acc73a6a9806e9b7aff5cb60daacfc0fbd009cc",
+        "offlineShellJs": "69649cdab12d593dc7a9fed5607aba0a22b9e5336e855d6117a9fd0ce0462e4f",
+        "icon192": "eab6433abbca70b7392ead34a499c1d901bc48fe4e849bfff9ee43b66d6eee64",
         "icon512": "dc0ebf905510c9cae68046262c198a76d11fa010bcab53e3c1745bb8467b377e",
         "iconMaskable512": "69d0b2d8a9438f3262692ba76aa64a9e547d5d4aab718d6450b6395f5f868835"
       },
@@ -83,7 +129,20 @@
       "stagingDomain": "[UNDECIDED / PENDING OWNER APPROVAL]",
       "productionDomain": "[UNDECIDED / PENDING OWNER APPROVAL]",
       "proposedHost": "[UNDECIDED / PENDING OWNER APPROVAL]",
-      "rollbackTarget": "Instant DNS/worker cutover to preview or maintenance shell"
+      "authProvider": "[UNDECIDED / PENDING OWNER APPROVAL]",
+      "operatingBudget": "$5-$40/month low tier [UNDECIDED / PENDING OWNER APPROVAL]",
+      "permittedSyntheticChecks": [
+        "GET /health and GET /v1/status unauthenticated health probes",
+        "Unauthenticated CSP Level 3 nonce header verification",
+        "Single synthetic probe account note create, outbox sync, and soft delete"
+      ],
+      "rollbackTarget": "Instant DNS/worker cutover to preview or static maintenance fallback shell (offline-shell.html)",
+      "rollbackTriggers": [
+        "Sustained p95 mutation latency > 500ms for 5 consecutive minutes",
+        "5xx server error rate > 1% over any 5-minute rolling window",
+        "Unhandled exception causing data corruption or lost mutations",
+        "Breach of multi-tenant data isolation detected"
+      ]
     },
     "android": {
       "targetTrack": "[UNDECIDED / PENDING OWNER APPROVAL]",
@@ -101,28 +160,40 @@
   },
   "barrierRegister": [
     {
+      "gate": "OWNER-RELEASE-AUTH",
+      "scopeTrack": "WEB_PWA_BETA",
+      "status": "BLOCKED",
+      "missingEvidence": "Owner launch approval of candidate revision, distributable archive, and web target domains",
+      "responsibleRole": "Project Owner",
+      "nextAction": "Review publication record and grant explicit authorization"
+    },
+    {
+      "gate": "DEF-V2-001",
+      "scopeTrack": "WEB_PWA_BETA",
+      "status": "OPEN",
+      "missingEvidence": "Production Supabase / Google OAuth identity provider configuration for web domain",
+      "responsibleRole": "Operations Lead",
+      "nextAction": "Provision production Supabase project and set allowed redirect URLs"
+    },
+    {
+      "gate": "DEF-V2-013",
+      "scopeTrack": "WEB_PWA_BETA",
+      "status": "BLOCKED",
+      "missingEvidence": "Live consenting human usability sessions (>= 5 users, >= 4 unassisted)",
+      "responsibleRole": "UX Researcher / Owner",
+      "nextAction": "Execute 5-participant research protocol on invited web beta cohort"
+    },
+    {
       "gate": "OWNER-SIGNING-KEYS",
+      "scopeTrack": "ANDROID_TRACK",
       "status": "BLOCKED",
       "missingEvidence": "Production release keystore and credentials (DAYNORI_RELEASE_STORE_*)",
       "responsibleRole": "Release Engineer / Owner",
       "nextAction": "Provision secure release keystore outside Git"
     },
     {
-      "gate": "OWNER-RELEASE-AUTH",
-      "status": "BLOCKED",
-      "missingEvidence": "Owner launch approval of exact candidate and destinations",
-      "responsibleRole": "Project Owner",
-      "nextAction": "Review publication record and grant explicit authorization"
-    },
-    {
-      "gate": "DEF-V2-013",
-      "status": "BLOCKED",
-      "missingEvidence": "Live consenting human usability sessions (>= 5 users, >= 4 unassisted)",
-      "responsibleRole": "UX Researcher / Owner",
-      "nextAction": "Execute 5-participant research protocol"
-    },
-    {
       "gate": "DEF-V2-011",
+      "scopeTrack": "ANDROID_TRACK",
       "status": "BLOCKED",
       "missingEvidence": "Physical Android ARM64 device startup and TalkBack latency profiling",
       "responsibleRole": "QA / Accessibility Lead",
@@ -130,27 +201,23 @@
     },
     {
       "gate": "DEF-V2-004",
+      "scopeTrack": "FULL_V2",
       "status": "BLOCKED",
       "missingEvidence": "Independent qualified security review of vault cryptography",
       "responsibleRole": "Security Lead",
-      "nextAction": "Commission external cryptographic review"
+      "nextAction": "Commission external cryptographic review before enabling Vault"
     },
     {
       "gate": "DEF-V2-008",
+      "scopeTrack": "FULL_V2",
       "status": "BLOCKED",
       "missingEvidence": "Live LLM provider authorization and biometric Keystore verification",
       "responsibleRole": "AI Lead",
-      "nextAction": "Authorize synthetic LLM provider evaluation"
-    },
-    {
-      "gate": "DEF-V2-001",
-      "status": "OPEN",
-      "missingEvidence": "Production Supabase / Google OAuth identity provider configuration",
-      "responsibleRole": "Operations Lead",
-      "nextAction": "Provision production Supabase project"
+      "nextAction": "Authorize synthetic LLM provider evaluation before AI streaming"
     },
     {
       "gate": "DEF-V2-002",
+      "scopeTrack": "FULL_V2",
       "status": "OPEN",
       "missingEvidence": "Native FCM/APNs push notification provider credentials",
       "responsibleRole": "Mobile Lead",
@@ -158,6 +225,7 @@
     },
     {
       "gate": "DEF-V2-005",
+      "scopeTrack": "FULL_V2",
       "status": "OPEN",
       "missingEvidence": "Google Cloud OAuth consent screen verification for Drive sync",
       "responsibleRole": "Product Lead",
@@ -165,6 +233,7 @@
     },
     {
       "gate": "DEF-V2-006",
+      "scopeTrack": "FULL_V2",
       "status": "OPEN",
       "missingEvidence": "Staffed moderation operational ownership for rooms/chat",
       "responsibleRole": "Moderation Officer",
@@ -172,10 +241,50 @@
     },
     {
       "gate": "DEF-V2-007",
+      "scopeTrack": "FULL_V2",
       "status": "OPEN",
       "missingEvidence": "Google Play merchant account registration and billing setup",
       "responsibleRole": "Financial Officer",
       "nextAction": "Complete Play Console merchant registration"
     }
-  ]
+  ],
+  "phase103Handoff": {
+    "status": "PLANNED",
+    "proposedReviewWindowDays": 14,
+    "reviewLead": "[UNDECIDED / UNASSIGNED]",
+    "proposedEndDate": "Launch Day + 14 calendar days",
+    "evaluationDimensions": [
+      {
+        "name": "Reliability & Availability",
+        "method": "Aggregate HTTP 2xx/4xx/5xx status code distributions; zero content parsing",
+        "target": "Uptime >= 99.9%, 5xx < 0.1%"
+      },
+      {
+        "name": "Support Triage",
+        "method": "Ingested feedback reports via /v1/operator/feedback/reports with category tallies",
+        "target": "100% bug reports reviewed within 48h"
+      },
+      {
+        "name": "Crash Telemetry",
+        "method": "Anonymized stack signatures and synthetic crash hashes without PII",
+        "target": "0 unhandled state corruption crashes"
+      },
+      {
+        "name": "Mutation Latency",
+        "method": "Server-side p50/p95/p99 request timings on core organizer endpoints",
+        "target": "p95 latency < 300ms"
+      },
+      {
+        "name": "Tour Friction",
+        "method": "Everyday guided tour chapter completion counts without user tracking",
+        "target": ">= 70% completion on started tours"
+      },
+      {
+        "name": "Operating Cost",
+        "method": "Edge compute and database resource bills compared to budget",
+        "target": "Within $5-$40/month envelope"
+      }
+    ],
+    "observationsStatus": "PENDING_APPROVED_RELEASE_EXECUTION"
+  }
 }
