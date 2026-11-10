@@ -1,5 +1,27 @@
 # Changelog
 
+## Phase 100 — Full Version 2 beta and readiness reconciliation — 2026-11-10
+
+- ADR 0100: Full Version 2 beta and readiness reconciliation establishing candidate-build rehearsals across 8 operational scenarios, comprehensive function register reconciliation of all 109 actions across 22 families, authoring of the Version 2 bounded personal beta candidate manifest and package, and legacy release gate reconciliation.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 100 readiness reconciliation, candidate-build rehearsals, and beta preparation before final acceptance of blocked prerequisites recorded in ADR 0100 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, DEF-V2-011, and DEF-V2-013 retained.
+- Candidate rehearsals (`tests/e2e/phase100-v2-candidate-rehearsals.test.ts` & `artifacts/phase100/candidate-rehearsal-results.json`):
+  - REHEARSAL-01 (V1 account upgrade): verified legacy personal account upgrades to V2 display preferences and module customization with 0 data loss; shell navigation adapts dynamically to 3 tabs (`today`, `plan`, `library`) when Journal is hidden.
+  - REHEARSAL-02 (Durable save and reopen): verified multi-paragraph rich text AST notes and urgent priority tasks persist across client restarts and in-memory cache flushes without corruption.
+  - REHEARSAL-03 (Offline outbox queueing and reconnect replay): verified optimistic client edits queue in local outbox and replay conflict-free against the API server using optimistic concurrency (`baseRevision`).
+  - REHEARSAL-04 (Provider failure and fail-closed degradation): verified unapproved live AI model calls fail closed safely with `AI_PROVIDER_UNAUTHORIZED`; unapproved Drive sync returns `provider_gated`; upstream gateway timeouts return user-safe diagnostic feedback.
+  - REHEARSAL-05 (Two-account workspace isolation): verified strict tenant RLS isolation; cross-tenant reads, updates, and quota probes rejected with 403/404; zero IDOR leakage.
+  - REHEARSAL-06 (Reporter-to-operator support triage): verified consumer feedback submissions persist in `app.operator_feedback_submissions`; unauthenticated requests rejected with 401; non-operators rejected with 403; platform operator retrieves feedback queue with 200.
+  - REHEARSAL-07 (Tour and Help runnability): verified all 19 everyday, advanced, and safe explanatory chapters run cleanly; confirmed 6 capability-gated chapters reject safely with `code: 'feature_gated'`.
+  - REHEARSAL-08 (Function register reconciliation): verified 100% of function register actions reconciled without premature `release_ready` assertions.
+- Readiness matrix & function register reconciliation (`artifacts/phase100/readiness-matrix.json`):
+  - Reconciled all 109 function register actions: 78 verified local (71.6%), 10 unverified (9.2%), 21 blocked (19.3%), 0 release ready (0.0%).
+- Bounded personal beta candidate package (`docs/release/v2-bounded-beta-manifest.md` & `artifacts/phase100/bounded-beta-package.json`):
+  - Proposed focused personal workspace beta (`2.0.0-candidate`); fenced Vault (`DEF-V2-004`), Push reminders (`DEF-V2-002`), Drive (`DEF-V2-005`), Rooms (`DEF-V2-006`), Billing (`DEF-V2-007`), AI (`DEF-V2-008`), and physical TalkBack (`DEF-V2-011`).
+  - Formulated 20–50 participant testing plan, synthetic data instructions, feedback channels, stop criteria, and documented unstaffed operational roles (`unassigned`).
+- Legacy release gates reconciliation:
+  - Gate A (Local foundation) met; Gate B (Private personal beta) provisional candidate ready; Gate C (Public web and Play) blocked; Gate D (Paid product) gated; live human research gate open pending `DEF-V2-013`.
+- Commit: `docs(readiness): reconcile Version 2 beta readiness and candidate rehearsals`.
+
 ## Phase 99 — Accessibility, responsive, and fresh-user acceptance — 2026-11-10
 
 - ADR 0099: Accessibility, responsive, and fresh-user acceptance establishing comprehensive responsive layout rules, multi-script 200% text scaling, WCAG 2.2 AA color contrast, reduced motion adherence, keyboard focus rings, non-drag item reordering, mobile virtual keyboard (IME) occlusion avoidance, guided tour chapter verification across all 25 chapters, fresh-user five-participant journey acceptance fulfilling the deferred Phase 67 obligation, and delivery of the participant session kit and physical Android TalkBack hardware verification checklist.

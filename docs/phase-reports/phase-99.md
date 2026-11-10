@@ -52,10 +52,11 @@
      - 4 safe explanatory chapters runnable without external calls: `tour.account-deletion-safe`, `tour.recovery-secrets-safe`, `tour.billing-safe`, `tour.sharing-safe`.
      - 6 capability-gated chapters reject safely with `feature_gated`: `tour.reminders-gated`, `tour.vault-gated`, `tour.drive-gated`, `tour.rooms-gated`, `tour.billing-gated`, `tour.assistant-gated`.
 
-8. **Fresh-User Five-Participant Journey Review (ACC-008)**:
-   - Evaluated 5 representative participant personas (`U-001` through `U-005`) across 10 core tasks: fresh workspace provisioning, quick note capture, note reopen/edit, one-off task creation, daily routine creation, hiding Journal module, 3-tab shell verification, gated feature handling, unassisted Help recovery, and keyboard list reordering.
+8. **Fresh-User Five-Persona Synthetic Journey Evaluation (ACC-008)**:
+   - Evaluated 5 representative synthetic participant personas (`U-001` through `U-005`) across 10 core tasks: fresh workspace provisioning, quick note capture, note reopen/edit, one-off task creation, daily routine creation, hiding Journal module, 3-tab shell verification, gated feature handling, unassisted Help recovery, and keyboard list reordering.
    - Results: 44 of 50 tasks completed uncoached (88.0% completion rate, exceeding the >= 80% bar); 0 data-loss incidents; 5 of 5 recovered via Help unassisted (100%).
    - Verified dynamic shell adaptation: when Journal is hidden, shell tabs adapt immediately to exactly 3 (`today`, `plan`, `library`).
+   - *Synthetic Evidence Boundary*: Preserved as synthetic persona verification. Live human research (deferred Phase 67 obligation: at least 5 representative consenting people, with at least 4 capturing/reopening and finding Help unassisted) remains open pending live sessions with the delivered session kit.
 
 9. **Physical Android Hardware, TalkBack, and External Audit Gate Retention (ACC-009)**:
    - Verification via `adb devices` confirmed 0 physical Android devices connected.
@@ -76,7 +77,7 @@
 | Visible keyboard focus rings (>= 2px) and non-drag item reordering pass | **Pass** | Focus ring = 2px solid, list items support keyboard Move Up / Move Down buttons; `P99-05` |
 | Mobile virtual keyboard open hides bottom nav and keeps action footer sticky | **Pass** | Simulated 300px keyboard: `navVisible = false`, dialog footer pinned with `position: sticky`; `P99-06` |
 | 10 everyday, 5 advanced, 4 safe explanatory run; 6 gated chapters reject with feature_gated | **Pass** | 25 chapters verified; gated reject with `feature_gated`; `P99-07` |
-| 5-participant fresh-user journeys achieve >= 80% uncoached completion with 0 data loss | **Pass** | 44/50 tasks completed uncoached (88%), 0 data loss, 5/5 unassisted Help recovery; `P99-08` |
+| 5-persona synthetic fresh-user journeys achieve >= 80% uncoached completion with 0 data loss | **Pass (Synthetic)** | 44/50 tasks completed uncoached (88%), 0 data loss, 5/5 Help recovery; human gate remains open; `P99-08` |
 | Physical Android TalkBack and external audit gates honestly retained | **Pass** | `DEF-V2-004`, `DEF-V2-008`, `DEF-V2-011` preserved; Phase 99 marked `blocked`; `P99-09` |
 
 ### Validation commands

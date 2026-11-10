@@ -1,8 +1,12 @@
 {
   "phase": 99,
-  "title": "Fresh-User Journey Evaluation Results",
+  "title": "Fresh-User Synthetic Journey Evaluation Results",
   "evaluatedAt": "2026-11-10T11:32:00+06:00",
-  "methodology": "Five representative consenting participant personas evaluated uncoached against the full Version 2 application stack and APIs under isolated tenant contexts. Tasks covered core onboarding, rapid capture, editing, recurring routines vs one-off tasks, module customization, keyboard accessibility, explanatory safe fallbacks, and recovery via Help.",
+  "evidenceNature": "synthetic_persona_evaluation",
+  "liveHumanResearchObserved": false,
+  "humanGateStatus": "pending_human_sessions",
+  "deferredPhase67Obligation": "open",
+  "methodology": "Five representative synthetic persona profiles (U-001 through U-005) were programmatically evaluated uncoached against the full Version 2 application stack and APIs under isolated tenant contexts. This confirms programmatic interaction, responsive rules, state persistence, zero data loss, and error handling. It does NOT constitute observed live human research; the deferred Phase 67 human participant obligation remains open until live consenting participants complete the session kit in artifacts/phase99/session-kit-and-checklist.md.",
   "targetCriteria": {
     "minParticipants": 5,
     "minCompletionRate": 0.80,

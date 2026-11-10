@@ -15,6 +15,10 @@
     {
       "gate": "DEF-V2-011",
       "description": "Physical Android hardware startup verification and physical TalkBack screen-reader latency profiling remain unmet."
+    },
+    {
+      "gate": "DEF-V2-013",
+      "description": "Live consenting human participant usability evaluation (deferred Phase 67 obligation: >= 5 representative consenting people, with >= 4 capturing/reopening an item and finding Help unassisted) remains open pending live human sessions."
     }
   ],
   "findingsCatalogued": 9,
@@ -44,6 +48,9 @@
     "freshUserDataLossZero": true,
     "helpRecoveryUnassisted100Percent": true,
     "syntheticVsPhysicalHardwareDistinct": true,
+    "syntheticPersonaJourneysPassed": true,
+    "liveHumanResearchObserved": false,
+    "deferredPhase67HumanGateOpen": true,
     "physicalHardwareAndAuditGatesPreserved": true,
     "noUnverifiedReleaseClaims": true
   }

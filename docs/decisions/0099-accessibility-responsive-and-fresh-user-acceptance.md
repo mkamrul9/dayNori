@@ -54,10 +54,11 @@ A comprehensive test suite was executed via `tests/e2e/phase99-accessibility-res
      - 4 safe explanatory chapters runnable without external calls: `tour.account-deletion-safe`, `tour.recovery-secrets-safe`, `tour.billing-safe`, `tour.sharing-safe`.
      - 6 capability-gated chapters reject safely with `feature_gated`: `tour.reminders-gated`, `tour.vault-gated`, `tour.drive-gated`, `tour.rooms-gated`, `tour.billing-gated`, `tour.assistant-gated`.
 
-8. **ACC-008 (Fresh-User Five-Participant Journey Review)**:
-   - Evaluated 5 representative participant personas (`U-001` through `U-005`) across 10 core tasks: fresh workspace provisioning, quick note capture, note reopen/edit, one-off task creation, daily routine creation, hiding Journal module, 3-tab shell verification, gated feature handling, unassisted Help recovery, and keyboard list reordering.
+8. **ACC-008 (Fresh-User Five-Persona Synthetic Journey Evaluation)**:
+   - Evaluated 5 representative synthetic participant personas (`U-001` through `U-005`) across 10 core tasks: fresh workspace provisioning, quick note capture, note reopen/edit, one-off task creation, daily routine creation, hiding Journal module, 3-tab shell verification, gated feature handling, unassisted Help recovery, and keyboard list reordering.
    - Results: 44 of 50 tasks completed uncoached (88.0% completion rate, exceeding the >= 80% bar); 0 data-loss incidents; 5 of 5 recovered via Help unassisted (100%).
    - Verified dynamic shell adaptation: when Journal is hidden, shell tabs adapt immediately to exactly 3 (`today`, `plan`, `library`).
+   - *Synthetic Evidence Boundary*: This programmatic evaluation confirms flow execution and zero data loss, but is strictly preserved as synthetic evidence. The human participant gate (deferred Phase 67 obligation: at least 5 representative consenting people, with at least 4 each capturing/reopening an item and finding Help unassisted) remains open pending live human sessions.
 
 9. **ACC-009 (Physical Android Hardware, TalkBack, and External Audit Gate Retention)**:
    - Verification via `adb devices` confirmed 0 physical Android devices connected.

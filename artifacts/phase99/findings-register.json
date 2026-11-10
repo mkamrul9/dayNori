@@ -71,13 +71,13 @@
   },
   {
     "id": "ACC-008",
-    "category": "fresh_user_acceptance",
-    "title": "Five-participant fresh-user uncoached journey acceptance",
-    "budget": "At least 5 participants; >= 80% uncoached completion rate across core tasks; 0 data-loss incidents; 100% help recovery",
-    "measured": "5 synthetic representative participant personas (U-001 through U-005); 44 of 50 total tasks completed uncoached (88.0% completion); 0 data-loss incidents; 5 of 5 recovered via Help without assistance; note capture/reopen 100% successful; task vs routine distinction 100% successful; journal hide/restore 100% verified",
-    "evaluation": "Pass",
-    "methodology": "Simulated 5 consenting participant profiles across fresh workspace provisioning, quick note capture, task vs recurring routine creation, Journal module hiding (leaving exactly 3 tabs: Today, Plan, Library), preferences persistence, and Help recovery.",
-    "disposition": "Verified in Phase 99"
+    "category": "fresh_user_synthetic_journeys",
+    "title": "Five-persona synthetic fresh-user uncoached journey evaluation",
+    "budget": "At least 5 representative personas; >= 80% uncoached completion rate across core tasks; 0 data-loss incidents; 100% help recovery",
+    "measured": "5 synthetic representative participant personas (U-001 through U-005); 44 of 50 total tasks completed uncoached (88.0% completion); 0 data-loss incidents; 5 of 5 recovered via Help without assistance; note capture/reopen 100% successful; task vs routine distinction 100% successful; journal hide/restore 100% verified; live human research remains open pending real participant sessions",
+    "evaluation": "Pass (Synthetic Personas Only)",
+    "methodology": "Simulated 5 synthetic participant personas across fresh workspace provisioning, quick note capture, task vs recurring routine creation, Journal module hiding (leaving exactly 3 tabs: Today, Plan, Library), preferences persistence, and Help recovery. Preserved as synthetic evidence; live human participant gate (Phase 67/99) remains open until substantiated by live human sessions.",
+    "disposition": "Verified Synthetically in Phase 99; Human Gate Open"
   },
   {
     "id": "ACC-009",

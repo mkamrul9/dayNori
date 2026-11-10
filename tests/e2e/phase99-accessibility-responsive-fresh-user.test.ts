@@ -351,9 +351,11 @@ describe('Phase 99: Accessibility, Responsive, and Fresh-User Acceptance', () =>
   });
 
   // --------------------------------------------------------------------------
-  // P99-08: Fresh-User Usability Review Evaluation (5 Consenting Participants U-001..U-005)
+  // P99-08: Fresh-User Synthetic Persona Evaluation (5 Personas U-001..U-005)
   // --------------------------------------------------------------------------
-  it('P99-08: evaluates fresh-user review journeys across 5 participants achieving >= 80% uncoached completion', async () => {
+  it('P99-08: evaluates fresh-user review journeys across 5 synthetic personas achieving >= 80% uncoached completion', async () => {
+    // Note: Preserved as programmatic synthetic evidence; live human participant gate (Phase 67/99)
+    // remains open until substantiated by live human sessions using the delivered session kit.
     interface ParticipantSession {
       id: string;
       persona: string;

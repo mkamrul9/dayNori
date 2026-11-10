@@ -1,0 +1,126 @@
+{
+  "phase": 100,
+  "title": "Version 2 Bounded Beta Package",
+  "candidateRevision": "43dd5858fb8a3a5a65ced01ead9d390d0abb74ab",
+  "proposedScope": {
+    "name": "Daynori Version 2 Bounded Personal Beta Candidate",
+    "version": "2.0.0-beta.1",
+    "description": "Focused offline-first personal workspace beta covering core organization, local capture, responsive PWA, and local guided learning, while strictly fencing high-risk modules pending dedicated release gates.",
+    "enabledFeatures": [
+      "account-and-first-use",
+      "home-and-navigation",
+      "tasks",
+      "routines",
+      "calendar",
+      "notes-and-knowledge",
+      "folders-and-library",
+      "search",
+      "offline-and-portability",
+      "help-and-support",
+      "nori-companion"
+    ],
+    "gatedFeatures": [
+      { "id": "vault", "blocker": "DEF-V2-004", "reason": "Independent external security review pending" },
+      { "id": "reminders-delivery", "blocker": "DEF-V2-002", "reason": "Push notification infrastructure pending" },
+      { "id": "google-drive", "blocker": "DEF-V2-005", "reason": "Live Google Drive OAuth verification pending" },
+      { "id": "rooms-and-chat", "blocker": "DEF-V2-006", "reason": "Multi-user rooms and staffed UGC moderation pending" },
+      { "id": "billing", "blocker": "DEF-V2-007", "reason": "Commercial Play billing and subscriptions pending" },
+      { "id": "ai-assistant", "blocker": "DEF-V2-008", "reason": "Live model provider authorization and spending pending" },
+      { "id": "physical-talkback", "blocker": "DEF-V2-011", "reason": "Physical Android ARM64 TalkBack testing pending" }
+    ]
+  },
+  "participantPlan": {
+    "cohortSize": "20 to 50 consenting testers",
+    "targetPersonas": [
+      "General personal organizers and note takers",
+      "Mobile commuters / small-screen PWA users (320px–390px)",
+      "Bilingual / multi-script users (English and Bangla)",
+      "Keyboard-only navigation and accessibility power users",
+      "Low-vision users with 200% font scaling and high contrast preferences"
+    ],
+    "humanGateFulfillment": {
+      "target": "At least 5 representative consenting participants must complete the fresh-user session protocol with >= 4 capturing/reopening an item and finding Help unassisted",
+      "status": "pending_human_sessions",
+      "defectId": "DEF-V2-013"
+    }
+  },
+  "platforms": [
+    {
+      "platform": "web",
+      "supportLevel": "supported",
+      "requirements": "Modern evergreen browsers (Chromium, Firefox, Safari); responsive 320px–1440px"
+    },
+    {
+      "platform": "installedPwa",
+      "supportLevel": "supported",
+      "requirements": "Offline service worker caching, IndexedDB persistence, manifest installability"
+    },
+    {
+      "platform": "androidInternalTrack",
+      "supportLevel": "gated",
+      "requirements": "Internal Play Console testing track only; unsigned/stale android/ debug fallback rejected"
+    },
+    {
+      "platform": "iosNative",
+      "supportLevel": "owner_deferred",
+      "requirements": "Phase 61-62 configuration ready; Mac build and TestFlight evidence pending"
+    }
+  ],
+  "syntheticDataInstructions": {
+    "privacyRule": "Zero real personal secrets, real passwords, real journal entries, or sensitive financial data.",
+    "fixtures": "Participants use synthetic descriptions (e.g., 'Project Zebra draft', 'Morning 15m stretch', 'Team sync outline').",
+    "isolation": "Each tester receives an isolated personal tenant workspace; no multi-tenant cross-visibility."
+  },
+  "consentAndFeedbackProcess": {
+    "consent": "Explicit digital consent prompt explaining offline-first architecture, synthetic data rule, and voluntary participation.",
+    "feedbackChannel": "In-app feedback form (POST /v1/workspaces/:workspaceId/feedback/reports) with category, severity, and optional diagnostics.",
+    "triage": "Operator feedback queue (/v1/operator/feedback/reports) authenticated via Platform Operator role.",
+    "erasure": "Self-service account deletion and JSON export available at all times."
+  },
+  "stopCriteria": [
+    "Any cross-tenant IDOR vulnerability or data leak detected.",
+    "Any data loss incident (unrecoverable draft or item corruption).",
+    "Unauthenticated or unauthorized access to operator triage endpoints.",
+    "Application unhandled crash rate exceeding 1.0% of active sessions."
+  ],
+  "knownDefects": [
+    { "id": "DEF-V2-001", "title": "Real-provider authentication journeys not freshly verified", "status": "open" },
+    { "id": "DEF-V2-002", "title": "Hosted core preview disables files, audio, and reminder delivery", "status": "open" },
+    { "id": "DEF-V2-003", "title": "Cold offline reopen serves public offline page, not private organizer", "status": "open" },
+    { "id": "DEF-V2-004", "title": "Production vault unlock blocked pending independent review", "status": "open" },
+    { "id": "DEF-V2-005", "title": "Live Google Drive connection not verified", "status": "open" },
+    { "id": "DEF-V2-006", "title": "Rooms and chat production-gated and unstaffed for real users", "status": "open" },
+    { "id": "DEF-V2-007", "title": "Production billing disabled", "status": "open" },
+    { "id": "DEF-V2-008", "title": "Live AI assistant unavailable; local provisional only", "status": "open" },
+    { "id": "DEF-V2-009", "title": "Support contact and durable feedback delivery not configured", "status": "open" },
+    { "id": "DEF-V2-010", "title": "Developer/harness surfaces reachable from ordinary Settings", "status": "open" },
+    { "id": "DEF-V2-011", "title": "Physical Android and TalkBack evidence still missing", "status": "open" },
+    { "id": "DEF-V2-012", "title": "Beginner tutorial is not action-verified full feature coverage", "status": "open" },
+    { "id": "DEF-V2-013", "title": "Live consenting human participant usability evaluation pending", "status": "open" }
+  ],
+  "operationalResponsibilities": {
+    "operationsLead": "unassigned",
+    "securityAndVaultLead": "unassigned",
+    "moderationOfficer": "unassigned",
+    "supportTriageOperator": "unassigned",
+    "releaseEngineer": "unassigned"
+  },
+  "legacyReleaseGatesReconciliation": {
+    "gateA_localFoundation": {
+      "status": "met",
+      "evidence": "Strict toolchain, reproducible installs, migrations, package boundaries, and local JWT verifier pass."
+    },
+    "gateB_privatePersonalBeta": {
+      "status": "provisional_candidate_ready",
+      "evidence": "Bounded scope manifest authored, 8 candidate rehearsals pass, human participant sessions pending DEF-V2-013."
+    },
+    "gateC_publicWebAndPlayReadiness": {
+      "status": "blocked",
+      "evidence": "Physical Android hardware testing (DEF-V2-011), signed AAB, and operator publication approval unmet."
+    },
+    "gateD_paidProduct": {
+      "status": "gated",
+      "evidence": "Billing disabled (DEF-V2-007); free core organizer scope preserved."
+    }
+  }
+}
