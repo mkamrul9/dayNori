@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 104 — Current Daynori web/PWA readiness audit and critical core fixes — 2026-11-13
+
+- ADR 0104: Current Daynori web/PWA readiness audit and critical core fixes establishing 8 verified real user journeys, packaged candidate diff comparison with Phase 102 (`daynori-web-v2.0.0-rc1.tar.gz`), and truthful gated UI presentation for `DEF-V2-008`.
+- Gated Feature Truthfulness Remediation (`DEF-V2-008`):
+  - Updated `AssistantPanel.tsx` with dynamic gating detection and `data-testid="assistant-gated-banner"`, communicating to users that live AI is gated under `DEF-V2-008` pending provider authorization and privacy compliance.
+  - Disabled input query textarea with clear placeholder (`"Assistant is currently gated under DEF-V2-008. Use manual organizer controls."`).
+  - Disabled "Ask" button, starter suggestion buttons, and voice transcription record button when gated.
+  - Updated `AppHeader.tsx` assistant launcher button with explicit gating `aria-label` and tooltip.
+- Comprehensive Web/PWA Readiness Audit:
+  - Audited and verified 8 real user journeys using synthetic accounts (`tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts`):
+    1. Sign-up, sign-in, profile retrieval, and workspace preference configuration.
+    2. Workspace isolation and cross-tenant access denial.
+    3. Note, task, routine, and journal full create-save-reopen lifecycle.
+    4. Global omni-search across workspace items.
+    5. Offline reopen and sync conflict recovery via optimistic `baseRevision` locking (HTTP 409 Conflict).
+    6. Help how-to search, FAQ navigation, and guided tour integration.
+    7. Support ticket submission and operator feedback triage transitions.
+    8. Gated features fail-closed verification (AI, Vault, Rooms, Billing).
+  - Authored barrier truthfulness unit suite in `tests/unit/phase104-gated-features-truthfulness.test.ts`.
+- Candidate Comparison & Dirty Working Tree Preservation:
+  - Compared current HEAD (`3d65d14`) and dirty working tree against Phase 102 packaged candidate (`artifacts/release/daynori-web-v2.0.0-rc1.tar.gz`), verifying complete backward compatibility.
+  - Preserved all prior phase evidence, Android captures, and local artifacts intact.
+
 ## Phase 102 — Authorized Version 2 publication and live verification — 2026-11-10
 
 - ADR 0102: Authorized Version 2 publication and live verification establishing the canonical Owner Publication Review Record (`docs/release/v2-authorized-publication-record.md` & `artifacts/phase102/publication-review-record.json`), smallest viable release proposal (Bounded Web/PWA Beta), decoupled release architecture, independent Android track visibility, distributable web release bundle archive packaging (`daynori-web-v2.0.0-rc1.tar.gz`), 7 disposable publication and rollback rehearsals (`tests/e2e/phase102-v2-publication-rehearsal.test.ts`), and proposed Phase 103 14-day post-release review window handoff.

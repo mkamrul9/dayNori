@@ -22,6 +22,7 @@ export interface AssistantPanelProps {
   personalWorkspaceId: string | null;
   isOpen?: boolean;
   onClose?: () => void;
+  isGated?: boolean;
 }
 
 /**
@@ -36,12 +37,37 @@ export function AssistantPanel({
   personalWorkspaceId,
   isOpen,
   onClose,
+  isGated: externalGated,
 }: AssistantPanelProps) {
   if (isOpen === false) return null;
 
   const palette = colors[themeMode];
   const router = useRouter();
   const client = useMemo(() => createWebApiClient({ csrfToken }), [csrfToken]);
+
+  const [internalGated, setInternalGated] = useState<boolean>(externalGated ?? false);
+  const isGated = externalGated ?? internalGated;
+
+  useEffect(() => {
+    if (externalGated !== undefined) return;
+    let cancelled = false;
+    async function checkGate() {
+      if (!personalWorkspaceId) return;
+      try {
+        await client.getAiConsentStatus();
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/unavailable in beta|release gate|FORBIDDEN|403/i.test(msg)) {
+          setInternalGated(true);
+        }
+      }
+    }
+    void checkGate();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, personalWorkspaceId, externalGated]);
 
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
@@ -829,25 +855,67 @@ export function AssistantPanel({
         ) : null}
       </div>
 
-      {/* Fail-closed Notice & Educational Links */}
-      <div
-        style={{
-          padding: `${spacing.xs}px ${spacing.sm}px`,
-          backgroundColor: palette.surfaceRaised,
-          borderRadius: `${radii.sm}px`,
-          marginBottom: `${spacing.sm}px`,
-          fontSize: '12px',
-          color: palette.text.secondary,
-        }}
-      >
-        <span>Provisional local assistant. Production AI activation is gated under DEF-V2-008. </span>
-        <a
-          href="/help?article=assistant-optional"
-          style={{ color: palette.action.primary, textDecoration: 'underline' }}
+      {/* Truthful Gated Banner (DEF-V2-008) */}
+      {isGated ? (
+        <div
+          data-testid="assistant-gated-banner"
+          role="status"
+          style={{
+            padding: `${spacing.sm}px ${spacing.md}px`,
+            backgroundColor: palette.surfaceRaised,
+            borderRadius: `${radii.sm}px`,
+            border: `1px solid ${palette.border.subtle}`,
+            marginBottom: `${spacing.sm}px`,
+          }}
         >
-          AI Privacy & FAQ
-        </a>
-      </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span aria-hidden="true">
+              <Icon name="nori" size={16} />
+            </span>
+            <strong style={{ fontSize: '13px', color: palette.text.primary }}>
+              Ask Nori is Currently Gated (DEF-V2-008)
+            </strong>
+          </div>
+          <p style={{ margin: '0 0 8px', fontSize: '12px', color: palette.text.secondary, lineHeight: 1.4 }}>
+            Live AI assistant queries and voice transcription are intentionally disabled in this release under release gate <code>DEF-V2-008</code> pending enterprise provider privacy and operating authorization. Manual note, task, routine, and journal editing remain fully operational.
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
+            <a
+              href="/help?article=assistant-optional"
+              style={{ color: palette.action.primary, textDecoration: 'underline' }}
+            >
+              AI Privacy & FAQ
+            </a>
+            <span style={{ color: palette.text.secondary }} aria-hidden="true">•</span>
+            <a
+              href="/settings"
+              style={{ color: palette.action.primary, textDecoration: 'underline' }}
+            >
+              Privacy Settings
+            </a>
+          </div>
+        </div>
+      ) : (
+        /* Fail-closed Notice & Educational Links */
+        <div
+          style={{
+            padding: `${spacing.xs}px ${spacing.sm}px`,
+            backgroundColor: palette.surfaceRaised,
+            borderRadius: `${radii.sm}px`,
+            marginBottom: `${spacing.sm}px`,
+            fontSize: '12px',
+            color: palette.text.secondary,
+          }}
+        >
+          <span>Provisional local assistant. Production AI activation is gated under DEF-V2-008. </span>
+          <a
+            href="/help?article=assistant-optional"
+            style={{ color: palette.action.primary, textDecoration: 'underline' }}
+          >
+            AI Privacy & FAQ
+          </a>
+        </div>
+      )}
 
       {feedback ? (
         <div style={{ marginBottom: spacing.sm }}>
@@ -918,15 +986,15 @@ export function AssistantPanel({
                 setQuestion(s.question);
                 void ask(s.question);
               }}
-              disabled={busy || !personalWorkspaceId}
+              disabled={isGated || busy || !personalWorkspaceId}
               style={{
                 fontSize: '11px',
                 padding: '3px 8px',
                 borderRadius: '12px',
                 border: `1px solid ${palette.border.subtle}`,
                 backgroundColor: palette.surfaceRaised,
-                color: palette.text.primary,
-                cursor: 'pointer',
+                color: isGated ? palette.text.secondary : palette.text.primary,
+                cursor: isGated ? 'not-allowed' : 'pointer',
               }}
             >
               {s.label}
@@ -955,6 +1023,7 @@ export function AssistantPanel({
               variant="secondary"
               size="compact"
               themeMode={themeMode}
+              disabled={isGated}
               onClick={() => void startVoiceRecording()}
               data-tour="assistant-voice-record"
             >
@@ -1103,6 +1172,7 @@ export function AssistantPanel({
         aria-label="Assistant question"
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
+        disabled={isGated}
         rows={3}
         style={{
           width: '100%',
@@ -1111,13 +1181,18 @@ export function AssistantPanel({
           marginBottom: `${spacing.sm}px`,
           borderRadius: `${radii.sm}px`,
           border: `1px solid ${palette.border.subtle}`,
-          backgroundColor: palette.surface,
-          color: palette.text.primary,
+          backgroundColor: isGated ? palette.surfaceRaised : palette.surface,
+          color: isGated ? palette.text.secondary : palette.text.primary,
           fontSize: '13px',
           fontFamily: 'inherit',
           resize: 'vertical',
+          cursor: isGated ? 'not-allowed' : 'text',
         }}
-        placeholder="Ask about your organizer items or Daynori features..."
+        placeholder={
+          isGated
+            ? 'Assistant is currently gated under DEF-V2-008. Use manual organizer controls.'
+            : 'Ask about your organizer items or Daynori features...'
+        }
       />
 
       <div style={{ display: 'flex', gap: `${spacing.sm}px`, flexWrap: 'wrap', marginBottom: `${spacing.sm}px` }}>
@@ -1125,7 +1200,7 @@ export function AssistantPanel({
           variant="primary"
           size="compact"
           themeMode={themeMode}
-          disabled={busy || !personalWorkspaceId || !question.trim()}
+          disabled={isGated || busy || !personalWorkspaceId || !question.trim()}
           onClick={() => void ask()}
         >
           {busy ? 'Streaming...' : 'Ask'}

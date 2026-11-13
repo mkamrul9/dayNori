@@ -3827,6 +3827,47 @@
         "docs/roadmap/v2/antigravity-handoff.md"
       ],
       "commit": "docs(product): review Version 2 outcomes and prioritize follow-up"
+    },
+    {
+      "id": "104",
+      "group": "v2-release",
+      "title": "Current Daynori web/PWA readiness audit and critical core fixes",
+      "dependsOn": [
+        "102"
+      ],
+      "scope": [
+        "apps/web",
+        "apps/api",
+        "tests/e2e",
+        "docs/roadmap",
+        "docs/phase-reports"
+      ],
+      "steps": [
+        "Audit real user journeys for sign-up/sign-in, workspace isolation, note/task/routine/journal create-save-reopen, search, offline reopen, and support.",
+        "Compare current commit and dirty tree with the Phase 102 packaged candidate.",
+        "Present gated features, especially Ask Nori, truthfully with clear explanations instead of looking available and failing on submit.",
+        "Fix reproducible defects and record other defects with owners and gates in the function register."
+      ],
+      "acceptance": [
+        "All 8 real user journeys pass with synthetic accounts and verified responses.",
+        "Gated Ask Nori assistant is presented truthfully with disabled inputs and explanatory links under DEF-V2-008.",
+        "Release candidate diff is documented and function register barriers are reconciled.",
+        "No deployment or release readiness claimed from local tests."
+      ],
+      "checks": [
+        "pnpm vitest run tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+        "node scripts/phase60-web-production-smoke.mjs",
+        "pnpm validate:function-register",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0104-current-web-pwa-readiness-audit-and-critical-core-fixes.md",
+        "docs/phase-reports/phase-102.md"
+      ],
+      "commit": "test(release): audit web/PWA readiness and present gated assistant truthfully"
     }
   ],
   "featureCoverage": [
@@ -4222,7 +4263,8 @@
         "100",
         "101",
         "102",
-        "103"
+        "103",
+        "104"
       ],
       "requirements": [
         "R-QUALITY",

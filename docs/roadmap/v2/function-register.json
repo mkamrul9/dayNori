@@ -136,9 +136,13 @@
       ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "tests/integration/phase10-workspaces-preferences.test.ts"
+        "tests/integration/phase10-workspaces-preferences.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
-      "evidenceRefs": [],
+      "evidenceRefs": [
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
+      ],
       "blockerOrDefect": "DEF-V2-001",
       "authorization": "Public sign-up; creates user then personal workspace provision.",
       "personalVisibility": "Visible when module is released and authorized; not a preference hide.",
@@ -196,10 +200,13 @@
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
         "tests/integration/phase09*.test.ts (historical)",
-        "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts"
+        "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-001",
       "authorization": "Valid credentials; session cookies/tokens.",
@@ -416,10 +423,13 @@
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts"
+        "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Authenticated user; workspace membership.",
@@ -475,10 +485,13 @@
       ],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
       "existingTests": [
-        "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts"
+        "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Authenticated user.",
@@ -1376,10 +1389,13 @@
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase18-tasks-deadlines.test.ts",
-        "tests/integration/phase19-tasks-workflows.test.ts"
+        "tests/integration/phase19-tasks-workflows.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member.",
@@ -1828,10 +1844,13 @@
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase20-routines-occurrences.test.ts",
-        "tests/integration/phase21-daily-routines-experience.test.ts"
+        "tests/integration/phase21-daily-routines-experience.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member.",
@@ -2562,11 +2581,14 @@
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase16-notes-domain-persistence.test.ts",
-        "tests/integration/phase17-focused-note-editor.test.ts"
+        "tests/integration/phase17-focused-note-editor.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
-        "tests/performance/results/phase58-baseline.json"
+        "tests/performance/results/phase58-baseline.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member.",
@@ -2627,11 +2649,14 @@
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase16-notes-domain-persistence.test.ts",
-        "tests/integration/phase17-focused-note-editor.test.ts"
+        "tests/integration/phase17-focused-note-editor.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
-        "tests/performance/results/phase58-baseline.json"
+        "tests/performance/results/phase58-baseline.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member.",
@@ -2884,10 +2909,13 @@
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase22-journal-entries.test.ts",
-        "tests/integration/phase23-journal-writing.test.ts"
+        "tests/integration/phase23-journal-writing.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member; journal treated as personal/private by defaults.",
@@ -3507,11 +3535,14 @@
       "existingTests": [
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "pnpm exec vitest run tests/performance/phase58-reliability-baseline.test.ts",
-        "tests/integration/phase33-search.test.ts"
+        "tests/integration/phase33-search.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
-        "tests/performance/results/phase58-baseline.json"
+        "tests/performance/results/phase58-baseline.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace-scoped; no cross-workspace results.",
@@ -4592,10 +4623,13 @@
         "pnpm exec vitest run tests/e2e/core-organizer-journeys.test.ts tests/integration/core-organizer-local-validation.test.ts",
         "tests/integration/phase13-client-sync-engine.test.ts",
         "tests/integration/phase34-conflict-recovery.test.ts",
-        "tests/integration/phase35-portability-export-import.test.ts"
+        "tests/integration/phase35-portability-export-import.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -5979,13 +6013,17 @@
       "existingTests": [
         "tests/integration/phase90-ai-consent-privacy-readiness.test.ts",
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
-        "tests/integration/phase56-ai-assistant-actions.test.ts"
+        "tests/integration/phase56-ai-assistant-actions.test.ts",
+        "tests/unit/phase104-gated-features-truthfulness.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/phase90/evidence-summary.json",
         "artifacts/phase90/findings-register.json",
         "artifacts/phase90/synthetic-test-package.json",
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6045,12 +6083,16 @@
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
         "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
-        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts"
+        "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
+        "tests/unit/phase104-gated-features-truthfulness.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
         "artifacts/phase91/evidence-summary.json",
-        "artifacts/phase92/evidence-summary.json"
+        "artifacts/phase92/evidence-summary.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6111,13 +6153,17 @@
         "tests/integration/phase56-ai-assistant-actions.test.ts",
         "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
         "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
-        "tests/integration/phase93-reviewed-organizer-creation.test.ts"
+        "tests/integration/phase93-reviewed-organizer-creation.test.ts",
+        "tests/unit/phase104-gated-features-truthfulness.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/phase93/evidence-summary.json",
         "artifacts/local/phase65/core-journeys.log",
         "artifacts/phase91/evidence-summary.json",
-        "artifacts/phase92/evidence-summary.json"
+        "artifacts/phase92/evidence-summary.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6180,7 +6226,9 @@
         "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
         "tests/integration/phase93-reviewed-organizer-creation.test.ts",
         "tests/integration/phase94-structured-organizer-tools.test.ts",
-        "tests/integration/phase95-voice-transcription-reviewed-creation.test.ts"
+        "tests/integration/phase95-voice-transcription-reviewed-creation.test.ts",
+        "tests/unit/phase104-gated-features-truthfulness.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
@@ -6188,7 +6236,9 @@
         "artifacts/phase92/evidence-summary.json",
         "artifacts/phase93/evidence-summary.json",
         "artifacts/phase94/evidence-summary.json",
-        "artifacts/phase95/evidence-summary.json"
+        "artifacts/phase95/evidence-summary.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6252,13 +6302,17 @@
         "tests/integration/phase56-ai-assistant-actions.test.ts",
         "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
         "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
-        "tests/integration/phase96-nori-companion-launcher.test.ts"
+        "tests/integration/phase96-nori-companion-launcher.test.ts",
+        "tests/unit/phase104-gated-features-truthfulness.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
         "artifacts/phase91/evidence-summary.json",
         "artifacts/phase92/evidence-summary.json",
-        "artifacts/phase96/evidence-summary.json"
+        "artifacts/phase96/evidence-summary.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6317,9 +6371,13 @@
       "dependencies": [],
       "validationNegativeCases": [],
       "offlineRetryConflict": "Follows workspace sync/outbox rules where implemented; see family notes.",
-      "existingTests": [],
+      "existingTests": [
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
+      ],
       "evidenceRefs": [
-        "docs/roadmap/v2/evidence/phase65-visual-manifest.json"
+        "docs/roadmap/v2/evidence/phase65-visual-manifest.json",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6491,13 +6549,16 @@
         "tests/unit/phase82-feedback-domain.test.ts",
         "tests/integration/phase82-feedback-durable.test.ts",
         "apps/mobile/src/views/SupportFeedbackView.test.ts",
-        "scripts/phase82-run-all-journeys.mjs"
+        "scripts/phase82-run-all-journeys.mjs",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/phase82/evidence-summary.json",
         "artifacts/phase82/journeys/desktop-bug-report.png",
         "artifacts/phase82/journeys/narrow-suggestion-report.png",
-        "artifacts/phase82/journeys/native-feedback-receipt.png"
+        "artifacts/phase82/journeys/native-feedback-receipt.png",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6726,14 +6787,17 @@
       "offlineRetryConflict": "Triage requires server connectivity; reports queued locally on client until connected.",
       "existingTests": [
         "tests/unit/phase83-feedback-triage-domain.test.ts",
-        "tests/integration/phase83-feedback-triage.test.ts"
+        "tests/integration/phase83-feedback-triage.test.ts",
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
       "evidenceRefs": [
         "docs/phase-reports/phase-83.md",
         "tests/integration/phase83-feedback-triage.test.ts",
         "tests/unit/phase83-feedback-triage-domain.test.ts",
         "artifacts/phase83/phase83-journey-summary.json",
-        "docs/decisions/0083-developer-feedback-triage-and-verified-support-contact.md"
+        "docs/decisions/0083-developer-feedback-triage-and-verified-support-contact.md",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": null,
       "authorization": "DAYNORI_OPERATOR_USER_IDS allowlist required; unauthenticated/non-operator denied fail-closed.",
@@ -7204,7 +7268,9 @@
         "docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md",
         "docs/decisions/0090-ai-provider-consent-privacy-and-operating-decisions.md",
         "docs/phase-reports/phase-90.md",
-        "artifacts/local/phase65/core-journeys.log"
+        "artifacts/local/phase65/core-journeys.log",
+        "docs/phase-reports/phase-104.md",
+        "artifacts/phase104/evidence-summary.json"
       ],
       "workaround": "Synthetic local provider mock only.",
       "dependency": "Owner approval of live synthetic test package + enterprise provider contract + server credentials.",

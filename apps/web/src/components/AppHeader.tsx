@@ -175,7 +175,8 @@ export const AppHeader: React.FC = () => {
           type="button"
           id="global-assistant-btn"
           data-testid="global-assistant-btn"
-          aria-label="Ask Nori assistant"
+          aria-label="Ask Nori assistant (Gated under DEF-V2-008)"
+          title="Ask Nori assistant (Gated under DEF-V2-008)"
           onClick={() => openModal('assistant')}
           style={buttonStyle}
           className="hide-below-380"
