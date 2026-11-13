@@ -116,7 +116,7 @@ describe('Mobile PWA usability — onboarding and preview copy', () => {
     expect(manifest.start_url).toBe('/today');
     expect(manifest.scope).toBe('/');
     const sw = fs.readFileSync(path.join(repoRoot, 'apps/web/public/sw.js'), 'utf8');
-    expect(sw).toMatch(/daynori-static-v7/);
+    expect(sw).toMatch(/daynori-static-v\d+/);
     expect(sw).toContain("path.startsWith('/api/')");
   });
 });

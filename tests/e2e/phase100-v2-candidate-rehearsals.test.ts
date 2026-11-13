@@ -497,7 +497,7 @@ describe('Phase 100: Version 2 Candidate Rehearsals & Readiness Reconciliation',
     }
 
     // Verify 6 capability-gated chapters reject with feature_gated
-    let progress = getDefaultTourProgress();
+    const progress = getDefaultTourProgress();
     const ctx = { accountUserId: 'test-user', workspaceId: 'test-ws' };
 
     for (const gid of gated) {

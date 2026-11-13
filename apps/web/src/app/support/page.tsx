@@ -455,8 +455,8 @@ export default function SupportPage() {
                     reportType === 'bug'
                       ? 'Brief description of what went wrong'
                       : reportType === 'suggestion'
-                      ? 'What feature or improvement would help you?'
-                      : 'Subject of your inquiry'
+                        ? 'What feature or improvement would help you?'
+                        : 'Subject of your inquiry'
                   }
                   required
                 />

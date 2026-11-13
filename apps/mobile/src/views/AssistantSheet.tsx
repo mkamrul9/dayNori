@@ -324,7 +324,7 @@ export function AssistantSheet({
         await apiClient.deleteAssistantHistory({ workspaceId, turnId });
         setHistory((prev) => prev.filter((h) => h.id !== turnId));
         setMessage('Turn deleted from assistant history.');
-      } catch (err) {
+      } catch {
         setMessage('Failed to delete turn');
       }
     },
@@ -336,7 +336,7 @@ export function AssistantSheet({
       await apiClient.deleteAssistantHistory({ workspaceId });
       setHistory([]);
       setMessage('Assistant history cleared.');
-    } catch (err) {
+    } catch {
       setMessage('Failed to clear history');
     }
   }, [apiClient, workspaceId]);

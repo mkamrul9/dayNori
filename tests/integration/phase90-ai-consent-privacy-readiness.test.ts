@@ -343,7 +343,6 @@ describe('Phase 90: AI provider consent, privacy, and operating decisions', () =
 
   it('AI-004: idempotent settlement releases reservation once and never double-counts', async () => {
     const windowStart = new Date().toISOString().slice(0, 7) + '-01';
-    let requestId: string;
 
     const setup = await adminPool.connect();
     try {
@@ -363,7 +362,7 @@ describe('Phase 90: AI provider consent, privacy, and operating decisions', () =
         [userId]
       )
     );
-    requestId = res.rows[0]!.request_id;
+    const requestId = res.rows[0]!.request_id;
 
     // First settle: actual usage 950 tokens (exceeded estimate)
     const settle1 = await withUserContext(runtimePool, userId, (c) =>

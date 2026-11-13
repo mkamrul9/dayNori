@@ -667,6 +667,21 @@ export default function PlanPage() {
         return;
       }
 
+      const viewParam = searchParams.get('view');
+      if (
+        viewParam === 'today' ||
+        viewParam === 'upcoming' ||
+        viewParam === 'overdue' ||
+        viewParam === 'completed' ||
+        viewParam === 'undated' ||
+        viewParam === 'reminders' ||
+        viewParam === 'all'
+      ) {
+        setActiveView(viewParam);
+      } else if (viewParam === 'tasks') {
+        setActiveView('all');
+      }
+
       if (targetId) {
         handleNavigateReminderTarget(targetType, targetId);
       } else if (reminderInstanceId) {

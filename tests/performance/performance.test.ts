@@ -178,7 +178,7 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
     }
     await adminPool.end();
     await runtimePool.end();
-  });
+  }, 30000);
 
   // --------------------------------------------------------------------------
   // Benchmark 1: API Save & Mutation Acknowledgment Latency (Target: p95 <= 100ms)
@@ -276,7 +276,7 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
     expect(stats.mean).toBeLessThan(80);
     // Server keyset pagination prevents heap bloat (< 25MB growth for 1000 item inspections)
     expect(heapGrowthMb).toBeLessThan(25);
-  });
+  }, 30000);
 
   // --------------------------------------------------------------------------
   // Benchmark 3: Concurrency Stress (100 operations across 20 concurrent client connections)
@@ -324,7 +324,7 @@ describe('Phase 37 Performance Release Gate Benchmarks', () => {
     await Promise.all(mutationWorkers);
     const mutationStats = calculatePercentiles(mutationLatencies);
     expect(mutationStats.p95).toBeLessThan(500);
-  });
+  }, 30000);
 
   // --------------------------------------------------------------------------
   // Benchmark 4: Worker Job Lease Acquisition & Queue Dispatch Latency

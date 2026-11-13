@@ -1118,10 +1118,10 @@ export default function LibraryPage() {
       prev.map((f) =>
         f.id === folderId
           ? {
-              ...f,
-              archivedAt: isNowArchived ? new Date().toISOString() : null,
-              revision: f.revision + 1,
-            }
+            ...f,
+            archivedAt: isNowArchived ? new Date().toISOString() : null,
+            revision: f.revision + 1,
+          }
           : f
       )
     );
@@ -1617,7 +1617,7 @@ export default function LibraryPage() {
         if (_abortSignal?.aborted) {
           await apiClientRef.current
             .cancelFileUploadReservation(workspaceId, reservationId)
-            .catch(() => {});
+            .catch(() => { });
           return { success: false, error: 'Upload cancelled.' };
         }
 
@@ -1680,7 +1680,7 @@ export default function LibraryPage() {
         if (_abortSignal?.aborted) {
           await apiClientRef.current
             .cancelFileUploadReservation(workspaceId, reservationId)
-            .catch(() => {});
+            .catch(() => { });
           return { success: false, error: 'Upload cancelled.' };
         }
 
@@ -1779,7 +1779,7 @@ export default function LibraryPage() {
         if (reservationId && apiClientRef.current && workspaceId) {
           await apiClientRef.current
             .cancelFileUploadReservation(workspaceId, reservationId)
-            .catch(() => {});
+            .catch(() => { });
         }
         return {
           success: false,
@@ -1799,7 +1799,7 @@ export default function LibraryPage() {
       byteSize: number;
     }) => {
       const fileObj = new File([data.blob], data.fileName, { type: data.mimeType });
-      const res = await handlePerformUpload(fileObj, currentFolderId, () => {});
+      const res = await handlePerformUpload(fileObj, currentFolderId, () => { });
       if (!res.success) {
         throw new Error(res.error || 'Failed to upload recorded audio.');
       }
@@ -1957,12 +1957,12 @@ export default function LibraryPage() {
           setEditingNote((prev) =>
             prev
               ? {
-                  ...prev,
-                  isNew: false,
-                  title: saved.title,
-                  document: saved.document,
-                  folderId: targetFolderId,
-                }
+                ...prev,
+                isNew: false,
+                title: saved.title,
+                document: saved.document,
+                folderId: targetFolderId,
+              }
               : null
           );
           if (isOnline) {
@@ -1990,12 +1990,12 @@ export default function LibraryPage() {
           setEditingNote((prev) =>
             prev
               ? {
-                  ...prev,
-                  isNew: false,
-                  title: saved.title,
-                  document: saved.document,
-                  folderId: targetFolderId,
-                }
+                ...prev,
+                isNew: false,
+                title: saved.title,
+                document: saved.document,
+                folderId: targetFolderId,
+              }
               : null
           );
         }
@@ -2020,10 +2020,10 @@ export default function LibraryPage() {
             prev.map((i) =>
               i.id === editingNote.id
                 ? {
-                    ...i,
-                    title: saved.title,
-                    folderId: targetFolderId,
-                  }
+                  ...i,
+                  title: saved.title,
+                  folderId: targetFolderId,
+                }
                 : i
             )
           );
@@ -2166,8 +2166,15 @@ export default function LibraryPage() {
     } else if (params.get('create') === 'file' && !isCorePreview) {
       setFileUploadOpen(true);
     }
-    if (params.get('type') === 'files') {
-      setTypeFilter('files');
+    const typeOrView = params.get('type') || params.get('view');
+    if (
+      typeOrView === 'files' ||
+      typeOrView === 'notes' ||
+      typeOrView === 'knowledge' ||
+      typeOrView === 'tasks' ||
+      typeOrView === 'all'
+    ) {
+      setTypeFilter(typeOrView);
     }
 
     const folderId = params.get('folderId');
@@ -2595,10 +2602,10 @@ export default function LibraryPage() {
               onClick={() => setLibraryToolsOpen((v) => !v)}
               data-tour-target={
                 !libraryToolsOpen &&
-                typeFilter === 'all' &&
-                !activeSavedViewId &&
-                !showArchived &&
-                !searchQuery.trim()
+                  typeFilter === 'all' &&
+                  !activeSavedViewId &&
+                  !showArchived &&
+                  !searchQuery.trim()
                   ? 'library.filter'
                   : undefined
               }
@@ -3101,12 +3108,12 @@ export default function LibraryPage() {
                 onAction={
                   searchQuery.trim() || typeFilter !== 'all'
                     ? () => {
-                        setTypeFilter('all');
-                        setSearchQuery('');
-                        setActiveSavedViewId(null);
-                        setShowArchived(false);
-                        setPage(1);
-                      }
+                      setTypeFilter('all');
+                      setSearchQuery('');
+                      setActiveSavedViewId(null);
+                      setShowArchived(false);
+                      setPage(1);
+                    }
                     : handleOpenNewNote
                 }
               />

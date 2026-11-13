@@ -354,7 +354,7 @@ export default function JournalPage() {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const dateParam = params.get('date');
-    const entryIdParam = params.get('entryId');
+    const entryIdParam = params.get('entryId') || params.get('id');
     const createParam = params.get('create');
 
     if (dateParam) {

@@ -74,5 +74,13 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
     },
+  },
+  // Tests & test fixtures
+  {
+    files: ['tests/**/*.{ts,tsx,js,mjs}', '**/*.test.{ts,tsx,js,mjs}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
   }
 );
