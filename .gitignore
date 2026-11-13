@@ -19,6 +19,8 @@ apps/mobile/ios/
 artifacts/release/*.apk
 artifacts/release/*.aab
 artifacts/release/*.ipa
+artifacts/release/*.tar.gz
+artifacts/release/*.zip
 
 
 # Local secrets and private material

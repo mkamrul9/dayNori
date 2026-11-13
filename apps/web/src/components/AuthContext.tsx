@@ -530,6 +530,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           clearDurableAudioDraft(currentWsId, currentUserId ?? undefined)
         )
         .catch(() => {});
+      // Phase 102/audit: Clear local storage uncommitted drafts to prevent cross-account leak on shared devices
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`daynori_expense_draft_${currentWsId}`);
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('daynori_expense_draft_')) {
+              localStorage.removeItem(k);
+            }
+          }
+        } catch {
+          // Best-effort local storage cleanup
+        }
+      }
     }
 
     // Clean up browser push subscription on backend and reset bound account state

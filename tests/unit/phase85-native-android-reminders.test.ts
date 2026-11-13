@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Notifications from 'expo-notifications';
 import {
   setupNotificationChannelsAsync,
@@ -204,23 +204,29 @@ describe('Phase 85: Native Android Reminder and Notification Readiness Suite', (
     });
 
     it('defers reminder scheduling to quiet hours end when quietHoursBehavior is defer', async () => {
-      const lateEvening = '2026-11-06T23:30:00.000Z';
-      const res = await scheduleLocalReminderAsync(null, {
-        instanceId: crypto.randomUUID(),
-        workspaceId: crypto.randomUUID(),
-        title: 'Deferred Task',
-        scheduledAt: lateEvening,
-        ruleRevision: 1,
-        quietHoursConfig: quietConfig,
-        quietHoursBehavior: 'defer',
-      });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z'));
+      try {
+        const lateEvening = '2026-11-06T23:30:00.000Z';
+        const res = await scheduleLocalReminderAsync(null, {
+          instanceId: crypto.randomUUID(),
+          workspaceId: crypto.randomUUID(),
+          title: 'Deferred Task',
+          scheduledAt: lateEvening,
+          ruleRevision: 1,
+          quietHoursConfig: quietConfig,
+          quietHoursBehavior: 'defer',
+        });
 
-      expect(res.scheduled).toBe(true);
-      const notif = __mockNotificationControls.getScheduledMap().get(res.nativeNotificationId!);
-      expect(notif).toBeDefined();
-      // Date trigger should match next quiet hours end (07:00 UTC next morning)
-      const triggerDate = notif?.trigger as { date?: Date };
-      expect(triggerDate?.date?.toISOString()).toContain('2026-11-07T07:00');
+        expect(res.scheduled).toBe(true);
+        const notif = __mockNotificationControls.getScheduledMap().get(res.nativeNotificationId!);
+        expect(notif).toBeDefined();
+        // Date trigger should match next quiet hours end (07:00 UTC next morning)
+        const triggerDate = notif?.trigger as { date?: Date };
+        expect(triggerDate?.date?.toISOString()).toContain('2026-11-07T07:00');
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('drops reminder scheduling when quietHoursBehavior is drop and within quiet hours', async () => {

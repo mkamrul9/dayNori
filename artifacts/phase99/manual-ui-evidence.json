@@ -1,0 +1,126 @@
+{
+  "phase": 99,
+  "title": "Version 2 Responsive, Accessibility, and UI Acceptance Audit",
+  "evaluatedAt": "2026-11-10T11:33:00+06:00",
+  "viewportsAudited": [
+    {
+      "breakpoint": "320px",
+      "deviceTarget": "Ultra-compact phone (e.g. iPhone SE 1st Gen)",
+      "orientation": "portrait",
+      "observations": [
+        "hide-below-380 responsive utility cleanly suppresses non-essential secondary actions, avoiding horizontal scrollbars.",
+        "Primary action buttons remain accessible with min 44px tap target.",
+        "Today view cards wrap cleanly without text truncation."
+      ],
+      "result": "Pass"
+    },
+    {
+      "breakpoint": "360px",
+      "deviceTarget": "Compact Android phone",
+      "orientation": "portrait",
+      "observations": [
+        "Standard mobile layout with bottom navigation bar displaying active icons and labels.",
+        "Touch targets meet 48dp Android accessibility guideline.",
+        "Bangla conjuncts and matras render clearly with 1.7 line height."
+      ],
+      "result": "Pass"
+    },
+    {
+      "breakpoint": "390px",
+      "deviceTarget": "Standard iOS device (iPhone 12/13/14/15)",
+      "orientation": "portrait",
+      "observations": [
+        "Full mobile layout with comfortably spaced lists and floating action button.",
+        "Virtual keyboard open simulation: bottom nav hides, modal footer stays pinned with position: sticky."
+      ],
+      "result": "Pass"
+    },
+    {
+      "breakpoint": "412px",
+      "deviceTarget": "Standard Android device (Google Pixel 7/8, Samsung Galaxy)",
+      "orientation": "portrait",
+      "observations": [
+        "Generous spacing for cards, routines, and note previews.",
+        "Touch targets exceed minimum thresholds; fast capture input is immediately focusable."
+      ],
+      "result": "Pass"
+    },
+    {
+      "breakpoint": "768px",
+      "deviceTarget": "Tablet portrait (iPad Mini, Galaxy Tab)",
+      "orientation": "portrait",
+      "observations": [
+        "Responsive grid layout adapts Today view into multi-column cards.",
+        "Modal dialogs render as centered floating dialogs with max-width: 600px."
+      ],
+      "result": "Pass"
+    },
+    {
+      "breakpoint": "1440px",
+      "deviceTarget": "Desktop monitor",
+      "orientation": "landscape",
+      "observations": [
+        "Expanded sidebar navigation with permanent labels and badges.",
+        "Dual-pane Library view with list on left and markdown editor on right.",
+        "Keyboard focus rings (2px solid) visible on all interactive elements."
+      ],
+      "result": "Pass"
+    }
+  ],
+  "accessibilityDimensions": {
+    "touchTargets": {
+      "webStandardMinPx": 44,
+      "mobileStandardMinDp": 48,
+      "compactButtonPx": 44,
+      "noriLauncherPx": 52,
+      "result": "Pass"
+    },
+    "textScaling200Percent": {
+      "welcomeTitleScaledPx": 64,
+      "pageTitleScaledPx": 48,
+      "bodyScaledPx": 32,
+      "lineHeightRelaxed": 1.625,
+      "lineHeightBangla": 1.7,
+      "clippingObserved": false,
+      "result": "Pass"
+    },
+    "colorContrastWCAG": {
+      "lightThemeNormalRatio": 15.3,
+      "lightThemeButtonRatio": 7.1,
+      "darkThemeNormalRatio": 12.6,
+      "darkThemeButtonRatio": 11.2,
+      "minimumRequired": 4.5,
+      "result": "Pass"
+    },
+    "reducedMotion": {
+      "fastMs": 0,
+      "standardMs": 0,
+      "slowMs": 0,
+      "noriCompanionAllowAnimation": false,
+      "pulseDurationMs": 0,
+      "result": "Pass"
+    },
+    "keyboardAndNonDrag": {
+      "focusRingWidthPx": 2,
+      "focusRingStyle": "solid",
+      "focusRingOffsetPx": 2,
+      "nonDragReorderingSupported": true,
+      "result": "Pass"
+    },
+    "mobileImeHandling": {
+      "simulatedKeyboardHeightPx": 300,
+      "bottomNavHiddenDuringInput": true,
+      "dialogFooterPinnedSticky": true,
+      "result": "Pass"
+    }
+  },
+  "tourChapterVerification": {
+    "totalChapters": 25,
+    "runnableEverydayChapters": 10,
+    "runnableAdvancedChapters": 5,
+    "safeExplanatoryChapters": 4,
+    "failClosedGatedChapters": 6,
+    "gatedRejectionStatus": "feature_gated",
+    "result": "Pass"
+  }
+}

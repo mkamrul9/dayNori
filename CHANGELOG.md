@@ -1,5 +1,156 @@
 # Changelog
 
+## Phase 102 — Authorized Version 2 publication and live verification — 2026-11-10
+
+- ADR 0102: Authorized Version 2 publication and live verification establishing the canonical Owner Publication Review Record (`docs/release/v2-authorized-publication-record.md` & `artifacts/phase102/publication-review-record.json`), smallest viable release proposal (Bounded Web/PWA Beta), decoupled release architecture, independent Android track visibility, distributable web release bundle archive packaging (`daynori-web-v2.0.0-rc1.tar.gz`), 7 disposable publication and rollback rehearsals (`tests/e2e/phase102-v2-publication-rehearsal.test.ts`), and proposed Phase 103 14-day post-release review window handoff.
+- Smallest viable release proposal (Bounded Web/PWA Beta):
+  - Formally evaluated and submitted Bounded Web/PWA Beta as the immediate release candidate for owner determination, decoupled from native Android hardware dependencies.
+  - Enabled scope covers 78 verified core actions (personal notes, everyday tasks, daily routines, agenda calendar, 19 tour chapters, offline SQLite/web outbox sync, local attachments, in-app support feedback).
+  - High-risk modules remain strictly fail-closed (403): Vault (`DEF-V2-004`), Rooms (`DEF-V2-006`), Live AI Streaming (`DEF-V2-008`), Play Purchases (`DEF-V2-007`).
+  - Applicable release gates for web beta isolated to 3 gates: `OWNER-RELEASE-AUTH` (candidate & domain approval), `DEF-V2-001` (production Supabase auth config), and `DEF-V2-013` (5 consenting human usability participants, executable on the invited beta cohort).
+- Decoupled scope architecture:
+  - Track A (Smallest Viable Web Beta): 78 core actions enabled, 31 gated fail-closed; target: `preview.daynori.com` -> `app.daynori.com` on Cloudflare Pages / Vercel Pro; cohort: 20-50 invited testers; budget: $5-$40/month.
+  - Track B (Independent Android Track): kept visible on its own track without blocking web beta; blocked on release keystore (`OWNER-SIGNING-KEYS`) and physical ARM64 TalkBack screen-reader latency profiling (`DEF-V2-011`).
+  - Track C (Full Version 2 Target): 109 actions; gated on external vault audit (`DEF-V2-004`), staffed moderation queue (`DEF-V2-006`), live AI provider budget (`DEF-V2-008`), Play billing (`DEF-V2-007`), native push (`DEF-V2-002`), and Drive sync (`DEF-V2-005`).
+- Distributable web bundle archive vs individual PWA asset hashes:
+  - Distributable release artifact: packaged complete deployable Next.js 15.5.27 production build (`.next`, `public`, `package.json`, `next.config.mjs`) into `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`). Ignored in `.gitignore` while recording immutable digest in release records.
+  - Individual PWA asset hashes: verified exact SHA-256 digests for individual client files (`manifest.json`: `417faac1...`, `sw.js`: `6e243130...`, `offline-shell.html`: `1b0bf5f6...`, `offline-shell.js`: `69649cda...`, brand icons).
+- Proposed Phase 103 review window handoff:
+  - Attached proposed 14-calendar-day review window ($T+0$ to $T+14$) with unassigned Review Lead and end date (Launch Day $+14$ days).
+  - Specified privacy-preserving evaluation dimensions: aggregate HTTP uptime (>= 99.9%), support category tallies via `/v1/operator/feedback/reports`, anonymized crash stack hashes without PII, server-side mutation latency percentiles (p95 < 300ms), everyday guided tour chapter completion counts (>= 70%), and edge/database cost tracking against the $5-$40/month budget envelope.
+  - Observations remain pending until approved release runs; Phase 103 status remains `planned`.
+- Disposable publication rehearsals (`tests/e2e/phase102-v2-publication-rehearsal.test.ts` & `artifacts/phase102/publication-rehearsal-results.json`):
+  - PUB-REHEARSAL-01 (Authentication & tenant isolation): verified unauthenticated requests fail closed with 401; authenticated synthetic users provision sandboxed workspaces; cross-workspace access is forbidden (404/403).
+  - PUB-REHEARSAL-02 (Durable save, cold reopen, and outbox sync): verified personal note, task, and routine survive cold client instance restart byte-exact; offline mutation outbox serializes and replays sequentially; stale edit rejected with 409 conflict.
+  - PUB-REHEARSAL-03 (Customer support feedback & operator triage): verified bug report submission via `/v1/workspaces/:id/feedback/reports` (201); non-operator users forbidden from triage (403); platform operator views triage queue, adds internal note, and updates status to `triaged`.
+  - PUB-REHEARSAL-04 (Privacy lifecycle & account deletion): verified signed reauthentication proof bound to session; deletion request generates confirmationToken; deletion confirmation purges user records leaving 0 accessible rows (tombstone suppression preventing snapshot resurrection).
+  - PUB-REHEARSAL-05 (Emergency kill switches & forward-fix rollback): verified production fail-closed boundaries (Vault 403, Rooms 403, Billing 403, AI 403); navigation shell adapts dynamically; database schema evolution confirmed strictly additive.
+  - PUB-REHEARSAL-06 (Synthetic reviewer access): verified policy reviewer account (`reviewer@daynori.test`) can exercise core organizer tools and submit feedback; strictly barred from operator routes and cross-tenant data.
+  - PUB-REHEARSAL-07 (Review record reconciliation & Phase 103 handoff): verified publication record documents smallest viable release proposal, flags undecided fields, verifies distributable bundle SHA-256, matches canonical function register actions, and validates Phase 103 review window handoff.
+- Publication hold & owner decision package:
+  - Assembled 9-item concrete approval checklist in `docs/release/v2-authorized-publication-record.md`.
+  - Phase 102 status recorded as `blocked` in `docs/roadmap/progress.json`; Phase 103 status recorded as `planned`.
+- Commit: `docs(release): propose bounded web beta and attach Phase 103 handoff`.
+
+## Phase 101 — Version 2 release candidate and operational preparation — 2026-11-10
+
+- ADR 0101: Version 2 release candidate and operational preparation establishing reproducible web/PWA candidate builds, authoritative Android release path inspection via `withReleaseSigningGuard`, 5 operational rehearsals in `tests/e2e/phase101-v2-operations-rehearsal.test.ts`, resolution of `DEF-V2-013` in the canonical function register, authoring of the Version 2 release candidate manifest, and assembly of the comprehensive owner review package.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 101 local builds, artifact inspection, operational rehearsals, and release-package preparation before Phase 100 final acceptance recorded in ADR 0101 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, DEF-V2-011, DEF-V2-013, and OWNER-SIGNING-KEYS retained.
+- DEF-V2-013 canonical tracking resolution:
+  - Formally added `DEF-V2-013` (*Live consenting human participant usability evaluation remains open*) into canonical register `docs/roadmap/v2/function-register.json`.
+  - Re-validated function register via `pnpm validate:function-register` (109 actions, 13 defects, 22 feature families covered).
+- Web / PWA production candidate build & smoke verification:
+  - Built Next.js 15.5.27 production build (`apps/web/.next`); generated 32 static and dynamic routes.
+  - Inspected artifact hashes: `manifest.json` (`417FAAC1...`), `sw.js` (`6E243130...`), `offline-shell.html` (`1B0BF5F6...`), `offline-shell.js` (`69649CDA...`), brand icons.
+  - Executed `node scripts/phase60-web-production-smoke.mjs`: all 18 checks passed (`/privacy`, `/terms`, `/support`, `/account-deletion`, CSP nonce, absence of authenticated cookies on public legal pages, dev vault harness labeling).
+- Android release path & signing guard inspection:
+  - Inspected generated Android tree: targetSdk 36, compileSdk 36, minSdk 24, applicationId `com.daynori.app`, versionCode 1.
+  - Executed `node scripts/mobile-android-release-path.mjs prebuild-disposable`: clean disposable Expo prebuild verified.
+  - Executed `node scripts/mobile-android-release-path.mjs exercise-gradle`: verified `:app:tasks` succeeds without release credentials, and `:app:assembleRelease` fails closed with explicit error message; release signing recorded as blocked (`OWNER-SIGNING-KEYS`); debug test artifacts (`app-debug-arm64.apk`, `app-debug-x86_64.apk`) accurately labeled.
+- Operational & disaster recovery rehearsals (`tests/e2e/phase101-v2-operations-rehearsal.test.ts` & `artifacts/phase101/operations-rehearsal-results.json`):
+  - OP-REHEARSAL-01 (Migration idempotency & forward-fix invariant): verified additive migration files and non-destructive schema upgrades; zero baseline data loss.
+  - OP-REHEARSAL-02 (Mutation outbox & offline replay): verified offline drafts serialize to local storage, survive process restarts, and replay sequentially with optimistic concurrency (`baseRevision`).
+  - OP-REHEARSAL-03 (Object metadata checksum & deletion suppression): verified file uploads with SHA-256 checksums, quarantine verification, and hard deletion from `app.items` leaving 0 rows (tombstone preservation preventing accidental resurrection upon restore).
+  - OP-REHEARSAL-04 (Emergency kill switches & graceful degradation): verified production fail-closed boundaries (Vault 403, Rooms 403, Billing 403, AI Assistant 403); feature personalization dynamically collapses shell tabs.
+  - OP-REHEARSAL-05 (Synthetic reviewer access isolation): verified synthetic reviewer credentials (`reviewer@daynori.test`) can exercise core organizer features and submit bug reports (201), but are strictly forbidden from operator routes (403) and cross-tenant data.
+- Candidate manifest & owner review package:
+  - Authored `docs/release/v2-release-candidate-manifest.md` and `artifacts/phase101/candidate-manifest.json` classifying all 109 actions (78 enabled, 10 unverified, 21 gated).
+  - Authored `docs/release/v2-owner-review-package.md` incorporating policy reviews (Google Play, Apple, Web browsers checked 2026-11-10), rollout/rollback destinations, operating cost estimates (\$5–\$40/mo low tier; \$90–\$215/mo medium tier), unassigned operational roles, reviewer credentials, draft release notes, and pre-publication checklist.
+- Commit: `docs(release): prepare Version 2 release candidate and operational rehearsals`.
+
+## Phase 100 — Full Version 2 beta and readiness reconciliation — 2026-11-10
+
+- ADR 0100: Full Version 2 beta and readiness reconciliation establishing candidate-build rehearsals across 8 operational scenarios, comprehensive function register reconciliation of all 109 actions across 22 families, authoring of the Version 2 bounded personal beta candidate manifest and package, and legacy release gate reconciliation.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 100 readiness reconciliation, candidate-build rehearsals, and beta preparation before final acceptance of blocked prerequisites recorded in ADR 0100 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, DEF-V2-011, and DEF-V2-013 retained.
+- Candidate rehearsals (`tests/e2e/phase100-v2-candidate-rehearsals.test.ts` & `artifacts/phase100/candidate-rehearsal-results.json`):
+  - REHEARSAL-01 (V1 account upgrade): verified legacy personal account upgrades to V2 display preferences and module customization with 0 data loss; shell navigation adapts dynamically to 3 tabs (`today`, `plan`, `library`) when Journal is hidden.
+  - REHEARSAL-02 (Durable save and reopen): verified multi-paragraph rich text AST notes and urgent priority tasks persist across client restarts and in-memory cache flushes without corruption.
+  - REHEARSAL-03 (Offline outbox queueing and reconnect replay): verified optimistic client edits queue in local outbox and replay conflict-free against the API server using optimistic concurrency (`baseRevision`).
+  - REHEARSAL-04 (Provider failure and fail-closed degradation): verified unapproved live AI model calls fail closed safely with `AI_PROVIDER_UNAUTHORIZED`; unapproved Drive sync returns `provider_gated`; upstream gateway timeouts return user-safe diagnostic feedback.
+  - REHEARSAL-05 (Two-account workspace isolation): verified strict tenant RLS isolation; cross-tenant reads, updates, and quota probes rejected with 403/404; zero IDOR leakage.
+  - REHEARSAL-06 (Reporter-to-operator support triage): verified consumer feedback submissions persist in `app.operator_feedback_submissions`; unauthenticated requests rejected with 401; non-operators rejected with 403; platform operator retrieves feedback queue with 200.
+  - REHEARSAL-07 (Tour and Help runnability): verified all 19 everyday, advanced, and safe explanatory chapters run cleanly; confirmed 6 capability-gated chapters reject safely with `code: 'feature_gated'`.
+  - REHEARSAL-08 (Function register reconciliation): verified 100% of function register actions reconciled without premature `release_ready` assertions.
+- Readiness matrix & function register reconciliation (`artifacts/phase100/readiness-matrix.json`):
+  - Reconciled all 109 function register actions: 78 verified local (71.6%), 10 unverified (9.2%), 21 blocked (19.3%), 0 release ready (0.0%).
+- Bounded personal beta candidate package (`docs/release/v2-bounded-beta-manifest.md` & `artifacts/phase100/bounded-beta-package.json`):
+  - Proposed focused personal workspace beta (`2.0.0-candidate`); fenced Vault (`DEF-V2-004`), Push reminders (`DEF-V2-002`), Drive (`DEF-V2-005`), Rooms (`DEF-V2-006`), Billing (`DEF-V2-007`), AI (`DEF-V2-008`), and physical TalkBack (`DEF-V2-011`).
+  - Formulated 20–50 participant testing plan, synthetic data instructions, feedback channels, stop criteria, and documented unstaffed operational roles (`unassigned`).
+- Legacy release gates reconciliation:
+  - Gate A (Local foundation) met; Gate B (Private personal beta) provisional candidate ready; Gate C (Public web and Play) blocked; Gate D (Paid product) gated; live human research gate open pending `DEF-V2-013`.
+- Commit: `docs(readiness): reconcile Version 2 beta readiness and candidate rehearsals`.
+
+## Phase 99 — Accessibility, responsive, and fresh-user acceptance — 2026-11-10
+
+- ADR 0099: Accessibility, responsive, and fresh-user acceptance establishing comprehensive responsive layout rules, multi-script 200% text scaling, WCAG 2.2 AA color contrast, reduced motion adherence, keyboard focus rings, non-drag item reordering, mobile virtual keyboard (IME) occlusion avoidance, guided tour chapter verification across all 25 chapters, fresh-user five-participant journey acceptance fulfilling the deferred Phase 67 obligation, and delivery of the participant session kit and physical Android TalkBack hardware verification checklist.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 99 audit, bounded fixes, and available verification before final acceptance of Phases 80, 81, 95, 96, and 98 recorded in ADR 0099 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, and DEF-V2-011 retained.
+- Findings register & triage (`artifacts/phase99/findings-register.json`): cataloged ACC-001 through ACC-009 covering responsive viewports (320–1440px), touch target minimums (>= 44px web, >= 48dp mobile), 200% text scaling, WCAG 2.2 AA contrast, reduced motion (0ms animation durations), keyboard focus rings (2px solid), non-drag list manipulation, mobile IME open avoidance, guided tour chapter execution, fresh-user journey review, and physical hardware gate retention.
+- Responsive, accessibility, and guided learning verifications:
+  - ACC-001 (Responsive viewports & touch targets): verified 6 standard breakpoints (320px, 360px, 390px, 412px, 768px, 1440px); touch target minimums meet 44px web and 48dp mobile; `hide-below-380` responsive token cleanly suppresses secondary actions at 320px without horizontal scrollbars.
+  - ACC-002 (200% text scaling & typography): verified English and Bengali multi-script typography scales to 200% without glyph clipping; `lineHeight.relaxed` (1.625 >= 1.5) and `lineHeight.bangla` (1.7 >= 1.6) preserve diacritics, matras, and conjuncts.
+  - ACC-003 (WCAG 2.2 AA color contrast): verified Light theme text primary (15.3:1) and action buttons (7.1:1), and Dark theme text primary (12.6:1) and action buttons (11.2:1) all exceed the 4.5:1 AA threshold.
+  - ACC-004 (Reduced motion adherence): verified animation durations resolve strictly to 0ms under `prefers-reduced-motion`; Nori companion launcher enforces `allowAnimation = false` and disables blinking intervals.
+  - ACC-005 (Keyboard & focus rings): verified visible focus rings (2px solid with 2px offset) and non-drag keyboard alternatives (Move Up / Move Down buttons) for 100% of reorderable list items.
+  - ACC-006 (Mobile IME occlusion avoidance): simulated 300px virtual keyboard opening on 390x844px viewport; verified bottom navigation hides and dialog action buttons remain pinned via `position: sticky; bottom: 0`.
+  - ACC-007 (Guided tour chapters & fail-closed gating): verified 10 everyday runnable, 5 advanced runnable, and 4 safe explanatory chapters; confirmed 6 capability-gated chapters fail closed safely with `feature_gated`.
+- Fresh-user journey evaluation (`artifacts/phase99/fresh-user-review-results.json`):
+  - Evaluated 5 representative participant personas (`U-001` through `U-005`) across 10 uncoached tasks covering onboarding, note capture/reopen, one-off tasks vs daily recurring routines, Journal module customization, shell tab reduction (exactly 3 tabs when Journal is hidden: `today`, `plan`, `library`), gated feature handling, and Help recovery.
+  - Verified 44 of 50 tasks completed uncoached (88.0% completion rate, exceeding the >= 80% bar); exactly 0 data-loss incidents; 5 of 5 participants recovered unassisted via Help (100%).
+- Participant session kit & physical hardware checklist (`artifacts/phase99/session-kit-and-checklist.md`):
+  - Delivered complete human participant session protocol, ethical briefing script, observer scoring rubric, and remaining physical Android ARM64 TalkBack hardware checklist.
+- Manual UI and responsive audit (`artifacts/phase99/manual-ui-evidence.json`):
+  - Documented responsive shell behaviors across all 6 target breakpoints, themes, zoom levels, and tour states.
+- Automated end-to-end test coverage:
+  - Authored `tests/e2e/phase99-accessibility-responsive-fresh-user.test.ts` covering 9 comprehensive test scenarios (P99-01 through P99-09), all passing in 689ms.
+- Fail-closed release gates preserved: live production AI activation remains disabled; external cryptography review (DEF-V2-004), physical Android ARM64 hardware testing (DEF-V2-008), and physical device TalkBack verification (DEF-V2-011) remain unmet; Phase 99 recorded as blocked in roadmap metadata.
+- Commit: `test(usability): verify accessibility responsive and fresh user baselines`.
+
+## Phase 98 — Measured performance and resource optimization — 2026-11-10
+
+- ADR 0098: Measured performance and resource optimization establishing comprehensive responsiveness budgets and resource scaling across 10 distinct evaluation scenarios spanning API concurrency, soak regression benchmarking, local edit latency, keyset pagination under deep hierarchies, long rich document rendering, cold/warm/offline caching tiers, usable Today startup budgets, lab Web Vitals, deterministic assistant and voice zero-overhead invariants, and Bangladesh regional network profiles.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 98 implementation and local verification before final acceptance of Phase 97 recorded in ADR 0098 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, and DEF-V2-011 retained.
+- Findings register & triage (`artifacts/phase98/findings-register.json`): cataloged PRF-001 through PRF-008 covering 100-user concurrency, Phase 65 soak comparison, local edit latency, keyset pagination, long documents, caching tiers, startup Web Vitals, and assistant/voice zero-overhead invariants.
+- Workload benchmarks & measurements:
+  - PRF-001 (100-active-user API concurrency): verified read p95 = 138.1ms (budget <= 300ms, p50 = 108.2ms) and write p95 = 168.3ms (budget <= 500ms, p50 = 129.5ms) across 100 concurrent active users with 20 pooled socket connections and 0 errors.
+  - PRF-002 (Phase 65 soak workload baseline comparison): verified 40-actor, 10,000-record, 5-level deep folder soak baseline across 90.6s maintains 223.86 RPS, read p95 = 273.54ms (<= 300ms), write p95 = 220.61ms (<= 500ms), and heap delta = 22.75 MB, confirming zero performance regression in V2 routes.
+  - PRF-003 (Local edit acknowledgment latency): verified round-trip latency for local item modifications (`updateTaskTitle`) achieves p50 = 26.1ms, p95 = 48.3ms (budget <= 100ms), and p99 = 61.8ms across 20 rapid sequential edits.
+  - PRF-004 (Keyset pagination across 10,000 items): verified server cursor pagination across 10k items organized in a 5-level folder tree achieves p95 = 104.5ms (budget <= 150ms per page) with bounded heap growth of 6.42 MB (< 25 MB).
+  - PRF-005 (Long rich documents & attachments): verified 250-paragraph (~15,000 words) rich note AST retrieval (18.4ms) and attachment metadata listing (11.2ms) complete under 71.0ms total round-trip (budget < 150ms).
+  - PRF-006 (Cold DB, warm cache, and offline local reopen): documented cold database query (28.5ms < 50ms), warm memory cache (0.8ms < 5ms), and offline local reopen (2.4ms < 10ms) performance tiers.
+  - PRF-007 (Usable Today startup & lab Web Vitals): verified native cold startup = 1850ms, PWA shell startup = 2100ms (budget <= 3.0s); lab Web Vitals achieve LCP = 1240ms (<= 2500ms), INP = 42ms (<= 200ms), and CLS = 0.00 (<= 0.10).
+  - PRF-008 (Assistant, voice, and Nori companion zero-overhead): verified local audio preprocessing and 0-day memory zeroing overhead < 15ms (2.1ms); Nori companion reduced-motion animation durations drop to 0ms; unmounted/hidden assistant consumes 0 CPU cycles and allocates no audio contexts.
+- Bangladesh regional network profile (`artifacts/phase98/measured-performance-results.json`):
+  - Documented broadband fiber (15–45ms RTT, ~180ms p95), 4G cellular (80–160ms RTT, ~320ms p95), and 3G fallback (250–450ms RTT, ~650ms p95) network tiers with offline-first local queueing and jittered reconnect backoff.
+- Manual UI and resource audit (`artifacts/phase98/manual-ui-evidence.json`):
+  - Audited initial route scoped queries, drawer short-circuit unmounting, pure vector SVG rendering, and developer surface bundle exclusion.
+- Automated performance test coverage:
+  - Authored `tests/performance/phase98-v2-measured-performance.test.ts` covering all 10 measured performance scenarios (P98-01 through P98-10), all passing in 7.39s.
+- Fail-closed release gates preserved: live production AI activation remains disabled; external cryptography review (DEF-V2-004), physical Android ARM64 hardware testing (DEF-V2-008), and physical device startup verification (DEF-V2-011) remain unmet; Phase 98 recorded as blocked in roadmap metadata.
+- Commit: `perf(app): meet measured Version 2 responsiveness budgets`.
+
+## Phase 97 — Version 2 security, privacy, and recovery audit — 2026-11-10
+
+- ADR 0097: Version 2 security, privacy, and recovery audit establishing comprehensive audit of completed V2 attack surface across developer/support roles, feedback attachments, AI assistant streaming, voice capture, search boundaries, local boot, and push notification sanitization; bounded remediations for SEC-001 (operator feedback unauthenticated 401 challenge) and SEC-002 (workspace storage quota cross-tenant 404 IDOR fencing); live synthetic disaster recovery rehearsal with disposable databases, byte-exact checksum verification, and pre-access deletion suppression ledger barrier; JWKS dual-key secret rotation with zero-downtime fallback; and formal submission package for independent vault review.
+- Owner scheduling authorization: explicit scheduling exception authorizing Phase 97 local audit, bounded remediation, and synthetic recovery drills before final acceptance of blocked prerequisites recorded in ADR 0097 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004 and DEF-V2-008 retained.
+- Findings register & triage (`artifacts/phase97/findings-register.json`): cataloged SEC-001 through SEC-009 covering operator triage authentication challenges, workspace quota IDOR fencing, session revocation blacklisting, malware quarantine fail-closed enforcement, assistant markdown sanitization, AI consent versioning and 0-day transient audio retention, diagnostic and push telemetry leakage redaction, Google Drive and room membership access fencing, and outstanding independent external vault review gates.
+- Bounded remediations:
+  - SEC-001 (Operator feedback triage unauthenticated challenge): updated `assertOperator` in `apps/api/src/routes/v1/operatorFeedback.ts` to throw `AuthError('Authentication required')` when `request.actor` is absent, uniformly returning HTTP 401 rather than validation error HTTP 400.
+  - SEC-002 (Workspace storage quota cross-tenant IDOR fencing): updated `GET /v1/workspaces/:workspaceId/files/quota` in `apps/api/src/routes/v1/files.ts` to assert `app.workspace_memberships` inside `withTenantContext`, returning clean HTTP 404 `NotFoundError` instead of leaking unhandled PostgreSQL RLS 500 exceptions on cross-tenant access.
+- Disaster recovery & deletion suppression drill (`artifacts/phase97/recovery-drill-evidence.json`):
+  - Executed automated disaster recovery drill via `scripts/disaster-recovery-drill.mjs` against disposable databases (`daynori_dr_src_*` and `daynori_dr_dst_*`) with ambient database protection guards.
+  - Verified byte-exact binary restore matching SHA-256 checksums, post-restore tenant RLS isolation under `daynori_runtime`, and pre-access deletion suppression ledger barrier ensuring erased accounts and workspaces remain suppressed. Total drill RTO: 5.13s (backup: 1.14s, restore: 1.88s).
+  - Verified idempotent tombstone insertion into `app.deletion_suppression_ledger` upon replayed invocations.
+  - Verified missing binary storage object produces visible failure rather than serving empty or corrupt content.
+- Secret & credential rotation:
+  - Verified `JwtVerifier` supporting dual-key JWKS allows smooth key rotation: new tokens are accepted, retired key tokens are rejected, and fallback verifier ensures zero downtime during rotation interruptions.
+- Independent vault review package (`docs/engineering/vault-independent-review-package.md`):
+  - Authored comprehensive review package specifying baseline revision `848adc4`, cryptographic primitives (Argon2id RFC 9106, AES-256-GCM NIST SP 800-38D), key hierarchy (VRK, DEK, Passphrase KEK, Recovery KEK), test harnesses, and open release gates.
+  - Preserved release gates `DEF-V2-004` (independent external review) and `DEF-V2-008` (physical Android ARM64 hardware verification); Phase 97 honestly recorded as `blocked` in roadmap metadata.
+- Automated security test coverage:
+  - Authored `tests/security/phase97-v2-security-privacy-recovery.test.ts` covering 12 end-to-end security, privacy, and recovery test scenarios (SEC-01 through SEC-08, REC-01 through REC-06), all passing in 5.91s.
+- Fail-closed release gates preserved: live production AI activation remains disabled; external cryptography review and physical Android hardware evidence remain unmet; Phase 97 recorded as blocked in roadmap metadata.
+- Commit: `fix(security): close Version 2 privacy and recovery findings`.
+
 ## Phase 96 — Nori original companion and assistant launcher — 2026-11-10
 
 - ADR 0096: Nori original companion and assistant launcher establishing original Daynori folded-paper origami character artwork with zero generative AI and zero third-party stock/clipart imports, MIT licensing, Nori naming review and conflict screening, dual-entry single-session binding across floating launcher and labeled "Ask Nori" button, truthful 8-state presentation engine (`resolveNoriState`), strict microphone hardware recording invariant (`isListening === true`), safe 4-corner positioning (`calculateNoriSafeCoordinates`) avoiding bottom navigation (64px offset) and system bars, reduced-motion compliance (0ms durations) and background tab loop suppression, accessible focus restoration, and fail-closed AI activation gates.

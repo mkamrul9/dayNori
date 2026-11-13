@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, typography } from '@daynori/design-tokens';
 import {
@@ -54,7 +54,7 @@ function FeedbackTriageBody() {
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'danger'; text: string } | null>(null);
 
-  const apiClient = useMemo(() => createWebApiClient({ csrfToken }), [csrfToken]);
+  const apiClient = createWebApiClient({ csrfToken });
 
   // Load reports list
   const loadReports = useCallback(async () => {
@@ -122,23 +122,20 @@ function FeedbackTriageBody() {
       setInternalNotes([]);
       setAuditTrail([]);
     }
-  }, [selectedReportId]);
+  }, [selectedReportId, loadReportDetails]);
 
   // Update Status
-  const handleUpdateStatus = async (overrideStatus?: FeedbackReportStatus) => {
-    const nextSt = overrideStatus || targetStatus;
-    if (!selectedReport || !nextSt || nextSt === selectedReport.status) return;
+  const handleUpdateStatus = async () => {
+    if (!selectedReport || !targetStatus || targetStatus === selectedReport.status) return;
     setIsUpdating(true);
     try {
       const updated = await apiClient.updateFeedbackTriageReport(selectedReport.id, {
-        status: nextSt,
+        status: targetStatus,
       });
       setSelectedReport(updated.data);
-      setTargetStatus(nextSt);
-      setStatusMessage({ type: 'success', text: `Status updated to ${nextSt}` });
+      setStatusMessage({ type: 'success', text: `Status updated to ${targetStatus}` });
       await loadReports();
-      const auditRes = await apiClient.listFeedbackTriageAudit(selectedReport.id);
-      setAuditTrail(auditRes.data);
+      await loadReportDetails(selectedReport.id);
     } catch (err) {
       setStatusMessage({
         type: 'danger',
@@ -150,20 +147,17 @@ function FeedbackTriageBody() {
   };
 
   // Update Priority
-  const handleUpdatePriority = async (overridePriority?: FeedbackPriority) => {
-    const nextPr = overridePriority || targetPriority;
-    if (!selectedReport || !nextPr || nextPr === selectedReport.priority) return;
+  const handleUpdatePriority = async () => {
+    if (!selectedReport || !targetPriority || targetPriority === selectedReport.priority) return;
     setIsUpdating(true);
     try {
       const updated = await apiClient.updateFeedbackTriageReport(selectedReport.id, {
-        priority: nextPr,
+        priority: targetPriority,
       });
       setSelectedReport(updated.data);
-      setTargetPriority(nextPr);
-      setStatusMessage({ type: 'success', text: `Priority updated to ${nextPr}` });
+      setStatusMessage({ type: 'success', text: `Priority updated to ${targetPriority}` });
       await loadReports();
-      const auditRes = await apiClient.listFeedbackTriageAudit(selectedReport.id);
-      setAuditTrail(auditRes.data);
+      await loadReportDetails(selectedReport.id);
     } catch (err) {
       setStatusMessage({
         type: 'danger',
@@ -189,8 +183,7 @@ function FeedbackTriageBody() {
         text: dupId ? `Linked duplicate of report ${dupId}` : 'Cleared duplicate link',
       });
       await loadReports();
-      const auditRes = await apiClient.listFeedbackTriageAudit(selectedReport.id);
-      setAuditTrail(auditRes.data);
+      await loadReportDetails(selectedReport.id);
     } catch (err) {
       setStatusMessage({
         type: 'danger',
@@ -211,12 +204,7 @@ function FeedbackTriageBody() {
       });
       setNewNoteText('');
       setStatusMessage({ type: 'success', text: 'Internal note added' });
-      const [notesRes, auditRes] = await Promise.all([
-        apiClient.listFeedbackInternalNotes(selectedReport.id),
-        apiClient.listFeedbackTriageAudit(selectedReport.id),
-      ]);
-      setInternalNotes(notesRes.data);
-      setAuditTrail(auditRes.data);
+      await loadReportDetails(selectedReport.id);
     } catch (err) {
       setStatusMessage({
         type: 'danger',
@@ -237,9 +225,7 @@ function FeedbackTriageBody() {
       });
       setSelectedReport(updated.data);
       setStatusMessage({ type: 'success', text: 'Response delivered to reporter' });
-      await loadReports();
-      const auditRes = await apiClient.listFeedbackTriageAudit(selectedReport.id);
-      setAuditTrail(auditRes.data);
+      await loadReportDetails(selectedReport.id);
     } catch (err) {
       setStatusMessage({
         type: 'danger',
@@ -671,11 +657,8 @@ function FeedbackTriageBody() {
                           fontSize: 13,
                         }}
                       >
-                        <option value={selectedReport.status}>
-                          {selectedReport.status} (current)
-                        </option>
                         {(['new', 'acknowledged', 'investigating', 'resolved', 'closed', 'duplicate', 'dismissed'] as FeedbackReportStatus[])
-                          .filter((st) => isValidFeedbackStatusTransition(selectedReport.status, st) && st !== selectedReport.status)
+                          .filter((st) => isValidFeedbackStatusTransition(selectedReport.status, st))
                           .map((st) => (
                             <option key={st} value={st}>
                               {st}
@@ -687,26 +670,10 @@ function FeedbackTriageBody() {
                         variant="primary"
                         data-testid="btn-update-status"
                         disabled={isUpdating || targetStatus === selectedReport.status}
-                        onClick={() => void handleUpdateStatus()}
+                        onClick={handleUpdateStatus}
                       >
                         Apply
                       </Button>
-                    </div>
-                    <div style={{ display: 'flex', gap: spacing.xs, marginTop: spacing.xs, flexWrap: 'wrap' }}>
-                      {(['acknowledged', 'investigating', 'resolved', 'closed'] as FeedbackReportStatus[])
-                        .filter((st) => isValidFeedbackStatusTransition(selectedReport.status, st) && st !== selectedReport.status)
-                        .map((st) => (
-                          <Button
-                            key={st}
-                            themeMode={themeMode}
-                            variant="secondary"
-                            data-testid={`btn-quick-status-${st}`}
-                            disabled={isUpdating}
-                            onClick={() => void handleUpdateStatus(st)}
-                          >
-                            Mark {st}
-                          </Button>
-                        ))}
                     </div>
                   </div>
 
@@ -740,26 +707,10 @@ function FeedbackTriageBody() {
                         variant="secondary"
                         data-testid="btn-update-priority"
                         disabled={isUpdating || targetPriority === selectedReport.priority}
-                        onClick={() => void handleUpdatePriority()}
+                        onClick={handleUpdatePriority}
                       >
                         Apply
                       </Button>
-                    </div>
-                    <div style={{ display: 'flex', gap: spacing.xs, marginTop: spacing.xs, flexWrap: 'wrap' }}>
-                      {(['low', 'medium', 'high', 'critical'] as FeedbackPriority[])
-                        .filter((pr) => (selectedReport.priority || 'medium') !== pr)
-                        .map((pr) => (
-                          <Button
-                            key={pr}
-                            themeMode={themeMode}
-                            variant="secondary"
-                            data-testid={`btn-quick-priority-${pr}`}
-                            disabled={isUpdating}
-                            onClick={() => void handleUpdatePriority(pr)}
-                          >
-                            Set {pr}
-                          </Button>
-                        ))}
                     </div>
                   </div>
 
@@ -837,7 +788,7 @@ function FeedbackTriageBody() {
                     data-testid="input-developer-response"
                     label="Compose or update response"
                     value={responseText}
-                    onChange={(e) => setResponseText((e.target as HTMLTextAreaElement).value)}
+                    onChange={(val) => setResponseText(typeof val === 'string' ? val : (val as unknown as { target: { value: string } }).target.value)}
                     rows={3}
                     placeholder="Enter message to deliver to the reporter..."
                   />
@@ -900,7 +851,7 @@ function FeedbackTriageBody() {
                     data-testid="input-internal-note"
                     label="Add confidential note"
                     value={newNoteText}
-                    onChange={(e) => setNewNoteText((e.target as HTMLTextAreaElement).value)}
+                    onChange={(val) => setNewNoteText(typeof val === 'string' ? val : (val as unknown as { target: { value: string } }).target.value)}
                     rows={2}
                     placeholder="Enter internal operator notes..."
                   />

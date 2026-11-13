@@ -1,0 +1,86 @@
+{
+  "phase": "102",
+  "status": "blocked",
+  "evaluatedAt": "2026-11-10T14:00:00.000Z",
+  "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
+  "rehearsalVerdict": "LAUNCH_PREPARATION_REHEARSAL_PASS",
+  "publicationAuthorized": false,
+  "smallestViableReleaseProposal": {
+    "scope": "BOUNDED_WEB_PWA_BETA",
+    "verifiedActionsCount": 78,
+    "gatedActionsCount": 31,
+    "distributableArtifact": "artifacts/release/daynori-web-v2.0.0-rc1.tar.gz",
+    "distributableSha256": "663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c",
+    "applicableGates": [
+      "OWNER-RELEASE-AUTH",
+      "DEF-V2-001",
+      "DEF-V2-013"
+    ],
+    "cohortSize": "20 to 50 invited consenting beta testers",
+    "monthlyBudget": "$5-$40/month low tier"
+  },
+  "independentAndroidTrack": {
+    "status": "TRACKED_SEPARATELY",
+    "targetTrack": "Google Play Internal Testing Track",
+    "blockedGates": [
+      "OWNER-SIGNING-KEYS",
+      "DEF-V2-011"
+    ]
+  },
+  "phase103Handoff": {
+    "status": "PLANNED",
+    "reviewWindowDays": 14,
+    "observationsStatus": "PENDING_APPROVED_RELEASE_EXECUTION"
+  },
+  "blockingGates": [
+    {
+      "gate": "OWNER-RELEASE-AUTH",
+      "scope": "WEB_PWA_BETA",
+      "description": "Explicit owner authorization required for candidate revision, distributable web archive, target domain/host, testing cohort, and operating budget."
+    },
+    {
+      "gate": "DEF-V2-001",
+      "scope": "WEB_PWA_BETA",
+      "description": "Production Supabase / Google OAuth identity provider configuration and redirect URLs for web domain."
+    },
+    {
+      "gate": "DEF-V2-013",
+      "scope": "WEB_PWA_BETA",
+      "description": "Live consenting human participant usability evaluation (deferred Phase 67 obligation: >= 5 representative consenting people, with >= 4 capturing/reopening an item and finding Help unassisted) to be conducted on the invited web beta cohort."
+    },
+    {
+      "gate": "OWNER-SIGNING-KEYS",
+      "scope": "ANDROID_TRACK",
+      "description": "Production Android release keystore and signing credentials (DAYNORI_RELEASE_STORE_*) are not present in workspace; release builds fail closed via withReleaseSigningGuard."
+    },
+    {
+      "gate": "DEF-V2-011",
+      "scope": "ANDROID_TRACK",
+      "description": "Physical Android ARM64 hardware startup verification and physical TalkBack screen-reader latency profiling remain unmet."
+    },
+    {
+      "gate": "DEF-V2-004",
+      "scope": "FULL_V2",
+      "description": "Independent qualified security review of vault cryptographic implementation, key rotation, and zero-knowledge guarantees remains unmet."
+    },
+    {
+      "gate": "DEF-V2-008",
+      "scope": "FULL_V2",
+      "description": "Physical Android ARM64 hardware Keystore / StrongBox biometric verification remains unmet; live AI model provider authorization pending."
+    },
+    {
+      "gate": "DEF-V2-006",
+      "scope": "FULL_V2",
+      "description": "Staffed moderation operational ownership and human review triage queue unassigned for rooms collaboration."
+    }
+  ],
+  "verifiedLocalChecks": [
+    "pnpm release:preflight --allow-partial-local (0 failures, 20 passes, 13 blocked, releaseEligible=false)",
+    "node scripts/mobile-android-release-path.mjs inspect (PASS: guard=present, targetSdk=36, compileSdk=36, versionCode=1)",
+    "node scripts/mobile-android-release-path.mjs exercise-gradle (PASS: :app:tasks passed, :app:assembleRelease failed closed without credentials)",
+    "node scripts/phase60-web-production-smoke.mjs (PASS: 18 public route, CSP, and gating checks passed)",
+    "tests/e2e/phase102-v2-publication-rehearsal.test.ts (PASS: 7 publication rehearsals passed)",
+    "pnpm validate:function-register (PASS: 109 actions, 13 defects, 22 families)",
+    "pnpm validate:planning (PASS: 104 phases, 22 requirements, 459 markdown files)"
+  ]
+}

@@ -16,6 +16,7 @@ import {
   ResponseMetaSchema,
 } from '@daynori/contracts';
 import { withOperatorContext } from '../../db/index.js';
+import { AuthError } from '../../auth/jwt.js';
 import {
   ExplicitForbiddenError,
   NotFoundError,
@@ -55,7 +56,7 @@ function sendFeedbackError(
 function assertOperator(request: FastifyRequest) {
   const actor = request.actor;
   if (!actor) {
-    throw new ValidationError('Authentication required');
+    throw new AuthError('Authentication required');
   }
   const allowed = isPlatformOperator({ userId: actor.userId }, process.env);
   if (!allowed) {

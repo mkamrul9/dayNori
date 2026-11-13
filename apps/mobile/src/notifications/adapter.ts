@@ -40,6 +40,7 @@ export interface ScheduleLocalReminderOptions {
   scheduledAt: string; // ISO 8601
   destination?: ApprovedDestination;
   itemId?: string;
+  targetType?: string;
   ruleRevision: number;
   deliveryGeneration?: number;
   privacyLevel?: 'normal' | 'private' | 'confidential' | 'detailed' | 'title_only';
@@ -461,8 +462,8 @@ export async function scheduleLocalReminderAsync(
   // Strict invariant: confidential targets, vault items, journal entries, and private notes NEVER leak text
   if (
     options.destination === 'journal' ||
-    options.destination === ('vault' as any) ||
-    (options as any).targetType === 'vault' ||
+    (options.destination as string) === 'vault' ||
+    options.targetType === 'vault' ||
     options.privacyLevel === 'confidential'
   ) {
     displayTitle = 'Daynori Reminder';

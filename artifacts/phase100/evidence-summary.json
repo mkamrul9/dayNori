@@ -1,0 +1,62 @@
+{
+  "phase": 100,
+  "title": "Full Version 2 Beta and Readiness Reconciliation",
+  "evaluatedAt": "2026-11-10T12:05:00+06:00",
+  "status": "blocked",
+  "blockingGates": [
+    {
+      "gate": "DEF-V2-004",
+      "description": "Independent external security review of vault cryptographic implementation, key rotation, and zero-knowledge guarantees remains unmet."
+    },
+    {
+      "gate": "DEF-V2-008",
+      "description": "Physical Android ARM64 hardware Keystore / StrongBox biometric verification remains unmet; live AI model provider authorization pending."
+    },
+    {
+      "gate": "DEF-V2-011",
+      "description": "Physical Android hardware startup verification and physical TalkBack screen-reader latency profiling remain unmet."
+    },
+    {
+      "gate": "DEF-V2-013",
+      "description": "Live consenting human participant usability evaluation (deferred Phase 67 obligation: >= 5 representative consenting people, with >= 4 capturing/reopening an item and finding Help unassisted) remains open pending live human sessions."
+    },
+    {
+      "gate": "OWNER-BETA-AUTH",
+      "description": "Explicit owner authorization required for external beta launch, participant cohort activation, live cloud deployment, and external provider spending."
+    }
+  ],
+  "candidateRevision": "43dd5858fb8a3a5a65ced01ead9d390d0abb74ab",
+  "pinnedBuild": "2.0.0-candidate",
+  "readinessMatrix": "artifacts/phase100/readiness-matrix.json",
+  "candidateRehearsalResults": "artifacts/phase100/candidate-rehearsal-results.json",
+  "boundedBetaPackage": "artifacts/phase100/bounded-beta-package.json",
+  "manifestDoc": "docs/release/v2-bounded-beta-manifest.md",
+  "testExecution": {
+    "testSuite": "tests/e2e/phase100-v2-candidate-rehearsals.test.ts",
+    "totalRehearsals": 8,
+    "passed": 8,
+    "failed": 0,
+    "durationMs": 1143
+  },
+  "functionRegister": {
+    "totalActions": 109,
+    "verifiedLocal": 78,
+    "unverified": 10,
+    "blocked": 21,
+    "releaseReady": 0
+  },
+  "compliance": {
+    "candidateRehearsalsAllPassed": true,
+    "v1UpgradeZeroDataLoss": true,
+    "durableSaveAndReopenVerified": true,
+    "offlineReconnectReplayVerified": true,
+    "providerFailureGracefulDegradation": true,
+    "twoAccountWorkspaceIsolationStrict": true,
+    "reporterToOperatorSupportTriageVerified": true,
+    "guidedTourChaptersVerifiedAndGated": true,
+    "functionRegisterActions100PercentReconciled": true,
+    "syntheticVsPhysicalEvidenceStrictlyDistinct": true,
+    "humanParticipantGateHonestlyPreserved": true,
+    "noUnauthorizedReleaseClaims": true
+  }
+}

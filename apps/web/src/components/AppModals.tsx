@@ -1501,31 +1501,33 @@ export const AppModals: React.FC = () => {
         personalWorkspaceId={workspaceId}
       />
       {/* 13. Phase 96 Nori Companion Launcher (Optional corner launcher) */}
-      <NoriCompanionLauncher
-        isOpen={activeModal === 'assistant'}
-        onToggleOpen={() => {
-          if (activeModal === 'assistant') {
-            closeModal();
-          } else {
-            openModal('assistant');
-          }
-        }}
-        themeMode={themeMode}
-        preferences={preferences?.noriCompanion}
-        onUpdatePreferences={async (noriPrefs) => {
-          const current = preferences?.noriCompanion || {
-            enabled: true,
-            position: 'bottom-right',
-            reducedMotion: false,
-          };
-          await savePreferences({
-            noriCompanion: {
-              ...current,
-              ...noriPrefs,
-            },
-          });
-        }}
-      />
+      {isOperator && isAuthenticated && workspaceId ? (
+        <NoriCompanionLauncher
+          isOpen={activeModal === 'assistant'}
+          onToggleOpen={() => {
+            if (activeModal === 'assistant') {
+              closeModal();
+            } else {
+              openModal('assistant');
+            }
+          }}
+          themeMode={themeMode}
+          preferences={preferences?.noriCompanion}
+          onUpdatePreferences={async (noriPrefs) => {
+            const current = preferences?.noriCompanion || {
+              enabled: true,
+              position: 'bottom-right',
+              reducedMotion: false,
+            };
+            await savePreferences({
+              noriCompanion: {
+                ...current,
+                ...noriPrefs,
+              },
+            });
+          }}
+        />
+      ) : null}
     </>
   );
 };

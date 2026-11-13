@@ -16,6 +16,22 @@ config.resolver.nodeModulesPaths = [
 // Support TypeScript source files with .js import specifiers in monorepo
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith('./apps/mobile/')) {
+    const remapped = './' + moduleName.slice('./apps/mobile/'.length);
+    try {
+      return context.resolveRequest(context, remapped, platform);
+    } catch {
+      // Fall through
+    }
+  }
+  if (moduleName.startsWith('apps/mobile/')) {
+    const remapped = './' + moduleName.slice('apps/mobile/'.length);
+    try {
+      return context.resolveRequest(context, remapped, platform);
+    } catch {
+      // Fall through
+    }
+  }
   if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
     if (moduleName.endsWith('.js')) {
       const tsModuleName = moduleName.slice(0, -3);

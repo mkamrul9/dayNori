@@ -31,7 +31,7 @@ import {
   type ReservationRecord,
 } from '../../modules/files/service.js';
 import { getStorageUsage } from '../../modules/files/quotaService.js';
-import { validateResponse } from '../../plugins/errorHandler.js';
+import { validateResponse, NotFoundError } from '../../plugins/errorHandler.js';
 
 const ReservationParamsSchema = WorkspaceParamsSchema.extend({
   reservationId: z.string().uuid(),
@@ -55,6 +55,13 @@ export function registerFileRoutes(app: FastifyInstance, pool: Pool): void {
       pool,
       { userId: actor.userId, workspaceId },
       async (client) => {
+        const memberRes = await client.query(
+          `SELECT 1 FROM app.workspace_memberships WHERE workspace_id = $1 AND user_id = $2`,
+          [workspaceId, actor.userId]
+        );
+        if (memberRes.rowCount === 0) {
+          throw new NotFoundError('Workspace not found or access denied');
+        }
         return getStorageUsage(client, workspaceId);
       }
     );

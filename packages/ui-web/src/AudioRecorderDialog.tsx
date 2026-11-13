@@ -158,7 +158,6 @@ export const AudioRecorderDialog: React.FC<AudioRecorderDialogProps> = ({
       setRecordedBlob(null);
       setFeedback(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- close transition only
   }, [isOpen, cleanupMedia]);
 
   // Select preferred supported mime type

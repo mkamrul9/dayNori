@@ -7329,6 +7329,39 @@
       "dependency": "Phases 79–81.",
       "nextAction": "Implement tour engine then everyday/advanced chapters.",
       "owningPhase": "79"
+    },
+    {
+      "id": "DEF-V2-013",
+      "title": "Live consenting human participant usability evaluation remains open",
+      "affectedActions": [
+        "account.welcome-shell",
+        "help.search-howtos",
+        "help.replay-beginner-guide"
+      ],
+      "platforms": [
+        "web",
+        "installedPwa",
+        "android"
+      ],
+      "severity": "medium",
+      "userImpact": "Fresh-user acceptance is substantiated solely by synthetic persona evaluation; real usability validation on representative consenting people remains pending.",
+      "expected": "At least 5 representative consenting people evaluate the core workflow, with at least 4 capturing/reopening an item and finding Help unassisted.",
+      "observed": "Phase 99 and Phase 100 verified 5 personas via synthetic simulation only; live human sessions have not been conducted.",
+      "reproduction": [
+        "Review artifacts/phase99/fresh-user-review-results.json",
+        "Review docs/decisions/0099-accessibility-responsive-and-fresh-user-acceptance.md",
+        "Review artifacts/phase100/evidence-summary.json"
+      ],
+      "environment": "synthetic-simulation",
+      "evidenceRefs": [
+        "artifacts/phase99/fresh-user-review-results.json",
+        "docs/phase-reports/phase-99.md",
+        "docs/release/v2-bounded-beta-manifest.md"
+      ],
+      "workaround": "Synthetic persona evaluation and automated E2E rehearsal.",
+      "dependency": "Phase 67 / Phase 99 live human study protocol.",
+      "nextAction": "Conduct live sessions with 5 consenting representative users under authorized protocol; keep gate open until satisfied.",
+      "owningPhase": "99"
     }
   ],
   "coverageNotes": [

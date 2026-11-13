@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
 import { Button, Card, Feedback } from '@daynori/ui-web';
+import { useShell } from '../../components/ShellContext';
 
 export default function PublicAccountDeletionPage() {
-  const palette = colors.light;
+  const { themeMode } = useShell();
+  const palette = colors[themeMode];
 
   const [email, setEmail] = useState('');
   const [reason, setReason] = useState('');
@@ -92,7 +94,7 @@ export default function PublicAccountDeletionPage() {
         </div>
 
         {/* Option 1: In-App Deletion */}
-        <Card themeMode="light">
+        <Card themeMode={themeMode}>
           <h2
             style={{
               fontSize: '18px',
@@ -141,7 +143,7 @@ export default function PublicAccountDeletionPage() {
         </Card>
 
         {/* Option 2: Web Deletion Request (if uninstalled) */}
-        <Card themeMode="light">
+        <Card themeMode={themeMode}>
           <h2
             style={{
               fontSize: '18px',
@@ -171,7 +173,7 @@ export default function PublicAccountDeletionPage() {
                 severity="success"
                 title="Request Received"
                 message={resultMessage}
-                themeMode="light"
+                themeMode={themeMode}
               />
             </div>
           )}
@@ -182,7 +184,7 @@ export default function PublicAccountDeletionPage() {
                 severity="danger"
                 title="Submission Error"
                 message={errorMessage}
-                themeMode="light"
+                themeMode={themeMode}
               />
             </div>
           )}
@@ -258,7 +260,7 @@ export default function PublicAccountDeletionPage() {
 
             <Button
               variant="danger"
-              themeMode="light"
+              themeMode={themeMode}
               disabled={isSubmitting || !email}
               type="submit"
             >
@@ -268,7 +270,7 @@ export default function PublicAccountDeletionPage() {
         </Card>
 
         {/* Policy Disclosures */}
-        <Card themeMode="light">
+        <Card themeMode={themeMode}>
           <h2
             style={{
               fontSize: '18px',

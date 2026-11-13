@@ -1,0 +1,89 @@
+{
+  "phase": 100,
+  "title": "Version 2 Candidate Rehearsal Results",
+  "evaluatedAt": "2026-11-10T12:05:00+06:00",
+  "candidateRevision": "43dd5858fb8a3a5a65ced01ead9d390d0abb74ab",
+  "pinnedBuild": "2.0.0-candidate",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v24.11.1",
+    "pnpm": "9.15.5",
+    "testRunner": "vitest 4.1.11",
+    "database": "PostgreSQL 16 / daynori_test with Supabase schema migration v00077",
+    "auth": "JwtVerifier RS256 local JWKS",
+    "fixtures": "synthetic tenant workspaces, mock tokens"
+  },
+  "testExecution": {
+    "suite": "tests/e2e/phase100-v2-candidate-rehearsals.test.ts",
+    "totalRehearsals": 8,
+    "passed": 8,
+    "failed": 0,
+    "durationMs": 1143
+  },
+  "rehearsals": [
+    {
+      "id": "REHEARSAL-01",
+      "name": "V1 to V2 Account Upgrade & Schema Evolution",
+      "targetScenario": "Provision initial account under V1 structure, evolve preferences, customize module visibility (hide Journal), and verify 100% data preservation and shell adaptation to 3 primary tabs.",
+      "result": "pass",
+      "measured": "Historical notes, tasks, and routines retained byte-exact text; preferences updated; shell tabs adapted to exactly ['today', 'plan', 'library'].",
+      "dataLoss": false
+    },
+    {
+      "id": "REHEARSAL-02",
+      "name": "Durable Save, Reopen, and Cold Cache Restart",
+      "targetScenario": "Create multi-paragraph rich notes and priority tasks, simulate client process restart / cold cache flush, and reopen.",
+      "result": "pass",
+      "measured": "All paragraphs and task attributes retrieved intact without data corruption or truncation.",
+      "dataLoss": false
+    },
+    {
+      "id": "REHEARSAL-03",
+      "name": "Offline Mutation Outbox Queueing & Conflict-Free Replay",
+      "targetScenario": "Enqueue optimistic note edits, task completion, and note creation in offline outbox; simulate reconnect and replay with optimistic concurrency (baseRevision).",
+      "result": "pass",
+      "measured": "3 outbox mutations replayed sequentially; server acknowledged with 200/201; server revisions updated; zero lost updates.",
+      "dataLoss": false
+    },
+    {
+      "id": "REHEARSAL-04",
+      "name": "Provider Failure Simulation & Fail-Closed Degradation",
+      "targetScenario": "Simulate external AI provider failure, unapproved live model calls, and Google Drive OAuth disconnection.",
+      "result": "pass",
+      "measured": "Unapproved live AI model calls throw AI_PROVIDER_UNAUTHORIZED; unapproved Drive sync returns provider_gated; gateway timeout returns user-safe diagnostic feedback with local caching.",
+      "dataLoss": false
+    },
+    {
+      "id": "REHEARSAL-05",
+      "name": "Two-Account Workspace Isolation & IDOR Fencing",
+      "targetScenario": "Alice and Bob operate separate workspaces; Bob attempts cross-tenant read, update, and quota probe on Alice's resources.",
+      "result": "pass",
+      "measured": "Cross-tenant reads and updates rejected with 403/404 via withTenantContext RLS; zero cross-tenant leakage; Alice data untouched.",
+      "dataLoss": false
+    },
+    {
+      "id": "REHEARSAL-06",
+      "name": "Reporter-to-Operator Support Triage Workflow",
+      "targetScenario": "Consumer user submits bug report with diagnostics; verify database persistence, unauthenticated 401 challenge, non-operator 403 forbidden, and operator 200 triage retrieval.",
+      "result": "pass",
+      "measured": "Feedback stored in app.operator_feedback_submissions; unauthenticated request returned 401; non-operator returned 403; operator returned 200 with report list.",
+      "dataLoss": false
+    },
+    {
+      "id": "REHEARSAL-07",
+      "name": "Guided Tour & Help Chapter Runnability & Gating",
+      "targetScenario": "Verify definitions and runnability for 10 everyday, 5 advanced, and 4 safe explanatory chapters; verify 6 capability-gated chapters reject safely with feature_gated.",
+      "result": "pass",
+      "measured": "19 chapters runnable; 6 capability-gated chapters return ok: false with code: feature_gated.",
+      "dataLoss": false
+    },
+    {
+      "id": "REHEARSAL-08",
+      "name": "Function Register Reconciliation & Release Gate Barriers",
+      "targetScenario": "Reconcile all 109 function register actions; verify 78 verified_local, 10 unverified, 21 blocked, 0 release_ready; verify DEF-V2-001 through DEF-V2-012 defect references.",
+      "result": "pass",
+      "measured": "100% of function register actions reconciled; release gate barriers enforced without unauthorized release_ready claims.",
+      "dataLoss": false
+    }
+  ]
+}

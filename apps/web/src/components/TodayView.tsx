@@ -65,12 +65,12 @@ const MODULE_SHORTCUT_HREFS: Record<ModuleShortcutId, string> = {
   plan: '/plan',
   library: '/library',
   journal: '/journal',
-  notes: '/library?view=notes',
-  tasks: '/plan?view=tasks',
-  routines: '/plan?view=routines',
-  calendar: '/plan?view=calendar',
-  files: '/library?view=files',
-  knowledge: '/library?view=knowledge',
+  notes: '/library?type=notes',
+  tasks: '/plan',
+  routines: '/today',
+  calendar: '/plan/calendar',
+  files: '/library?type=files',
+  knowledge: '/library?type=knowledge',
 };
 
 const MODULE_SHORTCUT_ICONS: Record<ModuleShortcutId, string> = {
@@ -93,11 +93,11 @@ function getRecentItemHref(item: RecentItemEntry): string {
     case 'task':
       return `/plan?taskId=${item.id}`;
     case 'routine':
-      return `/plan?routineId=${item.id}`;
+      return `/today?routineId=${item.id}`;
     case 'file':
       return `/library?fileId=${item.id}`;
     case 'journal':
-      return `/journal?id=${item.id}`;
+      return `/journal?entryId=${item.id}`;
     default:
       return '/';
   }
