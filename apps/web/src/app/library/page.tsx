@@ -2358,7 +2358,7 @@ export default function LibraryPage() {
               margin: '4px 0 0 0',
             }}
           >
-            Notes, folders, and saved items ? search or write a note to begin
+            Notes, folders, and saved items · search or write a note to begin
           </p>
         </div>
 
@@ -2558,7 +2558,7 @@ export default function LibraryPage() {
           >
             <input
               type="search"
-              placeholder="Search notes and folders?"
+              placeholder="Search notes and folders..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);

@@ -3,14 +3,15 @@
 import React from 'react';
 import Link from 'next/link';
 import { colors, radii, spacing, touchTargets, typography } from '@daynori/design-tokens';
-import { Card, Icon } from '@daynori/ui-web';
+import { Icon } from '@daynori/ui-web';
 import { useShell } from '../../components/ShellContext';
 import { SettingsPageChrome } from '../../components/settings/SettingsPageChrome';
 import { SETTINGS_GROUPS } from '../../components/settings/settingsGroups';
 
 /**
- * Settings hub — grouped entry page for mobile/PWA and desktop.
- * Focused controls live on stable subpages under /settings/*.
+ * Modern, calm Settings hub.
+ * Consolidates settings groups into an elegant notebook list with soft dividers,
+ * eliminating repeated large card borders while maintaining clear touch targets.
  */
 export default function SettingsPage() {
   const { themeMode } = useShell();
@@ -22,30 +23,56 @@ export default function SettingsPage() {
       description="Choose a group. Appearance, privacy, and workspace controls open on focused subpages."
     >
       <nav aria-label="Settings groups">
-        <ul
+        <div
           style={{
-            listStyle: 'none',
-            margin: 0,
-            padding: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: `${spacing.sm}px`,
+            backgroundColor: palette.surface,
+            borderRadius: `${radii.card}px`,
+            border: `1px solid ${palette.border.subtle}`,
+            boxShadow:
+              themeMode === 'dark'
+                ? '0 1px 4px rgba(0, 0, 0, 0.3)'
+                : '0 1px 4px rgba(23, 44, 44, 0.04)',
+            overflow: 'hidden',
           }}
         >
-          {SETTINGS_GROUPS.map((group) => (
-            <li key={group.id}>
-              <Link
-                href={group.href}
-                id={`settings-group-${group.id}`}
-                style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
-              >
-                <Card themeMode={themeMode}>
-                  <div
+          <ul
+            style={{
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {SETTINGS_GROUPS.map((group, index) => {
+              const isLast = index === SETTINGS_GROUPS.length - 1;
+
+              return (
+                <li
+                  key={group.id}
+                  style={{
+                    borderBottom: isLast ? 'none' : `1px solid ${palette.border.subtle}`,
+                  }}
+                >
+                  <Link
+                    href={group.href}
+                    id={`settings-group-${group.id}`}
                     style={{
+                      textDecoration: 'none',
+                      color: 'inherit',
                       display: 'flex',
-                      alignItems: 'flex-start',
+                      alignItems: 'center',
                       gap: `${spacing.base}px`,
-                      minWidth: 0,
+                      padding: `${spacing.md}px ${spacing.base}px`,
+                      minHeight: `${touchTargets.webMin}px`,
+                      transition: 'background-color 140ms ease',
+                      boxSizing: 'border-box',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
                     <span
@@ -54,22 +81,23 @@ export default function SettingsPage() {
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        minWidth: `${touchTargets.webMin}px`,
-                        minHeight: `${touchTargets.webMin}px`,
+                        width: '38px',
+                        height: '38px',
                         borderRadius: `${radii.sm}px`,
-                        backgroundColor: palette.surfaceRaised,
+                        backgroundColor: palette.action.subtle,
                         color: palette.action.primary,
                         flexShrink: 0,
                       }}
                     >
                       <Icon name={group.icon} size={20} />
                     </span>
+
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         className="daynori-break"
                         style={{
-                          fontSize: `${typography.webScale.sectionHeading}px`,
-                          fontWeight: 700,
+                          fontSize: `${typography.webScale.body}px`,
+                          fontWeight: 600,
                           color: palette.text.primary,
                         }}
                       >
@@ -78,24 +106,32 @@ export default function SettingsPage() {
                       <p
                         className="daynori-break"
                         style={{
-                          margin: '4px 0 0',
+                          margin: '2px 0 0',
                           fontSize: '13px',
                           color: palette.text.secondary,
-                          lineHeight: 1.45,
+                          lineHeight: 1.4,
                         }}
                       >
                         {group.description}
                       </p>
                     </div>
-                    <span aria-hidden="true" style={{ color: palette.text.secondary, flexShrink: 0 }}>
+
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        color: palette.text.secondary,
+                        flexShrink: 0,
+                        marginLeft: `${spacing.xs}px`,
+                      }}
+                    >
                       <Icon name="chevron-right" size={18} />
                     </span>
-                  </div>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </nav>
     </SettingsPageChrome>
   );

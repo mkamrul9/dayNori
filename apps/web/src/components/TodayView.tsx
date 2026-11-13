@@ -1430,9 +1430,11 @@ export const TodayView: React.FC = () => {
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'stretch',
-            gap: `${spacing.sm}px`,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: `${spacing.base}px`,
+            flexWrap: 'wrap',
             minWidth: 0,
           }}
         >
@@ -1623,16 +1625,23 @@ export const TodayView: React.FC = () => {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '6px 12px',
+                  padding: '5px 12px',
                   borderRadius: `${radii.pill}px`,
                   backgroundColor: palette.surfaceRaised,
-                  border: `1px solid ${palette.border.subtle}`,
+                  border: '1px solid transparent',
                   color: palette.text.primary,
                   fontSize: '13px',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   textDecoration: 'none',
                   maxWidth: '100%',
                   minWidth: 0,
+                  transition: 'background-color 140ms ease, border-color 140ms ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = palette.border.subtle;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'transparent';
                 }}
               >
                 <span>
@@ -2192,7 +2201,7 @@ export const TodayView: React.FC = () => {
                           padding: `${spacing.sm}px`,
                           backgroundColor: palette.surfaceRaised,
                           borderRadius: `${radii.sm}px`,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                         }}
                       >
                         <div
@@ -2216,7 +2225,7 @@ export const TodayView: React.FC = () => {
                           padding: `${spacing.sm}px`,
                           backgroundColor: palette.surfaceRaised,
                           borderRadius: `${radii.sm}px`,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                         }}
                       >
                         <div
@@ -2271,21 +2280,22 @@ export const TodayView: React.FC = () => {
                         href="/plan?create=task"
                         id="quick-capture-task"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="check" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="check" size={16} />
                         </span>{' '}
                         New Task
                       </Link>
@@ -2294,21 +2304,22 @@ export const TodayView: React.FC = () => {
                         href="/library?create=note"
                         id="quick-capture-note"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="note" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="note" size={16} />
                         </span>{' '}
                         New Note
                       </Link>
@@ -2321,21 +2332,22 @@ export const TodayView: React.FC = () => {
                           setIsEditorOpen(true);
                         }}
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           cursor: 'pointer',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="refresh" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="repeat" size={16} />
                         </span>{' '}
                         Routine
                       </button>
@@ -2344,21 +2356,22 @@ export const TodayView: React.FC = () => {
                         href="/journal"
                         id="quick-capture-journal"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="book" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="journal" size={16} />
                         </span>{' '}
                         Write Journal
                       </Link>
@@ -2367,21 +2380,22 @@ export const TodayView: React.FC = () => {
                         href="/library"
                         id="quick-capture-file"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="folder" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="folder" size={16} />
                         </span>{' '}
                         Upload File
                       </Link>
@@ -2589,21 +2603,22 @@ export const TodayView: React.FC = () => {
                             key={f.id}
                             href={`/library?folderId=${f.id}`}
                             style={{
-                              padding: '6px 12px',
-                              borderRadius: `${radii.sm}px`,
+                              padding: '6px 14px',
+                              borderRadius: `${radii.pill}px`,
                               backgroundColor: palette.surfaceRaised,
-                              border: `1px solid ${palette.border.subtle}`,
+                              border: '1px solid transparent',
                               color: palette.text.primary,
                               fontSize: '13px',
-                              fontWeight: 600,
+                              fontWeight: 500,
                               textDecoration: 'none',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px',
+                              gap: '6px',
+                              transition: 'background-color 140ms ease, border-color 140ms ease',
                             }}
                           >
-                            <span>
-                              <Icon name="folder" />
+                            <span style={{ color: palette.action.primary }}>
+                              <Icon name="folder" size={16} />
                             </span>{' '}
                             {f.name}
                           </Link>

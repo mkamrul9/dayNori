@@ -15,6 +15,10 @@ export interface EmptyStateProps {
   icon?: React.ReactNode;
 }
 
+/**
+ * Notebook-inspired Empty State.
+ * Calmer presentation with a soft badge, warm typography, and clear next action.
+ */
 export const EmptyState: React.FC<EmptyStateProps> = ({
   id,
   title,
@@ -37,9 +41,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
-        padding: `${spacing.xxl}px ${spacing.lg}px`,
-        backgroundColor: palette.surface,
-        border: `1px dashed ${palette.border.strong}`,
+        padding: `${spacing.xl}px ${spacing.lg}px`,
+        backgroundColor: palette.surfaceRaised,
+        border: `1px solid ${palette.border.subtle}`,
         borderRadius: `${radii.card}px`,
         margin: `${spacing.md}px 0`,
         boxSizing: 'border-box',
@@ -50,9 +54,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <div
           aria-hidden="true"
           style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '48px',
+            height: '48px',
+            borderRadius: '24px',
+            backgroundColor: palette.action.subtle,
+            color: palette.action.primary,
             marginBottom: `${spacing.md}px`,
-            color: palette.text.secondary,
-            fontSize: '32px',
           }}
         >
           {icon}
@@ -64,6 +74,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           marginBottom: `${spacing.xs}px`,
           fontSize: `${typography.webScale.sectionHeading}px`,
           fontWeight: 700,
+          letterSpacing: '-0.2px',
           color: palette.text.primary,
         }}
       >
@@ -82,7 +93,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         {description}
       </p>
       {actionLabel && onAction && (
-        <Button variant={actionVariant} themeMode={themeMode} onClick={onAction}>
+        <Button variant={actionVariant} size="compact" themeMode={themeMode} onClick={onAction}>
           {actionLabel}
         </Button>
       )}

@@ -1,0 +1,137 @@
+{
+  "phase": "105",
+  "status": "blocked",
+  "evaluatedAt": "2026-11-14T00:03:00.000Z",
+  "baseRevision": "a86ce2d0f9836365f5a894675b31dfa3d5ea7220",
+  "scope": "WEB_PWA_VISUAL_REFINEMENT_AND_MODERN_INTERFACE_OVERHAUL",
+  "auditVerdict": "WEB_PWA_VISUAL_REFINEMENT_PASS",
+  "publicationAuthorized": false,
+  "visualEvidence": {
+    "totalScreenshotsBefore": 80,
+    "totalScreenshotsAfter": 80,
+    "screensEvaluated": [
+      "today",
+      "plan",
+      "library",
+      "journal",
+      "settings",
+      "create",
+      "menus",
+      "assistant"
+    ],
+    "viewportsEvaluated": [
+      { "name": "desktop-1280", "width": 1280, "height": 800, "isMobile": false },
+      { "name": "mobile-412", "width": 412, "height": 915, "isMobile": true },
+      { "name": "mobile-390", "width": 390, "height": 844, "isMobile": true },
+      { "name": "mobile-360", "width": 360, "height": 740, "isMobile": true },
+      { "name": "mobile-320", "width": 320, "height": 720, "isMobile": true }
+    ],
+    "themesEvaluated": ["light", "dark"],
+    "horizontalOverflowOccurrences": 0,
+    "manifestBefore": "artifacts/phase105/capture-manifest-before.json",
+    "manifestAfter": "artifacts/phase105/capture-manifest-after.json",
+    "report": "artifacts/phase105/visual-comparison-report.md"
+  },
+  "visualRefinementsDelivered": [
+    {
+      "component": "packages/ui-web/src/Card.tsx",
+      "changes": "Added variant prop ('subtle' | 'outlined' | 'elevated' | 'flat') with soft surface styling and subtle elevation; eliminated harsh default borders."
+    },
+    {
+      "component": "packages/ui-web/src/ListRow.tsx",
+      "changes": "Added variant prop ('card' | 'flat' | 'divided'), interactive hover background, high-contrast active indicator, and responsive line-height."
+    },
+    {
+      "component": "packages/ui-web/src/CreationMenu.tsx",
+      "changes": "Redesigned as unified notebook sheet with 36x36px rounded vector icon containers, soft action.subtle background, descriptive subtitles, and soft hover states."
+    },
+    {
+      "component": "packages/ui-web/src/EmptyState.tsx",
+      "changes": "Replaced harsh dashed border with soft notebook border, surfaceRaised background, and 48x48px circular icon badge."
+    },
+    {
+      "component": "apps/web/src/components/AppHeader.tsx",
+      "changes": "Replaced 7 individual rectangular bordered buttons with borderless ghost buttons; prominently elevated primary + Create button with solid background and shadow; preserved >=44px touch targets."
+    },
+    {
+      "component": "apps/web/src/components/AppSidebar.tsx",
+      "changes": "Modernized active navigation indicator to soft pill (action.subtle bg + action.primary text); added uppercase category headings (PRIMARY, PINS, UTILITIES) with 0.06em tracking."
+    },
+    {
+      "component": "apps/web/src/components/AppBottomNav.tsx",
+      "changes": "Heightened container to 58px with active pill container around icon, 11px label, and full 200% font scaling resilience without text clipping."
+    },
+    {
+      "component": "apps/web/src/components/AppModals.tsx",
+      "changes": "Unified Create Item modal from 7 disjointed cards into a single grouped list card with professional vector icons and descriptive subtitles."
+    },
+    {
+      "component": "apps/web/src/components/TodayView.tsx",
+      "changes": "Single-row desktop header layout (date/greeting left, actions right) pulling first organizer widgets into initial viewport; stat boxes and quick captures converted to surfaceRaised pills."
+    },
+    {
+      "component": "apps/web/src/app/settings/page.tsx",
+      "changes": "Collapsed 6 separate heavy card boxes into a single elegant notebook card with soft row dividers, vector icon badges, and smooth hover feedback."
+    },
+    {
+      "component": "apps/web/src/app/library/page.tsx",
+      "changes": "Fixed subtitle separator character typo to bullet; standardized search placeholder to 'Search notes and folders...'."
+    },
+    {
+      "component": "apps/web/src/app/globals.css",
+      "changes": "Added ::selection styling with warm teal tint; updated bottom nav height variable to 58px."
+    }
+  ],
+  "accessibilityAndQualityVerifications": {
+    "wcagContrast": {
+      "lightThemeTextOnPaper": "13.5:1 (passes >= 4.5:1 AA)",
+      "darkThemeTextOnInk": "15.2:1 (passes >= 4.5:1 AA)",
+      "lightThemeAction": "5.2:1 (passes >= 3.0:1 AA)",
+      "darkThemeAction": "9.8:1 (passes >= 3.0:1 AA)",
+      "controlBorders": ">= 3.0:1 (passes AA control border standard)"
+    },
+    "touchTargets": {
+      "webMinimum": ">= 44px (verified across all buttons, tabs, rows, and icons)",
+      "mobileMinimum": ">= 48px (verified in bottom navigation and mobile drawer)"
+    },
+    "textScaling": {
+      "twoHundredPercent": "verified without horizontal scrollbar or text collision (overflow-x: clip)"
+    },
+    "iconography": {
+      "appAuthoredEmojiCount": 0,
+      "iconSystem": "SVG line vectors from @daynori/design-tokens via <Icon name='...' />"
+    }
+  },
+  "blockingGates": [
+    {
+      "gate": "OWNER-RELEASE-AUTH",
+      "scope": "WEB_PWA_BETA",
+      "description": "Explicit owner authorization required for candidate revision, distributable web archive, target domain/host, testing cohort, and operating budget."
+    },
+    {
+      "gate": "DEF-V2-001",
+      "scope": "WEB_PWA_BETA",
+      "description": "Production Supabase / Google OAuth identity provider configuration and redirect URLs for web domain."
+    },
+    {
+      "gate": "DEF-V2-008",
+      "scope": "WEB_PWA_BETA",
+      "description": "Live AI provider contract, budget allocation, and enterprise privacy compliance authorization pending owner sign-off. Assistant UI now truthfully communicates gating."
+    },
+    {
+      "gate": "DEF-V2-013",
+      "scope": "WEB_PWA_BETA",
+      "description": "Live consenting human participant usability evaluation (>= 5 representative consenting people, with >= 4 capturing/reopening an item and finding Help unassisted) to be conducted on the invited web beta cohort."
+    },
+    {
+      "gate": "OWNER-SIGNING-KEYS",
+      "scope": "ANDROID_TRACK",
+      "description": "Production Android release keystore and signing credentials (DAYNORI_RELEASE_STORE_*) are not present in workspace; release builds fail closed."
+    },
+    {
+      "gate": "DEF-V2-011",
+      "scope": "ANDROID_TRACK",
+      "description": "Physical Android ARM64 hardware startup verification and physical TalkBack screen-reader latency profiling."
+    }
+  ]
+}

@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 105 — Daynori web/PWA visual refinement and modern interface overhaul — 2026-11-14
+
+- ADR 0105: Daynori web/PWA visual refinement and modern interface overhaul delivering a calmer, modern warm-notebook aesthetic, reducing repeated card borders, optimizing the first viewport, establishing cleaner type and spacing hierarchy, redesigning navigation and menus, and verifying complete responsive and accessibility compliance.
+- Card Border Reduction & Surface Hierarchy:
+  - Enhanced `packages/ui-web/src/Card.tsx` with `variant?: 'subtle' | 'outlined' | 'elevated' | 'flat'` supporting soft borders and quiet ambient shadows; flat variant utilizes `surfaceRaised` with transparent borders to eliminate harsh visual nesting.
+  - Enhanced `packages/ui-web/src/ListRow.tsx` with `variant?: 'card' | 'flat' | 'divided'`, interactive hover feedback, high-contrast active state indicator, and responsive line-height scaling.
+  - Modernized `packages/ui-web/src/EmptyState.tsx` with notebook borders, `surfaceRaised` background, and circular vector icon badge.
+- First Viewport & Organizer Optimization:
+  - Redesigned `TodayView.tsx` desktop greeting header into a single-row flex layout (`flexDirection: 'row'`, `justifyContent: 'space-between'`), positioning date and title on the left and quick actions on the right, bringing the first organizer cards into view immediately without scrolling.
+  - Replaced harsh bordered stat boxes in Upcoming Summary with borderless `surfaceRaised` stat tiles.
+  - Modernized Quick Capture buttons and Module Shortcut tags into rounded pills (`radii.pill`, `surfaceRaised`).
+- Navigation & Menus Modernization:
+  - Replaced 7 individual rectangular bordered buttons in `AppHeader.tsx` with borderless ghost icon buttons with smooth hover feedback; elevated primary `+ Create` button with solid background, shadow, and crisp white label.
+  - Heightened `AppBottomNav.tsx` container to 58px with active pill container around icon, 11px label, and full 200% font scaling resilience without text clipping.
+  - Modernized `AppSidebar.tsx` active indicator to soft pill (`action.subtle` bg + `action.primary` text) and added uppercase category headers (PRIMARY, PINS, UTILITIES) with `0.06em` letter spacing.
+  - Unified `CreationMenu.tsx` and `AppModals.tsx` into a single grouped notebook sheet with 36×36px rounded vector icon containers, soft teal backgrounds, and supportive descriptions.
+  - Collapsed 6 separate heavy card boxes in `apps/web/src/app/settings/page.tsx` into a single consolidated, elegant notebook card with soft row dividers.
+- Visual Evidence & Before/After Comparison:
+  - Developed automated headless CDP capture script (`scripts/capture-phase105-visual-evidence.mjs`).
+  - Captured 80 baseline (before) and 80 post-refinement (after) screenshots across 8 screens (Today, Plan, Library, Journal, Settings, Create, Menus, Assistant), 5 viewports (1280px desktop, 412px, 390px, 360px, 320px mobile), and 2 themes (light & dark).
+  - Measured and verified 0 horizontal layout overflows across all 160 captures down to 320px viewport width.
+  - Documented detailed before/after comparative analysis in `artifacts/phase105/visual-comparison-report.md` and machine-readable metrics in `artifacts/phase105/evidence-summary.json`.
+- Accessibility & Token Compliance:
+  - Verified WCAG 2.2 AA contrast ratios across all light paper and dark ink surfaces in `tests/unit/phase105-visual-tokens-and-a11y.test.ts` (10/10 passed).
+  - Verified web ($\ge 44\text{px}$) and mobile ($\ge 48\text{px}$) touch target dimensions.
+  - Maintained strict no-emoji chrome invariant across all application navigation and components.
+  - Verified responsive navigation and evidence integrity in `tests/e2e/phase105-v2-web-visual-refinement.test.ts` (8/8 passed).
+
 ## Phase 104 — Current Daynori web/PWA readiness audit and critical core fixes — 2026-11-13
 
 - ADR 0104: Current Daynori web/PWA readiness audit and critical core fixes establishing 8 verified real user journeys, packaged candidate diff comparison with Phase 102 (`daynori-web-v2.0.0-rc1.tar.gz`), and truthful gated UI presentation for `DEF-V2-008`.

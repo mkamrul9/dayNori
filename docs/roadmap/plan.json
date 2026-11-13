@@ -3868,6 +3868,52 @@
         "docs/phase-reports/phase-102.md"
       ],
       "commit": "test(release): audit web/PWA readiness and present gated assistant truthfully"
+    },
+    {
+      "id": "105",
+      "group": "v2-release",
+      "title": "Daynori web/PWA visual refinement and modern interface overhaul",
+      "dependsOn": [
+        "104"
+      ],
+      "scope": [
+        "apps/web",
+        "packages/ui-web",
+        "packages/design-tokens",
+        "tests/e2e",
+        "tests/unit",
+        "artifacts/phase105",
+        "docs/roadmap",
+        "docs/phase-reports"
+      ],
+      "steps": [
+        "Capture fresh current-build screenshots of Today, Plan, Library, Journal, Create, menus, Settings, and Ask Nori at desktop and 320-412px mobile widths in light and dark themes.",
+        "Make interface calmer and more modern: reduce repeated large card borders, simplify first viewport, establish clearer type and spacing hierarchy, and remove redundant actions.",
+        "Redesign navigation, header, sidebar, and mobile bottom nav so common tasks are obvious while preserving Daynori warm notebook identity, vector icons, and no-emoji chrome.",
+        "Improve dark surfaces, selected states, contrast, focus rings, empty/error/offline states, and 200% text scaling resilience with before/after visual evidence."
+      ],
+      "acceptance": [
+        "Before and after screenshots captured across desktop and 320-412px mobile viewports in light and dark themes.",
+        "Card borders reduced and simplified across Today, Plan, Library, Journal, Settings, and Create modal.",
+        "Header quick actions, sidebar navigation, and mobile bottom nav redesigned without repeated border boxes and with clear touch targets (>= 44px).",
+        "WCAG AA contrast maintained across light and dark themes, focus-visible rings verified, and 200% text scaling verified without horizontal overflow.",
+        "Zero app-authored emoji introduced into application chrome."
+      ],
+      "checks": [
+        "pnpm vitest run tests/unit/phase105-visual-tokens-and-a11y.test.ts tests/e2e/phase105-v2-web-visual-refinement.test.ts",
+        "pnpm typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/design/design-system.md",
+        "docs/design/accessibility.md",
+        "docs/design/information-architecture.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0105-daynori-web-pwa-visual-refinement-and-modern-interface-overhaul.md",
+        "docs/phase-reports/phase-104.md"
+      ],
+      "commit": "refactor(web): refine visual hierarchy, calm card borders, and modernize navigation"
     }
   ],
   "featureCoverage": [
@@ -4144,7 +4190,8 @@
         "69",
         "70",
         "71",
-        "99"
+        "99",
+        "105"
       ],
       "requirements": [
         "R-QUALITY",
@@ -4264,7 +4311,8 @@
         "101",
         "102",
         "103",
-        "104"
+        "104",
+        "105"
       ],
       "requirements": [
         "R-QUALITY",

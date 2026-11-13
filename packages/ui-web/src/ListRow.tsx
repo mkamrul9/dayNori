@@ -17,12 +17,17 @@ export interface ListRowProps {
   selected?: boolean;
   disabled?: boolean;
   themeMode?: ThemeMode;
+  variant?: 'card' | 'flat' | 'divided';
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
   onClick?: () => void;
   style?: React.CSSProperties;
 }
 
+/**
+ * Calm, accessible list row primitive for items, options, and settings.
+ * Supports card, flat, and soft-divided variants with responsive text scaling.
+ */
 export const ListRow: React.FC<ListRowProps> = ({
   title,
   subtitle,
@@ -30,6 +35,7 @@ export const ListRow: React.FC<ListRowProps> = ({
   selected = false,
   disabled = false,
   themeMode = 'light',
+  variant = 'card',
   leading,
   trailing,
   onClick,
@@ -37,15 +43,32 @@ export const ListRow: React.FC<ListRowProps> = ({
 }) => {
   const palette = colors[themeMode];
   const [isFocused, setIsFocused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const isInteractive = Boolean(onClick && !disabled);
 
   let bg: string = palette.surface;
   if (selected) {
     bg = palette.action.subtle;
   } else if (disabled) {
     bg = palette.surfaceRaised;
+  } else if (isInteractive && isHovered) {
+    bg = palette.surfaceRaised;
   }
 
-  const isInteractive = Boolean(onClick && !disabled);
+  let border = `1px solid ${palette.border.subtle}`;
+  let borderRadius: string = `${radii.sm}px`;
+
+  if (variant === 'flat') {
+    border = '1px solid transparent';
+  } else if (variant === 'divided') {
+    border = 'none';
+    borderRadius = '0px';
+  }
+
+  if (selected) {
+    border = `1px solid ${palette.action.primary}`;
+  }
 
   return (
     <div
@@ -54,6 +77,8 @@ export const ListRow: React.FC<ListRowProps> = ({
       aria-pressed={isInteractive ? selected : undefined}
       aria-disabled={disabled || undefined}
       onClick={isInteractive ? onClick : undefined}
+      onMouseEnter={isInteractive ? () => setIsHovered(true) : undefined}
+      onMouseLeave={isInteractive ? () => setIsHovered(false) : undefined}
       onFocus={isInteractive ? () => setIsFocused(true) : undefined}
       onBlur={isInteractive ? () => setIsFocused(false) : undefined}
       onKeyDown={
@@ -73,10 +98,8 @@ export const ListRow: React.FC<ListRowProps> = ({
         minHeight: `${touchTargets.webMin}px`,
         padding: `${spacing.sm}px ${spacing.md}px`,
         backgroundColor: bg,
-        borderRadius: `${radii.sm}px`,
-        border: selected
-          ? `1px solid ${palette.action.primary}`
-          : `1px solid ${palette.border.subtle}`,
+        borderRadius,
+        border,
         cursor: isInteractive ? 'pointer' : 'default',
         opacity: disabled ? 0.6 : 1,
         transition: 'background-color 150ms ease, border-color 150ms ease, outline 150ms ease',
@@ -124,6 +147,7 @@ export const ListRow: React.FC<ListRowProps> = ({
                 marginTop: '2px',
                 overflowWrap: 'anywhere',
                 wordBreak: 'break-word',
+                lineHeight: 1.4,
               }}
             >
               {subtitle}

@@ -8,15 +8,15 @@ import { useShell } from './ShellContext';
 import { TourTarget } from '../tours/TourTarget';
 
 /**
- * Compact mobile chrome: one header row without horizontal scrolling for essentials.
- * Create stays labeled; Search/Settings/Account use accessible names; Help/theme live
- * in the drawer and Settings subpages on narrow widths.
+ * Modern, calm application header.
+ * Prominently features Daynori identity and Create action, while using clean
+ * borderless ghost quick-actions to eliminate repeated rectangular card borders.
  */
 export const AppHeader: React.FC = () => {
   const { themeMode, toggleTheme, openModal, isMobileDrawerOpen, setMobileDrawerOpen } = useShell();
   const palette = colors[themeMode];
 
-  const buttonStyle: React.CSSProperties = {
+  const ghostButtonStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -24,15 +24,36 @@ export const AppHeader: React.FC = () => {
     minWidth: `${touchTargets.webMin}px`,
     padding: `0 ${spacing.sm}px`,
     borderRadius: `${radii.sm}px`,
-    border: `1px solid ${palette.border.subtle}`,
-    backgroundColor: palette.surface,
+    border: '1px solid transparent',
+    backgroundColor: 'transparent',
     color: palette.text.primary,
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 500,
+    boxSizing: 'border-box',
+    transition: 'background-color 140ms ease, color 140ms ease, border-color 140ms ease',
+    flexShrink: 0,
+  };
+
+  const createButtonStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: `${touchTargets.webMin}px`,
+    padding: `0 ${spacing.base}px`,
+    borderRadius: `${radii.sm}px`,
+    border: `1px solid ${palette.action.primary}`,
+    backgroundColor: palette.action.primary,
+    color: palette.action.label,
     cursor: 'pointer',
     fontSize: '14px',
     fontWeight: 600,
-    outline: 'none',
     boxSizing: 'border-box',
-    transition: 'background-color 150ms ease, border-color 150ms ease',
+    transition: 'background-color 140ms ease, transform 100ms ease, box-shadow 140ms ease',
+    boxShadow:
+      themeMode === 'dark'
+        ? '0 2px 8px rgba(0, 0, 0, 0.4)'
+        : '0 2px 8px rgba(20, 107, 99, 0.22)',
     flexShrink: 0,
   };
 
@@ -45,8 +66,9 @@ export const AppHeader: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: `${spacing.xs}px`,
-        padding: `${spacing.xs}px ${spacing.base}px`,
+        padding: `0 ${spacing.base}px`,
         minHeight: 'var(--daynori-header-height)',
+        height: 'var(--daynori-header-height)',
         backgroundColor: palette.surface,
         borderBottom: `1px solid ${palette.border.subtle}`,
         position: 'sticky',
@@ -54,7 +76,7 @@ export const AppHeader: React.FC = () => {
         zIndex: 100,
         boxSizing: 'border-box',
         width: '100%',
-        paddingTop: `max(${spacing.xs}px, env(safe-area-inset-top, 0px))`,
+        paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingLeft: `max(${spacing.base}px, env(safe-area-inset-left, 0px))`,
         paddingRight: `max(${spacing.base}px, env(safe-area-inset-right, 0px))`,
       }}
@@ -66,11 +88,14 @@ export const AppHeader: React.FC = () => {
           aria-expanded={isMobileDrawerOpen}
           aria-controls="mobile-nav-drawer"
           onClick={() => setMobileDrawerOpen(!isMobileDrawerOpen)}
-          style={{
-            ...buttonStyle,
-            display: 'flex',
-          }}
+          style={ghostButtonStyle}
           className="mobile-only"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
         >
           <span aria-hidden="true" style={{ fontSize: '18px' }}>
             <Icon name="menu" />
@@ -115,7 +140,7 @@ export const AppHeader: React.FC = () => {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: `${spacing.xs}px`,
+          gap: '4px',
           flex: '0 1 auto',
           minWidth: 0,
           justifyContent: 'flex-end',
@@ -127,8 +152,14 @@ export const AppHeader: React.FC = () => {
             href="/features"
             id="global-all-features-btn"
             aria-label="All features directory"
-            style={{ ...buttonStyle, textDecoration: 'none' }}
+            style={{ ...ghostButtonStyle, textDecoration: 'none' }}
             className="daynori-header-all-features hide-below-380"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
             <span aria-hidden="true">
               <Icon name="sliders" />
@@ -140,88 +171,100 @@ export const AppHeader: React.FC = () => {
         </TourTarget>
 
         <TourTarget id="shell.search">
-        <button
-          type="button"
-          id="global-search-btn"
-          aria-label="Search items (Shortcut /)"
-          onClick={() => openModal('search')}
-          style={buttonStyle}
-        >
-          <span aria-hidden="true">
-            <Icon name="search" />
-          </span>
-          <span className="desktop-only" style={{ marginLeft: '4px' }}>
-            Search
-          </span>
-          <kbd
-            className="desktop-only"
-            style={{
-              marginLeft: '6px',
-              fontSize: '11px',
-              padding: '2px 5px',
-              borderRadius: '4px',
-              backgroundColor: palette.surfaceRaised,
-              border: `1px solid ${palette.border.strong}`,
-              color: palette.text.secondary,
+          <button
+            type="button"
+            id="global-search-btn"
+            aria-label="Search items (Shortcut /)"
+            onClick={() => openModal('search')}
+            style={ghostButtonStyle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
-            /
-          </kbd>
-        </button>
+            <span aria-hidden="true">
+              <Icon name="search" />
+            </span>
+            <span className="desktop-only" style={{ marginLeft: '4px' }}>
+              Search
+            </span>
+            <kbd
+              className="desktop-only"
+              style={{
+                marginLeft: '6px',
+                fontSize: '11px',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                backgroundColor: palette.surfaceRaised,
+                border: `1px solid ${palette.border.subtle}`,
+                color: palette.text.secondary,
+              }}
+            >
+              /
+            </kbd>
+          </button>
         </TourTarget>
 
         <TourTarget id="shell.assistant">
-        <button
-          type="button"
-          id="global-assistant-btn"
-          data-testid="global-assistant-btn"
-          aria-label="Ask Nori assistant (Gated under DEF-V2-008)"
-          title="Ask Nori assistant (Gated under DEF-V2-008)"
-          onClick={() => openModal('assistant')}
-          style={buttonStyle}
-          className="hide-below-380"
-        >
-          <span aria-hidden="true">
-            <Icon name="nori" />
-          </span>
-          <span className="desktop-only" style={{ marginLeft: '4px' }}>
-            Ask Nori
-          </span>
-        </button>
+          <button
+            type="button"
+            id="global-assistant-btn"
+            data-testid="global-assistant-btn"
+            aria-label="Ask Nori assistant (Gated under DEF-V2-008)"
+            title="Ask Nori assistant (Gated under DEF-V2-008)"
+            onClick={() => openModal('assistant')}
+            style={ghostButtonStyle}
+            className="hide-below-380"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <span aria-hidden="true">
+              <Icon name="nori" />
+            </span>
+            <span className="desktop-only" style={{ marginLeft: '4px' }}>
+              Ask Nori
+            </span>
+          </button>
         </TourTarget>
 
         <TourTarget id="shell.create">
-        <button
-          type="button"
-          id="global-create-btn"
-          aria-label="Create item (Shortcut C)"
-          onClick={() => openModal('create')}
-          style={{
-            ...buttonStyle,
-            backgroundColor: palette.action.primary,
-            color: palette.action.label,
-            borderColor: palette.action.primary,
-            padding: `0 ${spacing.base}px`,
-          }}
-        >
-          <span aria-hidden="true" style={{ fontWeight: 'bold' }}>
-            <Icon name="plus" />
-          </span>
-          <span style={{ marginLeft: '4px' }}>Create</span>
-          <kbd
-            className="desktop-only"
-            style={{
-              marginLeft: '6px',
-              fontSize: '11px',
-              padding: '2px 5px',
-              borderRadius: '4px',
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              color: palette.action.label,
+          <button
+            type="button"
+            id="global-create-btn"
+            aria-label="Create item (Shortcut C)"
+            onClick={() => openModal('create')}
+            style={createButtonStyle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = palette.action.primaryHover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = palette.action.primary;
             }}
           >
-            C
-          </kbd>
-        </button>
+            <span aria-hidden="true" style={{ fontWeight: 'bold' }}>
+              <Icon name="plus" />
+            </span>
+            <span style={{ marginLeft: '4px' }}>Create</span>
+            <kbd
+              className="desktop-only"
+              style={{
+                marginLeft: '6px',
+                fontSize: '11px',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(255,255,255,0.22)',
+                color: palette.action.label,
+              }}
+            >
+              C
+            </kbd>
+          </button>
         </TourTarget>
 
         <Link
@@ -229,7 +272,7 @@ export const AppHeader: React.FC = () => {
           id="global-settings-btn"
           aria-label="Settings"
           className="mobile-only daynori-header-settings hide-below-380"
-          style={{ ...buttonStyle, textDecoration: 'none', display: 'none' }}
+          style={{ ...ghostButtonStyle, textDecoration: 'none', display: 'none' }}
         >
           <span aria-hidden="true">
             <Icon name="settings" />
@@ -242,7 +285,13 @@ export const AppHeader: React.FC = () => {
           className="desktop-only"
           aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
           onClick={toggleTheme}
-          style={{ ...buttonStyle, display: 'none' }}
+          style={ghostButtonStyle}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
         >
           <span aria-hidden="true">
             <Icon name={themeMode === 'light' ? 'moon' : 'sun'} />
@@ -255,7 +304,7 @@ export const AppHeader: React.FC = () => {
           className="desktop-only"
           aria-label="Help and keyboard shortcuts (Shortcut ?)"
           onClick={() => openModal('help')}
-          style={{ ...buttonStyle, display: 'none' }}
+          style={{ ...ghostButtonStyle, display: 'none' }}
         >
           <span aria-hidden="true">
             <Icon name="help" />
@@ -267,7 +316,13 @@ export const AppHeader: React.FC = () => {
           id="global-account-btn"
           aria-label="Account and workspace profile"
           onClick={() => openModal('account')}
-          style={buttonStyle}
+          style={ghostButtonStyle}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
         >
           <span aria-hidden="true">
             <Icon name="user" />

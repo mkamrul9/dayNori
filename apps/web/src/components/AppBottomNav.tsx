@@ -4,7 +4,7 @@ import { Icon } from '@daynori/ui-web';
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { colors, touchTargets } from '@daynori/design-tokens';
+import { colors, radii, touchTargets } from '@daynori/design-tokens';
 import { useShell } from './ShellContext';
 import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { TourTarget } from '../tours/TourTarget';
@@ -17,13 +17,17 @@ function navTourTargetId(href: string): string {
   return `shell.nav.${href.replace(/^\//, '').replace(/\//g, '.') || 'home'}`;
 }
 
+/**
+ * Modern mobile bottom navigation bar.
+ * Features comfortable touch targets, soft indicator pills for the active tab,
+ * clear typography, and complete resilience against 200% font scaling.
+ */
 export const AppBottomNav: React.FC = () => {
   const pathname = usePathname();
   const { themeMode } = useShell();
   const palette = colors[themeMode];
   const { primaryTabs } = useFeatureNavigation();
 
-  // ADR 0068: hiding Journal leaves three primary tabs — no competing fifth destination.
   const tabs = primaryTabs.map((t) => ({
     href: t.webPath,
     label: t.label,
@@ -43,6 +47,10 @@ export const AppBottomNav: React.FC = () => {
         minHeight: 'var(--daynori-bottom-nav-height)',
         backgroundColor: palette.surface,
         borderTop: `1px solid ${palette.border.subtle}`,
+        boxShadow:
+          themeMode === 'dark'
+            ? '0 -2px 10px rgba(0, 0, 0, 0.35)'
+            : '0 -2px 8px rgba(23, 44, 44, 0.04)',
         display: 'flex',
         alignItems: 'stretch',
         justifyContent: 'space-around',
@@ -71,13 +79,12 @@ export const AppBottomNav: React.FC = () => {
                 minHeight: `${touchTargets.webMin}px`,
                 minWidth: 0,
                 maxWidth: '100%',
-                padding: '6px 1px',
+                padding: '4px 2px',
                 textDecoration: 'none',
                 color: isActive ? palette.action.primary : palette.text.secondary,
-                fontWeight: isActive ? 700 : 500,
-                fontSize: '10px',
-                lineHeight: 1.15,
-                borderTop: isActive ? `3px solid ${palette.action.primary}` : '3px solid transparent',
+                fontWeight: isActive ? 600 : 500,
+                fontSize: '11px',
+                lineHeight: 1.2,
                 boxSizing: 'border-box',
                 flex: '1 1 0',
                 textAlign: 'center',
@@ -87,7 +94,18 @@ export const AppBottomNav: React.FC = () => {
             >
               <span
                 aria-hidden="true"
-                style={{ display: 'inline-flex', marginBottom: '2px', flexShrink: 0 }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '3px 12px',
+                  borderRadius: `${radii.pill}px`,
+                  backgroundColor: isActive ? palette.action.subtle : 'transparent',
+                  color: isActive ? palette.action.primary : palette.text.secondary,
+                  transition: 'background-color 140ms ease, color 140ms ease',
+                  marginBottom: '2px',
+                  flexShrink: 0,
+                }}
               >
                 <Icon name={tab.icon} size={18} />
               </span>

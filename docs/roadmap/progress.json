@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-13",
+  "updatedAt": "2026-11-14",
   "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Phase 104 current Daynori web/PWA readiness audit, 8 real user journeys, packaged candidate comparison against Phase 102 bundle, and truthful gated UI presentation for DEF-V2-008 delivered under ADR 0104. Phase 104 status recorded as blocked due to missing owner publication authorization (OWNER-RELEASE-AUTH), production Supabase setup (DEF-V2-001), 5-participant usability evaluation (DEF-V2-013), and live AI provider authorization (DEF-V2-008). Outstanding checks for earlier phases retain their recorded states. Phase 103 remains planned. Standing push (ADR 0074). No release_ready claims.",
+  "schedulingDecision": "Owner scheduling authorization: Phase 105 Daynori web/PWA visual refinement and modern interface overhaul delivered under ADR 0105. Calmer visual hierarchy, card border reductions, first viewport optimization, unified navigation and creation menus, and 80 before/after screenshot comparisons verified. Phase 105 status recorded as blocked due to standing release gates (OWNER-RELEASE-AUTH, DEF-V2-001, DEF-V2-008, DEF-V2-013, OWNER-SIGNING-KEYS, DEF-V2-011). Outstanding checks for earlier phases retain their recorded states. Phase 103 remains planned. Standing push (ADR 0074). No release_ready claims.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 102 assembled canonical owner publication review record (docs/release/v2-authorized-publication-record.md) and machine-readable register (artifacts/phase102/publication-review-record.json), separated bounded beta from full V2, recorded web readiness independently from Android, executed 7 publication rehearsals in tests/e2e/phase102-v2-publication-rehearsal.test.ts, and reconciled 11 gates; release signing credentials (OWNER-SIGNING-KEYS), owner release authorization (OWNER-RELEASE-AUTH), live human research (DEF-V2-013), physical TalkBack (DEF-V2-011), and external audits (DEF-V2-004, DEF-V2-008) remain open.",
   "phases": [
     {
@@ -609,6 +609,12 @@
       "status": "blocked",
       "report": "docs/phase-reports/phase-104.md",
       "reason": "Web/PWA readiness audit and critical core fixes delivered: 8 real user journeys verified across sign-up/sign-in, multi-tenant workspace isolation, core create-save-reopen (notes, tasks, routines, journals), authorized global search, offline outbox sync and optimistic concurrency conflict recovery (baseRevision), contextual Help, support feedback triage, and fail-closed gated module enforcement in tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts; Ask Nori assistant gated state (DEF-V2-008) presented truthfully with disabled query inputs and explanatory links; candidate comparison against Phase 102 packaged bundle documented; status recorded as blocked pending explicit owner release authorization (OWNER-RELEASE-AUTH), production Supabase setup (DEF-V2-001), 5-participant usability evaluation (DEF-V2-013), and live AI provider authorization (DEF-V2-008). No production deployment claimed. See docs/phase-reports/phase-104.md."
+    },
+    {
+      "id": "105",
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-105.md",
+      "reason": "Web/PWA visual refinement and modern interface overhaul delivered: calm warm notebook aesthetic, reduced repetitive card borders, first viewport optimization (TodayView single-row desktop layout), modernized AppHeader ghost toolbar and primary Create button, redesigned CreationMenu sheet and AppModals, consolidated Settings notebook card, and verified touch targets (>= 44px web, >= 48px mobile); 80 baseline and 80 post-refinement screenshot comparisons verified across 8 screens, 5 viewports (1280px desktop, 412px, 390px, 360px, 320px mobile), and 2 themes with zero horizontal layout overflows; strict no-emoji chrome invariant maintained; verified in tests/unit/phase105-visual-tokens-and-a11y.test.ts and tests/e2e/phase105-v2-web-visual-refinement.test.ts; status recorded as blocked pending standing release gates (OWNER-RELEASE-AUTH, DEF-V2-001, DEF-V2-008, DEF-V2-013). No production deployment claimed. See docs/phase-reports/phase-105.md."
     }
   ]
 }
