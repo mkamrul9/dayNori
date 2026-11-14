@@ -1,5 +1,43 @@
 # Changelog
 
+## Phase 108 — AI text-assistant release-gate and operational review — 2026-11-14
+
+- ADR 0108: AI text-assistant release-gate and operational review evaluating the Phase 90–94 implementation against release gate `DEF-V2-008`, ensuring Ask Nori discoverability, anti-hallucination date ambiguity verification, zero-unreviewed-write proposal workflows, privacy fencing, and separate live vs. mock provider evaluation.
+- Discoverability & Truthful Gating Presentation:
+  - Surfaced explicit "Ask Nori" button in desktop/tablet sidebar navigation (`apps/web/src/components/AppSidebar.tsx`) under Utilities with the `nori` icon, "Gated" badge, and trigger to open the assistant slide-out panel (`openModal('assistant')`).
+  - Retained global header assistant launcher with explicit aria-label and tooltip documenting gated status under `DEF-V2-008`.
+  - Both Web (`AssistantPanel.tsx`) and Mobile (`AssistantSheet.tsx`) render prominent truthful status banners (`assistant-gated-banner`) explaining that live AI queries and voice transcription are intentionally disabled under `DEF-V2-008` pending enterprise provider privacy review and contract. Text inputs are disabled with helpful placeholders and links to AI Privacy FAQ (`/help?article=assistant-optional`) and Settings (`/settings`).
+- Help Documentation:
+  - Updated `help.assistant-optional` in `packages/domain/src/help/catalogData.ts` to document gating under `DEF-V2-008`, editable proposal preview lifecycle, anti-hallucination date ambiguity checks, explicit Save/Confirm requirement, durable mutation receipts under `AI_DEVICE_ID`, and strict journal opt-in.
+- Anti-Hallucination Date Ambiguity Gate:
+  - Implemented `detectTaskDeadlineAmbiguity` in `@daynori/domain` (`packages/domain/src/organizerProposals.ts`) to detect relative deadline references ("tomorrow", "next Friday", "আগামীকাল", "পরশু") or missing dates in deadline requests and prompt clarifying questions.
+  - Verified `detectJournalDateAmbiguity` for relative journal dates ("yesterday", "last week", "গতকাল").
+  - Verified that ambiguous date requests never guess dates or save unreviewed records into organizer tables.
+- Core Exercise Journeys Verified:
+  - "write this journal entry" with ambiguous date ("yesterday"): triggers clarification question, zero unreviewed records saved.
+  - "write this journal entry" with explicit ISO date (`2026-11-20`): creates editable preview proposal, confirmed via `confirmAiProposal`, creates entry in `app.journal_entries`, records durable receipt in `app.mutation_receipts` under `AI_DEVICE_ID` (`ai-assistant-proposal`), returns canonical deep link (`/journal?entryId=...`).
+  - "create a note": creates editable preview proposal, edited via `updateAiProposal` (issuing fresh single-use confirmation token), confirmed via `confirmAiProposal`, creates note in `app.notes`, records durable receipt in `app.mutation_receipts`, returns deep link (`/library?noteId=...`).
+  - "set a task deadline" with ambiguous date ("tomorrow"): triggers clarification question, zero unreviewed records saved.
+  - "set a task deadline" with explicit date (`2026-12-15`): creates editable preview proposal with deadline `{ type: 'date', date: '2026-12-15' }`, confirmed via `confirmAiProposal`, creates task in `app.tasks`, records durable receipt in `app.mutation_receipts`, returns deep link (`/plan?targetId=...&targetType=task`).
+  - Cancelled / unreviewed proposals: cancelled via `cancelAiProposal`, verified zero writes to organizer tables.
+  - Idempotent confirmation retry: re-confirming already confirmed proposal returns existing record idempotently without duplicate rows.
+- Strict Privacy & Security Fencing:
+  - Current provider disclosure version required (`CURRENT_AI_PROVIDER_DISCLOSURE_VERSION`); outdated versions fail closed.
+  - Strict journal opt-in: `contentScope.journal = false` excludes journal entries from retrieval and refuses journal proposals.
+  - Unconditional vault exclusion: vault items/keys never indexed or transmitted; proposals setting `securityScope = 'vault'` fail closed with HTTP 403 `AI_VAULT_FORBIDDEN`.
+  - Multi-tenant workspace isolation: cross-workspace queries and proposals fail closed (404/403).
+- Provider Separation (Live vs. Mock):
+  - Evaluated Mock Provider (`FakeAiProvider`) with synthetic citations and pause gate cancellation.
+  - Evaluated Live Provider Protocol (`OpenAiCompatibleProvider`) via synthetic HTTP transport; verified wire protocol invariants (`store: false`, Bearer token, temperature 0, model `gpt-4o-mini`, 30s timeout, <20,000 char bounds) and error mappings (429 `AI_PROVIDER_RATE_LIMIT`, 503 `AI_PROVIDER_OUTAGE`, 401 `AI_PROVIDER_AUTH_ERROR`, malformed JSON `AI_PROVIDER_MALFORMED`, and in-flight `AbortSignal` cancellation).
+  - Recorded live versus mock evaluations in separate artifacts (`artifacts/phase108/live-provider-evaluation.json`, `artifacts/phase108/proposals-journey-evidence.json`, and `artifacts/phase108/evidence-summary.json`).
+- Automated Evidence & Tests:
+  - 16/16 tests pass in `tests/integration/phase108-ai-assistant-release-gate.test.ts`.
+  - 63/63 tests pass across all 6 AI integration test suites in monorepo.
+- Gate-by-Gate Reporting:
+  - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification.
+  - Phase 108 status recorded as `blocked` pending enterprise provider privacy review and commercial contract (`DEF-V2-008` fail-closed). No production deployment or release readiness claimed from local tests.
+
+
 ## Phase 107 — Bounded Google Drive folder authorization and scope boundary review — 2026-11-14
 
 - ADR 0107: Bounded Google Drive folder authorization and scope boundary review evaluating the deferred Phase 50 decision, Phase 87 audit, and Google OAuth `drive.file` container selection behavior.

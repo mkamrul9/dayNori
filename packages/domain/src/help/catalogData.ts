@@ -1764,15 +1764,19 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     "categoryId": "optional",
     "title": {
       "key": "help.help.assistant-optional.title",
-      "defaultText": "Optional assistant"
+      "defaultText": "Ask Nori optional assistant"
     },
     "summary": {
       "key": "help.help.assistant-optional.summary",
-      "defaultText": "Consent-bound assistant with grounded answers; voice capture is separate from Library audio attach."
+      "defaultText": "Consent-bound assistant with grounded citations, editable previews, ambiguous date verification, and durable receipts. Gated under DEF-V2-008."
     },
     "keywords": [
       "optional",
-      "assistant"
+      "assistant",
+      "nori",
+      "gated",
+      "proposals",
+      "citations"
     ],
     "relatedActionIds": [
       "assistant.consent",
@@ -1785,25 +1789,37 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
       {
         "instruction": {
           "key": "help.help.assistant-optional.step.0",
-          "defaultText": "Open the assistant only if enabled. Review consent."
+          "defaultText": "Open Ask Nori from the header or sidebar. In this preview, Ask Nori is truthfully gated under DEF-V2-008 pending enterprise provider authorization; manual organizer tools remain fully operational."
         }
       },
       {
         "instruction": {
           "key": "help.help.assistant-optional.step.1",
-          "defaultText": "Ask within allowed scope. Edit proposals before Confirm save."
+          "defaultText": "When enabled, Ask Nori operates under explicit consent, workspace isolation, strict journal opt-in, and unconditional vault exclusion (vault items/keys are never sent to AI providers)."
         }
       },
       {
         "instruction": {
           "key": "help.help.assistant-optional.step.2",
-          "defaultText": "Voice capture for the assistant is separate from Library audio attachments."
+          "defaultText": "Requests such as 'write this journal entry', 'create a note', or 'set a task deadline' produce editable preview proposals. For ambiguous dates (e.g. 'yesterday', 'tomorrow'), Nori prompts for exact YYYY-MM-DD clarification rather than guessing."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.assistant-optional.step.3",
+          "defaultText": "Saving requires explicit Confirm/Save. Confirming records a durable sync mutation receipt and returns a direct link to the created item. Unreviewed or cancelled proposals never modify your organizer tables."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.assistant-optional.step.4",
+          "defaultText": "Voice capture uses 0-day transient retention and is strictly separate from permanent Library audio attachments. In-flight requests can be cancelled immediately."
         }
       }
     ],
     "expectedResult": {
       "key": "help.help.assistant-optional.expected",
-      "defaultText": "Live AI may be off in preview; Help remains usable without AI."
+      "defaultText": "Truthful gating protects user privacy; reviewed preview proposals ensure no unreviewed writes or invented data occur."
     },
     "learningChapterId": "chapter.optional-gated"
   },

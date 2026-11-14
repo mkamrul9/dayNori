@@ -4016,6 +4016,61 @@
         "docs/engineering/release-gates.md"
       ],
       "commit": "feat(drive): verify bounded drive folder trees and proposal for restricted scope"
+    },
+    {
+      "id": "108",
+      "group": "v2-capabilities",
+      "title": "AI text-assistant release-gate and operational review",
+      "dependsOn": [
+        "94",
+        "107"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/api",
+        "apps/web",
+        "apps/mobile",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase108",
+        "tests/integration"
+      ],
+      "steps": [
+        "Evaluate existing Phase 90–94 AI text-assistant implementation against release gate DEF-V2-008, ensuring Ask Nori is easily discoverable on desktop and mobile while presenting truthful unavailability explanations when gated.",
+        "Implement anti-hallucination date ambiguity verification for task deadlines (detectTaskDeadlineAmbiguity) and journal entries, prompting clarifying questions for relative dates without creating unreviewed proposals.",
+        "Verify proposal review lifecycle: preview editing, single-use confirmation tokens, explicit Save/Confirm execution, durable mutation receipts under AI_DEVICE_ID in app.mutation_receipts, and canonical deep links via getOrganizerDeepLink.",
+        "Enforce strict privacy fencing: current disclosure versions, multi-tenant workspace isolation, strict journal opt-in (contentScope.journal), and unconditional vault exclusion.",
+        "Separate mock provider testing (FakeAiProvider) from live provider wire protocol evaluation (OpenAiCompatibleProvider with store: false, error mapping for HTTP 429/503/401/malformed, and in-flight cancellation) and keep live enterprise transmission gated under DEF-V2-008."
+      ],
+      "acceptance": [
+        "Ask Nori surfaced in desktop sidebar navigation and header with truthful gating banner and disabled inputs under DEF-V2-008.",
+        "Ambiguous date queries for journals and task deadlines trigger clarifying questions rather than guessing or saving unreviewed items.",
+        "Explicit Confirm/Save produces durable sync mutation receipts in app.mutation_receipts and canonical deep links to created items.",
+        "Unreviewed and cancelled proposals never modify domain organizer tables.",
+        "Vault items and keys are unconditionally excluded with 403 AI_VAULT_FORBIDDEN.",
+        "Mock and live provider evaluation records generated separately; live provider wire protocol verified with store: false."
+      ],
+      "checks": [
+        "pnpm vitest run tests/integration/phase108-ai-assistant-release-gate.test.ts tests/integration/phase90-ai-consent-privacy-readiness.test.ts tests/integration/phase91-scoped-retrieval-evaluation.test.ts tests/integration/phase92-assistant-chat-stream-guidance.test.ts tests/integration/phase93-reviewed-organizer-creation.test.ts tests/integration/phase94-structured-organizer-tools.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm --filter @daynori/mobile typecheck",
+        "pnpm --filter @daynori/api typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0090-ai-provider-consent-privacy-and-operating-decisions.md",
+        "docs/decisions/0091-scoped-retrieval-indexing-and-grounding-quality.md",
+        "docs/decisions/0093-reviewed-note-task-and-journal-creation.md",
+        "docs/decisions/0108-ai-text-assistant-release-gate-and-operational-review.md",
+        "docs/phase-reports/phase-90.md",
+        "docs/phase-reports/phase-94.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(ai): verify assistant release gate proposals and provider operational limits"
     }
   ],
   "featureCoverage": [
@@ -4397,7 +4452,8 @@
         "93",
         "94",
         "95",
-        "96"
+        "96",
+        "108"
       ],
       "requirements": [
         "R-AI",

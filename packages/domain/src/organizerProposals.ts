@@ -10,6 +10,12 @@ export interface JournalDateAmbiguityResult {
   inferredDate?: string;
 }
 
+export interface TaskDeadlineAmbiguityResult {
+  isAmbiguous: boolean;
+  clarificationQuestion?: string;
+  inferredDate?: string;
+}
+
 export interface AmbiguityResult {
   isAmbiguous: boolean;
   clarificationQuestion?: string;
@@ -83,6 +89,71 @@ export function detectJournalDateAmbiguity(
     clarificationQuestion: isBangla
       ? 'জার্নাল এন্ট্রির জন্য কোন তারিখ ব্যবহার করবেন? অনুগ্রহ করে নির্দিষ্ট তারিখ উল্লেখ করুন (YYYY-MM-DD)।'
       : 'What date should this journal entry be dated for? Please specify the date (YYYY-MM-DD).',
+  };
+}
+
+const FUTURE_RELATIVE_AMBIGUOUS_PATTERNS = [
+  /\btomorrow\b/i,
+  /\bnext\s+(?:week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
+  /\b(?:in\s+a\s+few\s+days|in\s+a\s+couple\s+days|soon|later|end\s+of\s+week)\b/i,
+  /\bby\s+(?:tomorrow|friday|monday|tuesday|wednesday|thursday|saturday|sunday)\b/i,
+  /আগামীকাল/,
+  /পরশু/,
+  /আগামী\s*(?:সপ্তাহ|মাস|বছর|শুক্রবার|শনিবার|রবিবার|সোমবার|মঙ্গলবার|বুধবার|বৃহস্পতিবার)/,
+  /কয়েকদিন\s*পর/,
+  /শীঘ্রই/,
+];
+
+/**
+ * Detects whether a task deadline request contains ambiguous or relative date references
+ * (e.g. "tomorrow", "next Friday", "আগামীকাল") without an unambiguous YYYY-MM-DD date.
+ * If ambiguous or missing date when deadline is requested, produces a clarifying question.
+ */
+export function detectTaskDeadlineAmbiguity(
+  input: string,
+  referenceDate?: string
+): TaskDeadlineAmbiguityResult {
+  const trimmed = input.trim();
+
+  // 1. Check for explicit ISO date (YYYY-MM-DD)
+  const isoMatch = ISO_DATE_REGEX.exec(trimmed);
+  if (isoMatch) {
+    return {
+      isAmbiguous: false,
+      inferredDate: isoMatch[1],
+    };
+  }
+
+  // 2. Check for "today" / "আজ"
+  const isToday = /\btoday\b/i.test(trimmed) || /\bআজ\b/.test(trimmed) || /\bআজকে\b/.test(trimmed);
+  if (isToday) {
+    const todayStr = referenceDate ?? new Date().toISOString().slice(0, 10);
+    return {
+      isAmbiguous: false,
+      inferredDate: todayStr,
+    };
+  }
+
+  const isBangla = /[\u0980-\u09FF]/.test(trimmed);
+
+  // 3. Check for ambiguous relative patterns
+  for (const pattern of FUTURE_RELATIVE_AMBIGUOUS_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return {
+        isAmbiguous: true,
+        clarificationQuestion: isBangla
+          ? 'টাস্কটির শেষ সময়সীমা (deadline) কোন তারিখে? অনুগ্রহ করে নির্দিষ্ট তারিখ উল্লেখ করুন (YYYY-MM-DD)।'
+          : 'What exact date is the deadline for this task? Please specify the date (YYYY-MM-DD).',
+      };
+    }
+  }
+
+  // 4. If no date is mentioned in a request asking to set a deadline, require clarification
+  return {
+    isAmbiguous: true,
+    clarificationQuestion: isBangla
+      ? 'টাস্কটির শেষ সময়সীমা কোন তারিখের জন্য নির্ধারণ করতে চান? অনুগ্রহ করে নির্দিষ্ট তারিখ উল্লেখ করুন (YYYY-MM-DD)।'
+      : 'What date is the deadline for this task? Please specify the date (YYYY-MM-DD).',
   };
 }
 

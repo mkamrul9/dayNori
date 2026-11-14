@@ -16,7 +16,7 @@ import { TourTarget } from '../tours/TourTarget';
  */
 export const AppSidebar: React.FC = () => {
   const pathname = usePathname();
-  const { themeMode } = useShell();
+  const { themeMode, openModal } = useShell();
   const palette = colors[themeMode];
   const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
@@ -173,6 +173,69 @@ export const AppSidebar: React.FC = () => {
         >
           Utilities
         </div>
+        <button
+          type="button"
+          data-testid="sidebar-assistant-btn"
+          aria-label="Ask Nori assistant (Gated under DEF-V2-008)"
+          onClick={() => openModal('assistant')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            minHeight: `${touchTargets.webMin}px`,
+            padding: `6px ${spacing.sm}px`,
+            borderRadius: `${radii.sm}px`,
+            backgroundColor: 'transparent',
+            color: palette.text.primary,
+            fontWeight: 500,
+            border: 'none',
+            borderLeft: '3px solid transparent',
+            cursor: 'pointer',
+            fontSize: '14px',
+            marginBottom: '3px',
+            boxSizing: 'border-box',
+            textAlign: 'left',
+            fontFamily: 'inherit',
+            transition: 'background-color 140ms ease, color 140ms ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+            <span
+              aria-hidden="true"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                color: palette.text.secondary,
+              }}
+            >
+              <Icon name="nori" size={18} />
+            </span>
+            <span>Ask Nori</span>
+          </span>
+          <span
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '999px',
+              backgroundColor: palette.surfaceRaised,
+              color: palette.text.secondary,
+              fontWeight: 600,
+              border: `1px solid ${palette.border.subtle}`,
+            }}
+          >
+            Gated
+          </span>
+        </button>
         {utilityItems.map((item) => renderNavLink(item))}
       </div>
     </nav>

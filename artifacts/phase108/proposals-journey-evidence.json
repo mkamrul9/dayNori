@@ -1,0 +1,127 @@
+{
+  "phase": "108",
+  "generatedAt": "2026-11-14T11:51:40.000Z",
+  "testSuite": "tests/integration/phase108-ai-assistant-release-gate.test.ts",
+  "journeys": [
+    {
+      "journeyId": "J-108-01",
+      "name": "Ambiguous Journal Date Clarification",
+      "userQuery": "write this journal entry: I walked around yesterday and thought about our project",
+      "ambiguityDetected": true,
+      "ambiguityReason": "Relative date reference 'yesterday' without ISO YYYY-MM-DD date",
+      "assistantClarification": "Which date should this journal entry be recorded for? Please specify the date (YYYY-MM-DD).",
+      "proposalCreated": false,
+      "unreviewedWriteOccurred": false,
+      "status": "PASS"
+    },
+    {
+      "journeyId": "J-108-02",
+      "name": "Explicit Journal Entry Creation Lifecycle",
+      "userQuery": "write this journal entry: 2026-11-20 Completed the architecture milestone with verified tests",
+      "ambiguityDetected": false,
+      "inferredDate": "2026-11-20",
+      "proposal": {
+        "operation": "create_personal_journal_entry",
+        "status": "pending",
+        "reviewSummary": {
+          "headline": "Create a personal journal entry",
+          "date": "2026-11-20",
+          "destination": "Journal"
+        }
+      },
+      "preConfirmationSaveCheck": "Zero records in app.journal_entries",
+      "confirmation": {
+        "status": "confirmed",
+        "receiptKind": "journal_entry",
+        "deepLink": "/journal?entryId=...",
+        "mutationReceiptDeviceId": "ai-assistant-proposal",
+        "durableReceiptStored": true
+      },
+      "postConfirmationSaveCheck": "1 record in app.journal_entries with entryDate 2026-11-20",
+      "status": "PASS"
+    },
+    {
+      "journeyId": "J-108-03",
+      "name": "Personal Note Creation, Edit Preview, and Confirm",
+      "userQuery": "create a note: Team retrospective sprint 42",
+      "proposal": {
+        "operation": "create_personal_note",
+        "status": "pending",
+        "initialTitle": "Team retrospective sprint 42"
+      },
+      "previewEdit": {
+        "patchedTitle": "Team retrospective sprint 42 (Edited)",
+        "freshConfirmationTokenIssued": true
+      },
+      "confirmation": {
+        "status": "confirmed",
+        "receiptKind": "note",
+        "deepLink": "/library?noteId=...",
+        "mutationReceiptDeviceId": "ai-assistant-proposal",
+        "durableReceiptStored": true
+      },
+      "postConfirmationSaveCheck": "1 record in app.notes with patched title",
+      "status": "PASS"
+    },
+    {
+      "journeyId": "J-108-04",
+      "name": "Ambiguous Task Deadline Clarification",
+      "userQuery": "set a task deadline: Submit quarterly report tomorrow",
+      "ambiguityDetected": true,
+      "ambiguityReason": "Relative date reference 'tomorrow' without ISO YYYY-MM-DD date",
+      "assistantClarification": "What exact date is the deadline for this task? Please specify the date (YYYY-MM-DD).",
+      "proposalCreated": false,
+      "unreviewedWriteOccurred": false,
+      "status": "PASS"
+    },
+    {
+      "journeyId": "J-108-05",
+      "name": "Explicit Task Deadline Creation Lifecycle",
+      "userQuery": "set a task deadline: Submit corporate tax return by 2026-12-15",
+      "ambiguityDetected": false,
+      "inferredDeadline": {
+        "type": "date",
+        "date": "2026-12-15"
+      },
+      "proposal": {
+        "operation": "create_personal_task",
+        "status": "pending",
+        "reviewSummary": {
+          "headline": "Create a personal task",
+          "date": "2026-12-15",
+          "destination": "Plan / Tasks"
+        }
+      },
+      "preConfirmationSaveCheck": "Zero records in app.tasks",
+      "confirmation": {
+        "status": "confirmed",
+        "receiptKind": "task",
+        "deepLink": "/plan?targetId=...&targetType=task",
+        "mutationReceiptDeviceId": "ai-assistant-proposal",
+        "durableReceiptStored": true
+      },
+      "postConfirmationSaveCheck": "1 record in app.tasks with deadline 2026-12-15",
+      "status": "PASS"
+    },
+    {
+      "journeyId": "J-108-06",
+      "name": "Cancelled Proposal Zero-Write Guarantee",
+      "userQuery": "create a note: Transient Unwanted Idea",
+      "cancellation": {
+        "status": "cancelled",
+        "writesOccurred": false
+      },
+      "verification": "Zero records created in app.notes",
+      "status": "PASS"
+    },
+    {
+      "journeyId": "J-108-07",
+      "name": "Idempotent Proposal Confirmation",
+      "userQuery": "create a note: Idempotent Note Test",
+      "firstConfirmation": { "status": "confirmed" },
+      "secondConfirmation": { "status": "confirmed", "reusedExisting": true },
+      "verification": "Exactly 1 record created in app.notes; no duplicate rows",
+      "status": "PASS"
+    }
+  ]
+}
