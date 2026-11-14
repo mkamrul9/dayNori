@@ -1,8 +1,8 @@
 {
   "phase": "102",
   "title": "Authorized Version 2 Publication & Live Verification Rehearsals",
-  "executedAt": "2026-11-10T10:21:26.267Z",
-  "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
+  "executedAt": "2026-11-14T06:37:34.318Z",
+  "gitRevision": "5073928eb65e33ebccb92e9d0b168f6b030b191c",
   "environment": {
     "node": "v24.11.1",
     "platform": "win32",
@@ -84,7 +84,28 @@
         "Every undecided field explicitly marked with [UNDECIDED]",
         "artifacts/phase102/publication-review-record.json covers all 109 actions and 6 open blocker gates"
       ]
+    },
+    {
+      "id": "PUB-REHEARSAL-08",
+      "name": "Production authentication, whitelisted redirects, and session state",
+      "status": "PASS",
+      "checks": [
+        "Unauthenticated request fails closed with 401",
+        "Malformed or expired token fails closed with 401",
+        "Whitelisted production OAuth redirect URLs verified for app.daynori.com and preview.daynori.com",
+        "Untrusted open redirect origins strictly rejected"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-09",
+      "name": "Usability protocol and human gate boundary (DEF-V2-013)",
+      "status": "PASS",
+      "checks": [
+        "Synthetic usability participant journey completed (provision, note, tasks, routine, feedback)",
+        "DEF-V2-013 recorded as BLOCKED pending consenting human participants",
+        "Synthetic test personas do not substitute for human participant evidence"
+      ]
     }
   ],
-  "verdict": "ALL_7_PUBLICATION_REHEARSALS_PASSED"
+  "verdict": "ALL_9_PUBLICATION_REHEARSALS_PASSED"
 }

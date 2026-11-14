@@ -1,9 +1,9 @@
 {
   "phase": "102",
   "recordType": "AUTHORIZED_PUBLICATION_REVIEW_RECORD",
-  "evaluatedAt": "2026-11-10T14:00:00.000Z",
-  "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
-  "candidateLabel": "2.0.0-rc1",
+  "evaluatedAt": "2026-11-14T12:27:00.000Z",
+  "gitRevision": "5073928eb65e33ebccb92e9d0b168f6b030b191c",
+  "candidateLabel": "2.0.0-rc2",
   "operationalStatus": "ENGINEERING_PREPARATION_ONLY_PUBLICATION_BLOCKED",
   "releaseScope": {
     "recommendedEnvelope": "BOUNDED_WEB_PWA_BETA",
@@ -89,13 +89,19 @@
         "node": "v24.11.1",
         "next": "15.5.27",
         "react": "19.0.0",
-        "buildId": "82QG95zkVDUHchcNCcupu"
+        "buildId": "yRuRLPiYS9_7enP16RawT"
       },
       "distributableArchive": {
+        "path": "artifacts/release/daynori-web-v2.0.0-rc2.tar.gz",
+        "sha256": "6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f",
+        "sizeBytes": 1824687,
+        "description": "Rebuilt complete production build output (.next, public, package definitions) from clean identified candidate commit 5073928"
+      },
+      "historicalBaselineArchive": {
         "path": "artifacts/release/daynori-web-v2.0.0-rc1.tar.gz",
         "sha256": "663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c",
         "sizeBytes": 1823845,
-        "description": "Complete production build output (.next, public, package definitions) for static/edge deployment"
+        "gitRevision": "5b5c4f8cbb8002a77f87b114174bd5db81867af7"
       },
       "individualAssetHashes": {
         "manifestJson": "417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40",

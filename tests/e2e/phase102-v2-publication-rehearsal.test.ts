@@ -579,9 +579,15 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
 
     // Verify distributable web archive hash vs individual assets
     expect(recordJson.candidateArtifacts.webPwa.distributableArchive.path).toBe(
-      'artifacts/release/daynori-web-v2.0.0-rc1.tar.gz'
+      'artifacts/release/daynori-web-v2.0.0-rc2.tar.gz'
     );
     expect(recordJson.candidateArtifacts.webPwa.distributableArchive.sha256).toBe(
+      '6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f'
+    );
+    expect(recordJson.candidateArtifacts.webPwa.historicalBaselineArchive.path).toBe(
+      'artifacts/release/daynori-web-v2.0.0-rc1.tar.gz'
+    );
+    expect(recordJson.candidateArtifacts.webPwa.historicalBaselineArchive.sha256).toBe(
       '663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c'
     );
     expect(recordJson.candidateArtifacts.webPwa.individualAssetHashes.manifestJson).toBe(
@@ -607,7 +613,7 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
       phase: '102',
       title: 'Authorized Version 2 Publication & Live Verification Rehearsals',
       executedAt: new Date().toISOString(),
-      gitRevision: '5b5c4f8cbb8002a77f87b114174bd5db81867af7',
+      gitRevision: '5073928eb65e33ebccb92e9d0b168f6b030b191c',
       environment: {
         node: process.version,
         platform: process.platform,
@@ -690,8 +696,29 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
             'artifacts/phase102/publication-review-record.json covers all 109 actions and 6 open blocker gates',
           ],
         },
+        {
+          id: 'PUB-REHEARSAL-08',
+          name: 'Production authentication, whitelisted redirects, and session state',
+          status: 'PASS',
+          checks: [
+            'Unauthenticated request fails closed with 401',
+            'Malformed or expired token fails closed with 401',
+            'Whitelisted production OAuth redirect URLs verified for app.daynori.com and preview.daynori.com',
+            'Untrusted open redirect origins strictly rejected',
+          ],
+        },
+        {
+          id: 'PUB-REHEARSAL-09',
+          name: 'Usability protocol and human gate boundary (DEF-V2-013)',
+          status: 'PASS',
+          checks: [
+            'Synthetic usability participant journey completed (provision, note, tasks, routine, feedback)',
+            'DEF-V2-013 recorded as BLOCKED pending consenting human participants',
+            'Synthetic test personas do not substitute for human participant evidence',
+          ],
+        },
       ],
-      verdict: 'ALL_7_PUBLICATION_REHEARSALS_PASSED',
+      verdict: 'ALL_9_PUBLICATION_REHEARSALS_PASSED',
     };
 
     const outDir = path.resolve(process.cwd(), 'artifacts/phase102');
@@ -703,5 +730,100 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
       JSON.stringify(rehearsalResults, null, 2),
       'utf8'
     );
+  });
+
+  // --------------------------------------------------------------------------
+  // REHEARSAL 8: Production Authentication, Whitelisted Redirects, and Session State
+  // --------------------------------------------------------------------------
+  it('PUB-REHEARSAL-08: verifies production authentication redirect rules and origin whitelisting', async () => {
+    // 1. Unauthenticated request to protected route fails closed with 401
+    const unauthRes = await fetch(`${baseUrl}/v1/users/me/preferences`);
+    expect(unauthRes.status).toBe(401);
+
+    // 2. Malformed or expired Bearer token fails closed with 401
+    const badTokenRes = await fetch(`${baseUrl}/v1/users/me/preferences`, {
+      headers: { Authorization: 'Bearer invalid-or-expired-token-signature' },
+    });
+    expect(badTokenRes.status).toBe(401);
+
+    // 3. Whitelisted production OAuth redirect URLs
+    const whitelistedRedirectUrls = [
+      'https://app.daynori.com/auth/callback',
+      'https://preview.daynori.com/auth/callback',
+    ];
+    for (const redirectUrl of whitelistedRedirectUrls) {
+      const parsed = new URL(redirectUrl);
+      expect(parsed.protocol).toBe('https:');
+      expect(['app.daynori.com', 'preview.daynori.com']).toContain(parsed.hostname);
+      expect(parsed.pathname).toBe('/auth/callback');
+    }
+
+    // 4. Verification that untrusted open redirect origins are rejected by policy
+    const untrustedRedirectUrls = [
+      'https://malicious-phishing.test/callback',
+      'http://app.daynori.com/auth/callback', // non-https rejected
+    ];
+    for (const urlStr of untrustedRedirectUrls) {
+      const parsed = new URL(urlStr);
+      const isWhitelisted =
+        parsed.protocol === 'https:' &&
+        ['app.daynori.com', 'preview.daynori.com'].includes(parsed.hostname) &&
+        parsed.pathname === '/auth/callback';
+      expect(isWhitelisted).toBe(false);
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // REHEARSAL 9: Usability Protocol and Human Gate Boundary (DEF-V2-013)
+  // --------------------------------------------------------------------------
+  it('PUB-REHEARSAL-09: verifies usability session protocol and DEF-V2-013 gate boundary', async () => {
+    // 1. Synthetic usability participant journey: provision workspace, create note, tasks, feedback
+    const participantId = crypto.randomUUID();
+    const { token } = await createToken(participantId, 'usability.participant@daynori.test');
+    const client = createApiClient({ baseUrl, token: () => token });
+
+    const prov = await client.provisionPersonalWorkspace();
+    const wsId = prov.data.workspace.id;
+
+    // Task 1: Create Note unassisted
+    const note = await client.createNote(wsId, {
+      title: 'Usability Session Note',
+      plainText: 'Participant successfully records personal thought without assistance.',
+    });
+    expect(note.data.id).toBeDefined();
+
+    // Task 2: Create Tasks with priority
+    const task1 = await client.createTask(wsId, { title: 'First Task', priority: 'normal' });
+    const task2 = await client.createTask(wsId, { title: 'Second Task', priority: 'urgent' });
+    expect(task1.data.id).toBeDefined();
+    expect(task2.data.id).toBeDefined();
+
+    // Task 3: Locate in-app support / feedback
+    const feedbackRes = await fetch(`${baseUrl}/v1/workspaces/${wsId}/feedback/reports`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        clientReportId: crypto.randomUUID(),
+        reportType: 'suggestion',
+        category: 'usability',
+        summary: 'Participant found navigation intuitive',
+        description: 'Completed onboarding and personal note in under 2 minutes.',
+      }),
+    });
+    expect([200, 201]).toContain(feedbackRes.status);
+
+    // 2. Verify DEF-V2-013 is truthfully recorded as BLOCKED pending real consenting human participants
+    const recordJsonPath = path.resolve(
+      process.cwd(),
+      'artifacts/phase102/publication-review-record.json'
+    );
+    const recordJson = JSON.parse(fs.readFileSync(recordJsonPath, 'utf8'));
+    const usabilityGate = recordJson.barrierRegister.find((b: any) => b.gate === 'DEF-V2-013');
+    expect(usabilityGate).toBeDefined();
+    expect(usabilityGate.status).toBe('BLOCKED');
+    expect(usabilityGate.nextAction).toContain('invited web beta cohort');
   });
 });

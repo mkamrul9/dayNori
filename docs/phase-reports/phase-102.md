@@ -3,20 +3,22 @@
 ## Identity and scope
 
 - Phase: [102 — Authorized Version 2 publication and live verification](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md).
-- Status: **blocked** — Local launch preparation, smallest viable release proposal (Bounded Web/PWA Beta), read-only evidence reconciliation, and operational rehearsals delivered. Publication, store submission, beta cohort invitations, production deployment, paid infrastructure spending, and live provider calls remain strictly blocked pending explicit owner authorization.
+- Status: **blocked** — Local launch preparation, candidate package rebuild (`2.0.0-rc2`), smallest viable release proposal (Bounded Web/PWA Beta), read-only evidence reconciliation, and operational rehearsals delivered. Publication, store submission, beta cohort invitations, production deployment, paid infrastructure spending, and live provider calls remain strictly blocked pending explicit owner authorization.
   - Smallest viable release proposal: evaluated and proposed **Bounded Web/PWA Beta** (78 verified core actions) as an immediate release candidate decoupled from Android signing keys and physical TalkBack dependencies, while keeping high-risk modules fail-closed.
   - Decoupled scope architecture:
     - **Track A (Smallest Viable Web Beta)**: 78 verified core actions enabled; 31 gated actions fail-closed (Vault, Rooms, AI, Billing). Applicable gates: `OWNER-RELEASE-AUTH`, `DEF-V2-001`, `DEF-V2-013`.
     - **Track B (Independent Android Track)**: Google Play Internal Testing target; kept visible on its own track without blocking web beta. Applicable gates: `OWNER-SIGNING-KEYS`, `DEF-V2-011`.
     - **Track C (Full Version 2 Scope)**: 109 total actions. Gated on external vault audit (`DEF-V2-004`), staffed rooms moderation (`DEF-V2-006`), live AI provider budget (`DEF-V2-008`), Play billing (`DEF-V2-007`), native push (`DEF-V2-002`), and Drive sync (`DEF-V2-005`).
-  - Distributable artifact packaging: packaged complete deployable web application bundle into `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`), clearly distinguished from individual PWA asset hashes (`manifest.json`, `sw.js`, `offline-shell.html`, `offline-shell.js`, brand icons).
+  - Distributable artifact packaging:
+    - **Active Candidate**: packaged complete deployable web application bundle from clean candidate commit `5073928` into `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` (size: 1,824,687 bytes; SHA-256: `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f`, `BUILD_ID`: `yRuRLPiYS9_7enP16RawT`), clearly distinguished from individual PWA asset hashes (`manifest.json`, `sw.js`, `offline-shell.html`, `offline-shell.js`, brand icons).
+    - **Historical Predecessor Baseline**: `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`, commit `5b5c4f8`).
   - Proposed Phase 103 review window handoff: attached a 14-calendar-day post-release review window ($T+0$ to $T+14$) with unassigned Review Lead and privacy-preserving metrics (aggregate uptime, support category tallies, anonymous crash hashes, mutation latency percentiles, tour completion counts, and infrastructure bills). Observations remain pending; Phase 103 remains `planned`.
-  - Rehearsal verification: 7 rehearsal scenarios verified in [`tests/e2e/phase102-v2-publication-rehearsal.test.ts`](../../tests/e2e/phase102-v2-publication-rehearsal.test.ts) (7/7 passed in 2.78s).
+  - Rehearsal verification: 9 rehearsal scenarios verified in [`tests/e2e/phase102-v2-publication-rehearsal.test.ts`](../../tests/e2e/phase102-v2-publication-rehearsal.test.ts) (9/9 passed in 3.02s).
   - Remaining owner decisions: assembled 9-item concrete approval checklist in [`docs/release/v2-authorized-publication-record.md`](../release/v2-authorized-publication-record.md).
-- Contributor/date: Antigravity agent, 2026-11-10.
-- Base revision/branch: `5b5c4f8cbb8002a77f87b114174bd5db81867af7`, `codex/free-core-preview`.
+- Contributor/date: Antigravity agent, 2026-11-14 (rebuilt and verified candidate 2.0.0-rc2).
+- Base revision/branch: `5073928eb65e33ebccb92e9d0b168f6b030b191c`, `codex/free-core-preview`.
 - Hard prerequisites: Phase **101** ([phase-101.md](phase-101.md)).
-- Owner Scheduling Authorization: The owner explicitly authorized Phase 102 local launch preparation, smallest viable release proposal evaluation, and read-only evidence reconciliation before Phase 101 final acceptance ([ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md)). Standing push authorized under ADR 0074. No unverified production publication, store upload, live provider calls, or deployment claimed.
+- Owner Scheduling Authorization: The owner explicitly authorized returning to Phase 102 to rebuild and hash the candidate artifact from clean commit `5073928`, verify hosted preview, production auth redirects, sync, support, rollback, and usability sessions, while keeping all incomplete modules fail-closed and preparing the exact owner decision package ([ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md)). Standing push authorized under ADR 0074. No unverified production publication, store upload, live provider calls, or deployment claimed.
 
 ---
 
@@ -40,7 +42,8 @@
    - Full Version 2 gates (`DEF-V2-004`, `DEF-V2-006`, `DEF-V2-008`, `DEF-V2-007`, `DEF-V2-002`, `DEF-V2-005`) remain open for their respective scopes.
 
 3. **Distributable Web Release Artifact Hash vs Individual Asset Hashes**:
-   - **Distributable Release Artifact**: Packaged complete deployable Next.js 15.5.27 production build (`.next`, `public`, `package.json`, `next.config.mjs`) into `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`). Ignored from git via `.gitignore` to avoid large binary commits while preserving immutable cryptographic digests in release records.
+   - **Active Candidate Release Artifact (2.0.0-rc2)**: Packaged complete deployable Next.js 15.5.27 production build (`.next`, `public`, `package.json`, `next.config.mjs`) from clean candidate commit `5073928` into `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` (size: 1,824,687 bytes; SHA-256: `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f`, `BUILD_ID`: `yRuRLPiYS9_7enP16RawT`). Ignored from git via `.gitignore` while preserving immutable cryptographic digests in release records.
+   - **Historical Predecessor Baseline (2.0.0-rc1)**: Packaged from commit `5b5c4f8` into `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`, `BUILD_ID`: `82QG95zkVDUHchcNCcupu`).
    - **Individual PWA Asset Hashes**: Reconciled exact SHA-256 digests for individual client files:
      - `manifest.json`: `417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40`
      - `sw.js`: `6e243130bed7d29e51c330a378380805f87539798692abe5c4f8127bb1f70cb3`
@@ -71,14 +74,16 @@
    - Phase 103 status remains **`planned`** in `docs/roadmap/progress.json`; no autonomous monitoring or follow-up code is implemented.
 
 6. **Publication Rehearsals Verification (`tests/e2e/phase102-v2-publication-rehearsal.test.ts`)**:
-   - All 7 publication rehearsals passed cleanly (7/7 passed in 2.78s):
+   - All 9 publication rehearsals passed cleanly (9/9 passed in 3.02s):
      - `PUB-REHEARSAL-01`: Synthetic account login, session validation, and multi-tenant isolation.
      - `PUB-REHEARSAL-02`: Scoped core organizer durable save, cold reopen integrity, and offline outbox sync with optimistic concurrency conflict detection (`baseRevision`).
      - `PUB-REHEARSAL-03`: Customer support feedback ingestion (`POST /v1/workspaces/:workspaceId/feedback/reports`), receipt generation, operator triage access, internal note creation, and status progression to `triaged`.
      - `PUB-REHEARSAL-04`: Privacy lifecycle, cryptographic reauthentication proof verification, account deletion request/confirm, and tombstone suppression (0 accessible rows; no accidental resurrection).
      - `PUB-REHEARSAL-05`: Production fail-closed kill switches (Vault 403, Rooms 403, Billing 403, AI 403), forward-fix schema property (additive migrations), and dynamic UI navigation collapse.
      - `PUB-REHEARSAL-06`: Synthetic reviewer access isolation (`reviewer@daynori.test`): access to core features permitted; operator endpoints and restricted modules strictly forbidden (403).
-     - `PUB-REHEARSAL-07`: Publication review record reconciliation, smallest viable release proposal verification, distributable archive hash verification, barrier register reconciliation, and Phase 103 review window handoff verification.
+     - `PUB-REHEARSAL-07`: Publication review record reconciliation, smallest viable release proposal verification, distributable archive hash verification (`daynori-web-v2.0.0-rc2.tar.gz`), barrier register reconciliation, and Phase 103 review window handoff verification.
+     - `PUB-REHEARSAL-08`: Production authentication redirect rules, whitelisted OAuth redirect URLs (`https://app.daynori.com/auth/callback` & `https://preview.daynori.com/auth/callback`), and untrusted open-redirect rejection.
+     - `PUB-REHEARSAL-09`: Usability session protocol execution and human gate boundary verification (`DEF-V2-013` recorded as fail-closed pending invited beta cohort participants).
 
 7. **Publication Hold Pending Explicit Owner Authorization**:
    - Phase 102 status recorded as **`blocked`** in `docs/roadmap/progress.json`.
@@ -91,7 +96,7 @@
 
 | Check / Tool | Exact Command | Exit Code | Result Summary |
 | :--- | :--- | :--- | :--- |
-| **Publication Rehearsal Suite** | `pnpm exec vitest run tests/e2e/phase102-v2-publication-rehearsal.test.ts` | `0` | PASS (7 tests passed in 2.78s) |
+| **Publication Rehearsal Suite** | `pnpm exec vitest run tests/e2e/phase102-v2-publication-rehearsal.test.ts` | `0` | PASS (9 tests passed in 3.02s) |
 | **Operations Rehearsal Suite** | `pnpm exec vitest run tests/e2e/phase101-v2-operations-rehearsal.test.ts` | `0` | PASS (5 tests passed in 980ms) |
 | **Candidate Rehearsals Suite** | `pnpm exec vitest run tests/e2e/phase100-v2-candidate-rehearsals.test.ts` | `0` | PASS (8 tests passed in 1.45s) |
 | **Web Production Smoke** | `node scripts/phase60-web-production-smoke.mjs` | `0` | PASS (18 checks passed, port 3060) |
@@ -99,7 +104,7 @@
 | **Android Exercise Gradle** | `node scripts/mobile-android-release-path.mjs exercise-gradle` | `0` | PASS (:app:tasks pass, :app:assembleRelease fail-closed) |
 | **Release Preflight** | `node scripts/release-preflight.mjs --allow-partial-local` | `0` | PASS (20 pass, 0 fail, 13 blocked, 1 unexecuted; releaseEligible=false) |
 | **Function Register Check** | `pnpm validate:function-register` | `0` | PASS (109 actions, 13 defects, 22 families) |
-| **Planning Validator** | `pnpm validate:planning` | `0` | PASS (104 phases, 22 requirements) |
+| **Planning Validator** | `node scripts/validate-planning.mjs` | `0` | PASS (110 phases, 22 requirements, 481 markdown files) |
 | **Secret Scan** | `pnpm audit:secrets` | `0` | PASS (checked 18,390+ files without unapproved secrets) |
 
 ---
@@ -136,8 +141,8 @@
 
 ## Remaining owner decisions
 
-1. **Release Candidate Approval**: Formally approve release candidate `2.0.0-rc1` at commit `5b5c4f8cbb8002a77f87b114174bd5db81867af7`.
-2. **Distributable Web Archive**: Approve distributable package `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (SHA-256 `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`).
+1. **Release Candidate Approval**: Formally approve release candidate `2.0.0-rc2` at commit `5073928eb65e33ebccb92e9d0b168f6b030b191c`.
+2. **Distributable Web Archive**: Approve distributable package `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` (SHA-256 `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f`, size: 1,824,687 bytes).
 3. **Smallest Viable Release Scope**: Authorize proposed Bounded Web/PWA Beta scope (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Billing).
 4. **Web Target Destinations**: Authorize staging (`preview.daynori.com`), production domain (`app.daynori.com`), and edge hosting provider (Cloudflare Pages / Vercel Pro).
 5. **Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs (`https://app.daynori.com`).

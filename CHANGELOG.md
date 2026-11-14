@@ -1,5 +1,37 @@
 # Changelog
 
+## Phase 102 — Authorized Version 2 publication and live verification (Candidate Rebuild & Audit) — 2026-11-14
+
+- ADR 0102: Return to Phase 102 authorized publication and live verification following completion of Phase 104–109 core, design, drive, and assistant verifications. Rebuilt release candidate artifact, reconciled production auth redirects, synthetic sync flows, support triage, rollback procedures, usability gate boundaries, and owner approval package.
+- Release Candidate Rebuild & Packaging (`2.0.0-rc2`):
+  - Packaged deployable web application bundle from clean candidate commit `5073928eb65e33ebccb92e9d0b168f6b030b191c` into `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` (size: 1,824,687 bytes; SHA-256: `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f`; `BUILD_ID`: `yRuRLPiYS9_7enP16RawT`).
+  - Preserved historical predecessor baseline `daynori-web-v2.0.0-rc1.tar.gz` (`663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`, commit `5b5c4f8`) in release records for comparison.
+  - Verified individual PWA asset hashes remain byte-exact (`manifest.json`: `417faac1...`, `sw.js`: `6e243130...`, `offline-shell.html`: `1b0bf5f6...`, `offline-shell.js`: `69649cda...`, brand icons).
+- Hosted Web Production Smoke:
+  - Executed `scripts/phase60-web-production-smoke.mjs` against the built Next.js application on port 3060: 18 public route, CSP Level 3 nonce format, session cookie isolation, and fail-closed gate checks passed cleanly.
+- Publication Rehearsals Verification (`tests/e2e/phase102-v2-publication-rehearsal.test.ts`):
+  - All 9 publication rehearsals passed cleanly (9/9 passed in 3.02s):
+    - `PUB-REHEARSAL-01`: Synthetic account login, session validation, workspace bootstrap, and multi-tenant isolation.
+    - `PUB-REHEARSAL-02`: Scoped core organizer durable save, cold reopen integrity in fresh client instance, offline mutation outbox replay, and optimistic concurrency conflict detection (`baseRevision` rejection with 409).
+    - `PUB-REHEARSAL-03`: Customer support receipt generation (`POST /v1/workspaces/:id/feedback/reports`), non-operator barrier (403), operator triage queue access (`GET /v1/operator/feedback/reports`), internal triage note creation, and status progression to `triaged`.
+    - `PUB-REHEARSAL-04`: Privacy lifecycle, cryptographically signed reauthentication proof bound to session, account deletion request/confirm, and tombstone suppression (0 active user items in database; no accidental resurrection).
+    - `PUB-REHEARSAL-05`: Production fail-closed kill switches (Vault 403, Rooms 403, Billing 403, AI 403), additive schema forward-fix property, and dynamic navigation collapse.
+    - `PUB-REHEARSAL-06`: Synthetic reviewer access isolation (`reviewer@daynori.test`): access to core features permitted; operator endpoints and restricted modules strictly forbidden (403).
+    - `PUB-REHEARSAL-07`: Publication review record reconciliation, smallest viable release proposal verification, distributable archive hash verification (`daynori-web-v2.0.0-rc2.tar.gz`), barrier register reconciliation, and Phase 103 review window handoff verification.
+    - `PUB-REHEARSAL-08`: Production authentication redirect rules, whitelisted OAuth redirect URLs (`https://app.daynori.com/auth/callback` & `https://preview.daynori.com/auth/callback`), and untrusted open-redirect rejection.
+    - `PUB-REHEARSAL-09`: Usability session protocol execution (workspace provision, note creation, task reorder, routine scheduling, support feedback) and human gate boundary verification (`DEF-V2-013` recorded as fail-closed pending invited beta cohort participants).
+- Exact 5 Owner Decision Parameters:
+  - Exact destination: Staging on `https://preview.daynori.com`, Production on `https://app.daynori.com`, fallback on static offline maintenance shell.
+  - Cohort: 20 to 50 invited consenting beta testers.
+  - Budget: \$5–\$40/month low-tier envelope.
+  - Operator: Dedicated operator rotation (`DAYNORI_OPERATOR_USER_IDS`).
+  - Rollback Decision: Instant DNS cutover back to preview deploy or static maintenance fallback shell (`offline-shell.html`), triggered by sustained p95 latency $>500$ms, 5xx server error rate $>1\%$, unhandled data corruption, or cross-tenant data breach.
+- Truthful Gating & Fail-Closed Safeguards:
+  - Enabled scope restricted to 78 verified core organizer actions (Notes, Tasks, Routines, Agenda, Tours, Search, Offline Sync, Settings, Support Feedback).
+  - Kept high-risk and unverified modules fail-closed: Google Drive (`DEF-V2-005`), AI text (`DEF-V2-008`), voice assistant (`DEF-V2-008`, `DEF-V2-011`), vault (`DEF-V2-004`), rooms (`DEF-V2-006`), billing (`DEF-V2-007`), and native Android release (`OWNER-SIGNING-KEYS`, `DEF-V2-011`).
+  - Usability evaluation gate `DEF-V2-013` recorded as `BLOCKED` pending live human participant sessions on the invited beta cohort.
+  - Phase 102 status remains strictly `blocked` pending explicit owner publication authorization (`OWNER-RELEASE-AUTH`). No public release or deployment claimed from local tests.
+
 ## Phase 109 — Voice-assistant verification and operational review — 2026-11-14
 
 - ADR 0109: Voice-assistant verification and operational review evaluating Phase 95's capture and transcript-review pipeline against release gates `DEF-V2-008` (enterprise live provider privacy agreement) and `DEF-V2-011` (physical phone TalkBack verification).

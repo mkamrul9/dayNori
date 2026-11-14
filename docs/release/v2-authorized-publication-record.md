@@ -1,8 +1,8 @@
 # Daynori Version 2 Authorized Publication Record & Smallest Viable Release Proposal
 
-- **Record Date**: 2026-11-10
-- **Candidate Revision**: `5b5c4f8cbb8002a77f87b114174bd5db81867af7`
-- **Candidate Label**: `2.0.0-rc1`
+- **Record Date**: 2026-11-14
+- **Candidate Revision**: `5073928eb65e33ebccb92e9d0b168f6b030b191c`
+- **Candidate Label**: `2.0.0-rc2` (rebuilt from clean candidate commit following Phase 104–109 core, design, drive, and assistant verifications; rc1 baseline preserved as historical reference)
 - **Owning Phase**: [Phase 102 — Authorized Version 2 publication and live verification](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md)
 - **Governing Decisions**: [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md)
 - **Operational Status**: **ENGINEERING LAUNCH PREPARATION ONLY — PUBLICATION BLOCKED**
@@ -52,17 +52,18 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 ## 2. Candidate Revision and Verified Artifact Hashes
 
-- **Git HEAD SHA**: `5b5c4f8cbb8002a77f87b114174bd5db81867af7`
+- **Git HEAD SHA**: `5073928eb65e33ebccb92e9d0b168f6b030b191c`
 - **Branch**: `codex/free-core-preview`
-- **Candidate Label**: `2.0.0-rc1`
+- **Candidate Label**: `2.0.0-rc2` (rebuilt from clean identified commit `5073928`)
 
 ### A. Distributable Web Release Artifact (Deployable Archive)
 
-Built reproducibly with Node `v24.11.1`, Next.js `15.5.27`, React `19.0.0` (`BUILD_ID`: `82QG95zkVDUHchcNCcupu`). This archive contains the complete production-built web application required for static/edge deployment:
+Built reproducibly with Node `v24.11.1`, Next.js `15.5.27`, React `19.0.0` (`BUILD_ID`: `yRuRLPiYS9_7enP16RawT`). This archive contains the complete production-built web application required for static/edge deployment:
 
-| Distributable Release Artifact | File Size | SHA-256 Digest | Packaging Specification |
+| Distributable Release Artifact | File Size | SHA-256 Digest | Status & Packaging Specification |
 | :--- | :--- | :--- | :--- |
-| `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` | `1,823,845 bytes` | `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c` | Contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs`. |
+| `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` | `1,824,687 bytes` | `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `5073928`; contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs`. |
+| `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` | `1,823,845 bytes` | `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c` | *Historical Predecessor*: Packaged from commit `5b5c4f8` for baseline comparison. |
 
 ### B. Individual Web / PWA Production Asset Hashes
 
@@ -218,8 +219,8 @@ All review observations strictly adhere to repository privacy rules (zero inspec
 
 Before granting execution authorization, the project owner is requested to review and decide upon the following concrete items:
 
-- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc1` at commit `5b5c4f8cbb8002a77f87b114174bd5db81867af7`.
-- [ ] **2. Distributable Web Archive**: Distributable package `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (SHA-256 `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`).
+- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc2` at commit `5073928eb65e33ebccb92e9d0b168f6b030b191c`.
+- [ ] **2. Distributable Web Archive**: Distributable package `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` (SHA-256 `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f`, size: 1,824,687 bytes).
 - [ ] **3. Release Scope**: Bounded Web/PWA Beta (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Billing).
 - [ ] **4. Web Target Destinations**: Authorize staging (`preview.daynori.com`), production domain (`app.daynori.com`), and edge hosting provider (Cloudflare Pages / Vercel Pro).
 - [ ] **5. Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs.

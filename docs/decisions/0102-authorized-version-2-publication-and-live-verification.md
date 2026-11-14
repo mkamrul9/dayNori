@@ -1,7 +1,7 @@
 # ADR-0102: Authorized Version 2 Publication and Live Verification
 
-- Status: accepted (local launch preparation, smallest viable release proposal, and evidence reconciliation only; publication blocked).
-- Date: 2026-11-10.
+- Status: accepted (local launch preparation, smallest viable release proposal, and evidence reconciliation only; publication blocked pending owner release authorization).
+- Date: 2026-11-10 (reconciled and rebuilt candidate 2.0.0-rc2 on 2026-11-14).
 - Owner/reviewer: Antigravity agent (owner-authorized Phase 102 with explicit scheduling decision).
 - Related: [Phase 102](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md), [Phase 103](../roadmap/phases/103-first-version-2-review-and-bounded-follow-up-plan.md), [Phase 101](../roadmap/phases/101-version-2-release-candidate-and-operational-preparation.md), [Phase 100](../roadmap/phases/100-full-version-2-beta-and-readiness-reconciliation.md), [Phase 60](../roadmap/phases/60-public-android-and-web-release.md), [ADR 0057](0057-public-release-preflight-and-first-publication.md), [ADR 0074](0074-standing-phase71-scheduling-and-push.md), [ADR 0101](0101-version-2-release-candidate-and-operational-preparation.md), [release-gates.md](../engineering/release-gates.md), [v2-authorized-publication-record.md](../release/v2-authorized-publication-record.md), [v2-bounded-beta-manifest.md](../release/v2-bounded-beta-manifest.md).
 - Supersedes/superseded by: none. Preserves all outstanding prerequisite, security, hardware, and release gates.
@@ -38,7 +38,8 @@ Furthermore, in this continuation, the owner requested:
    - Full Version 2 gates (`DEF-V2-004`, `DEF-V2-006`, `DEF-V2-008`, `DEF-V2-007`, `DEF-V2-002`, `DEF-V2-005`) remain open for their respective scopes.
 
 3. **Distributable Release Artifact Hash vs Individual Asset Hashes**:
-   - **Distributable Release Artifact**: Packaged complete deployable web application bundle into `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`). Ignored from git via `.gitignore` to avoid large binary commits while recording immutable digests in release records.
+   - **Active Candidate Release Artifact (2.0.0-rc2)**: Packaged complete deployable web application bundle from clean candidate commit `5073928eb65e33ebccb92e9d0b168f6b030b191c` into `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` (size: 1,824,687 bytes; SHA-256: `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f`, `BUILD_ID`: `yRuRLPiYS9_7enP16RawT`). Ignored from git via `.gitignore` to avoid large binary commits while recording immutable digests in release records.
+   - **Historical Predecessor Baseline (2.0.0-rc1)**: Packaged from commit `5b5c4f8cbb8002a77f87b114174bd5db81867af7` into `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` (size: 1,823,845 bytes; SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`, `BUILD_ID`: `82QG95zkVDUHchcNCcupu`).
    - **Individual PWA Asset Hashes**: Recorded exact SHA-256 digests for individual client files (`manifest.json`: `417faac1...`, `sw.js`: `6e243130...`, `offline-shell.html`: `1b0bf5f6...`, `offline-shell.js`: `69649cda...`, brand icons).
 
 4. **Rollback Procedures, Triggers, and Permitted Synthetic Probes**:
