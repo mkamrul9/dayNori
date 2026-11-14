@@ -1,32 +1,51 @@
 {
   "phase": "102",
   "title": "Live Synthetic Smoke Check Results (Authorized Web/PWA Core Scope)",
-  "startedAt": "2026-11-14T12:58:24.933Z",
-  "finishedAt": "2026-11-14T12:58:24.949Z",
+  "startedAt": "2026-11-14T13:37:23.407Z",
+  "finishedAt": "2026-11-14T13:37:26.139Z",
   "targetWebUrl": "http://127.0.0.1:3060",
   "targetApiUrl": "http://127.0.0.1:3114",
   "totalChecks": 5,
-  "passedChecks": 1,
+  "passedChecks": 5,
   "failedChecks": 0,
-  "skippedChecks": 4,
+  "skippedChecks": 0,
+  "verdict": "ALL_5_SMOKE_CHECKS_PASSED",
   "checks": [
     {
       "id": "SMOKE-01",
       "name": "API Health Probe (/health)",
-      "status": "SKIP_OFFLINE",
-      "error": "fetch failed"
+      "status": "PASS",
+      "statusCode": 200,
+      "data": {
+        "status": "ok",
+        "version": "0.1.0",
+        "timestamp": "2026-11-14T13:37:25.586Z",
+        "environment": "development"
+      }
     },
     {
       "id": "SMOKE-02",
       "name": "API Versioned Health Probe (/v1/health)",
-      "status": "SKIP_OFFLINE",
-      "error": "fetch failed"
+      "status": "PASS",
+      "statusCode": 200,
+      "data": {
+        "data": {
+          "status": "ok",
+          "version": "0.1.0",
+          "environment": "development"
+        },
+        "meta": {
+          "requestId": "7cb2a550-b364-4a44-9ac7-24919fb94163",
+          "serverTime": "2026-11-14T13:37:25.596Z"
+        }
+      }
     },
     {
       "id": "SMOKE-03",
       "name": "Web Shell & CSP Nonce Enforcement (/privacy)",
-      "status": "SKIP_OFFLINE",
-      "error": "fetch failed"
+      "status": "PASS",
+      "statusCode": 200,
+      "hasCspNonce": true
     },
     {
       "id": "SMOKE-04",
@@ -37,8 +56,13 @@
     {
       "id": "SMOKE-05",
       "name": "Fail-Closed Module Gating (Vault, Rooms, AI, Billing)",
-      "status": "SKIP_OFFLINE",
-      "error": "fetch failed"
+      "status": "PASS",
+      "statuses": {
+        "vault": 403,
+        "rooms": 403,
+        "billing": 403,
+        "ai": 403
+      }
     }
   ]
 }

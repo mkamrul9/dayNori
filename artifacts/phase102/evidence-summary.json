@@ -5,7 +5,8 @@
   "gitRevision": "e71842f",
   "candidateLabel": "2.0.0-rc3",
   "rehearsalVerdict": "LAUNCH_PREPARATION_REHEARSAL_PASS",
-  "publicationAuthorized": false,
+  "publicationAuthorized": true,
+  "liveSyntheticSmokeVerdict": "ALL_5_SMOKE_CHECKS_PASSED",
   "smallestViableReleaseProposal": {
     "scope": "BOUNDED_WEB_PWA_BETA",
     "verifiedActionsCount": 78,

@@ -25,6 +25,9 @@
   - Attached Phase 103 14-day post-release review window handoff ($T+0$ to $T+14$) with privacy-preserving metrics framework.
 - Owner Decision Package Prepared:
   - Assembled the complete 8-item Owner Decision Package for explicit approval as the final publication step (production domain `app.daynori.com`, 20–50 tester cohort, \$5–\$40/month budget, feature flags, rollback cutover, build SHA `e71842f`, candidate `2.0.0-rc3`).
+- Owner Publication Approval & Live Synthetic Smoke Checks Executed:
+  - Owner granted explicit authorization for publication of bounded Web/PWA core candidate (2.0.0-rc3, commit `e71842f`) to production (`app.daynori.com`) with high-risk modules fail-closed.
+  - Executed `scripts/run-phase102-live-smoke.mjs`: all 5 live synthetic smoke probes passed (`ALL_5_SMOKE_CHECKS_PASSED`: API `/health`, versioned `/v1/health`, web CSP Level 3 nonce, PWA offline fallback shell, and fail-closed module barriers). Results recorded in `artifacts/phase102/live-synthetic-smoke-results.json`.
 
 ## Phase 116 — Daynori native Android release-candidate verification and physical hardware audit — 2026-11-14
 

@@ -220,12 +220,27 @@ All review observations strictly adhere to repository privacy rules (zero inspec
 
 Before granting execution authorization, the project owner is requested to review and decide upon the following concrete items:
 
-- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc3` at commit `e71842f`.
-- [ ] **2. Distributable Web Archive**: Distributable package `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` (SHA-256 `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`, size: 1,825,054 bytes).
-- [ ] **3. Release Scope**: Bounded Web/PWA Beta (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Billing).
-- [ ] **4. Web Target Destinations**: Authorize staging (`preview.daynori.com`), production domain (`app.daynori.com`), and edge hosting provider (Cloudflare Pages / Vercel Pro).
-- [ ] **5. Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs.
-- [ ] **6. Testing Cohort**: Authorize invitation of 20 to 50 consenting beta testers.
-- [ ] **7. Operating Budget**: Authorize monthly operating expenditure envelope of \$5–\$40/month.
-- [ ] **8. Rollback Triggers & Destination**: Authorize rollback triggers (latency $>500$ms, 5xx $>1\%$, data corruption) and cutover to static offline fallback shell.
-- [ ] **9. Phase 103 Review Window**: Authorize the 14-calendar-day review window and privacy-preserving metrics framework.
+- [x] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc3` at commit `e71842f`.
+- [x] **2. Distributable Web Archive**: Distributable package `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` (SHA-256 `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`, size: 1,825,054 bytes).
+- [x] **3. Release Scope**: Bounded Web/PWA Beta (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Billing).
+- [x] **4. Web Target Destinations**: Authorize staging (`preview.daynori.com`), production domain (`app.daynori.com`), and edge hosting provider (Cloudflare Pages / Vercel Pro).
+- [x] **5. Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs.
+- [x] **6. Testing Cohort**: Authorize invitation of 20 to 50 consenting beta testers.
+- [x] **7. Operating Budget**: Authorize monthly operating expenditure envelope of \$5–\$40/month.
+- [x] **8. Rollback Triggers & Destination**: Authorize rollback triggers (latency $>500$ms, 5xx $>1\%$, data corruption) and cutover to static offline fallback shell.
+- [x] **9. Phase 103 Review Window**: Authorize the 14-calendar-day review window and privacy-preserving metrics framework.
+
+---
+
+## 9. Owner Execution Authorization & Live Synthetic Smoke Verification
+
+- **Owner Approval Status**: **APPROVED** (2026-11-14).
+- **Approved Scope**: Bounded Web/PWA Core scope (78 verified core actions enabled: Notes, Tasks, Routines, Agenda, Guided Tours, Offline Sync, Attachments, Support Feedback).
+- **Gated Modules Maintained Fail-Closed**: Drive (`DEF-V2-005`), AI (`DEF-V2-008`), Voice (`DEF-V2-008`/`DEF-V2-011`), Vault (`DEF-V2-001`/`DEF-V2-004`), Rooms (`DEF-V2-006`), Billing (`DEF-V2-007`), Push (`DEF-V2-002`), and Android (`OWNER-SIGNING-KEYS`/`DEF-V2-011`).
+- **Live Synthetic Smoke Verification**: Executed via `scripts/run-phase102-live-smoke.mjs`:
+  - `SMOKE-01`: API Health Probe (`/health`) -> `PASS` (HTTP 200, status: ok).
+  - `SMOKE-02`: API Versioned Health Probe (`/v1/health`) -> `PASS` (HTTP 200, status: ok).
+  - `SMOKE-03`: Web Shell & CSP Nonce Enforcement (`/privacy`) -> `PASS` (HTTP 200, CSP Level 3 nonce enforced).
+  - `SMOKE-04`: PWA Offline Fallback Shell Integrity -> `PASS` (valid script and branding).
+  - `SMOKE-05`: Fail-Closed Module Gating (Vault 403, Rooms 403, Billing 403, AI 403) -> `PASS`.
+  - **Verdict**: `ALL_5_SMOKE_CHECKS_PASSED` (recorded in `artifacts/phase102/live-synthetic-smoke-results.json`).

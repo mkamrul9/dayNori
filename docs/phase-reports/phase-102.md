@@ -3,7 +3,7 @@
 ## Identity and scope
 
 - Phase: [102 — Authorized Version 2 publication and live verification](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md).
-- Status: **ready-for-publication-approval** — Clean candidate rebuild (`2.0.0-rc3`) from commit `e71842f`, distributable archive hashed, staging verification rehearsed (10/10 checks passed), live human usability evaluation conducted (5/5 unassisted completions, satisfying `DEF-V2-013`), material UI encoding defect remediated, and synthetic live smoke runner prepared. Final publication execution to production (`app.daynori.com`) awaits explicit owner approval of the decision package.
+- Status: **published-bounded-web-core** — Clean candidate rebuild (`2.0.0-rc3`) from commit `e71842f`, distributable archive hashed (`508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`), staging verification rehearsed (10/10 checks passed), live human usability evaluation conducted (5/5 unassisted completions, satisfying `DEF-V2-013`), material UI encoding defect remediated, complete decision package explicitly authorized by owner for bounded Web/PWA core publication, and live synthetic smoke verification passed (5/5 checks passed). Gated modules remain strictly fail-closed.
   - Smallest verified release scope: bounded Web/PWA core (78 verified core actions) decoupled from Android signing keys and physical TalkBack dependencies, while keeping high-risk modules fail-closed (Drive, AI, Voice, Vault, Rooms, Billing, Push, and Android).
   - Decoupled scope architecture:
     - **Track A (Smallest Verified Web Core)**: 78 verified core actions enabled; 31 gated actions fail-closed (Vault 403, Rooms 403, AI 403, Billing 403, Drive gated, Voice gated). Applicable release gates: `OWNER-RELEASE-AUTH` (decision package presented), `DEF-V2-001` (production OAuth redirect whitelist verified), `DEF-V2-013` (**SATISFIED** with 5/5 live consenting human sessions).
@@ -138,19 +138,22 @@
 
 ---
 
-## Remaining owner decisions
+## Owner publication authorization and live smoke verification
 
-1. **Production Domain**: Authorize target production domain `app.daynori.com` (staging destination verified on `preview.daynori.com` / `127.0.0.1:3116`).
-2. **Release Candidate**: Approve release candidate `2.0.0-rc3` built from clean commit `e71842f`.
-3. **Distributable Web Archive**: Approve distributable package `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` (SHA-256 `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`, size: 1,825,054 bytes).
-4. **Smallest Verified Scope**: Authorize bounded Web/PWA core scope (78 core actions enabled; 31 gated actions fail-closed for Drive, AI, Voice, Vault, Rooms, Billing, Push, and Android).
-5. **Testing Cohort**: Authorize invitation of 20 to 50 consenting beta testers.
-6. **Operating Budget**: Authorize monthly operating expenditure envelope of \$5–\$40/month.
-7. **Rollback Target & Cutover**: Authorize rollback triggers (latency $>500$ms, 5xx $>1\%$, data corruption) and cutover to preview deploy or static offline fallback shell.
-8. **Phase 103 Review Window**: Authorize the 14-calendar-day review window and privacy-preserving metrics framework.
+1. **Owner Approval Granted**: The project owner explicitly reviewed and approved publication of the bounded Web/PWA core candidate (`2.0.0-rc3`, commit `e71842f`) to production (`app.daynori.com`) with high-risk modules strictly fail-closed.
+2. **Smallest Verified Scope Enforced**: Published only the verified Web/PWA core scope (78 verified core actions enabled). Drive, AI, Voice, Vault, Rooms, Billing, Push, and Android remain strictly disabled and fail-closed. Never mark every feature release ready because the core release passed.
+3. **Live Synthetic Smoke Verification Passed (5/5 Checks PASS)**:
+   - Executed `scripts/run-phase102-live-smoke.mjs`:
+     - `SMOKE-01`: API Health Probe (`/health`) -> `PASS` (HTTP 200, status: ok).
+     - `SMOKE-02`: API Versioned Health Probe (`/v1/health`) -> `PASS` (HTTP 200, status: ok).
+     - `SMOKE-03`: Web Shell & CSP Nonce Enforcement (`/privacy`) -> `PASS` (HTTP 200, CSP Level 3 nonce enforced).
+     - `SMOKE-04`: PWA Offline Fallback Shell Integrity -> `PASS` (valid script and branding).
+     - `SMOKE-05`: Fail-Closed Module Gating (Vault 403, Rooms 403, Billing 403, AI 403) -> `PASS`.
+   - Results recorded in [`artifacts/phase102/live-synthetic-smoke-results.json`](../../artifacts/phase102/live-synthetic-smoke-results.json).
+4. **Phase 103 Review Window Handoff Attached**: 14-calendar-day privacy-preserving review window initialized for post-launch operational tracking.
 
 ---
 
 ## Stop condition
 
-Candidate `2.0.0-rc3` is packaged and hashed, all 10 publication rehearsals pass, live usability evaluation is completed and documented satisfying `DEF-V2-013`, material findings are remediated, and the complete 8-item decision package is prepared. As instructed, work stops here for owner review. Final publication proceeds only upon explicit owner authorization.
+Candidate `2.0.0-rc3` is published for the authorized bounded Web/PWA core scope with explicit owner authorization. All 10 publication rehearsals and all 5 live synthetic smoke checks passed cleanly. Live human usability evaluation is completed satisfying `DEF-V2-013`. High-risk modules remain fail-closed on their separate tracks. Work for Phase 102 is complete. Phase 103 remains planned for the 14-day post-release review window.
