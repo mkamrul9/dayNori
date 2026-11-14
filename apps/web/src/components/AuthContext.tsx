@@ -696,6 +696,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user?.id, workspaceId]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __daynoriAuth?: unknown }).__daynoriAuth = {
+        user,
+        workspaceId,
+        isAuthenticated,
+        signIn,
+        signUp,
+        signOut,
+        recoverPassword,
+        provisionPersonalWorkspace,
+        openAuthModal,
+        closeAuthModal,
+      };
+    }
+  }, [user, workspaceId, isAuthenticated, signIn, signUp, signOut, recoverPassword, provisionPersonalWorkspace, openAuthModal, closeAuthModal]);
+
   return (
     <AuthContext.Provider
       value={{

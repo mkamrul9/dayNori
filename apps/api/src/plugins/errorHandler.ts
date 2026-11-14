@@ -157,9 +157,10 @@ export function createErrorHandler(logger: SafeLogger) {
     }
 
     // 4. Zod schema validation errors (client input)
-    if (error instanceof ZodError) {
-      const details = error.errors.map((err) => ({
-        field: err.path.join('.'),
+    if (error instanceof ZodError || (error as { name?: string })?.name === 'ZodError') {
+      const issues = (error as ZodError).issues || (error as ZodError).errors || [];
+      const details = issues.map((err) => ({
+        field: err.path ? err.path.join('.') : '',
         message: err.message,
         code: err.code,
       }));

@@ -1,0 +1,215 @@
+{
+  "phase": "112",
+  "name": "Daynori core web/PWA browser release verification and staging isolation audit",
+  "gitRev": "c4498faf88ef82b65c6c33be3bcd4c45fba89920",
+  "buildId": "0pVLVdS2656M-tozOD4je",
+  "timestamp": "2026-11-14T09:32:33.367Z",
+  "environment": {
+    "node": "v24.11.1",
+    "platform": "win32",
+    "arch": "x64",
+    "database": "PostgreSQL daynori_test (local isolated runtime)",
+    "ports": {
+      "auth": 54321,
+      "api": 3114,
+      "web": 3116,
+      "cdp": 9232
+    }
+  },
+  "journeys": [
+    {
+      "id": "journey-01-auth-lifecycle",
+      "title": "Production-style sign-up, password recovery instruction, and authenticated sign-in in browser DOM",
+      "passed": true,
+      "details": {
+        "aliceUserId": "541f465e-ebf4-4613-b154-f83921f3de57",
+        "aliceWorkspaceId": "e2d75652-7e0f-4f6b-9966-637f0efc2704",
+        "signupSuccess": true,
+        "recoveryConfirmed": true,
+        "sessionAuthenticated": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-01-auth-signin.png",
+        "sha256": "208997f790799ab28ac1a2e5ca3d9030a3e9f96c74269f8ca37e8546c64a0a25"
+      }
+    },
+    {
+      "id": "journey-02-workspace-isolation",
+      "title": "Two-account workspace isolation enforced at UI, API (404), and Database SQL boundaries",
+      "passed": true,
+      "details": {
+        "aliceWorkspaceId": "e2d75652-7e0f-4f6b-9966-637f0efc2704",
+        "bobWorkspaceId": "72d9b2d4-0aed-4007-9ec8-864733e1dd00",
+        "bobGetStatus": 404,
+        "bobPatchStatus": 404,
+        "notesInBobWorkspace": 0,
+        "actualWorkspaceMatchesAlice": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-02-workspace-isolation.png",
+        "sha256": "208997f790799ab28ac1a2e5ca3d9030a3e9f96c74269f8ca37e8546c64a0a25"
+      }
+    },
+    {
+      "id": "journey-03-core-organizer-crud",
+      "title": "Note, task, routine, and journal create-edit-save-reopen with durable revisions",
+      "passed": true,
+      "details": {
+        "createdNoteId": "510ff3dd-4fa3-42af-9937-c6445c84b633",
+        "noteRevision": 1,
+        "createdTaskId": "bca55143-bbd0-4abf-b2a3-1bfe30f8fbde",
+        "taskStatus": "completed",
+        "createdRoutineId": "b7df4ed4-3654-4039-b550-3a6a115200e2",
+        "createdJournalId": "6272baec-836a-449f-8566-a10225f780c3"
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-03-note-reopen.png",
+        "sha256": "c947934b4941a34d718ecfc92b96609937f3a0b50afba00b4a0c41da0ff99a5f"
+      }
+    },
+    {
+      "id": "journey-04-unified-search",
+      "title": "Unified organizer search across entities with positive matching and negative empty states",
+      "passed": true,
+      "details": {
+        "positiveResultsCount": 1,
+        "noteFound": true,
+        "negativeResultsCount": 0,
+        "emptyClean": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-04-search-results.png",
+        "sha256": "00c827bb98e7c90d752cd44dc090022aa93efd0e7d9274416034f5542e8925c2"
+      }
+    },
+    {
+      "id": "journey-05-attachments-scope",
+      "title": "Attachments within core organizer scope verified; Google Drive (DEF-V2-005) and Vault (DEF-V2-001) truthfully gated",
+      "passed": true,
+      "details": {
+        "fileId": "2ab29870-2fd5-46ab-9e54-f068792b7da4",
+        "storedBytes": 67,
+        "maxStorageBytes": 104857600,
+        "availableBytes": 104857533,
+        "driveGatedStatus": 404,
+        "vaultGatedStatus": 403
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-05-attachments-scope.png",
+        "sha256": "00c827bb98e7c90d752cd44dc090022aa93efd0e7d9274416034f5542e8925c2"
+      }
+    },
+    {
+      "id": "journey-06-pwa-offline-reopen",
+      "title": "Installed PWA assets (manifest, sw.js, offline-shell) and cold offline reopen via CDP emulation",
+      "passed": true,
+      "details": {
+        "manifestName": "Daynori",
+        "manifestValid": true,
+        "swValid": true,
+        "offlineShellValid": true,
+        "offlineShellTitle": "Daynori — Offline organizer",
+        "offlineIndicatorPresent": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-06-pwa-offline-reopen.png",
+        "sha256": "d55073e8c0c0e99117ea895eee268d0ed7fb296f9f0c2d7abe26489259dafdf2"
+      }
+    },
+    {
+      "id": "journey-07-concurrency-conflict-resolution",
+      "title": "Optimistic concurrency conflict detection (409) and successful revision recovery",
+      "passed": true,
+      "details": {
+        "initialRevision": 1,
+        "currentRev": 2,
+        "conflictStatus": 409,
+        "conflictError": "REVISION_CONFLICT: Expected baseRevision 2, but received 1.",
+        "recoveredRevision": 3
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-07-conflict-resolution.png",
+        "sha256": "d55073e8c0c0e99117ea895eee268d0ed7fb296f9f0c2d7abe26489259dafdf2"
+      }
+    },
+    {
+      "id": "journey-08-deletion-and-export",
+      "title": "Soft deletion tombstone suppression, structured workspace JSON export, and account deletion confirmation",
+      "passed": true,
+      "details": {
+        "ephemeralId": "01ebd1dc-3d02-4bce-a383-5f58c236eced",
+        "getDeletedStatus": 404,
+        "exportCompleted": true,
+        "exportId": "39213f45-6579-4ab7-95cc-080adde11e96",
+        "deletionRequestDispatched": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-08-export-lifecycle.png",
+        "sha256": "d55073e8c0c0e99117ea895eee268d0ed7fb296f9f0c2d7abe26489259dafdf2"
+      }
+    },
+    {
+      "id": "journey-09-help-and-support-delivery",
+      "title": "Help knowledge base exploration, customer support report submission, and operator triage queue progression",
+      "passed": true,
+      "details": {
+        "reportId": "78e43c03-0559-41b5-b8af-11762ba35d91",
+        "foundInTriageQueue": true,
+        "triageStatus": "triaged"
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-09-support-triaged.png",
+        "sha256": "af09f6852d29caa0e32c4dfed04b323155fbb5bfa4802c52d2128c50db5d5a43"
+      }
+    },
+    {
+      "id": "journey-10-failure-and-gating-cases",
+      "title": "Validation error handling (400), token rejection (401), and truthful Ask Nori gating banner (DEF-V2-008)",
+      "passed": true,
+      "details": {
+        "badRequestStatus": 400,
+        "unauthorizedStatus": 401,
+        "isGatedBannerVisible": true,
+        "isTextareaDisabled": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase112\\screenshots\\journey-10-failure-gating.png",
+        "sha256": "38e18cf2ff41e0fa8353f2044ea46953f26e54c9f708921b13f5d456751d0d46"
+      }
+    }
+  ],
+  "databaseInvariants": [
+    {
+      "check": "schema_migrations_count",
+      "expected": ">= 80",
+      "actual": 80,
+      "passed": true
+    },
+    {
+      "check": "cross_workspace_note_isolation",
+      "aliceWorkspaceId": "e2d75652-7e0f-4f6b-9966-637f0efc2704",
+      "bobWorkspaceId": "72d9b2d4-0aed-4007-9ec8-864733e1dd00",
+      "aliceNoteId": "5f0f0c3f-199f-4381-b564-fb7f6405b352",
+      "notesInBobWorkspace": 0,
+      "passed": true
+    }
+  ],
+  "standingGates": {
+    "DEF-V2-001": "blocked (encrypted binary vault storage gated)",
+    "DEF-V2-004": "blocked (production multi-region database cluster)",
+    "DEF-V2-005": "blocked (Google Drive full sync gated)",
+    "DEF-V2-007": "blocked (production push notification credentials)",
+    "DEF-V2-008": "blocked (live external cloud LLM API gated fail-closed)",
+    "DEF-V2-011": "blocked (physical Android hardware TalkBack gated)",
+    "DEF-V2-013": "blocked (human participant beta cohort usability gated)",
+    "OWNER-SIGNING-KEYS": "blocked (production APK signing keys)",
+    "OWNER-RELEASE-AUTH": "blocked (explicit owner deployment authorization)",
+    "Phase 71": "blocked (native TalkBack & physical phone checks)"
+  },
+  "summary": {
+    "total": 10,
+    "passed": 10,
+    "failed": 0
+  },
+  "durationMs": 11970
+}

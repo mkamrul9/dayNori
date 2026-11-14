@@ -1,5 +1,32 @@
 # Changelog
 
+## Phase 112 — Daynori core web/PWA browser release verification and staging isolation audit — 2026-11-14
+
+- ADR 0112: Daynori core web/PWA browser release verification and staging isolation audit, replacing synthetic API-only or file-assertion claims with 10 actual headless Chrome browser journeys executed against an isolated staging deployment (`daynori_test` PostgreSQL, synthetic RS256 Auth IdP port 54321, Fastify API port 3114, Next.js production PWA port 3116, and CDP port 9232).
+- Staging Topology & Environment Isolation:
+  - Verified PostgreSQL `daynori_test` database with all 80 schema migrations applied in `app.schema_migrations`.
+  - Staging test harness wired with dual database pools (`adminPool` for superuser validation; `runtimePool` under `daynori_runtime` role enforcing PostgreSQL Row Level Security).
+  - Executed against synthetic RS256 Auth provider generating 2048-bit keypairs with public JWKS endpoint; Fastify configured with `JwtVerifier`, `MemoryStorageProvider`, and `PolicyMalwareScanner`.
+  - Next.js production server running pre-built application (`BUILD_ID: 0pVLVdS2656M-tozOD4je`) on port 3116.
+- Core Runtime Defect Remediation:
+  - Fastify ZodError Handling (`apps/api/src/plugins/errorHandler.ts`): Resolved cross-package Zod instance mismatch where validation errors triggered unhandled 500 server crashes. Formats schema validation failures as structured HTTP 400 Bad Request responses with `ApiErrorCode.VALIDATION_FAILED`.
+  - DOM Auth Automation Helpers (`apps/web/src/components/AuthContext.tsx`): Exposed `recoverPassword` and `provisionPersonalWorkspace` on `window.__daynoriAuth` for reliable automated testing in browser DOM.
+- Real Browser User Journeys Execution Matrix (10/10 Passed):
+  - `journey-01-auth-lifecycle`: Sign-up, password recovery instruction, and authenticated sign-in in browser DOM (`journey-01-auth-signin.png`).
+  - `journey-02-workspace-isolation`: Two-account isolation enforced at UI, API (404), and Database SQL boundaries (0 cross-tenant note leakage; `journey-02-workspace-isolation.png`).
+  - `journey-03-core-organizer-crud`: Note, task, routine, and journal create-edit-save-reopen with durable revisions (`journey-03-note-reopen.png`, `journey-03-task-completed.png`, `journey-03-journal-saved.png`).
+  - `journey-04-unified-search`: Unified organizer search across entities with positive matching and clean negative empty states (`journey-04-search-results.png`).
+  - `journey-05-attachments-scope`: Scoped attachments within core organizer limits; verified Google Drive (`DEF-V2-005`) and Vault (`DEF-V2-001`) remain truthfully gated (404/403; `journey-05-attachments-scope.png`).
+  - `journey-06-pwa-offline-reopen`: Installed PWA assets (`manifest.json`, `sw.js`, `offline-shell.html`) and cold offline reopen via CDP network emulation (`offline: true`; `journey-06-pwa-offline-reopen.png`).
+  - `journey-07-concurrency-conflict-resolution`: Optimistic concurrency conflict detection (HTTP 409 `REVISION_CONFLICT`) on stale baseRevision updates and revision recovery (`journey-07-conflict-resolution.png`).
+  - `journey-08-deletion-and-export`: Soft deletion tombstone suppression (404), structured workspace export JSON, and account deletion confirmation (`journey-08-export-lifecycle.png`).
+  - `journey-09-help-and-support-delivery`: Help knowledge base exploration, customer support report submission, and operator triage queue progression to `triaged` (`journey-09-help.png`, `journey-09-support-triaged.png`).
+  - `journey-10-failure-and-gating-cases`: Schema validation error handling (400), token rejection (401), and truthful Ask Nori gating banner for `DEF-V2-008` (`journey-10-failure-gating.png`).
+- Automated Staging Verification Suite:
+  - Authored `tests/e2e/phase112-browser-release-verification.test.ts` (6 tests passed) validating runner script, verification JSON, all 10 passed journeys, screenshot files and SHA-256 integrity, database invariants, and fail-closed release gates.
+- Preserved Release Gates & Fail-Closed Boundaries:
+  - Preserved all standing release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71) as strictly blocked. Local staging verification does not constitute a production deployment or public release.
+
 ## Phase 111 — Daynori web/PWA design verification and theme capture correction — 2026-11-14
 
 - ADR 0111: Daynori web/PWA design verification and theme capture correction, fixing the Phase 105 capture script to enforce genuine React theme toggles and zero byte-identical light/dark screenshot pairs, streamlining UI hierarchy across Today, Mobile Menu, Create dialog, Settings, and Ask Nori, and establishing automated theme contrast and interaction verification.
