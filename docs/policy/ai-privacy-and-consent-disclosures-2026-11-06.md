@@ -71,3 +71,42 @@ Daynori treats all external provider responses as **untrusted input**:
 1. **No Autonomous Mutations:** Model output is displayed purely as text or formatted proposals. A model completion can never directly modify database state, create items, or delete records.
 2. **Confirmed Organizer Actions (Phase 56 / 93):** Any proposed organizer changes require opaque, server-signed confirmation tokens and explicit user interaction before execution.
 3. **Bound Citations:** Model answers must cite exact `[source:uuid#rN]` markers matching authorized context chunks. Citations with missing revisions, bare UUIDs, or unretrieved records are rejected with `ABSTAIN`.
+
+---
+
+## 6. Voice and Audio Processing Disclosures
+
+Phase 95, 109, and 115 introduce voice speech-to-text input to Ask Nori. Audio capture introduces physical sensor data that requires strict privacy boundaries:
+
+1. **Decoupled Hardware vs. AI Transmission Consent:**
+   - Operating system microphone permission only authorizes the local client device to record ambient audio into temporary device memory.
+   - Transmitting audio to an external cloud speech-to-text provider requires separate, explicit AI consent (`app.ai_consents`).
+   - When microphone permission is denied, or when AI consent is withheld, Daynori provides a 100% accessible text keyboard fallback (`input-assistant-prompt`).
+
+2. **Local Capture and Discard Semantics:**
+   - When recording, audio bytes remain strictly in local client memory or temporary sandboxed app storage.
+   - Canceling a recording immediately triggers `discardRecordingAsync()`, destroying the temporary local audio file or memory buffer. No network requests are dispatched, and no server records or log entries are created.
+
+3. **Strict 0-Day Transient Retention (`transient_deleted`):**
+   - Raw audio binary data is **never persisted** to persistent databases, object stores, or long-term disk.
+   - The `app.ai_transcriptions` database table records metadata only (`transcription_id`, `workspace_id`, `duration_seconds`, `words_count`, `detected_language`, `confidence`, `cost_micro_usd`, `retention_policy = 'transient_deleted'`). There is no `audio_blob` or `audio_bytes` column in the database schema.
+
+4. **Proactive In-Memory Audio Buffer Scrubbing:**
+   - The server transcription service implements proactive in-place buffer zeroing (`zeroAudioBuffer` / `scrubAudioMemory`).
+   - A `try ... finally` lifecycle guarantees that `buffer.fill(0)` is executed across all exit paths: validation failure, idempotent replay cache hits, budget exhaustion, client cancellation (`AbortSignal`), upstream adapter failure, and normal completion.
+
+5. **Practical V8 / Node.js Runtime Limits:**
+   - Calling `buffer.fill(0)` overwrites mutable allocated binary heap memory with zeros.
+   - Users and auditors must understand that user-space JavaScript cannot force-scrub immutable V8 string primitives (such as base64 payload strings), JSON parse tokens, or kernel-level network socket buffers; these rely on the V8 garbage collector and operating system buffer lifecycle.
+
+6. **Transcript Review Before Any Mutation:**
+   - Speech recognition returns an editable transcript preview.
+   - Audio transcription alone never executes database writes or creates tasks/notes/journals.
+   - Ambiguous dates, deadlines, or uncertain recognition flag explicit clarification prompts.
+   - Creating items requires an explicit user review and confirmation action with a server-signed confirmation token, writing an idempotent mutation receipt with `device_id = 'ai-assistant-proposal'`.
+
+7. **Fail-Closed Release Gates:**
+   - Voice assistant features remain gated and deactivated in production until:
+     - `DEF-V2-008`: Enterprise provider DPA with zero-training and transient abuse logging terms is executed.
+     - `DEF-V2-011`: Physical ARM64 Android microphone hardware and spoken TalkBack screen-reader latency profiling are certified.
+

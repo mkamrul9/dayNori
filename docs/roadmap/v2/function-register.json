@@ -6291,7 +6291,10 @@
         "tests/integration/phase108-ai-assistant-release-gate.test.ts",
         "tests/integration/phase109-voice-assistant-verification.test.ts",
         "tests/unit/phase104-gated-features-truthfulness.test.ts",
-        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+        "tests/integration/phase115-voice-assistant-correction.test.ts",
+        "tests/unit/phase115-voice-assistant-ui.test.ts",
+        "apps/mobile/src/phase115-voice-mobile-views.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
@@ -6303,7 +6306,9 @@
         "artifacts/phase109/evidence-summary.json",
         "docs/phase-reports/phase-104.md",
         "docs/phase-reports/phase-109.md",
-        "artifacts/phase104/evidence-summary.json"
+        "artifacts/phase104/evidence-summary.json",
+        "artifacts/phase115/evidence-summary.json",
+        "docs/phase-reports/phase-115.md"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",

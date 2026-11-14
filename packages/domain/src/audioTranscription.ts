@@ -18,6 +18,31 @@ export interface AudioValidationResult {
 }
 
 /**
+ * Overwrites buffer memory bytes with zeros in place.
+ *
+ * Practical limits in JavaScript / V8 runtime:
+ * - Overwrites the underlying byte array of the Buffer / Uint8Array instance.
+ * - Does not and cannot erase immutable V8 strings (e.g. base64 payloads) or OS/network buffers.
+ * - Serves as proactive in-memory defense-in-depth against lingering binary audio in heap.
+ */
+export function zeroAudioBuffer(buffer?: Buffer | Uint8Array | null): boolean {
+  if (!buffer) return false;
+  try {
+    if (typeof (buffer as Buffer).fill === 'function') {
+      (buffer as Buffer).fill(0);
+      return true;
+    }
+    if (buffer instanceof Uint8Array) {
+      buffer.fill(0);
+      return true;
+    }
+  } catch {
+    // Slices or detached array buffers
+  }
+  return false;
+}
+
+/**
  * Validates audio parameters prior to uploading and transcribing.
  * Enforces duration bounds (0.5s to 600s), byte size bounds (<= 25 MiB),
  * and approved audio MIME types.

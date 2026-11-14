@@ -1,5 +1,42 @@
 # Changelog
 
+## Phase 115 — Daynori voice-assistant audio memory cleanup correction and speech capture verification — 2026-11-14
+
+- ADR 0115: Voice-Assistant Audio Memory Cleanup and Speech Capture Correction, remediating server audio-memory cleanup vulnerability (`Buffer.alloc(0)` vs `buffer.fill(0)`), defining practical V8/Node.js memory limits, generating 5 real synthetic WAV audio fixtures, testing Bangla Unicode (`\u0980-\u09FF`), English, Banglish, silence, and low-confidence speech, auditing reviewed organizer creation for voice, and preserving fail-closed release gates `DEF-V2-008` and `DEF-V2-011`.
+- Server Audio-Memory Cleanup Remediation:
+  - Authored and exported `zeroAudioBuffer(buffer?: Buffer | Uint8Array | null): boolean` in `packages/domain/src/audioTranscription.ts` and `packages/domain/src/index.ts`, directly overwriting buffer bytes in place via `buffer.fill(0)`.
+  - Updated `apps/api/src/modules/ai/transcriptionService.ts` to export `scrubAudioMemory` delegating to `zeroAudioBuffer`.
+  - Wrapped server audio processing in a guaranteed `try ... finally` block, ensuring `scrubAudioMemory(audioBuffer)` unconditionally executes across all 7 exit paths: (1) validation failure, (2) idempotent replay hit, (3) budget exhaustion, (4) client cancellation (`AbortSignal`), (5) adapter error, (6) normal completion, and (7) runtime exception.
+- Practical Runtime Limits & Technical Reality Documented:
+  - Authored `docs/engineering/voice-audio-memory-scrubbing-and-privacy-limits.md` establishing precise user-space scrubbing boundaries:
+    - *Scrubbed*: Mutable binary buffers (`Buffer` / `Uint8Array`) are immediately zeroed in place.
+    - *Unscrubbed by User-Space Code*: Immutable V8 string primitives (`input.audioBase64`), JSON parse tokens, and operating system socket/TLS decrypt buffers cannot be overwritten by JavaScript application logic. They are reclaimed via the V8 garbage collector and OS socket lifecycles.
+    - *Mitigation*: Ephemeral handling, zero disk spooling, zero database persistence of audio binaries (`retention_policy = 'transient_deleted'`), and strict log sanitization.
+- Privacy Policy & User Consent Updates:
+  - Updated `docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md` with Section 6 ("Voice and Audio Processing Disclosures"), covering local capture, discard semantics, transient retention, memory scrubbing, V8 limits, and release gating.
+- Real Synthetic Audio Fixtures Authored in `tests/fixtures/audio/`:
+  - `synthetic-bangla-appointment.wav` (5.0s, Bengali speech marker).
+  - `synthetic-english-deadline.wav` (4.0s, English task speech marker).
+  - `synthetic-banglish-report.wav` (6.0s, code-switched speech marker).
+  - `synthetic-silence-5s.wav` (5.0s, all-zero PCM samples).
+  - `synthetic-low-confidence-noise.wav` (3.0s, muffled noise samples).
+- Speech Recognition & Reviewed Organizer Creation Lifecycle Verified:
+  - Preserved native Bengali Unicode script (`[\u0980-\u09FF]`) in recognition output without encoding corruption.
+  - Detected silence and low confidence, classifying uncertainty and triggering clarification prompts.
+  - Enforced editable transcript preview before generating organizer proposal cards.
+  - Enforced date/deadline ambiguity clarification prompts before proposal creation.
+  - Required explicit user confirmation with server-signed tokens, producing durable mutation receipts under `device_id = 'ai-assistant-proposal'` and canonical deep links.
+  - Client cancel recording invokes `discardRecordingAsync()` locally, resulting in zero network requests and zero database rows.
+- Web and Mobile Interface Verification:
+  - `AssistantPanel.tsx` (Web): Verified truthful gating banner under `DEF-V2-008`, voice controls gating, and editable transcript preview.
+  - `AssistantSheet.tsx` (Mobile): Verified with React Native `TestRenderer`; voice recording chip disabled under `isGated = true`; accessible text typing fallback (`input-assistant-prompt`) fully functional when microphone permission is denied.
+- Automated Test Suite Verification (28/28 Passed):
+  - `tests/integration/phase115-voice-assistant-correction.test.ts` (20 tests pass).
+  - `tests/unit/phase115-voice-assistant-ui.test.ts` (6 tests pass).
+  - `apps/mobile/src/phase115-voice-mobile-views.test.ts` (2 tests pass).
+- Preserved Release Gates & Fail-Closed Boundaries:
+  - All standing release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71) remain strictly blocked.
+
 ## Phase 114 — Daynori Ask Nori text-assistant release-gate verification and reviewed organizer creation audit — 2026-11-14
 
 - ADR 0114: Daynori Ask Nori text-assistant release-gate verification and reviewed organizer creation audit, preparing commercial provider and operating decisions package for owner review, maintaining fail-closed release gate `DEF-V2-008`, evaluating zero model training and DPA/SCC compliance, verifying 3-tier kill-switch architecture, and auditing the 7-step reviewed organizer creation lifecycle across web and mobile interfaces.

@@ -1,0 +1,92 @@
+{
+  "phase": "115",
+  "audit": "server-audio-memory-scrubbing-and-runtime-limits",
+  "timestamp": "2026-11-14T12:05:00.000Z",
+  "status": "verified_corrected",
+  "vulnerabilityRemediated": {
+    "priorMechanism": "audioBuffer = Buffer.alloc(0)",
+    "priorFlaw": "Allocated a new 0-byte Buffer object and repointed local reference; original allocated heap buffer holding audio bytes remained unscrubbed until GC. Early return paths bypassed cleanup.",
+    "correctedMechanism": "zeroAudioBuffer(audioBuffer) / buffer.fill(0) inside try ... finally block",
+    "correctedEffect": "Directly overwrites underlying allocated binary heap memory with 0x00 across all exit paths."
+  },
+  "exitPathsAudited": [
+    {
+      "pathId": "PATH-1",
+      "name": "Audio validation failure (envelope bounds / MIME type)",
+      "exitMechanism": "Early throw / reject with 400 VALIDATION_FAILED",
+      "finallyExecuted": true,
+      "bufferZeroed": true,
+      "testRef": "P115-03"
+    },
+    {
+      "pathId": "PATH-2",
+      "name": "Idempotent replay cache hit",
+      "exitMechanism": "Early return cached transcription record with 200 OK",
+      "finallyExecuted": true,
+      "bufferZeroed": true,
+      "testRef": "P115-04"
+    },
+    {
+      "pathId": "PATH-3",
+      "name": "AI token and cost budget exhaustion",
+      "exitMechanism": "Reject with 429 BUDGET_EXCEEDED",
+      "finallyExecuted": true,
+      "bufferZeroed": true,
+      "testRef": "P115-02"
+    },
+    {
+      "pathId": "PATH-4",
+      "name": "Client cancellation / request abort",
+      "exitMechanism": "Client AbortSignal triggered during transcription",
+      "finallyExecuted": true,
+      "bufferZeroed": true,
+      "testRef": "P115-05"
+    },
+    {
+      "pathId": "PATH-5",
+      "name": "Speech recognition adapter failure / upstream timeout",
+      "exitMechanism": "Adapter throws 500 error",
+      "finallyExecuted": true,
+      "bufferZeroed": true,
+      "testRef": "P115-06"
+    },
+    {
+      "pathId": "PATH-6",
+      "name": "Normal transcription completion",
+      "exitMechanism": "Return completed transcript and metadata with 200 OK",
+      "finallyExecuted": true,
+      "bufferZeroed": true,
+      "testRef": "P115-02"
+    },
+    {
+      "pathId": "PATH-7",
+      "name": "Unexpected runtime exception",
+      "exitMechanism": "Unhandled error caught by Fastify global error handler",
+      "finallyExecuted": true,
+      "bufferZeroed": true,
+      "testRef": "P115-06"
+    }
+  ],
+  "runtimeLimitsDocumented": {
+    "mutableBinaryBufferScrubbing": {
+      "supported": true,
+      "mechanism": "buffer.fill(0)",
+      "guarantee": "Immediate in-place zeroing of allocated Node.js binary Buffer memory."
+    },
+    "immutableStringPrimitives": {
+      "supported": false,
+      "reason": "V8 string primitives (e.g. input.audioBase64) are immutable in JavaScript user-space; reclaimed only via V8 GC sweep.",
+      "mitigation": "Short request lifecycle, ephemeral handling, no persistence."
+    },
+    "jsonParserAstTokens": {
+      "supported": false,
+      "reason": "Fastify / V8 internal HTTP parser token buffers are internal to the engine.",
+      "mitigation": "Redacted logging; no memory serialization."
+    },
+    "osSocketBuffers": {
+      "supported": false,
+      "reason": "Kernel TCP receive buffers and OpenSSL TLS decryption buffers reside in OS kernel space.",
+      "mitigation": "Ephemeral TLS connections, no socket recording."
+    }
+  }
+}
