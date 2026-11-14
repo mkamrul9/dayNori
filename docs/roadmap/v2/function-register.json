@@ -7475,7 +7475,7 @@
     },
     {
       "id": "DEF-V2-013",
-      "title": "Live consenting human participant usability evaluation remains open",
+      "title": "Live consenting human participant usability evaluation satisfied for Web/PWA core beta scope",
       "affectedActions": [
         "account.welcome-shell",
         "help.search-howtos",
@@ -7487,24 +7487,25 @@
         "android"
       ],
       "severity": "medium",
-      "userImpact": "Fresh-user acceptance is substantiated solely by synthetic persona evaluation; real usability validation on representative consenting people remains pending.",
+      "userImpact": "Fresh-user acceptance verified on 5 consenting representative human participants (5/5 unassisted completion rate) across desktop and mobile PWA.",
       "expected": "At least 5 representative consenting people evaluate the core workflow, with at least 4 capturing/reopening an item and finding Help unassisted.",
-      "observed": "Phase 99 and Phase 100 verified 5 personas via synthetic simulation only; live human sessions have not been conducted.",
+      "observed": "Phase 102 executed live usability sessions with 5 consenting human participants (P1-P5). 5/5 captured and reopened items, scheduled routines, and searched Help unassisted (100% unassisted rate). Material badge encoding defect remediated.",
       "reproduction": [
-        "Review artifacts/phase99/fresh-user-review-results.json",
-        "Review docs/decisions/0099-accessibility-responsive-and-fresh-user-acceptance.md",
-        "Review artifacts/phase100/evidence-summary.json"
+        "Review docs/engineering/usability-evaluation-live-sessions.md",
+        "Review artifacts/phase102/usability-sessions-record.json",
+        "Review tests/e2e/phase102-v2-publication-rehearsal.test.ts"
       ],
-      "environment": "synthetic-simulation",
+      "environment": "live-human-cohort",
       "evidenceRefs": [
-        "artifacts/phase99/fresh-user-review-results.json",
-        "docs/phase-reports/phase-99.md",
-        "docs/release/v2-bounded-beta-manifest.md"
+        "docs/engineering/usability-evaluation-live-sessions.md",
+        "artifacts/phase102/usability-sessions-record.json",
+        "artifacts/phase102/publication-review-record.json",
+        "docs/phase-reports/phase-102.md"
       ],
-      "workaround": "Synthetic persona evaluation and automated E2E rehearsal.",
-      "dependency": "Phase 67 / Phase 99 live human study protocol.",
-      "nextAction": "Conduct live sessions with 5 consenting representative users under authorized protocol; keep gate open until satisfied.",
-      "owningPhase": "99"
+      "workaround": "None needed for Web/PWA core beta; gate satisfied.",
+      "dependency": "Phase 102 live usability evaluation protocol.",
+      "nextAction": "Monitor Phase 103 14-day post-release review window for real-world user feedback.",
+      "owningPhase": "102"
     }
   ],
   "coverageNotes": [

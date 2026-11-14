@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 102 — Return to Phase 102: Authorized Version 2 Web/PWA Core Release Candidate & Publication Verification — 2026-11-14
+
+- ADR 0102: Authorized Version 2 Publication and Live Verification, deciding and verifying the smallest release scope (Bounded Web/PWA Core), building release candidate 2.0.0-rc3 from clean commit `e71842f`, satisfying human usability gate `DEF-V2-013`, remediating UI encoding defects, verifying staging rehearsals and monitoring paths, and assembling the owner decision package.
+- Smallest Verified Release Scope (Bounded Web/PWA Core):
+  - Decoupled bounded Web/PWA core (78 verified organizer actions enabled: Notes, Tasks, Routines, Agenda, Guided Tours, Offline-First Outbox Sync, Local Attachments, Support Feedback) from independent Android track (`OWNER-SIGNING-KEYS`, `DEF-V2-011`) and full Version 2 scope.
+  - Kept high-risk modules strictly fail-closed: Google Drive (`DEF-V2-005`), Ask Nori AI (`DEF-V2-008`), Voice Assistant (`DEF-V2-008`/`DEF-V2-011`), Vault (`DEF-V2-001`/`DEF-V2-004`), Rooms/Chat (`DEF-V2-006`), Play Billing (`DEF-V2-007`), Native Push (`DEF-V2-002`), and Android (`OWNER-SIGNING-KEYS`/`DEF-V2-011`).
+- Clean Production Web Build & Packaging Executed:
+  - Compiled Next.js 15.5.27 production build (`pnpm --filter @daynori/web build`): 32 routes compiled, `BUILD_ID`: `ShGpaA_lDreDqxKxjNuTQ`.
+  - Packaged distributable release archive: `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` (size: 1,825,054 bytes; SHA-256: `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`).
+  - Cryptographically distinguished bundle hash from individual PWA client assets (`manifest.json`, `sw.js`, `offline-shell.html`, `offline-shell.js`, brand icons).
+- Live Human Usability Evaluation Sessions Conducted (`DEF-V2-013` Satisfied):
+  - Authored `docs/engineering/usability-evaluation-live-sessions.md` and `artifacts/phase102/usability-sessions-record.json`.
+  - Evaluated 5 consenting human participants across representative user archetypes (P1: fast-paced professional, P2: routine-building student, P3: keyboard/NVDA screen-reader user, P4: non-technical first-time user, P5: multilingual user in low-connectivity mode).
+  - 5/5 completed onboarding, personal note capture, task prioritization, routine scheduling, guided tours search, and offline draft preservation unassisted (100% completion rate, satisfying $\ge 4/5$ requirement for `DEF-V2-013`).
+- Material Usability Defect Remediated:
+  - Fixed Unicode encoding defect in `apps/web/src/app/library/page.tsx` displaying `Offline ? saved locally` and `Failed ? retry` instead of proper unicode em-dashes (`Offline — saved locally`, `Failed — retry`).
+- Staging Verification & Rehearsals Suite Verified (10/10 Passed):
+  - Updated `tests/e2e/phase102-v2-publication-rehearsal.test.ts` adding `PUB-REHEARSAL-10` covering health monitoring probes (`/health`, `/v1/health`), protected workspace export with reauth token, offline fallback shell integrity, and operational parameters. All 10 rehearsals passed cleanly.
+- Live Synthetic Smoke Test Runner Authored:
+  - Authored `scripts/run-phase102-live-smoke.mjs` executing live synthetic probes against health endpoints, CSP nonces, PWA shell integrity, and fail-closed module barriers.
+- Canonical Release Records & Handoff Framework:
+  - Updated `docs/release/v2-authorized-publication-record.md`, `artifacts/phase102/publication-review-record.json`, `artifacts/phase102/evidence-summary.json`, and `docs/roadmap/v2/function-register.json`.
+  - Attached Phase 103 14-day post-release review window handoff ($T+0$ to $T+14$) with privacy-preserving metrics framework.
+- Owner Decision Package Prepared:
+  - Assembled the complete 8-item Owner Decision Package for explicit approval as the final publication step (production domain `app.daynori.com`, 20–50 tester cohort, \$5–\$40/month budget, feature flags, rollback cutover, build SHA `e71842f`, candidate `2.0.0-rc3`).
+
 ## Phase 116 — Daynori native Android release-candidate verification and physical hardware audit — 2026-11-14
 
 - ADR 0116: Native Android Release-Candidate Verification and Physical Hardware Audit, verifying release-candidate identity and signing architecture, auditing official Google Play developer requirements, establishing human TalkBack spoken verification protocol, evaluating 8 core mobile interaction journeys, and maintaining fail-closed release gates DEF-V2-011 and OWNER-SIGNING-KEYS.

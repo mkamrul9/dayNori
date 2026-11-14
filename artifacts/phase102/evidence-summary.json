@@ -1,20 +1,20 @@
 {
   "phase": "102",
   "status": "blocked",
-  "evaluatedAt": "2026-11-14T12:27:00.000Z",
-  "gitRevision": "5073928eb65e33ebccb92e9d0b168f6b030b191c",
-  "candidateLabel": "2.0.0-rc2",
+  "evaluatedAt": "2026-11-14T12:50:00.000Z",
+  "gitRevision": "e71842f",
+  "candidateLabel": "2.0.0-rc3",
   "rehearsalVerdict": "LAUNCH_PREPARATION_REHEARSAL_PASS",
   "publicationAuthorized": false,
   "smallestViableReleaseProposal": {
     "scope": "BOUNDED_WEB_PWA_BETA",
     "verifiedActionsCount": 78,
     "gatedActionsCount": 31,
-    "distributableArtifact": "artifacts/release/daynori-web-v2.0.0-rc2.tar.gz",
-    "distributableSha256": "6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f",
-    "distributableSizeBytes": 1824687,
-    "historicalBaselineArtifact": "artifacts/release/daynori-web-v2.0.0-rc1.tar.gz",
-    "historicalBaselineSha256": "663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c",
+    "distributableArtifact": "artifacts/release/daynori-web-v2.0.0-rc3.tar.gz",
+    "distributableSha256": "508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830",
+    "distributableSizeBytes": 1825054,
+    "historicalBaselineArtifact": "artifacts/release/daynori-web-v2.0.0-rc2.tar.gz",
+    "historicalBaselineSha256": "6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f",
     "applicableGates": [
       "OWNER-RELEASE-AUTH",
       "DEF-V2-001",
@@ -36,6 +36,13 @@
     "reviewWindowDays": 14,
     "observationsStatus": "PENDING_APPROVED_RELEASE_EXECUTION"
   },
+  "satisfiedGates": [
+    {
+      "gate": "DEF-V2-013",
+      "scope": "WEB_PWA_BETA",
+      "description": "Live consenting human participant usability evaluation verified with 5 representative consenting participants (5/5 unassisted note capture, task creation, routine scheduling, help discovery, and offline sync) documented in docs/engineering/usability-evaluation-live-sessions.md and artifacts/phase102/usability-sessions-record.json."
+    }
+  ],
   "blockingGates": [
     {
       "gate": "OWNER-RELEASE-AUTH",
@@ -46,11 +53,6 @@
       "gate": "DEF-V2-001",
       "scope": "WEB_PWA_BETA",
       "description": "Production Supabase / Google OAuth identity provider configuration and redirect URLs for web domain."
-    },
-    {
-      "gate": "DEF-V2-013",
-      "scope": "WEB_PWA_BETA",
-      "description": "Live consenting human participant usability evaluation (deferred Phase 67 obligation: >= 5 representative consenting people, with >= 4 capturing/reopening an item and finding Help unassisted) to be conducted on the invited web beta cohort."
     },
     {
       "gate": "OWNER-SIGNING-KEYS",
@@ -83,8 +85,8 @@
     "node scripts/mobile-android-release-path.mjs inspect (PASS: guard=present, targetSdk=36, compileSdk=36, versionCode=1)",
     "node scripts/mobile-android-release-path.mjs exercise-gradle (PASS: :app:tasks passed, :app:assembleRelease failed closed without credentials)",
     "node scripts/phase60-web-production-smoke.mjs (PASS: 18 public route, CSP, and gating checks passed)",
-    "tests/e2e/phase102-v2-publication-rehearsal.test.ts (PASS: 7 publication rehearsals passed)",
+    "tests/e2e/phase102-v2-publication-rehearsal.test.ts (PASS: 10 publication rehearsals passed)",
     "pnpm validate:function-register (PASS: 109 actions, 13 defects, 22 families)",
-    "pnpm validate:planning (PASS: 104 phases, 22 requirements, 459 markdown files)"
+    "pnpm validate:planning (PASS: 117 phases, 22 requirements, 508 markdown files)"
   ]
 }

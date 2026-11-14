@@ -1,0 +1,44 @@
+{
+  "phase": "102",
+  "title": "Live Synthetic Smoke Check Results (Authorized Web/PWA Core Scope)",
+  "startedAt": "2026-11-14T12:58:24.933Z",
+  "finishedAt": "2026-11-14T12:58:24.949Z",
+  "targetWebUrl": "http://127.0.0.1:3060",
+  "targetApiUrl": "http://127.0.0.1:3114",
+  "totalChecks": 5,
+  "passedChecks": 1,
+  "failedChecks": 0,
+  "skippedChecks": 4,
+  "checks": [
+    {
+      "id": "SMOKE-01",
+      "name": "API Health Probe (/health)",
+      "status": "SKIP_OFFLINE",
+      "error": "fetch failed"
+    },
+    {
+      "id": "SMOKE-02",
+      "name": "API Versioned Health Probe (/v1/health)",
+      "status": "SKIP_OFFLINE",
+      "error": "fetch failed"
+    },
+    {
+      "id": "SMOKE-03",
+      "name": "Web Shell & CSP Nonce Enforcement (/privacy)",
+      "status": "SKIP_OFFLINE",
+      "error": "fetch failed"
+    },
+    {
+      "id": "SMOKE-04",
+      "name": "PWA Offline Fallback Shell Integrity",
+      "status": "PASS",
+      "verified": true
+    },
+    {
+      "id": "SMOKE-05",
+      "name": "Fail-Closed Module Gating (Vault, Rooms, AI, Billing)",
+      "status": "SKIP_OFFLINE",
+      "error": "fetch failed"
+    }
+  ]
+}

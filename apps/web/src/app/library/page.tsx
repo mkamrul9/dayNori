@@ -325,13 +325,13 @@ export default function LibraryPage() {
                   setCloudSyncStatus('Waiting to sync');
                   break;
                 case 'saved_locally':
-                  setCloudSyncStatus('Offline ? saved locally');
+                  setCloudSyncStatus('Offline — saved locally');
                   break;
                 case 'conflict':
                   setCloudSyncStatus('Conflict detected');
                   break;
                 case 'error':
-                  setCloudSyncStatus('Failed ? retry');
+                  setCloudSyncStatus('Failed — retry');
                   break;
                 default:
                   setCloudSyncStatus('Synchronized');
@@ -795,7 +795,7 @@ export default function LibraryPage() {
         setCloudSyncStatus('Synchronized');
       }
     } catch {
-      setCloudSyncStatus('Failed ? retry');
+      setCloudSyncStatus('Failed — retry');
     }
   };
 
@@ -864,7 +864,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed ? retry');
+      setCloudSyncStatus('Failed — retry');
     }
 
     // Reversible Undo Toast
@@ -994,7 +994,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed ? retry');
+      setCloudSyncStatus('Failed — retry');
     }
 
     // Reversible Undo Toast
@@ -1104,7 +1104,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed ? retry');
+      setCloudSyncStatus('Failed — retry');
     }
   };
 
@@ -1161,7 +1161,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed ? retry');
+      setCloudSyncStatus('Failed — retry');
     }
   };
 
@@ -1261,7 +1261,7 @@ export default function LibraryPage() {
         );
       }
     } catch {
-      setCloudSyncStatus('Failed ? retry');
+      setCloudSyncStatus('Failed — retry');
     }
 
     // Reversible Undo Toast

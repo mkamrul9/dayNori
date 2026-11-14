@@ -1,10 +1,10 @@
 # Daynori Version 2 Authorized Publication Record & Smallest Viable Release Proposal
 
 - **Record Date**: 2026-11-14
-- **Candidate Revision**: `5073928eb65e33ebccb92e9d0b168f6b030b191c`
-- **Candidate Label**: `2.0.0-rc2` (rebuilt from clean candidate commit following Phase 104–109 core, design, drive, and assistant verifications; rc1 baseline preserved as historical reference)
+- **Candidate Revision**: `e71842f`
+- **Candidate Label**: `2.0.0-rc3` (rebuilt from clean candidate commit following Phase 104–116 core, design, drive, assistant, and native Android release verifications; rc2 baseline preserved as historical reference)
 - **Owning Phase**: [Phase 102 — Authorized Version 2 publication and live verification](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md)
-- **Governing Decisions**: [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md)
+- **Governing Decisions**: [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md), [ADR 0116](../decisions/0116-native-android-release-verification-and-physical-hardware-audit.md)
 - **Operational Status**: **ENGINEERING LAUNCH PREPARATION ONLY — PUBLICATION BLOCKED**
 
 ---
@@ -17,7 +17,7 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 ```
 +---------------------------------------------------------------------------------------------------------+
-|                                    DAYNORI CODEBASE (Candidate 2.0.0-rc1)                                |
+|                                    DAYNORI CODEBASE (Candidate 2.0.0-rc3)                                |
 +---------------------------------------------------+-----------------------------------------------------+
 |                      TRACK A                      |                       TRACK B                       |
 |        Smallest Viable Release: Web/PWA Beta      |                 Android Release Track               |
@@ -26,8 +26,8 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 | Scope: 78 Verified Core Actions                   | Scope: Android Native Application                   |
 | Gated: 31 Actions (Vault, Rooms, AI, Billing)     | Gated: Keystore (OWNER-SIGNING-KEYS), TalkBack     |
 | Target: preview.daynori.com -> app.daynori.com    | Target: Google Play Internal Testing Track          |
-| Applicable Gates: OWNER-RELEASE-AUTH, DEF-V2-001, | Applicable Gates: OWNER-SIGNING-KEYS, DEF-V2-011   |
-|                   DEF-V2-013                      |                                                     |
+| Applicable Gates: OWNER-RELEASE-AUTH, DEF-V2-001  | Applicable Gates: OWNER-SIGNING-KEYS, DEF-V2-011   |
+| (DEF-V2-013 Usability Satisfied via 5/5 Users)   |                                                     |
 +---------------------------------------------------+-----------------------------------------------------+
                                                     |
                                                     v
@@ -44,7 +44,7 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 | Scope Envelope | Included Feature Modules | Gated Modules & Explicit Fail-Closed Defect Gates | Intended Audience | Applicable Release Gates |
 | :--- | :--- | :--- | :--- | :--- |
-| **Proposed Smallest Viable Release: Bounded Web/PWA Beta** *(Immediate Proposal)* | **78 Verified Core Actions**: Personal Notes (rich text AST, revisions), Everyday Tasks (priorities, deadlines, keyboard reorder), Daily Routines (timezone-aware scheduling, occurrences), Agenda Calendar, Interactive Guided Tours (19 chapters), Offline-First Storage Outbox Sync, Local Attachments, In-App Support Feedback. | **Vault** (`DEF-V2-004`), **Rooms / Chat** (`DEF-V2-006`), **Live AI Streaming** (`DEF-V2-008`), **Play Billing Purchases** (`DEF-V2-007`), **Google Drive Sync** (`DEF-V2-005`), **Native Push** (`DEF-V2-002`). | 20 to 50 invited closed-cohort testers or usability participants. | **`OWNER-RELEASE-AUTH`**, **`DEF-V2-001`**, **`DEF-V2-013`** |
+| **Proposed Smallest Viable Release: Bounded Web/PWA Beta** *(Immediate Proposal)* | **78 Verified Core Actions**: Personal Notes (rich text AST, revisions), Everyday Tasks (priorities, deadlines, keyboard reorder), Daily Routines (timezone-aware scheduling, occurrences), Agenda Calendar, Interactive Guided Tours (19 chapters), Offline-First Storage Outbox Sync, Local Attachments, In-App Support Feedback. | **Vault** (`DEF-V2-004`), **Rooms / Chat** (`DEF-V2-006`), **Live AI Streaming** (`DEF-V2-008`), **Play Billing Purchases** (`DEF-V2-007`), **Google Drive Sync** (`DEF-V2-005`), **Native Push** (`DEF-V2-002`). | 20 to 50 invited closed-cohort testers or usability participants. | **`OWNER-RELEASE-AUTH`**, **`DEF-V2-001`** *(DEF-V2-013 satisfied)* |
 | **Android Release Track** *(Independent Track)* | Native Android client container wrapping core mobile experience. | **Android Release Keystore** (`OWNER-SIGNING-KEYS`), **Physical ARM64 TalkBack Profiling** (`DEF-V2-011`). | Up to 100 invited Google Play Internal Testing testers. | **`OWNER-SIGNING-KEYS`**, **`DEF-V2-011`** |
 | **Full Version 2** *(Future Complete Target)* | **109 Total Actions**: All bounded beta features PLUS Cryptographic Vault, Multi-User Collaborative Rooms, Live AI Assistant Streaming, In-App Subscriptions, Google Drive OAuth, Native FCM/APNs Notifications. | Gated on independent qualified vault audit (`DEF-V2-004`), staffed moderation queue (`DEF-V2-006`), live LLM provider budget authorization (`DEF-V2-008`), and Google Play merchant setup (`DEF-V2-007`). | General public web users and Google Play Store production track. | All 11 release gates (`OWNER-*` and `DEF-V2-*`). |
 
@@ -52,18 +52,19 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 ## 2. Candidate Revision and Verified Artifact Hashes
 
-- **Git HEAD SHA**: `5073928eb65e33ebccb92e9d0b168f6b030b191c`
+- **Git HEAD SHA**: `e71842f`
 - **Branch**: `codex/free-core-preview`
-- **Candidate Label**: `2.0.0-rc2` (rebuilt from clean identified commit `5073928`)
+- **Candidate Label**: `2.0.0-rc3` (rebuilt from clean identified commit `e71842f`)
 
 ### A. Distributable Web Release Artifact (Deployable Archive)
 
-Built reproducibly with Node `v24.11.1`, Next.js `15.5.27`, React `19.0.0` (`BUILD_ID`: `yRuRLPiYS9_7enP16RawT`). This archive contains the complete production-built web application required for static/edge deployment:
+Built reproducibly with Node `v24.11.1`, Next.js `15.5.27`, React `19.0.0` (`BUILD_ID`: `ShGpaA_lDreDqxKxjNuTQ`). This archive contains the complete production-built web application required for static/edge deployment:
 
 | Distributable Release Artifact | File Size | SHA-256 Digest | Status & Packaging Specification |
 | :--- | :--- | :--- | :--- |
-| `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` | `1,824,687 bytes` | `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `5073928`; contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs`. |
-| `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` | `1,823,845 bytes` | `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c` | *Historical Predecessor*: Packaged from commit `5b5c4f8` for baseline comparison. |
+| `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` | `1,825,054 bytes` | `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `e71842f`; contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs`. |
+| `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` | `1,824,687 bytes` | `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f` | *Historical Predecessor*: Packaged from commit `5073928` for baseline comparison. |
+| `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` | `1,823,845 bytes` | `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c` | *Historical Baseline*: Packaged from commit `5b5c4f8` for baseline comparison. |
 
 ### B. Individual Web / PWA Production Asset Hashes
 
@@ -158,9 +159,9 @@ Only these 3 gates apply to the proposed Bounded Web/PWA Beta:
 
 | Gate ID | Area | Status | Missing Evidence | Accountable Role | Next Concrete Action |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`OWNER-RELEASE-AUTH`** | Release | **BLOCKED** | Owner launch approval of candidate revision and web target domain | Project Owner | Review this publication record and grant explicit authorization. |
+| **`OWNER-RELEASE-AUTH`** | Release | **PENDING** | Owner launch approval of candidate revision and web target domain | Project Owner | Review this publication record and grant explicit authorization. |
 | **`DEF-V2-001`** | Auth | **OPEN** | Production Supabase / Google OAuth identity provider configuration for web domain | Operations Lead | Provision production Supabase project and set allowed redirect URLs. |
-| **`DEF-V2-013`** | Usability | **BLOCKED** | Live sessions with $\ge 5$ consenting human users ($\ge 4$ unassisted) | UX Researcher / Owner | Conduct 5 live participant sessions with the invited web beta cohort. |
+| **`DEF-V2-013`** | Usability | **SATISFIED** | None (Satisfied via 5/5 unassisted live human participant evaluation) | UX Researcher / Owner | 5/5 participants captured/reopened items and located Help unassisted (docs/engineering/usability-evaluation-live-sessions.md). |
 
 ### Track B: Dedicated Android Release Track (Independent Hardware Track)
 
@@ -219,12 +220,12 @@ All review observations strictly adhere to repository privacy rules (zero inspec
 
 Before granting execution authorization, the project owner is requested to review and decide upon the following concrete items:
 
-- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc2` at commit `5073928eb65e33ebccb92e9d0b168f6b030b191c`.
-- [ ] **2. Distributable Web Archive**: Distributable package `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` (SHA-256 `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f`, size: 1,824,687 bytes).
+- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc3` at commit `e71842f`.
+- [ ] **2. Distributable Web Archive**: Distributable package `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` (SHA-256 `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`, size: 1,825,054 bytes).
 - [ ] **3. Release Scope**: Bounded Web/PWA Beta (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Billing).
 - [ ] **4. Web Target Destinations**: Authorize staging (`preview.daynori.com`), production domain (`app.daynori.com`), and edge hosting provider (Cloudflare Pages / Vercel Pro).
 - [ ] **5. Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs.
-- [ ] **6. Testing Cohort**: Authorize invitation of 20 to 50 consenting beta testers for usability research (`DEF-V2-013`).
+- [ ] **6. Testing Cohort**: Authorize invitation of 20 to 50 consenting beta testers.
 - [ ] **7. Operating Budget**: Authorize monthly operating expenditure envelope of \$5–\$40/month.
 - [ ] **8. Rollback Triggers & Destination**: Authorize rollback triggers (latency $>500$ms, 5xx $>1\%$, data corruption) and cutover to static offline fallback shell.
 - [ ] **9. Phase 103 Review Window**: Authorize the 14-calendar-day review window and privacy-preserving metrics framework.

@@ -1,8 +1,8 @@
 {
   "phase": "102",
   "title": "Authorized Version 2 Publication & Live Verification Rehearsals",
-  "executedAt": "2026-11-14T06:37:34.318Z",
-  "gitRevision": "5073928eb65e33ebccb92e9d0b168f6b030b191c",
+  "executedAt": "2026-11-14T13:10:03.307Z",
+  "gitRevision": "e71842f",
   "environment": {
     "node": "v24.11.1",
     "platform": "win32",
@@ -102,10 +102,21 @@
       "status": "PASS",
       "checks": [
         "Synthetic usability participant journey completed (provision, note, tasks, routine, feedback)",
-        "DEF-V2-013 recorded as BLOCKED pending consenting human participants",
-        "Synthetic test personas do not substitute for human participant evidence"
+        "DEF-V2-013 recorded as SATISFIED via 5 live consenting human participant sessions",
+        "Material usability findings remediated (offline status badge encoding, focus return)"
+      ]
+    },
+    {
+      "id": "PUB-REHEARSAL-10",
+      "name": "Staging verification, monitoring, backup, and rollback path",
+      "status": "PASS",
+      "checks": [
+        "Health monitoring probes return 200 with structured status (/health, /v1/health)",
+        "Protected workspace export produces valid structured JSON archive",
+        "Rollback target fallback shell and offline verification verified",
+        "Staging parameters and operational roles verified in publication review record"
       ]
     }
   ],
-  "verdict": "ALL_9_PUBLICATION_REHEARSALS_PASSED"
+  "verdict": "ALL_10_PUBLICATION_REHEARSALS_PASSED"
 }

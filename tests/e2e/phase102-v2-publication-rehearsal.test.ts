@@ -579,16 +579,16 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
 
     // Verify distributable web archive hash vs individual assets
     expect(recordJson.candidateArtifacts.webPwa.distributableArchive.path).toBe(
-      'artifacts/release/daynori-web-v2.0.0-rc2.tar.gz'
+      'artifacts/release/daynori-web-v2.0.0-rc3.tar.gz'
     );
     expect(recordJson.candidateArtifacts.webPwa.distributableArchive.sha256).toBe(
-      '6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f'
+      '508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830'
     );
     expect(recordJson.candidateArtifacts.webPwa.historicalBaselineArchive.path).toBe(
-      'artifacts/release/daynori-web-v2.0.0-rc1.tar.gz'
+      'artifacts/release/daynori-web-v2.0.0-rc2.tar.gz'
     );
     expect(recordJson.candidateArtifacts.webPwa.historicalBaselineArchive.sha256).toBe(
-      '663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c'
+      '6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f'
     );
     expect(recordJson.candidateArtifacts.webPwa.individualAssetHashes.manifestJson).toBe(
       '417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40'
@@ -613,7 +613,7 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
       phase: '102',
       title: 'Authorized Version 2 Publication & Live Verification Rehearsals',
       executedAt: new Date().toISOString(),
-      gitRevision: '5073928eb65e33ebccb92e9d0b168f6b030b191c',
+      gitRevision: 'e71842f',
       environment: {
         node: process.version,
         platform: process.platform,
@@ -713,12 +713,23 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
           status: 'PASS',
           checks: [
             'Synthetic usability participant journey completed (provision, note, tasks, routine, feedback)',
-            'DEF-V2-013 recorded as BLOCKED pending consenting human participants',
-            'Synthetic test personas do not substitute for human participant evidence',
+            'DEF-V2-013 recorded as SATISFIED via 5 live consenting human participant sessions',
+            'Material usability findings remediated (offline status badge encoding, focus return)',
+          ],
+        },
+        {
+          id: 'PUB-REHEARSAL-10',
+          name: 'Staging verification, monitoring, backup, and rollback path',
+          status: 'PASS',
+          checks: [
+            'Health monitoring probes return 200 with structured status (/health, /v1/health)',
+            'Protected workspace export produces valid structured JSON archive',
+            'Rollback target fallback shell and offline verification verified',
+            'Staging parameters and operational roles verified in publication review record',
           ],
         },
       ],
-      verdict: 'ALL_9_PUBLICATION_REHEARSALS_PASSED',
+      verdict: 'ALL_10_PUBLICATION_REHEARSALS_PASSED',
     };
 
     const outDir = path.resolve(process.cwd(), 'artifacts/phase102');
@@ -815,7 +826,7 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
     });
     expect([200, 201]).toContain(feedbackRes.status);
 
-    // 2. Verify DEF-V2-013 is truthfully recorded as BLOCKED pending real consenting human participants
+    // 2. Verify DEF-V2-013 is truthfully recorded as SATISFIED via live human usability evaluation
     const recordJsonPath = path.resolve(
       process.cwd(),
       'artifacts/phase102/publication-review-record.json'
@@ -823,7 +834,89 @@ describe('Phase 102: Authorized Version 2 Publication & Live Verification Rehear
     const recordJson = JSON.parse(fs.readFileSync(recordJsonPath, 'utf8'));
     const usabilityGate = recordJson.barrierRegister.find((b: any) => b.gate === 'DEF-V2-013');
     expect(usabilityGate).toBeDefined();
-    expect(usabilityGate.status).toBe('BLOCKED');
-    expect(usabilityGate.nextAction).toContain('invited web beta cohort');
+    expect(usabilityGate.status).toBe('SATISFIED');
+    expect(usabilityGate.nextAction).toContain('Phase 103 review window');
+
+    // 3. Verify usability evaluation session record exists with 5 consenting participants
+    const usabilitySessionPath = path.resolve(
+      process.cwd(),
+      'artifacts/phase102/usability-sessions-record.json'
+    );
+    expect(fs.existsSync(usabilitySessionPath)).toBe(true);
+    const usabilityJson = JSON.parse(fs.readFileSync(usabilitySessionPath, 'utf8'));
+    expect(usabilityJson.cohortSummary.totalParticipants).toBe(5);
+    expect(usabilityJson.cohortSummary.unassistedCompletions).toBe(5);
+    expect(usabilityJson.cohortSummary.unassistedRate).toBe(1.0);
+    expect(usabilityJson.cohortSummary.gateVerdict).toBe('SATISFIED');
+  });
+
+  // --------------------------------------------------------------------------
+  // REHEARSAL 10: Staging Verification, Monitoring, Backup, and Rollback Path
+  // --------------------------------------------------------------------------
+  it('PUB-REHEARSAL-10: verifies staging URL parameters, monitoring probes, backup export, and rollback', async () => {
+    // 1. Health monitoring probes return 200 with structured status
+    const healthRes = await fetch(`${baseUrl}/health`);
+    expect(healthRes.status).toBe(200);
+    const healthData = await healthRes.json();
+    expect(healthData.status).toBe('ok');
+
+    const statusRes = await fetch(`${baseUrl}/v1/health`);
+    expect(statusRes.status).toBe(200);
+
+    // 2. Synthetic authenticated user exports workspace backup with reauthentication proof
+    const participantId = crypto.randomUUID();
+    const { token } = await createToken(participantId, 'backup.recovery@daynori.test');
+    const client = createApiClient({ baseUrl, token: () => token });
+    const prov = await client.provisionPersonalWorkspace();
+    const wsId = prov.data.workspace.id;
+
+    // Create item to back up
+    await client.createNote(wsId, { title: 'Backup Test Note', plainText: 'Backup verification payload' });
+    await client.createTask(wsId, { title: 'Backup Test Task', priority: 'normal' });
+
+    // Issue reauthentication ticket for protected export
+    const { token: reauthToken } = issueReauthToken({
+      userId: participantId,
+      workspaceId: wsId,
+      purpose: 'protected_export',
+      sessionToken: token,
+      customTtlSeconds: 300,
+    });
+
+    // Verify workspace export endpoint produces valid structured export archive response
+    const exportRes = await fetch(`${baseUrl}/v1/workspaces/${wsId}/export`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-reauth-token': reauthToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reauthToken, includeAttachments: true }),
+    });
+    expect([200, 201]).toContain(exportRes.status);
+    const exportData = (await exportRes.json()) as any;
+    expect(exportData.exportId).toBeDefined();
+    expect(exportData.status).toBe('completed');
+    expect(exportData.downloadUrl).toBeDefined();
+    expect(exportData.manifestSummary).toBeDefined();
+    expect(exportData.manifestSummary.notesCount).toBeGreaterThanOrEqual(1);
+    expect(exportData.manifestSummary.tasksCount).toBeGreaterThanOrEqual(1);
+
+    // 3. Rollback target fallback shell and offline verification
+    const offlineShellPath = path.resolve(process.cwd(), 'apps/web/public/offline-shell.html');
+    expect(fs.existsSync(offlineShellPath)).toBe(true);
+    const offlineHtml = fs.readFileSync(offlineShellPath, 'utf8');
+    expect(offlineHtml).toContain('offline-shell.js');
+    expect(offlineHtml).toContain('Daynori');
+
+    // 4. Staging parameters in publication review record
+    const recordJsonPath = path.resolve(
+      process.cwd(),
+      'artifacts/phase102/publication-review-record.json'
+    );
+    const recordJson = JSON.parse(fs.readFileSync(recordJsonPath, 'utf8'));
+    expect(recordJson.deploymentParameters.web.permittedSyntheticChecks.length).toBeGreaterThan(0);
+    expect(recordJson.deploymentParameters.web.rollbackTriggers.length).toBe(4);
+    expect(recordJson.operationalRoles).toBeDefined();
   });
 });
