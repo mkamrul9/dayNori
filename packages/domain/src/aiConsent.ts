@@ -341,6 +341,20 @@ export type AttachmentAiEligibility = {
   reason: string | null;
 };
 
+/**
+ * Returns true if the target item or payload is vault-scoped or represents a vault item.
+ * Strictly used to exclude vault content from AI processing, indexing, and proposals.
+ */
+export function isVaultAiTarget(
+  kind?: string | null,
+  securityScope?: string | null
+): boolean {
+  if (securityScope === 'vault') return true;
+  if (!kind) return false;
+  const lower = kind.toLowerCase();
+  return lower === 'vault' || lower === 'vault_item' || lower === 'encrypted_vault';
+}
+
 export function checkAttachmentAiEligibility(input: {
   mimeType: string;
   byteSize: number;

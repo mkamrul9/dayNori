@@ -6050,7 +6050,10 @@
         "tests/integration/phase55-ai-privacy-retrieval.test.ts",
         "tests/integration/phase56-ai-assistant-actions.test.ts",
         "tests/unit/phase104-gated-features-truthfulness.test.ts",
-        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+        "tests/integration/phase114-ask-nori-assistant-release-gate.test.ts",
+        "tests/unit/phase114-ask-nori-ui-interface.test.ts",
+        "apps/mobile/src/phase114-assistant-mobile-views.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/phase90/evidence-summary.json",
@@ -6063,7 +6066,11 @@
         "artifacts/phase108/evidence-summary.json",
         "artifacts/phase108/live-provider-evaluation.json",
         "artifacts/phase108/proposals-journey-evidence.json",
-        "docs/decisions/0108-ai-text-assistant-release-gate-and-operational-review.md"
+        "docs/decisions/0108-ai-text-assistant-release-gate-and-operational-review.md",
+        "artifacts/phase114/evidence-summary.json",
+        "artifacts/phase114/provider-evidence.json",
+        "docs/phase-reports/phase-114.md",
+        "docs/decisions/0114-ask-nori-text-assistant-release-gate-and-reviewed-creation-audit.md"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6125,14 +6132,21 @@
         "tests/integration/phase91-scoped-retrieval-evaluation.test.ts",
         "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
         "tests/unit/phase104-gated-features-truthfulness.test.ts",
-        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+        "tests/integration/phase114-ask-nori-assistant-release-gate.test.ts",
+        "tests/unit/phase114-ask-nori-ui-interface.test.ts",
+        "apps/mobile/src/phase114-assistant-mobile-views.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/local/phase65/core-journeys.log",
         "artifacts/phase91/evidence-summary.json",
         "artifacts/phase92/evidence-summary.json",
         "docs/phase-reports/phase-104.md",
-        "artifacts/phase104/evidence-summary.json"
+        "artifacts/phase104/evidence-summary.json",
+        "artifacts/phase114/evidence-summary.json",
+        "artifacts/phase114/provider-evidence.json",
+        "docs/phase-reports/phase-114.md",
+        "docs/decisions/0114-ask-nori-text-assistant-release-gate-and-reviewed-creation-audit.md"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",
@@ -6195,7 +6209,10 @@
         "tests/integration/phase92-assistant-chat-stream-guidance.test.ts",
         "tests/integration/phase93-reviewed-organizer-creation.test.ts",
         "tests/unit/phase104-gated-features-truthfulness.test.ts",
-        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
+        "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+        "tests/integration/phase114-ask-nori-assistant-release-gate.test.ts",
+        "tests/unit/phase114-ask-nori-ui-interface.test.ts",
+        "apps/mobile/src/phase114-assistant-mobile-views.test.ts"
       ],
       "evidenceRefs": [
         "artifacts/phase93/evidence-summary.json",
@@ -6203,7 +6220,11 @@
         "artifacts/phase91/evidence-summary.json",
         "artifacts/phase92/evidence-summary.json",
         "docs/phase-reports/phase-104.md",
-        "artifacts/phase104/evidence-summary.json"
+        "artifacts/phase104/evidence-summary.json",
+        "artifacts/phase114/evidence-summary.json",
+        "artifacts/phase114/provider-evidence.json",
+        "docs/phase-reports/phase-114.md",
+        "docs/decisions/0114-ask-nori-text-assistant-release-gate-and-reviewed-creation-audit.md"
       ],
       "blockerOrDefect": "DEF-V2-008",
       "authorization": "Workspace member when authenticated; public where route is public.",

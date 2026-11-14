@@ -1,0 +1,43 @@
+{
+  "phase": "114",
+  "name": "Daynori Ask Nori text-assistant release-gate verification and reviewed organizer creation audit",
+  "timestamp": "2026-11-14T11:27:00.000Z",
+  "provider": {
+    "recommendedPrimary": "Google Cloud Vertex AI (Gemini 1.5 Flash)",
+    "approvedWireProtocol": "OpenAI Compatible API (GPT-4o-mini)",
+    "liveExecutionOutcome": "blocked",
+    "gateId": "DEF-V2-008",
+    "gateStatus": "blocked (fail-closed pending commercial terms, enterprise DPA, and owner spending authorization)",
+    "realUserContentTransmitted": false
+  },
+  "privacyAndSecurityGuarantees": {
+    "zeroModelTraining": "Mandatory DPA addendum prohibiting training of base or fine-tuned models on user data.",
+    "vaultExclusion": "Unconditional exclusion via isVaultAiTarget. Vault notes, encrypted files, and keys fail closed with HTTP 403 vault_excluded.",
+    "journalOptIn": "Default-off (contentScope.journal = false). Refuses to index or draft journal entries without explicit user opt-in in Settings.",
+    "workspaceIsolation": "Strict multi-tenant boundary. Zero cross-workspace retrieval, citation, or proposal modification.",
+    "retentionPolicy": "Zero server disk logging of prompt text or completions. 30-day transient provider abuse monitoring cap."
+  },
+  "costAndBudgetLimits": {
+    "dailyWorkspaceCeilingUsd": 1.00,
+    "monthlyWorkspaceCeilingUsd": 10.00,
+    "maxContextChars": 20000,
+    "maxOutputTokens": 1000,
+    "concurrencySafeReservations": true,
+    "budgetExhaustionStatus": "HTTP 429 AI_BUDGET_EXHAUSTED"
+  },
+  "reviewedCreationLifecycle": {
+    "proposalsNeverAutoExecute": true,
+    "dateAmbiguityDetection": "Mandatory clarification question when relative dates ('yesterday', 'tomorrow') lack ISO YYYY-MM-DD.",
+    "editablePreview": "PATCH /v1/ai/proposals/:proposalId allows modifying title, content, date, amount before saving.",
+    "explicitConfirmation": "POST /v1/ai/proposals/:proposalId/confirm requires opaque single-use server confirmation token.",
+    "durableReceipt": "Recorded in app.mutation_receipts under AI_DEVICE_ID = 'ai-assistant-proposal'.",
+    "canonicalDeepLinks": "Verified navigation via getOrganizerDeepLink for notes, tasks, and journals.",
+    "idempotentRetry": "Re-confirming returns existing entity without duplication.",
+    "cancelledProposalZeroWrite": "Cancelling writes zero rows to domain tables."
+  },
+  "killSwitchTiers": {
+    "serverEnvironment": "DAYNORI_ASSISTANT_KILL_SWITCH=true halts all endpoints with HTTP 503 AI_KILL_SWITCH_ACTIVE.",
+    "workspaceAdmin": "ai_enabled = false in workspace settings revokes consent and purges index chunks.",
+    "clientUiBanner": "assistant-gated-banner renders on Web and Mobile informing users of DEF-V2-008 gating."
+  }
+}

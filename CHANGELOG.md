@@ -1,5 +1,41 @@
 # Changelog
 
+## Phase 114 — Daynori Ask Nori text-assistant release-gate verification and reviewed organizer creation audit — 2026-11-14
+
+- ADR 0114: Daynori Ask Nori text-assistant release-gate verification and reviewed organizer creation audit, preparing commercial provider and operating decisions package for owner review, maintaining fail-closed release gate `DEF-V2-008`, evaluating zero model training and DPA/SCC compliance, verifying 3-tier kill-switch architecture, and auditing the 7-step reviewed organizer creation lifecycle across web and mobile interfaces.
+- Commercial Provider & Operating Decisions Package for Owner Review:
+  - Authored `docs/engineering/ai-text-assistant-provider-and-operating-decisions.md` detailing:
+    - Provider evaluation: Google Cloud Vertex AI (Gemini 1.5 Flash recommended primary), OpenAI (GPT-4o-mini wire protocol).
+    - Commercial contract terms: mandatory zero customer data used for model training or foundation improvement, standard DPA with EU SCCs, and a strict 30-day transient abuse logging cap.
+    - Privacy & minimization invariants: PII minimization, prompt token limits (max 20,000 chars), unconditional vault exclusion via `isVaultAiTarget(kind, securityScope)`, default-off journal opt-in (`contentScope.journal = false`).
+    - Retention policy: ephemeral in-memory processing, zero prompt/completion disk logging, user history wiping (`DELETE /v1/ai/history/:turnId` and `DELETE /v1/ai/history`).
+    - Geographic region pinning: `us-central1` (US tenant pool) and `europe-west1` (EU tenant pool) regional endpoints; unpinned dynamic global routing prohibited.
+    - Cost ceilings & concurrency safety: $1.00 USD/workspace/day ceiling, $10.00 USD/workspace/month ceiling, concurrency-safe PostgreSQL budget reservations (`app.ai_create_reservation`) with fail-closed 429 `AI_BUDGET_EXHAUSTED`.
+    - Three-tier kill-switch: server env `DAYNORI_AI_KILL_SWITCH = 'true'` (503 `AI_KILL_SWITCH_ACTIVE`), workspace toggle (`ai_enabled = false`), and client UI gating banner (`DEF-V2-008`).
+    - Synthetic testing protocol: strictly zero real user data transmission.
+- Domain Package Enhancement:
+  - Added and exported `isVaultAiTarget(kind, securityScope)` in `packages/domain/src/aiConsent.ts` and `packages/domain/src/index.ts`, rejecting any entity or proposal with `securityScope = 'vault'` with HTTP 403 `vault_excluded`.
+- Live Provider Execution & Truthful Status Recording:
+  - Live commercial provider integration truthfully recorded as blocked (`outcome: "blocked"`, `reason: "missing_ai_provider_config"`, gate `DEF-V2-008` in `artifacts/phase114/live-blocked.json`).
+  - Zero live credentials or spending limits provisioned in environment; zero real user content transmitted; AI assistant remains strictly fail-closed under `DEF-V2-008`.
+- 7-Step Reviewed Organizer Creation Lifecycle Verified:
+  - *Flow 1 (Note)*: Prompt "create a note about project launch" -> editable preview -> edit payload (`PATCH /v1/ai/proposals/:proposalId`) -> explicit confirm (`POST /v1/ai/proposals/:proposalId/confirm`) -> durable sync receipt (`AI_DEVICE_ID = 'ai-assistant-proposal'`) -> deep link (`/library?noteId=...`).
+  - *Flow 2 (Journal)*: Prompt "write this journal entry: yesterday was productive" -> ambiguous date flagged (`detectJournalDateAmbiguity`) -> asks clarification -> explicit date "2026-11-20" provided -> proposal created -> confirm -> durable receipt -> deep link (`/journal?entryId=...`).
+  - *Flow 3 (Deadline)*: Prompt "set a deadline for tomorrow" -> ambiguous deadline flagged (`detectTaskDeadlineAmbiguity`) -> asks clarification -> explicit deadline "2026-12-15" provided -> proposal created -> confirm -> durable receipt -> deep link (`/plan?targetId=...&targetType=task`).
+  - *Idempotent Retry*: Re-confirming an already confirmed proposal returns the existing proposal record idempotently without duplicating domain entities.
+  - *Zero-Write Cancellation*: Cancelling a proposal (`POST /v1/ai/proposals/:proposalId/cancel`) leaves zero rows in organizer tables.
+- Web and Mobile Interface Verification:
+  - `AssistantPanel.tsx` (Web): Verified truthful gating presentation (`DEF-V2-008`), disabled text areas and buttons when gated, proposal card review lifecycle, editable preview, explicit confirm/cancel buttons, canonical deep links, and sanitized markdown rendering.
+  - `AssistantSheet.tsx` (Mobile): Verified with React Native `TestRenderer`; displays truthful gating banner under `DEF-V2-008`, disabled ask button, input text state, and close actions.
+  - `AppSidebar.tsx` & `AppHeader.tsx`: Surfaced entry points with "Gated" pill badges and accessible labels.
+  - `NoriCompanionLauncher.tsx`: Verified mobile launcher floating button accessibility (min 44x44 target, explicit accessibility label).
+- Automated Test Suite Verification (26/26 Passed):
+  - `tests/integration/phase114-ask-nori-assistant-release-gate.test.ts` (16 tests pass).
+  - `tests/unit/phase114-ask-nori-ui-interface.test.ts` (8 tests pass).
+  - `apps/mobile/src/phase114-assistant-mobile-views.test.ts` (2 tests pass).
+- Preserved Release Gates & Fail-Closed Boundaries:
+  - All standing release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71) remain strictly blocked.
+
 ## Phase 113 — Daynori Google Drive provider-verification and authorized folder access audit — 2026-11-14
 
 - ADR 0113: Daynori Google Drive provider-verification and authorized folder access audit, evaluating narrow `drive.file` scope boundaries, preparing owner Google Cloud OAuth and synthetic test account review packages, testing 11 core provider scenarios, maintaining bounded folder tree hierarchy, and evaluating restricted scope CASA AL2 requirements.
