@@ -777,10 +777,11 @@ export function AssistantSheet({
             <TouchableOpacity
               testID="assistant-voice-record-btn"
               accessibilityLabel="Start voice recording"
+              disabled={isGated}
               onPress={() => void startVoiceRecording()}
-              style={[styles.chip, { backgroundColor: palette.surface }]}
+              style={[styles.chip, { backgroundColor: palette.surface, opacity: isGated ? 0.6 : 1 }]}
             >
-              <Text style={{ fontSize: 11, color: palette.text.primary }}>Record Voice</Text>
+              <Text style={{ fontSize: 11, color: isGated ? palette.text.secondary : palette.text.primary }}>Record Voice</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -822,8 +823,16 @@ export function AssistantSheet({
               <TouchableOpacity
                 testID="assistant-voice-transcribe-btn"
                 accessibilityLabel="Transcribe voice recording"
+                disabled={isGated}
                 onPress={() => void transcribeVoiceAudio()}
-                style={[styles.chip, { backgroundColor: palette.action.primary, paddingHorizontal: 12 }]}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: palette.action.primary,
+                    paddingHorizontal: 12,
+                    opacity: isGated ? 0.6 : 1,
+                  },
+                ]}
               >
                 <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Transcribe Voice</Text>
               </TouchableOpacity>

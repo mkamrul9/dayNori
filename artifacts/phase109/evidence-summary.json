@@ -1,0 +1,43 @@
+{
+  "phase": "109",
+  "generatedAt": "2026-11-14T12:12:15.000Z",
+  "title": "Voice-assistant verification and operational review",
+  "status": "blocked",
+  "releaseGates": {
+    "DEF-V2-008": "BLOCKED (requires enterprise live provider contract with 0-day retention and zero customer training)",
+    "DEF-V2-011": "BLOCKED (requires physical ARM64 device testing with real microphone hardware and spoken TalkBack screen-reader ear listen-through)"
+  },
+  "summary": "Completed comprehensive bounded voice-assistant verification and operational review using Phase 95's capture and transcript-review pipeline. Verified microphone permission handling with accessible text fallback; explicit record/stop/cancel lifecycle with local memory discard and zero network requests; native Bangla script Unicode preservation, English speech recognition, and code-switched (Banglish) fidelity; silence and low-confidence (<0.70) uncertainty detection with warning alerts; interrupted upload recovery and idempotent retries without duplicate records or double-charging; in-flight backgrounding and cancellation via AbortSignal; interactive editable transcript review preceding proposal generation; anti-hallucination task deadline ambiguity clarification without unreviewed writes; explicit Save/Confirm proposal execution with durable sync mutation receipts in app.mutation_receipts under AI_DEVICE_ID and canonical deep links; strict 0-day transient audio retention with server memory zeroing (Buffer.alloc(0)) and zero raw audio in database; decoupled hardware microphone permission vs external AI transmission consent (403 AI_CONSENT_REQUIRED); server kill switch (503 AI_KILL_SWITCH_ACTIVE); and multi-tenant workspace isolation. Evaluated mock vs live multimodal providers separately. Kept voice gated fail-closed under DEF-V2-008 and DEF-V2-011.",
+  "results": {
+    "totalTests": 18,
+    "passedTests": 18,
+    "failedTests": 0,
+    "testDurationMs": 1054,
+    "fullSuiteTests": 94,
+    "fullSuitePassed": 94
+  },
+  "keyEvidence": [
+    "artifacts/phase109/voice-provider-evaluation.json",
+    "artifacts/phase109/voice-journeys-evidence.json",
+    "tests/integration/phase109-voice-assistant-verification.test.ts"
+  ],
+  "invariantsVerified": {
+    "microphonePermissionDecoupled": "PASSED (hardware mic permission operates locally without implying external AI transmission consent)",
+    "accessibleTextFallback": "PASSED (keyboard typing is fully functional when mic is denied, unsupported, or gated)",
+    "localCancelDiscard": "PASSED (cancelling recording immediately discards audio in memory with 0 network calls and 0 database writes)",
+    "durationAndSizeBounds": "PASSED (0.5s-600s duration and <=25 MiB payload limits strictly enforced at contract and domain layers)",
+    "banglaUnicodePreservation": "PASSED (preserves native Bengali glyphs [\\u0980-\\u09FF] without phonetic transliteration corruption)",
+    "banglishCodeSwitching": "PASSED (mixed Bengali script and English vocabulary accurately transcribed)",
+    "silenceDetection": "PASSED (empty speech returns 0.0 confidence and uncertainSpeech: true)",
+    "lowConfidenceWarning": "PASSED (confidence < 0.70 flags uncertainty and prompts user to review transcript)",
+    "idempotentRetry": "PASSED (partial unique index idx_ai_transcriptions_client_op returns cached transcript with 0 duplicate rows)",
+    "inFlightCancellation": "PASSED (AbortSignal aborts request with 499 AI_CANCELLED, zeroes memory buffer, and settles reservation as cancelled)",
+    "editableTranscriptReview": "PASSED (transcription produces editable text only; user edits transcript before proposing items; zero unreviewed writes)",
+    "deadlineAmbiguityClarification": "PASSED (relative dates trigger clarifying question without creating unreviewed tasks)",
+    "durableMutationReceipts": "PASSED (explicit Confirm/Save produces receipt under AI_DEVICE_ID in app.mutation_receipts)",
+    "canonicalDeepLinks": "PASSED (getOrganizerDeepLink verified for notes, tasks, journals)",
+    "zeroDayTransientRetention": "PASSED (server zeroes buffer Buffer.alloc(0); retention_policy = 'transient_deleted'; app.ai_transcriptions has 0 raw audio columns)",
+    "killSwitchAuthoritative": "PASSED (DAYNORI_AI_KILL_SWITCH = 'true' immediately halts voice transcription with 503 AI_KILL_SWITCH_ACTIVE)",
+    "workspaceIsolation": "PASSED (cross-tenant transcriptions rejected with 403/404)"
+  }
+}

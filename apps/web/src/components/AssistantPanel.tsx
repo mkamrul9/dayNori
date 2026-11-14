@@ -1073,6 +1073,7 @@ export function AssistantPanel({
                 variant="primary"
                 size="compact"
                 themeMode={themeMode}
+                disabled={isGated}
                 onClick={() => void transcribeVoiceAudio()}
                 data-tour="assistant-voice-transcribe"
               >

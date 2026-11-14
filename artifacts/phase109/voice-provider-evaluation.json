@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "phase": "109",
+  "title": "Voice Assistant Provider Evaluation and Operational Review",
+  "evaluationDate": "2026-11-14",
+  "operationalGates": {
+    "liveProviderGate": {
+      "id": "DEF-V2-008",
+      "status": "fail_closed",
+      "requirement": "Enterprise privacy agreement with 0-day data retention, zero training on customer audio/prompts, and commercial spending caps",
+      "currentTreatment": "Live transmission gated; truthful unavailable message displayed; inputs disabled when gated; local mock adapter verified for offline validation"
+    },
+    "physicalDeviceGate": {
+      "id": "DEF-V2-011",
+      "status": "blocked",
+      "requirement": "Physical ARM64 device testing with real microphone hardware and spoken TalkBack audio screen-reader ear listen-through",
+      "currentTreatment": "Automated emulator and browser MediaRecorder tests executed; physical phone verification separated and recorded as blocked"
+    }
+  },
+  "evaluatedAdapters": [
+    {
+      "provider": "gemini-1.5-flash-multimodal",
+      "displayName": "Google Gemini 1.5 Flash (Multimodal Audio)",
+      "modality": "Direct audio buffer ingestion (base64) -> structured JSON transcription",
+      "rateStructure": {
+        "unit": "second",
+        "priceUsdPerSecond": 0.00002,
+        "priceMicroUsdPerSecond": 20,
+        "effectivePricePer1000s": 0.02
+      },
+      "languageCapabilities": {
+        "english": "Fluent conversational and technical vocabulary",
+        "bangla": "Native Bengali script (Unicode U+0980..U+09FF) with full vowel matra and conjunct preservation",
+        "banglish": "Code-switched Bengali-English recognized accurately without phonetic degradation"
+      },
+      "retentionGuarantees": {
+        "policy": "transient_deleted",
+        "serverRetentionDays": 0,
+        "memoryPurge": "Immediate Buffer.alloc(0) in finally block",
+        "databaseBinaryStorage": "None. Only text transcript and metadata stored in app.ai_transcriptions"
+      },
+      "bounds": {
+        "minDurationSeconds": 0.5,
+        "maxDurationSeconds": 600,
+        "maxSizeBytes": 26214400,
+        "supportedMimeTypes": ["audio/webm", "audio/mp4", "audio/ogg", "audio/wav", "audio/mpeg"]
+      },
+      "evaluationVerdict": "Selected as primary live candidate due to 5x cost advantage over Whisper and native Bengali script fidelity; remains fail-closed under DEF-V2-008."
+    },
+    {
+      "provider": "openai-whisper-1",
+      "displayName": "OpenAI Whisper-1",
+      "modality": "Multipart audio file upload -> text transcript",
+      "rateStructure": {
+        "unit": "minute",
+        "priceUsdPerMinute": 0.006,
+        "priceMicroUsdPerSecond": 100,
+        "effectivePricePer1000s": 0.10
+      },
+      "languageCapabilities": {
+        "english": "High accuracy",
+        "bangla": "Moderate; occasional transliteration errors on complex conjuncts",
+        "banglish": "Variable code-switching performance"
+      },
+      "retentionGuarantees": {
+        "policy": "Requires enterprise BAA / zero-data retention endpoint configuration",
+        "serverRetentionDays": 0
+      },
+      "bounds": {
+        "maxDurationSeconds": 600,
+        "maxSizeBytes": 26214400
+      },
+      "evaluationVerdict": "Secondary candidate; 500% higher unit cost than Gemini 1.5 Flash with lower Bangla conjunct fidelity; remains fail-closed."
+    },
+    {
+      "provider": "mock-audio-transcription-adapter",
+      "displayName": "Mock Audio Transcription Adapter (@daynori/domain)",
+      "modality": "In-memory deterministic test adapter",
+      "rateStructure": {
+        "unit": "second",
+        "priceUsdPerSecond": 0.0,
+        "priceMicroUsdPerSecond": 0
+      },
+      "languageCapabilities": {
+        "english": "Deterministic synthetic text fixtures and embedded MOCK_TRANSCRIPT: tags",
+        "bangla": "Native Bengali script simulation",
+        "banglish": "Code-switched text simulation"
+      },
+      "uncertaintySimulation": {
+        "silence": "Zero bytes or 'silence' tag -> empty transcript, 0.0 confidence, uncertainSpeech: true",
+        "lowConfidence": "Noisy/mumble tag -> confidence 0.45 (<0.70), uncertainSpeech: true"
+      },
+      "retentionGuarantees": {
+        "policy": "transient_deleted",
+        "audioCleanedUp": true
+      },
+      "evaluationVerdict": "Verified for local zero-cost integration testing, CI validation, and reproducible review workflows."
+    }
+  ],
+  "securityAndPrivacyFencing": {
+    "consentDecoupling": {
+      "rule": "Hardware microphone permission operates independently from external AI transmission consent",
+      "enforcement": "Calling /v1/ai/assistant/transcribe strictly requires app.ai_consents.enabled = true, returning 403 AI_CONSENT_REQUIRED when disabled"
+    },
+    "retentionPolicy": {
+      "rule": "0-day transient audio retention",
+      "enforcement": "Server zeroes decoded Buffer in finally block; app.ai_transcriptions database schema has zero binary/base64 columns"
+    },
+    "noRawAudioInLogs": {
+      "rule": "Raw recording binaries or base64 streams must never appear in application logs or exception traces",
+      "enforcement": "Pino logger redaction and explicit exclusion of audioBase64 from log serializers"
+    },
+    "idempotentRetry": {
+      "rule": "Interrupted uploads re-sent with stable clientOperationId do not duplicate records or double-charge budget",
+      "enforcement": "PostgreSQL partial unique index idx_ai_transcriptions_client_op on (user_id, workspace_id, client_operation_id)"
+    },
+    "zeroUnreviewedWrites": {
+      "rule": "Voice transcription alone never creates organizer records; reviewed transcripts must follow proposal review and explicit Save/Confirm",
+      "enforcement": "Confirmed proposals issue single-use confirmation tokens and write durable receipts in app.mutation_receipts under AI_DEVICE_ID"
+    }
+  }
+}

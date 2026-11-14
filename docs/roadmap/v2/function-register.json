@@ -6267,6 +6267,8 @@
         "tests/integration/phase93-reviewed-organizer-creation.test.ts",
         "tests/integration/phase94-structured-organizer-tools.test.ts",
         "tests/integration/phase95-voice-transcription-reviewed-creation.test.ts",
+        "tests/integration/phase108-ai-assistant-release-gate.test.ts",
+        "tests/integration/phase109-voice-assistant-verification.test.ts",
         "tests/unit/phase104-gated-features-truthfulness.test.ts",
         "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts"
       ],
@@ -6277,7 +6279,9 @@
         "artifacts/phase93/evidence-summary.json",
         "artifacts/phase94/evidence-summary.json",
         "artifacts/phase95/evidence-summary.json",
+        "artifacts/phase109/evidence-summary.json",
         "docs/phase-reports/phase-104.md",
+        "docs/phase-reports/phase-109.md",
         "artifacts/phase104/evidence-summary.json"
       ],
       "blockerOrDefect": "DEF-V2-008",

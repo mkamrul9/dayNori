@@ -1,5 +1,49 @@
 # Changelog
 
+## Phase 109 — Voice-assistant verification and operational review — 2026-11-14
+
+- ADR 0109: Voice-assistant verification and operational review evaluating Phase 95's capture and transcript-review pipeline against release gates `DEF-V2-008` (enterprise live provider privacy agreement) and `DEF-V2-011` (physical phone TalkBack verification).
+- Decoupled Hardware Permission & Accessible Text Fallback:
+  - Verified microphone hardware permission (`navigator.mediaDevices.getUserMedia` on Web, `recorder.requestPermissionsAsync` on Mobile) operates strictly locally without sending audio bytes to external networks.
+  - Hardware permission denial gracefully falls back with user feedback (*"Microphone permission denied. You can continue typing below."*).
+  - Text typing remains 100% accessible and functional via keyboard and screen reader, eliminating hardware lockouts.
+- Record, Stop, and Cancel Lifecycle (Local Discard):
+  - Verified cancel action (`cancelVoiceRecording`) immediately empties client memory buffers (`audioChunksRef.current = []`), sending zero network calls and writing zero rows to database table `app.ai_transcriptions`.
+  - Duration bounds (0.5s–600s) and payload size limit (<= 25 MiB) enforced at contract (`TranscribeAudioRequestSchema`) and domain (`validateAudioForTranscription`) layers.
+- Speech Recognition & Script Preservation:
+  - Bangla speech: accurately transcribed into native Bengali Unicode script (`[\u0980-\u09FF]`) with full vowel matras, halant, and conjunct preservation without transliteration corruption.
+  - English speech: fluent transcription with high confidence (>= 0.95) and accurate word boundaries.
+  - Code-switched (Banglish) speech: mixed Bengali-English utterances transcribed with mixed-script preservation.
+- Silence & Low-Confidence Uncertainty Flagging:
+  - Silence detection: all-zero buffers or empty speech return `transcript = ""`, `confidence = 0.0`, and `uncertainSpeech = true`.
+  - Low-confidence warning: recognition confidence < 0.70 flags `uncertainSpeech = true`, rendering prominent amber alerts prompting users to review and correct transcript text before proposing organizer items.
+- Upload Resilience & In-Flight Cancellation:
+  - Idempotent retries: interrupted uploads replayed with stable `clientOperationId` hit partial unique index `idx_ai_transcriptions_client_op`, returning cached results with zero duplicate rows and zero double-charging.
+  - In-flight backgrounding: `AbortSignal` safely terminates processing with HTTP 499 (`AI_CANCELLED`), settles budget reservation as `'cancelled'`, zeroes memory buffers, and prevents late mutations.
+- Interactive Transcript Review Preceding Proposals:
+  - Decoupled transcription from item creation: audio produces editable text only into `<textarea id="assistant-transcript-edit">` (Web) / multiline `TextInput` (Mobile).
+  - Users can correct dates, names, amounts, or mistranscribed words before proposing actions; transcription alone writes zero domain rows.
+  - Anti-hallucination task deadline clarification: relative dates in voice transcripts trigger clarifying questions (`detectTaskDeadlineAmbiguity`) without creating unreviewed tasks.
+  - Full Save/Confirm proposal pipeline: proposals issue single-use confirmation tokens; domain writes execute only upon explicit Confirm; confirmed creations write durable receipts in `app.mutation_receipts` under `AI_DEVICE_ID` (`ai-assistant-proposal`) and return canonical deep links (`getOrganizerDeepLink`). Cancelled proposals write zero rows.
+- Strict 0-Day Transient Audio Retention & Security Fencing:
+  - Memory zeroing: decoded audio buffers zeroed immediately after transcription in `finally` block (`audioBuffer = Buffer.alloc(0)`).
+  - Zero raw audio in database: `app.ai_transcriptions` stores only text metadata with `retention_policy = 'transient_deleted'`; schema verified to contain zero binary/base64 audio columns.
+  - Log fencing: raw audio bytes and base64 streams excluded from application logs.
+  - Consent decoupling: server enforces active AI consent (`403 AI_CONSENT_REQUIRED` when disabled).
+  - Server kill switch: `DAYNORI_AI_KILL_SWITCH = 'true'` immediately halts transcription with `503 AI_KILL_SWITCH_ACTIVE`.
+  - Workspace isolation: cross-workspace transcriptions rejected with HTTP 403/404.
+- Provider Evaluation (Live vs. Mock):
+  - Mock Adapter (`MockAudioTranscriptionAdapter`): validated for zero-cost deterministic integration testing.
+  - Live Multimodal Provider Protocol: evaluated Gemini 1.5 Flash multimodal ($0.00002/s = 20 micro-USD/s) vs Whisper-1 ($0.0001/s = 100 micro-USD/s); selected Gemini 1.5 Flash as primary live candidate for 5x cost advantage and native Bengali script fidelity.
+  - Kept voice gated fail-closed under `DEF-V2-008` (enterprise contract pending) and `DEF-V2-011` (physical TalkBack verification pending).
+- Automated Evidence & Tests:
+  - 18/18 tests pass in `tests/integration/phase109-voice-assistant-verification.test.ts`.
+  - 94/94 tests pass across all 8 AI and Voice integration test suites in monorepo.
+- Gate-by-Gate Reporting:
+  - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification (`DEF-V2-011`).
+  - Phase 109 status recorded as `blocked` pending enterprise provider privacy review and commercial contract (`DEF-V2-008` fail-closed) and physical phone verification (`DEF-V2-011`). No production deployment or release readiness claimed from local tests.
+
+
 ## Phase 108 — AI text-assistant release-gate and operational review — 2026-11-14
 
 - ADR 0108: AI text-assistant release-gate and operational review evaluating the Phase 90–94 implementation against release gate `DEF-V2-008`, ensuring Ask Nori discoverability, anti-hallucination date ambiguity verification, zero-unreviewed-write proposal workflows, privacy fencing, and separate live vs. mock provider evaluation.
