@@ -1,0 +1,22 @@
+{
+  "phase": "116",
+  "name": "Daynori Native Android Release-Candidate Verification and Physical Hardware Audit",
+  "timestamp": "2026-11-14T12:30:00.000Z",
+  "liveDeviceOutcome": "blocked",
+  "releaseSigningOutcome": "blocked",
+  "gateStatus": {
+    "OWNER-SIGNING-KEYS": "blocked",
+    "DEF-V2-011": "blocked",
+    "DEF-V2-013": "blocked",
+    "OWNER-RELEASE-AUTH": "blocked"
+  },
+  "physicalDevicePresent": false,
+  "humanTalkbackEarReviewPerformed": false,
+  "debugApksDistributed": false,
+  "signingGuardEnforced": true,
+  "e2eTestsPassed": 7,
+  "mobileJourneyTestsPassed": 9,
+  "totalTestsPassed": 16,
+  "standingGatesPreserved": 10,
+  "status": "COMPLETE_BOUNDED"
+}

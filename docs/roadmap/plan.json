@@ -4543,6 +4543,75 @@
         "docs/engineering/release-gates.md"
       ],
       "commit": "test(voice): verify audio memory cleanup and speech capture release gates"
+    },
+    {
+      "id": "116",
+      "group": "v2-release",
+      "title": "Daynori native Android release-candidate verification and physical hardware audit",
+      "dependsOn": [
+        "71",
+        "106",
+        "115"
+      ],
+      "scope": [
+        "apps/mobile",
+        "packages/ui-mobile",
+        "docs/engineering",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase116",
+        "tests/e2e",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Verify release-candidate artifact identity across apps/mobile/app.json, android/app/build.gradle, and packages/contracts: packageId com.daynori.app, targetSdk 36, compileSdk 36, minSdk 24, versionCode 1, versionName 2.0.0-candidate, Hermes, and React Native New Architecture (newArchEnabled=true).",
+        "Inspect and enforce fail-closed release signing architecture: daynoriReleaseSigningGuard in apps/mobile/android/app/build.gradle halts distributable release tasks when owner release keystore is unconfigured, preventing silent debug.keystore fallback.",
+        "Verify strict separation of debug APKs: app-debug-arm64.apk, app-debug-x86_64.apk, and app-embedded-x86_64.apk are signed with debug keystores and strictly barred from distribution as release builds.",
+        "Audit official Google Play policy compliance: target API 34+ requirement, Play App Signing Android App Bundle (.aab) format requirement, 64-bit architecture requirement (arm64-v8a), sensitive permissions exclusions (USE_EXACT_ALARM, MANAGE_EXTERNAL_STORAGE), and account deletion pathways.",
+        "Author docs/engineering/android-release-candidate-identity-and-signing.md and docs/engineering/android-talkback-verification-protocol.md defining candidate specifications and human TalkBack spoken listen-through protocols.",
+        "Execute and verify 7 e2e tests in tests/e2e/phase116-android-release-verification.test.ts and 9 mobile interaction journey tests in apps/mobile/src/phase116-native-android-journeys.test.ts covering sign-in and account switching isolation, local storage recovery, create/save/reopen lifecycle, offline restart, notifications, microphone behavior, landscape/large-text scaling, hardware Back navigation stack, and TalkBack accessibility contracts.",
+        "Truthfully record physical ARM64 hardware absence (adb devices -l empty) and unconfigured owner production keystore as blocked under DEF-V2-011 and OWNER-SIGNING-KEYS; keep emulator evidence separate.",
+        "Author ADR 0116, Phase 116 report, artifacts/phase116 package, update function register, progress.json, CHANGELOG.md, and rebuild blueprint."
+      ],
+      "acceptance": [
+        "Release-candidate artifact identity verified: packageId com.daynori.app, targetSdk 36, compileSdk 36, minSdk 24, versionCode 1, newArchEnabled true.",
+        "Fail-closed release signing guard (daynoriReleaseSigningGuard) actively halts distributable release tasks when owner production keystore is unconfigured.",
+        "Debug APKs (app-debug-arm64.apk, etc.) are strictly segregated as local test artifacts and never distributed as release builds.",
+        "Current Google Play developer requirements verified against official documentation (Target API 36, App Bundle format, 64-bit, zero restricted exact alarm permissions, in-app/web account deletion).",
+        "Comprehensive human TalkBack spoken verification protocol authored in docs/engineering/android-talkback-verification-protocol.md covering navigation chrome, forms, validation errors (accessibilityRole='alert'), modal containment (accessibilityViewIsModal=true), and focus return.",
+        "Physical ARM64 smartphone absence and unprovisioned release keystore truthfully recorded as blocked under DEF-V2-011 and OWNER-SIGNING-KEYS; emulator evidence strictly separated.",
+        "All 16 automated tests (7 e2e, 9 mobile journeys) pass cleanly.",
+        "Standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "node scripts/mobile-android-release-path.mjs inspect",
+        "pnpm vitest run tests/e2e/phase116-android-release-verification.test.ts apps/mobile/src/phase116-native-android-journeys.test.ts",
+        "pnpm --filter @daynori/mobile typecheck",
+        "pnpm --filter @daynori/ui-mobile typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0071-native-android-settings-hub-and-insets.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0106-daynori-native-android-interface-refinement-and-component-overhaul.md",
+        "docs/decisions/0115-voice-assistant-audio-memory-cleanup-and-speech-capture-correction.md",
+        "docs/decisions/0116-native-android-release-verification-and-physical-hardware-audit.md",
+        "docs/phase-reports/phase-71.md",
+        "docs/phase-reports/phase-106.md",
+        "docs/phase-reports/phase-115.md",
+        "docs/phase-reports/phase-116.md",
+        "docs/engineering/android-release-candidate-identity-and-signing.md",
+        "docs/engineering/android-talkback-verification-protocol.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(android): verify release candidate signing and physical hardware release gates"
     }
   ],
   "featureCoverage": [

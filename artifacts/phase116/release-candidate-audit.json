@@ -1,0 +1,93 @@
+{
+  "phase": "116",
+  "audit": "android-release-candidate-identity-and-signing",
+  "timestamp": "2026-11-14T12:30:00.000Z",
+  "status": "verified_gated",
+  "artifactIdentity": {
+    "packageId": "com.daynori.app",
+    "versionCode": 1,
+    "versionName": "2.0.0-candidate",
+    "targetSdkVersion": 36,
+    "compileSdkVersion": 36,
+    "minSdkVersion": 24,
+    "newArchEnabled": true,
+    "jsEngine": "Hermes",
+    "architectures": ["arm64-v8a", "x86_64"],
+    "distributionFormat": "Android App Bundle (.aab)"
+  },
+  "releaseSigningGuard": {
+    "plugin": "apps/mobile/plugins/withReleaseSigningGuard.js",
+    "gradleHook": "daynoriReleaseSigningGuard in apps/mobile/android/app/build.gradle",
+    "guardPresent": true,
+    "silentDebugFallback": false,
+    "failClosedOnMissingKeystore": true,
+    "requiredEnvironmentKeys": [
+      "DAYNORI_RELEASE_STORE_FILE",
+      "DAYNORI_RELEASE_STORE_PASSWORD",
+      "DAYNORI_RELEASE_KEY_ALIAS",
+      "DAYNORI_RELEASE_KEY_PASSWORD"
+    ]
+  },
+  "debugApkSegregation": {
+    "rule": "Never distribute a debug APK as a release build",
+    "status": "enforced",
+    "inspectedApks": [
+      {
+        "path": "artifacts/release/app-debug-arm64.apk",
+        "signing": "debug (local-test only — not release-eligible)",
+        "distributable": false
+      },
+      {
+        "path": "artifacts/release/app-debug-x86_64.apk",
+        "signing": "debug (local-test only — not release-eligible)",
+        "distributable": false
+      },
+      {
+        "path": "artifacts/release/app-embedded-x86_64.apk",
+        "signing": "debug (local-test only — not release-eligible)",
+        "distributable": false
+      }
+    ]
+  },
+  "googlePlayPolicyCompliance": {
+    "targetApiRequirement": {
+      "policyRef": "https://support.google.com/googleplay/android-developer/answer/11926878?hl=en",
+      "requiredTargetApi": "34+",
+      "actualTargetApi": 36,
+      "compliant": true
+    },
+    "appBundleRequirement": {
+      "policyRef": "https://support.google.com/googleplay/android-developer/answer/9842754?hl=en",
+      "requiredFormat": "Android App Bundle (.aab)",
+      "targetTask": "bundleRelease",
+      "compliant": true
+    },
+    "architecture64Bit": {
+      "policyRef": "https://developer.android.com/google/play/requirements/64-bit",
+      "supportedAbis": ["arm64-v8a", "x86_64"],
+      "compliant": true
+    },
+    "sensitivePermissions": {
+      "policyRef": "https://support.google.com/googleplay/android-developer/answer/16558241?hl=en",
+      "useExactAlarm": "excluded",
+      "manageExternalStorage": "excluded",
+      "compliant": true
+    },
+    "accountDeletion": {
+      "policyRef": "https://support.google.com/googleplay/android-developer/answer/13327111?hl=en",
+      "inAppPath": "Settings -> Account -> Delete Account (MobileAccountDeletionSheet)",
+      "webPath": "https://app.daynori.com/delete-account",
+      "compliant": true
+    }
+  },
+  "gatedStates": {
+    "OWNER-SIGNING-KEYS": {
+      "status": "blocked",
+      "reason": "Owner production keystore, password, and alias unconfigured in repository environment."
+    },
+    "DEF-V2-011": {
+      "status": "blocked",
+      "reason": "Physical ARM64 smartphone hardware and spoken TalkBack screen-reader ear review unavailable in test runner."
+    }
+  }
+}

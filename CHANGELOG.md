@@ -1,5 +1,39 @@
 # Changelog
 
+## Phase 116 — Daynori native Android release-candidate verification and physical hardware audit — 2026-11-14
+
+- ADR 0116: Native Android Release-Candidate Verification and Physical Hardware Audit, verifying release-candidate identity and signing architecture, auditing official Google Play developer requirements, establishing human TalkBack spoken verification protocol, evaluating 8 core mobile interaction journeys, and maintaining fail-closed release gates DEF-V2-011 and OWNER-SIGNING-KEYS.
+- Release-Candidate Identity and Signing Specification Authored:
+  - Authored `docs/engineering/android-release-candidate-identity-and-signing.md`:
+    - Artifact identity: `packageId: "com.daynori.app"`, `versionCode: 1`, `versionName: "2.0.0-candidate"`, `targetSdkVersion: 36`, `compileSdkVersion: 36`, `minSdkVersion: 24`, 64-bit architectures (`arm64-v8a`, `x86_64`), React Native New Architecture (`newArchEnabled = true`), Hermes engine.
+    - Release signing architecture: verified `daynoriReleaseSigningGuard` in `apps/mobile/android/app/build.gradle` actively halting distributable release tasks (`bundleRelease`, `assembleRelease`) when owner production release keystore is unconfigured, preventing silent fallback to `debug.keystore`.
+    - Debug APK segregation: verified `app-debug-arm64.apk`, `app-debug-x86_64.apk`, and `app-embedded-x86_64.apk` are signed with `androiddebugkey` and are strictly barred from release distribution.
+    - Google Play policy compliance audited: target API 34+ requirement (Daynori targets API 36), Play App Signing Android App Bundle (`.aab`) format requirement, 64-bit architecture requirement, exclusion of sensitive restricted permissions (`USE_EXACT_ALARM`, `MANAGE_EXTERNAL_STORAGE`), in-app and web account deletion paths, and Data Safety disclosures.
+- Human TalkBack Spoken Verification Protocol Authored:
+  - Authored `docs/engineering/android-talkback-verification-protocol.md`:
+    - Five comprehensive spoken verification sections: (1) Navigation Chrome & Header Announcements, (2) Forms, Inputs, and Entity Selector Chips, (3) Live Validation Errors and Alert Announcements (`accessibilityRole="alert"`), (4) Modal Containment (`accessibilityViewIsModal={true}`) and confirmation dialogs, (5) Accessibility Focus Return Lifecycle upon sheet/dialog dismissal.
+    - Spoken execution log template established for human ear auditor on physical ARM64 hardware; status truthfully recorded as blocked under `DEF-V2-011`.
+- Mobile Interaction Journeys Verified (9/9 Passed):
+  - Authored `apps/mobile/src/phase116-native-android-journeys.test.ts`:
+    - Journey 1: Two-account sign-in and switching isolation across local repositories.
+    - Journey 2: Local storage recovery, entity draft preservation, and create/save/reopen lifecycle.
+    - Journey 3: Offline restart and cold launch operability on TodayView.
+    - Journey 4: Microphone behavior (permission denied text typing fallback vs recording cancellation via `discardRecordingAsync`).
+    - Journey 5: Landscape orientation and large text scaling (>= 48dp touch targets).
+    - Journey 6: Hardware Back button navigation priority stack.
+    - Journey 7: TalkBack accessibility tree contracts (`accessibilityRole="alert"`, `accessibilityViewIsModal={true}`, focus return).
+- Release & Policy E2E Test Suite Verified (7/7 Passed):
+  - Authored `tests/e2e/phase116-android-release-verification.test.ts`:
+    - Verified candidate package identity, targetSdk 36, compileSdk 36, minSdk 24, versionCode 1, newArchEnabled true.
+    - Verified `scripts/mobile-android-release-path.mjs inspect` output and Gradle signing guard configuration.
+    - Verified strict prohibition on distributing debug APKs as release builds.
+    - Verified Google Play developer policy compliance boundaries.
+    - Verified physical ARM64 hardware absence recorded as blocked under `DEF-V2-011` and emulator evidence strictly separated.
+- Artifacts Package Authored in `artifacts/phase116/`:
+  - `release-candidate-audit.json`, `talkback-protocol.json`, `android-journeys-matrix.json`, `live-blocked.json`, and `evidence-summary.json`.
+- Preserved Release Gates & Fail-Closed Boundaries:
+  - All standing release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71) remain strictly blocked.
+
 ## Phase 115 — Daynori voice-assistant audio memory cleanup correction and speech capture verification — 2026-11-14
 
 - ADR 0115: Voice-Assistant Audio Memory Cleanup and Speech Capture Correction, remediating server audio-memory cleanup vulnerability (`Buffer.alloc(0)` vs `buffer.fill(0)`), defining practical V8/Node.js memory limits, generating 5 real synthetic WAV audio fixtures, testing Bangla Unicode (`\u0980-\u09FF`), English, Banglish, silence, and low-confidence speech, auditing reviewed organizer creation for voice, and preserving fail-closed release gates `DEF-V2-008` and `DEF-V2-011`.

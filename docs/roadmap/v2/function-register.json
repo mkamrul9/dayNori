@@ -7437,7 +7437,9 @@
       ],
       "environment": "local-windows-daynori_test-synthetic-jwt",
       "evidenceRefs": [
-        "docs/phase-reports/phase-60.md"
+        "docs/phase-reports/phase-60.md",
+        "artifacts/phase116/evidence-summary.json",
+        "docs/phase-reports/phase-116.md"
       ],
       "workaround": "Emulator/browser evidence only, labeled as such.",
       "dependency": "Physical device + Phases 71/85/99.",
