@@ -10,6 +10,7 @@ import {
 import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 import { MobileButton } from '@daynori/ui-mobile';
 import type { DriveConnection, DriveLinkedFile, DriveLinkMode } from '@daynori/contracts';
+import { buildAuthorizedDriveTree } from '@daynori/domain';
 import type { DaynoriApiClient } from '@daynori/api-client';
 
 export interface DriveConnectionsSheetProps {
@@ -304,50 +305,134 @@ export function DriveConnectionsSheet({
         </View>
       ) : null}
 
-      {/* Linked Files Section */}
+      {/* Linked Files & Authorized Folders Hierarchy (Phase 107) */}
       {files.length > 0 ? (
         <View style={{ marginTop: spacing.base }}>
-          <Text style={{ fontWeight: '700', color: palette.text.primary, marginBottom: spacing.xs, fontSize: 14 }}>
-            Linked & Imported Files ({files.length})
-          </Text>
-          {files.map((f) => (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs }}>
+            <Text style={{ fontWeight: '700', color: palette.text.primary, fontSize: 14 }}>
+              Authorized Folders & Files ({files.length})
+            </Text>
+            <Text style={{ fontSize: 11, color: palette.text.secondary }}>
+              Bounded to user-picked selections
+            </Text>
+          </View>
+
+          {buildAuthorizedDriveTree(files).map((node) => (
             <View
-              key={f.id}
+              key={node.id}
               style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingVertical: spacing.xs,
-                borderBottomWidth: 1,
-                borderBottomColor: palette.border.subtle,
+                marginBottom: spacing.xs,
+                borderRadius: radii.sm,
+                borderWidth: 1,
+                borderColor: palette.border.subtle,
+                backgroundColor: node.isFolder ? palette.surfaceRaised : palette.surface,
+                overflow: 'hidden',
               }}
             >
-              <View style={{ flex: 1, paddingRight: spacing.sm }}>
-                <Text style={{ color: palette.text.primary, fontWeight: '600', fontSize: 13 }}>
-                  {f.displayName}
-                </Text>
-                <Text
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: spacing.sm,
+                }}
+              >
+                <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {node.isFolder ? (
+                      <View
+                        style={{
+                          backgroundColor: palette.action.subtle,
+                          paddingHorizontal: 4,
+                          paddingVertical: 2,
+                          borderRadius: radii.sm,
+                        }}
+                      >
+                        <Text style={{ color: palette.action.primary, fontSize: 10, fontWeight: '700' }}>
+                          FOLDER
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text style={{ color: palette.text.primary, fontWeight: '600', fontSize: 13 }}>
+                      {node.displayName}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      color:
+                        node.availability === 'permission_lost' || node.availability === 'source_unavailable'
+                          ? palette.status.danger
+                          : palette.text.secondary,
+                      fontSize: 11,
+                      marginTop: 2,
+                    }}
+                  >
+                    {node.linkMode} · {node.availability}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => void unlink(node.id, node.displayName)}
+                  disabled={busy || unlinkingId === node.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Unlink ${node.displayName}`}
+                >
+                  <Text style={{ color: palette.status.danger, fontSize: 12, fontWeight: '600' }}>
+                    {unlinkingId === node.id ? '…' : 'Unlink'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {node.isFolder ? (
+                <View
                   style={{
-                    color:
-                      f.availability === 'permission_lost' || f.availability === 'source_unavailable'
-                        ? palette.status.danger
-                        : palette.text.secondary,
-                    fontSize: 11,
+                    borderTopWidth: 1,
+                    borderTopColor: palette.border.subtle,
+                    paddingLeft: spacing.base,
+                    paddingRight: spacing.sm,
+                    paddingBottom: spacing.xs,
+                    backgroundColor: palette.surface,
                   }}
                 >
-                  {f.linkMode} · {f.availability}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => void unlink(f.id, f.displayName)}
-                disabled={busy || unlinkingId === f.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Unlink ${f.displayName}`}
-              >
-                <Text style={{ color: palette.status.danger, fontSize: 12, fontWeight: '600' }}>
-                  {unlinkingId === f.id ? '…' : 'Unlink'}
-                </Text>
-              </Pressable>
+                  {node.children.length > 0 ? (
+                    node.children.map((child) => (
+                      <View
+                        key={child.id}
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 4,
+                          borderBottomWidth: 1,
+                          borderBottomColor: palette.border.subtle,
+                        }}
+                      >
+                        <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                          <Text style={{ color: palette.text.primary, fontSize: 12, fontWeight: '500' }}>
+                            {child.displayName}
+                          </Text>
+                          <Text style={{ color: palette.text.secondary, fontSize: 10 }}>
+                            {child.linkMode} · {child.availability}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => void unlink(child.id, child.displayName)}
+                          disabled={busy || unlinkingId === child.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Unlink ${child.displayName}`}
+                        >
+                          <Text style={{ color: palette.status.danger, fontSize: 11, fontWeight: '600' }}>
+                            {unlinkingId === child.id ? '…' : 'Unlink'}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={{ color: palette.text.secondary, fontSize: 10, fontStyle: 'italic', marginVertical: 4 }}>
+                      Under narrow drive.file, unpicked files in this folder are invisible.
+                    </Text>
+                  )}
+                </View>
+              ) : null}
             </View>
           ))}
         </View>

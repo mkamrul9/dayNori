@@ -1,5 +1,32 @@
 # Changelog
 
+## Phase 107 — Bounded Google Drive folder authorization and scope boundary review — 2026-11-14
+
+- ADR 0107: Bounded Google Drive folder authorization and scope boundary review evaluating the deferred Phase 50 decision, Phase 87 audit, and Google OAuth `drive.file` container selection behavior.
+- Scope Boundary & Descendant Analysis:
+  - Proved via live runner and synthetic tests that `https://www.googleapis.com/auth/drive.file` grants per-resource access to the picked folder container itself, but does not grant OAuth access to unpicked pre-existing children or external additions made in Google Drive.
+  - Implemented `evaluateDescendantAuthorization`: validates that under `drive.file`, children are authorized only if created by Daynori (`app_created`) or individually picked (`picker_selected`). Pre-existing unpicked or external additions fail closed as unauthorized (`drive_file_scope_does_not_grant_unpicked_descendants`).
+- Bounded Folder Tree Representation:
+  - Implemented `buildAuthorizedDriveTree` in `@daynori/domain` (`packages/domain/src/driveConnector.ts`) to construct familiar nested folder hierarchies for authorized items.
+  - Enhanced Web (`apps/web/src/components/DriveConnectionsPanel.tsx`) and Mobile (`apps/mobile/src/views/DriveConnectionsSheet.tsx`) UI to render folder badges (`[FOLDER]`), indented child hierarchies, clear copy vs. reference indicators, and truthful guidance for empty/unpicked folders.
+  - Enforced `validateTraversalBoundary`: strictly prohibits root Drive enumeration and parent/sibling folder crawling outside user-selected folder IDs ("Do not enumerate or import the rest of Drive").
+- Disconnect & Revocation Guarantees:
+  - Verified disconnect atomically wipes stored tokens, increments generation, cancels in-flight jobs, preserves imported copies locally (`retainedImportedCopies: true`), and guarantees remote Google Drive originals are never deleted or trashed (`remoteOriginalDeleted: false`).
+- Vault Strict Exclusion & Multi-Tenant Scoping:
+  - Preserved strict vault exclusion (`isVaultDriveTarget`) with HTTP 403 `vault_excluded`.
+  - Scoped all Drive operations, tokens, and records to authorized workspace and actor account.
+- Comprehensive Broader-Scope Proposal:
+  - Authored `docs/engineering/google-drive-restricted-scope-mirroring-proposal.md` specifying candidate restricted scopes (`drive.readonly`, `drive`), App Defense Alliance (ADA) CASA Assurance Level AL2 requirements, annual recertification, and $675 to $5,400+ annual lab costs.
+  - Recursive folder mirroring remains strictly gated fail-closed under `DEF-V2-005` until owner authorization and CASA certification are completed.
+- Automated Evidence & Tests:
+  - Verified 17 integration tests in `tests/integration/phase107-drive-folder-boundary.test.ts` (17/17 passed).
+  - Maintained 100% pass across all 45 Drive tests across monorepo (`tests/integration/phase87-drive-connection-readiness.test.ts`, `tests/spikes/drive/drive-scope.synthetic.test.ts`).
+  - Recorded provider evidence in `artifacts/phase107/provider-evidence.json`, `artifacts/phase107/live-blocked.json`, and `artifacts/phase107/evidence-summary.json`.
+- Gate-by-Gate Reporting:
+  - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification.
+  - Phase 107 status recorded as `blocked` pending owner Google Cloud OAuth credentials and live interactive consent (`DEF-V2-005`) and CASA restricted scope authorization. No production deployment or release readiness claimed from local tests.
+
+
 ## Phase 106 — Daynori native Android interface refinement and component overhaul — 2026-11-14
 
 - ADR 0106: Daynori native Android interface refinement and component overhaul adapting Phase 105's visual hierarchy to native mobile idioms (top app bar, bottom navigation bar, bottom modal sheets, subtle elevation/shadows, and calm hairline dividers), preserving shared domain contracts, local drafts, and hardware Back navigation.

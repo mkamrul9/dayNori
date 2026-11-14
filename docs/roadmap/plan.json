@@ -3963,6 +3963,59 @@
         "docs/phase-reports/phase-105.md"
       ],
       "commit": "refactor(mobile): adapt modern visual hierarchy and calm card borders to native android components"
+    },
+    {
+      "id": "107",
+      "group": "v2-capabilities",
+      "title": "Bounded Google Drive folder authorization and scope boundary review",
+      "dependsOn": [
+        "87",
+        "106"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/web",
+        "apps/mobile",
+        "docs/engineering",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase107",
+        "tests/integration"
+      ],
+      "steps": [
+        "Review deferred Phase 50 decision (ADR 0046) and Phase 87 audit (ADR 0087); run live and synthetic Google Picker/OAuth tests to evaluate whether drive.file grants descendants and future additions.",
+        "Formulate bounded folder tree hierarchy (buildAuthorizedDriveTree) in domain and present authorized folder structures with familiar hierarchy and truthful empty/unpicked notices in Web and Mobile UI.",
+        "Enforce strict traversal boundaries preventing root Drive enumeration or unselected parent/sibling folder crawling; preserve vault exclusion and multi-tenant workspace isolation.",
+        "Verify disconnect and revocation guarantees: tokens wiped, in-flight jobs fenced, imported copies retained in app storage, and remote Drive originals never deleted or trashed.",
+        "Since drive.file does not authorize unpicked descendants, author a comprehensive broader-scope proposal detailing candidate restricted scopes (drive.readonly, drive), mandatory ADA CASA AL2 security assessment, annual recertification, and cost requirements; keep recursive mirroring gated fail-closed under DEF-V2-005."
+      ],
+      "acceptance": [
+        "Synthetic tests prove drive.file authorizes folder container and app-created/picked children, but denies unpicked pre-existing or external descendants.",
+        "Authorized folder tree hierarchy rendered with familiar nesting and clear copy vs. reference indicators on Web and Mobile.",
+        "Disconnect and revocation cleanly wipe tokens without deleting or trashing remote Google Drive originals.",
+        "Vault items and keys are strictly excluded (isVaultDriveTarget), failing closed with 403 vault_excluded.",
+        "Multi-tenant workspace scoping verified with zero cross-workspace data leakage.",
+        "Concrete broader-scope proposal authored with current Google verification and CASA AL2 cost requirements; recursive mirroring remains gated."
+      ],
+      "checks": [
+        "pnpm vitest run tests/integration/phase107-drive-folder-boundary.test.ts tests/integration/phase87-drive-connection-readiness.test.ts tests/spikes/drive/drive-scope.synthetic.test.ts",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm --filter @daynori/mobile typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0046-drive-scope-and-folder-access.md",
+        "docs/decisions/0087-google-drive-connection-and-scope-readiness.md",
+        "docs/decisions/0107-bounded-google-drive-folder-authorization-and-scope-boundary.md",
+        "docs/engineering/google-drive-restricted-scope-mirroring-proposal.md",
+        "docs/phase-reports/phase-50.md",
+        "docs/phase-reports/phase-87.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "feat(drive): verify bounded drive folder trees and proposal for restricted scope"
     }
   ],
   "featureCoverage": [
@@ -4128,7 +4181,8 @@
       "phases": [
         "48",
         "49",
-        "50"
+        "50",
+        "107"
       ],
       "requirements": [
         "R-DRIVE"

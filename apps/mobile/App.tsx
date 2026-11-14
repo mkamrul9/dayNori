@@ -1393,7 +1393,7 @@ export default function App() {
             <AssistantSheet
               themeMode={themeMode}
               workspaceId={userNamespace?.workspaceId ?? 'workspace-default'}
-              apiClient={apiClient ?? ({} as any)}
+              apiClient={apiClient ?? ({} as unknown as DaynoriApiClient)}
               isGated={true}
               onClose={() => {
                 if (settingsGroup) {
