@@ -1,0 +1,57 @@
+{
+  "phase": "113",
+  "name": "Daynori Google Drive provider-verification and authorized folder access audit",
+  "timestamp": "2026-11-14T09:44:22.000Z",
+  "provider": {
+    "name": "Google Drive API v3 & Google Picker API v2",
+    "requestedScope": "https://www.googleapis.com/auth/drive.file",
+    "environmentConfig": {
+      "DAYNORI_DRIVE_CLIENT_ID": "unset",
+      "DAYNORI_DRIVE_CLIENT_SECRET": "unset",
+      "DAYNORI_DRIVE_API_KEY": "unset",
+      "DAYNORI_DRIVE_REDIRECT_URI": "http://127.0.0.1:8765/oauth2callback"
+    },
+    "liveExecutionOutcome": "blocked",
+    "gateId": "DEF-V2-005",
+    "gateStatus": "blocked (fail-closed pending owner Google Cloud OAuth credentials and live interactive consent)"
+  },
+  "scopeExposures": {
+    "drive.file": {
+      "tier": "Non-sensitive / Narrow",
+      "grantModel": "Per-file and per-container resource authorization",
+      "folderSelectionBehavior": "Selecting a folder in Google Picker authorizes the folder container metadata, but DOES NOT cascade grants to pre-existing unpicked files or new external additions.",
+      "authorizedItems": [
+        "Folder container explicitly selected in Google Picker",
+        "Individual files explicitly selected in Google Picker",
+        "Files created or uploaded by Daynori into the folder"
+      ],
+      "deniedItems": [
+        "Pre-existing files inside the selected folder that were not picked",
+        "External additions dropped into the folder via drive.google.com or other apps",
+        "Root Drive and sibling/parent folders"
+      ],
+      "verificationRequirement": "Standard Google OAuth App Verification (no CASA assessment required)",
+      "annualCostUsd": 0
+    },
+    "drive.readonly": {
+      "tier": "Restricted Scope",
+      "grantModel": "Read-only access across entire user Google Drive",
+      "folderSelectionBehavior": "Enables automatic discovery and one-way recursive mirroring of all files in chosen folder, but exposes all user Drive contents.",
+      "verificationRequirement": "Mandatory Tier 2 Cloud Application Security Assessment (CASA AL2) by authorized lab, annual recertification, Letter of Validation (LOV), and Google OAuth restricted scope review.",
+      "annualCostUsd": "2,500 - 5,400+ USD/year"
+    },
+    "drive": {
+      "tier": "Restricted Scope",
+      "grantModel": "Full read/write access across entire user Google Drive",
+      "folderSelectionBehavior": "Enables two-way folder synchronization, move/delete, but requires unrestricted access.",
+      "verificationRequirement": "Mandatory Tier 2 CASA AL2 assessment, annual penetration testing, Google restricted scope review.",
+      "annualCostUsd": "2,500 - 15,000+ USD/year"
+    }
+  },
+  "acceptedProductBehavior": {
+    "mode": "bounded_folder_tree",
+    "scope": "https://www.googleapis.com/auth/drive.file",
+    "uiRepresentation": "Familiar indented folder hierarchy rendered via buildAuthorizedDriveTree; unpicked items remain suppressed; copy vs reference status clearly badged.",
+    "disconnectGuarantees": "Tokens wiped, generation incremented, jobs fenced, imported copies retained in Daynori, remote Drive originals never deleted or trashed."
+  }
+}

@@ -1,5 +1,41 @@
 # Changelog
 
+## Phase 113 — Daynori Google Drive provider-verification and authorized folder access audit — 2026-11-14
+
+- ADR 0113: Daynori Google Drive provider-verification and authorized folder access audit, evaluating narrow `drive.file` scope boundaries, preparing owner Google Cloud OAuth and synthetic test account review packages, testing 11 core provider scenarios, maintaining bounded folder tree hierarchy, and evaluating restricted scope CASA AL2 requirements.
+- Google Cloud OAuth Configuration Package for Owner Review:
+  - Authored `docs/engineering/google-drive-oauth-verification-guide.md` specifying GCP project setup (`daynori-drive-audit`), Google Drive API v3 and Google Picker API v2 enablement, OAuth consent screen (External, Testing status, narrow `drive.file`), Web Application OAuth 2.0 client IDs, HTTP referrer restrictions for API keys, and synthetic test account folder topology (`Daynori Test Root`, `pre-existing-doc.txt`, `Nested Subfolder`, `Daynori App Uploads`, `external-addition-doc.txt`, `never-picked-confidential.txt`).
+  - Authored `tests/spikes/drive/config.local.env.example` defining exact required keys, strictly gitignored to guarantee zero credential or secret leakage into Git or logs.
+- Live Provider Execution & Truthful Status Recording:
+  - Executed live spike runner via `node tests/spikes/drive/run-spike.mjs --mode=live`.
+  - Faithfully recorded `outcome: "blocked"`, `reason: "missing_oauth_config"` in `artifacts/phase113/live-blocked.json` and `artifacts/phase113/provider-evidence.json` due to absence of owner credentials in the local environment.
+  - Zero live Google tokens minted; live Google Drive integration remains fail-closed under `DEF-V2-005`.
+- Eleven Core Provider Scenarios Integration Verification (15/15 Passed):
+  - Authored `tests/integration/phase113-drive-provider-verification.test.ts` verifying all 11 required scenarios:
+    1. *Selected folder with existing files*: Container authorized under `drive.file`; unpicked pre-existing children return `authorized: false` (`reason: 'drive_file_scope_does_not_grant_unpicked_descendants'`). Provider fetch throws `not_found`.
+    2. *New externally added file*: Files dropped into folder externally return `authorized: false`. Traversal boundary rejects querying outside authorized set.
+    3. *Nested folders*: Unpicked nested subfolders are denied; when individually picked, `buildAuthorizedDriveTree` preserves clean nested folder hierarchy.
+    4. *Individually picked files*: Authorized via Picker per-resource grant; verified both `link_reference` (zero local storage) and `import_copy` (local SHA-256 integrity and malware quarantine).
+    5. *App-created files*: Authorized under `drive.file`; uploaded into folder with idempotency key (`uploadAppFile`) and properly nested in tree.
+    6. *Move and delete*: Moving files updates tree hierarchy. Trashing remote file marks `trashed: true` and `source_unavailable`. Remote original preservation invariant verified (`remoteOriginalDeleted: false`).
+    7. *Permission loss*: Remote token revocation or 403 `permission_denied` transitions safely fail-closed without crashing.
+    8. *Pagination*: Paging chunks authorized items with `pageToken` while enforcing traversal boundaries for every page item.
+    9. *Token expiry & refresh*: Access tokens have 1-hour TTL. Refresh token rotation exchanges expired access tokens. Sealed at rest with AES-256-GCM + AAD.
+    10. *Revoke and disconnect*: Calling disconnect atomically wipes stored tokens (`refresh_token_ciphertext = NULL`), increments connection generation, fences in-flight jobs, retains imported copies, and leaves remote Google Drive files completely untouched.
+    11. *Vault exclusion & workspace isolation*: `isVaultDriveTarget` strictly rejects vault items with HTTP 403 `vault_excluded`. Multi-tenant tenancy rejects cross-workspace queries with 403/404.
+- Bounded Authorized Folder Tree Hierarchy:
+  - Preserved `buildAuthorizedDriveTree` hierarchy presentation, rendering authorized folder containers and child files with familiar nesting without enumerating the rest of Drive.
+  - Suppressed unpicked descendant files with truthful guidance.
+- Restricted Scope CASA AL2 Cost Model & Gating:
+  - Evaluated broader restricted scopes (`drive.readonly` / `drive`) required for recursive folder mirroring.
+  - Documented mandatory App Defense Alliance (ADA) Tier 2 Cloud Application Security Assessment (CASA AL2) by authorized external labs, incurring $2,500 to $6,000+ USD/year in recurring assessment and penetration testing costs.
+  - Preserved recursive folder mirroring as strictly disabled fail-closed under `DEF-V2-005` / `DEF-V2-014` pending owner approval and funding.
+- Help Documentation Integrity:
+  - Updated `help.drive-optional` in `packages/domain/src/help/catalogData.ts` to `contentVersion: 2`.
+  - Detailed narrow `drive.file` scope, folder container boundary, picker requirements for children, copy vs. reference models, and remote original preservation on disconnect.
+- Preserved Release Gates & Fail-Closed Boundaries:
+  - Preserved all standing release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71) as strictly blocked.
+
 ## Phase 112 — Daynori core web/PWA browser release verification and staging isolation audit — 2026-11-14
 
 - ADR 0112: Daynori core web/PWA browser release verification and staging isolation audit, replacing synthetic API-only or file-assertion claims with 10 actual headless Chrome browser journeys executed against an isolated staging deployment (`daynori_test` PostgreSQL, synthetic RS256 Auth IdP port 54321, Fastify API port 3114, Next.js production PWA port 3116, and CDP port 9232).

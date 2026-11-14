@@ -1580,7 +1580,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     "essentialOffline": false,
     "gatedFeature": true,
     "id": "help.drive-optional",
-    "contentVersion": 1,
+    "contentVersion": 2,
     "categoryId": "optional",
     "title": {
       "key": "help.help.drive-optional.title",
@@ -1588,12 +1588,15 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     },
     "summary": {
       "key": "help.help.drive-optional.summary",
-      "defaultText": "Connect Drive only with reviewed scopes; disconnect revokes access."
+      "defaultText": "Connect Drive under narrow drive.file; choose folders or files; disconnect revokes access without deleting remote originals."
     },
     "keywords": [
       "optional",
       "google",
-      "drive"
+      "drive",
+      "folder",
+      "mirroring",
+      "disconnect"
     ],
     "relatedActionIds": [
       "drive.connect",
@@ -1604,25 +1607,37 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
       {
         "instruction": {
           "key": "help.help.drive-optional.step.0",
-          "defaultText": "Open Drive settings when the feature is released for your account."
+          "defaultText": "Open Drive settings in Settings > Drive when the feature is enabled for your workspace."
         }
       },
       {
         "instruction": {
           "key": "help.help.drive-optional.step.1",
-          "defaultText": "Review scopes before authorizing. Select what to sync."
+          "defaultText": "Review requested scope (https://www.googleapis.com/auth/drive.file). Authorize only specific folders or files."
         }
       },
       {
         "instruction": {
           "key": "help.help.drive-optional.step.2",
-          "defaultText": "Disconnect/revoke when you no longer want access."
+          "defaultText": "Selecting a folder authorizes the folder container. Pre-existing or external unpicked files inside the folder require individual picker selection unless created by Daynori."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.drive-optional.step.3",
+          "defaultText": "Choose between Imported Copy (offline-ready, malware-scanned) and Provider Reference (zero local storage, online only)."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.drive-optional.step.4",
+          "defaultText": "Disconnect or revoke access anytime: Daynori wipes stored tokens and cancels jobs, keeping remote Google Drive files completely untouched."
         }
       }
     ],
     "expectedResult": {
       "key": "help.help.drive-optional.expected",
-      "defaultText": "Unavailable Drive is explained — Help does not invent a connected account."
+      "defaultText": "Authorized files and folders appear in a familiar tree hierarchy. Disconnect never deletes remote files."
     },
     "learningChapterId": "chapter.optional-gated"
   },
